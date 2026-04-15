@@ -70,7 +70,7 @@ TEST_CASE("NL Convection PA Gradient",
           "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
    const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(2, 3);
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(2, 3, 4);
 
    SECTION("2D")
    {

@@ -418,9 +418,16 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   using VectorConvectionNLFAddMultPAType =
+      void(*)(const int ne,
+              const Array<real_t> &B, const Array<real_t> &G,
+              const Vector &Q, const Vector &x, Vector &y,
+              const int d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultPA,
+                         VectorConvectionNLFAddMultPAType,
+                         (int, int, int));
 
-   void AddMultMF(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
 
    using VectorConvectionNLFAddMultGradPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
@@ -429,6 +436,8 @@ public:
    MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA,
                          VectorConvectionNLFAddMultGradPAType,
                          (int, int, int));
+
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

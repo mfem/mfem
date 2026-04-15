@@ -150,6 +150,33 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("dim " << dim << " not supported!");
    }
+
+   if (static auto done = false; !std::exchange(done, true))
+   {
+      // 2D
+      VectorConvectionNLFAddMultPA::Specialization<2, 2,2>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 3,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 3,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 4,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 4,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 5,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 5,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 6,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 7,10>::Add();
+      // 3D
+      VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,9>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 6,9>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 7,10>::Add();
+   }
 }
 
 // PA Convection NL 2D kernel
@@ -310,8 +337,8 @@ static void SmemPAConvectionNLApply2D(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 16;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 16;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -677,8 +704,6 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   dbg("D1D: {} Q1D: {}", D1D, Q1D);
-   // assert(D1D == 3 && Q1D == 4);
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX_D1D;
    constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX_Q1D;
    MFEM_VERIFY(D1D <= MD1, "");
@@ -717,10 +742,8 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
       real_t(*QDD0)[MD1][MD1] = (real_t(*)[MD1][MD1])(sm0 + 0);
       MFEM_SHARED real_t Z[MQ1][MQ1][MQ1];
 
-      dbg("\x1b[33me:{}", e);
       for (int cy = 0; cy < VDIM; ++cy)
       {
-         dbg("\x1b[31mcy:{}", cy);
          if (tidz == 0)
          {
             MFEM_FOREACH_THREAD(q, x, Q1D)
@@ -742,7 +765,6 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
          MFEM_SYNC_THREAD;
          for (int c = 0; c < VDIM; ++c)
          {
-            dbg("\x1b[32mc:{}", c);
             MFEM_FOREACH_THREAD(dz, z, D1D)
             {
                MFEM_FOREACH_THREAD(dy, y, D1D)
@@ -842,20 +864,12 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
                      const real_t gZ = QQQ2[qz][qy][qx];
                      const real_t d = gX * D(q, 0, c, e) + gY * D(q, 1, c, e)
                                       + gZ * D(q, 2, c, e);
-                     if (q == 0)
-                     {
-                        dbg("z: {}", z);
-                        dbg("gX: {} gY: {} gZ: {}", gX, gY, gZ);
-                        dbg("D: {} {} {}", D(q, 0, c, e), D(q, 1, c, e), D(q, 2, c, e));
-                        dbg("\x1b[35md: {}", d);
-                     }
                      Z[qz][qy][qx] += z * d;
                   }
                }
             }
             MFEM_SYNC_THREAD;
          } // for each conv component
-         dbg("\x1b[37mZ[0][0][0]: {}", Z[0][0][0]);
          if (tidz == 0)
          {
             MFEM_FOREACH_THREAD(d, y, D1D)
@@ -916,7 +930,7 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLApply3D(const int NE,
                                       const Array<real_t> &b_,
                                       const Array<real_t> &g_,
@@ -929,10 +943,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
    constexpr int DIM = 3, VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : T_MAX_D1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX_Q1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
+   MFEM_VERIFY(D1D <= Q1D, "");
 
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -940,10 +951,10 @@ static void SmemPAConvectionNLApply3D(const int NE,
    const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 16;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 16;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -1003,28 +1014,40 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      const int NE = ne;
-      const int D1D = maps->ndof;
-      const int Q1D = maps->nqpt;
-      const Vector &QV = pa_adj;
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &G = maps->G;
-      // const Array<real_t> &Bt = maps->Bt;
-      if (dim == 2)
-      {
-         // return PAConvectionNLApply2D(NE, B, G, Bt, QV, x, y, D1D, Q1D);
-         return SmemPAConvectionNLApply2D(NE, B, G, QV, x, y, D1D, Q1D);
-      }
-      if (dim == 3)
-      {
-         constexpr int T_MAX_D1D = 8;
-         constexpr int T_MAX_Q1D = 8;
-         MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
-         return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-                (NE, B, G, QV, x, y, D1D, Q1D);
-      }
-      MFEM_ABORT("Not yet implemented!");
+      VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d,
+                                        ne, maps->B, maps->G, pa_adj, x, y,
+                                        d1d, q1d);
    }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return SmemPAConvectionNLApply2D<T_D1D,T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return SmemPAConvectionNLApply3D<T_D1D, T_Q1D>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
+(int dim, int, int)
+{
+   if (dim == 2)
+   {
+      return SmemPAConvectionNLApply2D<>;
+   }
+   else if (dim == 3)
+   {
+      return SmemPAConvectionNLApply3D<>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
 
 } // namespace mfem
