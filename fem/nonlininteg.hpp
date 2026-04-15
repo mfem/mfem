@@ -433,12 +433,20 @@ public:
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *pa_u, const real_t *x, real_t *y,
               const int d1d, const int q1d);
-   MFEM_REGISTER_KERNELS(LOVectorConvectionNLFAddMultGradPA,
+   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA2D,
                          VectorConvectionNLFAddMultGradPAType,
-                         (int, int, int));
-   MFEM_REGISTER_KERNELS(HOVectorConvectionNLFAddMultGradPA,
+                         (int, int));
+   using LOVectorConvectionNLFAddMultGradPA3DType =
+      void(*)(const int ne, const int d1d,
+              const real_t *B, const real_t *G, const real_t *A,
+              const real_t *pa_u, const real_t *x, real_t *y,
+              const int q1d);
+   MFEM_REGISTER_KERNELS(LOVectorConvectionNLFAddMultGradPA3D,
+                         LOVectorConvectionNLFAddMultGradPA3DType,
+                         (int));
+   MFEM_REGISTER_KERNELS(HOVectorConvectionNLFAddMultGradPA3D,
                          VectorConvectionNLFAddMultGradPAType,
-                         (int, int, int));
+                         (int, int));
 
    void AddMultMF(const Vector &x, Vector &y) const override;
 
