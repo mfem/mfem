@@ -10,23 +10,27 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+MFEM_INSTALL_DIR ?= ../../../mfem
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/pic/,)
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = 
-PAR_MINIAPPS = 
-ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
-else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+PAR_MINIAPPS =
+
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += electrostatic-pic
 endif
 
-PLASMA_SUBDIRS = diffusion pic
+ifeq ($(MFEM_USE_MPI),NO)
+   MINIAPPS =
+else
+   MINIAPPS = $(PAR_MINIAPPS)
+endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -37,57 +41,45 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
-
-COMMON_O=
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS) subdirs
-
-.PHONY: subdirs $(PLASMA_SUBDIRS)
-subdirs: $(PLASMA_SUBDIRS)
-$(PLASMA_SUBDIRS): lib-common
-	$(MAKE) -C $(BLD)$(@)
+all: $(MINIAPPS)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(COMMON_LIB) \
-        $(MFEM_LIBS)
-
-# Rules for compiling miniapp dependencies
-$(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+electrostatic-pic: electrostatic-pic.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
+# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+electrostatic-pic-test-par: electrostatic-pic
+	@$(call mfem-test,$<, $(RUN_MPI), PIC miniapp,\
+		-rdi 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16\
+		-O 1 -q 0.01181640625 -m 0.01181640625 -oci 1000 -dt 0.1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
-.PHONY: $(ALL_CLEAN_SUBDIRS)
-$(ALL_CLEAN_SUBDIRS):
-	$(MAKE) -C $(BLD)$(@D) $(@F)
-
 clean: clean-build clean-exec
 
-clean-build: $(addsuffix /clean,$(PLASMA_SUBDIRS))
+clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf electrostatic-pic_* *.csv energy.csv
