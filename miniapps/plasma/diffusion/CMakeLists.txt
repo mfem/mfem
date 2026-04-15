@@ -16,7 +16,7 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
 
   add_mfem_miniapp(umansky_dg
-    MAIN umansky_cg.cpp
+    MAIN umansky_dg.cpp
     EXTRA_HEADERS umansky.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
 
@@ -25,13 +25,13 @@ if (MFEM_USE_MPI)
     add_test(NAME umansky_cg_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:umansky_cg> -no-vis -maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2
+      $<TARGET_FILE:umansky_cg> -no-vis -maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME umansky_dg_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:umansky_dg> -no-vis -maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2 -k 5
+      $<TARGET_FILE:umansky_dg> -no-vis -maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2 -k 5
       ${MPIEXEC_POSTFLAGS})
 
   endif()

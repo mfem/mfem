@@ -52,8 +52,8 @@
 // Sample runs:
 //
 //   Rectangular domain with two anisotropy ratios:
-//      mpirun -np 4 umansky_dg --height 0.8 --width 1.2 -Ak 1e0
-//      mpirun -np 4 umansky_dg --height 0.8 --width 1.2 -Ak 1e2 -k 5
+//      mpirun -np 4 umansky_dg -hgt 0.8 -wth 1.2 -Ak 1e0
+//      mpirun -np 4 umansky_dg -hgt 0.8 -wth 1.2 -Ak 1e2 -k 5
 //
 //   By default the domain will be the unit square and the anisotropy
 //   ratio will be 10:
@@ -118,9 +118,9 @@ int main(int argc, char *argv[])
                   "Number of elements in x direction.");
    args.AddOption(&ny, "-ny", "--num-elem-y",
                   "Number of elements in y direction.");
-   args.AddOption(&w, "-w", "--width",
+   args.AddOption(&w, "-wth", "--width",
                   "Width of domain.");
-   args.AddOption(&h, "-h", "--height",
+   args.AddOption(&h, "-hgt", "--height",
                   "Height of domain.");
    args.AddOption(&Ak, "-Ak", "--diff-ratio",
                   "Diffusion Coefficient Ratio.");
