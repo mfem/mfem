@@ -24,8 +24,8 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                "PA Only supports Ordering::byNODES!");
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   ElementTransformation &T = *mesh->GetTypicalElementTransformation();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   ElementTransformation &Tr = *mesh->GetTypicalElementTransformation();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Tr);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -47,6 +47,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
+   pa_adj_t.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
    d1d = maps->ndof;
    q1d = maps->nqpt;
 
@@ -70,6 +71,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = Reshape(coeff.Read(), q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, 2, 2, ne);
       auto A = Reshape(pa_adj.Write(), q1d, q1d, 2, 2, ne);
+      auto T = Reshape(pa_adj_t.Write(), 2, 2, q1d, q1d, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -85,10 +87,10 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                // Store w * coeff * adj(J)
                const real_t w = W(qx, qy);
                const real_t c = C(qx, qy, e);
-               A(qx, qy, 0, 0, e) = w * c * A11;
-               A(qx, qy, 0, 1, e) = w * c * A12;
-               A(qx, qy, 1, 0, e) = w * c * A21;
-               A(qx, qy, 1, 1, e) = w * c * A22;
+               A(qx, qy, 0, 0, e) = T(0, 0, qx, qy, e) = w * c * A11;
+               A(qx, qy, 0, 1, e) = T(1, 0, qx, qy, e) = w * c * A12;
+               A(qx, qy, 1, 0, e) = T(0, 1, qx, qy, e) = w * c * A21;
+               A(qx, qy, 1, 1, e) = T(1, 1, qx, qy, e) = w * c * A22;
             }
          }
       });
@@ -99,6 +101,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = Reshape(coeff.Read(), q1d, q1d, q1d, ne);
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, 3, 3, ne);
       auto A = Reshape(pa_adj.Write(), q1d, q1d, q1d, 3, 3, ne);
+      auto T = Reshape(pa_adj_t.Write(), 3, 3, q1d, q1d, q1d, ne);
 
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -129,15 +132,15 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t A32 = (J31 * J12) - (J11 * J32);
                   const real_t A33 = (J11 * J22) - (J12 * J21);
                   // Store wq * coeff * adj(J)
-                  A(qx, qy, qz, 0, 0, e) = cw * A11;
-                  A(qx, qy, qz, 0, 1, e) = cw * A12;
-                  A(qx, qy, qz, 0, 2, e) = cw * A13;
-                  A(qx, qy, qz, 1, 0, e) = cw * A21;
-                  A(qx, qy, qz, 1, 1, e) = cw * A22;
-                  A(qx, qy, qz, 1, 2, e) = cw * A23;
-                  A(qx, qy, qz, 2, 0, e) = cw * A31;
-                  A(qx, qy, qz, 2, 1, e) = cw * A32;
-                  A(qx, qy, qz, 2, 2, e) = cw * A33;
+                  A(qx, qy, qz, 0, 0, e) = T(0, 0, qx, qy, qz, e) = cw * A11;
+                  A(qx, qy, qz, 0, 1, e) = T(1, 0, qx, qy, qz, e) = cw * A12;
+                  A(qx, qy, qz, 0, 2, e) = T(2, 0, qx, qy, qz, e) = cw * A13;
+                  A(qx, qy, qz, 1, 0, e) = T(0, 1, qx, qy, qz, e) = cw * A21;
+                  A(qx, qy, qz, 1, 1, e) = T(1, 1, qx, qy, qz, e) = cw * A22;
+                  A(qx, qy, qz, 1, 2, e) = T(2, 1, qx, qy, qz, e) = cw * A23;
+                  A(qx, qy, qz, 2, 0, e) = T(0, 2, qx, qy, qz, e) = cw * A31;
+                  A(qx, qy, qz, 2, 1, e) = T(1, 2, qx, qy, qz, e) = cw * A32;
+                  A(qx, qy, qz, 2, 2, e) = T(2, 2, qx, qy, qz, e) = cw * A33;
                }
             }
          }
