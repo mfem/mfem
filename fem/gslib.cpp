@@ -901,17 +901,30 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       elmax(i + 2*nel) = h_bb[max_off + 2];
    }
 
-   // build local map
-   BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
-   devs.lh_min.HostWrite();    devs.lh_min = bbmap.GetGridMin();
-   devs.lh_fac.HostWrite();    devs.lh_fac = bbmap.GetGridFac();
-   devs.lh_offset.HostWrite(); devs.lh_offset = bbmap.GetGridMap();
-   devs.lh_nx = bbmap.GetGridN()[0];
+   // Skip local map construction for empty partition.
+   if (nel > 0)
+   {
+      BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
+      devs.lh_min.HostWrite();    devs.lh_min = bbmap.GetGridMin();
+      devs.lh_fac.HostWrite();    devs.lh_fac = bbmap.GetGridFac();
+      devs.lh_offset.HostWrite(); devs.lh_offset = bbmap.GetGridMap();
+      devs.lh_nx = bbmap.GetGridN()[0];
+   }
+   else
+   {
+      devs.lh_min.SetSize(sd);
+      devs.lh_min = 0.0;
+      devs.lh_fac.SetSize(sd);
+      devs.lh_fac = 0.0;
+      devs.lh_offset.SetSize(2);
+      devs.lh_offset = 1;
+      devs.lh_nx = 1;
+   }
 
 #ifdef MFEM_USE_MPI
    // build global map
    GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                  global_hash_size, nel, true);
+                                  sd, global_hash_size, nel, true);
    devs.gh_min = gbbmap.GetGridMin();
    devs.gh_fac = gbbmap.GetGridFac();
    devs.gh_offset = gbbmap.GetGridMap();
@@ -976,17 +989,29 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
       elmax(i + nel) = h_bb[max_off + 1];
    }
 
-   // build local map
-   BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
-   devs.lh_min.HostWrite();    devs.lh_min = bbmap.GetGridMin();
-   devs.lh_fac.HostWrite();    devs.lh_fac = bbmap.GetGridFac();
-   devs.lh_offset.HostWrite(); devs.lh_offset = bbmap.GetGridMap();
-   devs.lh_nx = bbmap.GetGridN()[0];
+   if (nel > 0)
+   {
+      BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
+      devs.lh_min.HostWrite();    devs.lh_min = bbmap.GetGridMin();
+      devs.lh_fac.HostWrite();    devs.lh_fac = bbmap.GetGridFac();
+      devs.lh_offset.HostWrite(); devs.lh_offset = bbmap.GetGridMap();
+      devs.lh_nx = bbmap.GetGridN()[0];
+   }
+   else
+   {
+      devs.lh_min.SetSize(sd);
+      devs.lh_min = 0.0;
+      devs.lh_fac.SetSize(sd);
+      devs.lh_fac = 0.0;
+      devs.lh_offset.SetSize(2);
+      devs.lh_offset = 1;
+      devs.lh_nx = 1;
+   }
 
 #ifdef MFEM_USE_MPI
    // build global map
    GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                  global_hash_size, nel, true);
+                                  sd, global_hash_size, nel, true);
    devs.gh_min = gbbmap.GetGridMin();
    devs.gh_fac = gbbmap.GetGridFac();
    devs.gh_offset = gbbmap.GetGridMap();
@@ -1128,7 +1153,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    MPI_Allreduce(MPI_IN_PLACE, &nelem, 1, MPI_INT, MPI_SUM, gsl_comm->c);
 #endif
    DEV.surf_dist_tol /= nelem;
-   DEV.surf_dist_tol *= 1e-16;
+   DEV.surf_dist_tol *= 1e-16; // compared to dist2
 
    // Setup gll points and lagrange coefficient data for findpoints
    Vector gll1dtemp(DEV.dof1d),
@@ -3802,6 +3827,7 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
 
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(use_dev);
+      field_out = default_interp_value;
       InterpolateSurfBase(node_vals, field_out, NE_split_total, ncomp,
                           DEV.dof1d_sol, field_out_ordering);
       return;
@@ -4849,11 +4875,15 @@ GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx)
 
 GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(const MPI_Comm &comm,
                                                  Vector &elmin, Vector &elmax,
-                                                 int n, int nel,
+                                                 int sdim, int n, int nel,
                                                  bool by_max_size)
 {
-   dim = elmin.Size() / nel;
-   Array<int> nx_arr(dim);
+   MFEM_VERIFY(sdim > 0,
+               "GlobalBBoxTensorGridMap requires positive dimension.");
+   MFEM_VERIFY(elmin.Size() == sdim * nel && elmax.Size() == sdim * nel,
+               "Element bounds size must match dim * nel.");
+
+   Array<int> nx_arr(sdim);
    if (!by_max_size)
    {
       nx_arr = n;
@@ -4862,7 +4892,7 @@ GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(const MPI_Comm &comm,
    {
       long long int nx = n;
       MPI_Allreduce(MPI_IN_PLACE, &nx, 1, MPI_LONG_LONG, MPI_SUM, comm);
-      nx = ceil(pow((double)nx,1./dim));
+      nx = ceil(pow((double)nx,1./sdim));
       nx_arr = nx;
    }
    Setup(comm, elmin, elmax, nx_arr, nel);
@@ -4880,26 +4910,36 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
                                     Array<int> &nx, int nel)
 {
    SetupCrystal(comm);
-   dim = elmin.Size() / nel;
+   dim = nx.Size();
+   MFEM_VERIFY(dim > 0,
+               "GlobalBBoxTensorGridMap requires positive dimension.");
+   if (nel > 0)
+   {
+      MFEM_VERIFY(elmin.Size() == dim * nel && elmax.Size() == dim * nel,
+                  "Element bounds size must match dim * nel.");
+   }
    gmap_bnd_min.SetSize(dim);
    gmap_bnd_max.SetSize(dim);
    gmap_fac.SetSize(dim);
    gmap_n.SetSize(dim);
    gmap_n = nx;
 
-   MFEM_VERIFY(nx.Size() == dim,
-               "BBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
    for (int d = 0; d < nx.Size(); d++)
    {
       MFEM_VERIFY(nx[d] > 0,
                   "BBoxTensorGridMap requires positive number of divisions in each dimension.");
    }
-   for (int d = 0; d < dim; d++)
+   gmap_bnd_min = std::numeric_limits<real_t>::max();
+   gmap_bnd_max = -std::numeric_limits<real_t>::max();
+   if (nel > 0)
    {
-      Vector elmind(elmin.GetData() + d*nel, nel);
-      Vector elmaxd(elmax.GetData() + d*nel, nel);
-      gmap_bnd_min[d] = elmind.Min();
-      gmap_bnd_max[d] = elmaxd.Max();
+      for (int d = 0; d < dim; d++)
+      {
+         Vector elmind(elmin.GetData() + d*nel, nel);
+         Vector elmaxd(elmax.GetData() + d*nel, nel);
+         gmap_bnd_min[d] = elmind.Min();
+         gmap_bnd_max[d] = elmaxd.Max();
+      }
    }
 
    Vector gmap_bnd_min_loc = gmap_bnd_min;
@@ -4931,14 +4971,23 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
    Array<int> loc_idx_min(dim), loc_idx_max(dim), lh_n(dim);
    int loc_idx_tot = 1;
 
-   for (int d = 0; d < dim; d++)
+   if (nel > 0)
    {
-      BBoxTensorGridMap::GetGridRange(d, gmap_n, gmap_fac,
-                                      gmap_bnd_min, gmap_bnd_max,
-                                      gmap_bnd_min_loc[d], gmap_bnd_max_loc[d],
-                                      loc_idx_min[d], loc_idx_max[d]);
-      lh_n[d] = loc_idx_max[d] - loc_idx_min[d];
-      loc_idx_tot *= lh_n[d];
+      for (int d = 0; d < dim; d++)
+      {
+         BBoxTensorGridMap::GetGridRange(d, gmap_n, gmap_fac,
+                                         gmap_bnd_min, gmap_bnd_max,
+                                         gmap_bnd_min_loc[d], gmap_bnd_max_loc[d],
+                                         loc_idx_min[d], loc_idx_max[d]);
+         lh_n[d] = loc_idx_max[d] - loc_idx_min[d];
+         loc_idx_tot *= lh_n[d];
+      }
+   }
+   else
+   {
+      loc_idx_min = 0;
+      loc_idx_max = 1;
+      lh_n = 1;
    }
 
    struct hashInfo_s

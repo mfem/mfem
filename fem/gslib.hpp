@@ -734,13 +734,14 @@ public:
    /// Constructor for a given mesh and number of tensor grid divisions
    GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx);
 
-   /// Constructor for given element bounds and number of tensor grid divisions
+   /** @brief Constructor for given element bounds, spatial dimension, and
+    *  number of tensor grid divisions. */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
-                           Vector &elmax, int n, int nel,
+                           Vector &elmax, int sdim, int n, int nel,
                            bool by_max_size);
 
    /** @brief Constructor for given element bounds and number of tensor grid
-    *  divisions in each direction. */
+    *  divisions in each spatial direction. */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
                            Vector &elmax, Array<int> &nx, int nel);
 
