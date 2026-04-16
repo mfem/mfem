@@ -124,7 +124,7 @@ public:
 #ifdef MFEM_USE_MPI
    /// Returns a ComplexHypreParMatrix view:
    ///  - wraps if real/imag are HypreParMatrix
-   ///  - merges to to a monolothic parallel ComplexHypreParMatrix
+   ///  - merges to a monolothic parallel ComplexHypreParMatrix
    /// if real/imag are BlockOperator of HypreParMatrix blocks
    ComplexHypreParMatrix *AsComplexHypreParMatrix() const;
 #endif
