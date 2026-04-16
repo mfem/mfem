@@ -23,3 +23,5 @@ if (MFEM_USE_MPI)
       EXTRA_HEADERS ${PLASMA_COMMON_HEADERS})
 
 endif()
+
+add_subdirectory(pic)
