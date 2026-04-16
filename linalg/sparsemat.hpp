@@ -49,6 +49,10 @@ public:
 /// Data type sparse matrix
 class SparseMatrix : public AbstractSparseMatrix
 {
+public:
+   /// Use the GPU vendor sparse library (cusparse/hipsparse) when available
+   static bool use_gpu_sparse;
+
 protected:
    /// @name Arrays used by the CSR storage format.
    /** */
