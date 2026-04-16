@@ -55,7 +55,11 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs);
 
-   if (Q)
+   if (auto cc = dynamic_cast<ConstantCoefficient *>(Q))
+   {
+      coeff.SetConstant(cc->constant);
+   }
+   else if (Q)
    {
       coeff.Project(*Q);
    }
