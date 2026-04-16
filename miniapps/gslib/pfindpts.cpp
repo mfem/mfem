@@ -54,6 +54,7 @@
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+//    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -183,14 +184,6 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
              sdim = mesh->SpaceDimension();
-
-   if (mesh->GetNumGeometries(dim) != 1 ||
-       (mesh->GetElementType(0)!=Element::SEGMENT &&
-        mesh->GetElementType(0)!=Element::QUADRILATERAL &&
-        mesh->GetElementType(0) != Element::HEXAHEDRON))
-   {
-      randomization = 0;
-   }
 
    if (myid == 0)
    {
@@ -369,23 +362,14 @@ int main (int argc, char *argv[])
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
 
-         Vector pos_ref1(npt*dim);
-         pos_ref1.Randomize((myid+1)*17.0);
+         const Geometry::Type geom = mesh->GetElementGeometry(i);
          for (int j=0; j<npt; j++)
          {
             IntegrationPoint ip;
-            ip.x = pos_ref1(j*dim + 0);
-            if (dim > 1)
-            {
-               ip.y = pos_ref1(j*dim + 1);
-            }
-            if (dim == 3)
-            {
-               ip.z = pos_ref1(j*dim + 2);
-            }
+            Geometry::GetRandomPoint(geom, ip);
             if (j < npt_face_per_elem)
             {
-               ip.x = 0.0; // force point to be on the face
+               ip.x = 0.0; // force point to be on a face
                npt_total_face++;
             }
             Vector pos_i(sdim);
@@ -515,7 +499,7 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts << " out of "
            << npt_total_face
            << "\nMax interp error:     " << max_error
-           << "\nMax dist (of found):  " << max_dist
+           << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
 

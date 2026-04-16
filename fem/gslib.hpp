@@ -80,6 +80,11 @@ protected:
    // IntegrationRules for simplex->Quad/Hex and to project to p_max in-case of
    // p-refinement.
    Array<IntegrationRule *> ir_split;
+   /// Integration rules built at the field polynomial order (only for surface
+   /// meshes when mesh order is not the same as gridfunction order).
+   Array<IntegrationRule *> ir_split_sol;
+   /// Order at which #ir_split_sol was built; -1 means not built.
+   int ir_split_sol_order = -1;
    Array<FiniteElementSpace *> fes_rst_map; //FESpaces to map Quad/Hex->Simplex
    Array<GridFunction *> gf_rst_map; // GridFunctions to map Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
@@ -95,6 +100,8 @@ protected:
    AvgType avgtype;             // average type used for L2 functions
    Array<int> split_element_map;
    Array<int> split_element_index;
+   // Geometry::Type (as int) of the original element for each split quad.
+   Array<int> split_element_geom;
    int        NE_split_total;   // total number of elements after mesh splitting
    int        mesh_points_cnt;  // number of mesh nodes
    // Tolerance to ignore points found beyond the mesh boundary.
@@ -145,12 +152,26 @@ protected:
                                                  IntegrationRule *irule,
                                                  int order);
 
+   /** @brief Build integration rules at the given @a order for each split mesh
+    *  and store them in @a ir_out. Requires that \ref SetupSplitMeshes has
+    *  already been called. */
+   virtual void SetupIntegrationRules(const int order,
+                                      Array<IntegrationRule *> &ir_out);
+
    /** @brief Helper function that calls \ref SetupSplitMeshes and
-    * \ref SetupIntegrationRuleForSplitMesh. */
+    * \ref SetupIntegrationRules. */
    virtual void SetupSplitMeshesAndIntegrationRules(const int order);
 
-   /// Get GridFunction value at the points expected by GSLIB.
-   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals) const;
+   /** @brief Get GridFunction value at the points expected by GSLIB.
+    *  @param[in]  gf_in       Grid function to evaluate.
+    *  @param[out] node_vals   Output values.
+    *  @param[in]  ir_in       If non-null, use these rules instead of #ir_split.
+    *  @param[in]  by_element  If true, output has element-major layout
+    *                          [nel][vdim][ndofs]; otherwise component-major
+    *                          layout [vdim][total_pts]. */
+   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals,
+                               const Array<IntegrationRule *> *ir_in = nullptr,
+                               bool by_element = false) const;
 
    /** @brief Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For
     *  simplices, find the original element number (that was split into
@@ -600,7 +621,7 @@ public:
        @param[in] npt_max   (Optional) Number of points for simultaneous
                             iteration. This alters performance and
                             memory footprint.*/
-   void Setup(Mesh &m, const int meshid, GridFunction *gfmax = NULL,
+   void Setup(Mesh &m, const int meshid, GridFunction *gfmax = nullptr,
               const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
@@ -657,7 +678,7 @@ class GSOPGSLIB
 protected:
    struct gslib::crystal *cr;               // gslib's internal data
    struct gslib::comm *gsl_comm;            // gslib's internal data
-   struct gslib::gs_data *gsl_data = NULL;
+   struct gslib::gs_data *gsl_data = nullptr;
    int num_ids;
 
 public:

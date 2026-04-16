@@ -96,12 +96,14 @@ FindPointsGSLIB::FindPointsGSLIB()
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
+   ir_split_sol.SetSize(4);
    fes_rst_map.SetSize(4);
    gf_rst_map.SetSize(4);
    for (int i = 0; i < mesh_split.Size(); i++)
    {
       mesh_split[i] = nullptr;
       ir_split[i] = nullptr;
+      ir_split_sol[i] = nullptr;
       fes_rst_map[i] = nullptr;
       gf_rst_map[i] = nullptr;
    }
@@ -111,7 +113,7 @@ FindPointsGSLIB::FindPointsGSLIB()
 #ifdef MFEM_USE_MPI
    int initialized = 0;
    MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(NULL, NULL); }
+   if (!initialized) { MPI_Init(nullptr, nullptr); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
@@ -143,6 +145,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
    {
       if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = nullptr; }
       if (ir_split[i]) { delete ir_split[i]; ir_split[i] = nullptr; }
+      if (ir_split_sol[i]) { delete ir_split_sol[i]; ir_split_sol[i] = nullptr; }
       if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = nullptr; }
       if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = nullptr; }
    }
@@ -160,12 +163,14 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
+   ir_split_sol.SetSize(4);
    fes_rst_map.SetSize(4);
    gf_rst_map.SetSize(4);
    for (int i = 0; i < mesh_split.Size(); i++)
    {
       mesh_split[i] = nullptr;
       ir_split[i] = nullptr;
+      ir_split_sol[i] = nullptr;
       fes_rst_map[i] = nullptr;
       gf_rst_map[i] = nullptr;
    }
@@ -187,7 +192,7 @@ FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in, const double bb_t,
 void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                             const int npt_max)
 {
-   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
@@ -1036,7 +1041,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                                      const double newt_tol)
 {
    // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
-   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -1046,13 +1051,17 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    spacedim = mesh->SpaceDimension();  // This is physical dimension
    MFEM_VERIFY(dim < 3, "Configuration not supported yet.");
 
-   bool tensor_product_only = mesh->GetNE() == 0 ||
-                              (mesh->GetNumGeometries(dim) == 1 &&
-                               (mesh->GetElementType(0)== Element::SEGMENT ||
-                                mesh->GetElementType(0) == Element::QUADRILATERAL));
-   MFEM_VERIFY(tensor_product_only,
-               "FindPoints only supports tensor-product elements for "
-               "surface meshes.");
+   bool supported_surf_elem = true;
+   for (int e = 0; e < mesh->GetNE() && supported_surf_elem; e++)
+   {
+      const Element::Type t = mesh->GetElementType(e);
+      supported_surf_elem = (t == Element::SEGMENT ||
+                             t == Element::QUADRILATERAL ||
+                             t == Element::TRIANGLE);
+   }
+   MFEM_VERIFY(supported_surf_elem,
+               "FindPointsGSLIB surface mesh support: only SEGMENT, "
+               "QUADRILATERAL, and TRIANGLE elements are supported.");
    MFEM_VERIFY(dim < spacedim,
                "FindPointsGSLIB::SetupSurf only supports surface meshes.");
 
@@ -1119,7 +1128,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    MPI_Allreduce(MPI_IN_PLACE, &nelem, 1, MPI_INT, MPI_SUM, gsl_comm->c);
 #endif
    DEV.surf_dist_tol /= nelem;
-   DEV.surf_dist_tol *= 1e-10;
+   DEV.surf_dist_tol *= 1e-16;
 
    // Setup gll points and lagrange coefficient data for findpoints
    Vector gll1dtemp(DEV.dof1d),
@@ -2045,12 +2054,25 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(dim < spacedim, "FindPointsSurf is only for surface meshes.");
-   bool tensor_product_only = mesh->GetNE() == 0 ||
-                              (mesh->GetNumGeometries(dim) == 1 &&
-                               (mesh->GetElementType(0)==Element::SEGMENT ||
-                                mesh->GetElementType(0) == Element::QUADRILATERAL));
-   MFEM_VERIFY(tensor_product_only,
-               "FindPointsSurf currently only supports tensor-product meshes.");
+
+   bool supported_surf_elem = true; // future-proof
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const Element::Type t = mesh->GetElementType(e);
+      if (t != Element::TRIANGLE &&
+          t != Element::SEGMENT &&
+          t != Element::QUADRILATERAL)
+      {
+         supported_surf_elem = false;
+      }
+   }
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &supported_surf_elem, 1, MFEM_MPI_CXX_BOOL,
+                 MPI_LAND, gsl_comm->c);
+#endif
+   MFEM_VERIFY(supported_surf_elem,
+               "FindPointsGSLIB surface mesh support: only SEGMENT, "
+               "QUADRILATERAL, and TRIANGLE elements are supported.");
 
    points_cnt = point_pos.Size()/spacedim;
 
@@ -2114,33 +2136,32 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    // obtained reference-space coordinates.
    const double rbtol = 1e-12; // must match MapRefPosAndElemIndices
 
-   auto d_gsl_code = gsl_code.ReadWrite(use_dev); // no-op
-   auto d_gsl_ref = gsl_ref.Read(use_dev); // no-op
-   auto d_gsl_elem = gsl_elem.Read(use_dev); // no-op
+   auto d_gsl_code     = gsl_code.ReadWrite(use_dev);
+   auto d_gsl_ref      = gsl_ref.Read(use_dev);
+   auto d_gsl_elem     = gsl_elem.Read(use_dev);
    auto d_gsl_mfem_ref = gsl_mfem_ref.Write(use_dev);
    auto d_gsl_mfem_elem = gsl_mfem_elem.Write(use_dev);
-   auto d_gsl_dist = gsl_dist.Read(use_dev); // no-op
-   const int ddim = dim; // capture dim for lambda
-   const double dbdr_tol = bdr_tol; // capture bdr_tol for lambda
+   auto d_gsl_dist     = gsl_dist.Read(use_dev);
+   const int ddim = dim;
+   const double dbdr_tol = bdr_tol;
+   auto d_split_elem_map  = split_element_map.Read(use_dev);
+   auto d_split_elem_idx  = split_element_index.Read(use_dev);
+   auto d_split_elem_geom = split_element_geom.Read(use_dev);
 
+   // Note: we check if the point is on element border and mark it as such.
+   // We do not mark points as CODE_INTERNAL because the found solution could
+   // be interior to the element even when the point is not on the surface.
+   // This case is handled in the kernels.
    MFEM_FORALL(index, points_cnt,
    {
-      if (d_gsl_code[index] == CODE_NOT_FOUND)
-      {
-         return;
-      }
-      d_gsl_mfem_elem[index] = d_gsl_elem[index];
-      for (int d = 0; d < ddim; d++)
-      {
-         d_gsl_mfem_ref[index * ddim + d] = 0.5*(d_gsl_ref[index*ddim+d] + 1.0);
-      }
-      // Note: we check if the point is on element border and mark it as
-      // such. We do not mark points as CODE_INTERNAL because the found
-      // solution could be interior to the element even when the point
-      // is not on the edge/surface. This case is handled in the kernels.
+      if (d_gsl_code[index] == CODE_NOT_FOUND) { return; }
+
       if (ddim == 1)
       {
-         real_t ipx = d_gsl_mfem_ref[index];
+         // Segment surface: no splitting, direct copy.
+         d_gsl_mfem_elem[index] = d_gsl_elem[index];
+         const real_t ipx = 0.5*(d_gsl_ref[index] + 1.0);
+         d_gsl_mfem_ref[index] = ipx;
          if (ipx < rbtol || ipx > 1.0 - rbtol)
          {
             d_gsl_code[index] = CODE_BORDER;
@@ -2148,12 +2169,61 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
       }
       else if (ddim == 2)
       {
-         real_t ipx = d_gsl_mfem_ref[index * ddim + 0];
-         real_t ipy = d_gsl_mfem_ref[index * ddim + 1];
-         if (ipx < rbtol || ipx > 1.0 - rbtol ||
-             ipy < rbtol || ipy > 1.0 - rbtol)
+         const int loc_id = d_gsl_elem[index];
+         d_gsl_mfem_elem[index] = d_split_elem_map[loc_id];
+
+         if (d_split_elem_geom[loc_id] == (int)Geometry::TRIANGLE)
          {
-            d_gsl_code[index] = CODE_BORDER;
+            // Each original triangle is split into 3 quads.
+            const int loc_id = d_split_elem_idx[loc_id]; // 0, 1, or 2
+
+            const double u = 0.5*(d_gsl_ref[index*2 + 0] + 1.0);
+            const double v = 0.5*(d_gsl_ref[index*2 + 1] + 1.0);
+
+            const double N0 = (1.0-u)*(1.0-v);  // corner (0,0)
+            const double N1 = u*(1.0-v);        // corner (1,0)
+            const double N2 = u*v;              // corner (1,1)
+            const double N3 = (1.0-u)*v;        // corner (0,1)
+
+            const double vx[3][4] =
+            {
+               {0.0, 0.5,       1.0/3.0, 0.0    },
+               {0.5, 1.0,       0.5,     1.0/3.0},
+               {0.0, 1.0/3.0,   0.5,     0.0    }
+            };
+            const double vy[3][4] =
+            {
+               {0.0, 0.0,       1.0/3.0, 0.5    },
+               {0.0, 0.0,       0.5,     1.0/3.0},
+               {0.5, 1.0/3.0,   0.5,     1.0    }
+            };
+
+            const double tx = N0*vx[loc_id][0] + N1*vx[loc_id][1]
+                              + N2*vx[loc_id][2] + N3*vx[loc_id][3];
+            const double ty = N0*vy[loc_id][0] + N1*vy[loc_id][1]
+                              + N2*vy[loc_id][2] + N3*vy[loc_id][3];
+
+            d_gsl_mfem_ref[index*2 + 0] = tx;
+            d_gsl_mfem_ref[index*2 + 1] = ty;
+
+            // Triangle edges
+            if (tx < rbtol || ty < rbtol || tx + ty > 1.0 - rbtol)
+            {
+               d_gsl_code[index] = CODE_BORDER;
+            }
+         }
+         else
+         {
+            // Quad/segment boundary/end point
+            const real_t ipx = 0.5*(d_gsl_ref[index*2 + 0] + 1.0);
+            const real_t ipy = 0.5*(d_gsl_ref[index*2 + 1] + 1.0);
+            d_gsl_mfem_ref[index*2 + 0] = ipx;
+            d_gsl_mfem_ref[index*2 + 1] = ipy;
+            if (ipx < rbtol || ipx > 1.0 - rbtol ||
+                ipy < rbtol || ipy > 1.0 - rbtol)
+            {
+               d_gsl_code[index] = CODE_BORDER;
+            }
          }
       }
       if (d_gsl_code[index] == CODE_BORDER && d_gsl_dist[index] > dbdr_tol)
@@ -2180,6 +2250,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    {
       double r[2], dist2;
       unsigned int index, code, el, proc;
+      unsigned int mfem_el, loc_id, geom; // for triangles meshes.
    };
 
    {
@@ -2365,6 +2436,12 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          {
             opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
          }
+         {
+            const int loc_id = AsConst(gsl_elem_l)[point];
+            opt[point].mfem_el = split_element_map[loc_id];
+            opt[point].loc_id  = split_element_index[loc_id];
+            opt[point].geom    = split_element_geom[loc_id];
+         }
          // Note: we check if the point is on element border and mark it as
          // such. We do not mark points as CODE_INTERNAL because the found
          // solution could be interior to the element even when the point
@@ -2379,12 +2456,47 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          }
          else if (dim == 2)
          {
-            real_t ipx = 0.5*opt[point].r[0]+0.5;
-            real_t ipy = 0.5*opt[point].r[1]+0.5;
-            if (ipx < rbtol || ipx > 1.0 - rbtol ||
-                ipy < rbtol || ipy > 1.0 - rbtol)
+            if (opt[point].geom == (int)Geometry::TRIANGLE)
             {
-               opt[point].code = CODE_BORDER;
+               // opt[point].el and r are for gslib.
+               const int loc_id = opt[point].loc_id; // 0,1,2
+               const double u = 0.5*opt[point].r[0] + 0.5;
+               const double v = 0.5*opt[point].r[1] + 0.5;
+               const double N0 = (1.0-u)*(1.0-v);
+               const double N1 = u*(1.0-v);
+               const double N2 = u*v;
+               const double N3 = (1.0-u)*v;
+               const double vx[3][4] =
+               {
+                  {0.0, 0.5,       1.0/3.0, 0.0    },
+                  {0.5, 1.0,       0.5,     1.0/3.0},
+                  {0.0, 1.0/3.0,   0.5,     0.0    }
+               };
+               const double vy[3][4] =
+               {
+                  {0.0, 0.0,       1.0/3.0, 0.5    },
+                  {0.0, 0.0,       0.5,     1.0/3.0},
+                  {0.5, 1.0/3.0,   0.5,     1.0    }
+               };
+               const double tx = N0*vx[loc_id][0] + N1*vx[loc_id][1]
+                                 + N2*vx[loc_id][2] + N3*vx[loc_id][3];
+               const double ty = N0*vy[loc_id][0] + N1*vy[loc_id][1]
+                                 + N2*vy[loc_id][2] + N3*vy[loc_id][3];
+               // Triangle edge or not.
+               if (tx < rbtol || ty < rbtol || tx + ty > 1.0 - rbtol)
+               {
+                  opt[point].code = CODE_BORDER;
+               }
+            }
+            else // quad
+            {
+               real_t ipx = 0.5*opt[point].r[0]+0.5;
+               real_t ipy = 0.5*opt[point].r[1]+0.5;
+               if (ipx < rbtol || ipx > 1.0 - rbtol ||
+                   ipy < rbtol || ipy > 1.0 - rbtol)
+               {
+                  opt[point].code = CODE_BORDER;
+               }
             }
          }
          if (opt[point].code == CODE_BORDER && opt[point].dist2 > bdr_tol)
@@ -2435,15 +2547,49 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          {
             for (int d=0; d<dim; ++d)
             {
-               real_t rv = opt->r[d];
-               h_gsl_ref[dim*index + d] = rv;
-               h_gsl_mfem_ref[dim*index + d] = 0.5*(rv + 1.);
+               h_gsl_ref[dim*index + d] = opt->r[d];
             }
-            h_gsl_dist[index] = opt->dist2;
-            h_gsl_proc[index] = opt->proc;
-            h_gsl_elem[index] = opt->el;
-            h_gsl_code[index] = opt->code;
-            h_gsl_mfem_elem[index] = opt->el;
+            h_gsl_dist[index]    = opt->dist2;
+            h_gsl_proc[index]    = opt->proc;
+            h_gsl_elem[index]    = opt->el;
+            h_gsl_code[index]    = opt->code;
+            h_gsl_mfem_elem[index] = opt->mfem_el;
+
+            if (opt->geom == (int)Geometry::TRIANGLE && dim == 2)
+            {
+               const int loc_id = opt->loc_id;
+               const double u = 0.5*opt->r[0] + 0.5;
+               const double v = 0.5*opt->r[1] + 0.5;
+               const double N0 = (1.0-u)*(1.0-v);
+               const double N1 = u*(1.0-v);
+               const double N2 = u*v;
+               const double N3 = (1.0-u)*v;
+               const double vx[3][4] =
+               {
+                  {0.0, 0.5,       1.0/3.0, 0.0    },
+                  {0.5, 1.0,       0.5,     1.0/3.0},
+                  {0.0, 1.0/3.0,   0.5,     0.0    }
+               };
+               const double vy[3][4] =
+               {
+                  {0.0, 0.0,       1.0/3.0, 0.5    },
+                  {0.0, 0.0,       0.5,     1.0/3.0},
+                  {0.5, 1.0/3.0,   0.5,     1.0    }
+               };
+               h_gsl_mfem_ref[dim*index + 0] =
+                  N0*vx[loc_id][0] + N1*vx[loc_id][1]
+                  + N2*vx[loc_id][2] + N3*vx[loc_id][3];
+               h_gsl_mfem_ref[dim*index + 1] =
+                  N0*vy[loc_id][0] + N1*vy[loc_id][1]
+                  + N2*vy[loc_id][2] + N3*vy[loc_id][3];
+            }
+            else
+            {
+               for (int d=0; d<dim; ++d)
+               {
+                  h_gsl_mfem_ref[dim*index + d] = 0.5*(opt->r[d] + 1.);
+               }
+            }
          }
       }
       array_free(&out_pt);
@@ -2743,12 +2889,14 @@ void FindPointsGSLIB::FreeData()
    gsl_dist.Destroy();
    for (int i = 0; i < 4; i++)
    {
-      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = NULL; }
-      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = NULL; }
-      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = NULL; }
-      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = NULL; }
+      if (mesh_split[i]) { delete mesh_split[i]; mesh_split[i] = nullptr; }
+      if (ir_split[i]) { delete ir_split[i]; ir_split[i] = nullptr; }
+      if (ir_split_sol[i]) { delete ir_split_sol[i]; ir_split_sol[i] = nullptr; }
+      if (fes_rst_map[i]) { delete fes_rst_map[i]; fes_rst_map[i] = nullptr; }
+      if (gf_rst_map[i]) { delete gf_rst_map[i]; gf_rst_map[i] = nullptr; }
    }
-   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
+   ir_split_sol_order = -1;
+   if (fec_map_lin) { delete fec_map_lin; fec_map_lin = nullptr; }
    setupflag = false;
    DEV.setup_device = false;
    DEV.find_device  = false;
@@ -2957,7 +3105,8 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
 {
    H1_FECollection fec(order, dim);
    FiniteElementSpace nodal_fes(meshin, &fec, dim);
-   meshin->SetNodalFESpace(&nodal_fes);
+   GridFunction nodesplit(&nodal_fes);
+   meshin->GetNodes(nodesplit);
    const int NEsplit = meshin->GetNE();
 
    const int dof_cnt = nodal_fes.GetTypicalFE()->GetDof(),
@@ -2966,7 +3115,7 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(nodal_fes.GetTypicalFE());
-   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+   MFEM_VERIFY(tbe != nullptr, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
 
    DenseMatrix pos(dof_cnt, dim);
@@ -2976,12 +3125,11 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
    // Create an IntegrationRule on the nodes of the reference submesh.
    MFEM_ASSERT(irule->GetNPoints() == pts_cnt, "IntegrationRule does not have"
                "the correct number of points.");
-   GridFunction *nodesplit = meshin->GetNodes();
    int pt_id = 0;
    for (int i = 0; i < NEsplit; i++)
    {
       nodal_fes.GetElementVDofs(i, xdofs);
-      nodesplit->GetSubVector(xdofs, posV);
+      nodesplit.GetSubVector(xdofs, posV);
       for (int j = 0; j < dof_cnt; j++)
       {
          for (int d = 0; d < dim; d++)
@@ -3002,52 +3150,59 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
    }
 }
 
-void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
+void FindPointsGSLIB::SetupIntegrationRules(const int order,
+                                            Array<IntegrationRule *> &ir_out)
 {
-   MFEM_VERIFY(mesh, "Setup FindPointsGSLIB with mesh first.");
-   const int dof1D = order+1;
-   const int dim = mesh->Dimension();
+   const int dof1D = order + 1;
 
-   SetupSplitMeshes();
    if (dim == 1)
    {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
+      if (ir_out[0]) { delete ir_out[0]; ir_out[0] = nullptr; }
+      ir_out[0] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_out[0], order);
    }
    else if (dim == 2)
    {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
+      if (ir_out[0]) { delete ir_out[0]; ir_out[0] = nullptr; }
+      ir_out[0] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_out[0], order);
 
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], order);
+      if (ir_out[1]) { delete ir_out[1]; ir_out[1] = nullptr; }
+      ir_out[1] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_out[1], order);
    }
    else if (dim == 3)
    {
-      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], order);
+      if (ir_out[0]) { delete ir_out[0]; ir_out[0] = nullptr; }
+      ir_out[0] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_out[0], order);
 
-      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-      ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], order);
+      if (ir_out[1]) { delete ir_out[1]; ir_out[1] = nullptr; }
+      ir_out[1] = new IntegrationRule(4*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_out[1], order);
 
-      if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
-      ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], order);
+      if (ir_out[2]) { delete ir_out[2]; ir_out[2] = nullptr; }
+      ir_out[2] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_out[2], order);
 
-      if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
-      ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], order);
+      if (ir_out[3]) { delete ir_out[3]; ir_out[3] = nullptr; }
+      ir_out[3] = new IntegrationRule(8*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_out[3], order);
    }
+}
+
+void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
+{
+   MFEM_VERIFY(mesh, "Setup FindPointsGSLIB with mesh first.");
+
+   SetupSplitMeshes();
+   SetupIntegrationRules(order, ir_split);
 
    // Setup map for non tensor-product elements
    NE_split_total = 0;
    split_element_map.SetSize(0);
    split_element_index.SetSize(0);
+   split_element_geom.SetSize(0);
    int NEsplit = 0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
@@ -3079,19 +3234,23 @@ void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
       {
          split_element_map.Append(e);
          split_element_index.Append(i);
+         split_element_geom.Append((int)gt);
       }
    }
 }
 
 void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
-                                     Vector &node_vals) const
+                                     Vector &node_vals,
+                                     const Array<IntegrationRule *> *ir_in,
+                                     bool by_element) const
 {
    const GridFunction *nodes     = gf_in;
    const FiniteElementSpace *fes = nodes->FESpace();
    const int NE                  = mesh->GetNE();
    const int vdim                = fes->GetVDim();
 
-   IntegrationRule *ir_split_temp = NULL;
+   const Array<IntegrationRule *> &ir = ir_in ? *ir_in : ir_split;
+   IntegrationRule *ir_split_temp = nullptr;
 
    const int maxOrder = fes->GetMaxElementOrder();
    const int dof_1D =  maxOrder+1;
@@ -3113,23 +3272,23 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       bool el_to_split = true;
       if (gt == Geometry::TRIANGLE)
       {
-         ir_split_temp = ir_split[0];
+         ir_split_temp = ir[0];
       }
       else if (gt == Geometry::TETRAHEDRON)
       {
-         ir_split_temp = ir_split[1];
+         ir_split_temp = ir[1];
       }
       else if (gt == Geometry::PRISM)
       {
-         ir_split_temp = ir_split[2];
+         ir_split_temp = ir[2];
       }
       else if (gt == Geometry::PYRAMID)
       {
-         ir_split_temp = ir_split[3];
+         ir_split_temp = ir[3];
       }
       else if (gt == Geometry::SQUARE)
       {
-         ir_split_temp = ir_split[1];
+         ir_split_temp = ir[1];
          // "split" if input mesh is not a tensor basis or has mixed order
          el_to_split =
             gf_in->FESpace()->IsVariableOrder() ||
@@ -3137,7 +3296,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       }
       else if (gt == Geometry::SEGMENT || gt == Geometry::CUBE)
       {
-         ir_split_temp = ir_split[0];
+         ir_split_temp = ir[0];
          // "split" if input mesh is not a tensor basis or has mixed order
          el_to_split =
             gf_in->FESpace()->IsVariableOrder() ||
@@ -3150,15 +3309,27 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
 
       if (el_to_split) // Triangle/Tet/Prism or Quads/Hex but variable order
       {
-         // Fill gsl_mesh with location of split points.
+         // Fill node_vals with field values at split points.
          Vector locval(vdim);
          for (int i = 0; i < ir_split_temp->GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir_split_temp->IntPoint(i);
             nodes->GetVectorValue(e, ip, locval);
-            for (int d = 0; d < vdim; d++)
+            if (by_element)
             {
-               node_vals(pts_cnt*d + gsl_mesh_pt_index) = locval(d);
+               const int ei = gsl_mesh_pt_index / pts_el;
+               const int pi  = gsl_mesh_pt_index % pts_el;
+               for (int d = 0; d < vdim; d++)
+               {
+                  node_vals(ei * pts_el * vdim + d * pts_el + pi) = locval(d);
+               }
+            }
+            else
+            {
+               for (int d = 0; d < vdim; d++)
+               {
+                  node_vals(pts_cnt*d + gsl_mesh_pt_index) = locval(d);
+               }
             }
             gsl_mesh_pt_index++;
          }
@@ -3169,7 +3340,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
 
          const TensorBasisElement *tbe =
             dynamic_cast<const TensorBasisElement *>(fes->GetFE(e));
-         MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+         MFEM_VERIFY(tbe != nullptr, "TensorBasis FiniteElement expected.");
          Array<int> dof_map(dof_cnt_split);
          const Array<int> &dm = tbe->GetDofMap();
          if (dm.Size() > 0) { dof_map = dm; }
@@ -3183,9 +3354,22 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
          nodes->GetSubVector(xdofs, posV);
          for (int j = 0; j < dof_cnt_split; j++)
          {
-            for (int d = 0; d < vdim; d++)
+            if (by_element)
             {
-               node_vals(pts_cnt * d + gsl_mesh_pt_index) = pos(dof_map[j], d);
+               const int ei = gsl_mesh_pt_index / pts_el;
+               const int pi  = gsl_mesh_pt_index % pts_el;
+               for (int d = 0; d < vdim; d++)
+               {
+                  node_vals(ei * pts_el * vdim + d * pts_el + pi) =
+                     pos(dof_map[j], d);
+               }
+            }
+            else
+            {
+               for (int d = 0; d < vdim; d++)
+               {
+                  node_vals(pts_cnt * d + gsl_mesh_pt_index) = pos(dof_map[j], d);
+               }
             }
             gsl_mesh_pt_index++;
          }
@@ -3210,7 +3394,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    // obtained reference-space coordinates.
    double rbtol = 1e-12;
 
-   GridFunction *gf_rst_map_temp = NULL;
+   GridFunction *gf_rst_map_temp = nullptr;
    int nptsend = 0;
 
    for (int index = 0; index < npt; index++)
@@ -3520,6 +3704,7 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
                                       Vector &field_out,
                                       const int field_out_ordering)
 {
+   MFEM_VERIFY(setupflag, "FindPointsGSLIB::Setup must be called first.");
 #if GSLIB_RELEASE_VERSION < 10009
    MFEM_ABORT("Update to gslib v1.0.9 for surface mesh support.");
 #endif
@@ -3530,17 +3715,24 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                "basis not supported");
 
-   bool tensor_product_only = mesh->GetNE() == 0 ||
-                              (mesh->GetNumGeometries(dim) == 1 &&
-                               (mesh->GetElementType(0)== Element::SEGMENT ||
-                                mesh->GetElementType(0) == Element::QUADRILATERAL));
+   bool has_split_elems = false;
+   bool supported_surf_elem = true;
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const Element::Type t = mesh->GetElementType(e);
+      if (t == Element::TRIANGLE) { has_split_elems = true; }
+      else if (t != Element::SEGMENT && t != Element::QUADRILATERAL)
+      {
+         supported_surf_elem = false;
+      }
+   }
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
+   MPI_Allreduce(MPI_IN_PLACE, &supported_surf_elem, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
-   MFEM_VERIFY(tensor_product_only,
-               "FindPoints only supports tensor-product elements for "
-               "surface meshes.");
+   MFEM_VERIFY(supported_surf_elem,
+               "FindPointsGSLIB surface mesh support: only SEGMENT, "
+               "QUADRILATERAL, and TRIANGLE elements are supported.");
    MFEM_VERIFY(dim < spacedim, "InterpolateSurf only supports surface meshes.");
 
    bool use_dev = field_in.UseDevice();
@@ -3548,12 +3740,37 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    if (!field_in.FESpace()->IsVariableOrder())
    {
       Vector node_vals;
-      node_vals.UseDevice(use_dev);
 
-      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *R            = field_in.FESpace()->GetElementRestriction(ord);
-      node_vals.SetSize(R->Height());
-      R->Mult(field_in, node_vals); //orders fields (N^D x VDIM x NEL)
+      if (has_split_elems)
+      {
+         const int fieldOrder = field_in.FESpace()->GetMaxElementOrder();
+         const int meshOrder  = DEV.dof1d - 1;
+
+         const Array<IntegrationRule *> *ir_to_use;
+         if (fieldOrder == meshOrder)
+         {
+            ir_to_use = &ir_split;
+         }
+         else
+         {
+            if (fieldOrder != ir_split_sol_order)
+            {
+               SetupIntegrationRules(fieldOrder, ir_split_sol);
+               ir_split_sol_order = fieldOrder;
+            }
+            ir_to_use = &ir_split_sol;
+         }
+         node_vals.UseDevice(use_dev);
+         GetNodalValues(&field_in, node_vals, ir_to_use, true);
+      }
+      else
+      {
+         node_vals.UseDevice(use_dev);
+         const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+         const Operator *R            = field_in.FESpace()->GetElementRestriction(ord);
+         node_vals.SetSize(R->Height());
+         R->Mult(field_in, node_vals); // layout: [NEL][VDIM][N^D]
+      }
 
       const int ncomp    = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
@@ -3562,29 +3779,29 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       DEV.gll1d_sol.SetSize(DEV.dof1d_sol);
       DEV.lagcoeff_sol.UseDevice(use_dev);
       DEV.lagcoeff_sol.SetSize(DEV.dof1d_sol);
-      DEV.gll1d_sol.HostWrite();
-      DEV.lagcoeff_sol.HostWrite();
       if (DEV.dof1d_sol != DEV.dof1d)
       {
-         Vector temp(DEV.dof1d_sol);
-         gslib::lobatto_nodes(temp.GetData(), DEV.dof1d_sol);
-         DEV.gll1d_sol = temp.GetData();
-         MFEM_DEVICE_SYNC;
-
-         gslib::gll_lag_setup(temp.GetData(), DEV.dof1d_sol);
-         DEV.lagcoeff_sol = temp.GetData();
-         MFEM_DEVICE_SYNC;
+         auto h_gll1d_sol = DEV.gll1d_sol.HostWrite();
+         auto h_lagcoeff_sol = DEV.lagcoeff_sol.HostWrite();
+         gslib::lobatto_nodes(h_gll1d_sol, DEV.dof1d_sol);
+         gslib::gll_lag_setup(h_lagcoeff_sol, DEV.dof1d_sol);
       }
       else
       {
-         DEV.gll1d_sol    = DEV.gll1d.HostRead();
-         DEV.lagcoeff_sol = DEV.lagcoeff.HostRead();
+         auto h_gll1d_sol = DEV.gll1d_sol.HostWrite();
+         auto h_lagcoeff_sol = DEV.lagcoeff_sol.HostWrite();
+         auto h_gll1d = DEV.gll1d.HostRead();
+         auto h_lagcoeff = DEV.lagcoeff.HostRead();
+         for (int i = 0; i < DEV.dof1d_sol; i++)
+         {
+            h_gll1d_sol[i] = h_gll1d[i];
+            h_lagcoeff_sol[i] = h_lagcoeff[i];
+         }
       }
       MFEM_DEVICE_SYNC;
 
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(use_dev);
-
       InterpolateSurfBase(node_vals, field_out, NE_split_total, ncomp,
                           DEV.dof1d_sol, field_out_ordering);
       return;
@@ -4095,7 +4312,7 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
 
 
    int nverts = nve*ne_glob;
-   Mesh *meshbb = NULL;
+   Mesh *meshbb = nullptr;
    if (gsl_comm->id == save_rank)
    {
       meshbb = new Mesh(spacedim, nverts, ne_glob, 0, spacedim);
@@ -4338,7 +4555,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    const double bb_t, const double newt_tol,
                                    const int npt_max)
 {
-   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
    const int gfOrder = gfmax ? gfmax->FESpace()->GetMaxElementOrder() :
                        meshOrder;
@@ -4502,7 +4719,7 @@ GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
 #ifdef MFEM_USE_MPI
    int initialized;
    MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(NULL, NULL); }
+   if (!initialized) { MPI_Init(nullptr, nullptr); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
@@ -4546,7 +4763,7 @@ void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
                  MPI_MIN, gsl_comm->c);
 #endif
    MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
-   if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
+   if (gsl_data != nullptr) { gslib_gs_free(gsl_data); }
    num_ids = ids.Size();
    gsl_data = gslib_gs_setup(ids.GetData(),
                              ids.Size(),
