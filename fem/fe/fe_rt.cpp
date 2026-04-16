@@ -2361,6 +2361,18 @@ void RT_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    real_t zhat_data[3];
    Vector zhat(zhat_data, 3);
 
+   if (J.Height() != 2)
+   {
+      // Ensure integration point is set in neighboring element
+      TF->SetAllIntPoints(&Trans.GetIntPoint());
+      const DenseMatrix & JF = TF->Elem1->Jacobian();
+      CalcOrtho(JF, zhat);
+      zhat /= zhat.Norml2();
+
+      J.GetColumn(0, tangent);
+      zhat.cross3D(tangent, normal3);
+   }
+
    for (int i=0; i<dof; i++)
    {
       real_t sy = shape(i, 1);
@@ -2372,12 +2384,6 @@ void RT_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
       }
       else
       {
-         CalcOrtho(TF->Elem1->Jacobian(), zhat);
-         zhat /= zhat.Norml2();
-
-         J.GetColumn(0, tangent);
-         zhat.cross3D(tangent, normal3);
-
          for (int j=0; j<3; j++)
          {
             shape(i, j) = sy * normal3[j];

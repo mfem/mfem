@@ -3030,6 +3030,8 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
 
    if (J.Height() != 2)
    {
+      // Ensure integration point is set in neighboring element
+      TF->SetAllIntPoints(&Trans.GetIntPoint());
       const DenseMatrix & JF = TF->Elem1->Jacobian();
       CalcOrtho(JF, zhat);
       zhat /= zhat.Norml2();
