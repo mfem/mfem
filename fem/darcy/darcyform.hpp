@@ -438,13 +438,19 @@ public:
       ReconstructFluxAndPot(sol, ut, u, p, tr);
    }
 
-   /** @brief Use the stored eliminated part of the sytem to modify the r.h.s.
-       @a b; @a tdofs_flux is a list of true DOFs. */
+   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /** @param tdofs_flux   list of true DOFs of flux @a u
+       @param x            solution vector providing the true DOF values
+       @param b            (true) right hand side vector
+   */
    void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
                                const BlockVector &x, BlockVector &b);
 
-   /** @brief Use the stored eliminated part of the system to modify the r.h.s.
-       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
+   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /** @param vdofs_flux   list of VDOFs of flux @a u
+       @param x            solution vector providing the VDOF values
+       @param b            right hand side vector
+   */
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b);
 
