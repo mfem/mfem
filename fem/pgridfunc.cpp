@@ -545,6 +545,8 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
+   MFEM_VERIFY(VectorDim() == 1,
+               "Cannot project scalar coefficient onto vector ParGridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
@@ -717,6 +719,7 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
 
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    // local maximal element attribute for each dof
    Array<int> ldof_attr;
 
@@ -761,6 +764,9 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 
 void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar coefficient onto a vector ParGridFunction");
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
 
@@ -785,6 +791,8 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
 
    // Number of zones that contain a given dof.
    Array<int> zones_per_vdof;
@@ -856,6 +864,12 @@ void ParGridFunction::ProjectBdrCoefficient(
                   "internal error");
    }
 #endif
+}
+
+void ParGridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                            const Array<int> &attr)
+{
+   ProjectBdrCoefficient(NULL, &vcoeff, attr);
 }
 
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
@@ -1566,6 +1580,39 @@ PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
    MPI_Allreduce(MPI_IN_PLACE, upper.HostReadWrite(), siz,
                  MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
    return plb;
+}
+
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMinimum(vdim, plb, max_depth, tol);
+
+   real_t glob_min_lower = minmax.first;
+   real_t glob_min_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+
+   return std::make_pair(glob_min_lower, glob_min_upper);
+}
+
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMaximum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMaximum(vdim, plb, max_depth, tol);
+
+   real_t glob_max_lower = minmax.first;
+   real_t glob_max_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   return std::make_pair(glob_max_lower, glob_max_upper);
 }
 
 } // namespace mfem

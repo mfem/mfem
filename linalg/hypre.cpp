@@ -317,6 +317,9 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 
 Vector * HypreParVector::GlobalVector() const
 {
+   MFEM_VERIFY(size > 0,
+               "GlobalVector method can only be called on vectors wherein each "
+               "process owns one or more entries");
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
    Vector *v = new Vector(hv->data, internal::to_int(hv->size));
    v->MakeDataOwner();
