@@ -70,15 +70,16 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (fespace->UsesRaggedTensorBasis())
       {
+         const RaggedDofToQuad *rmaps = static_cast<const RaggedDofToQuad*>(maps);
          return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                                           maps->lex_map,
-                                           maps->forward_map2d_diff,
-                                           maps->inverse_map2d_diff,
-                                           maps->forward_map3d_diff,
-                                           maps->inverse_map3d_diff,
-                                           maps->Ga1,
-                                           maps->Ga2,
-                                           maps->Ga3,
+                                           rmaps->lex_map,
+                                           rmaps->forward_map2d_diff,
+                                           rmaps->inverse_map2d_diff,
+                                           rmaps->forward_map3d_diff,
+                                           rmaps->inverse_map3d_diff,
+                                           rmaps->Ga1,
+                                           rmaps->Ga2,
+                                           rmaps->Ga3,
                                            Dv, x, y, dofs1D, quad1D);
       }
 

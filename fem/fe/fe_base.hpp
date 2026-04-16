@@ -171,7 +171,8 @@ public:
 
       /** @brief Ragged tensor product representation using 1D matrices/tensors
           with dimensions using 1D number of quadrature points and ragged tensor degrees of
-          freedom. Used only for partial assembly of the H1 positive basis. The
+          freedom. */
+      /** Used only for partial assembly of the H1 positive basis. The
           size of B is d1d x qnpt x dim. Since different Gauss-Jacobi quadrature rules
           are employed in each dimension, we need to store dim arrays. */
       RAGGED_TENSOR
@@ -205,33 +206,6 @@ public:
        - #ndof x #nqpt x dim, for vector elements. */
    Array<real_t> Bt;
 
-   /** @brief Special basis function structures for positive (Bernstein) basis with
-      partial assembly. The storage layout of Ba1 is ndof x nqpt for scalar elements.
-      The storage layout of Ba2 is ndof x ndof x nqpt. In particular, we have
-            Ba2(iqpt, a1, a2) = B^{p-a1}_{a2}(x_{iqpt}). */
-   Array<real_t> Ba1, Ba2, Ba3;
-   Array<real_t> Ba1t, Ba2t, Ba3t;
-
-   /** @brief Special structures for gradients of positive basis with partial assembly.
-      The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
-      to be expressed as the sum of products of B^{p-1}_alpha and the barycentric coordinates.
-      Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
-   Array<real_t> Ga1, Ga2, Ga3;
-
-   /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
-       dof index. */
-   Array<int> lex_map;
-
-   Array<int> forward_map2d_diff, forward_map3d_diff;
-   Array<int> inverse_map2d_diff, inverse_map3d_diff;
-
-   Array<int> forward_map2d_mass, forward_map3d_mass;
-   Array<int> inverse_map2d_mass, inverse_map3d_mass;
-
-   /** @brief Arrays for holding the d one-dimensional quadrature nodes for Stroud conical
-       conical quadrature. */
-   Array<real_t> T;
-
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:
@@ -262,6 +236,40 @@ public:
       const Array<DofToQuad*> &dof2quad_array,
       const IntegrationRule &ir,
       DofToQuad::Mode mode);
+};
+
+/** @brief Structure representing the matrices/tensors needed to evaluate (in
+    reference space) the values, gradients, divergences, or curls of a positive
+    FiniteElement on simplices at the quadrature points of Stroud conical quadrature. */
+class RaggedDofToQuad : public DofToQuad
+{
+public:
+   /** @brief Special basis function structures for positive (Bernstein) basis with
+      partial assembly. The storage layout of Ba1 is ndof x nqpt for scalar elements.
+      The storage layout of Ba2 is ndof x ndof x nqpt. In particular, we have
+            Ba2(iqpt, a1, a2) = B^{p-a1}_{a2}(x_{iqpt}). */
+   Array<real_t> Ba1, Ba2, Ba3;
+   Array<real_t> Ba1t, Ba2t, Ba3t;
+
+   /** @brief Special structures for gradients of positive basis with partial assembly.
+      The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
+      to be expressed as the sum of products of B^{p-1}_alpha and the barycentric coordinates.
+      Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
+   Array<real_t> Ga1, Ga2, Ga3;
+
+   /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
+       dof index. */
+   Array<int> lex_map;
+
+   Array<int> forward_map2d_diff, forward_map3d_diff;
+   Array<int> inverse_map2d_diff, inverse_map3d_diff;
+
+   Array<int> forward_map2d_mass, forward_map3d_mass;
+   Array<int> inverse_map2d_mass, inverse_map3d_mass;
+
+   /** @brief Arrays for holding the d one-dimensional quadrature nodes for Stroud conical
+       conical quadrature. */
+   Array<real_t> T;
 };
 
 /// Describes the function space on each element

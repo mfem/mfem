@@ -1264,17 +1264,18 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule,
 {
    Array<IntegrationRule *> *ir_array = NULL;
 
+   if (stroud)
+   {
+      MFEM_ABORT("Stroud rules cannot be overwritten!");
+   }
+
    switch (GeomType)
    {
       case Geometry::POINT:       ir_array = &PointIntRules; break;
       case Geometry::SEGMENT:     ir_array = &SegmentIntRules; break;
-      case Geometry::TRIANGLE:    ir_array = stroud ?
-                                                &TriangleStroudIntRules :
-                                                &TriangleIntRules; break;
+      case Geometry::TRIANGLE:    ir_array = &TriangleIntRules; break;
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
-      case Geometry::TETRAHEDRON: ir_array = stroud ?
-                                                &TetrahedronStroudIntRules :
-                                                &TetrahedronIntRules; break;
+      case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
