@@ -493,8 +493,7 @@ void Mesh::GetBdrElementTransformation(int i,
          {
             for (int j = 0; j < n; j++)
             {
-               int idx = vdofs[n*k+j];
-               pm(k,j) = nodes((idx<0)? -1-idx:idx);
+               pm(k,j) = nodes(UnsignIndex(vdofs[n*k+j]));
             }
          }
          ElTr->SetFE(bdr_el);
@@ -1356,7 +1355,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
                face.element[0].conformity = ElementConformity::Coincident;
                face.element[1].conformity = ElementConformity::Coincident;
                face.element[1].location = ElementLocation::FaceNbr;
-               face.element[1].index = -1 - e2;
+               face.element[1].index = FlipIndexSign(e2);
                face.element[1].orientation = inf2%64;
             }
          }
@@ -1379,7 +1378,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
                face.element[1].location = ElementLocation::FaceNbr;
                face.element[0].conformity = ElementConformity::Coincident;
                face.element[1].conformity = ElementConformity::Superset;
-               face.element[1].index = -1 - e2;
+               face.element[1].index = FlipIndexSign(e2);
                face.element[1].orientation = inf2%64;
             }
             face.point_matrix = nc_faces_info[ncface].PointMatrix;
@@ -1405,7 +1404,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          face.element[1].location = ElementLocation::FaceNbr;
          face.element[0].conformity = ElementConformity::Superset;
          face.element[1].conformity = ElementConformity::Coincident;
-         face.element[1].index = -1 - e2;
+         face.element[1].index = FlipIndexSign(e2);
          face.element[1].orientation = inf2%64;
          face.point_matrix = nc_faces_info[ncface].PointMatrix;
       }
@@ -1438,7 +1437,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
          break;
       case FaceInfoTag::SharedConforming:
          res.Elem1No = element[0].index;
-         res.Elem2No = -1 - element[1].index;
+         res.Elem2No = FlipIndexSign(element[1].index);
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          break;
@@ -1448,7 +1447,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
          break;
       case FaceInfoTag::SharedSlaveNonconforming:
          res.Elem1No = element[0].index;
-         res.Elem2No = -1 - element[1].index;
+         res.Elem2No = FlipIndexSign(element[1].index);
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          break;
@@ -1456,7 +1455,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
          break;
       case FaceInfoTag::GhostSlave:
          res.Elem1No = element[0].index;
-         res.Elem2No = -1 - element[1].index;
+         res.Elem2No = FlipIndexSign(element[1].index);
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          break;
@@ -4792,11 +4791,12 @@ Mesh::Mesh(const NURBSExtension& ext)
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       for (int i = 0; i < spaceDim; i++)
@@ -6410,7 +6410,7 @@ void Mesh::UpdateNURBS()
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
-   spaceDim = Dim;
+   spaceDim = Nodes->FESpace()->GetVDim();
 
    if (NumOfElements != NURBSext->GetNE())
    {
@@ -6435,7 +6435,8 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NodesUpdated();
-   NURBSext->SetCoordsFromPatches(*Nodes);
+   const int vdim = Nodes->FESpace()->GetVDim();
+   NURBSext->SetCoordsFromPatches(*Nodes, vdim);
 
    if (NumOfVertices != NURBSext->GetNV())
    {
@@ -6512,7 +6513,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
          input >> edge_to_ukv[j] >> v[0] >> v[1];
          if (v[0] > v[1])
          {
-            edge_to_ukv[j] = -1 - edge_to_ukv[j];
+            edge_to_ukv[j] = FlipIndexSign(edge_to_ukv[j]);
          }
       }
    }
@@ -6549,9 +6550,6 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    const int NP = NumOfElements; // number of patches
    const int NPKV = NP * dim;    // number of patch knotvectors
    constexpr int notset = -9999999;
-   // Sign convention
-   auto flipSign = [](int i) { return -1 - i; };
-   auto unSign = [](int i) { return (i < 0) ? -1 - i : i; };
    // Local edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
@@ -6567,7 +6565,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       {
          GetElementVertices(i, v);
          // Sign is based on the edge's vertex indices
-         edge_to_ukv[i] = (v[1] > v[0]) ? i : flipSign(i);
+         edge_to_ukv[i] = (v[1] > v[0]) ? i : FlipIndexSign(i);
          ukv_to_rpkv[i] = i;
       }
       return;
@@ -6617,14 +6615,14 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
          // We've set this edge already - link this index to it
          if (edge_to_pkv[edge] != notset)
          {
-            const int pkv_other = unSign(edge_to_pkv[edge]);
+            const int pkv_other = UnsignIndex(edge_to_pkv[edge]);
             unite(pkv, pkv_other);
          }
          else
          {
             GetEdgeVertices(edge, v);
             // Sign is based on the edge's vertex indices
-            edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : flipSign(pkv);
+            edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : FlipIndexSign(pkv);
          }
       }
    }
@@ -6651,10 +6649,10 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    edge_to_ukv.SetSize(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++)
    {
-      const int pkv = unSign(edge_to_pkv[i]);
+      const int pkv = UnsignIndex(edge_to_pkv[i]);
       const int rpkv = pkv_to_rpkv[pkv];
       const int ukv = rpkv_to_ukv[rpkv];
-      edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? flipSign(ukv) : ukv;
+      edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? FlipIndexSign(ukv) : ukv;
    }
 
    CorrectPatchTopoOrientations(edge_to_ukv);
@@ -6664,9 +6662,6 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
 {
    const int dim = Dimension(); // Topological (not physical) dimension
    if (dim == 1) { return; }
-
-   // Sign convention
-   auto flipSign = [](int i) { return -1 - i; };
 
    const Table *face2elem = GetFaceToElementTable();
    Array<int> pfaces, orient;
@@ -6686,7 +6681,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          for (auto e : fe)
          {
             const int skv = edge_to_ukv[e];
-            if (skv == kv || flipSign(skv) == kv) { hasKV = true; }
+            if (skv == kv || FlipIndexSign(skv) == kv) { hasKV = true; }
          }
          if (hasKV)
          {
@@ -6716,7 +6711,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       };
    }
 
-   Array<int> ukvs((dim==2) ? 4 : 12);
+   Array<int> ukvs((dim == 2) ? 4 : 12);
    Array<int> pe, oe;
    bool initKV = false;
 
@@ -6730,7 +6725,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       for (int i = 0; i < pe.Size(); i++)
       {
          ukvs[i] = edge_to_ukv[pe[i]];
-         ukvs[i] = (oe[i] < 0) ? flipSign(ukvs[i]) : ukvs[i];
+         ukvs[i] = (oe[i] < 0) ? FlipIndexSign(ukvs[i]) : ukvs[i];
       }
 
       // Find the direction with this kv.
@@ -6738,12 +6733,19 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       for (int d=0; d<dim; ++d) // Loop over directions.
       {
          const int skv = edge_to_ukv[pe[dir_edges[d][0]]];
-         if (skv == kv || flipSign(skv) == kv)
+         if (skv == kv || FlipIndexSign(skv) == kv)
          {
-            thisDir = d;
+            for (auto e : dir_edges[d])
+               if (!edgeSet[pe[e]])
+               {
+                  thisDir = d;
+               }
          }
       }
-      MFEM_VERIFY(thisDir >= 0, "");
+      if (thisDir == -1)
+      {
+         return false;
+      }
 
       // For this direction, find any edge already set. If no edge is set, we
       // arbitrarily take the first.
@@ -6775,12 +6777,12 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          }
 
          const int edge = pe[i];
-         if ((dim == 2 && ukvs[i] != flipSign(ukvs[ref_edge0])) ||
-             (dim == 3 && ukvs[i] == flipSign(ukvs[ref_edge0])))
+         if ((dim == 2 && ukvs[i] != FlipIndexSign(ukvs[ref_edge0])) ||
+             (dim == 3 && ukvs[i] == FlipIndexSign(ukvs[ref_edge0])))
          {
             // Flip the sign of this edge
-            MFEM_VERIFY(!edgeSet[edge], "");
-            edge_to_ukv[edge] = flipSign(edge_to_ukv[edge]);
+            MFEM_ASSERT(!edgeSet[edge], "");
+            edge_to_ukv[edge] = FlipIndexSign(edge_to_ukv[edge]);
          }
 
          edgeSet[edge] = true;
@@ -6825,10 +6827,11 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       int unsetDim = -1;
       for (int d=0; d<dim; ++d) // Loop over dimensions.
       {
-         if (!edgeSet[pe[dir_edges[d][0]]])
-         {
-            unsetDim = d;
-         }
+         for (auto e : dir_edges[d])
+            if (!edgeSet[pe[e]])
+            {
+               unsetDim = d;
+            }
       }
 
       if (unsetDim == -1)
@@ -6837,9 +6840,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          continue;
       }
 
-      const int kv_signed = edge_to_ukv[pe[dir_edges[unsetDim][0]]];
-      const int kv = kv_signed < 0 ? flipSign(kv_signed) : kv_signed;
-      MFEM_VERIFY(!edgeSet[pe[dir_edges[unsetDim][0]]], "");
+      const int kv = UnsignIndex(edge_to_ukv[pe[dir_edges[unsetDim][0]]]);
 
       initKV = false;
 
@@ -6889,6 +6890,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       }
    }
 
+#ifdef MFEM_DEBUG
    bool allSet = true;
    for (auto eset : edgeSet)
    {
@@ -6897,7 +6899,8 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          allSet = false;
       }
    }
-   MFEM_VERIFY(allSet && unset.size() == 0, "Some edge is not set");
+   MFEM_ASSERT(allSet && unset.size() == 0, "Some edge is not set");
+#endif
 
    delete face2elem;
 }
@@ -6939,7 +6942,7 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
 
       if (v[0] > v[1])
       {
-         ukv = -1 - ukv;
+         ukv = FlipIndexSign(ukv);
       }
       edge_to_ukv[j] = ukv;
    }
@@ -7834,6 +7837,17 @@ bool Mesh::IsMixedMesh() const
 
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
+   if (Dim == 1)
+   {
+      // In 1D, elements are segments and can be treated as edges.
+      edges.SetSize(1);
+      cor.SetSize(1);
+      edges[0] = i;
+      const int *v = elements[i]->GetVertices();
+      cor[0] = (v[0] < v[1]) ? (1) : (-1);
+      return;
+   }
+
    if (el_to_edge)
    {
       el_to_edge->GetRow(i, edges);
@@ -12389,15 +12403,43 @@ void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
 {
    Array<int> vert;
 
+   // In 1D patch-topology NURBS meshes, knotvector orientation is stored in the
+   // file's `edges` section, but the topological 1D mesh has NumOfEdges == 0
+   // (its "faces" are vertices). When a valid edge->knotvector map is provided,
+   // print a pseudo-edge list derived from the 1D elements so external tools
+   // (e.g. VisIt) can consume the mapping.
+   if (Dim == 1 && NumOfEdges == 0 && e_to_k.Size() == NumOfElements)
+   {
+      const int ne = NumOfElements;
+      os << "\nedges\n" << ne << '\n';
+      for (int i = 0; i < ne; i++)
+      {
+         const int *v = elements[i]->GetVertices();
+         int v0 = v[0], v1 = v[1];
+
+         int ki = e_to_k[i];
+         const bool flip = (ki < 0); // desired output vertex order: descending
+         if (flip) { ki = -1 - ki; } // print the unsigned knotvector index
+
+         // Encode the sign of e_to_k in the vertex ordering, consistent with
+         // Mesh::LoadPatchTopo(): v0 > v1 => negative sign.
+         if ((v0 > v1) != flip) { std::swap(v0, v1); }
+
+         os << ki << ' ' << v0 << ' ' << v1 << '\n';
+      }
+
+      if (!vmap)
+      {
+         os << "\nvertices\n" << NumOfVertices << '\n';
+      }
+      return;
+   }
+
    os << "\nedges\n" << NumOfEdges << '\n';
    for (int i = 0; i < NumOfEdges; i++)
    {
       edge_vertex->GetRow(i, vert);
-      int ki = e_to_k[i];
-      if (ki < 0)
-      {
-         ki = -1 - ki;
-      }
+      const int ki = UnsignIndex(e_to_k[i]);
 
       if (vmap)
       {
@@ -15699,6 +15741,137 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       }
    }
    return mesh3d;
+}
+
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning)
+{
+   MFEM_VERIFY(dim > 1, "Not implemented for 1D meshes.");
+
+   // Closest int divisor to the cubit root, going down.
+   auto factor3 = [](int N)
+   {
+      for (int i = static_cast<int>(round(cbrt(N))); i > 0; i--)
+      {  if (N % i == 0) { return i; } }
+      return 1;
+   };
+
+   // Closest int divisor to the square root, going down.
+   auto factor2 = [](int N)
+   {
+      for (int i = static_cast<int>(round(sqrt(N))); i > 0; i--)
+      { if (N % i == 0) { return i; } }
+      return 1;
+   };
+
+   par_ref = 0;
+   const int ref_factor = (dim == 2) ? 4 : 8;
+
+   // Elements per task before performing parallel refinements.
+   // This will be used to form the serial mesh.
+   int el0 = elem_per_mpi;
+   while (el0 % ref_factor == 0)
+   {
+      el0 /= ref_factor;
+      par_ref++;
+   }
+
+   // In the serial mesh we have:
+   // The number of MPI blocks is mpi_cnt = mp_x.mpy_y.mpy_z.
+   // The size of each MPI block is el0 = el0_x.el0_y.el0_z.
+   int mpi_x, mpi_y, mpi_z;
+   int el0_x, el0_y, el0_z;
+   if (dim == 2)
+   {
+      mpi_x = factor2(mpi_cnt);
+      mpi_y = mpi_cnt / mpi_x;
+
+      // Switch order for better balance.
+      el0_y = factor2(el0);
+      el0_x = el0 / el0_y;
+   }
+   else
+   {
+      mpi_x = factor3(mpi_cnt);
+      mpi_y = factor2(mpi_cnt / mpi_x);
+      mpi_z = mpi_cnt / mpi_x / mpi_y;
+
+      // Switch order for better balance.
+      el0_z = factor3(el0);
+      el0_y = factor2(el0 / el0_z);
+      el0_x = el0 / el0_y / el0_z;
+   }
+
+   if (print && dim == 2)
+   {
+      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
+          elem_par_y = mpi_y * el0_y * pow(2, par_ref);
+
+      mfem::out << "--- Mesh generation: \n";
+      mfem::out << "Par mesh:    " << elem_par_x << " x " << elem_par_y
+                << " (" << elem_par_x * elem_par_y << " elements)\n"
+                << "Elem / task: "
+                << el0_x * pow(2, par_ref) << " x "
+                << el0_y * pow(2, par_ref)
+                << " (" << el0_x * pow(2, 2*par_ref) * el0_y << " elements)\n"
+                << "MPI blocks:  " << mpi_x << " x " << mpi_y
+                << " (" << mpi_x * mpi_y << " mpi tasks)\n" << "-\n"
+                << "Serial mesh: "
+                << mpi_x * el0_x << " x " << mpi_y * el0_y
+                << " (" << mpi_x * el0_x * mpi_y * el0_y << " elements)\n"
+                << "Elem / task: " << el0_x << " x " << el0_y << std::endl
+                << "Par refine:  " << par_ref << std::endl;
+      mfem::out << "--- \n";
+   }
+
+   if (print && dim == 3)
+   {
+      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
+          elem_par_y = mpi_y * el0_y * pow(2, par_ref),
+          elem_par_z = mpi_z * el0_z * pow(2, par_ref);
+
+      mfem::out << "--- Mesh generation: \n";
+      mfem::out << "Par mesh:    "
+                << elem_par_x << " x " << elem_par_y << " x " << elem_par_z
+                << " (" << elem_par_x*elem_par_y*elem_par_z << " elements)\n"
+                << "Elem / task: "
+                << el0_x * pow(2, par_ref) << " x "
+                << el0_y * pow(2, par_ref) << " x "
+                << el0_z * pow(2, par_ref)
+                << " (" << el0_x*pow(2, 3*par_ref)*el0_y*el0_z << " elements)\n"
+                << "MPI blocks:  " << mpi_x << " x " << mpi_y << " x " << mpi_z
+                << " (" << mpi_x * mpi_y * mpi_z << " mpi tasks)\n" << "-\n"
+                << "Serial mesh: "
+                << mpi_x*el0_x << " x " << mpi_y*el0_y << " x " << mpi_z*el0_z
+                << " (" << mpi_x*el0_x*mpi_y*el0_y*mpi_z*el0_z << " elements)\n"
+                << "Elem / task: "
+                << el0_x << " x " << el0_y << " x " << el0_z  << std::endl
+                << "Par refine:  " << par_ref << std::endl;
+      mfem::out << "--- \n";
+   }
+
+   Mesh mesh;
+   int nxyz[3];
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(mpi_x * el0_x,
+                                   mpi_y * el0_y, Element::QUADRILATERAL, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y;
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(mpi_x * el0_x,
+                                   mpi_y * el0_y,
+                                   mpi_z * el0_z, Element::HEXAHEDRON, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y; nxyz[2] = mpi_z;
+   }
+
+   const int NE = mesh.GetNE();
+   partitioning.SetSize(NE);
+   std::unique_ptr<int[]> p_raw(mesh.CartesianPartitioning(nxyz));
+   std::copy(p_raw.get(), p_raw.get() + NE, partitioning.GetData());
+
+   return mesh;
 }
 
 bool Mesh::Conforming() const

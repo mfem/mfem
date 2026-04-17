@@ -126,11 +126,11 @@ EXAMPLE_TEST_DIRS := examples
 MINIAPP_SUBDIRS = common electromagnetics meshing performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
  hooke multidomain dpg hdiv-linear-solver spde diag-smoothers contact \
- plasma fluids/navier fluids/schrodinger-flow
+ fluids/navier fluids/schrodinger-flow plasma plasma/electromagnetics plasma/pic
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg diag-smoothers fluids/navier)
+ toys shifted dpg diag-smoothers fluids/navier plasma plasma/pic)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -794,7 +794,6 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)

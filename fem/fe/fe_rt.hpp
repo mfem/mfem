@@ -525,6 +525,9 @@ public:
    RT_R2D_SegmentElement(const int p,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 2; }
+   int GetPhysCurlDim(int space_dim) const override { return 0; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -562,6 +565,9 @@ private:
                            DenseMatrix &I) const;
 
 public:
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 0; }
+
    using FiniteElement::CalcVShape;
 
    void CalcVShape(ElementTransformation &Trans,
