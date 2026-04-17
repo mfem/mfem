@@ -1056,7 +1056,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &bb_size,
                                 const double newt_tol)
 {
    obb_check = false;
-   bdr_tol = bb_size.Max();
+   bdr_tol = bb_size.Max()*bb_size.Max();
    SetupSurf_Base(m, bb_t, &bb_size, newt_tol);
 }
 
@@ -2200,7 +2200,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          if (d_split_elem_geom[loc_id] == (int)Geometry::TRIANGLE)
          {
             // Each original triangle is split into 3 quads.
-            const int loc_id = d_split_elem_idx[loc_id]; // 0, 1, or 2
+            const int tri_id = d_split_elem_idx[loc_id]; // 0, 1, or 2
 
             const double u = 0.5*(d_gsl_ref[index*2 + 0] + 1.0);
             const double v = 0.5*(d_gsl_ref[index*2 + 1] + 1.0);
@@ -2223,10 +2223,10 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
                {0.5, 1.0/3.0,   0.5,     1.0    }
             };
 
-            const double tx = N0*vx[loc_id][0] + N1*vx[loc_id][1]
-                              + N2*vx[loc_id][2] + N3*vx[loc_id][3];
-            const double ty = N0*vy[loc_id][0] + N1*vy[loc_id][1]
-                              + N2*vy[loc_id][2] + N3*vy[loc_id][3];
+            const double tx = N0*vx[tri_id][0] + N1*vx[tri_id][1]
+                              + N2*vx[tri_id][2] + N3*vx[tri_id][3];
+            const double ty = N0*vy[tri_id][0] + N1*vy[tri_id][1]
+                              + N2*vy[tri_id][2] + N3*vy[tri_id][3];
 
             d_gsl_mfem_ref[index*2 + 0] = tx;
             d_gsl_mfem_ref[index*2 + 1] = ty;
@@ -4216,6 +4216,7 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
    int nve   = spacedim == 2 ? 4 : 8;
    int nel = NE_split_total;
    aabb.SetSize(spacedim*nve*nel);
+   auto h_bb_ptr = DEV.bb.HostRead();
 
    if (spacedim == 3)
    {
@@ -4239,8 +4240,8 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
             const int max_off = obb_check ? 2*spacedim : spacedim;
             for (int d = 0; d < spacedim; d++)
             {
-               minn[d] = DEV.bb(e*n_el_ents + min_off + d);
-               maxx[d] = DEV.bb(e*n_el_ents + max_off + d);
+               minn[d] = h_bb_ptr[e*n_el_ents + min_off + d];
+               maxx[d] = h_bb_ptr[e*n_el_ents + max_off + d];
             }
          }
          int c = 0;
@@ -4292,8 +4293,8 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
             const int max_off = obb_check ? 2*spacedim : spacedim;
             for (int d = 0; d < spacedim; d++)
             {
-               minn[d] = DEV.bb(e*n_el_ents + min_off + d);
-               maxx[d] = DEV.bb(e*n_el_ents + max_off + d);
+               minn[d] = h_bb_ptr[e*n_el_ents + min_off + d];
+               maxx[d] = h_bb_ptr[e*n_el_ents + max_off + d];
             }
          }
          aabb(e*nve*spacedim + 0) = minn[0]; /* first vertex - x */
