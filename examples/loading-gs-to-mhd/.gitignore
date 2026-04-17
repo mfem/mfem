@@ -8,7 +8,7 @@
 *.pyc
 *.dat
 mesh_loader
-mesh_maker
+mesh_maker*
 B_*
 !B_*.cpp
 !B_*.hpp
