@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <limits>
+#include <string>
 #include "vec_coeffs.hpp"
 
 using namespace std;
@@ -124,9 +125,11 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream psi_log("input/psi.gf");
+   const string psi_log_filename = "input/psi.gf";
+   const string gg_log_filename = "input/gg.gf";
+   ifstream psi_log(psi_log_filename);
    GridFunction psi(&mesh, psi_log);
-   ifstream gg_log("input/gg.gf");
+   ifstream gg_log(gg_log_filename);
    GridFunction gg(&mesh, gg_log);
 
    MFEM_ASSERT(psi.Size() == mesh.GetNV(),
@@ -171,6 +174,26 @@ int main(int argc, char *argv[])
    const double B_mag =
       std::sqrt(B_tor_at_psi_max(0) * B_tor_at_psi_max(0) + B_pol_at_psi_max * B_pol_at_psi_max);
    cout << "B magnitude = " << B_mag << endl;
+   MFEM_VERIFY(B_mag > 0.0, "B magnitude is zero; cannot normalize psi and gg.");
+
+   const double inv_B_mag = 1.0 / B_mag;
+   psi *= inv_B_mag;
+   gg *= inv_B_mag;
+
+   auto scaled_filename = [](const string &filename)
+   {
+      const size_t dot = filename.rfind('.');
+      if (dot == string::npos) { return filename + "_s"; }
+      return filename.substr(0, dot) + "_s" + filename.substr(dot);
+   };
+   const string psi_scaled_filename = scaled_filename(psi_log_filename);
+   const string gg_scaled_filename = scaled_filename(gg_log_filename);
+   ofstream psi_scaled_ofs(psi_scaled_filename);
+   psi_scaled_ofs.precision(8);
+   psi.Save(psi_scaled_ofs);
+   ofstream gg_scaled_ofs(gg_scaled_filename);
+   gg_scaled_ofs.precision(8);
+   gg.Save(gg_scaled_ofs);
 
    if (visualization)
    {
