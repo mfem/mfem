@@ -11,7 +11,7 @@
 
 #include "cold_plasma_dielectric_eb_solver.hpp"
 #include "cold_plasma_dielectric_coefs.hpp"
-#include "../common/mesh_extras.hpp"
+#include "../../common/mesh_extras.hpp"
 
 #ifdef MFEM_USE_MPI
 

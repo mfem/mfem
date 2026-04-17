@@ -13,7 +13,7 @@
 #define MFEM_STIX_BCS
 
 #include "mfem.hpp"
-#include "../common/mesh_extras.hpp"
+#include "../../common/mesh_extras.hpp"
 
 namespace mfem
 {

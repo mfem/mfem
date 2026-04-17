@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "vis_object.hpp"
-#include "cold_plasma_dielectric_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
 

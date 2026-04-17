@@ -12,8 +12,8 @@
 #ifndef MFEM_COLD_PLASMA_DIELECTRIC_COEFS
 #define MFEM_COLD_PLASMA_DIELECTRIC_COEFS
 
-#include "../common/pfem_extras.hpp"
-#include "plasma.hpp"
+#include "../../common/pfem_extras.hpp"
+#include "../plasma.hpp"
 #include <complex>
 
 #ifdef MFEM_USE_MPI
@@ -483,37 +483,6 @@ public:
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
-};
-
-class PseudoScalarCoef : public Coefficient
-{
-private:
-   bool cyl_;
-
-   Coefficient & coef_;
-
-   mutable Vector x_;
-
-public:
-   PseudoScalarCoef(Coefficient & coef, bool cyl = false)
-      : cyl_(cyl), coef_(coef), x_(2) {}
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      real_t val = coef_.Eval(T, ip);
-
-      if (!cyl_)
-      {
-         return val;
-      }
-      else
-      {
-         T.Transform(ip, x_);
-         if (x_[1] == 0.0) { return 0.0; }
-         return val / x_[1];
-      }
-   }
 };
 
 class ColdPlasmaPlaneWaveBase: public StixCoefBase, public VectorCoefficient

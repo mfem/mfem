@@ -121,7 +121,7 @@
 
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_eb_solver.hpp"
-#include "../common/mesh_extras.hpp"
+#include "../../common/mesh_extras.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>

@@ -12,12 +12,12 @@
 #ifndef MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
 #define MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
 
-#include "../../general/optparser.hpp"
-#include "../common/fem_extras.hpp"
-#include "../common/pfem_extras.hpp"
-#include "plasma.hpp"
+#include "../../../general/optparser.hpp"
+#include "../../common/fem_extras.hpp"
+#include "../../common/pfem_extras.hpp"
+#include "../plasma.hpp"
 #include "stix_bcs.hpp"
-#include "vis_object.hpp"
+#include "../vis_object.hpp"
 #include "cold_plasma_dielectric_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
