@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <cmath>
 #include <limits>
 #include "vec_coeffs.hpp"
 
@@ -158,6 +159,18 @@ int main(int argc, char *argv[])
 
    GridFunction B_pol = computeBPol(psi, scalar_fespace, vector_fespace);
    GridFunction B_tor = computeBTor(gg, scalar_fespace, mixed_bilinear_form, from_psi);
+
+   FindPointsGSLIBOneByOne finder(&psi);
+   Vector B_tor_at_psi_max(1);
+   finder.InterpolateOneByOne(psi_max_x, B_tor, B_tor_at_psi_max, Ordering::byNODES);
+   Vector B_pol_at_psi_max(dim);
+   finder.InterpolateOneByOne(psi_max_x, B_pol, B_pol_at_psi_max, Ordering::byNODES);
+   cout << "B_tor(psi_max point) = " << B_tor_at_psi_max(0) << endl;
+   cout << "B_pol(psi_max point) = ";
+   B_pol_at_psi_max.Print(cout, dim);
+   const double B_mag =
+      std::sqrt(B_tor_at_psi_max(0) * B_tor_at_psi_max(0) + B_pol_at_psi_max * B_pol_at_psi_max);
+   cout << "B magnitude = " << B_mag << endl;
 
    if (visualization)
    {
