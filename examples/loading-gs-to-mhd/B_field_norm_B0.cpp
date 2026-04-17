@@ -173,7 +173,8 @@ int main(int argc, char *argv[])
    B_pol_at_psi_max.Print(cout, dim);
    const double B_mag =
       std::sqrt(B_tor_at_psi_max(0) * B_tor_at_psi_max(0) + B_pol_at_psi_max * B_pol_at_psi_max);
-   cout << "B magnitude = " << B_mag << endl;
+   // precision 8
+   cout << "B magnitude = " << std::setprecision(8) << B_mag << endl;
    MFEM_VERIFY(B_mag > 0.0, "B magnitude is zero; cannot normalize psi and gg.");
 
    const double inv_B_mag = 1.0 / B_mag;
