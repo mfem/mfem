@@ -67,4 +67,4 @@ opt_mpi_cuda_hypre_cuda_gcc:
 opt_mpi_cuda_gcc_gslib:
   extends: .mfem_job_on_matrix
   variables:
-    SPEC: "%gcc@10.3.1 +mpi +cuda +gslib cuda_arch=90"
+    SPEC: "%gcc@10.3.1 +mpi +cuda +gslib cuda_arch=90 ^hypre+cuda"
