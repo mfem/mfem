@@ -296,7 +296,7 @@ protected:
                             const Vector *bb_size);
 
    /// Shared implementation for SetupSurf overloads.
-   /// If @a bb_size is not null, it is used to post-expand the axis-aligned
+   /// If @a bb_size is not null, it is used to post-pad the axis-aligned
    /// bounding boxes after they are constructed with @a bbox_tol.
    void SetupSurf_Base(Mesh &m,
                        const double bbox_tol,
@@ -345,21 +345,22 @@ public:
                   const int npt_max = 256);
 
    /// Preprocess the surface mesh to compute data for FindPoints. The
-   /// minimum axis-aligned bounding box size in each direction is specified.
-   /// If bb_size.Size() == 1, the specified size is used for X/Y/Z direction in
-   ///                         all elements.
-   /// If bb_size.Size() == NElements, the specified size is used for each
+   /// axis-aligned bounding boxes are padded in each physical direction by the
+   /// specified absolute amount.
+   /// If bb_size.Size() == 1, the specified padding is used for X/Y/Z
+   ///                         direction in all elements.
+   /// If bb_size.Size() == NElements, the specified padding is used for each
    ///                         element in all directions.
-   /// If bb_size.Size() == SpaceDim, the minimum bounding box
-   ///                         size in each direction is used for all elements.
-   /// If bb_size.Size() ==  NElements*SpaceDim, the minimum bounding box size
-   ///                       in each direction is used for each element.
-   ///                       The ordering is (dx1,dy1,dz1, ... dxN,dyN,dzN)
-   ///                       where N is the number of elements.
+   /// If bb_size.Size() == SpaceDim, the padding in each direction is used for
+   ///                         all elements.
+   /// If bb_size.Size() == NElements*SpaceDim, the padding in each direction is
+   ///                       used for each element. The ordering is
+   ///                       (dx1,dy1,dz1, ... dxN,dyN,dzN) where N is the
+   ///                       number of elements.
    /// Note that this disables the oriented bounding box check as this
    /// overload is only used to modify the axis-aligned bounding boxes.
    void SetupSurf(Mesh &m, const Vector &bb_size,
-                  const double bb_t = 0.1,
+                  const double bb_t = 0.0,
                   const double newt_tol = 1.0e-12);
 
 

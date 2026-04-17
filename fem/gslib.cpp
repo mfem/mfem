@@ -864,7 +864,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
                   "Invalid bb_size length for SetupSurf: expected 1, NE, SpaceDim, or NE*SpaceDim.");
    }
 
-   auto GetMinAABBSize = [&](const uint e, const int d)
+   auto GetAABBPad = [&](const uint e, const int d)
    {
       if (!bb_size) { return 0.0; }
       const int sd = 3;
@@ -874,7 +874,8 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       else if (sz == (int)nel) { s = (*bb_size)((int)e); }
       else if (sz == sd) { s = (*bb_size)(d); }
       else { s = (*bb_size)((int)e*sd + d); }
-      return s;
+      MFEM_VERIFY(s >= 0.0, "bb_size pad must be non-negative.");
+      return 0.5*s;
    };
 
    Vector elmin(3*nel), elmax(3*nel);
@@ -884,11 +885,9 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 3; d++)
       {
-         const double req = GetMinAABBSize(i, d);
-         const double cur = h_bb[max_off + d] - h_bb[min_off + d];
-         if (cur < req)
+         const double pad = GetAABBPad(i, d);
+         if (pad > 0.0)
          {
-            const double pad = 0.5*(req - cur);
             h_bb[min_off + d] -= pad;
             h_bb[max_off + d] += pad;
          }
@@ -951,7 +950,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
 
    auto h_bb = devs.bb.HostReadWrite();
 
-   auto GetMinAABBSize = [&](const uint e, const int d)
+   auto GetAABBPad = [&](const uint e, const int d)
    {
       if (!bb_size) { return 0.0; }
       const int sd = 2;
@@ -963,8 +962,8 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
       else if (sz == (int)nel) { s = (*bb_size)((int)e); }
       else if (sz == sd) { s = (*bb_size)(d); }
       else { s = (*bb_size)((int)e*sd + d); }
-      MFEM_VERIFY(s >= 0.0, "bb_size entries must be non-negative.");
-      return s;
+      MFEM_VERIFY(s >= 0.0, "bb_size pad must be non-negative.");
+      return 0.5*s;
    };
 
    Vector elmin(2*nel), elmax(2*nel);
@@ -974,11 +973,9 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 2 && bb_size; d++)
       {
-         const double req = GetMinAABBSize(i, d);
-         const double cur = h_bb[max_off+d] - h_bb[min_off+d];
-         if (cur < req)
+         const double pad = GetAABBPad(i, d);
+         if (pad > 0.0)
          {
-            const double pad = 0.5*(req - cur);
             h_bb[min_off+d] -= pad;
             h_bb[max_off+d] += pad;
          }
@@ -1056,7 +1053,6 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &bb_size,
                                 const double newt_tol)
 {
    obb_check = false;
-   bdr_tol = bb_size.Max()*bb_size.Max();
    SetupSurf_Base(m, bb_t, &bb_size, newt_tol);
 }
 
@@ -1138,6 +1134,34 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           mesh_points_cnt,
                           dim,
                           bb_size);
+   }
+
+   if (bb_size)
+   {
+      const int n_box_ents = obb_check ?
+                             (3*spacedim + spacedim*spacedim) : (2*spacedim);
+      const int min_off = obb_check ? spacedim : 0;
+      const int max_off = obb_check ? 2*spacedim : spacedim;
+      constexpr double bdr_tol_inflate = 1.01;
+      double max_diag2 = bdr_tol;
+      auto h_bb = DEV.bb.HostRead();
+      for (int e = 0; e < NE_split_total; e++)
+      {
+         double diag2 = 0.0;
+         for (int d = 0; d < spacedim; d++)
+         {
+            const double lenx = h_bb[e*n_box_ents + max_off + d] -
+                               h_bb[e*n_box_ents + min_off + d];
+            diag2 += lenx*lenx;
+         }
+         max_diag2 = std::max(max_diag2,
+                              diag2 * bdr_tol_inflate * bdr_tol_inflate);
+      }
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &max_diag2, 1, MPI_DOUBLE, MPI_MAX,
+                    gsl_comm->c);
+#endif
+      bdr_tol = max_diag2; // this is cube/square diagonal length squared
    }
 
    // Compute avg element size in the mesh to set surface distance tolerance.
