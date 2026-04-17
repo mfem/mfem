@@ -236,6 +236,8 @@ public:
       const Array<DofToQuad*> &dof2quad_array,
       const IntegrationRule &ir,
       DofToQuad::Mode mode);
+
+   virtual ~DofToQuad() = default;
 };
 
 /** @brief Structure representing the matrices/tensors needed to evaluate (in

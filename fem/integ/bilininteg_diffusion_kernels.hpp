@@ -2198,12 +2198,15 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
             int idx = lex_map[a1][a2][a3];
             y(idx,e) -= p2 * (u + v + w);
 
+            MFEM_SYNC_THREAD;
             idx = lex_map[a1+1][a2][a3];
             y(idx,e) += p2 * u;
 
+            MFEM_SYNC_THREAD;
             idx = lex_map[a1][a2+1][a3];
             y(idx,e) += p2 * v;
 
+            MFEM_SYNC_THREAD;
             idx = lex_map[a1][a2][a3+1];
             y(idx,e) += p2 * w;
          }
