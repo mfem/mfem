@@ -970,6 +970,9 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
 void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
                                      const Vector &sol_r, GridFunction &ut) const
 {
+   MFEM_ASSERT(fes_p->GetVDim() == 1,
+               "Reconstruction is implemented only for vdim == 1");
+
    if (!hybridization) { return; }
 
    // automatically set up the finite element space
@@ -1077,6 +1080,9 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                                       const GridFunction &ut, GridFunction &u,
                                       GridFunction &p, GridFunction &tr) const
 {
+   MFEM_ASSERT(fes_p->GetVDim() == 1,
+               "Reconstruction is implemented only for vdim == 1");
+
    if (!hybridization) { return; }
 
    // flux space
