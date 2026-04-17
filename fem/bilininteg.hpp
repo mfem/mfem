@@ -2734,7 +2734,7 @@ public:
 
 
 /** Integrator for $(-Q u, \nabla v)$ for Nedelec ($u$) and $H^1$ ($v$) elements.
-    This is equivalent to a weak divergence of the $H(curl$ basis functions. */
+    This is equivalent to a weak divergence of the $H(curl)$ basis functions. */
 class VectorFEWeakDivergenceIntegrator: public BilinearFormIntegrator
 {
 protected:
