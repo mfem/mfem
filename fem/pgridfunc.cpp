@@ -80,6 +80,8 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
                                     fes->GetOrdering());
    delete fes;
    fes = pfes;
+
+   pfes->ApplyDofSigns(HostReadWrite());
 }
 
 void ParGridFunction::Update()
@@ -1068,18 +1070,12 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
 void ParGridFunction::Save(std::ostream &os) const
 {
-   real_t *data_  = const_cast<real_t*>(HostRead());
-   for (int i = 0; i < size; i++)
-   {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
-   }
+   real_t *h_data = const_cast<real_t*>(HostRead());
+   pfes->ApplyDofSigns(h_data);
 
    GridFunction::Save(os);
 
-   for (int i = 0; i < size; i++)
-   {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
-   }
+   pfes->ApplyDofSigns(h_data);
 }
 
 void ParGridFunction::Save(const char *fname, int precision) const
@@ -1251,6 +1247,7 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    int *nrdofs = new int[NRanks];
 
    real_t * h_data = const_cast<real_t *>(this->HostRead());
+   pfes->ApplyDofSigns(h_data);  // temporarily flip the dof signs
 
    values[0] = h_data;
    nv[0]     = pfes -> GetVSize();
@@ -1356,6 +1353,8 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
       MPI_Send(h_data, nv[0], MPITypeMap<real_t>::mpi_type, 0, 460, MyComm);
    }
+
+   pfes->ApplyDofSigns(h_data);  // restore the original h_data
 
    delete [] values;
    delete [] nv;
