@@ -1151,7 +1151,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
          for (int d = 0; d < spacedim; d++)
          {
             const double lenx = h_bb[e*n_box_ents + max_off + d] -
-                               h_bb[e*n_box_ents + min_off + d];
+                                h_bb[e*n_box_ents + min_off + d];
             diag2 += lenx*lenx;
          }
          max_diag2 = std::max(max_diag2,
