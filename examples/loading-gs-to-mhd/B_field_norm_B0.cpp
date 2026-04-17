@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include "vec_coeffs.hpp"
 
 using namespace std;
@@ -126,6 +127,27 @@ int main(int argc, char *argv[])
    GridFunction psi(&mesh, psi_log);
    ifstream gg_log("input/gg.gf");
    GridFunction gg(&mesh, gg_log);
+
+   MFEM_ASSERT(psi.Size() == mesh.GetNV(),
+               "This vertex scan assumes first-order CG (one DOF per vertex).");
+   double psi_max = -std::numeric_limits<double>::infinity();
+   int psi_max_vertex = -1;
+   Vector psi_max_x(dim);
+   for (int v = 0; v < mesh.GetNV(); v++)
+   {
+      const double psi_val = psi(v);
+      if (psi_val > psi_max)
+      {
+         psi_max = psi_val;
+         psi_max_vertex = v;
+         const double *xv = mesh.GetVertex(v);
+         for (int d = 0; d < dim; d++) { psi_max_x(d) = xv[d]; }
+      }
+   }
+   cout << "psi max = " << psi_max << ", vertex = " << psi_max_vertex
+        << ", at x = ";
+   psi_max_x.Print(cout, dim);
+   cout << "psi.Max() check = " << psi.Max() << endl;
 
    cout << "Mesh loaded" << endl;
 
