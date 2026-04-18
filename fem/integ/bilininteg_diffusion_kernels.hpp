@@ -1977,8 +1977,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      constexpr int BASIS_DIM2D_DIFF = (MD1-1) * MD1 / 2;
-      constexpr int BASIS_DIM3D_DIFF = (MD1-1) * MD1 * (MD1 + 1) / 6;
+      constexpr int BASIS_DIM2D_DIFF = (MD1 > 1) ? (MD1-1) * MD1 / 2 : 1;
+      constexpr int BASIS_DIM3D_DIFF = (MD1 > 1) ? (MD1-1) * MD1 * (MD1 + 1) / 6 : 1;
 
       MFEM_SHARED real_t sBG3[BASIS_DIM3D_DIFF*MQ1];
       MFEM_SHARED real_t sBG2[BASIS_DIM2D_DIFF*MQ1];
