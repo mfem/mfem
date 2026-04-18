@@ -57,11 +57,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
    bool sp_solver = false;
    bool lob_solver = true;
    bool arp_solver = false;
+   bool cpardiso_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -102,6 +103,10 @@ int main(int argc, char *argv[])
    args.AddOption(&arp_solver, "-arp", "--arpack", "-no-arp",
                   "--no-arpack", "Use the Parallel ARPACK Solver.");
 #endif
+#ifdef MFEM_USE_MKL_CPARDISO
+   args.AddOption(&cpardiso_solver, "-cpardiso", "--cpardiso", "-no-cpardiso",
+                  "--no-cpardiso", "Use the MKL CPardiso Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -129,7 +134,6 @@ int main(int argc, char *argv[])
          {
             args.PrintUsage(cout);
          }
-         MPI_Finalize();
          return 1;
       }
    }
@@ -180,7 +184,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;
@@ -199,7 +203,11 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
+      pmesh->MarkExternalBoundaries(ess_bdr);
+      // Boundary conditions can also be applied based on named attributes:
+      // pmesh->MarkNamedBoundaries(set_name, ess_bdr)
    }
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -218,7 +226,7 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator(one));
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m->EliminateEssentialBCDiag(ess_bdr, sqrt(numeric_limits<double>::min()));
+   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
@@ -248,7 +256,7 @@ int main(int argc, char *argv[])
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * solver = NULL;
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver)
+   if (!slu_solver && !sp_solver && !cpardiso_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
@@ -290,7 +298,8 @@ int main(int argc, char *argv[])
       strumpack->SetPrintSolveStatistics(false);
       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-      strumpack->DisableMatching();
+      strumpack->SetMatching(strumpack::MatchingJob::NONE);
+      strumpack->SetCompression(strumpack::CompressionType::NONE);
       strumpack->SetOperator(*Arow);
       strumpack->SetFromCommandLine();
       if (arp_solver)
@@ -301,6 +310,17 @@ int main(int argc, char *argv[])
       {
          precond = strumpack;
       }
+#endif
+#ifdef MFEM_USE_MKL_CPARDISO
+      if (cpardiso_solver)
+      {
+         auto cpardiso = new CPardisoSolver(A->GetComm());
+         cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+         cpardiso->SetPrintLevel(1);
+         cpardiso->SetOperator(*A);
+         precond = cpardiso;
+      }
+#endif
    }
 #endif
 
@@ -340,7 +360,7 @@ int main(int argc, char *argv[])
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
    //    the solver.
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
    eig_solver->Solve();
    eig_solver->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
@@ -426,8 +446,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

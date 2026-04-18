@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -17,6 +17,8 @@ list(APPEND SRCS
   error.cpp
   gecko.cpp
   globals.cpp
+  hash.cpp
+  hash_util.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -27,11 +29,15 @@ list(APPEND SRCS
   stable3d.cpp
   table.cpp
   tic_toc.cpp
+  tinyxml2.cpp
   version.cpp
+  hip.cpp
   )
 
 list(APPEND HDRS
+  annotation.hpp
   array.hpp
+  arrays_by_name.hpp
   backends.hpp
   binaryio.hpp
   cuda.hpp
@@ -41,7 +47,9 @@ list(APPEND HDRS
   globals.hpp
   zstr.hpp
   hash.hpp
+  hash_util.hpp
   isockstream.hpp
+  kdtree.hpp
   mem_alloc.hpp
   mem_manager.hpp
   occa.hpp
@@ -55,8 +63,10 @@ list(APPEND HDRS
   table.hpp
   tassign.hpp
   tic_toc.hpp
+  tinyxml2.h
   text.hpp
   version.hpp
+  hip.hpp
   )
 
 if (MFEM_USE_MPI)

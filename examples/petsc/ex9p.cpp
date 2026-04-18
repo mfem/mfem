@@ -49,10 +49,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -67,25 +67,27 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &M, &K;
+   OperatorHandle M, K;
    const Vector &b;
-   HypreSmoother M_prec;
+   MPI_Comm comm;
+   Solver *M_prec;
    CGSolver M_solver;
+   AssemblyLevel MAlev,KAlev;
 
    mutable Vector z;
    mutable PetscParMatrix* iJacobian;
    mutable PetscParMatrix* rJacobian;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                bool M_in_lhs);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
+                bool implicit);
 
    virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void ImplicitMult(const Vector &x, const Vector &xp, Vector &y) const;
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual Operator& GetExplicitGradient(const Vector &x) const;
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &xp,
-                                         double shift) const;
+                                         real_t shift) const;
    virtual ~FE_Evolution() { delete iJacobian; delete rJacobian; }
 };
 
@@ -101,8 +103,8 @@ private:
    bool             pause;
 
 public:
-   UserMonitor(socketstream& _s, ParMesh* _m, ParGridFunction* _u, int _vt) :
-      PetscSolverMonitor(true,false), sout(_s), pmesh(_m), u(_u), vt(_vt),
+   UserMonitor(socketstream& s_, ParMesh* m_, ParGridFunction* u_, int vt_) :
+      PetscSolverMonitor(true,false), sout(s_), pmesh(m_), u(u_), vt(vt_),
       pause(true) {}
 
    void MonitorSolution(PetscInt step, PetscReal norm, const Vector &X)
@@ -134,11 +136,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -146,9 +148,13 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
+   bool pa = false;
+   bool ea = false;
+   bool fa = false;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -172,6 +178,14 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -208,13 +222,15 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
    {
       args.PrintOptions(cout);
    }
+
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -240,7 +256,6 @@ int main(int argc, char *argv[])
             {
                cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
             }
-            MPI_Finalize();
             return 3;
       }
    }
@@ -278,10 +293,10 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -295,8 +310,24 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
-   m->AddDomainIntegrator(new MassIntegrator);
    ParBilinearForm *k = new ParBilinearForm(fes);
+   if (pa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::FULL);
+      k->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+
+   m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -307,15 +338,14 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   m->Assemble();
-   m->Finalize();
    int skip_zeros = 0;
+   m->Assemble();
    k->Assemble(skip_zeros);
-   k->Finalize(skip_zeros);
    b->Assemble();
+   m->Finalize();
+   k->Finalize(skip_zeros);
 
-   HypreParMatrix *M = m->ParallelAssemble();
-   HypreParMatrix *K = k->ParallelAssemble();
+
    HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
@@ -399,9 +429,9 @@ int main(int argc, char *argv[])
    }
 
    // 10. Define the time-dependent evolution operator describing the ODE
-   FE_Evolution *adv = new FE_Evolution(*M, *K, *B, implicit);
+   FE_Evolution *adv = new FE_Evolution(*m, *k, *B, implicit);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv->SetTime(t);
    if (use_petsc)
    {
@@ -419,7 +449,9 @@ int main(int argc, char *argv[])
       bool done = false;
       for (int ti = 0; !done; )
       {
-         double dt_real = min(dt, t_final - t);
+         // We cannot match exactly the time history of the Run method
+         // since we are explicitly telling PETSc to use a time step
+         real_t dt_real = min(dt, t_final - t);
          ode_solver->Step(*U, t, dt_real);
          ti++;
 
@@ -468,9 +500,7 @@ int main(int argc, char *argv[])
    delete u;
    delete B;
    delete b;
-   delete K;
    delete k;
-   delete M;
    delete m;
    delete fes;
    delete pmesh;
@@ -483,32 +513,53 @@ int main(int argc, char *argv[])
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
 
-   MPI_Finalize();
    return 0;
 }
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b,bool M_in_lhs)
-   : TimeDependentOperator(_M.Height(), 0.0,
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_,bool M_in_lhs)
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()),
+     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(height),
      iJacobian(NULL), rJacobian(NULL)
 {
-   if (isExplicit())
+   MAlev = M_.GetAssemblyLevel();
+   KAlev = K_.GetAssemblyLevel();
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M_prec.SetType(HypreSmoother::Jacobi);
-      M_solver.SetPreconditioner(M_prec);
-      M_solver.SetOperator(M);
-
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-9);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(100);
-      M_solver.SetPrintLevel(0);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
+   else
+   {
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
+   }
+
+   M_solver.SetOperator(*M);
+
+   Array<int> ess_tdof_list;
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
+   {
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+
+      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
+      M_prec = hypre_prec;
+   }
+   else
+   {
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
+   }
+
+   M_solver.SetPreconditioner(*M_prec);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
 }
 
 // RHS evaluation
@@ -517,14 +568,14 @@ void FE_Evolution::ExplicitMult(const Vector &x, Vector &y) const
    if (isExplicit())
    {
       // y = M^{-1} (K x + b)
-      K.Mult(x, z);
+      K->Mult(x, z);
       z += b;
       M_solver.Mult(z, y);
    }
    else
    {
       // y = K x + b
-      K.Mult(x, y);
+      K->Mult(x, y);
       y += b;
    }
 }
@@ -535,7 +586,7 @@ void FE_Evolution::ImplicitMult(const Vector &x, const Vector &xp,
 {
    if (isImplicit())
    {
-      M.Mult(xp, y);
+      M->Mult(xp, y);
    }
    else
    {
@@ -546,7 +597,7 @@ void FE_Evolution::ImplicitMult(const Vector &x, const Vector &xp,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
@@ -555,9 +606,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 {
    delete rJacobian;
+   Operator::Type otype = (KAlev == AssemblyLevel::LEGACY ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    if (isImplicit())
    {
-      rJacobian = new PetscParMatrix(&K, Operator::PETSC_MATAIJ);
+      rJacobian = new PetscParMatrix(comm, K.Ptr(), otype);
    }
    else
    {
@@ -568,12 +621,14 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 
 // LHS Jacobian, evaluated as shift*F_du/dt + F_u
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
-                                            double shift) const
+                                            real_t shift) const
 {
+   Operator::Type otype = (MAlev == AssemblyLevel::LEGACY ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    delete iJacobian;
    if (isImplicit())
    {
-      iJacobian = new PetscParMatrix(&M, Operator::PETSC_MATAIJ);
+      iJacobian = new PetscParMatrix(comm, M.Ptr(), otype);
       *iJacobian *= shift;
    }
    else
@@ -593,7 +648,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -615,7 +670,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -627,8 +682,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -642,7 +697,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -650,7 +705,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -666,10 +721,10 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
@@ -680,14 +735,14 @@ double u0_function(const Vector &x)
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
+         real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -695,7 +750,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {

@@ -1,0 +1,47 @@
+FROM ghcr.io/rse-ops/cuda-ubuntu-20.04:cuda-11.0.3
+
+# docker build -f Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base .
+
+RUN apt-get update && \
+    apt-get install -y unzip gfortran && \
+    spack compiler find && \
+    apt-get install -y libcurl4-openssl-dev libssl-dev
+
+# /code is the working directory for code
+WORKDIR /code
+COPY . /code
+
+# This is for a spack environment/view to install from there
+RUN mkdir -p /opt/mfem-env \
+&&  (echo "spack:" \
+&&   echo "  view:" \
+&&   echo "    mfem:" \
+&&   echo "      root: /opt/mfem-view" \
+&&   echo "      link_type: copy" \
+&&   echo "  packages:" \
+&&   echo "    all:" \
+&&   echo "      target:" \
+&&   echo "      - x86_64_v3" \
+&&   echo "  config:" \
+&&   echo "    concretizer: clingo" \
+&&   echo "    compiler:" \
+&&   echo "      target:" \
+&&   echo "      - x86_64_v3" \
+&&   echo "    install_missing_compilers: true" \
+&&   echo "  concretization: together") > /opt/mfem-env/spack.yaml
+
+RUN cd /opt/mfem-env && \
+    . /opt/spack/share/spack/setup-env.sh && \
+    spack env activate . && \
+    spack develop --path /code mfem@master+examples+miniapps && \
+    spack add mfem@master+examples+miniapps && \
+    spack install
+
+# ensure mfem always on various paths
+RUN cd /opt/mfem-env && \
+    spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
+
+# Present the software install when we shell in
+# The view is at /opt/mfem-env/.spack-env/view
+WORKDIR /opt/software
+ENTRYPOINT ["/bin/bash", "--rcfile", "/etc/profile", "-l", "-c"]

@@ -1,0 +1,21 @@
+{
+    "config_version": 2,
+    "solver": {
+        "max_uncolored_percentage": 0.15,
+        "algorithm": "AGGREGATION",
+        "solver": "AMG",
+        "smoother": "MULTICOLOR_GS",
+        "presweeps": 1,
+        "symmetric_GS" : 1,
+        "selector": "SIZE_2",
+        "coarsest_sweeps": 10,
+        "max_iters": 2,
+        "postsweeps": 1,
+        "scope": "main",
+        "max_levels": 1000,
+        "matrix_coloring_scheme" : "MIN_MAX",
+        "tolerance": 0.0,
+        "norm": "L2",
+        "cycle": "V"
+    }
+}

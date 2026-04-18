@@ -1,0 +1,84 @@
+MFEM NURBS mesh v1.0
+
+# 2D two cubes mesh consisting of two patches 
+# with the origin of the left square in the bottom
+# left corner and the origin of the right square 
+# in the top right corner. Both at z = 0;
+
+dimension
+3
+
+elements
+2
+1 5 0 1 4 3 6 7 10 9
+1 5 5 4 1 2 11 10 7 8
+
+boundary
+0
+
+edges
+20
+0 0 1
+1 1 4
+0 3 4
+1 0 3
+2 1 2
+1 2 5
+2 4 5
+0 6 7
+1 7 10
+0 9 10
+1 6 9
+2 7 8
+1 8 11
+2 10 11
+3 0 6
+3 1 7
+3 2 8
+3 3 9
+3 4 10
+3 5 11
+
+vertices
+12
+
+patches
+
+knotvectors
+3
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+dimension
+3
+
+controlpoints
+0 0 0 1
+1 0 0 1
+0 1 0 1
+1 1 0 1
+0 0 1 1
+1 0 1 1
+0 1 1 1
+1 1 1 1
+
+knotvectors
+3
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+dimension
+3
+
+controlpoints
+2 1 0 1
+1 1 0 1
+2 0 0 1
+1 0 0 1
+2 1 1 1
+1 1 1 1
+2 0 1 1
+1 0 1 1
+

@@ -19,15 +19,17 @@
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
+//
 //                                 k*u + grad p = f
 //                                 - div u      = g
+//
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockMatrix class, as
+//               The example demonstrates the use of the BlockOperator class, as
 //               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //               Optional saving with ADIOS2 (adios2.readthedocs.io) streams is
@@ -44,20 +46,20 @@ using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
 void uFun_ex(const Vector & x, Vector & u);
-double pFun_ex(const Vector & x);
+real_t pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
-double gFun(const Vector & x);
-double f_natural(const Vector & x);
+real_t gFun(const Vector & x);
+real_t f_natural(const Vector & x);
 
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
 
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
@@ -97,7 +99,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (verbose)
@@ -153,8 +154,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, hdiv_coll);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, l2_coll);
 
-   HYPRE_Int dimR = R_space->GlobalTrueVSize();
-   HYPRE_Int dimW = W_space->GlobalTrueVSize();
+   HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
+   HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
 
    if (verbose)
    {
@@ -325,8 +326,8 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(pa ? 1000 : 500);
-   double rtol(1.e-6);
-   double atol(1.e-10);
+   real_t rtol(1.e-6);
+   real_t atol(1.e-10);
 
    chrono.Clear();
    chrono.Start();
@@ -370,10 +371,10 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   double err_u  = u->ComputeL2Error(ucoeff, irs);
-   double norm_u = ComputeGlobalLpNorm(2, ucoeff, *pmesh, irs);
-   double err_p  = p->ComputeL2Error(pcoeff, irs);
-   double norm_p = ComputeGlobalLpNorm(2, pcoeff, *pmesh, irs);
+   real_t err_u  = u->ComputeL2Error(ucoeff, irs);
+   real_t norm_u = ComputeGlobalLpNorm(2, ucoeff, *pmesh, irs);
+   real_t err_p  = p->ComputeL2Error(pcoeff, irs);
+   real_t norm_p = ComputeGlobalLpNorm(2, pcoeff, *pmesh, irs);
 
    if (verbose)
    {
@@ -486,17 +487,15 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
 
 void uFun_ex(const Vector & x, Vector & u)
 {
-   double xi(x(0));
-   double yi(x(1));
-   double zi(0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(0.0);
    if (x.Size() == 3)
    {
       zi = x(2);
@@ -512,11 +511,11 @@ void uFun_ex(const Vector & x, Vector & u)
 }
 
 // Change if needed
-double pFun_ex(const Vector & x)
+real_t pFun_ex(const Vector & x)
 {
-   double xi(x(0));
-   double yi(x(1));
-   double zi(0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(0.0);
 
    if (x.Size() == 3)
    {
@@ -531,7 +530,7 @@ void fFun(const Vector & x, Vector & f)
    f = 0.0;
 }
 
-double gFun(const Vector & x)
+real_t gFun(const Vector & x)
 {
    if (x.Size() == 3)
    {
@@ -543,7 +542,7 @@ double gFun(const Vector & x)
    }
 }
 
-double f_natural(const Vector & x)
+real_t f_natural(const Vector & x)
 {
    return (-pFun_ex(x));
 }

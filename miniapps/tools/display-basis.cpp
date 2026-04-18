@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@
 // Compile with: make display-basis
 //
 // Sample runs:  display-basis
-//               display_basis -e 2 -b 3 -o 3
+//               display-basis -e 2 -b 3 -o 3
 //               display-basis -e 5 -b 1 -o 1
 //               display-basis -e 3 -b 7 -o 3
 //               display-basis -e 3 -b 7 -o 5 -only 16
@@ -48,10 +48,10 @@ struct VisWinLayout
 // Data structure used to define simple coordinate transformations
 struct DeformationData
 {
-   double uniformScale;
+   real_t uniformScale;
 
    int    squeezeAxis;
-   double squeezeFactor;
+   real_t squeezeFactor;
 
    int    shearAxis;
    Vector shearVec;
@@ -79,7 +79,8 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
@@ -106,7 +107,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization, int &onlySome);
+                 bool visualization, int &onlySome, int visport = 19916);
 
 int main(int argc, char *argv[])
 {
@@ -131,12 +132,15 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int onlySome = -1;
 
+   int visport = 19916;
    vector<socketstream*> sock;
 
    OptionsParser args(argc, argv);
    args.AddOption(&eInt, "-e", "--elem-type",
                   "Element Type: (1-Segment, 2-Triangle, 3-Quadrilateral, "
-                  "4-Tetrahedron, 5-Hexahedron)");
+                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge"
+                  /* , 7-Pyramid not currently supported */
+                  ")");
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
@@ -155,6 +159,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -164,7 +169,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   if ( eInt > 0 && eInt < 6 )
+   if ( eInt > 0 && eInt < 7 )
    {
       eType = (Element::Type)eInt;
    }
@@ -206,12 +211,12 @@ int main(int argc, char *argv[])
       {
          cout << endl;
          cout << "Element Type:          " << elemTypeStr(eType) << endl;
-         cout << "Basis Type:            " << basisTypeStr(bType) << endl;;
+         cout << "Basis Type:            " << basisTypeStr(bType) << endl;
          cout << "Basis function order:  " << bOrder << endl;
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization, onlySome) )
+                        dType, defData, visualization, onlySome, visport) )
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -271,11 +276,13 @@ int main(int argc, char *argv[])
          {
             cout <<
                  "4) Tetrahedron\n"
-                 "5) Hexahedron\n";
+                 "5) Hexahedron\n"
+                 "6) Wedge\n"
+                 "7) Pyramid (** not currently supported **)\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
-         if ( eInt <= 0 || eInt > 5 )
+         if ( eInt <= 0 || eInt > 7 )
          {
             cout << "invalid element type \"" << eInt << "\"" << endl << flush;
          }
@@ -429,7 +436,7 @@ int main(int argc, char *argv[])
          cout << endl;
          cout << "enter new basis function order --> " << flush;
          cin >> oInt;
-         if ( oInt >= oMin && oInt <= (oMax>=0)?oMax:oInt )
+         if ( oInt >= oMin && oInt <= ((oMax>=0)?oMax:oInt) )
          {
             bOrder = oInt;
             print_char = true;
@@ -526,6 +533,10 @@ string elemTypeStr(const Element::Type & eType)
          return "TETRAHEDRON";
       case Element::HEXAHEDRON:
          return "HEXAHEDRON";
+      case Element::WEDGE:
+         return "WEDGE";
+      case Element::PYRAMID:
+         return "PYRAMID";
       default:
          return "INVALID";
    };
@@ -546,7 +557,8 @@ elemIs2D(const Element::Type & eType)
 bool
 elemIs3D(const Element::Type & eType)
 {
-   return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON;
+   return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON ||
+          eType == Element::WEDGE || eType == Element::PYRAMID;
 }
 
 string
@@ -699,7 +711,7 @@ int
 update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
              Element::Type e, char bType, int bOrder, int mType,
              Deformation::DefType dType, const DeformationData & defData,
-             bool visualization, int &onlySome)
+             bool visualization, int &onlySome, int visport)
 {
    bool vec = false;
 
@@ -798,7 +810,6 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    FESpace.GetElementVDofs(0,vdofs);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int offx = vwl.w+10, offy = vwl.h+45; // window offsets
 

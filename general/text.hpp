@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #ifndef MFEM_TEXT
 #define MFEM_TEXT
 
+#include "../config/config.hpp"
 #include <istream>
 #include <iomanip>
 #include <sstream>
@@ -23,6 +24,8 @@ namespace mfem
 {
 
 // Utilities for text parsing
+
+using std::to_string;
 
 /// Check if the stream starts with @a comment_char. If so skip it.
 inline void skip_comment_lines(std::istream &is, const char comment_char)
@@ -47,16 +50,46 @@ inline void filter_dos(std::string &line)
    }
 }
 
-/// Convert an integer to an std::string.
-inline std::string to_string(int i)
-{
-   std::stringstream ss;
-   ss << i;
+/** @brief Read a string formatted using std::quoted. Return nonzero on error.
 
-   // trim leading spaces
-   std::string out_str = ss.str();
-   out_str = out_str.substr(out_str.find_first_not_of(" \t"));
-   return out_str;
+    The stream @a in must begin with @a delim. After clearing @a result and
+    extracting the opening @a delim, characters are extracted from @a in and
+    processed as follows:
+    - if the character is @a delim, return 0;
+    - if the character is different from @a escape, it is appended to @a result;
+    - if the character is @a escape, the next character from @a in is extracted
+      and if it is one of @a delim or @a escape, it is appended to @a result;
+      otherwise, both @a escape and the character after it are appended to
+      @a result; note that the latter case is not possible if the input was
+      formatted with std::quoted with the same @a delim and @a escape
+      characters.
+
+    If the stream @a in does not begin with @a delim, error code 1 is returned.
+    If reading the stream fails, error code 2 is returned. On success, zero is
+    returned and the closing @a delim character is the last character extracted
+    from @a in. */
+inline int parse_quoted_string(std::string &result, std::istream &in,
+                               char delim = '"', char escape = '\\')
+{
+   using tt = std::string::traits_type;  // std::char_traits<char>
+   auto equal = [](tt::int_type c1, tt::char_type c2) -> bool
+   {
+      return tt::eq_int_type(c1, tt::to_int_type(c2));
+   };
+   result.clear();
+   if (!equal(in.peek(), delim)) { return 1; }
+   in.get();  // extract delim
+   for (auto c = in.get(); !equal(c, delim); c = in.get())
+   {
+      if (equal(c, escape))
+      {
+         c = in.get();
+         if (!equal(c, escape) && !equal(c, delim)) { result += escape; }
+      }
+      if (!in) { return 2; }
+      result += tt::to_char_type(c);
+   }
+   return 0;
 }
 
 /// Convert an integer to a 0-padded string with the given number of @a digits

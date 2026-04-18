@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,11 +41,11 @@ static Element::Type el_type_ = Element::WEDGE;
 static int    order_ = 3;
 static int    nz_    = 3;
 static int    nt_    = 2;
-static double a_     = 1.0;
-static double b_     = 1.0;
-static double c_     = 3.0;
+static real_t a_     = 1.0;
+static real_t b_     = 1.0;
+static real_t c_     = 3.0;
 
-void pts(int iphi, int t, double x[]);
+void pts(int iphi, int t, real_t x[]);
 void trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
    int el_type = 8;
    bool per_mesh = true;
    bool dg_mesh  = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -82,6 +83,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -109,22 +111,22 @@ int main(int argc, char *argv[])
    }
 
    // Define the mesh
-   Mesh *mesh = new Mesh(1, 1, nz_, el_type_, false, a_, b_, c_, false);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, nz_, el_type_, a_, b_, c_, false);
 
    // Promote to high order mesh and transform into a twisted shape
    if (order_ > 1 || dg_mesh || per_mesh)
    {
-      mesh->SetCurvature(order_, dg_mesh || per_mesh, 3, Ordering::byVDIM);
+      mesh.SetCurvature(order_, dg_mesh || per_mesh, 3, Ordering::byVDIM);
    }
    if (nt_ != 0 )
    {
-      mesh->Transform(trans);
+      mesh.Transform(trans);
    }
 
    while (per_mesh)
    {
       // Verify geometric compatibility
-      if (nt_ % 2 == 1 && fabs(a_ - b_) > 1e-6 * a_)
+      if (nt_ % 2 == 1 && std::abs(a_ - b_) > 1e-6 * a_)
       {
          cout << "Base is rectangular so number of shifts must be even "
               << "for a periodic mesh!" << endl;
@@ -143,7 +145,7 @@ int main(int argc, char *argv[])
       int nnode = 4;
       int noff = (nt_ >= 0) ? 0 : (nnode * (1 - nt_ / nnode));
 
-      Array<int> v2v(mesh->GetNV());
+      Array<int> v2v(mesh.GetNV());
       for (int i = 0; i < v2v.Size() - nnode; i++)
       {
          v2v[i] = i;
@@ -177,9 +179,9 @@ int main(int argc, char *argv[])
             break;
       }
       // renumber elements
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         Element *el = mesh->GetElement(i);
+         Element *el = mesh.GetElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -188,9 +190,9 @@ int main(int argc, char *argv[])
          }
       }
       // renumber boundary elements
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         Element *el = mesh->GetBdrElement(i);
+         Element *el = mesh.GetBdrElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -198,8 +200,8 @@ int main(int argc, char *argv[])
             v[j] = v2v[v[j]];
          }
       }
-      mesh->RemoveUnusedVertices();
-      mesh->RemoveInternalBoundaries();
+      mesh.RemoveUnusedVertices();
+      mesh.RemoveInternalBoundaries();
 
       break;
    }
@@ -207,7 +209,7 @@ int main(int argc, char *argv[])
    // Refine the mesh if desired
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    // Output the resulting mesh to a file
@@ -246,7 +248,7 @@ int main(int argc, char *argv[])
       oss << ".mesh";
       ofstream ofs(oss.str().c_str());
       ofs.precision(8);
-      mesh->Print(ofs);
+      mesh.Print(ofs);
       ofs.close();
    }
 
@@ -254,23 +256,21 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << *mesh << flush;
+      sol_sock << "mesh\n" << mesh << flush;
    }
 
    // Clean up and exit
-   delete mesh;
    return 0;
 }
 
 void trans(const Vector &x, Vector &p)
 {
-   double z = x[2];
-   double phi = 0.5 * M_PI * nt_ * z / c_;
-   double cp = cos(phi);
-   double sp = sin(phi);
+   real_t z = x[2];
+   real_t phi = 0.5 * M_PI * nt_ * z / c_;
+   real_t cp = cos(phi);
+   real_t sp = sin(phi);
 
    p[0] = 0.5 * a_ + (x[0] - 0.5 * a_) * cp - (x[1] - 0.5 * b_) * sp;
    p[1] = 0.5 * b_ + (x[0] - 0.5 * a_) * sp + (x[1] - 0.5 * b_) * cp;

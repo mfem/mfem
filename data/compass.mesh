@@ -1,0 +1,96 @@
+MFEM mesh v1.3
+
+#
+# MFEM Geometry Types (see mesh/geom.hpp):
+#
+# POINT       = 0
+# SEGMENT     = 1
+# TRIANGLE    = 2
+# SQUARE      = 3
+# TETRAHEDRON = 4
+# CUBE        = 5
+# PRISM       = 6
+#
+
+dimension
+2
+
+elements
+12
+10 2 7 0 1
+11 2 0 7 2
+12 2 9 0 2
+13 2 0 9 3
+14 2 11 0 3
+15 2 0 11 4
+16 2 5 0 4
+17 2 0 5 1
+9 3 1 5 6 7
+9 3 2 7 8 9
+9 3 3 9 10 11
+9 3 4 11 12 5
+
+attribute_sets
+16
+"Base" 1 9
+"E Even" 1 16
+"E Odd" 1 17
+"East" 2 16 17
+"N Even" 1 10
+"N Odd" 1 11
+"North" 2 10 11
+"Rose" 8 10 11 12 13 14 15 16 17
+"Rose Even" 4 10 12 14 16
+"Rose Odd" 4 11 13 15 17
+"S Even" 1 14
+"S Odd" 1 15
+"South" 2 14 15
+"W Even" 1 12
+"W Odd" 1 13
+"West" 2 12 13
+
+boundary
+8
+1 1 5 6
+2 1 6 7
+3 1 7 8
+4 1 8 9
+5 1 9 10
+6 1 10 11
+7 1 11 12
+8 1 12 5
+
+bdr_attribute_sets
+13
+"Boundary" 8 1 2 3 4 5 6 7 8
+"ENE" 1 1
+"ESE" 1 8
+"Eastern Boundary" 2 1 8
+"NNE" 1 2
+"NNW" 1 3
+"Northern Boundary" 2 2 3
+"SSE" 1 7
+"SSW" 1 6
+"Southern Boundary" 2 6 7
+"WNW" 1 4
+"WSW" 1 5
+"Western Boundary" 2 4 5
+
+vertices
+13
+2
+0 0
+0.14142136 0.14142136
+-0.14142136 0.14142136
+-0.14142136 -0.14142136
+0.14142136 -0.14142136
+1 0
+0.70710678 0.70710678
+0 1
+-0.70710678 0.70710678
+-1 0
+-0.70710678 -0.70710678
+0 -1
+0.70710678 -0.70710678
+
+mfem_mesh_end

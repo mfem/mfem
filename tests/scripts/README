@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 This directory contains several shell scripts that perform simple checks on the
 MFEM sources and Git commits including: code styling, documentation formatting,

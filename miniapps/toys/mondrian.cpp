@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -80,6 +80,7 @@ int main(int argc, char *argv[])
    int ncolors = 3;
    bool aniso = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -128,7 +130,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);
@@ -180,22 +181,22 @@ int main(int argc, char *argv[])
                const int s = sd+1;
                if (dim == 2)
                {
-                  for (int j = 0; j <= sd; j++)
-                     for (int i = 0; i < sd; i++)
+                  for (int jj = 0; jj <= sd; jj++)
+                     for (int ii = 0; ii < sd; ii++)
                      {
-                        dx += abs(mat[j*s + i+1] - mat[j*s + i]);
-                        dy += abs(mat[(i+1)*s + j] - mat[i*s + j]);
+                        dx += abs(mat[jj*s + ii+1] - mat[jj*s + ii]);
+                        dy += abs(mat[(ii+1)*s + jj] - mat[ii*s + jj]);
                      }
                }
                else if (dim == 3)
                {
-                  for (int k = 0; k <= sd; k++)
-                     for (int j = 0; j <= sd; j++)
-                        for (int i = 0; i < sd; i++)
+                  for (int kk = 0; kk <= sd; kk++)
+                     for (int jj = 0; jj <= sd; jj++)
+                        for (int ii = 0; ii < sd; ii++)
                         {
-                           dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
-                           dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
-                           dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
+                           dx += abs(mat[(kk*s + jj)*s + ii+1] - mat[(kk*s + jj)*s + ii]);
+                           dy += abs(mat[(kk*s + ii+1)*s + jj] - mat[(kk*s + ii)*s + jj]);
+                           dz += abs(mat[((ii+1)*s + jj)*s + kk] - mat[(ii*s + jj)*s + kk]);
                         }
                }
                type = 0;
@@ -248,7 +249,7 @@ int main(int argc, char *argv[])
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      mesh.SetAttribute(i, attr(i));
+      mesh.SetAttribute(i, static_cast<int>(attr(i)));
    }
    mesh.SetAttributes();
 
@@ -356,7 +357,7 @@ int material(const ParsePGM &pgm, int NC, Vector &x, Vector &xmin, Vector &xmax)
    int M = pgm.Width();
    int N = pgm.Height();
 
-   int i = x(1)*N, j = x(0)*M;
+   int i = (int)(x(1)*N), j = (int)(x(0)*M);
    if (i == N) { i = N-1; }
    if (j == M) { j = M-1; }
    i = N-1-i;

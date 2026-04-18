@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,10 @@
 #include "sort_pairs.hpp"
 #include "globals.hpp"
 
+#ifdef MFEM_USE_STRUMPACK
+#include <StrumpackConfig.hpp> // STRUMPACK_USE_PTSCOTCH, etc.
+#endif
+
 #include <iostream>
 #include <map>
 
@@ -34,11 +38,12 @@ using namespace std;
 namespace mfem
 {
 
-void MPI_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
+#if defined(MFEM_USE_STRUMPACK) && \
+    (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
+int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
+#else
+int Mpi::default_thread_required = MPI_THREAD_SINGLE;
+#endif
 
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
@@ -265,27 +270,27 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    // debug barrier: MPI_Barrier(MyComm);
 }
 
-void GroupTopology::Save(ostream &out) const
+void GroupTopology::Save(ostream &os) const
 {
-   out << "\ncommunication_groups\n";
-   out << "number_of_groups " << NGroups() << "\n\n";
+   os << "\ncommunication_groups\n";
+   os << "number_of_groups " << NGroups() << "\n\n";
 
-   out << "# number of entities in each group, followed by group ids in group\n";
+   os << "# number of entities in each group, followed by ranks in group\n";
    for (int group_id = 0; group_id < NGroups(); ++group_id)
    {
       int group_size = GetGroupSize(group_id);
       const int * group_ptr = GetGroup(group_id);
-      out << group_size;
+      os << group_size;
       for ( int group_member_index = 0; group_member_index < group_size;
             ++group_member_index)
       {
-         out << " " << GetNeighborRank( group_ptr[group_member_index] );
+         os << " " << GetNeighborRank( group_ptr[group_member_index] );
       }
-      out << "\n";
+      os << "\n";
    }
 
    // For future use, optional ownership strategy.
-   // out << "# ownership";
+   // os << "# ownership";
 }
 
 void GroupTopology::Load(istream &in)
@@ -333,12 +338,34 @@ void GroupTopology::Copy(GroupTopology& copy) const
    group_mgroup.Copy(copy.group_mgroup);
 }
 
+void GroupTopology::Swap(GroupTopology &other)
+{
+   mfem::Swap(MyComm, other.MyComm);
+   mfem::Swap(group_lproc, other.group_lproc);
+   mfem::Swap(groupmaster_lproc, other.groupmaster_lproc);
+   mfem::Swap(lproc_proc, other.lproc_proc);
+   mfem::Swap(group_mgroup, other.group_mgroup);
+}
+
+/// \cond DO_NOT_DOCUMENT
 // Initialize the static mpi_type for the specializations of MPITypeMap:
+const MPI_Datatype MPITypeMap<bool>::mpi_type = MFEM_MPI_CXX_BOOL;
+const MPI_Datatype MPITypeMap<char>::mpi_type = MPI_CHAR;
+const MPI_Datatype MPITypeMap<unsigned char>::mpi_type = MPI_UNSIGNED_CHAR;
+const MPI_Datatype MPITypeMap<short>::mpi_type = MPI_SHORT;
+const MPI_Datatype MPITypeMap<unsigned short>::mpi_type = MPI_UNSIGNED_SHORT;
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+const MPI_Datatype MPITypeMap<unsigned int>::mpi_type = MPI_UNSIGNED;
+const MPI_Datatype MPITypeMap<long>::mpi_type = MPI_LONG;
+const MPI_Datatype MPITypeMap<unsigned long>::mpi_type = MPI_UNSIGNED_LONG;
+const MPI_Datatype MPITypeMap<long long>::mpi_type = MPI_LONG_LONG;
+const MPI_Datatype MPITypeMap<unsigned long long>::mpi_type =
+   MPI_UNSIGNED_LONG_LONG;
+const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+/// \endcond DO_NOT_DOCUMENT
 
-
-GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
+GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    : gtopo(gt), mode(m)
 {
    group_buf_size = 0;
@@ -826,7 +853,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
       }
    }
 
-   comm_lock = 1; // 1 - locked fot Bcast
+   comm_lock = 1; // 1 - locked for Bcast
    num_requests = request_counter;
 }
 
@@ -1155,7 +1182,7 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
-void GroupCommunicator::PrintInfo(std::ostream &out) const
+void GroupCommunicator::PrintInfo(std::ostream &os) const
 {
    char c = '\0';
    const int tag = 46800;
@@ -1241,36 +1268,36 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
    }
    else
    {
-      out << "\nGroupCommunicator:\n";
+      os << "\nGroupCommunicator:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   mode             = " <<
-       (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
-       "   number of sends  = " << num_sends <<
-       " (" << mem_sends << " bytes)\n"
-       "   number of recvs  = " << num_recvs <<
-       " (" << mem_recvs << " bytes)\n";
-   out <<
-       "   num groups       = " << group_ldof.Size() << " = " <<
-       num_master_groups << " + " <<
-       group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
-       num_empty_groups << " (master + slave + empty)\n";
+   os << "Rank " << myid << ":\n"
+      "   mode             = " <<
+      (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
+      "   number of sends  = " << num_sends <<
+      " (" << mem_sends << " bytes)\n"
+      "   number of recvs  = " << num_recvs <<
+      " (" << mem_recvs << " bytes)\n";
+   os <<
+      "   num groups       = " << group_ldof.Size() << " = " <<
+      num_master_groups << " + " <<
+      group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
+      num_empty_groups << " (master + slave + empty)\n";
    if (mode == byNeighbor)
    {
-      out <<
-          "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
-          num_active_neighbors << " + " <<
-          nbr_send_groups.Size()-num_active_neighbors <<
-          " (active + inactive)\n";
+      os <<
+         "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
+         num_active_neighbors << " + " <<
+         nbr_send_groups.Size()-num_active_neighbors <<
+         " (active + inactive)\n";
    }
    if (myid != gtopo.NRanks()-1)
    {
-      out << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, gtopo.GetComm());
    }
    else
    {
-      out << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(gtopo.GetComm());
 }
@@ -1298,6 +1325,12 @@ template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 
+template void GroupCommunicator::BcastBegin<float>(float *, int) const;
+template void GroupCommunicator::BcastEnd<float>(float *, int) const;
+template void GroupCommunicator::ReduceBegin<float>(const float *) const;
+template void GroupCommunicator::ReduceEnd<float>(
+   float *, int, void (*)(OpData<float>)) const;
+
 // @endcond
 
 // instantiate reduce operators for int and double
@@ -1309,6 +1342,10 @@ template void GroupCommunicator::BitOR<int>(OpData<int>);
 template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
+
+template void GroupCommunicator::Sum<float>(OpData<float>);
+template void GroupCommunicator::Min<float>(OpData<float>);
+template void GroupCommunicator::Max<float>(OpData<float>);
 
 
 #ifdef __bgq__
