@@ -16,7 +16,6 @@ if (MFEM_USE_MPI)
   stix_bcs.cpp)
 
   list(APPEND PLASMA_EM_COMMON_HEADERS
-  plasma.hpp
   cold_plasma_dielectric_coefs.hpp
   cold_plasma_dielectric_eb_solver.hpp
   stix_bcs.hpp)
@@ -24,12 +23,12 @@ if (MFEM_USE_MPI)
   convert_filenames_to_full_paths(PLASMA_EM_COMMON_SOURCES)
   convert_filenames_to_full_paths(PLASMA_EM_COMMON_HEADERS)
 
-  set(PLASMA_COMMON_EM_FILES
-      EXTRA_SOURCES ${PLASMA_COMMON_EM_SOURCES}
-      EXTRA_HEADERS ${PLASMA_COMMON_EM_HEADERS})
+  set(PLASMA_EM_COMMON_FILES
+      EXTRA_SOURCES ${PLASMA_EM_COMMON_SOURCES}
+      EXTRA_HEADERS ${PLASMA_EM_COMMON_HEADERS} ${MINIAPPS_PLASMA_HEADERS})
 
   add_mfem_miniapp(stix_r1d_eb
     MAIN stix_r1d_eb.cpp
-    ${PLASMA_COMMON_EM_FILES}
-    LIBRARIES mfem-common)
+    ${PLASMA_EM_COMMON_FILES}
+    LIBRARIES mfem-common mfem-plasma)
 endif()

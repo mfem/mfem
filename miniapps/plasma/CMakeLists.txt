@@ -10,20 +10,30 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  list(APPEND PLASMA_COMMON_SOURCES
+  list(APPEND PLASMA_SRCS
   vis_object.cpp)
 
-  list(APPEND PLASMA_COMMON_HEADERS
+  list(APPEND PLASMA_HDRS
   plasma.hpp
   vis_object.hpp)
 
-  convert_filenames_to_full_paths(PLASMA_COMMON_SOURCES)
-  convert_filenames_to_full_paths(PLASMA_COMMON_HEADERS)
+  convert_filenames_to_full_paths(PLASMA_SRCS)
+  convert_filenames_to_full_paths(PLASMA_HDRS)
 
-  set(PLASMA_COMMON_FILES
-      EXTRA_SOURCES ${PLASMA_COMMON_SOURCES}
-      EXTRA_HEADERS ${PLASMA_COMMON_HEADERS})
+  set(MINIAPPS_PLASMA_SOURCES ${MINIAPPS_PLASMA_SOURCES} ${PLASMA_SRCS} PARENT_SCOPE)
+  set(MINIAPPS_PLASMA_HEADERS ${MINIAPPS_PLASMA_HEADERS} ${PLASMA_HDRS} PARENT_SCOPE)
 
+  mfem_add_library(mfem-plasma ${PLASMA_SRCS} ${PLASMA_HDRS})
+  target_link_libraries(mfem-plasma mfem-common mfem)
+  set_target_properties(mfem-plasma PROPERTIES VERSION "${mfem_VERSION}")
+  set_target_properties(mfem-plasma PROPERTIES SOVERSION "${mfem_VERSION}")
+  install(TARGETS mfem-plasma
+    ARCHIVE DESTINATION ${INSTALL_LIB_DIR}
+    LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+    RUNTIME DESTINATION ${INSTALL_BIN_DIR})
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/miniapps/plasma
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/miniapps
+    FILES_MATCHING PATTERN "*.hpp")
 endif()
 
 add_subdirectory(electromagnetics)
