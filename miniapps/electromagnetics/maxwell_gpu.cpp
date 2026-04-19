@@ -283,12 +283,12 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace hcurl_space(&pmesh, &hcurl_fec);
    ParFiniteElementSpace hdiv_space(&pmesh, &hdiv_fec);
 
+   const HYPRE_BigInt glob_hcurl_size = hcurl_space.GlobalTrueVSize();
+   const HYPRE_BigInt glob_hdiv_size = hcurl_space.GlobalTrueVSize();
    if (Mpi::Root())
    {
-      std::cout << "Number of H(Curl) dofs: " << hcurl_space.GlobalTrueVSize()
-                << std::endl;
-      std::cout << "Number of H(Div) dofs: " << hdiv_space.GlobalTrueVSize()
-                << std::endl;
+      std::cout << "Number of H(Curl) dofs: " << glob_hcurl_size << std::endl;
+      std::cout << "Number of H(Div) dofs: " << glob_hdiv_size << std::endl;
    }
 
    // DOF state (L-dofs)
