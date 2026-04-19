@@ -44,6 +44,9 @@
 // For increased accuracy the time integration order can be set to 2, 3, or 4
 // (the default is 1st order).
 //
+// See: J.C. Nedelec, Mixed Finite Elements in R^3, Numerische Mathematik, 35
+// (1980), 315-341. https://doi.org/10.1007/BF01396415
+//
 // Sample runs:
 //
 //   Current source in a sphere with absorbing boundary conditions:
@@ -62,6 +65,7 @@
 //   * mpirun -np 4 maxwell
 
 #include "mfem.hpp"
+
 #include "electromagnetics.hpp"
 
 #include <fstream>
@@ -70,14 +74,18 @@
 using namespace mfem;
 
 // Prints the program's logo to the given output stream
-void display_banner(std::ostream & os);
+void display_banner(std::ostream &os);
 
+/// weak form:
+/// int epsilon dE/dt . E* dV = int B / mu . Curl E* - (sigma E + J) . E* dV
+///   E* are test functions in H(curl)
 struct AmpereOperator : public TimeDependentOperator
 {
    // not owned
-   ParMesh *pmesh;
-   ParFiniteElementSpace *hcurl_space;
-   ParFiniteElementSpace *hdiv_space;
+   ParMesh *pmesh = nullptr;
+   ParFiniteElementSpace *hcurl_space = nullptr;
+   ParFiniteElementSpace *hdiv_space = nullptr;
+
    AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                   ParFiniteElementSpace &hdiv, size_t assembly_type);
 
@@ -86,12 +94,20 @@ struct AmpereOperator : public TimeDependentOperator
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
 
+/// Faraday's equation maps -curl E from H(curl) to H(div) (exact in 3D)
+/// dB/dt = - Curl E
 struct FaradayOperator : public Operator
 {
    // not owned
-   ParMesh *pmesh;
-   ParFiniteElementSpace *hcurl_space;
-   ParFiniteElementSpace *hdiv_space;
+   ParMesh *pmesh = nullptr;
+   ParFiniteElementSpace *hcurl_space = nullptr;
+   ParFiniteElementSpace *hdiv_space = nullptr;
+
+   std::unique_ptr<HypreParMatrix> neg_curl;
+
+   // temporary workspace vectors
+   mutable std::unique_ptr<HypreParVector> E_work;
+   mutable std::unique_ptr<HypreParVector> dBdt_work;
 
    FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                    ParFiniteElementSpace &hdiv, size_t assembly_type);
@@ -106,7 +122,10 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   if ( Mpi::Root() ) { display_banner(std::cout); }
+   if (Mpi::Root())
+   {
+      display_banner(std::cout);
+   }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -207,7 +226,10 @@ int main(int argc, char *argv[])
    }
 
    Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
+   if (Mpi::Root())
+   {
+      device.Print();
+   }
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
    // volume meshes with the same code.
@@ -229,7 +251,10 @@ int main(int argc, char *argv[])
    if (mesh->NURBSext)
    {
       mesh->UniformRefinement();
-      if (serial_ref_levels > 0) { serial_ref_levels--; }
+      if (serial_ref_levels > 0)
+      {
+         serial_ref_levels--;
+      }
 
       mesh->SetCurvature(2);
    }
@@ -260,16 +285,26 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      std::cout << "Number of H(Curl) dofs: "
-                << hcurl_space.GlobalTrueVSize() << std::endl;
-      std::cout << "Number of H(Div) dofs: "
-                << hdiv_space.GlobalTrueVSize() << std::endl;
+      std::cout << "Number of H(Curl) dofs: " << hcurl_space.GlobalTrueVSize()
+                << std::endl;
+      std::cout << "Number of H(Div) dofs: " << hdiv_space.GlobalTrueVSize()
+                << std::endl;
    }
 
-   // Electric field
-   ParGridFunction Efield(&hcurl_space);
-   // Maxnetic flux
-   ParGridFunction Bflux(&hdiv_space);
+   // DOF state (L-dofs)
+   const int vsize_hcurl = hcurl_space.GetVSize();
+   const int vsize_hdiv = hdiv_space.GetVSize();
+   Array<int> offset(3);
+   offset[0] = 0;
+   offset[1] = offset[0] + vsize_hcurl;
+   offset[2] = offset[1] + vsize_hdiv;
+   BlockVector dofs(offset);
+
+   ParGridFunction E_gf, B_gf;
+   E_gf.MakeRef(&hcurl_space, dofs, offset[0]);
+   B_gf.MakeRef(&hdiv_space, dofs, offset[1]);
+   E_gf = 0_r;
+   B_gf = 0_r;
 
    // Use separate operators for Ampere and Faraday equations for each part of
    // the Hamiltonian operators.
@@ -277,15 +312,15 @@ int main(int argc, char *argv[])
    FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
 
    // Create the ODE solver
-   SIAVSolver siaSolver(tOrder);
-   siaSolver.Init(faraday, ampere);
+   // SIAVSolver siaSolver(tOrder);
+   // siaSolver.Init(faraday, ampere);
    // TODO: initialize visualization
    // TODO: run sim
    return 0;
 }
 
 // Print the Maxwell ascii logo to the given ostream
-void display_banner(std::ostream & os)
+void display_banner(std::ostream &os)
 {
    os << "     ___    ____                                      " << std::endl
       << "    /   |  /   /                           __   __    " << std::endl
@@ -306,9 +341,10 @@ AmpereOperator::AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
    : TimeDependentOperator(hcurl.GetVSize(), hdiv.GetVSize()), pmesh(&pmesh_),
      hcurl_space(&hcurl), hdiv_space(&hdiv)
 {
+   // TODO
 }
 
-void AmpereOperator::Mult(const Vector& B, Vector &dEdt) const
+void AmpereOperator::Mult(const Vector &B, Vector &dEdt) const
 {
    // TODO
 }
@@ -321,12 +357,32 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                  ParFiniteElementSpace &hdiv,
                                  size_t assembly_type)
-   : Operator(hdiv.GetVSize(), hcurl.GetVSize()), pmesh(&pmesh_),
-     hcurl_space(&hcurl), hdiv_space(&hdiv)
+   : pmesh(&pmesh_), hcurl_space(&hcurl), hdiv_space(&hdiv)
 {
+   /// TODO: for now this always does full assembly into a hypre matrix.
+   /// Since this is an element-local operation should be able to do locally in
+   /// a batch kernel, but would need to implement CurlInterpolator between
+   /// hcurl and hdiv in a gpu kernel.
+   /// Also would need a way to go from E-dof to L-dof (can't just transpose
+   /// mult with the element restriction because this adds at shared dofs).
+   ParDiscreteLinearOperator curl_op(hcurl_space, hdiv_space);
+   curl_op.AddDomainInterpolator(new CurlInterpolator);
+   curl_op.Assemble();
+   curl_op.Finalize();
+   neg_curl.reset(curl_op.ParallelAssemble());
+   *neg_curl *= -1_r;
+   E_work.reset(hcurl_space->NewTrueDofVector());
+   dBdt_work.reset(hdiv_space->NewTrueDofVector());
 }
 
-void FaradayOperator::Mult(const Vector& E, Vector &dBdt) const
+void FaradayOperator::Mult(const Vector &E, Vector &dBdt) const
 {
-   // TODO
+   // convert E from L-dofs to T-dofs
+   const Operator *R = hcurl_space->GetRestrictionOperator();
+   const Operator *P = hdiv_space->GetProlongationMatrix();
+   R->Mult(E, *E_work);
+   // mult by neg_curl
+   neg_curl->Mult(*E_work, *dBdt_work);
+   // convert result from T-dofs to L-dofs -> dBdt
+   P->Mult(*dBdt_work, dBdt);
 }
