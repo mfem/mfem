@@ -49,6 +49,8 @@
 //
 // Sample runs:
 //
+// clang-format off
+//
 //   Current source in a sphere with absorbing boundary conditions:
 //     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //
@@ -63,6 +65,8 @@
 //
 //   By default the sources and fields are all zero:
 //   * mpirun -np 4 maxwell
+//
+// clang-format on
 
 #include "mfem.hpp"
 
@@ -76,6 +80,10 @@ using namespace mfem;
 // Prints the program's logo to the given output stream
 void display_banner(std::ostream &os);
 
+real_t dielectric_sphere(const Vector &x, const Vector &ds_params);
+real_t magnetic_shell(const Vector &x, const Vector &ms_params);
+real_t conductive_sphere(const Vector &x, const Vector &cs_params);
+
 /// weak form:
 /// int epsilon dE/dt . E* dV = int B / mu . Curl E* - (sigma E + J) . E* dV
 ///   E* are test functions in H(curl)
@@ -85,9 +93,21 @@ struct AmpereOperator : public TimeDependentOperator
    ParMesh *pmesh = nullptr;
    ParFiniteElementSpace *hcurl_space = nullptr;
    ParFiniteElementSpace *hdiv_space = nullptr;
+   /// int epsilon dE/dt . E* dV
+   ParBilinearForm hcurl_mass;
+   /// int sigma E . E* dV
+   std::unique_ptr<ParBilinearForm> loss_term;
+   /// int J . E* dV
+   std::unique_ptr<ParLinearForm> j_term;
+   /// int B / mu . Curl E* dV
+   ParMixedBilinearForm weak_curl;
+
+   std::unique_ptr<Coefficient> eps_coeff;
+   std::unique_ptr<Coefficient> inv_mu_coeff;
 
    AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
-                  ParFiniteElementSpace &hdiv, size_t assembly_type);
+                  ParFiniteElementSpace &hdiv, size_t assembly_type,
+                  Coefficient &eps_coeff, Coefficient &inv_mu_coeff);
 
    void Mult(const Vector &B, Vector &dEdt) const override;
 
@@ -143,19 +163,19 @@ int main(int argc, char *argv[])
    real_t tf = 40.0;
 
    // Permittivity Function
-   Vector ds_params_(0); // Center, Radius, and Permittivity
-   // of dielectric sphere
+   // Center, Radius, and Permittivity of dielectric sphere
+   Vector ds_params(0);
    // Permeability Function
-   static Vector ms_params_(0); // Center, Inner and Outer Radii, and
-   // Permeability of magnetic shell
+   // Center, Inner and Outer Radii, and Permeability of magnetic shell
+   Vector ms_params(0);
 
    // Conductivity Function
-   Vector cs_params_(0); // Center, Radius, and Conductivity
-   // of conductive sphere
+   // Center, Radius, and Conductivity of conductive sphere
+   Vector cs_params(0);
 
    // Current Density Function
-   Vector dp_params_(0); // Axis Start, Axis End, Rod Radius,
-   // Total Current of Rod, and Frequency
+   // Axis Start, Axis End, Rod Radius, Total Current of Rod, and Frequency
+   Vector dp_params(0);
 
    // Scale factor between input time units and seconds
    real_t tScale_ = 1e-9; // Input time in nanosecond
@@ -185,14 +205,14 @@ int main(int argc, char *argv[])
                   "End of time interval to simulate (ns).");
    args.AddOption(&ts, "-ts", "--snapshot-time",
                   "Time between snapshots (ns).");
-   args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
+   args.AddOption(&ds_params, "-ds", "--dielectric-sphere-params",
                   "Center, Radius, and Permittivity of Dielectric Sphere");
-   args.AddOption(&ms_params_, "-ms", "--magnetic-shell-params",
+   args.AddOption(&ms_params, "-ms", "--magnetic-shell-params",
                   "Center, Inner Radius, Outer Radius, and Permeability "
                   "of Magnetic Shell");
-   args.AddOption(&cs_params_, "-cs", "--conductive-sphere-params",
+   args.AddOption(&cs_params, "-cs", "--conductive-sphere-params",
                   "Center, Radius, and Conductivity of Conductive Sphere");
-   args.AddOption(&dp_params_, "-dp", "--dipole-pulse-params",
+   args.AddOption(&dp_params, "-dp", "--dipole-pulse-params",
                   "Axis End Points, Radius, Amplitude, "
                   "Pulse Center (ns), Pulse Width (ns)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -308,12 +328,34 @@ int main(int argc, char *argv[])
 
    // Use separate operators for Ampere and Faraday equations for each part of
    // the Hamiltonian operators.
-   AmpereOperator ampere(pmesh, hcurl_space, hdiv_space, assembly_type);
+   std::unique_ptr<Coefficient> eps_coeff;
+   std::unique_ptr<Coefficient> inv_mu_coeff;
+   if (ds_params.Size() > 0)
+   {
+      // TODO
+      eps_coeff.reset(new FunctionCoefficient([&](const Vector &x)
+      { return dielectric_sphere(x, ds_params); }));
+   }
+   else
+   {
+      eps_coeff.reset(new ConstantCoefficient(electromagnetics::epsilon0_));
+   }
+   if (ms_params.Size() > 0)
+   {
+      inv_mu_coeff.reset(new FunctionCoefficient([&](const Vector &x)
+      { return 1_r / magnetic_shell(x, ms_params); }));
+   }
+   else
+   {
+      inv_mu_coeff.reset(new ConstantCoefficient(1_r / electromagnetics::mu0_));
+   }
+   AmpereOperator ampere(pmesh, hcurl_space, hdiv_space, assembly_type,
+                         *eps_coeff, *inv_mu_coeff);
    FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
 
    // Create the ODE solver
-   // SIAVSolver siaSolver(tOrder);
-   // siaSolver.Init(faraday, ampere);
+   SIAVSolver siaSolver(tOrder);
+   siaSolver.Init(faraday, ampere);
    // TODO: initialize visualization
    // TODO: run sim
    return 0;
@@ -337,10 +379,32 @@ void display_banner(std::ostream &os)
 
 AmpereOperator::AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                ParFiniteElementSpace &hdiv,
-                               size_t assembly_type)
+                               size_t assembly_type, Coefficient &eps_coeff,
+                               Coefficient &inv_mu_coeff)
    : TimeDependentOperator(hcurl.GetVSize(), hdiv.GetVSize()), pmesh(&pmesh_),
-     hcurl_space(&hcurl), hdiv_space(&hdiv)
+     hcurl_space(&hcurl), hdiv_space(&hdiv), hcurl_mass(&hcurl),
+     weak_curl(&hdiv, &hcurl)
 {
+   hcurl_mass.AddDomainIntegrator(new VectorFEMassIntegrator(&eps_coeff));
+   weak_curl.AddDomainIntegrator(
+      new MixedVectorWeakCurlIntegrator(inv_mu_coeff));
+   // TODO: loss and current density
+   // sigma is constant in time, j_src is allowed to be a function of time
+   switch (assembly_type)
+   {
+      case 0:
+         // full assembly
+         break;
+      case 1:
+         // partial assembly
+         hcurl_mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         weak_curl.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         if (loss_term)
+         {
+            loss_term->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         }
+         break;
+   }
    // TODO
 }
 
@@ -385,4 +449,42 @@ void FaradayOperator::Mult(const Vector &E, Vector &dBdt) const
    neg_curl->Mult(*E_work, *dBdt_work);
    // convert result from T-dofs to L-dofs -> dBdt
    P->Mult(*dBdt_work, dBdt);
+}
+
+// A sphere with constant permittivity.
+// The sphere has a center, radius, and permittivity specified on the command
+// line.
+real_t dielectric_sphere(const Vector &x, const Vector &ds_params)
+{
+   real_t r2 = 0.0;
+
+   for (int i = 0; i < x.Size(); i++)
+   {
+      r2 += (x(i) - ds_params(i)) * (x(i) - ds_params(i));
+   }
+
+   if (sqrt(r2) <= ds_params(x.Size()))
+   {
+      return ds_params(x.Size() + 1) * electromagnetics::epsilon0_;
+   }
+   return electromagnetics::epsilon0_;
+}
+
+// A spherical shell with constant permeability.  The sphere has center, inner
+// and outer radii, and relative permeability specified on the command line and
+// stored in ms_params_.
+real_t magnetic_shell(const Vector &x, const Vector &ms_params)
+{
+   real_t r2 = 0.0;
+
+   for (int i = 0; i < x.Size(); i++)
+   {
+      r2 += (x(i) - ms_params(i)) * (x(i) - ms_params(i));
+   }
+
+   if (sqrt(r2) >= ms_params(x.Size()) && sqrt(r2) <= ms_params(x.Size() + 1))
+   {
+      return electromagnetics::mu0_ * ms_params(x.Size() + 2);
+   }
+   return electromagnetics::mu0_;
 }
