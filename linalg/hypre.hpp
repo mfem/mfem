@@ -2254,8 +2254,8 @@ public:
 
    // The following four methods support general operators
    void SetPreconditioner(Solver & precond);
-   void SetOperator(Operator & A);
-   void SetMassMatrix(Operator & M);
+   void SetOperator(const Operator & A);
+   void SetMassMatrix(const Operator & M);
    void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
@@ -2265,7 +2265,7 @@ public:
    void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   const HypreParVector & GetEigenvector(unsigned int i) const;
+   const Vector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    Vector ** StealEigenvectors() { return (Vector**)multi_vec->StealVectors(); }
@@ -2330,8 +2330,8 @@ public:
 
    // The following four methods support operators of type HypreParMatrix.
    void SetPreconditioner(HypreSolver & precond);
-   void SetOperator(const HypreParMatrix & A);
-   void SetMassMatrix(const HypreParMatrix & M);
+   void SetOperator(const Operator & OpA);
+   void SetMassMatrix(const Operator & OpM);
 
    /// Solve the eigenproblem
    void Solve();
@@ -2340,7 +2340,7 @@ public:
    void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   const HypreParVector & GetEigenvector(unsigned int i) const;
+   const Vector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    Vector ** StealEigenvectors();

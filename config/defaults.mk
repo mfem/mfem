@@ -430,7 +430,11 @@ NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
 
 # ARPACK library configuration
 ARPACK_DIR = @MFEM_DIR@/../ARPACK
+ifeq ($(MFEM_USE_MPI),YES)
 ARPACK_LIB = -L$(ARPACK_DIR) -lparpack -larpack
+else
+ARPACK_LIB = -L$(ARPACK_DIR) -larpack
+endif
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug

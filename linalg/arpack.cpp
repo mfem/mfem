@@ -94,7 +94,7 @@ ArPackSym::SetSolver(Solver & solver)
 }
 
 void
-ArPackSym::SetOperator(Operator & A)
+ArPackSym::SetOperator(const Operator & A)
 {
    A_ = &A;
 
@@ -108,7 +108,7 @@ ArPackSym::SetOperator(Operator & A)
 }
 
 void
-ArPackSym::SetMassMatrix(Operator & B)
+ArPackSym::SetMassMatrix(const Operator & B)
 {
    B_ = &B;
 
@@ -608,14 +608,14 @@ ArPackSym::reverseComm()
    // Initializes the vectors dv and v.
    // these are used to store the eigenvalues
    // and the eigenvectors.
-   dv_     = new double[nevf];       // eigenvalues
-   v_      = new double[nlocf*ncvf]; // eigenvectors
+   dv_     = new real_t[nevf];       // eigenvalues
+   v_      = new real_t[nlocf*ncvf]; // eigenvectors
 
    // the following vectors are work space for PDSAUPD
-   resid_  = new double[nlocf];      // initial vector, and residual vector
-   workd_  = new double[3*nlocf];    // workspace for reverse communication
+   resid_  = new real_t[nlocf];      // initial vector, and residual vector
+   workd_  = new real_t[3*nlocf];    // workspace for reverse communication
    lworkl_ = ncvf * (ncvf + 8);      // length of workl_ array
-   workl_  = new double[lworkl_];    // workspace for tridiagnonal system
+   workl_  = new real_t[lworkl_];    // workspace for tridiagnonal system
 
    ////////////////////////////////////////////////////////////////////////////
    //   Set ARPACK Debug Parameters
@@ -722,7 +722,7 @@ ArPackSym::Solve()
    }
 }
 
-void ArPackSym::GetEigenvalues(Array<double> & eigenvalues)
+void ArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
 {
    eigenvalues.SetSize(nev_);
    eigenvalues = NAN;
@@ -734,7 +734,7 @@ void ArPackSym::GetEigenvalues(Array<double> & eigenvalues)
 }
 
 void
-ArPackSym::prepareEigenvectors()
+ArPackSym::prepareEigenvectors() const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
@@ -774,7 +774,7 @@ ArPackSym::prepareEigenvectors()
    }
 }
 
-Vector & ArPackSym::GetEigenvector(unsigned int i)
+const Vector & ArPackSym::GetEigenvector(unsigned int i) const
 {
    if ( !eigenvectors_ )
    {
@@ -932,7 +932,7 @@ ParArPackSym::ParArPackSym(MPI_Comm comm)
 
 
 void
-ParArPackSym::SetOperator(Operator & A)
+ParArPackSym::SetOperator(const Operator & A)
 {
    A_ = &A;
 
@@ -947,7 +947,7 @@ ParArPackSym::SetOperator(Operator & A)
 }
 
 void
-ParArPackSym::SetMassMatrix(Operator & B)
+ParArPackSym::SetMassMatrix(const Operator & B)
 {
    B_ = &B;
 
@@ -962,7 +962,7 @@ ParArPackSym::SetMassMatrix(Operator & B)
    }
 }
 
-void ParArPackSym::GetEigenvalues(Array<double> & eigenvalues)
+void ParArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
 {
    eigenvalues.SetSize(nev_);
    eigenvalues = NAN;
@@ -974,7 +974,7 @@ void ParArPackSym::GetEigenvalues(Array<double> & eigenvalues)
 }
 
 void
-ParArPackSym::prepareEigenvectors()
+ParArPackSym::prepareEigenvectors() const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
@@ -1033,7 +1033,7 @@ ParArPackSym::prepareEigenvectors()
       //
       for (int j=0; j<locSize; j++)
       {
-         ((double*)*vec)[j] = v_[nloc_*i+j];
+         (*vec)[j] = v_[nloc_*i+j];
       }
       eigenvectors_[i] = (Vector*)vec;
    }
@@ -1045,7 +1045,7 @@ ParArPackSym::prepareEigenvectors()
 }
 
 //HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
-Vector & ParArPackSym::GetEigenvector(unsigned int i)
+const Vector & ParArPackSym::GetEigenvector(unsigned int i) const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {

@@ -102,23 +102,23 @@ public:
     */
    void SetMode(int mode);
 
-   inline void SetTol(double tol)         {      tol_ = tol;      }
+   inline void SetTol(real_t tol)         {      tol_ = tol;      }
    inline void SetMaxIter(int max_iter)   { max_iter_ = max_iter; }
    inline void SetPrintLevel(int logging) {  logging_ = logging;  }
-   inline void SetShift(double sigma)     {    sigma_ = sigma;    }
+   inline void SetShift(real_t sigma)     {    sigma_ = sigma;    }
    inline void SetNumModes(int num_eigs)  {      nev_ = num_eigs; }
 
    virtual void SetSolver(Solver & solver);
-   virtual void SetOperator(Operator & A);
-   virtual void SetMassMatrix(Operator & M);
+   virtual void SetOperator(const Operator & A);
+   virtual void SetMassMatrix(const Operator & M);
 
    void Solve();
 
    /// Collect the converged eigenvalues
-   virtual void GetEigenvalues(Array<double> & eigenvalues);
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   virtual Vector & GetEigenvector(unsigned int i);
+   virtual const Vector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    Vector ** StealEigenvectors();
@@ -144,27 +144,27 @@ protected:
    char which_[3];  // spectrum portion: LA, SA, LM, SM, BE
    char hwmny_;     // DSEUPD: A for all eigenvalues, S for some
 
-   double tol_;     // relative accuracy bound for Ritz values
-   double sigma_;   // eigenvalue shift parameter
+   real_t tol_;     // relative accuracy bound for Ritz values
+   real_t sigma_;   // eigenvalue shift parameter
 
    int    * select_;// workspace used during eigenvalue computation
-   double * dv_;    // Ritz values
-   double * v_;     // ncv Lanczos basis vectors
-   double * resid_; // residual vector
-   double * workd_; // work array for 3 vectors used in Arnoldi iteration
-   double * workl_; // work array
+   real_t * dv_;    // Ritz values
+   real_t * v_;     // ncv Lanczos basis vectors
+   real_t * resid_; // residual vector
+   real_t * workd_; // work array for 3 vectors used in Arnoldi iteration
+   real_t * workl_; // work array
 
    // Operators and Vectors needed outside of ARPACK
    Solver   * solver_;
-   Operator * A_;
-   Operator * B_;
+   const Operator * A_;
+   const Operator * B_;
 
    Vector * w_;
    Vector * x_;
    Vector * y_;
    Vector * z_;
 
-   Vector ** eigenvectors_;
+   mutable Vector ** eigenvectors_;
 
    string solverName_;
 
@@ -176,7 +176,7 @@ protected:
    int reverseCommMode4();
    int reverseCommMode5();
 
-   virtual void prepareEigenvectors();
+   virtual void prepareEigenvectors() const;
 
    void printErrors(const int & info, const int iparam[],
                     const char & bmat, const int & n,
@@ -200,14 +200,14 @@ public:
    ParArPackSym(MPI_Comm comm);
    virtual ~ParArPackSym() {}
 
-   void SetOperator(Operator & A);
-   void SetMassMatrix(Operator & M);
+   void SetOperator(const Operator & A);
+   void SetMassMatrix(const Operator & M);
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues);
+   void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
-   Vector & GetEigenvector(unsigned int i);
+   const Vector & GetEigenvector(unsigned int i) const;
 
    /// Transfer ownership of the converged eigenvectors
    // HypreParVector ** StealEigenvectors();
@@ -215,7 +215,7 @@ public:
 
 protected:
 
-   void prepareEigenvectors();
+   void prepareEigenvectors() const;
 
 private:
 
@@ -223,7 +223,7 @@ private:
    MPI_Fint commf_; // Fortran style MPI communicator
    int numProcs_;   // Number of processors
 
-   HYPRE_Int * part_; // parallel partitioning for eigenvectors
+   mutable HYPRE_Int * part_; // parallel partitioning for eigenvectors
 
    int computeNlocf();
    int computeIter(int & ido);

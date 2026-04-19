@@ -30,17 +30,17 @@ public:
    virtual void SetPrintLevel(int logging) = 0;
    virtual void SetNumModes(int num_eigs) = 0;
 
-   virtual void SetOperator(Operator & A) = 0;
-   virtual void SetMassMatrix(Operator & M) = 0;
+   virtual void SetOperator(const Operator & A) = 0;
+   virtual void SetMassMatrix(const Operator & M) = 0;
 
    /// Perform the eigenvalue solve
    virtual void Solve() = 0;
 
    /// Collect the converged eigenvalues
-   virtual void GetEigenvalues(Array<double> & eigenvalues) = 0;
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const = 0;
 
    /// Extract a single eigenvector
-   virtual Vector & GetEigenvector(unsigned int i) = 0;
+   virtual const Vector & GetEigenvector(unsigned int i) const = 0;
 
    /// Transfer ownership of the converged eigenvectors
    virtual Vector ** StealEigenvectors() = 0;

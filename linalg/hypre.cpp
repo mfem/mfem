@@ -6556,7 +6556,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 }
 
 void
-HypreLOBPCG::SetOperator(Operator & A)
+HypreLOBPCG::SetOperator(const Operator & A)
 {
    HYPRE_BigInt locSize = A.Width();
 
@@ -6603,7 +6603,7 @@ HypreLOBPCG::SetOperator(Operator & A)
 }
 
 void
-HypreLOBPCG::SetMassMatrix(Operator & M)
+HypreLOBPCG::SetMassMatrix(const Operator & M)
 {
    matvec_fn.MatvecCreate  = this->OperatorMatvecCreate;
    matvec_fn.Matvec        = this->OperatorMatvec;
@@ -6624,7 +6624,7 @@ HypreLOBPCG::GetEigenvalues(Array<real_t> & eigs) const
    }
 }
 
-const HypreParVector &
+const Vector &
 HypreLOBPCG::GetEigenvector(unsigned int i) const
 {
    return multi_vec->GetVector(i);
@@ -6867,13 +6867,19 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
-HypreAME::SetOperator(const HypreParMatrix & A)
+HypreAME::SetOperator(const Operator & op)
 {
+   const HypreParMatrix * A = dynamic_cast<const HypreParMatrix *>(&op);
+   if (A == NULL)
+   {
+      mfem_error("HypreAME::SetOperator : not HypreParMatrix!");
+   }
+
    if ( !setT )
    {
       HYPRE_Solver ams_precond_ptr = (HYPRE_Solver)*ams_precond;
 
-      ams_precond->SetupFcn()(*ams_precond,A,NULL,NULL);
+      ams_precond->SetupFcn()(*ams_precond,*A,NULL,NULL);
 
       HYPRE_AMESetAMSSolver(ame_solver, ams_precond_ptr);
    }
@@ -6882,9 +6888,15 @@ HypreAME::SetOperator(const HypreParMatrix & A)
 }
 
 void
-HypreAME::SetMassMatrix(const HypreParMatrix & M)
+HypreAME::SetMassMatrix(const Operator & op)
 {
-   HYPRE_ParCSRMatrix parcsr_M = M;
+   const HypreParMatrix * M = dynamic_cast<const HypreParMatrix *>(&op);
+   if (M == NULL)
+   {
+      mfem_error("HypreAME::SetMassOperator : not HypreParMatrix!");
+   }
+
+   HYPRE_ParCSRMatrix parcsr_M = *M;
    HYPRE_AMESetMassMatrix(ame_solver,(HYPRE_ParCSRMatrix)parcsr_M);
 }
 
@@ -6924,7 +6936,7 @@ HypreAME::createDummyVectors() const
    }
 }
 
-const HypreParVector &
+const Vector &
 HypreAME::GetEigenvector(unsigned int i) const
 {
    if ( eigenvectors == NULL )
