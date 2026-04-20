@@ -588,13 +588,15 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
          RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
          rd2q->Ba1.SetSize(nqpt*ndof);
          // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         // d2q->Ba2.SetSize((int) nqpt*ndof*(ndof-1)/2);
-         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
          rd2q->Ba2.SetSize((int)nqpt*ndof*ndof);
+         rd2q->Ba1t.SetSize(nqpt*ndof);
+         rd2q->Ba2t.SetSize((int)nqpt*ndof*ndof);
          // stores first component of ragged tensor basis with order p-1, for gradients only
          rd2q->Ga1.SetSize(nqpt*(ndof -1));
          // stores second component of ragged tensor basis with order p-1
          rd2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof -1));
+         rd2q->Ga1t.SetSize(nqpt*(ndof -1));
+         rd2q->Ga2t.SetSize(nqpt*(ndof-1)*(ndof -1));
          rd2q->lex_map.SetSize(ndof * ndof);
          Vector shape_a1(ndof), shape_a2(ndof * ndof);
          Vector shape_Ga1(ndof-1), shape_Ga2((ndof-1) * (ndof-1));
@@ -606,10 +608,10 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
             Poly_1D::CalcBernstein(ndof-2, ir.IntPoint(i).x, shape_Ga1);
             for (int j = 0; j < ndof; j++)
             {
-               rd2q->Ba1[i+nqpt*j] = shape_a1(j);
+               rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
                if (j < ndof-1)
                {
-                  rd2q->Ga1[i+nqpt*j] = shape_Ga1(j);
+                  rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
                   Poly_1D::CalcBernstein(ndof-2-j, ir.IntPoint(nqpt*i).y, shape_Ga2);
                }
 
@@ -618,11 +620,10 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
                Poly_1D::CalcBernstein(ndof-1-j, ir.IntPoint(nqpt*i).y, shape_a2);
                for (int k = 0; k < ndof-j; k++)
                {
-                  // d2q->Ba2[i + nqpt*(j + ndof*k)] = shape_a2(k);
-                  rd2q->Ba2[k + ndof*(i + nqpt*j)] = shape_a2(k);
+                  rd2q->Ba2t[i + nqpt*(j + ndof*k)] = rd2q->Ba2[k + ndof*(j + ndof*i)] = shape_a2(k);
                   if (j < ndof-1 && k < ndof-j-1)
                   {
-                     rd2q->Ga2[i + nqpt*(j + (ndof-1)*k)] = shape_Ga2(k);
+                     rd2q->Ga2t[i + nqpt*(j + (ndof-1)*k)] = rd2q->Ga2[k + (ndof-1)*(j + (ndof-1)*i)] = shape_Ga2(k);
                   }
                }
             }
@@ -858,6 +859,10 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          d2q = new RaggedDofToQuad;
          const int ndof = fe.GetOrder() + 1; // verify
          const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
+         const int basis_dim2d = ndof*(ndof+1) / 2;
+         const int basis_dim3d = ndof*(ndof+1)*(ndof+2) / 6;
+         const int basis_dim2d_diff = (ndof-1)*(ndof) / 2;
+         const int basis_dim3d_diff = (ndof-1)*(ndof)*(ndof+1) / 6;
          d2q->FE = &fe;
          d2q->IntRule = &ir;
          d2q->mode = mode;
@@ -865,33 +870,34 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          d2q->nqpt = nqpt;
 
          RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
-         rd2q->Ba1.SetSize(nqpt*ndof);
+         rd2q->Ba1.SetSize(nqpt * ndof);
          // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         rd2q->Ba2.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 ));
+         rd2q->Ba2.SetSize(nqpt * basis_dim2d);
          // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         rd2q->Ba3.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
-         rd2q->Ba1t.SetSize(nqpt*ndof);
-         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         rd2q->Ba2t.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 ));
-         // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         rd2q->Ba3t.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
+         rd2q->Ba3.SetSize(nqpt * basis_dim3d);
+         rd2q->Ba1t.SetSize(nqpt * ndof);
+         rd2q->Ba2t.SetSize(nqpt * basis_dim2d);
+         rd2q->Ba3t.SetSize(nqpt * basis_dim3d);
          // stores first component of ragged tensor basis with order p-1, for gradients only
-         rd2q->Ga1.SetSize(nqpt*(ndof -1));
+         rd2q->Ga1.SetSize(nqpt * (ndof-1));
          // stores second component of ragged tensor basis with order p-1
-         rd2q->Ga2.SetSize(nqpt * (int) ( (ndof-1)*(ndof) / 2 ));
+         rd2q->Ga2.SetSize(nqpt * basis_dim2d_diff);
          // stores third component of ragged tensor basis with order p-1
-         rd2q->Ga3.SetSize(nqpt * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 ));
+         rd2q->Ga3.SetSize(nqpt * basis_dim3d_diff);
+         rd2q->Ga1t.SetSize(nqpt * (ndof-1));
+         rd2q->Ga2t.SetSize(nqpt * basis_dim2d_diff);
+         rd2q->Ga3t.SetSize(nqpt * basis_dim3d_diff);
          rd2q->lex_map.SetSize(ndof * ndof * ndof);
 
          rd2q->forward_map2d_diff.SetSize((ndof-1) * (ndof-1));
          rd2q->forward_map3d_diff.SetSize((ndof-1) * (ndof-1) * (ndof-1));
-         rd2q->inverse_map2d_diff.SetSize(2 * (int) ( (ndof-1)*(ndof) / 2 ));
-         rd2q->inverse_map3d_diff.SetSize(3 * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 ));
+         rd2q->inverse_map2d_diff.SetSize(2 * basis_dim2d_diff);
+         rd2q->inverse_map3d_diff.SetSize(3 * basis_dim3d_diff);
 
          rd2q->forward_map2d_mass.SetSize(ndof * ndof);
          rd2q->forward_map3d_mass.SetSize(ndof * ndof * ndof);
-         rd2q->inverse_map2d_mass.SetSize(2 * (int) ( ndof*(ndof+1) / 2 ));
-         rd2q->inverse_map3d_mass.SetSize(2 * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
+         rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
+         rd2q->inverse_map3d_mass.SetSize(2 * basis_dim3d);
 
          rd2q->T.SetSize(3 * nqpt);
 
@@ -962,8 +968,6 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
             }
          }
 
-         const int dim2d_mass = ndof * (ndof+1) / 2;
-         const int dim3d_mass = ndof * (ndof+1) * (ndof+2) / 6;
          Vector shape_a1(ndof), shape_a2(ndof * ndof), shape_a3(ndof * ndof * ndof);
          Vector shape_Ga1(ndof-1), shape_Ga2(ndof-1), shape_Ga3(ndof-1);
          for (int i = 0; i < nqpt; i++)
@@ -974,10 +978,10 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
             Poly_1D::CalcBernstein(ndof-2, ir.IntPoint(i).x, shape_Ga1);
             for (int j = 0; j < ndof; j++)
             {
-               rd2q->Ba1[i+nqpt*j] = rd2q->Ba1t[j+ndof*i] = shape_a1(j);
+               rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
                if (j < ndof-1)
                {
-                  rd2q->Ga1[i+nqpt*j] = shape_Ga1(j);
+                  rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
                   Poly_1D::CalcBernstein(ndof-2-j, ir.IntPoint(nqpt*i).y, shape_Ga2);
                }
 
@@ -987,12 +991,12 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                for (int k = 0; k < ndof-j; k++)
                {
                   const int a_2d_mass = rd2q->forward_map2d_mass[k + ndof*j];
-                  rd2q->Ba2[i + nqpt*a_2d_mass] = rd2q->Ba2t[a_2d_mass + dim2d_mass*i] = shape_a2(
+                  rd2q->Ba2t[i + nqpt*a_2d_mass] = rd2q->Ba2[a_2d_mass + basis_dim2d*i] = shape_a2(
                                                                                             k);
                   if (j < ndof-1 && k < ndof-j-1)
                   {
                      const int a_2d_diff = rd2q->forward_map2d_diff[k + (ndof-1)*j];
-                     rd2q->Ga2[i + nqpt*a_2d_diff] = shape_Ga2(k);
+                     rd2q->Ga2t[i + nqpt*a_2d_diff] = rd2q->Ga2[a_2d_diff + basis_dim2d_diff*i] = shape_Ga2(k);
                      Poly_1D::CalcBernstein(ndof-2-j-k, ir.IntPoint(nqpt*nqpt*i).z, shape_Ga3);
                   }
 
@@ -1000,7 +1004,7 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                   for (int m = 0; m < ndof-j-k; m++)
                   {
                      const int a_3d_mass = rd2q->forward_map3d_mass[m + ndof*(k + ndof*j)];
-                     rd2q->Ba3[i + nqpt*a_3d_mass] = rd2q->Ba3t[a_3d_mass + dim3d_mass*i] = shape_a3(
+                     rd2q->Ba3t[i + nqpt*a_3d_mass] = rd2q->Ba3[a_3d_mass + basis_dim3d*i] = shape_a3(
                                                                                                m);
                      if (j < ndof-1 && k < ndof-j-1 && m < ndof-j-k-1)
                      {
@@ -1008,7 +1012,7 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                         // d2q->Ga3[i + nqpt*(m + d2q->offset3d[k + (ndof-1)*j])] = shape_Ga3(m);
                         // collapsed 1D access with forward mapping
                         const int a_3d_diff = rd2q->forward_map3d_diff[m + (ndof-1)*(k + (ndof-1)*j)];
-                        rd2q->Ga3[i + nqpt*a_3d_diff] = shape_Ga3(m);
+                        rd2q->Ga3t[i + nqpt*a_3d_diff] = rd2q->Ga3[a_3d_diff + basis_dim3d_diff*i] = shape_Ga3(m);
                      }
                   }
                }

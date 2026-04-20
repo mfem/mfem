@@ -258,6 +258,7 @@ public:
       to be expressed as the sum of products of B^{p-1}_alpha and the barycentric coordinates.
       Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
    Array<real_t> Ga1, Ga2, Ga3;
+   Array<real_t> Ga1t, Ga2t, Ga3t;
 
    /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
        dof index. */

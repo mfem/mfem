@@ -80,6 +80,9 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                                            rmaps->Ga1,
                                            rmaps->Ga2,
                                            rmaps->Ga3,
+                                           rmaps->Ga1t,
+                                           rmaps->Ga2t,
+                                           rmaps->Ga3t,
                                            Dv, x, y, dofs1D, quad1D);
       }
 

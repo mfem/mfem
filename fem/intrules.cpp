@@ -1905,20 +1905,19 @@ IntegrationRule *IntegrationRules::TriangleStroudIntegrationRule(int Order)
       SegmentIntegrationRule(RealOrder);
    }
 
-   IntegrationRule *ir_1_0 = new IntegrationRule;
+   IntegrationRule ir_1_0;
    // Gauss-Jacobi is exact for 2*n-1
    int n = RealOrder/2 + 1;
-   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, ir_1_0);
+   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, &ir_1_0);
 
    AllocIntRule(TriangleStroudIntRules, RealOrder); // RealOrder >= Order
    // create rule in unit square
    TriangleStroudIntRules[RealOrder-1] =
       TriangleStroudIntRules[RealOrder] =
-         new IntegrationRule(*ir_1_0,
+         new IntegrationRule(ir_1_0,
                              *SegmentIntRules[RealOrder]);
    // map rule to reference triangle
    TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
-   delete ir_1_0;
    return TriangleStroudIntRules[Order];
 }
 
@@ -2535,22 +2534,20 @@ IntegrationRule *IntegrationRules::TetrahedronStroudIntegrationRule(int Order)
       SegmentIntegrationRule(RealOrder);
    }
 
-   IntegrationRule *ir_1_0 = new IntegrationRule;
+   IntegrationRule ir_1_0;
    int n = RealOrder/2 + 1;
-   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, ir_1_0);
+   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, &ir_1_0);
 
-   IntegrationRule *ir_2_0 = new IntegrationRule;
-   QuadratureFunctions1D::GaussJacobi(n, 2.0, 0.0, ir_2_0);
+   IntegrationRule ir_2_0;
+   QuadratureFunctions1D::GaussJacobi(n, 2.0, 0.0, &ir_2_0);
 
    AllocIntRule(TetrahedronStroudIntRules, RealOrder); // RealOrder >= Order
    // create rule in unit cube
    TetrahedronStroudIntRules[RealOrder-1] =
       TetrahedronStroudIntRules[RealOrder] =
-         new IntegrationRule(*ir_2_0, *ir_1_0, *SegmentIntRules[RealOrder]);
+         new IntegrationRule(ir_2_0, ir_1_0, *SegmentIntRules[RealOrder]);
    // map rule to reference tetrahedron
    TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
-   delete ir_1_0;
-   delete ir_2_0;
    return TetrahedronStroudIntRules[Order];
 }
 
