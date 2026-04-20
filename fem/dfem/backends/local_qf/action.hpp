@@ -35,34 +35,39 @@ struct Action
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
-
-      create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
-      create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
-
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
 
-      xq_offsets.SetSize(ninputs + 1);
-      xq_offsets[0] = 0;
-      constexpr_for<0, ninputs>([&](auto i)
+      // Initialize DofToQuad maps for inputs
+      for_constexpr<ninputs>([&](auto i)
       {
-         const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         const auto &fd = ctx.infds[input_to_infd[i]];
+         std::visit([&](auto* space_ptr)
+         {
+            using T = std::decay_t<decltype(*space_ptr)>;
+            if constexpr (std::is_same_v<T, FiniteElementSpace> ||
+                          std::is_same_v<T, ParFiniteElementSpace>)
+            {
+               const auto *fe = space_ptr->GetTypicalFE();
+               input_dtq_maps[i] = &fe->GetDofToQuad(ctx.ir, DofToQuad::TENSOR);
+            }
+         }, fd.data);
       });
-      xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
 
-      yq_offsets.SetSize(noutputs + 1);
-      yq_offsets[0] = 0;
-      constexpr_for<0, noutputs>([&](auto i)
+      // Initialize DofToQuad maps for outputs
+      for_constexpr<noutputs>([&](auto i)
       {
-         const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         const auto &fd = ctx.outfds[output_to_outfd[i]];
+         std::visit([&](auto* space_ptr)
+         {
+            using T = std::decay_t<decltype(*space_ptr)>;
+            if constexpr (std::is_same_v<T, FiniteElementSpace> ||
+                          std::is_same_v<T, ParFiniteElementSpace>)
+            {
+               const auto *fe = space_ptr->GetTypicalFE();
+               output_dtq_maps[i] = &fe->GetDofToQuad(ctx.ir, DofToQuad::TENSOR);
+            }
+         }, fd.data);
       });
-      yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
    }
 
    void operator()(
@@ -71,22 +76,79 @@ struct Action
    {
       if (ctx.attr.Size() == 0) { return; }
 
-      // E -> Q
-      interpolate(input_to_infd, input_bases, xe, xq);
+      // input_dtq_maps
 
-      // Q -> Q
-      static_assert(
-         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
-         "qfunc signature not supported by default backend Action");
+      // const auto B = (const real_t*)input_dtq_maps[0/*i*/].B;
+      // const auto G = (const real_t*)input_dtq_maps[0/*i*/].G;
 
-      detail::call_qfunc(
-         qfunc, xq, yq, gnqp, input_qlayouts, output_qlayouts,
-         std::make_index_sequence<ninputs> {},
-         std::make_index_sequence<noutputs> {});
+      //    dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
+      //    {
+      //       if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-      // Q -> E
-      integrate(output_to_outfd, output_bases, yq, ye);
+      //       constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+
+      //       MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
+      //       MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
+
+      //       low::regs3d_t<DIM, MQ1> reg;
+      //       const real_t *rd = dx_ptr;
+
+      //       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+      //       {
+      //          low::LoadMatrix(d1d, q1d, B, sB);
+      //          low::LoadMatrix(d1d, q1d, G, sG);
+      //          {
+      //             low::LoadDofs3d(e, d1d, XE, sm0);
+      //             low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg);
+      //          }
+      //       }
+      //       // else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
+      //       {
+      //          // db1("Identity");
+      //          // rd = fields_e_ptr[input_to_field[i]];
+      //          // rd = dx_ptr;
+      //       }
+      //    }
+
+      //    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+      //    {
+      //       MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      //       {
+      //          MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      //          {
+
+      //             auto args = decay_tuple<qf_param_ts> {};
+      //             get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
+      //             if constexpr (T_Q1D > 0)
+      //             {
+      //                get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
+      //             }
+      //             else
+      //             {
+      //                get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+      //             }
+      //             auto r = get<0>(apply(qfunc, args));
+      //             if constexpr (decltype(r)::ndim == 1)
+      //             {
+      //                as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
+      //             }
+      //             else { static_assert(false); }
+      //          }
+      //       }
+      //    }
+      //    MFEM_SYNC_THREAD;
+      //    // Integrate
+      //    // if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
+      //    {
+      //       // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+      //       // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+      //       low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0);
+      //       low::WriteDofs3d(d1d, 0, e, reg, YE);
+      //    }
+      // },
+      // num_entities, thread_blocks, 0, nullptr);
    }
+
 
    IntegratorContext ctx;
    qfunc_t qfunc;
@@ -96,15 +158,8 @@ struct Action
    std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;
 
-   std::array<FieldBasis, ninputs> input_bases;
-   std::array<FieldBasis, noutputs> output_bases;
-
-   std::array<std::vector<int>, ninputs>  input_qlayouts;
-   std::array<std::vector<int>, noutputs> output_qlayouts;
-
-   int gnqp = 0;
-   Array<int> xq_offsets, yq_offsets;
-   mutable BlockVector xq, yq;
+   std::array<const DofToQuad*, ninputs> input_dtq_maps;
+   std::array<const DofToQuad*, noutputs> output_dtq_maps;
 };
 
 }
