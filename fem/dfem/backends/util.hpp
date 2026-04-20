@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../fem/quadinterpolator.hpp"
-#include "../../util.hpp"
+#include "../util.hpp"
 #include "general/enzyme.hpp"
 
 namespace mfem::future

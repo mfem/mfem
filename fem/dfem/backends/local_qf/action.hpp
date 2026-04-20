@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../global_qf/util.hpp"
+#include "../util.hpp"
 #include "../../integrator_ctx.hpp"
 
 #include <utility>
