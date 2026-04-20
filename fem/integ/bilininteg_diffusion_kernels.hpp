@@ -1713,7 +1713,6 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    const auto inverse_map3d = inverse_map3d_.Read();
    const auto Ga1 = ConstDeviceMatrix(ga1_.Read(), D1D-1, Q1D);
    const auto Ga2 = ConstDeviceMatrix(ga2_.Read(), BASIS_DIM2D_DIFF, Q1D);
-   const auto Ga3 = ConstDeviceMatrix(ga3_.Read(), BASIS_DIM3D_DIFF, Q1D);
    const auto Ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto Ga2t = ConstDeviceMatrix(ga2t_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto Ga3t = ConstDeviceMatrix(ga3t_.Read(), Q1D, BASIS_DIM3D_DIFF);
