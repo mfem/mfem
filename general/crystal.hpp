@@ -6,7 +6,7 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <vector>
-#include "vector.hpp"
+#include "../linalg/vector.hpp"
 #include "array.hpp"
 
 namespace mfem
