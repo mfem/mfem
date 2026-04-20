@@ -304,21 +304,36 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
    }
 }
 
-real_t test_nl_convection_nd(int dim)
+real_t test_nl_convection_nd(int dim, int p)
 {
-   Mesh mesh = MakeCartesianNonaligned(dim, 2);
-   int order = 2;
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec, dim);
+   dbg("Nonlinear Convection dim: {} order: {}", dim, p);
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   Mesh mesh(dim == 2 ?
+             "../../data/star-q2.mesh" :
+             "../../data/fichera-q2.mesh");
+   MFEM_VERIFY(mesh.Dimension() == dim, "Mesh dimension mismatch");
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace vfes(&mesh, &fec, dim);
+
+   GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
    x.Randomize(3);
 
-   NonlinearForm nlf_fa(&fes);
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << std::flush;
+   }
+
+   // ConstantCoefficient rho_cc(1.0);
+
+   NonlinearForm nlf_fa(&vfes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_fa.Mult(x, y_fa);
 
-   NonlinearForm nlf_pa(&fes);
+   NonlinearForm nlf_pa(&vfes);
    nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_pa.Setup();
@@ -327,20 +342,21 @@ real_t test_nl_convection_nd(int dim)
    y_fa -= y_pa;
    real_t difference = y_fa.Norml2();
 
-
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
+   const bool all = launch_all_non_regression_tests;
+   const auto p = all ? GENERATE(1, 2, 3): 2;
    SECTION("2D")
    {
-      REQUIRE(test_nl_convection_nd(2) == MFEM_Approx(0.0));
+      REQUIRE(test_nl_convection_nd(2, p) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_nl_convection_nd(3) == MFEM_Approx(0.0));
+      REQUIRE(test_nl_convection_nd(3, p) == MFEM_Approx(0.0));
    }
 }
 

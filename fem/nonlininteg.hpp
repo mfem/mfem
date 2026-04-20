@@ -18,6 +18,7 @@
 #include "fespace.hpp"
 #include "ceed/interface/operator.hpp"
 #include "integrator.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -384,10 +385,10 @@ private:
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
-   Vector pa_data;
+   int dim, ne, nq, d1d, q1d;
+   Vector pa_adj, pa_adj_t, pa_u;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq;
 
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
@@ -411,12 +412,43 @@ public:
 
    void AssemblePA(const FiniteElementSpace &fes) override;
 
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   void AddMultMF(const Vector &x, Vector &y) const override;
+   using VectorConvectionNLFAddMultPAType =
+      void(*)(const int ne,
+              const Array<real_t> &B, const Array<real_t> &G,
+              const Vector &Q, const Vector &x, Vector &y,
+              const int d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultPA,
+                         VectorConvectionNLFAddMultPAType,
+                         (int, int, int));
 
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+
+   using VectorConvectionNLFAddMultGradPAType =
+      void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
+              const real_t *pa_u, const real_t *x, real_t *y,
+              const int d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA2D,
+                         VectorConvectionNLFAddMultGradPAType,
+                         (int, int));
+   using LOVectorConvectionNLFAddMultGradPA3DType =
+      void(*)(const int ne, const int d1d,
+              const real_t *B, const real_t *G, const real_t *A,
+              const real_t *pa_u, const real_t *x, real_t *y,
+              const int q1d);
+   MFEM_REGISTER_KERNELS(LOVectorConvectionNLFAddMultGradPA3D,
+                         LOVectorConvectionNLFAddMultGradPA3DType,
+                         (int));
+   MFEM_REGISTER_KERNELS(HOVectorConvectionNLFAddMultGradPA3D,
+                         VectorConvectionNLFAddMultGradPAType,
+                         (int, int));
+
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

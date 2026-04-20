@@ -12,18 +12,21 @@
 #include "../../general/forall.hpp"
 #include "../nonlininteg.hpp"
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
+#include "../kernels.hpp"
+#include "../../linalg/tensor.hpp"
 
 namespace mfem
 {
 
 void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   ElementTransformation &T = *mesh->GetTypicalElementTransformation();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   ElementTransformation &Tr = *mesh->GetTypicalElementTransformation();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Tr);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -39,86 +42,151 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       return;
    }
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
+   ne = mesh->GetNE();
    nq = ir->GetNPoints();
+   dim = mesh->Dimension();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   pa_data.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   real_t COEFF = 1.0;
-   if (Q)
+   pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
+   pa_adj_t.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
+   d1d = maps->ndof;
+   q1d = maps->nqpt;
+
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs);
+
+   if (auto cc = dynamic_cast<ConstantCoefficient *>(Q))
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient *>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      COEFF = cQ->constant;
+      coeff.SetConstant(cc->constant);
    }
-   const int NE = ne;
-   const int NQ = nq;
-   auto W = ir->GetWeights().Read();
-   if (dim == 1)
+   else if (Q)
    {
-      MFEM_ABORT("dim==1 not supported!");
+      coeff.Project(*Q);
    }
+   else
+   {
+      coeff.SetConstant(1.0);
+   }
+
+   const auto w_r = ir->GetWeights().Read();
+
    if (dim == 2)
    {
-      auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
-      auto G = Reshape(pa_data.Write(), NQ, 2, 2, NE);
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      NVTX_MARK("2D");
+      const int Q1D = q1d;
+      const auto W = Reshape(w_r, Q1D, Q1D);
+      const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, 2, 2, ne);
+      auto A = Reshape(pa_adj.Write(), Q1D, Q1D, 2, 2, ne);
+      auto T = Reshape(pa_adj_t.Write(), 2, 2, Q1D, Q1D, ne);
+
+      mfem::forall_2D(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            const real_t J11 = J(q, 0, 0, e);
-            const real_t J12 = J(q, 0, 1, e);
-            const real_t J21 = J(q, 1, 0, e);
-            const real_t J22 = J(q, 1, 1, e);
-            // Store wq * Q * adj(J)
-            G(q, 0, 0, e) = W[q] * COEFF * J22;  // 1,1
-            G(q, 0, 1, e) = W[q] * COEFF * -J12; // 1,2
-            G(q, 1, 0, e) = W[q] * COEFF * -J21; // 2,1
-            G(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               const real_t J11 = J(qx, qy, 0, 0, e), J12 = J(qx, qy, 0, 1, e);
+               const real_t J21 = J(qx, qy, 1, 0, e), J22 = J(qx, qy, 1, 1, e);
+               // adj(J)
+               const real_t A11 = +J22, A12 = -J12;
+               const real_t A21 = -J21, A22 = +J11;
+               // Store w * coeff * adj(J)
+               const real_t w = W(qx, qy);
+               const real_t c = C(qx, qy, e);
+               A(qx, qy, 0, 0, e) = T(0, 0, qx, qy, e) = w * c * A11;
+               A(qx, qy, 0, 1, e) = T(1, 0, qx, qy, e) = w * c * A12;
+               A(qx, qy, 1, 0, e) = T(0, 1, qx, qy, e) = w * c * A21;
+               A(qx, qy, 1, 1, e) = T(1, 1, qx, qy, e) = w * c * A22;
+            }
          }
       });
    }
-   if (dim == 3)
+   else if (dim == 3)
    {
-      auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
-      auto G = Reshape(pa_data.Write(), NQ, 3, 3, NE);
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      NVTX_MARK("3D");
+      const int Q1D = q1d;
+      const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
+      const auto C = Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, 3, 3, ne);
+      auto A = Reshape(pa_adj.Write(), Q1D, Q1D, Q1D, 3, 3, ne);
+      auto T = Reshape(pa_adj_t.Write(), 3, 3, Q1D, Q1D, Q1D, ne);
+
+      mfem::forall_3D(ne, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
          {
-            const real_t J11 = J(q, 0, 0, e);
-            const real_t J21 = J(q, 1, 0, e);
-            const real_t J31 = J(q, 2, 0, e);
-            const real_t J12 = J(q, 0, 1, e);
-            const real_t J22 = J(q, 1, 1, e);
-            const real_t J32 = J(q, 2, 1, e);
-            const real_t J13 = J(q, 0, 2, e);
-            const real_t J23 = J(q, 1, 2, e);
-            const real_t J33 = J(q, 2, 2, e);
-            const real_t cw = W[q] * COEFF;
-            // adj(J)
-            const real_t A11 = (J22 * J33) - (J23 * J32);
-            const real_t A12 = (J32 * J13) - (J12 * J33);
-            const real_t A13 = (J12 * J23) - (J22 * J13);
-            const real_t A21 = (J31 * J23) - (J21 * J33);
-            const real_t A22 = (J11 * J33) - (J13 * J31);
-            const real_t A23 = (J21 * J13) - (J11 * J23);
-            const real_t A31 = (J21 * J32) - (J31 * J22);
-            const real_t A32 = (J31 * J12) - (J11 * J32);
-            const real_t A33 = (J11 * J22) - (J12 * J21);
-            // Store wq * Q * adj(J)
-            G(q, 0, 0, e) = cw * A11; // 1,1
-            G(q, 0, 1, e) = cw * A12; // 1,2
-            G(q, 0, 2, e) = cw * A13; // 1,3
-            G(q, 1, 0, e) = cw * A21; // 2,1
-            G(q, 1, 1, e) = cw * A22; // 2,2
-            G(q, 1, 2, e) = cw * A23; // 2,3
-            G(q, 2, 0, e) = cw * A31; // 3,1
-            G(q, 2, 1, e) = cw * A32; // 3,2
-            G(q, 2, 2, e) = cw * A33; // 3,3
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const real_t J11 = J(qx, qy, qz, 0, 0, e),
+                               J12 = J(qx, qy, qz, 0, 1, e),
+                               J13 = J(qx, qy, qz, 0, 2, e);
+                  const real_t J21 = J(qx, qy, qz, 1, 0, e),
+                               J22 = J(qx, qy, qz, 1, 1, e),
+                               J23 = J(qx, qy, qz, 1, 2, e);
+                  const real_t J31 = J(qx, qy, qz, 2, 0, e),
+                               J32 = J(qx, qy, qz, 2, 1, e),
+                               J33 = J(qx, qy, qz, 2, 2, e);
+                  const real_t cw = W(qx, qy, qz) * C(qx, qy, qz, e);
+                  // adj(J)
+                  const real_t A11 = (J22 * J33) - (J23 * J32);
+                  const real_t A12 = (J32 * J13) - (J12 * J33);
+                  const real_t A13 = (J12 * J23) - (J22 * J13);
+                  const real_t A21 = (J31 * J23) - (J21 * J33);
+                  const real_t A22 = (J11 * J33) - (J13 * J31);
+                  const real_t A23 = (J21 * J13) - (J11 * J23);
+                  const real_t A31 = (J21 * J32) - (J31 * J22);
+                  const real_t A32 = (J31 * J12) - (J11 * J32);
+                  const real_t A33 = (J11 * J22) - (J12 * J21);
+                  // Store wq * coeff * adj(J)
+                  A(qx, qy, qz, 0, 0, e) = T(0, 0, qx, qy, qz, e) = cw * A11;
+                  A(qx, qy, qz, 0, 1, e) = T(1, 0, qx, qy, qz, e) = cw * A12;
+                  A(qx, qy, qz, 0, 2, e) = T(2, 0, qx, qy, qz, e) = cw * A13;
+                  A(qx, qy, qz, 1, 0, e) = T(0, 1, qx, qy, qz, e) = cw * A21;
+                  A(qx, qy, qz, 1, 1, e) = T(1, 1, qx, qy, qz, e) = cw * A22;
+                  A(qx, qy, qz, 1, 2, e) = T(2, 1, qx, qy, qz, e) = cw * A23;
+                  A(qx, qy, qz, 2, 0, e) = T(0, 2, qx, qy, qz, e) = cw * A31;
+                  A(qx, qy, qz, 2, 1, e) = T(1, 2, qx, qy, qz, e) = cw * A32;
+                  A(qx, qy, qz, 2, 2, e) = T(2, 2, qx, qy, qz, e) = cw * A33;
+               }
+            }
          }
       });
+   }
+   else
+   {
+      MFEM_ABORT("dim " << dim << " not supported!");
+   }
+
+   if (static auto done = false; !std::exchange(done, true))
+   {
+      // 2D
+      VectorConvectionNLFAddMultPA::Specialization<2, 2,2>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 2,3>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 3,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 3,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 4,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 4,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 5,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 5,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 6,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 7,10>::Add();
+      // 3D
+      VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 2,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,5>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 3,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,6>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 4,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,7>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,8>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 5,9>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 6,9>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 7,10>::Add();
    }
 }
 
@@ -258,6 +326,76 @@ static void PAConvectionNLApply2D(const int NE,
    });
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAConvectionNLApply2D(const int NE,
+                                      const Array<real_t> &b_,
+                                      const Array<real_t> &g_,
+                                      const Vector &d_,
+                                      const Vector &x_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
+{
+   NVTX_MARK_FUNCTION;
+   constexpr int DIM = 2, VDIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
+   const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 16;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 16;
+
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
+      kernels::internal::v_regs2d_t<VDIM, MQ1> s0, s1;
+
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      kernels::internal::LoadDofs2d(e, D1D, x, r0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1); // u vector-value
+      kernels::internal::LoadDofs2d(e, D1D, x, g0);
+      kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, g0, g1); // u vector-gradient
+
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            const future::tensor<real_t, 2> U =
+            {
+               r1[0][qy][qx], r1[1][qy][qx]
+            };
+            const future::tensor<real_t, 2,2> gradU = {{
+                  {g1[0][0][qy][qx], g1[1][0][qy][qx]},
+                  {g1[0][1][qy][qx], g1[1][1][qy][qx]},
+               }
+            };
+            const future::tensor<real_t, 2,2> Q = {{
+                  {D(qx,qy,0,0,e), D(qx,qy,0,1,e)},
+                  {D(qx,qy,1,0,e), D(qx,qy,1,1,e)},
+               }
+            };
+            const future::tensor<real_t, 2> conv = transpose(gradU) * (Q * U);
+            s0[0][qy][qx] = conv[0];
+            s0[1][qy][qx] = conv[1];
+         }
+      }
+      MFEM_SYNC_THREAD;
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, s0, s1);
+      kernels::internal::WriteDofs2d(e, D1D, s1, Y);
+   });
+}
+
 // PA Convection NL 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAConvectionNLApply3D(const int NE,
@@ -270,6 +408,7 @@ static void PAConvectionNLApply3D(const int NE,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -566,15 +705,16 @@ static void PAConvectionNLApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
-static void SmemPAConvectionNLApply3D(const int NE,
-                                      const Array<real_t> &b_,
-                                      const Array<real_t> &g_,
-                                      const Vector &d_,
-                                      const Vector &x_,
-                                      Vector &y_,
-                                      const int d1d = 0,
-                                      const int q1d = 0)
+static void SmemPAConvectionNLApply3D_0(const int NE,
+                                        const Array<real_t> &b_,
+                                        const Array<real_t> &g_,
+                                        const Vector &d_,
+                                        const Vector &x_,
+                                        Vector &y_,
+                                        const int d1d = 0,
+                                        const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -804,35 +944,126 @@ static void SmemPAConvectionNLApply3D(const int NE,
    });
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAConvectionNLApply3D(const int NE,
+                                      const Array<real_t> &b_,
+                                      const Array<real_t> &g_,
+                                      const Vector &d_,
+                                      const Vector &x_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
+{
+   NVTX_MARK_FUNCTION;
+   constexpr int DIM = 3, VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "");
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 16;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 16;
+
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> s0, s1;
+
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      kernels::internal::LoadDofs3d(e, D1D, x, r0);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1); // u vector-value
+      kernels::internal::LoadDofs3d(e, D1D, x, g0);
+      kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, g0, g1); // u vector-gradient
+
+      for (int qz = 0; qz < Q1D; qz++)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               const future::tensor<real_t, 3> U =
+               {
+                  r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]
+               };
+               const future::tensor<real_t, 3,3> gradU = {{
+                     {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
+                     {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
+                     {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
+                  }
+               };
+               const future::tensor<real_t, 3,3> Q = {{
+                     {D(qx,qy,qz,0,0,e), D(qx,qy,qz,0,1,e), D(qx,qy,qz,0,2,e)},
+                     {D(qx,qy,qz,1,0,e), D(qx,qy,qz,1,1,e), D(qx,qy,qz,1,2,e)},
+                     {D(qx,qy,qz,2,0,e), D(qx,qy,qz,2,1,e), D(qx,qy,qz,2,2,e)}
+                  }
+               };
+               const future::tensor<real_t, 3> conv = transpose(gradU) * (Q * U);
+               s0[0][qz][qy][qx] = conv[0];
+               s0[1][qz][qy][qx] = conv[1];
+               s0[2][qz][qy][qx] = conv[2];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, s0, s1);
+      kernels::internal::WriteDofs3d(e, D1D, s1, Y);
+   });
+}
+
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
    else
    {
-      const int NE = ne;
-      const int D1D = maps->ndof;
-      const int Q1D = maps->nqpt;
-      const Vector &QV = pa_data;
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &G = maps->G;
-      const Array<real_t> &Bt = maps->Bt;
-      if (dim == 2)
-      {
-         return PAConvectionNLApply2D(NE, B, G, Bt, QV, x, y, D1D, Q1D);
-      }
-      if (dim == 3)
-      {
-         constexpr int T_MAX_D1D = 8;
-         constexpr int T_MAX_Q1D = 8;
-         MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
-         return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-                (NE, B, G, QV, x, y, D1D, Q1D);
-      }
-      MFEM_ABORT("Not yet implemented!");
+      VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d,
+                                        ne, maps->B, maps->G, pa_adj, x, y,
+                                        d1d, q1d);
    }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return SmemPAConvectionNLApply2D<T_D1D,T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return SmemPAConvectionNLApply3D<T_D1D, T_Q1D>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
+(int dim, int, int)
+{
+   if (dim == 2)
+   {
+      return SmemPAConvectionNLApply2D<>;
+   }
+   else if (dim == 3)
+   {
+      return SmemPAConvectionNLApply3D<>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
 
 } // namespace mfem

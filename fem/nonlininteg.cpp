@@ -786,6 +786,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 {
    const int nd = el.GetDof();
    dim = el.GetDim();
+   // dbg("nd: {}, dim: {}", nd, dim);
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -804,41 +805,79 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
+      // dbg("\x1b[33mq: {}", i);
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
-      el.CalcShape(ip, shape);
-      el.CalcDShape(ip, dshape);
+      // ------------------------------------------------------------
+      // 1. Evaluate basis functions and their physical gradients
+      // ------------------------------------------------------------
+      el.CalcShape(ip, shape);                           // φ_j(ξ)
+      el.CalcDShape(ip, dshape);                         // ∂φ_j / ∂ξ
+      // dbg("dshape: {}", dshape.Size());
+      // dshape.Print();
+      Mult(dshape, trans.InverseJacobian(), dshapex);    // ∂φ_j / ∂x  (physical)
 
-      Mult(dshape, trans.InverseJacobian(), dshapex);
-
+      // ------------------------------------------------------------
+      // 2. First part of the Jacobian:  (u · ∇)δu   → contributes to (F'(u, δu), v)
+      //    This is exactly the same as the nonlinear action applied to the perturbation δu
+      // ------------------------------------------------------------
       w = ip.weight;
+      if (Q) { w *= Q->Eval(trans, ip); }
 
-      if (Q)
-      {
-         w *= Q->Eval(trans, ip);
-      }
+      // Interpolate current solution u at this quadrature point
+      EF.MultTranspose(shape, vec1);                  // vec1 = u_h
+      // if (i == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
 
-      MultAtB(EF, dshapex, gradEF);
-      EF.MultTranspose(shape, vec1);
-
+      // Pull-back with adjugate:  adj(J) u_h   (this is the effective velocity)
+      // if (i == 0)
+      // {
+      //    const auto D = trans.AdjugateJacobian();
+      //    dbg("D: {} {} {} {}", D(0,0), D(0,1), D(1,0), D(1,1));
+      // }
       trans.AdjugateJacobian().Mult(vec1, vec2);
+      vec2 *= w;                                     // multiply by w * Q
+      // if (i == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
 
-      vec2 *= w;
-      dshape.Mult(vec2, vec3);
+      // Apply derivative operator:  dshape * (w * adj(J) u)
+      dshape.Mult(vec2, vec3);                       // vec3 = dshape * (w * adj(J) u)
+      // if (i == 0)
+      // {
+      //    dbg("\x1b[32mvec3: {} {} {} {}", vec3[0], vec3[1], vec3[2], vec3[3]);
+      // }
+
+      // Form the scalar mass matrix:  shape ⊗ vec3
       MultVWt(shape, vec3, elmat_comp);
+      // if (i == 0)
+      // {
+      //    dbg("elmat_comp: {} {} {} {}",
+      //        elmat_comp(0,0), elmat_comp(0,1), elmat_comp(1,0), elmat_comp(1,1));
+      // }
 
+      // Add this contribution on the diagonal blocks (one block per vector component)
       for (int ii = 0; ii < dim; ii++)
       {
-         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
+         elmat.AddMatrix(elmat_comp, ii*nd, ii*nd);
       }
 
+
+      // ------------------------------------------------------------
+      // 3. Second part of the Jacobian:  (δu · ∇)u   → the coupling term
+      // ------------------------------------------------------------
+      // Compute the full gradient tensor of the linearization point u
+      //   gradEF(ii, jj) = ∂u_ii / ∂x_jj
+      MultAtB(EF, dshapex, gradEF);                  // ∇u at this quad point
+
+      // Reuse the scalar mass matrix shape ⊗ shape
       MultVVt(shape, elmat_comp);
+
+      // Note the different weight here: we use the true Jacobian determinant
       w = ip.weight * trans.Weight();
-      if (Q)
-      {
-         w *= Q->Eval(trans, ip);
-      }
+      if (Q) { w *= Q->Eval(trans, ip); }
+
+      // Add the outer-product term for every pair of components:
+      //   this corresponds to the (δu · ∇)u contribution in
+      //   F'(u, δu) = u·∇δu + δu·∇u
       for (int ii = 0; ii < dim; ii++)
       {
          for (int jj = 0; jj < dim; jj++)
