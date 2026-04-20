@@ -336,7 +336,7 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   CrystalRouter* router;
+   CrystalRouter* router = nullptr;
 #endif // MFEM_USE_MPI
 
 //#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
