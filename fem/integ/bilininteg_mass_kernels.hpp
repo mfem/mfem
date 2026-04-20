@@ -1837,7 +1837,8 @@ inline void PAMassApplyTriangle(const int NE,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::PAMassApplyTriangle_Element(e, NE, BASIS_DIM, lex_map, Ba1, Ba2, Ba1t, Ba2t, D, X,
+      internal::PAMassApplyTriangle_Element(e, NE, BASIS_DIM, lex_map, Ba1, Ba2, Ba1t,
+                                            Ba2t, D, X,
                                             Y, d1d, q1d);
    });
 }
