@@ -439,7 +439,7 @@ public:
    }
 
    /// Use the stored eliminated part of the sytem to modify the r.h.s.
-   /** @param tdofs_flux   list of true DOFs of flux @a u
+   /** @param tdofs_flux   list of flux true DOFs
        @param x            solution vector providing the true DOF values
        @param b            (true) right hand side vector
    */
@@ -447,7 +447,7 @@ public:
                                const BlockVector &x, BlockVector &b);
 
    /// Use the stored eliminated part of the sytem to modify the r.h.s.
-   /** @param vdofs_flux   list of VDOFs of flux @a u
+   /** @param vdofs_flux   list of flux VDOFs (non-directional, i.e. >= 0)
        @param x            solution vector providing the VDOF values
        @param b            right hand side vector
    */

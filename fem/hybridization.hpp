@@ -131,6 +131,7 @@ public:
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { c_bfi.reset(c_integ); }
 
+   /// Adds boundary constraint integrator
    /** Add the boundary face integrator that will be used to construct the
        constraint matrix C. The Hybridization object assumes ownership of the
        integrator, i.e. it will delete the integrator when destroyed. */
@@ -139,6 +140,13 @@ public:
       boundary_constraint_integs.push_back(c_integ);
       boundary_constraint_integs_marker.push_back(nullptr);
    }
+
+   /// Adds boundary constraint integrator (with a boundary marker)
+   /** Add the boundary face integrator that will be used to construct the
+       constraint matrix C. The Hybridization object assumes ownership of the
+       integrator, i.e. it will delete the integrator when destroyed. The
+       boundary attribute marker array is referenced and must remain valid over
+       the lifetime. */
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                    Array<int> &bdr_marker)
    {
