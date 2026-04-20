@@ -1,10 +1,14 @@
 #pragma once
 
-#include "../../integrator_ctx.hpp"
 #include "util.hpp"
+#include "../../integrator_ctx.hpp"
+
 #include <utility>
 
 namespace mfem::future
+{
+
+namespace GlobalQFImpl
 {
 
 template<
@@ -103,4 +107,5 @@ struct Action
    mutable BlockVector xq, yq;
 };
 
+}
 }

@@ -2,7 +2,6 @@
 
 #include "../fem/quadinterpolator.hpp"
 #include "../../util.hpp"
-#include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
 
 namespace mfem::future

@@ -12,6 +12,7 @@
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
+#include "../fem/dfem/backends/local_qf/prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
 
 #include <proteus/JitInterface.h>
@@ -140,7 +141,6 @@ struct mass_diffusion_qdata_qf
       tensor_array<real_t, DIM> &out,
       size_t NQ) const
    {
-      proteus::jit_arg(NQ);
       for (size_t q = 0; q < NQ; q++)
       {
          const auto invJq = inv(J(q));
@@ -308,46 +308,75 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          {S, &qdata}
       };
 
-      DifferentiableOperator dop(in, out, pmesh);
+      {
+         DifferentiableOperator dop(in, out, pmesh);
 
-      dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
+         dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
-      dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-                              tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
-                              *ir, all_domain_attr);
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         dop.AddDomainIntegrator(mass_diffusion_qfunc,
+                                 tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+                                 tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+                                 *ir, all_domain_attr, derivatives);
 
-      fes.GetRestrictionMatrix()->Mult(x, xtvec);
-      dop.Mult(X, Z);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         dop.Mult(X, Z);
 
-      std::cout << "dfem: ";
-      pretty_print(Z[0]);
+         std::cout << "dfem: ";
+         pretty_print(Z[0]);
 
-      Vector Y0(ytvecmfem);
-      Y0 -= Z[0];
+         Vector Y0(ytvecmfem);
+         Y0 -= Z[0];
 
-      real_t norm_l = Y0.Normlinf();
-      real_t norm_g = norm_l;
-      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-      REQUIRE(norm_g == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         real_t norm_l = Y0.Normlinf();
+         real_t norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
 
-      // auto ddop = dop.GetDerivative(U, X);
+         auto ddop = dop.GetDerivative(U, X);
 
-      // ddop->Mult(X[0], Z);
-      // Y0 = ytvecmfem;
-      // Y0 -= Z[0];
+         ddop->Mult(X[0], Z);
+         Y0 = ytvecmfem;
+         Y0 -= Z[0];
 
-      // std::cout << "∂dfem: ";
-      // pretty_print(Z[0]);
+         std::cout << "∂dfem: ";
+         pretty_print(Z[0]);
 
-      // norm_l = Y0.Normlinf();
-      // norm_g = norm_l;
-      // MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-      // REQUIRE(norm_g == MFEM_Approx(0.0));
-      // MPI_Barrier(MPI_COMM_WORLD);
+         norm_l = Y0.Normlinf();
+         norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+      {
+         DifferentiableOperator dop(in, out, pmesh);
+
+         dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
+
+         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            mass_diffusion_qfunc,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+            tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+            *ir, all_domain_attr);
+
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         dop.Mult(X, Z);
+
+         std::cout << "dfem: ";
+         pretty_print(Z[0]);
+
+         Vector Y0(ytvecmfem);
+         Y0 -= Z[0];
+
+         real_t norm_l = Y0.Normlinf();
+         real_t norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 }
 
