@@ -768,6 +768,420 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( blfi ) { blfi->Update(nfes); }
 }
 
+bool
+MixedSesquilinearForm::RealInteg()
+{
+   int nint = _mblfr->GetFBFI()->Size() + _mblfr->GetDBFI()->Size() +
+              _mblfr->GetBBFI()->Size() +
+              _mblfr->GetBFBFI()->Size();
+   return (nint != 0);
+}
+
+bool
+MixedSesquilinearForm::ImagInteg()
+{
+   int nint = _mblfi->GetFBFI()->Size() + _mblfi->GetDBFI()->Size() +
+              _mblfi->GetBBFI()->Size() +
+              _mblfi->GetBFBFI()->Size();
+   return (nint != 0);
+}
+
+MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
+                                             FiniteElementSpace * test_fes,
+                                             ComplexOperator::Convention convention)
+   : _conv(convention),
+     _mblfr(new mfem::MixedBilinearForm(trial_fes, test_fes)),
+     _mblfi(new mfem::MixedBilinearForm(trial_fes, test_fes))
+{
+}
+
+MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
+                                             FiniteElementSpace * test_fes,
+                                             MixedBilinearForm * bfr,
+                                             MixedBilinearForm * bfi,
+                                             ComplexOperator::Convention convention)
+   : _conv(convention),
+     _mblfr(new MixedBilinearForm(trial_fes, test_fes, bfr)),
+     _mblfi(new MixedBilinearForm(trial_fes, test_fes, bfi))
+{
+}
+
+MixedSesquilinearForm::~MixedSesquilinearForm()
+{
+   delete _mblfr;
+   delete _mblfi;
+}
+
+void
+MixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                                           BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddDomainIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddDomainIntegrator(bfi_imag);
+   }
+}
+
+void
+MixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                                           BilinearFormIntegrator * bfi_imag,
+                                           Array<int> & elem_marker)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddDomainIntegrator(bfi_real, elem_marker);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddDomainIntegrator(bfi_imag, elem_marker);
+   }
+}
+
+void
+MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                                             BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddBoundaryIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddBoundaryIntegrator(bfi_imag);
+   }
+}
+
+void
+MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                                             BilinearFormIntegrator * bfi_imag,
+                                             Array<int> & bdr_marker)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void
+MixedSesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *
+                                                 bfi_real,
+                                                 BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddInteriorFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddInteriorFaceIntegrator(bfi_imag);
+   }
+}
+
+void
+MixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                            BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddBdrFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddBdrFaceIntegrator(bfi_imag);
+   }
+}
+
+void
+MixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                            BilinearFormIntegrator * bfi_imag,
+                                            Array<int> & bdr_marker)
+{
+   if (bfi_real)
+   {
+      _mblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      _mblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void
+MixedSesquilinearForm::Assemble(int skip_zeros)
+{
+   _mblfr->Assemble(skip_zeros);
+   _mblfi->Assemble(skip_zeros);
+}
+
+void
+MixedSesquilinearForm::Finalize(int skip_zeros)
+{
+   _mblfr->Finalize(skip_zeros);
+   _mblfi->Finalize(skip_zeros);
+}
+
+ComplexSparseMatrix *
+MixedSesquilinearForm::AssembleComplexSparseMatrix()
+{
+   return new mfem::ComplexSparseMatrix(
+             &_mblfr->SpMat(), &_mblfi->SpMat(), true, true, _conv);
+}
+
+void
+MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
+                                                   ess_trial_tdof_list,
+                                                   const Array<int> & ess_test_tdof_list,
+                                                   Vector & x,
+                                                   Vector & b,
+                                                   OperatorHandle & A,
+                                                   Vector & X,
+                                                   Vector & B)
+{
+   FiniteElementSpace * fes_trial = _mblfr->TrialFESpace();
+   FiniteElementSpace * fes_test = _mblfr->TestFESpace();
+   const int vsize_trial = fes_trial->GetVSize();
+   const int vsize_test = fes_test->GetVSize();
+
+   // Allocate temporary mfem::vector
+   Vector b_0;
+   b_0.UseDevice(true);
+   b_0.SetSize(vsize_test);
+   b_0 = 0.0;
+
+   // Extract the real and imaginary parts of the input mfem::vectors
+   MFEM_ASSERT(x.Size() == 2 * vsize_trial,
+               "Input GridFunction of incorrect size!");
+   x.Read();
+   Vector x_r;
+   x_r.MakeRef(x, 0, vsize_trial);
+   Vector x_i;
+   x_i.MakeRef(x, vsize_trial, vsize_trial);
+
+   MFEM_ASSERT(b.Size() == 2 * vsize_test, "Input LinearForm of incorrect size!");
+   b.Read();
+   Vector b_r;
+   b_r.MakeRef(b, 0, vsize_test);
+   Vector b_i;
+   b_i.MakeRef(b, vsize_test, vsize_test);
+
+   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      b_i *= -1.0;
+   }
+
+   const int tvsize_trial = fes_trial->GetTrueVSize();
+   const int tvsize_test = fes_test->GetTrueVSize();
+   OperatorHandle A_r, A_i;
+
+   X.UseDevice(true);
+   X.SetSize(2 * tvsize_trial);
+   X = 0.0;
+
+   B.UseDevice(true);
+   B.SetSize(2 * tvsize_test);
+   B = 0.0;
+
+   Vector X_r;
+   X_r.MakeRef(X, 0, tvsize_trial);
+   Vector X_i;
+   X_i.MakeRef(X, tvsize_trial, tvsize_trial);
+   Vector B_r;
+   B_r.MakeRef(B, 0, tvsize_test);
+   Vector B_i;
+   B_i.MakeRef(B, tvsize_test, tvsize_test);
+
+   Vector X_0, B_0;
+
+   if (RealInteg())
+   {
+      b_0 = b_r;
+      _mblfr->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_r, X_0, B_0);
+      X_r = X_0;
+      B_r = B_0;
+
+      b_0 = b_i;
+      _mblfr->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_r, X_0, B_0);
+      X_i = X_0;
+      B_i = B_0;
+
+      if (ImagInteg())
+      {
+         b_0 = 0.0;
+         _mblfi->FormRectangularLinearSystem(
+            ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
+         B_r -= B_0;
+
+         b_0 = 0.0;
+         _mblfi->FormRectangularLinearSystem(
+            ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
+         B_i += B_0;
+      }
+   }
+   else if (ImagInteg())
+   {
+      b_0 = b_i;
+      _mblfi->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
+      X_r = X_0;
+      B_i = B_0;
+
+      b_0 = b_r;
+      b_0 *= -1.0;
+      _mblfi->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
+      X_i = X_0;
+      B_r = B_0;
+      B_r *= -1.0;
+   }
+   else
+   {
+      MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
+   }
+
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify RHS to conform with standard essential BC treatment
+      mfem::Vector xe_r(tvsize_trial);
+      mfem::Vector xe_i(tvsize_trial);
+      xe_r = 0.0;
+      xe_i = 0.0;
+      const int ntrial = ess_trial_tdof_list.Size();
+
+      for (int i = 0; i < ntrial; ++i)
+      {
+         const int j = ess_trial_tdof_list[i];
+         xe_r[j] = x_r[j];
+         xe_i[j] = x_i[j];
+      }
+
+      A_r->AddMult(xe_r, b_r, -1.);
+      A_i->AddMult(xe_i, b_r, 1.);
+      A_i->AddMult(xe_r, b_i, -1.);
+      A_r->AddMult(xe_i, b_i, -1.);
+
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment. Set columns corresponding to
+      // essential dofs to zero.
+      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
+      // method
+      if (A_i.Type() == Operator::Hypre_ParCSR)
+      {
+         A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
+      }
+   }
+
+   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      B_i *= -1.0;
+      b_i *= -1.0;
+   }
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
+   b_r.SyncAliasMemory(b);
+   b_i.SyncAliasMemory(b);
+
+   X_r.SyncAliasMemory(X);
+   X_i.SyncAliasMemory(X);
+   B_r.SyncAliasMemory(B);
+   B_i.SyncAliasMemory(B);
+
+   // A = A_r + i A_i
+   A.Clear();
+   if (A_r.Type() == Operator::Hypre_ParCSR ||
+       A_i.Type() == Operator::Hypre_ParCSR)
+   {
+      ComplexSparseMatrix * A_hyp =
+         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
+                                 A_i.As<SparseMatrix>(),
+                                 A_r.OwnsOperator(),
+                                 A_i.OwnsOperator(),
+                                 _conv);
+      A.Reset<ComplexSparseMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op = new ComplexOperator(A_r.As<Operator>(),
+                                                   A_i.As<Operator>(),
+                                                   A_r.OwnsOperator(),
+                                                   A_i.OwnsOperator(),
+                                                   _conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
+
+void
+MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
+                                                   ess_trial_tdof_list,
+                                                   const mfem::Array<int> & ess_test_tdof_list,
+                                                   mfem::OperatorHandle & A)
+{
+   OperatorHandle A_r, A_i;
+   if (RealInteg())
+   {
+      _mblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+                                          A_r);
+   }
+   if (ImagInteg())
+   {
+      _mblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+                                          A_i);
+   }
+   if (!RealInteg() && !ImagInteg())
+   {
+      MFEM_ABORT("Both Real and Imaginary part of the Mixed Sesquilinear form are empty");
+   }
+
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment. Set columns corresponding to
+      // essential dofs to zero.
+      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
+      // method
+      if (A_i.Type() == Operator::Hypre_ParCSR)
+      {
+         A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
+      }
+   }
+
+   // A = A_r + i A_i
+   A.Clear();
+   if (A_r.Type() == Operator::Hypre_ParCSR ||
+       A_i.Type() == Operator::Hypre_ParCSR)
+   {
+      ComplexSparseMatrix * A_hyp =
+         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
+                                 A_i.As<SparseMatrix>(),
+                                 A_r.OwnsOperator(),
+                                 A_i.OwnsOperator(),
+                                 _conv);
+      A.Reset<ComplexSparseMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op = new ComplexOperator(A_r.As<Operator>(),
+                                                   A_i.As<Operator>(),
+                                                   A_r.OwnsOperator(),
+                                                   A_i.OwnsOperator(),
+                                                   _conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
 
 #ifdef MFEM_USE_MPI
 
@@ -1678,6 +2092,428 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfr ) { pblfr->Update(nfes); }
    if ( pblfi ) { pblfi->Update(nfes); }
 }
+
+bool
+ParMixedSesquilinearForm::RealInteg()
+{
+   int nint = _pmblfr->GetFBFI()->Size() + _pmblfr->GetDBFI()->Size() +
+              _pmblfr->GetBBFI()->Size() +
+              _pmblfr->GetBFBFI()->Size();
+   return (nint != 0);
+}
+
+bool
+ParMixedSesquilinearForm::ImagInteg()
+{
+   int nint = _pmblfi->GetFBFI()->Size() + _pmblfi->GetDBFI()->Size() +
+              _pmblfi->GetBBFI()->Size() +
+              _pmblfi->GetBFBFI()->Size();
+   return (nint != 0);
+}
+
+ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
+                                                   trial_fes,
+                                                   ParFiniteElementSpace * test_fes,
+                                                   ComplexOperator::Convention convention)
+   : _conv(convention),
+     _pmblfr(new ParMixedBilinearForm(trial_fes, test_fes)),
+     _pmblfi(new ParMixedBilinearForm(trial_fes, test_fes))
+{
+}
+
+ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
+                                                   trial_fes,
+                                                   ParFiniteElementSpace * test_fes,
+                                                   ParMixedBilinearForm * pbfr,
+                                                   ParMixedBilinearForm * pbfi,
+                                                   ComplexOperator::Convention convention)
+   : _conv(convention),
+     _pmblfr(new ParMixedBilinearForm(trial_fes, test_fes, pbfr)),
+     _pmblfi(new ParMixedBilinearForm(trial_fes, test_fes, pbfi))
+{
+}
+
+ParMixedSesquilinearForm::~ParMixedSesquilinearForm()
+{
+   delete _pmblfr;
+   delete _pmblfi;
+}
+
+void
+ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                                              BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddDomainIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddDomainIntegrator(bfi_imag);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                                              BilinearFormIntegrator * bfi_imag,
+                                              Array<int> & elem_marker)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddDomainIntegrator(bfi_real, elem_marker);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddDomainIntegrator(bfi_imag, elem_marker);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *
+                                                bfi_real,
+                                                BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddBoundaryIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddBoundaryIntegrator(bfi_imag);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *
+                                                bfi_real,
+                                                BilinearFormIntegrator * bfi_imag,
+                                                Array<int> & bdr_marker)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *
+                                                    bfi_real,
+                                                    BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddInteriorFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddInteriorFaceIntegrator(bfi_imag);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *
+                                               bfi_real,
+                                               BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddBdrFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddBdrFaceIntegrator(bfi_imag);
+   }
+}
+
+void
+ParMixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *
+                                               bfi_real,
+                                               BilinearFormIntegrator * bfi_imag,
+                                               Array<int> & bdr_marker)
+{
+   if (bfi_real)
+   {
+      _pmblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      _pmblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void
+ParMixedSesquilinearForm::Assemble(int skip_zeros)
+{
+   _pmblfr->Assemble(skip_zeros);
+   _pmblfi->Assemble(skip_zeros);
+}
+
+void
+ParMixedSesquilinearForm::Finalize(int skip_zeros)
+{
+   _pmblfr->Finalize(skip_zeros);
+   _pmblfi->Finalize(skip_zeros);
+}
+
+ComplexHypreParMatrix *
+ParMixedSesquilinearForm::ParallelAssemble()
+{
+   return new ComplexHypreParMatrix(
+             _pmblfr->ParallelAssemble(), _pmblfi->ParallelAssemble(), true, true, _conv);
+}
+
+void
+ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
+                                                      ess_trial_tdof_list,
+                                                      const Array<int> & ess_test_tdof_list,
+                                                      Vector & x,
+                                                      Vector & b,
+                                                      OperatorHandle & A,
+                                                      Vector & X,
+                                                      Vector & B)
+{
+   FiniteElementSpace * pfes_trial = _pmblfr->TrialFESpace();
+   FiniteElementSpace * pfes_test = _pmblfr->TestFESpace();
+   const int vsize_trial = pfes_trial->GetVSize();
+   const int vsize_test = pfes_test->GetVSize();
+
+   // Allocate temporary mfem::vector
+   Vector b_0;
+   b_0.UseDevice(true);
+   b_0.SetSize(vsize_test);
+   b_0 = 0.0;
+
+   // Extract the real and imaginary parts of the input mfem::vectors
+   MFEM_ASSERT(x.Size() == 2 * vsize_trial,
+               "Input GridFunction of incorrect size!");
+   x.Read();
+   Vector x_r;
+   x_r.MakeRef(x, 0, vsize_trial);
+   Vector x_i;
+   x_i.MakeRef(x, vsize_trial, vsize_trial);
+
+   MFEM_ASSERT(b.Size() == 2 * vsize_test, "Input LinearForm of incorrect size!");
+   b.Read();
+   Vector b_r;
+   b_r.MakeRef(b, 0, vsize_test);
+   Vector b_i;
+   b_i.MakeRef(b, vsize_test, vsize_test);
+
+   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      b_i *= -1.0;
+   }
+
+   const int tvsize_trial = pfes_trial->GetTrueVSize();
+   const int tvsize_test = pfes_test->GetTrueVSize();
+   OperatorHandle A_r, A_i;
+
+   X.UseDevice(true);
+   X.SetSize(2 * tvsize_trial);
+   X = 0.0;
+
+   B.UseDevice(true);
+   B.SetSize(2 * tvsize_test);
+   B = 0.0;
+
+   Vector X_r;
+   X_r.MakeRef(X, 0, tvsize_trial);
+   Vector X_i;
+   X_i.MakeRef(X, tvsize_trial, tvsize_trial);
+   Vector B_r;
+   B_r.MakeRef(B, 0, tvsize_test);
+   Vector B_i;
+   B_i.MakeRef(B, tvsize_test, tvsize_test);
+
+   Vector X_0, B_0;
+
+   if (RealInteg())
+   {
+      b_0 = b_r;
+      _pmblfr->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_r, X_0, B_0);
+      X_r = X_0;
+      B_r = B_0;
+
+      b_0 = b_i;
+      _pmblfr->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_r, X_0, B_0);
+      X_i = X_0;
+      B_i = B_0;
+
+      if (ImagInteg())
+      {
+         b_0 = 0.0;
+         _pmblfi->FormRectangularLinearSystem(
+            ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
+         B_r -= B_0;
+
+         b_0 = 0.0;
+         _pmblfi->FormRectangularLinearSystem(
+            ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
+         B_i += B_0;
+      }
+   }
+   else if (ImagInteg())
+   {
+      b_0 = b_i;
+      _pmblfi->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
+      X_r = X_0;
+      B_i = B_0;
+
+      b_0 = b_r;
+      b_0 *= -1.0;
+      _pmblfi->FormRectangularLinearSystem(
+         ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
+      X_i = X_0;
+      B_r = B_0;
+      B_r *= -1.0;
+   }
+   else
+   {
+      MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
+   }
+
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify RHS to conform with standard essential BC treatment
+      Vector xe_r(tvsize_trial);
+      Vector xe_i(tvsize_trial);
+      xe_r = 0.0;
+      xe_i = 0.0;
+      const int ntrial = ess_trial_tdof_list.Size();
+
+      for (int i = 0; i < ntrial; ++i)
+      {
+         const int j = ess_trial_tdof_list[i];
+         xe_r[j] = x_r[j];
+         xe_i[j] = x_i[j];
+      }
+
+      A_r->AddMult(xe_r, b_r, -1.);
+      A_i->AddMult(xe_i, b_r, 1.);
+      A_i->AddMult(xe_r, b_i, -1.);
+      A_r->AddMult(xe_i, b_i, -1.);
+
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment. Set columns corresponding to
+      // essential dofs to zero.
+      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
+      // method
+      if (A_i.Type() == Operator::Hypre_ParCSR)
+      {
+         A_i.As<HypreParMatrix>()->EliminateCols(ess_trial_tdof_list);
+      }
+   }
+
+   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      B_i *= -1.0;
+      b_i *= -1.0;
+   }
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
+   b_r.SyncAliasMemory(b);
+   b_i.SyncAliasMemory(b);
+
+   X_r.SyncAliasMemory(X);
+   X_i.SyncAliasMemory(X);
+   B_r.SyncAliasMemory(B);
+   B_i.SyncAliasMemory(B);
+
+   // A = A_r + i A_i
+   A.Clear();
+   if (A_r.Type() == Operator::Hypre_ParCSR ||
+       A_i.Type() == Operator::Hypre_ParCSR)
+   {
+      ComplexHypreParMatrix * A_hyp =
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   _conv);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op = new ComplexOperator(A_r.As<Operator>(),
+                                                   A_i.As<Operator>(),
+                                                   A_r.OwnsOperator(),
+                                                   A_i.OwnsOperator(),
+                                                   _conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
+
+void
+ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
+                                                      ess_trial_tdof_list,
+                                                      const Array<int> & ess_test_tdof_list,
+                                                      OperatorHandle & A)
+{
+   OperatorHandle A_r, A_i;
+   if (RealInteg())
+   {
+      _pmblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+                                           A_r);
+   }
+   if (ImagInteg())
+   {
+      _pmblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+                                           A_i);
+   }
+   if (!RealInteg() && !ImagInteg())
+   {
+      MFEM_ABORT("Both Real and Imaginary part of the Mixed Sesquilinear form are empty");
+   }
+
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment. Set columns corresponding to
+      // essential dofs to zero.
+      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
+      // method
+      if (A_i.Type() == Operator::Hypre_ParCSR)
+      {
+         A_i.As<HypreParMatrix>()->EliminateCols(ess_trial_tdof_list);
+      }
+   }
+
+   // A = A_r + i A_i
+   A.Clear();
+   if (A_r.Type() == Operator::Hypre_ParCSR ||
+       A_i.Type() == Operator::Hypre_ParCSR)
+   {
+      ComplexHypreParMatrix * A_hyp =
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   _conv);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op = new ComplexOperator(A_r.As<Operator>(),
+                                                   A_i.As<Operator>(),
+                                                   A_r.OwnsOperator(),
+                                                   A_i.OwnsOperator(),
+                                                   _conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
+
 
 #endif // MFEM_USE_MPI
 
