@@ -147,24 +147,24 @@ public:
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  * @param sign Sign to apply to the coefficient (default: 1.0)
  */
-class RegLogPrimeCoefficient : public RegLogCoefficientBase
+class RegLogCoefficient : public RegLogCoefficientBase
 {
 private:
    real_t sign;
 
 public:
-   RegLogPrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
+   RegLogCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u, NULL, N), sign(_sign) {}
 
-   RegLogPrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
+   RegLogCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
       real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u, n_tilde, N), sign(_sign) {}
 
-   static real_t RegLogPrime(const real_t a, const real_t M);
+   static real_t RegLog(const real_t a, const real_t M);
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      return sign * RegLogPrime(EvalArg(T, ip), N);
+      return sign * RegLog(EvalArg(T, ip), N);
    }
 };
 
@@ -176,21 +176,21 @@ public:
  * @param n_tilde Unit vector field
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  */
-class RegLogDoublePrimeCoefficient : public RegLogCoefficientBase
+class RegLogPrimeCoefficient : public RegLogCoefficientBase
 {
 public:
-   RegLogDoublePrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
+   RegLogPrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u, NULL, N) {}
 
-   RegLogDoublePrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
-      real_t N = 1e2, real_t _sign = 1.0)
+   RegLogPrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
+         real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u, n_tilde, N) {}
 
-   static real_t RegLogDoublePrime(const real_t a, const real_t M);
+   static real_t RegLogPrime(const real_t a, const real_t M);
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      return RegLogDoublePrime(EvalArg(T, ip), N);
+      return RegLogPrime(EvalArg(T, ip), N);
    }
 };
 
@@ -444,9 +444,9 @@ int main(int argc, char *argv[])
          ConstantCoefficient alpha_coeff(alpha);
          ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
 
-         RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, &n_tilde_coeff, N);
          RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, &n_tilde_coeff, N);
-         RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
+         RegLogCoefficient reg_log_curr_coeff(&u_current, &n_tilde_coeff, N);
+         RegLogCoefficient nreg_log_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
          StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
          FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
          ParBilinearForm *a = new ParBilinearForm(fespace);
          a->AddDomainIntegrator(new ElasticityIntegrator(alpha_coeff,lambda,mu));
          a->AddBdrFaceIntegrator(
-            new BoundaryProjectionIntegrator(reg_log_dp_curr_coeff,
+            new BoundaryProjectionIntegrator(reg_log_p_curr_coeff,
             n_tilde_coeff), ess_bdr_z);
          a->Assemble();
 
@@ -462,11 +462,11 @@ int main(int argc, char *argv[])
          ParLinearForm *b = new ParLinearForm(fespace);
          b->AddDomainIntegrator(new VectorDomainLFStrainIntegrator(nalpha_vstress_u_curr_coeff));
          b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(reg_log_p_curr_coeff, &n_tilde_coeff),
+            new BoundaryProjectionLFIntegrator(reg_log_curr_coeff, &n_tilde_coeff),
             ess_bdr_z);
          b->AddDomainIntegrator(new VectorDomainLFIntegrator(alpha_f_coeff));
          b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(nreg_log_p_prev_coeff, &n_tilde_coeff),
+            new BoundaryProjectionLFIntegrator(nreg_log_prev_coeff, &n_tilde_coeff),
             ess_bdr_z);
          b->Assemble();
 
@@ -576,7 +576,7 @@ real_t GapFunction(const Vector &x)
    return x(x.Size() - 1) - plane_g;
 }
 
-real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
+real_t RegLogCoefficient::RegLog(const real_t a, const real_t M)
 {
    if (a > M)
    {
@@ -592,8 +592,8 @@ real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
    }
 }
 
-real_t RegLogDoublePrimeCoefficient::RegLogDoublePrime(const real_t a,
-                                                       const real_t M)
+real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a,
+                                           const real_t M)
 {
    if (a > M)
    {
