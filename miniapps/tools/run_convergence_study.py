@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 #
 # Example usage:
-#   Serial:   
+#   Serial (uses ./reconstruction automatically):
 #           python run_convergence_study.py -m element_average_reconstruction
-#   Parallel:
-#           python run_convergence_study.py --executable ./p-reconstruction --np 4 -m LOR_reconstruction
-#   Print cached results only: python run_convergence_study.py --print-only
+#   Parallel (uses ./p-reconstruction automatically):
+#           python run_convergence_study.py --np 4
+#   Print cached results only:
+#           python run_convergence_study.py --print-only
 #
 import subprocess
 import re
@@ -251,16 +252,27 @@ def main():
     )
     parser.add_argument(
         '--executable',
-        default='./reconstruction',
-        help='Path to the reconstruction executable (default: ./reconstruction).'
+        default=None,
+        help='Path to the reconstruction executable (default: ./reconstruction if --np not provided, ./p-reconstruction otherwise).'
     )
     parser.add_argument(
         '--np',
         type=int,
-        default=1,
-        help='Number of MPI processes. If > 1, runs with mpirun (default: 1).'
+        default=None,
+        help='Number of MPI processes. If provided, runs with mpirun and defaults to p-reconstruction.'
     )
     cli_args = parser.parse_args()
+
+    # Determine executable based on --np if not explicitly provided
+    if cli_args.executable is None:
+        if cli_args.np is not None and cli_args.np > 1:
+            cli_args.executable = './p-reconstruction'
+        else:
+            cli_args.executable = './reconstruction'
+
+    # Set np to 1 if not provided
+    if cli_args.np is None:
+        cli_args.np = 1
 
     # Refinement levels to test
     refinement_levels = [0, 1, 2, 3, 4, 5, 6]
