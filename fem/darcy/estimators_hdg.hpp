@@ -17,13 +17,45 @@
 namespace mfem
 {
 
+/// (Anisotropic) error estimator for hybridized Darcy-like mixed systems
+/** HDGErrorEstimator is an error estimator for mixed systems with
+    (anti)symmetric weak form hybridized as follows:
+    \verbatim
+        ┌           ┐┌   ┐   ┌    ┐
+        | Mu ±Bᵀ Cᵀ || u |   | bu |
+        | B   D  E  || p | = | bp |
+        | C   G  H  || λ |   | br |
+        └           ┘└   ┘   └    ┘
+    \endverbatim
+    where the notation follows DarcyHybridization.
+
+    The idea behind HDGErrorEstimator is evaluation of the error |p̂-λ| between
+    trace of the potential @a p̂ and the trace unknown @a λ, which is also used
+    for stabilization of the scheme. Therefore, adaptive mesh refinement (AMR)
+    based on this kind of estimator supports convergence of the scheme.
+
+    The first estimator, Type::Residual, is quite general and evaluates the
+    residuum of the potential constraint, i.e., |G p + H λ| integrated over the
+    face elements. It requires from the integrator provided in constructor
+    (HDGErrorEstimator()) only to implement the method
+    BilinearFormIntegrator::AssembleHDGFaceVector().
+
+    On the other hand, Type::Energy evaluates energy-like norm ||p̂-λ||² ~ pᵀDp
+    +pᵀEλ -λᵀGp -λᵀHλ. For classical stabilization term τ(p̂-λ), this yields
+    the expression (p̂-λ)ᵀτ(p̂-λ), which can be generalized to anisotropic
+    cases, where the product can be evaluated component-wise in the reference
+    space. This functionality requires the integrator to implement
+    BilinearFormIntegrator::ComputeHDGFaceEnergy(), including its @p d_energy
+    optional parameter for setting the anisotropic flags
+    (see SetAnisotropic() and GetAnisotropicFlags()).
+ */
 class HDGErrorEstimator : public AnisotropicErrorEstimator
 {
 public:
    enum class Type
    {
-      Residual,
-      Energy,
+      Residual,   ///< Residuum of the constraint |G p + H λ|
+      Energy,     ///< Energy-like norm ~ sqrt(pᵀDp + pᵀEλ - λᵀGp - λᵀHλ)
    };
 
 private:
@@ -55,19 +87,32 @@ private:
    void ComputeFaceEstimate(int face, bool side2, Vector &d_error_estimates);
 
 public:
+   /// Constructor
+   /** @param integ     HDG face matrix integrator used for estimation
+       @param solr      trace solution
+       @param solp      potential solution
+       @param type_     type of estimator
+    */
    HDGErrorEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
                      const GridFunction &solp, Type type_ = Type::Energy)
       : bfi(integ), sol_tr(solr), sol_p(solp), type(type_) { }
 
 #ifdef MFEM_USE_MPI
+   /// Constructor
+   /** @param integ     HDG face matrix integrator used for estimation
+       @param solr      trace solution
+       @param solp      potential solution
+       @param type_     type of estimator
+    */
    HDGErrorEstimator(BilinearFormIntegrator &integ, const ParGridFunction &solr,
                      const GridFunction &solp, Type type_ = Type::Energy)
       : bfi(integ), sol_tr(solr), sol_p(solp), psol_tr(&solr), type(type_) { }
 #endif
 
    /// Enable/disable anisotropic estimates.
-   /** To enable this option, the BilinearFormIntegrator must support the
-       'd_energy' parameter in its ComputeHDGFaceEnergy() method. */
+   /** To enable this option, the HDG integrator must support the @p d_energy
+       parameter in its BilinearFormIntegrator::ComputeHDGFaceEnergy() method.
+    */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
 
    /// Return the total error from the last error estimate.
