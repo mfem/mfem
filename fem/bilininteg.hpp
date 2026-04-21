@@ -347,6 +347,22 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   /// Virtual method required in HDGErrorEstimator for energy-like estimator.
+   /** This method evaluates energy-like norm of the provided solution of the
+       hybridized scheme on a face proportional to @a p̂-λ for @a p̂ being
+       trace of the potential and @a λ the trace solution. Refer to
+       HDGErrorEstimator for further explanation.
+       @param[in] side            Side of the face
+       @param[in] trace_face_fe   Trace unknown face finite element
+       @param[in] fe              Finite element of the potential
+       @param[in] Tr              Face element transformations
+       @param[in] trfun           Trace solution
+       @param[in] elfun           Potential solution
+       @param[out] d_energy       If not NULL, the given Vector should be set
+                                  to represent directional energy split that
+                                  can be used for anisotropic error estimation.
+       @returns The computed energy.
+    */
    virtual real_t ComputeHDGFaceEnergy(int side,
                                        const FiniteElement &trace_face_fe,
                                        const FiniteElement &fe,
