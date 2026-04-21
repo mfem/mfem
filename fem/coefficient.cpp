@@ -2195,6 +2195,8 @@ void CoefficientVector::SetConstant(const DenseSymmetricMatrix &constant)
 
 int CoefficientVector::GetVDim() const { return vdim; }
 
+void CoefficientVector::SetVDim(int vdim_) { vdim = vdim_; }
+
 CoefficientVector::~CoefficientVector()
 {
    delete qf;

@@ -43,7 +43,7 @@ static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
    auto G_ = Reshape(g.Read(), Q1D, D1D);
 
    auto pa =
-      Reshape(pa_data.Read(), 6, Q1D, NF); // (q, 1/h, J00, J01, J10, J11)
+      Reshape(pa_data.Read(), 5, Q1D, NF); // (J00, J01, J10, J11, q/h)
 
    auto x = Reshape(x_.Read(), D1D, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, 2, NF);
@@ -109,8 +109,8 @@ static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
 
          MFEM_FOREACH_THREAD(p, x, Q1D)
          {
-            const real_t Je_side[] = {pa(2 + 2 * side, p, f),
-                                      pa(2 + 2 * side + 1, p, f)
+            const real_t Je_side[] = {pa(2 * side + 0, p, f),
+                                      pa(2 * side + 1, p, f)
                                      };
 
             Bu[p] = 0.0;
@@ -133,11 +133,10 @@ static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
       {
          MFEM_FOREACH_THREAD(p, x, Q1D)
          {
-            const real_t q = pa(0, p, f);
-            const real_t hi = pa(1, p, f);
+            const real_t q = pa(4, p, f);
             const real_t jump = Bu0[p] - Bu1[p];
             const real_t avg = Bdu0[p] + Bdu1[p]; // = {Q du/dn} * w * det(J)
-            r[p] = -avg + hi * q * jump;
+            r[p] = -avg + q * jump;
          }
       }
       MFEM_SYNC_THREAD;
@@ -173,8 +172,8 @@ static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
          {
             for (int p = 0; p < Q1D; ++p)
             {
-               const real_t Je[] = {pa(2 + 2 * side, p, f),
-                                    pa(2 + 2 * side + 1, p, f)
+               const real_t Je[] = {pa(2 * side + 0, p, f),
+                                    pa(2 * side + 1, p, f)
                                    };
                const real_t jump = Bu0[p] - Bu1[p];
                const real_t r_p = Je[0] * jump; // normal
