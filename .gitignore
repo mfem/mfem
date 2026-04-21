@@ -355,6 +355,9 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/plasma/electromagnetics/stix_r1d_eb
+miniapps/plasma/electromagnetics/stix_r1d_eb_cmd.txt
+
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
 miniapps/shifted/ParaViewLSF
