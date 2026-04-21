@@ -151,8 +151,8 @@ int main (int argc, char *argv[])
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
    args.AddOption(&surf_aabb_size, "-sabs", "--surface-aabb-size",
-                  "Minimum axis-aligned bounding box size in FindPointsGSLIB "
-                  " surface meshes.");
+                  "Absolute padding applied to surface-search axis-aligned "
+                  "bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -374,6 +374,11 @@ int main (int argc, char *argv[])
             }
             Vector pos_i(sdim);
             transf->Transform(ip, pos_i);
+            if (j < npt_face_per_elem)
+            {
+               // pos_i(0) = 1.0;
+               // pos_i(1) = 1.0;
+            }
             for (int d=0; d<sdim; d++)
             {
                if (point_ordering == Ordering::byNODES)
@@ -396,6 +401,12 @@ int main (int argc, char *argv[])
    }
    MPI_Allreduce(MPI_IN_PLACE, &npt_total_face, 1, MPI_INT, MPI_SUM,
                  pmesh.GetComm());
+   // vxyz.SetSize(3);
+   // npt_total_face = 1;
+   // pts_cnt = 1;
+   // vxyz.Print();
+   // vxyz = 1.0;
+   // vxyz(2) = 0.77;
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
@@ -417,7 +428,7 @@ int main (int argc, char *argv[])
       }
       finder.SetupSurf(pmesh, bb_size);
    }
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
@@ -468,7 +479,21 @@ int main (int argc, char *argv[])
             max_dist = std::max(max_dist, h_dist_p_out[i]);
             if (h_code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else { if (j == 0) { not_found++; } }
+         else
+         {
+            if (j == 0)
+            {
+               for (int d = 0; d < sdim; d++)
+               {
+                  pos(d) = point_ordering == Ordering::byNODES ?
+                           vxyz(d*pts_cnt + i) :
+                           vxyz(i*sdim + d);
+               }
+               std::cout << h_dist_p_out[i] << " k101\n";
+               pos.Print();
+               not_found++;
+            }
+         }
       }
    }
 
