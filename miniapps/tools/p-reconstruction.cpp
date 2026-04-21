@@ -18,7 +18,6 @@ using namespace mfem;
 
 using profile_t = std::function<real_t(const Vector&,const Vector&)>;
 
-void L2Reconstruction(const GridFunction& src, GridFunction& dst);
 std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
@@ -27,7 +26,6 @@ int main(int argc, char* argv[])
    Hypre::Init();
 
    // Default command-line options
-   std::string reconstruction_method = "LOR_reconstruction";
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
@@ -52,8 +50,6 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&reconstruction_method, "-m", "--method",
-                  "Reconstruction method: \"element_average_reconstruction\" or \"LOR_reconstruction\".");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_ho, "-ho", "--order_ho",
@@ -69,9 +65,6 @@ int main(int argc, char* argv[])
    args.AddOption(&visport, "-visp", "--visualization-port",
                   "Use custom port number for GLVis.");
    args.ParseCheck();
-
-   MFEM_VERIFY((reconstruction_method=="LOR_reconstruction"),
-               "Currently only LOR_reconstruction is supported.");
 
    // define u(x,y) to be represented
    profile_t u_function = field_profiles.at(field_profile);
@@ -156,8 +149,6 @@ int main(int argc, char* argv[])
    cg.SetPrintLevel(0);
    u_lo = 0.0;
    cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
-   u_lo.SetTrueVector();
-   u_lo.SetFromTrueVector();
 
    // STEP 2: Prolongation 1 (LO->IM)
    P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
