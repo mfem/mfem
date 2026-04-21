@@ -162,7 +162,6 @@ MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
-MFEM_USE_SIDRE         = NO
 MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
@@ -249,6 +248,15 @@ endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
+   # MFEM_USE_METIS_5: when the user supplies METIS_DIR, try to auto-detect
+   # METIS 5 installs that follow the common <prefix>/{include,lib,lib64} layout.
+   ifeq ($(MFEM_USE_METIS_5),NO)
+      ifneq ($(wildcard $(METIS_DIR)/include/metis.h),)
+         ifneq ($(wildcard $(METIS_DIR)/lib/libmetis.* $(METIS_DIR)/lib64/libmetis.*),)
+            MFEM_USE_METIS_5 = YES
+         endif
+      endif
+   endif
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -487,17 +495,6 @@ ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
                   -lhdf5 $(ZLIB_LIB)
 endif
 
-# Sidre and required libraries configuration
-# Be sure to check the HDF5_DIR (set above) is correct
-SIDRE_DIR = @MFEM_DIR@/../axom
-SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
- -I$(HDF5_DIR)/include
-SIDRE_LIB = \
-   $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
-   $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
-   $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
-
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
 PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
@@ -579,7 +576,13 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 
+# CAMP library configuration (required by RAJA/Umpire for most installs)
 CAMP_LIB = -lcamp
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like camp-<hash>).
+ifneq ($(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp),)
+   CAMP_DIR ?= $(patsubst %/include/camp/camp.hpp,%,$(firstword $(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp)))
+endif
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
    CAMP_LIB = $(XLINKER)-rpath,$(CAMP_DIR)/lib -L$(CAMP_DIR)/lib -lcamp
@@ -589,7 +592,12 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB) -lpthread
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like fmt-<hash>).
+ifneq ($(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h),)
+   FMT_DIR ?= $(patsubst %/include/fmt/format.h,%,$(firstword $(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h)))
+endif
 ifdef FMT_DIR
    UMPIRE_OPT += -I$(FMT_DIR)/include
    UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
@@ -621,8 +629,63 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
-   -laxom_slam -laxom_slic -laxom_core
+# Tribol may be built with optional dependencies (e.g. RAJA/UMPIRE/CALIPER).
+# Add those options only when the corresponding headers/libraries exist.
+ifneq ($(wildcard $(RAJA_DIR)/include/RAJA/RAJA.hpp),)
+   TRIBOL_OPT += $(RAJA_OPT)
+endif
+ifneq ($(wildcard $(UMPIRE_DIR)/include/umpire/Umpire.hpp),)
+   TRIBOL_OPT += $(UMPIRE_OPT)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/include/caliper/cali.h),)
+   TRIBOL_OPT += $(CALIPER_OPT)
+endif
+
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -L$(TRIBOL_DIR)/lib64
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol.* $(TRIBOL_DIR)/lib64/libtribol.*),)
+   TRIBOL_LIB += -ltribol
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol_shared.* $(TRIBOL_DIR)/lib64/libtribol_shared.*),)
+   TRIBOL_LIB += -ltribol_shared
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libredecomp.* $(TRIBOL_DIR)/lib64/libredecomp.*),)
+   TRIBOL_LIB += -lredecomp
+endif
+
+TRIBOL_LIB += -L$(AXOM_DIR)/lib -L$(AXOM_DIR)/lib64
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_quest.* $(AXOM_DIR)/lib64/libaxom_quest.*),)
+   TRIBOL_LIB += -laxom_quest
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_mint.* $(AXOM_DIR)/lib64/libaxom_mint.*),)
+   TRIBOL_LIB += -laxom_mint
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slam.* $(AXOM_DIR)/lib64/libaxom_slam.*),)
+   TRIBOL_LIB += -laxom_slam
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slic.* $(AXOM_DIR)/lib64/libaxom_slic.*),)
+   TRIBOL_LIB += -laxom_slic
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_lumberjack.* $(AXOM_DIR)/lib64/libaxom_lumberjack.*),)
+   TRIBOL_LIB += -laxom_lumberjack
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_core.* $(AXOM_DIR)/lib64/libaxom_core.*),)
+   TRIBOL_LIB += -laxom_core
+endif
+
+# Add common optional Tribol TPLs when their libraries are present.
+ifneq ($(wildcard $(ADIAK_DIR)/lib/libadiak.* $(ADIAK_DIR)/lib64/libadiak.*),)
+   TRIBOL_LIB += $(XLINKER)-rpath,$(ADIAK_DIR)/lib64 $(XLINKER)-rpath,$(ADIAK_DIR)/lib \
+      -L$(ADIAK_DIR)/lib64 -L$(ADIAK_DIR)/lib -ladiak -ldl
+endif
+ifneq ($(wildcard $(UMPIRE_DIR)/lib/libumpire.* $(UMPIRE_DIR)/lib64/libumpire.*),)
+   TRIBOL_LIB += $(UMPIRE_LIB)
+endif
+ifneq ($(wildcard $(RAJA_DIR)/lib/libRAJA.* $(RAJA_DIR)/lib64/libRAJA.*),)
+   TRIBOL_LIB += $(RAJA_LIB)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/lib/libcaliper.* $(CALIPER_DIR)/lib64/libcaliper.*),)
+   TRIBOL_LIB += $(CALIPER_LIB)
+endif
 
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme

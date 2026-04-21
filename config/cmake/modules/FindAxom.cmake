@@ -13,6 +13,9 @@
 #   - AXOM_FOUND
 #   - AXOM_LIBRARIES
 #   - AXOM_INCLUDE_DIRS
+#
+# MFEM itself does not depend on Axom, however Tribol does. This module exists
+# to support MFEM's Tribol integration (e.g. the contact miniapp).
 
 include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.

@@ -48,7 +48,6 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
-option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
@@ -224,17 +223,8 @@ set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
 
-set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
-# May need to add "Boost" as requirement.
-if (MFEM_USE_SIDRE)
-    if (MFEM_USE_MPI)
-        set(Axom_REQUIRED_PACKAGES "Conduit/blueprint/blueprint_mpi/relay/relay_mpi" CACHE STRING
-            "Additional packages required by Axom.")
-    elseif()
-        set(Axom_REQUIRED_PACKAGES "Conduit/blueprint/relay" CACHE STRING
-            "Additional packages required by Axom.")
-    endif()
-endif()
+set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH
+    "Path to the Axom library (required by Tribol for the contact mini-app).")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
@@ -252,6 +242,7 @@ set(MKL_PARDISO_DIR "" CACHE STRING "MKL installation path.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
+set(CAMP_DIR "${MFEM_DIR}/../camp" CACHE PATH "Path to CAMP (required by RAJA/Umpire)")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
@@ -272,8 +263,12 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
 
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
-set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
-    "Additional packages required by Tribol")
+# Tribol requires Axom. Many Tribol builds also enable optional TPLs like
+# RAJA/UMPIRE/Caliper, and may pull additional Axom components (e.g. quest,
+# lumberjack) via its exported targets.
+set(Tribol_REQUIRED_PACKAGES
+    "REQUIRED:;Axom/core/primal/mint/slam/slic/quest/lumberjack;OPTIONAL:;Adiak;CAMP;RAJA;UMPIRE;Caliper"
+    CACHE STRING "Additional packages required by Tribol")
 
 set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 

@@ -1453,8 +1453,6 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 std::string
 ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
 {
-   // Adapted from SidreDataCollection
-
    // Note -- the mapping from Element::Type to string is based on
    //   enum Element::Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
    //                        TETRAHEDRON, HEXAHEDRON };
