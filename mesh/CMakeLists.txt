@@ -37,6 +37,7 @@ set(SRCS
   submesh/ncsubmesh.cpp
   submesh/submesh_utils.cpp
   submesh/transfermap.cpp
+  bb_grid_map.cpp
   )
 
 set(HDRS
@@ -68,6 +69,7 @@ set(HDRS
   submesh/submesh_utils.hpp
   submesh/transfer_category.hpp
   submesh/transfermap.hpp
+  bb_grid_map.hpp
   )
 
 if (MFEM_USE_MPI)

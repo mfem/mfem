@@ -175,6 +175,10 @@ set(SRCS
   gslib/findpts_local_3.cpp
   gslib/interpolate_local_2.cpp
   gslib/interpolate_local_3.cpp
+  gslib/findptsedge_local_2.cpp
+  gslib/findptsedge_local_3.cpp
+  gslib/findptssurf_local_3.cpp
+  gslib/interpolate_local_1.cpp
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
