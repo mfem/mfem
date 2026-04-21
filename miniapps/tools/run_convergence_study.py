@@ -8,6 +8,9 @@
 #   Print cached results only:
 #           python run_convergence_study.py --print-only
 #
+#   Print argument options:
+#           python run_convergence_study.py --help
+
 import subprocess
 import re
 import numpy as np
@@ -238,7 +241,10 @@ def main():
     """
     Main function to run convergence study.
     """
-    parser = argparse.ArgumentParser(description="Run or print reconstruction convergence study results.")
+    parser = argparse.ArgumentParser(
+        description="Run or print reconstruction convergence study results.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument(
         '--print-only',
         action='store_true',
@@ -248,18 +254,18 @@ def main():
     parser.add_argument(
         '-m', '--method',
         default='LOR_reconstruction',
-        help='Method passed to ./reconstruction via -m (default: element_average_reconstruction).'
+        help='Method passed to ./reconstruction via -m.'
     )
     parser.add_argument(
         '--executable',
         default=None,
-        help='Path to the reconstruction executable (default: ./reconstruction if --np not provided, ./p-reconstruction otherwise).'
+        help='Path to the reconstruction executable. Auto-selects ./reconstruction (serial) or ./p-reconstruction (parallel based on --np).'
     )
     parser.add_argument(
         '--np',
         type=int,
         default=None,
-        help='Number of MPI processes. If provided, runs with mpirun and defaults to p-reconstruction.'
+        help='Number of MPI processes. If provided and > 1, runs with mpirun.'
     )
     cli_args = parser.parse_args()
 
