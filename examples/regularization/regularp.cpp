@@ -74,7 +74,7 @@ using namespace mfem;
 /**
  * @brief u(x,y,z) = (0,0,plane_g)
  */
-void   InitDisplacement(const Vector &x, Vector &u);
+void InitDisplacement(const Vector &x, Vector &u);
 
 /**
  * @brief Computes the force function based on the input vector x.
@@ -82,7 +82,7 @@ void   InitDisplacement(const Vector &x, Vector &u);
  * @param x Input vector
  * @param f Output vector representing the downward force
  */
-void   ForceFunction(const Vector &x, Vector &f);
+void ForceFunction(const Vector &x, Vector &f);
 
 /**
  * @brief Computes the gap function φ based on the input vector x; represents
@@ -135,7 +135,7 @@ protected:
 
 public:
    RegLogCoefficientBase(GridFunction *_u, VectorCoefficient *_n_tilde,
-         real_t _N) : u(_u), n_tilde(_n_tilde), N(_N) {}
+      real_t _N) : u(_u), n_tilde(_n_tilde), N(_N) {}
 };
 
 /**
@@ -183,7 +183,7 @@ public:
       : RegLogCoefficientBase(u, NULL, N) {}
 
    RegLogPrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
-         real_t N = 1e2, real_t _sign = 1.0)
+      real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u, n_tilde, N) {}
 
    static real_t RegLogPrime(const real_t a, const real_t M);
