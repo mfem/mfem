@@ -64,12 +64,12 @@ namespace mfem
     \verbatim
         ┌           ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ Cᵀ || u |   | bu |
-        | B  Mp  E  || p | = | bp |
+        | B   D  E  || p | = | bp |
         | C   G  H  || λ |   | br |
         └           ┘└   ┘   └    ┘
     \endverbatim
     where @a C is the constraint term with optional stabilization contributions
-    in @a E, @a G, @a H and @a Mp. The new variable @a λ is the Lagrange
+    in @a E, @a G, @a H and @a D. The new variable @a λ is the Lagrange
     multiplier approximating the trace of @a p. Note the best conditioning of
     the problem is achieved with @a λ taken from the trace space of @a u,
     but the generality of the construction allows different choices with
@@ -83,11 +83,11 @@ namespace mfem
     \verbatim
                          ┌        ┐-1 ┌    ┐
                          | Mu ±Bᵀ |   | Cᵀ |
-        H  ← H  - [ C G ]| B  Mp  |   | E  |
+        H  ← H  - [ C G ]| B   D  |   | E  |
                          └        ┘   └    ┘
                          ┌        ┐-1 ┌    ┐
                          | Mu ±Bᵀ |   | bu |
-        br ← br - [ C G ]| B  Mp  |   | bp |
+        br ← br - [ C G ]| B   D  |   | bp |
                          └        ┘   └    ┘
         H λ = br
     \endverbatim
@@ -97,7 +97,7 @@ namespace mfem
     \verbatim
         ┌   ┐   ┌        ┐-1 /┌    ┐   ┌    ┐   \
         | u | _ | Mu ±Bᵀ |  | | bu |   | Cᵀ |    |
-        | p | ̅  | B  Mp  |  | | bp | ̅  | E  | λ  |
+        | p | ̅  | B   D  |  | | bp | ̅  | E  | λ  |
         └   ┘   └        ┘   \└    ┘   └    ┘   /
     \endverbatim
 
@@ -135,7 +135,7 @@ namespace mfem
     vice versa. This can be achieved through redefinition of the total flux
     with a forcing term like τ(p̂-λ), which naturally stabilizes the scheme
     ( @a τ is a coefficient and @a p̂ is trace of the potential @a p ). These
-    contributions populate the terms @a E, @a G, @a H and @a Mp and require the
+    contributions populate the terms @a E, @a G, @a H and @a D and require the
     potential constraint integrator to compute all these face matrices, which
     are collectively denoted as the HDG face matrix. Some common integrators of
     this type can be found in bilininteg_hdg.hpp. For more details about
@@ -529,7 +529,7 @@ public:
    /// Sets the constraint integrators
    /** Set the integrators that will be used to construct the constraint
        matrices for fluxes @a C and (if provided) stabilization contributions
-       to @a E, @a G, @a Mp and @a H for potentials. Note the potential
+       to @a E, @a G, @a D and @a H for potentials. Note the potential
        integrator is required to implement the method
        BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
        object assumes ownership of the integrators, i.e. it will delete the
@@ -609,7 +609,7 @@ public:
 
    /// Adds potential boundary constraint integrator
    /** Add the boundary face integrator that will be used to construct the
-       constraint stabilization matrices @a E, @a G, @a Mp and @a H. Note the
+       constraint stabilization matrices @a E, @a G, @a D and @a H. Note the
        integrator is required to implement the method
        BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
        object assumes ownership of the integrator, i.e. it will delete the
@@ -623,7 +623,7 @@ public:
 
    /// Adds potential boundary constraint integrator (with a boundary marker)
    /** Add the boundary face integrator that will be used to construct the
-       constraint stabilization matrices @a E, @a G, @a Mp and @a H. Note the
+       constraint stabilization matrices @a E, @a G, @a D and @a H. Note the
        integrator is required to implement the method
        BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
        object assumes ownership of the integrator, i.e. it will delete the
@@ -737,8 +737,8 @@ public:
    /// Computes and assembles potential face matrix
    /** The provided provided potential constraint integrator (see
        SetConstraintIntegrators()) is used to compute the HDG face matrix,
-       which contributes to @a Mp, @a E, @a G and @a H. The element
-       contributions to @a Mp are returned in @p elmat1 and @p elmat2 together
+       which contributes to @a D, @a E, @a G and @a H. The element
+       contributions to @a D are returned in @p elmat1 and @p elmat2 together
        with the VDOFs lists @p vdofs1 and @p vdofs2. The flag for skipping
        zeros for contributions of @a H to the hybridized matrix can be set in
        @p skip_zeros. */
@@ -749,8 +749,8 @@ public:
    /// Computes and assembles potential boundary face matrix
    /** The provided provided potential constraint integrator (see
        SetConstraintIntegrators()) is used to compute the HDG boundary face
-       matrix, which contributes to @a Mp, @a E, @a G and @a H. The element
-       contributions to @a Mp are returned in @p elmat together with the VDOFs
+       matrix, which contributes to @a D, @a E, @a G and @a H. The element
+       contributions to @a D are returned in @p elmat together with the VDOFs
        list @p vdofs. The flag for skipping zeros for contributions of @a H to
        the hybridized matrix can be set in @p skip_zeros. */
    void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
