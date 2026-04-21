@@ -175,6 +175,7 @@ const real_t& ParticleVector::operator()(int i, int comp) const
 
 void ParticleVector::DeleteParticles(const Array<int> &indices)
 {
+   if (indices.Size() == 0) { return; }
    // Convert list index array of "ldofs" to "vdofs"
    Array<int> v_list;
    v_list.Reserve(indices.Size()*vdim);

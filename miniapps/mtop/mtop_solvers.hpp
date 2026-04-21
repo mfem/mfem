@@ -35,9 +35,9 @@ public:
    {
       const real_t EE = E->Eval(T, ip);
       const real_t nn = nu->Eval(T, ip);
-      constexpr auto Lambda = [](const real_t E, const real_t ν)
+      constexpr auto Lambda = [](const real_t E, const real_t nu)
       {
-         return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν);
+         return E * nu / (1.0 + nu) / (1.0 - 2.0 * nu);
       };
       return Lambda(EE, nn);
    }
@@ -62,9 +62,9 @@ public:
    {
       const real_t EE = E->Eval(T, ip);
       const real_t nn = nu->Eval(T, ip);
-      constexpr auto Schear = [](const real_t E, const real_t ν)
+      constexpr auto Schear = [](const real_t E, const real_t nu)
       {
-         return E / (2.0 * (1.0 + ν));
+         return E / (2.0 * (1.0 + nu));
       };
       return Schear(EE, nn);
    }
