@@ -522,8 +522,14 @@ public:
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                  Vector &obbV) const;
 
-   /// Return the bounding boxes as a mesh on rank 0.
-   /// Type: 0 - AABB, 1 - OBB
+   /** @brief Return the bounding boxes as a mesh on rank 0.
+    *
+    *  @param[in] type  Bounding-box type: 0 - AABB, 1 - OBB.
+    *
+    *  @return On rank 0, returns a newly allocated mesh containing the
+    *  bounding boxes. The caller owns the returned pointer and is responsible
+    *  for deleting it. On other ranks, returns nullptr.
+    */
    Mesh *GetBoundingBoxMesh(int type);
 
    virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }

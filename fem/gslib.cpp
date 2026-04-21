@@ -2313,6 +2313,31 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
 #endif
 }
 
+// Static helper: scatter interpolated values back into field_out. nvcc does
+// not allow lambdas in non-public members, so this is a separate function
+// (instead of a lambda in InterpolateSurfBase).
+static void InterpolateSurfScatter(int nlocal,
+                                   const int *d_index_temp,
+                                   const real_t *d_interp_vals,
+                                   real_t *d_field_out,
+                                   int interp_offset,
+                                   int ncomp,
+                                   int pts_cnt,
+                                   int field_out_ordering)
+{
+   MFEM_FORALL(j, nlocal,
+   {
+      const int pt_index = d_index_temp[j];
+      for (int i = 0; i < ncomp; i++)
+      {
+         const int idx = (field_out_ordering == Ordering::byNODES) ?
+         pt_index + i*pts_cnt :
+         pt_index*ncomp + i;
+         d_field_out[idx] = d_interp_vals[j + interp_offset*i];
+      }
+   });
+}
+
 void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
                                           Vector &field_out,
                                           const int nel,
@@ -2410,19 +2435,10 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       auto d_interp_vals = interp_vals.Read(use_dev);
       auto d_index_temp  = index_temp.Read(use_dev);
       auto d_field_out   = field_out.ReadWrite(use_dev); // no-op
-      const int interp_Offset = interp_vals.Size()/ncomp;
-      const int d_pts_cnt = points_cnt; // capture for lambda
-      MFEM_FORALL(j, nlocal,
-      {
-         int pt_index = d_index_temp[j];
-         for (int i = 0; i < ncomp; i++)
-         {
-            int idx = (field_out_ordering == Ordering::byNODES) ?
-            pt_index + i*d_pts_cnt :
-            pt_index*ncomp + i;
-            d_field_out[idx] = d_interp_vals[j + interp_Offset*i];
-         }
-      });
+      const int interp_offset = interp_vals.Size()/ncomp;
+      InterpolateSurfScatter(nlocal, d_index_temp, d_interp_vals, d_field_out,
+                             interp_offset, ncomp, points_cnt,
+                             field_out_ordering);
    }
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
@@ -4539,20 +4555,17 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
    long long int global_nel = nel;
    MPI_Allreduce(MPI_IN_PLACE, &global_nel, 1, MPI_LONG_LONG, MPI_SUM, comm);
 
-   for (int d = 0; d < nx.Size(); d++)
-   {
-      MFEM_VERIFY(nx[d] > 0,
-                  "BBoxTensorGridMap requires positive number of divisions in each dimension.");
-   }
    MPI_Comm_size(comm, &num_procs);
+   int gmap_nd = gmap_n[0];
+   for (int d = 1; d < sdim; d++)
+   {
+      gmap_nd *= gmap_n[d];
+   }
 
    if (global_nel == 0)
    {
-      int gmap_nd = gmap_n[0];
-      for (int d = 1; d < sdim; d++)
-      {
-         gmap_nd *= gmap_n[d];
-      }
+      gmap_n = 1;
+      gmap_nd = 1;
 
       // Mark the global bounding box as empty so all point queries return no
       // candidate ranks without relying on sentinel infinities.
@@ -4563,6 +4576,12 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
       ggrid_map.SetSize(n_local_cells + 1);
       ggrid_map = n_local_cells + 1;
       return;
+   }
+
+   for (int d = 0; d < nx.Size(); d++)
+   {
+      MFEM_VERIFY(nx[d] > 0,
+                  "GlobalBBoxTensorGridMap requires positive number of divisions in each dimension.");
    }
 
    gmap_bnd_min = std::numeric_limits<real_t>::max();

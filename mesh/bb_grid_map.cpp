@@ -107,10 +107,18 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    lmap_nx.SetSize(sdim);
    lmap_nx = nx;
 
-   for (int d = 0; d < nx.Size(); d++)
+   if (by_max_size)
    {
-      MFEM_VERIFY(nx[d] > 0,
-                  "BBoxTensorGridMap requires positive number of divisions in each dimension.");
+      MFEM_VERIFY(nx[0] >= 0,
+                  "BBoxTensorGridMap requires a nonnegative max-size hint.");
+   }
+   else
+   {
+      for (int d = 0; d < nx.Size(); d++)
+      {
+         MFEM_VERIFY(nx[d] > 0,
+                     "BBoxTensorGridMap requires positive number of divisions in each dimension.");
+      }
    }
    if (nel == 0)
    {

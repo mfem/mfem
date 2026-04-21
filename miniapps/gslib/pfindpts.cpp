@@ -49,7 +49,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
-//    Surface mesh runs:
+// Surface meshes:
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
@@ -167,14 +167,10 @@ int main (int argc, char *argv[])
    Mesh *mesh = surface ? nullptr : input_mesh;
    if (surface)
    {
-      int nattr = input_mesh->bdr_attributes.Max();
-      Array<int> subdomain_attributes(nattr);
-      for (int i = 0; i < nattr; i++)
-      {
-         subdomain_attributes[i] = i+1;
-      }
+      MFEM_VERIFY(input_mesh->bdr_attributes.Size() > 0,
+                  "--surface requires a mesh with boundary attributes.");
       mesh = new Mesh(SubMesh::CreateFromBoundary(*input_mesh,
-                                                  subdomain_attributes));
+                                                  input_mesh->bdr_attributes));
    }
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
@@ -350,21 +346,11 @@ int main (int argc, char *argv[])
       {
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
-
-         Vector pos_ref1(npt*dim);
-         pos_ref1.Randomize((myid+1)*17.0);
+         const Geometry::Type geom = mesh->GetElementGeometry(i);
          for (int j=0; j<npt; j++)
          {
             IntegrationPoint ip;
-            ip.x = pos_ref1(j*dim + 0);
-            if (dim > 1)
-            {
-               ip.y = pos_ref1(j*dim + 1);
-            }
-            if (dim == 3)
-            {
-               ip.z = pos_ref1(j*dim + 2);
-            }
+            Geometry::GetRandomPoint(geom, ip);
             if (j < npt_face_per_elem)
             {
                ip.x = 0.0; // force point to be on the face
