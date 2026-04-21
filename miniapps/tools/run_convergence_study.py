@@ -28,8 +28,13 @@ def run_reconstruction(refinement_level, ho_value, method,
         # Build the command
         cmd = [executable, '-r', str(refinement_level),
                '-f', 'exponential',
-               '-ho', str(ho_value), '-m', method,
-               '-no-vis']
+               '-ho', str(ho_value)]
+
+        # Only add -m flag if executable is not p-reconstruction
+        if 'p-reconstruction' not in executable:
+            cmd.extend(['-m', method])
+
+        cmd.append('-no-vis')
         if np_count > 1:
             cmd = ['mpirun', '-np', str(np_count)] + cmd
 
@@ -241,7 +246,7 @@ def main():
     )
     parser.add_argument(
         '-m', '--method',
-        default='element_average_reconstruction',
+        default='LOR_reconstruction',
         help='Method passed to ./reconstruction via -m (default: element_average_reconstruction).'
     )
     parser.add_argument(
