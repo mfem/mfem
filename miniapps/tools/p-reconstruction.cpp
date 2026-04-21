@@ -127,11 +127,11 @@ int main(int argc, char* argv[])
 
    // Set up the right-hand side vector for the exact solution
    ParLinearForm b_lo(&pfespace_lo);
-   DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
+   auto lf_integ = std::make_unique<DomainLFIntegrator>(u_function_exact);
    const IntegrationRule &ir_rhs = IntRules.Get(pfespace_lo.GetFE(
                                                    0)->GetGeomType(), order_ho + 1);
    lf_integ->SetIntRule(&ir_rhs);
-   b_lo.AddDomainIntegrator(lf_integ);
+   b_lo.AddDomainIntegrator(lf_integ.release());
    b_lo.Assemble();
 
    L2ProjectionGridTransfer gt1(pfespace_im, pfespace_lo);
