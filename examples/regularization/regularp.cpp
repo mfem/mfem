@@ -94,6 +94,51 @@ void   ForceFunction(const Vector &x, Vector &f);
 real_t GapFunction(const Vector &x);
 
 /**
+ * @brief Computes ϕ − u ⋅ ñ for a given gridfunction u.
+ */
+class RegLogCoefficientBase : public Coefficient
+{
+protected:
+   GridFunction *u;
+   VectorCoefficient *n_tilde;
+   real_t N;
+
+   real_t EvalArg(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      const int dim = T.GetSpaceDim();
+      ParGridFunction *par_u = dynamic_cast<ParGridFunction*>(u);
+
+      // Get value of u at the integration point
+      Vector u_val(dim);
+      if (par_u) { par_u->GetVectorValue(T, ip, u_val); }
+      else { u->GetVectorValue(T, ip, u_val); }
+
+      // Evaluate the gap function φ
+      Vector x(dim);
+      T.Transform(ip, x);
+      const real_t phi = GapFunction(x);
+
+      Vector w(dim);
+      if (!n_tilde)
+      {
+         T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
+         CalcOrtho(T.Jacobian(), w);
+         w /= w.Norml2();
+      }
+      else
+      {
+         n_tilde->Eval(w, T, ip);
+      }
+
+      return phi - u_val * w;
+   }
+
+public:
+   RegLogCoefficientBase(GridFunction *_u, VectorCoefficient *_n_tilde,
+         real_t _N) : u(_u), n_tilde(_n_tilde), N(_N) {}
+};
+
+/**
  * @brief Returns a Coefficient object for R_N'(ϕ − u ⋅ ñ) for a given
  *        GridFunction u and unit vector field ñ.
  *
@@ -102,25 +147,25 @@ real_t GapFunction(const Vector &x);
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  * @param sign Sign to apply to the coefficient (default: 1.0)
  */
-class RegLogPrimeCoefficient : public Coefficient
+class RegLogPrimeCoefficient : public RegLogCoefficientBase
 {
 private:
-   GridFunction *u;
-   VectorCoefficient *n_tilde;
-   real_t N;
    real_t sign;
 
 public:
-   RegLogPrimeCoefficient(GridFunction *_u, real_t _N = 1e2, real_t _sign = 1.0)
-      : u(_u), n_tilde(NULL), N(_N), sign(_sign) {}
+   RegLogPrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
+      : RegLogCoefficientBase(u, NULL, N), sign(_sign) {}
 
-   RegLogPrimeCoefficient(GridFunction *_u, VectorCoefficient *_n_tilde,
-      real_t _N = 1e2, real_t _sign = 1.0)
-      : u(_u), n_tilde(_n_tilde), N(_N), sign(_sign) {}
+   RegLogPrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
+      real_t N = 1e2, real_t _sign = 1.0)
+      : RegLogCoefficientBase(u, n_tilde, N), sign(_sign) {}
 
-   real_t RegLogPrime(const real_t a, const real_t M);
+   static real_t RegLogPrime(const real_t a, const real_t M);
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      return sign * RegLogPrime(EvalArg(T, ip), N);
+   }
 };
 
 /**
@@ -131,23 +176,22 @@ public:
  * @param n_tilde Unit vector field
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  */
-class RegLogDoublePrimeCoefficient : public Coefficient
+class RegLogDoublePrimeCoefficient : public RegLogCoefficientBase
 {
-private:
-   GridFunction *u;
-   VectorCoefficient *n_tilde;
-   real_t N;
-
 public:
-   RegLogDoublePrimeCoefficient(GridFunction *_u, real_t _N = 1e2)
-      : u(_u), n_tilde(NULL), N(_N) {}
+   RegLogDoublePrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
+      : RegLogCoefficientBase(u, NULL, N) {}
 
-   RegLogDoublePrimeCoefficient(GridFunction *_u, VectorCoefficient *_n_tilde,
-      real_t _N = 1e2) : u(_u), n_tilde(_n_tilde), N(_N) {}
+   RegLogDoublePrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
+      real_t N = 1e2, real_t _sign = 1.0)
+      : RegLogCoefficientBase(u, n_tilde, N) {}
 
-   real_t RegLogDoublePrime(const real_t a, const real_t M);
+   static real_t RegLogDoublePrime(const real_t a, const real_t M);
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      return RegLogDoublePrime(EvalArg(T, ip), N);
+   }
 };
 
 // We take the plane to be z = plane_g and the force to be a constant downward
@@ -563,76 +607,4 @@ real_t RegLogDoublePrimeCoefficient::RegLogDoublePrime(const real_t a,
    {
       return 1.0 / a;
    }
-}
-
-real_t RegLogPrimeCoefficient::Eval(ElementTransformation &T,
-                                    const IntegrationPoint &ip)
-{
-   ParGridFunction *par_u = dynamic_cast<ParGridFunction*>(u);
-   const int dim = T.GetSpaceDim();
-
-   // Get current point coordinates
-   Vector x(dim);
-   T.Transform(ip, x);
-
-   // Get value of u at the integration point
-   Vector u_val(dim);
-   if (par_u)
-   {
-      par_u->GetVectorValue(T, ip, u_val);
-   }
-   else
-   {
-      u->GetVectorValue(T, ip, u_val);
-   }
-
-   Vector n(dim);
-   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
-   CalcOrtho(T.Jacobian(), n);
-   n /= n.Norml2();
-
-   Vector w(dim);
-   if (!n_tilde) { w = n; }
-   else { n_tilde->Eval(w, T, ip); }
-
-   // Evaluate the gap function φ
-   const real_t phi = GapFunction(x);
-
-   return sign * RegLogPrime(phi - u_val * w, N);
-}
-
-real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
-                                          const IntegrationPoint &ip)
-{
-   ParGridFunction *par_u = dynamic_cast<ParGridFunction*>(u);
-   const int dim = T.GetSpaceDim();
-
-   // Get current point coordinates
-   Vector x(dim);
-   T.Transform(ip, x);
-
-   // Get value of u at the integration point
-   Vector u_val(dim);
-   if (par_u)
-   {
-      par_u->GetVectorValue(T, ip, u_val);
-   }
-   else
-   {
-      u->GetVectorValue(T, ip, u_val);
-   }
-
-   Vector n(dim);
-   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
-   CalcOrtho(T.Jacobian(), n);
-   n /= n.Norml2();
-
-   Vector w(dim);
-   if (!n_tilde) { w = n; }
-   else { n_tilde->Eval(w, T, ip); }
-
-   // Evaluate the gap function φ
-   const real_t phi = GapFunction(x);
-
-   return RegLogDoublePrime(phi - u_val * w, N);
 }
