@@ -824,6 +824,8 @@ public:
          for (int i = 0; i < num; ++i) { ReadBinaryOrASCII<T>(binary); }
       }
    }
+
+   istream &GetInputStream() { return input; }
 };
 
 /// @brief Return the space dimension (at least 1) given a 3D bounding box.
@@ -896,8 +898,10 @@ static string ReadQuotedString(istream &input)
 
 using namespace gmsh;
 
-void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
+void Mesh::ReadGmsh4Mesh(GmshReader &g)
 {
+   istream &input = g.GetInputStream();
+
    MFEM_VERIFY(g.data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
    const auto b = g.is_binary;
@@ -1065,8 +1069,10 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
    while (!section.empty());
 }
 
-void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input)
+void Mesh::ReadGmsh2Mesh(GmshReader &g)
 {
+   istream &input = g.GetInputStream();
+
    const auto b = g.is_binary;
    MFEM_VERIFY(g.data_size == sizeof(double), "Incompatible data size.");
 
@@ -1234,11 +1240,11 @@ void Mesh::ReadGmshMesh(istream &input)
 
    if (g.version == GmshVersion::V4_1)
    {
-      ReadGmsh4Mesh(g, input);
+      ReadGmsh4Mesh(g);
    }
    else if (g.version == GmshVersion::V2_2)
    {
-      ReadGmsh2Mesh(g, input);
+      ReadGmsh2Mesh(g);
    }
 
    // Make sure all element and boundary attributes are positive.
