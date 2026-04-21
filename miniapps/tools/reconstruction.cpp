@@ -163,11 +163,11 @@ int main(int argc, char* argv[])
 
       // Set up the right-hand side vector for the exact solution
       LinearForm b_lo(&fespace_lo);
-      DomainLFIntegrator lf_integ(u_function_exact);
+      DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
       const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(),
                                                    order_ho+1);
-      lf_integ.SetIntRule(&ir_rhs);
-      b_lo.AddDomainIntegrator(&lf_integ);
+      lf_integ->SetIntRule(&ir_rhs);
+      b_lo.AddDomainIntegrator(lf_integ);
       b_lo.Assemble();
 
       L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
