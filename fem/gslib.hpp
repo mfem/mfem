@@ -674,7 +674,7 @@ class GlobalBBoxTensorGridMap
 private:
    struct gslib::crystal *cr = nullptr;               // gslib's internal data
    struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
-   int dim, n_local_cells, num_procs;
+   int sdim, n_local_cells, num_procs;
    Array<int> gmap_n;
    Vector gmap_bnd_min, gmap_bnd_max;
    Vector gmap_fac;
@@ -685,22 +685,54 @@ public:
    /// Constructor for a given mesh and number of tensor grid divisions
    GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx);
 
-   /// Constructor for given element bounds and number of tensor grid divisions
+   /** @brief Constructor for given element bounds and spatial dimension.
+    *
+    *  @details This constructor must be called collectively on \a comm.
+    *  Supports spatial dimensions 1, 2, and 3, and accepts nel == 0 on a rank.
+    *
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    *
+    *  When by_max_size=false, n gives the number of tensor-grid divisions in
+    *  each direction. When by_max_size=true, n is a per-rank size hint used to
+    *  derive a uniform global resolution. The communicator-wide sum of n is
+    *  converted to nx = ceil(pow(sum(n), 1./sdim)) in each direction, so n is
+    *  not a hard cap on ggrid_map.Size().
+    */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
-                           Vector &elmax, int n, int nel,
+                           Vector &elmax, int nel, int sdim, int n,
                            bool by_max_size);
 
-   /** @brief Constructor for given element bounds and number of tensor grid
-    *  divisions in each direction. */
+   /** @brief Constructor for given element bounds, spatial dimension, and
+    *  tensor-grid divisions in each direction.
+    *
+    *  @details This constructor must be called collectively on \a comm.
+    *  Supports spatial dimensions 1, 2, and 3, and accepts nel == 0 on a rank.
+    *  Requires nx.Size() == sdim and positive entries in nx.
+    *
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
-                           Vector &elmax, Array<int> &nx, int nel);
+                           Vector &elmax, int nel, int sdim, Array<int> &nx);
 
    ~GlobalBBoxTensorGridMap();
 
    /** @brief Get list of procs corresponding to the list of points.
     *
-    *  @details This mesh should be called by all ranks at the same time as
-    *  it involves mpi communication to return the proc indices.
+    *  @details This method must be called collectively on the communicator
+    *  used to construct the map. The input points can be ordered byNodes:
+    *  (XXX...,YYY...,ZZZ) or byVDIM: (XYZ,XYZ,...), as specified by
+    *  \a ordering.
+    *
+    *  The output map contains one entry for each input point, keyed by the
+    *  point's local index in \a xyz. Points with no candidate ranks, including
+    *  points outside the global bounding box, have an empty list of candidate
+    *  ranks.
     */
    void MapPointsToProcs(Vector &xyz, int ordering,
                          std::map<int, std::vector<int>> &pt_to_procs) const;
@@ -715,7 +747,7 @@ public:
 private:
    /// Setup the map given element bounds and number of tensor grid divisions.
    void Setup(const MPI_Comm &comm, Vector &elmin, Vector &elmax,
-              Array<int> &nx, int nel);
+              int nel, Array<int> &nx);
 
    /// Get global hash cell index for a given point.
    int GetGlobalGridCellFromPoint(Vector &xyz) const;

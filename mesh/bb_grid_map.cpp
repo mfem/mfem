@@ -27,8 +27,8 @@ BBoxTensorGridMap::BBoxTensorGridMap(Mesh &mesh, int nx)
 {
    GridFunction *nodes = mesh.GetNodes();
    const int nel = mesh.GetNE();
-   dim = mesh.SpaceDimension();
-   Vector elmin(nel*dim), elmax(nel*dim);
+   sdim = mesh.SpaceDimension();
+   Vector elmin(nel*sdim), elmax(nel*sdim);
    elmin = numeric_limits<real_t>::max();
    elmax = -numeric_limits<real_t>::max();
    if (!nodes)
@@ -39,11 +39,10 @@ BBoxTensorGridMap::BBoxTensorGridMap(Mesh &mesh, int nx)
       for (int e = 0; e < nel; e++)
       {
          mesh.GetElementVertices(e, verts);
-         Vector center(dim);
          for (int v = 0; v < verts.Size(); v++)
          {
             coord = mesh.GetVertex(verts[v]);
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < sdim; d++)
             {
                elmin(d*nel + e) = min(elmin(d*nel + e), coord[d]);
                elmax(d*nel + e) = max(elmax(d*nel + e), coord[d]);
@@ -56,46 +55,82 @@ BBoxTensorGridMap::BBoxTensorGridMap(Mesh &mesh, int nx)
       int nref = 3;
       nodes->GetElementBounds(elmin, elmax, nref);
    }
-   Array<int> nx_arr(dim);
+   Array<int> nx_arr(sdim);
    nx_arr = nx;
-   Setup(elmin, elmax, nx_arr, nel, false);
+   Setup(elmin, elmax, nel, nx_arr, false);
 }
 
 BBoxTensorGridMap::BBoxTensorGridMap(Vector &elmin,
                                      Vector &elmax,
-                                     int n, int nel,
+                                     int nel,
+                                     int sdim_,
+                                     int n,
                                      bool by_max_size)
 {
-   dim = elmin.Size() / nel;
-   Array<int> nx_arr(dim);
+   sdim = sdim_;
+   MFEM_VERIFY(0 < sdim && sdim <= 3,
+               "BBoxTensorGridMap only supports spatial dimensions 1, 2, and 3.");
+   if (nel > 0)
+   {
+      MFEM_VERIFY(elmin.Size() == sdim * nel && elmax.Size() == sdim * nel,
+                  "Element bounds size must match dim * nel.");
+   }
+   Array<int> nx_arr(sdim);
    nx_arr = n;
-   Setup(elmin, elmax, nx_arr, nel, by_max_size);
+   Setup(elmin, elmax, nel, nx_arr, by_max_size);
 }
 
 BBoxTensorGridMap::BBoxTensorGridMap(Vector &elmin, Vector &elmax,
-                                     Array<int> &nx, int nel)
+                                     int nel, int sdim_,
+                                     Array<int> &nx,
+                                     bool by_max_size)
 {
-   Setup(elmin, elmax, nx, nel, false);
+   sdim = sdim_;
+   Setup(elmin, elmax, nel, nx, by_max_size);
 }
 
 void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
-                              Array<int> &nx, int nel, bool by_max_size)
+                              int nel, Array<int> &nx, bool by_max_size)
 {
-   dim = elmin.Size() / nel;
-   lmap_bnd_min.SetSize(dim);
-   lmap_bnd_max.SetSize(dim);
-   lmap_fac.SetSize(dim);
-   lmap_nx.SetSize(dim);
+   MFEM_VERIFY(0 < sdim && sdim <= 3,
+               "BBoxTensorGridMap only supports spatial dimensions 1, 2, and 3.");
+   MFEM_VERIFY(nx.Size() == sdim,
+               "BBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
+   if (nel > 0)
+   {
+      MFEM_VERIFY(elmin.Size() == sdim * nel && elmax.Size() == sdim * nel,
+                  "Element bounds size must match dim * nel.");
+   }
+   lmap_bnd_min.SetSize(sdim);
+   lmap_bnd_max.SetSize(sdim);
+   lmap_fac.SetSize(sdim);
+   lmap_nx.SetSize(sdim);
    lmap_nx = nx;
 
-   MFEM_VERIFY(nx.Size() == dim,
-               "BBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
    for (int d = 0; d < nx.Size(); d++)
    {
       MFEM_VERIFY(nx[d] > 0,
                   "BBoxTensorGridMap requires positive number of divisions in each dimension.");
    }
-   for (int d = 0; d < dim; d++)
+   if (nel == 0)
+   {
+      lmap_bnd_min = 0.0;
+      lmap_bnd_max = 1.0;
+      if (by_max_size) { lmap_nx = 1; }
+      SetGridFac(lmap_fac, lmap_nx, lmap_bnd_min, lmap_bnd_max);
+
+      lmap_nxd = lmap_nx[0];
+      for (int d = 1; d < sdim; d++)
+      {
+         lmap_nxd *= lmap_nx[d];
+      }
+
+      lgrid_map.SetSize(lmap_nxd + 1);
+      lgrid_map = lmap_nxd + 1;
+      return;
+   }
+
+   for (int d = 0; d < sdim; d++)
    {
       Vector elmind(elmin.GetData() + d*nel, nel);
       Vector elmaxd(elmax.GetData() + d*nel, nel);
@@ -108,14 +143,17 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    if (by_max_size)
    {
       int nmax = nx[0];
-      int nlow = 1, nhigh = nmax > nel ? ceil(pow(nmax - nel, 1.0 / dim)) : 1;
+      int nlow = 1, nhigh = nmax > nel ? ceil(pow(nmax - nel, 1.0 / sdim)) : 1;
       int size_low = 2 + nel;
       int size = 0;
       while (nhigh - nlow > 1)
       {
          int nmid = nlow + (nhigh - nlow) / 2;
-         int nmd = nmid*nmid;
-         if (dim == 3) { nmd *= nmid; }
+         int nmd = nmid;
+         for (int d = 1; d < sdim; d++)
+         {
+            nmd *= nmid;
+         }
          lmap_nx = nmid;
          SetGridFac(lmap_fac, lmap_nx, lmap_bnd_min, lmap_bnd_max);
          size = nmd + 1 + GetGridCountAndRange(lmap_nx, lmap_fac,
@@ -126,8 +164,11 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
          else { nhigh = nmid; }
       }
       lmap_nx = nlow;
-      lmap_nxd = nlow*nlow;
-      if (dim == 3) { lmap_nxd *= nlow; }
+      lmap_nxd = nlow;
+      for (int d = 1; d < sdim; d++)
+      {
+         lmap_nxd *= nlow;
+      }
       store_size = size_low;
       SetGridFac(lmap_fac, lmap_nx, lmap_bnd_min, lmap_bnd_max);
       if (size != size_low)
@@ -143,7 +184,7 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
       SetGridFac(lmap_fac, lmap_nx, lmap_bnd_min, lmap_bnd_max);
 
       lmap_nxd = lmap_nx[0];
-      for (int d = 1; d < dim; d++)
+      for (int d = 1; d < sdim; d++)
       {
          lmap_nxd *= lmap_nx[d];
       }
@@ -164,15 +205,16 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
 
    for (int e = 0; e < nel; e++)
    {
-      int klim = dim < 3 ? 1 : (elmax_h[2*nel+e]-elmin_h[2*nel+e]);
-      int jlim = dim < 2 ? 1 : (elmax_h[1*nel+e]-elmin_h[1*nel+e]);
+      int klim = sdim < 3 ? 1 : (elmax_h[2*nel+e]-elmin_h[2*nel+e]);
+      int jlim = sdim < 2 ? 1 : (elmax_h[1*nel+e]-elmin_h[1*nel+e]);
       int ilim = (elmax_h[0*nel+e]-elmin_h[0*nel+e]);
       for (int k = 0; k < klim; k++)
       {
-         int koff = dim<3 ? 0 : (elmin_h[2*nel + e] + k)* lmap_nx[0]*lmap_nx[1];
+         int koff = sdim < 3 ? 0 :
+                    (elmin_h[2*nel + e] + k) * lmap_nx[0] * lmap_nx[1];
          for (int j = 0; j < jlim; j++)
          {
-            int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_nx[0];
+            int joff = sdim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_nx[0];
             for (int i = 0; i < ilim; i++)
             {
                int ioff = elmin_h[e] + i;
@@ -190,15 +232,16 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
 
    for (int e = 0; e < nel; e++)
    {
-      int klim = dim < 3 ? 1 : (elmax_h[2*nel+e]-elmin_h[2*nel+e]);
-      int jlim = dim < 2 ? 1 : (elmax_h[1*nel+e]-elmin_h[1*nel+e]);
+      int klim = sdim < 3 ? 1 : (elmax_h[2*nel+e]-elmin_h[2*nel+e]);
+      int jlim = sdim < 2 ? 1 : (elmax_h[1*nel+e]-elmin_h[1*nel+e]);
       int ilim = (elmax_h[0*nel+e]-elmin_h[0*nel+e]);
       for (int k = 0; k < klim; k++)
       {
-         int koff = dim<3 ? 0 : (elmin_h[2*nel+e] + k)* lmap_nx[0] * lmap_nx[1];
+         int koff = sdim < 3 ? 0 :
+                    (elmin_h[2*nel+e] + k) * lmap_nx[0] * lmap_nx[1];
          for (int j = 0; j < jlim; j++)
          {
-            int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_nx[0];
+            int joff = sdim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_nx[0];
             for (int i = 0; i < ilim; i++)
             {
                int ioff = elmin_h[e] + i;
@@ -228,10 +271,10 @@ Array<int> BBoxTensorGridMap::GridCellToElements(int i) const
 
 int BBoxTensorGridMap::GetGridCellFromPoint(Vector &xyz) const
 {
-   MFEM_ASSERT(xyz.Size() == dim,
+   MFEM_ASSERT(xyz.Size() == sdim,
                "Point must have the same dimension as the grid.");
    int sum = 0;
-   for (int d = dim-1; d >= 0; --d)
+   for (int d = sdim-1; d >= 0; --d)
    {
       if (xyz(d) < lmap_bnd_min(d) || xyz(d) > lmap_bnd_max(d))
       {
@@ -246,7 +289,7 @@ int BBoxTensorGridMap::GetGridCellFromPoint(Vector &xyz) const
 
 Array<int> BBoxTensorGridMap::MapPointToElements(Vector &xyz) const
 {
-   MFEM_ASSERT(xyz.Size() == dim,
+   MFEM_ASSERT(xyz.Size() == sdim,
                "Point must have the same dimension as the grid.");
    int cell = GetGridCellFromPoint(xyz);
    if (cell < 0)
@@ -260,11 +303,13 @@ void BBoxTensorGridMap::GetGridRange(const int d, const Array<int> &lh_n,
                                      const Vector &lh_fac,
                                      const Vector &lh_bnd_min,
                                      const Vector &lh_bnd_max,
-                                     const double &xmin, const double &xmax,
+                                     const real_t &xmin, const real_t &xmax,
                                      int &imin, int &imax)
 {
-   // if xmin/xmax is exactly on grid boundary, use the cell to the right
-   // if xmin/xmax is within a grid cell, we set i0/i1 to include that cell
+   // Use a half-open interval [imin, imax) for the covered grid-cell range.
+   // If xmin is exactly on a grid boundary, use the cell on the right/high
+   // side. If xmax is exactly on a grid boundary, stop before the cell on the
+   // right/high side.
    int i0 = floor( (xmin - lh_bnd_min[d]) * lh_fac[d] );
    int i1 = ceil ( (xmax - lh_bnd_min[d]) * lh_fac[d] );
    imin = i0 < 0 ? 0 : i0;
@@ -279,7 +324,15 @@ void BBoxTensorGridMap::SetGridFac(Vector &lh_fac, const Array<int> &nx,
    int dim = lh_bnd_min.Size();
    for (int d = 0; d < dim; d++)
    {
-      lh_fac[d] = nx[d] / (lh_bnd_max[d] - lh_bnd_min[d]);
+      real_t length = lh_bnd_max[d] - lh_bnd_min[d];
+      if (length > 0.0)
+      {
+         lh_fac[d] = nx[d] / length;
+      }
+      else
+      {
+         lh_fac[d] = 0.0;
+      }
    }
 }
 

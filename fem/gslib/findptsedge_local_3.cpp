@@ -119,7 +119,6 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
                                                  const double x[sDIM])
 {
    const double bxyz = obbox_axis_test(b, x);
-   return bxyz;
    if (bxyz<0)
    {
       return bxyz;
