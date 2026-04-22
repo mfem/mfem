@@ -444,6 +444,10 @@ miniapps/diag-smoothers/mg-abs-l1-jacobi
 miniapps/contact/contact
 miniapps/contact/ParaView
 
+miniapps/plasma/pic/electrostatic-*
+!miniapps/plasma/pic/electrostatic-*.cpp
+miniapps/plasma/pic/*.csv
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
