@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include "vtk.hpp"
+#include "../general/hash_util.hpp"
 
 using namespace std;
 
@@ -505,19 +506,6 @@ enum BinaryOrASCII : bool
 /// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };
 
-/// Helper class for hashing std::pair of hashable types. Will not be needed
-/// after merge of PR #4974, which introduces more general hashing for pairs
-/// and tuples.
-class PairHash
-{
-public:
-   template <typename T, typename S>
-   size_t operator()(const pair<T, S> &p) const
-   {
-      return hash<T>()(p.first) ^ hash<S>()(p.second);
-   }
-};
-
 /// Helper class for reading Gmsh meshes.
 class GmshReader
 {
@@ -536,7 +524,7 @@ class GmshReader
    };
    /// Permutations mapping from MFEM lexicographic ordering to Gmsh ordering,
    /// for a given element type and order. Constructed lazily.
-   unordered_map<pair<Geometry::Type, int>, vector<int>, PairHash> node_maps;
+   unordered_map<pair<Geometry::Type, int>, vector<int>, PairHasher> node_maps;
 
    bool has_positive_attrs = false;
    bool has_non_positive_attrs = false;
@@ -905,7 +893,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
    MFEM_VERIFY(g.data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
    const auto b = g.is_binary;
-   unordered_map<pair<int,int>, int, PairHash> entity_physical_tag;
+   unordered_map<pair<int,int>, int, PairHasher> entity_physical_tag;
 
    string section;
    do
