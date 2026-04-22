@@ -167,8 +167,8 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 // Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (3D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
-                                     const real_t *b_nodes,
-                                     const real_t *g_nodes,
+                                     const real_t *B_nodes,
+                                     const real_t *G_nodes,
                                      const real_t *B,
                                      const DeviceTensor<5, const real_t> &X,
                                      const DeviceTensor<4, const real_t> &ALF,
@@ -180,24 +180,25 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem_d[MD1][MD1];
       MFEM_SHARED real_t smem_q[MQ1][MQ1];
       MFEM_SHARED real_t sB_nodes[MD1][MD1], sG_nodes[MD1][MD1];
       MFEM_SHARED real_t sB_q[MD1][MQ1];
+      MFEM_SHARED real_t grad_c[MD1][MD1][MD1];
+      MFEM_SHARED real_t hess_c[3][MD1][MD1][MD1];
 
       // Maps nodes - nodes.
-      kernels::internal::LoadMatrix(D1D, D1D, b_nodes, sB_nodes);
-      kernels::internal::LoadMatrix(D1D, D1D, g_nodes, sG_nodes);
+      kernels::internal::LoadMatrix(D1D, D1D, B_nodes, sB_nodes);
+      kernels::internal::LoadMatrix(D1D, D1D, G_nodes, sG_nodes);
       // Map nodes - quads.
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
 
       // Compute the physical Jacobian at DOF nodes.
-      kernels::internal::vd_regs3d_t<3, 3, MD1> r_X, r_X_grad_nodes;
+      kernels::internal::vd_regs3d_t<3, 3, MD1> r_X, r_J;
       kernels::internal::LoadDofs3d(e, D1D, X, r_X);
-      kernels::internal::Grad3d(D1D, D1D, smem_d,
-                                sB_nodes, sG_nodes, r_X, r_X_grad_nodes);
+      kernels::internal::Grad3d(D1D, D1D, smem_d, sB_nodes, sG_nodes, r_X, r_J);
 
       // Compute the reference derivatives of ALF at DOF nodes.
       kernels::internal::s_regs3d_t<MD1> alf_n, dalf_dxi_n, dalf_deta_n, dalf_dzeta_n;
@@ -214,104 +215,124 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                                                 sB_nodes, sB_nodes, sG_nodes,
                                                 alf_n, dalf_dzeta_n);
 
-      // Physical gradient coefficients at DOF nodes into grad_e.
-      // Takes derivatives of alf.
-      real_t grad_e[MD1][MD1][MD1][3];
-      for (int dz = 0; dz < D1D; dz++)
+      // Interpolation workspaces.
+      kernels::internal::s_regs3d_t<MQ1> r_node, r_quad;
+
+      // Compute/interpolate gradient and Hessian one vector component at a time.
+      for (int c = 0; c < 3; c++)
       {
-         for (int dy = 0; dy < D1D; dy++)
+         kernels::internal::s_regs3d_t<MD1> rgrad_nodes, dd_dxi_n, dd_deta_n, dd_dzeta_n;
+         for (int dz = 0; dz < D1D; dz++)
          {
-            for (int dx = 0; dx < D1D; dx++)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               const real_t Jpr[9] =
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
-                  r_X_grad_nodes[0][0][dz][dy][dx], r_X_grad_nodes[1][0][dz][dy][dx], r_X_grad_nodes[2][0][dz][dy][dx],
-                  r_X_grad_nodes[0][1][dz][dy][dx], r_X_grad_nodes[1][1][dz][dy][dx], r_X_grad_nodes[2][1][dz][dy][dx],
-                  r_X_grad_nodes[0][2][dz][dy][dx], r_X_grad_nodes[1][2][dz][dy][dx], r_X_grad_nodes[2][2][dz][dy][dx]
-               };
-               real_t Jpr_inv[9];
-               kernels::CalcInverse<3>(Jpr, Jpr_inv);
+                  const real_t Jpr[9] =
+                  {
+                     r_J[0][0][dz][dy][dx], r_J[1][0][dz][dy][dx], r_J[2][0][dz][dy][dx],
+                     r_J[0][1][dz][dy][dx], r_J[1][1][dz][dy][dx], r_J[2][1][dz][dy][dx],
+                     r_J[0][2][dz][dy][dx], r_J[1][2][dz][dy][dx], r_J[2][2][dz][dy][dx]
+                  };
+                  real_t Jpr_inv[9];
+                  kernels::CalcInverse<3>(Jpr, Jpr_inv);
 
-               const real_t dalf_dxi   = dalf_dxi_n[dz][dy][dx];
-               const real_t dalf_deta  = dalf_deta_n[dz][dy][dx];
-               const real_t dalf_dzeta = dalf_dzeta_n[dz][dy][dx];
-
-               grad_e[dz][dy][dx][0] =
-                  Jpr_inv[0] * dalf_dxi + Jpr_inv[1] * dalf_deta + Jpr_inv[2] * dalf_dzeta;
-               grad_e[dz][dy][dx][1] =
-                  Jpr_inv[3] * dalf_dxi + Jpr_inv[4] * dalf_deta + Jpr_inv[5] * dalf_dzeta;
-               grad_e[dz][dy][dx][2] =
-                  Jpr_inv[6] * dalf_dxi + Jpr_inv[7] * dalf_deta + Jpr_inv[8] * dalf_dzeta;
+                  const real_t dalf_dxi   = dalf_dxi_n[dz][dy][dx];
+                  const real_t dalf_deta  = dalf_deta_n[dz][dy][dx];
+                  const real_t dalf_dzeta = dalf_dzeta_n[dz][dy][dx];
+                  const int row = 3 * c;
+                  grad_c[dz][dy][dx] =
+                     Jpr_inv[row + 0] * dalf_dxi +
+                     Jpr_inv[row + 1] * dalf_deta +
+                     Jpr_inv[row + 2] * dalf_dzeta;
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+         
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+               {
+                  r_node[dz][dy][dx] = grad_c[dz][dy][dx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+         kernels::internal::Eval3d<MQ1>(D1D, Q1D, smem_q, sB_q, r_node, r_quad);
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  ALF_grad(c, qx, qy, qz, e) = r_quad[qz][qy][qx];
+               }
             }
          }
-      }
+         MFEM_SYNC_THREAD;
 
-      // Compute the Hessian coefficients at DOF nodes into hess_e.
-      // Takes derivatives of grad_e.
-      real_t hess_e[MD1][MD1][MD1][3][3];
-      for (int dz = 0; dz < D1D; dz++)
-      {
-         for (int dy = 0; dy < D1D; dy++)
+         for (int dz = 0; dz < D1D; dz++)
          {
-            for (int dx = 0; dx < D1D; dx++)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               for (int i = 0; i < 3; i++)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
-                  for (int j = 0; j < 3; j++) { hess_e[dz][dy][dx][i][j] = 0.0; }
+                  rgrad_nodes[dz][dy][dx] = grad_c[dz][dy][dx];
                }
+            }
+            MFEM_SYNC_THREAD;
+         }
+         kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
+                                                   sG_nodes, sB_nodes, sB_nodes,
+                                                   rgrad_nodes, dd_dxi_n);
 
-               const real_t Jpr[9] =
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
-                  r_X_grad_nodes[0][0][dz][dy][dx], r_X_grad_nodes[1][0][dz][dy][dx], r_X_grad_nodes[2][0][dz][dy][dx],
-                  r_X_grad_nodes[0][1][dz][dy][dx], r_X_grad_nodes[1][1][dz][dy][dx], r_X_grad_nodes[2][1][dz][dy][dx],
-                  r_X_grad_nodes[0][2][dz][dy][dx], r_X_grad_nodes[1][2][dz][dy][dx], r_X_grad_nodes[2][2][dz][dy][dx]
-               };
-               real_t Jpr_inv[9];
-               kernels::CalcInverse<3>(Jpr, Jpr_inv);
+                  rgrad_nodes[dz][dy][dx] = grad_c[dz][dy][dx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+         kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
+                                                   sB_nodes, sG_nodes, sB_nodes,
+                                                   rgrad_nodes, dd_deta_n);
 
-               for (int c = 0; c < 3; c++)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
-                  kernels::internal::s_regs3d_t<MD1> rgrad_nodes, dd_dxi_n, dd_deta_n, dd_dzeta_n;
-                  for (int zz = 0; zz < D1D; zz++)
-                  {
-                     for (int yy = 0; yy < D1D; yy++)
-                     {
-                        for (int xx = 0; xx < D1D; xx++)
-                        {
-                           rgrad_nodes[zz][yy][xx] = grad_e[zz][yy][xx][c];
-                        }
-                     }
-                  }
-                  kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
-                                                            sG_nodes, sB_nodes, sB_nodes,
-                                                            rgrad_nodes, dd_dxi_n);
-                  for (int zz = 0; zz < D1D; zz++)
-                  {
-                     for (int yy = 0; yy < D1D; yy++)
-                     {
-                        for (int xx = 0; xx < D1D; xx++)
-                        {
-                           rgrad_nodes[zz][yy][xx] = grad_e[zz][yy][xx][c];
-                        }
-                     }
-                  }
-                  kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
-                                                            sB_nodes, sG_nodes, sB_nodes,
-                                                            rgrad_nodes, dd_deta_n);
-                  for (int zz = 0; zz < D1D; zz++)
-                  {
-                     for (int yy = 0; yy < D1D; yy++)
-                     {
-                        for (int xx = 0; xx < D1D; xx++)
-                        {
-                           rgrad_nodes[zz][yy][xx] = grad_e[zz][yy][xx][c];
-                        }
-                     }
-                  }
-                  kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
-                                                            sB_nodes, sB_nodes, sG_nodes,
-                                                            rgrad_nodes, dd_dzeta_n);
+                  rgrad_nodes[dz][dy][dx] = grad_c[dz][dy][dx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+         kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
+                                                   sB_nodes, sB_nodes, sG_nodes,
+                                                   rgrad_nodes, dd_dzeta_n);
 
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+               {
+                  const real_t Jpr[9] =
+                  {
+                     r_J[0][0][dz][dy][dx], r_J[1][0][dz][dy][dx], r_J[2][0][dz][dy][dx],
+                     r_J[0][1][dz][dy][dx], r_J[1][1][dz][dy][dx], r_J[2][1][dz][dy][dx],
+                     r_J[0][2][dz][dy][dx], r_J[1][2][dz][dy][dx], r_J[2][2][dz][dy][dx]
+                  };
+                  real_t Jpr_inv[9];
+                  kernels::CalcInverse<3>(Jpr, Jpr_inv);
                   const real_t dd_dxi   = dd_dxi_n[dz][dy][dx];
                   const real_t dd_deta  = dd_deta_n[dz][dy][dx];
                   const real_t dd_dzeta = dd_dzeta_n[dz][dy][dx];
@@ -323,55 +344,28 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                   const real_t ddz =
                      Jpr_inv[6] * dd_dxi + Jpr_inv[7] * dd_deta + Jpr_inv[8] * dd_dzeta;
 
-                  hess_e[dz][dy][dx][c][0] = ddx;
-                  hess_e[dz][dy][dx][c][1] = ddy;
-                  hess_e[dz][dy][dx][c][2] = ddz;
+                  hess_c[0][dz][dy][dx] = ddx;
+                  hess_c[1][dz][dy][dx] = ddy;
+                  hess_c[2][dz][dy][dx] = ddz;
                }
             }
+            MFEM_SYNC_THREAD;
          }
-      }
 
-      // Interpolate gradient and Hessian at quad points.
-      kernels::internal::s_regs3d_t<MQ1> r_node, r_quad;
-
-      // Gradient at quad points: 3 scalar evals.
-      for (int i = 0; i < 3; i++)
-      {
-         for (int dz = 0; dz < D1D; dz++)
-         {
-            for (int dy = 0; dy < D1D; dy++)
-            {
-               for (int dx = 0; dx < D1D; dx++) { r_node[dz][dy][dx] = grad_e[dz][dy][dx][i]; }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         kernels::internal::Eval3d<MQ1>(D1D, Q1D, smem_q, sB_q, r_node, r_quad);
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  ALF_grad(i, qx, qy, qz, e) = r_quad[qz][qy][qx];
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-
-      // Hessian at quad points: 9 scalar evals.
-      for (int i = 0; i < 3; i++)
-      {
+         // Interpolate Hessian components for this c: 3 scalar evals.
          for (int j = 0; j < 3; j++)
          {
             for (int dz = 0; dz < D1D; dz++)
             {
-               for (int dy = 0; dy < D1D; dy++)
+               MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
                {
-                  for (int dx = 0; dx < D1D; dx++) { r_node[dz][dy][dx] = hess_e[dz][dy][dx][i][j]; }
+                  MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+                  {
+                     r_node[dz][dy][dx] = hess_c[j][dz][dy][dx];
+                  }
                }
+               MFEM_SYNC_THREAD;
             }
-            MFEM_SYNC_THREAD;
             kernels::internal::Eval3d<MQ1>(D1D, Q1D, smem_q, sB_q, r_node, r_quad);
             for (int qz = 0; qz < Q1D; ++qz)
             {
@@ -379,7 +373,7 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                {
                   MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                   {
-                     ALF_hess(i, j, qx, qy, qz, e) = r_quad[qz][qy][qx];
+                     ALF_hess(c, j, qx, qy, qz, e) = r_quad[qz][qy][qx];
                   }
                }
             }

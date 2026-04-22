@@ -722,7 +722,7 @@ static inline void tmop_require(int id, const char *args[])
    real_t tol_fe = 4e-12;
 
    const bool has_adapt_lim = std::atof(args[ALC]) > 0.0;
-   if (has_adapt_lim) { tol_fe = 1e-5; }
+   if (has_adapt_lim) { tol_fe = 1e-7; }
 
    Req res[2];
    (args[ALV] = "-pa", dump_args(id, args), req_tmop(id, args, res[0]));
