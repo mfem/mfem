@@ -70,6 +70,7 @@
 
 #include "mfem.hpp"
 
+#include "../common/mesh_extras.hpp"
 #include "electromagnetics.hpp"
 
 #include <fstream>
@@ -83,35 +84,164 @@ void display_banner(std::ostream &os);
 real_t dielectric_sphere(const Vector &x, const Vector &ds_params);
 real_t magnetic_shell(const Vector &x, const Vector &ms_params);
 real_t conductive_sphere(const Vector &x, const Vector &cs_params);
+// dE/dt Boundary Condition: The following function returns zero but any time
+// dependent function could be used.
+void dEdtBCFunc(const Vector &x, real_t t, Vector &E);
+// The following functions return zero but they could be modified to set initial
+// conditions for the electric and magnetic fields
+void EFieldFunc(const Vector &x, Vector &E);
+void BFieldFunc(const Vector &x, Vector &B);
 
-/// weak form:
-/// int epsilon dE/dt . E* dV = int B / mu . Curl E* - (sigma E + J) . E* dV
-///   E* are test functions in H(curl)
-struct AmpereOperator : public TimeDependentOperator
+/// assumes x is 3D
+MFEM_HOST_DEVICE void dipole_pulse(const real_t *x, real_t t, real_t *j,
+                                   const real_t *dp_params, real_t tscale)
+{
+   constexpr int ndims = 3;
+   real_t v[ndims];
+   real_t xu[ndims];
+   real_t h = 0;
+   for (int i = 0; i < ndims; ++i)
+   {
+      j[i] = 0;
+      xu[i] = x[i] - dp_params[i];
+      v[i] = dp_params[ndims + i] - dp_params[i];
+      h += v[i] * v[i];
+   }
+   if (h == 0)
+   {
+      return;
+   }
+   for (int i = 0; i < ndims; ++i)
+   {
+      v[i] /= h;
+   }
+   real_t r = dp_params[2 * ndims];
+   real_t a = dp_params[2 * ndims + 1] * tscale;
+   real_t b = dp_params[2 * ndims + 2] * tscale;
+   real_t c = dp_params[2 * ndims + 3] * tscale;
+
+   real_t xv = 0;
+   for (int i = 0; i < ndims; ++i)
+   {
+      xv += xu[i] * v[i];
+   }
+   real_t xp = 0;
+   for (int i = 0; i < ndims; ++i)
+   {
+      xu[i] -= xv * v[i];
+      xp += xu[i] * xu[i];
+   }
+   if (xv >= 0 && xv <= h && xp <= r)
+   {
+      real_t mag = a * (t - b) * exp(-0.5 * pow((t - b) / c, 2)) / (c * c);
+      for (int i = 0; i < ndims; ++i)
+      {
+         j[i] = v[i] * mag;
+      }
+   }
+}
+
+/// since current density is (potentially) time varying, evaluate it on the GPU
+/// in a special linear form integrator
+struct CurrentIntegrator : public LinearFormIntegrator
+{
+   // parameters state
+   const Vector *dp_params;
+   real_t t;
+   CurrentIntegrator(const Vector &dp, const IntegrationRule *ir = nullptr)
+      : LinearFormIntegrator(ir), dp_params(&dp)
+   {}
+
+   bool SupportsDevice() const override { return true; }
+
+   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
+                       Vector &b) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+///
+/// LHS Operator for the CG solver of AmpereOperator
+///
+struct AmpereAction : public Operator
 {
    // not owned
    ParMesh *pmesh = nullptr;
    ParFiniteElementSpace *hcurl_space = nullptr;
    ParFiniteElementSpace *hdiv_space = nullptr;
+   Coefficient *sigma_coeff = nullptr;
+   VectorCoefficient *dEdtbc_coeff = nullptr;
    /// int epsilon dE/dt . E* dV
    ParBilinearForm hcurl_mass;
    /// int sigma E . E* dV
    std::unique_ptr<ParBilinearForm> loss_term;
    /// int J . E* dV
    std::unique_ptr<ParLinearForm> j_term;
+   CurrentIntegrator *current_integrator;
    /// int B / mu . Curl E* dV
    ParMixedBilinearForm weak_curl;
 
    std::unique_ptr<Coefficient> eps_coeff;
    std::unique_ptr<Coefficient> inv_mu_coeff;
+   std::unique_ptr<Coefficient> abc_coeff;
 
+   // Array of 0's and 1's marking the location of absorbing surfaces
+   Array<int> abc_marker;
+   // Array of 0's and 1's marking the location of Dirichlet boundaries
+   Array<int> dbc_marker;
+
+   // Dirichlet dofs
+   Array<int> dbc_dofs;
+
+   // current dt, needed if there are loss terms
+   mutable real_t dt = 0;
+
+   AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
+                ParFiniteElementSpace &hdiv, size_t assembly_type,
+                Coefficient &eps_coeff, Coefficient &inv_mu_coeff,
+                Coefficient *sigma, VectorCoefficient *dEdtbc, Array<int> &abcs,
+                Array<int> &dbcs, CurrentIntegrator *current_integrator_);
+
+   // int epsilon x . E* dV + 0.5 sigma dt x . E* dV + oint 0.5 dt
+   // sqrt(epsilon0 / mu0) x . E* dS -> y
+   // note: the loss terms which are multiplied by 0.5 dt so in combination with
+   // the RHS the discrete form is F((E_{n+1} + E_{n})/2), where F is the loss
+   // operator
+   void Mult(const Vector &x, Vector &y) const override;
+
+   void EliminateRHS(Vector &rhs) const;
+};
+
+/// weak form:
+/// int epsilon dE/dt . E* dV = int B / mu . Curl E* - (sigma E + J) . E* dV -
+/// oint sqrt(epsilon0 / mu0) E . E* dS
+///   E* are test functions in H(curl)
+///   E in loss terms is evaluated as an average of E_{n+1} and E_{n}
+struct AmpereOperator : public TimeDependentOperator
+{
+   AmpereAction action;
+   CGSolver solver;
+
+   mutable ParGridFunction rhs;
+   mutable std::unique_ptr<ParGridFunction> dedt;
+
+   // not owned, needed to compute loss terms
+   ParGridFunction *E_gf = nullptr;
+
+   /// assumes ownership of current_integrator (if any)
    AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                   ParFiniteElementSpace &hdiv, size_t assembly_type,
-                  Coefficient &eps_coeff, Coefficient &inv_mu_coeff);
+                  Coefficient &eps_coeff, Coefficient &inv_mu_coeff,
+                  Coefficient *sigma, VectorCoefficient *dEdtbc,
+                  Array<int> &abcs, Array<int> &dbcs,
+                  CurrentIntegrator *current_integrator, ParGridFunction &E);
 
    void Mult(const Vector &B, Vector &dEdt) const override;
 
-   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+   void ImplicitSolve(const real_t dt, const Vector &B, Vector &dEdt) override;
 };
 
 /// Faraday's equation maps -curl E from H(curl) to H(div) (exact in 3D)
@@ -123,6 +253,7 @@ struct FaradayOperator : public Operator
    ParFiniteElementSpace *hcurl_space = nullptr;
    ParFiniteElementSpace *hdiv_space = nullptr;
 
+   ParDiscreteLinearOperator curl_op;
    std::unique_ptr<HypreParMatrix> neg_curl;
 
    // temporary workspace vectors
@@ -304,35 +435,33 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace hdiv_space(&pmesh, &hdiv_fec);
 
    const HYPRE_BigInt glob_hcurl_size = hcurl_space.GlobalTrueVSize();
-   const HYPRE_BigInt glob_hdiv_size = hcurl_space.GlobalTrueVSize();
+   const HYPRE_BigInt glob_hdiv_size = hdiv_space.GlobalTrueVSize();
    if (Mpi::Root())
    {
       std::cout << "Number of H(Curl) dofs: " << glob_hcurl_size << std::endl;
       std::cout << "Number of H(Div) dofs: " << glob_hdiv_size << std::endl;
    }
 
-   // DOF state (L-dofs)
-   const int vsize_hcurl = hcurl_space.GetVSize();
-   const int vsize_hdiv = hdiv_space.GetVSize();
-   Array<int> offset(3);
-   offset[0] = 0;
-   offset[1] = offset[0] + vsize_hcurl;
-   offset[2] = offset[1] + vsize_hdiv;
-   BlockVector dofs(offset);
-
-   ParGridFunction E_gf, B_gf;
-   E_gf.MakeRef(&hcurl_space, dofs, offset[0]);
-   B_gf.MakeRef(&hdiv_space, dofs, offset[1]);
-   E_gf = 0_r;
-   B_gf = 0_r;
+   ParGridFunction E_gf(&hcurl_space), B_gf(&hdiv_space);
+   // initial conditions
+   {
+      VectorFunctionCoefficient e0(3, EFieldFunc);
+      E_gf.ProjectCoefficient(e0);
+   }
+   {
+      VectorFunctionCoefficient b0(3, BFieldFunc);
+      E_gf.ProjectCoefficient(b0);
+   }
 
    // Use separate operators for Ampere and Faraday equations for each part of
    // the Hamiltonian operators.
    std::unique_ptr<Coefficient> eps_coeff;
    std::unique_ptr<Coefficient> inv_mu_coeff;
+   std::unique_ptr<Coefficient> sigma_coeff;
+   std::unique_ptr<VectorCoefficient> dEdtbc_coeff;
+   CurrentIntegrator *current_integrator = nullptr;
    if (ds_params.Size() > 0)
    {
-      // TODO
       eps_coeff.reset(new FunctionCoefficient([&](const Vector &x)
       { return dielectric_sphere(x, ds_params); }));
    }
@@ -349,8 +478,24 @@ int main(int argc, char *argv[])
    {
       inv_mu_coeff.reset(new ConstantCoefficient(1_r / electromagnetics::mu0_));
    }
+   if (cs_params.Size() > 0)
+   {
+      sigma_coeff.reset(new FunctionCoefficient([&](const Vector &x)
+      { return conductive_sphere(x, cs_params); }));
+   }
+   if (dbcs.Size() > 0)
+   {
+      dEdtbc_coeff.reset(new VectorFunctionCoefficient(3, dEdtBCFunc));
+   }
+   if (dp_params.Size() > 0)
+   {
+      // TODO: current source
+      current_integrator = new CurrentIntegrator(dp_params);
+   }
    AmpereOperator ampere(pmesh, hcurl_space, hdiv_space, assembly_type,
-                         *eps_coeff, *inv_mu_coeff);
+                         *eps_coeff, *inv_mu_coeff, sigma_coeff.get(),
+                         dEdtbc_coeff.get(), abcs, dbcs, current_integrator,
+                         E_gf);
    FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
 
    // Create the ODE solver
@@ -358,6 +503,8 @@ int main(int argc, char *argv[])
    siaSolver.Init(faraday, ampere);
    // TODO: initialize visualization
    // TODO: run sim
+   Vector dEdt(hcurl_space.GetVSize());
+   ampere.ImplicitSolve(dt, B_gf, dEdt);
    return 0;
 }
 
@@ -377,35 +524,116 @@ void display_banner(std::ostream &os)
       << std::endl;
 }
 
-AmpereOperator::AmpereOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
-                               ParFiniteElementSpace &hdiv,
-                               size_t assembly_type, Coefficient &eps_coeff,
-                               Coefficient &inv_mu_coeff)
-   : TimeDependentOperator(hcurl.GetVSize(), hdiv.GetVSize()), pmesh(&pmesh_),
+AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
+                           ParFiniteElementSpace &hdiv, size_t assembly_type,
+                           Coefficient &eps_coeff, Coefficient &inv_mu_coeff,
+                           Coefficient *sigma, VectorCoefficient *dEdtbc,
+                           Array<int> &abcs, Array<int> &dbcs,
+                           CurrentIntegrator *current_integrator_)
+   : Operator(hcurl.GetVSize(), hcurl.GetVSize()), pmesh(&pmesh_),
      hcurl_space(&hcurl), hdiv_space(&hdiv), hcurl_mass(&hcurl),
-     weak_curl(&hdiv, &hcurl)
+     weak_curl(&hdiv, &hcurl), sigma_coeff(sigma), dEdtbc_coeff(dEdtbc),
+     current_integrator(current_integrator_)
 {
    hcurl_mass.AddDomainIntegrator(new VectorFEMassIntegrator(&eps_coeff));
    weak_curl.AddDomainIntegrator(
       new MixedVectorWeakCurlIntegrator(inv_mu_coeff));
-   // TODO: loss and current density
-   // sigma is constant in time, j_src is allowed to be a function of time
+   if (dbcs.Size() > 0)
+   {
+      common::AttrToMarker(pmesh_.bdr_attributes.Max(), dbcs, dbc_marker);
+      hcurl.GetEssentialTrueDofs(dbc_marker, dbc_dofs);
+   }
+   if (sigma || abcs.Size() > 0)
+   {
+      loss_term.reset(new ParBilinearForm(&hcurl));
+      if (sigma)
+      {
+         loss_term->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+      }
+      if (abcs.Size() > 0)
+      {
+         common::AttrToMarker(pmesh_.bdr_attributes.Max(), abcs, abc_marker);
+         abc_coeff.reset(new ConstantCoefficient(
+                            sqrt(electromagnetics::epsilon0_ / electromagnetics::mu0_)));
+         loss_term->AddBoundaryIntegrator(
+            new VectorFEMassIntegrator(abc_coeff.get()), abc_marker);
+      }
+   }
+   if (current_integrator)
+   {
+      j_term.reset(new ParLinearForm(hcurl_space));
+      j_term->AddDomainIntegrator(current_integrator);
+      j_term->UseFastAssembly(true);
+   }
    switch (assembly_type)
    {
-      case 0:
-         // full assembly
-         break;
       case 1:
+         // full assembly
+         // TODO
+         break;
+      case 0:
          // partial assembly
          hcurl_mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          weak_curl.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (loss_term)
          {
             loss_term->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            loss_term->Assemble();
          }
+         hcurl_mass.Assemble();
+         weak_curl.Assemble();
          break;
    }
-   // TODO
+}
+
+AmpereOperator::AmpereOperator(
+   ParMesh &pmesh_, ParFiniteElementSpace &hcurl, ParFiniteElementSpace &hdiv,
+   size_t assembly_type, Coefficient &eps_coeff, Coefficient &inv_mu_coeff,
+   Coefficient *sigma, VectorCoefficient *dEdtbc, Array<int> &abcs,
+   Array<int> &dbcs, CurrentIntegrator *current_integrator, ParGridFunction &E)
+   : TimeDependentOperator(hcurl.GetVSize(), hdiv.GetVSize()),
+     action(pmesh_, hcurl, hdiv, assembly_type, eps_coeff, inv_mu_coeff, sigma,
+            dEdtbc, abcs, dbcs, current_integrator),
+     rhs(&hcurl), E_gf(&E)
+{
+   if (action.loss_term)
+   {
+      type = IMPLICIT;
+   }
+   else
+   {
+      type = EXPLICIT;
+   }
+   // TODO: full assembly
+   solver.SetOperator(action);
+   // TODO: make configurable parameters
+   solver.SetAbsTol(0);
+   solver.SetRelTol(1e-6);
+   solver.SetMaxIter(300);
+}
+
+void AmpereAction::Mult(const Vector &x, Vector &y) const
+{
+   // TODO: full assembly version
+   hcurl_mass.Mult(x, y);
+   if (loss_term)
+   {
+      loss_term->AddMult(x, y, 0.5_r * dt);
+   }
+   // bcs
+   if (dbc_dofs.Size() > 0)
+   {
+      y.SetSubVector(dbc_dofs, 0_r);
+   }
+}
+
+void AmpereAction::EliminateRHS(Vector& b) const
+{
+   // for partial assembly
+   if (dbc_dofs.Size() > 0)
+   {
+      b.SetSubVector(dbc_dofs, 0_r);
+   }
 }
 
 void AmpereOperator::Mult(const Vector &B, Vector &dEdt) const
@@ -413,42 +641,101 @@ void AmpereOperator::Mult(const Vector &B, Vector &dEdt) const
    // TODO
 }
 
-void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
+void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
+                                   Vector &dEdt)
 {
-   // TODO
+   // TODO: full assembly version
+   action.dt = dt;
+   if (!dedt)
+   {
+      dedt.reset(new ParGridFunction);
+      dedt->MakeRef(action.hcurl_space, dEdt, 0);
+      *dedt = 0_r;
+   }
+   else
+   {
+      dedt->MakeRef(dEdt, 0);
+   }
+   // compute RHS
+   action.weak_curl.Mult(B, rhs);
+   if (action.loss_term)
+   {
+      action.loss_term->AddMult(*E_gf, rhs, -1);
+   }
+
+   if (action.j_term)
+   {
+      action.current_integrator->t = this->t;
+      action.j_term->Assemble();
+      rhs -= *action.j_term;
+   }
+   if (action.dEdtbc_coeff)
+   {
+      action.dEdtbc_coeff->SetTime(t);
+      // TODO: projecting bdr coefficient happens on the CPU
+      dedt->ProjectBdrCoefficientTangent(*action.dEdtbc_coeff, action.dbc_marker);
+   }
+   // dirichlet bc's handled directly by action
+   action.EliminateRHS(rhs);
+   solver.Mult(rhs, *dedt);
+   dedt->SyncAliasMemory(dEdt);
 }
+
+/// TODO: for now this always does full assembly into a hypre matrix.
+/// CurlInterpolator from H(curl) to H(div) doesn't support partial assembly
+/// yet.
+// #define FARADAY_HAS_PA
 
 FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                  ParFiniteElementSpace &hdiv,
                                  size_t assembly_type)
-   : pmesh(&pmesh_), hcurl_space(&hcurl), hdiv_space(&hdiv)
+   : pmesh(&pmesh_), hcurl_space(&hcurl), hdiv_space(&hdiv),
+     curl_op(&hcurl, &hdiv)
 {
-   /// TODO: for now this always does full assembly into a hypre matrix.
-   /// Since this is an element-local operation should be able to do locally in
-   /// a batch kernel, but would need to implement CurlInterpolator between
-   /// hcurl and hdiv in a gpu kernel.
-   /// Also would need a way to go from E-dof to L-dof (can't just transpose
-   /// mult with the element restriction because this adds at shared dofs).
-   ParDiscreteLinearOperator curl_op(hcurl_space, hdiv_space);
    curl_op.AddDomainInterpolator(new CurlInterpolator);
-   curl_op.Assemble();
-   curl_op.Finalize();
-   neg_curl.reset(curl_op.ParallelAssemble());
-   *neg_curl *= -1_r;
-   E_work.reset(hcurl_space->NewTrueDofVector());
-   dBdt_work.reset(hdiv_space->NewTrueDofVector());
+#ifdef FARADAY_HAS_PA
+   switch (assembly_type)
+   {
+      case 1:
+#endif
+         // full assembly
+         curl_op.Assemble();
+         curl_op.Finalize();
+         neg_curl.reset(curl_op.ParallelAssemble());
+         *neg_curl *= -1_r;
+         E_work.reset(hcurl_space->NewTrueDofVector());
+         dBdt_work.reset(hdiv_space->NewTrueDofVector());
+#ifdef FARADAY_HAS_PA
+         break;
+      case 0:
+         // partial assembly
+         curl_op.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         curl_op.Assemble();
+         curl_op.Finalize();
+         break;
+   }
+#endif
 }
 
 void FaradayOperator::Mult(const Vector &E, Vector &dBdt) const
 {
-   // convert E from L-dofs to T-dofs
-   const Operator *R = hcurl_space->GetRestrictionOperator();
-   const Operator *P = hdiv_space->GetProlongationMatrix();
-   R->Mult(E, *E_work);
-   // mult by neg_curl
-   neg_curl->Mult(*E_work, *dBdt_work);
-   // convert result from T-dofs to L-dofs -> dBdt
-   P->Mult(*dBdt_work, dBdt);
+   if (neg_curl)
+   {
+      // convert E from L-dofs to T-dofs
+      const Operator *R = hcurl_space->GetRestrictionOperator();
+      const Operator *P = hdiv_space->GetProlongationMatrix();
+      R->Mult(E, *E_work);
+      // mult by neg_curl
+      neg_curl->Mult(*E_work, *dBdt_work);
+      // convert result from T-dofs to L-dofs -> dBdt
+      P->Mult(*dBdt_work, dBdt);
+   }
+   else
+   {
+      // partial assembly
+      curl_op.Mult(E, dBdt);
+      dBdt *= -1_r;
+   }
 }
 
 // A sphere with constant permittivity.
@@ -487,4 +774,56 @@ real_t magnetic_shell(const Vector &x, const Vector &ms_params)
       return electromagnetics::mu0_ * ms_params(x.Size() + 2);
    }
    return electromagnetics::mu0_;
+}
+
+// A sphere with constant conductivity.  The sphere has a radius, center, and
+// conductivity specified on the command line and stored in ls_params_.
+real_t conductive_sphere(const Vector &x, const Vector &cs_params)
+{
+   real_t r2 = 0;
+
+   for (int i = 0; i < x.Size(); i++)
+   {
+      r2 += (x(i) - cs_params(i)) * (x(i) - cs_params(i));
+   }
+
+   if (sqrt(r2) <= cs_params(x.Size()))
+   {
+      return cs_params(x.Size() + 1);
+   }
+   return 0;
+}
+
+void dEdtBCFunc(const Vector &x, real_t t, Vector &dE)
+{
+   dE.SetSize(3);
+   dE = 0_r;
+}
+
+void EFieldFunc(const Vector &x, Vector &E)
+{
+   E.SetSize(3);
+   E = 0_r;
+}
+void BFieldFunc(const Vector &x, Vector &B)
+{
+   B.SetSize(3);
+   B = 0_r;
+}
+
+/// assumes fes is an H(curl) space
+void CurrentIntegrator::AssembleDevice(const FiniteElementSpace &fes,
+                                       const Array<int> &markers, Vector &b)
+{
+   const FiniteElement &fe = *fes.GetTypicalFE();
+   const int qorder = 2 * fe.GetOrder();
+   const Geometry::Type gtype = fe.GetGeomType();
+   const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
+}
+
+void CurrentIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                               ElementTransformation &Tr,
+                                               Vector &elvect)
+{
+   // TODO
 }
