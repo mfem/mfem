@@ -13,6 +13,7 @@
 #define MFEM_COEFFICIENT
 
 #include <functional>
+#include <variant>
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
@@ -30,6 +31,12 @@ class QuadratureFunction;
 class ParMesh;
 #endif
 
+/// Abstract base class for scalar, vector, and matrix coefficients
+class CoefficientBase
+{
+public:
+   virtual ~CoefficientBase() = default;
+};
 
 /** @brief Base class Coefficients that optionally depend on space and time.
     These are used by the BilinearFormIntegrator, LinearFormIntegrator, and
@@ -38,7 +45,7 @@ class ParMesh;
     general way to represent functions that don't necessarily belong to a FE
     space, e.g., to project onto GridFunctions to use as initial conditions,
     exact solutions, etc. See, e.g., ex4 or ex22 for these uses. */
-class Coefficient
+class Coefficient : public CoefficientBase
 {
 protected:
    real_t time;
@@ -573,7 +580,7 @@ public:
 };
 
 /// Base class for vector Coefficients that optionally depend on time and space.
-class VectorCoefficient
+class VectorCoefficient : public CoefficientBase
 {
 protected:
    int vdim;
@@ -1056,7 +1063,7 @@ public:
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
 /// Base class for Matrix Coefficients that optionally depend on time and space.
-class MatrixCoefficient
+class MatrixCoefficient : public CoefficientBase
 {
 protected:
    int height, width;
@@ -2519,6 +2526,23 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
    return int(a) & int(b);
 }
 
+class CoefficientVariant
+{
+   using VariantType =
+      std::variant<std::monostate, Coefficient*, VectorCoefficient*, MatrixCoefficient*>;
+   VariantType coeff;
+public:
+
+   CoefficientVariant() = default;
+   CoefficientVariant(VariantType coeff_) : coeff(coeff_) {};
+   CoefficientVariant(Coefficient *coeff, VectorCoefficient *vec_coeff = nullptr,
+                      MatrixCoefficient *mat_coeff = nullptr);
+
+   Coefficient *GetCoefficient();
+   VectorCoefficient *GetVectorCoefficient();
+   MatrixCoefficient *GetMatrixCoefficient();
+   operator bool() const;
+};
 
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
@@ -2585,6 +2609,12 @@ public:
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, bool transpose=false);
+
+   /// @brief Evaluate the given coefficient at the quadrature points defined by
+   /// @ref qs.
+   ///
+   /// @a coeff_variant may be a scalar, vector, or matrix coefficient.
+   void Project(CoefficientVariant coeff_variant);
 
    /// @brief Project the transpose of @a coeff.
    ///

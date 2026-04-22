@@ -2345,6 +2345,7 @@ public:
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
+   CoefficientVariant GetCoefficientVariant() { return CoefficientVariant(Q, VQ, MQ); }
    Coefficient *GetCoefficient() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
@@ -2445,6 +2446,7 @@ public:
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
+   CoefficientVariant GetCoefficientVariant() { return CoefficientVariant(Q); }
    const Coefficient *GetCoefficient() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
@@ -2865,6 +2867,7 @@ public:
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
+   CoefficientVariant GetCoefficientVariant() { return CoefficientVariant(Q, DQ, MQ); }
    const Coefficient *GetCoefficient() const { return Q; }
 
    /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
@@ -3014,6 +3017,7 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
+   CoefficientVariant GetCoefficientVariant() { return CoefficientVariant(Q, DQ, MQ); }
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
@@ -3113,6 +3117,7 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
+   CoefficientVariant GetCoefficientVariant() { return CoefficientVariant(Q); }
    const Coefficient *GetCoefficient() const { return Q; }
 };
 

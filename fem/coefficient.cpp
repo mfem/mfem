@@ -2117,6 +2117,26 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
    }
 }
 
+void CoefficientVector::Project(CoefficientVariant coeff_variant)
+{
+   if (auto *coeff = coeff_variant.GetCoefficient())
+   {
+      Project(*coeff);
+   }
+   else if (auto *vec_coeff = coeff_variant.GetVectorCoefficient())
+   {
+      Project(*vec_coeff);
+   }
+   else if (auto *mat_coeff = coeff_variant.GetMatrixCoefficient())
+   {
+      Project(*mat_coeff);
+   }
+   else
+   {
+      MFEM_ABORT("Empty variant.");
+   }
+}
+
 void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
 {
    Project(coeff, true);
@@ -2199,5 +2219,63 @@ CoefficientVector::~CoefficientVector()
 {
    delete qf;
 }
+
+CoefficientVariant::CoefficientVariant(Coefficient *coeff_,
+                                       VectorCoefficient *vec_coeff,
+                                       MatrixCoefficient *mat_coeff)
+{
+   MFEM_VERIFY((coeff_ != nullptr) + (vec_coeff != nullptr) +
+               (mat_coeff != nullptr) <= 1,
+               "At most one of the provided coefficients may be non-null.");
+   if (coeff_) { coeff = coeff_; }
+   else if (vec_coeff) { coeff = vec_coeff; }
+   else if (mat_coeff) { coeff = mat_coeff; }
+}
+
+Coefficient *CoefficientVariant::GetCoefficient()
+{
+   if (std::holds_alternative<Coefficient*>(coeff))
+   {
+      return std::get<Coefficient*>(coeff);
+   }
+   return nullptr;
+}
+
+VectorCoefficient *CoefficientVariant::GetVectorCoefficient()
+{
+   if (std::holds_alternative<VectorCoefficient*>(coeff))
+   {
+      return std::get<VectorCoefficient*>(coeff);
+   }
+   return nullptr;
+}
+
+MatrixCoefficient *CoefficientVariant::GetMatrixCoefficient()
+{
+   if (std::holds_alternative<MatrixCoefficient*>(coeff))
+   {
+      return std::get<MatrixCoefficient*>(coeff);
+   }
+   return nullptr;
+}
+
+CoefficientVariant::operator bool() const
+{
+   return std::visit([](auto p)
+   {
+      if constexpr (std::is_same_v<std::decay_t<decltype(p)>, std::monostate>)
+      {
+         // Variant is empty: return false.
+         return false;
+      }
+      else
+      {
+         // Variant is non-empty: return true if pointer is non-null.
+         return p != nullptr;
+      }
+   }, coeff);
+}
+
+
 
 }

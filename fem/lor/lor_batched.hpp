@@ -25,7 +25,7 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
-///  - DG diffusion + mass (in progress)
+///  - DG diffusion + mass
 ///  - ND curl-curl + mass
 ///  - RT div-div + mass
 ///
@@ -182,9 +182,8 @@ void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)
    INTEGRATOR *i = GetIntegrator<INTEGRATOR>(a);
    if (i)
    {
-      // const_cast since Coefficient::Eval is not const...
-      auto *coeff = const_cast<Coefficient*>(i->GetCoefficient());
-      if (coeff) { coeff_vector.Project(*coeff); }
+      CoefficientVariant coeff_variant = i->GetCoefficientVariant();
+      if (coeff_variant) { coeff_vector.Project(coeff_variant); }
       else { coeff_vector.SetConstant(1.0); }
    }
    else
@@ -211,8 +210,8 @@ protected:
                     Array<int> &sparse_mapping_)
       : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
         sparse_mapping(sparse_mapping_), ir(GetCollocatedIntRule(fes_ho)),
-        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
-        c2(qs, CoefficientStorage::COMPRESSED)
+        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::CONSTANTS),
+        c2(qs, CoefficientStorage::CONSTANTS)
    { }
 };
 
