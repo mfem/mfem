@@ -917,7 +917,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    mesh_points_cnt     = gsl_mesh.Size()/spacedim;
    DEV.local_hash_size = mesh_points_cnt;
    DEV.dof1d           = (int)dof1D;
-   DEV.tol             = newt_tol;
+   DEV.newt_tol        = newt_tol;
 
    unsigned nr = dof1D;
    unsigned mr = 2*dof1D;
@@ -968,7 +968,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    MPI_Allreduce(MPI_IN_PLACE, &nelem, 1, MPI_INT, MPI_SUM, gsl_comm->c);
 #endif
    DEV.surf_dist_tol /= nelem;
-   DEV.surf_dist_tol *= 1e-10;
+   DEV.surf_dist_tol *= 1e-16; // dist^2 tolerance so we use (1e-8)^2.
 
    // Setup gll points and lagrange coefficient data for
    // findpoints
@@ -3718,9 +3718,10 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
 {
    Array<unsigned int> nf_idxs;
+   auto h_gsl_code = gsl_code.HostRead();
    for (int i = 0; i < gsl_code.Size(); i++)
    {
-      if (gsl_code[i] == 2)
+      if (h_gsl_code[i] == 2)
       {
          nf_idxs.Append(i);
       }

@@ -689,22 +689,22 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
    {
       case 2:
          return FindPointsEdgeLocal2D_Kernel<2>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal2D_Kernel<3>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal2D_Kernel<4>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal2D_Kernel(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }

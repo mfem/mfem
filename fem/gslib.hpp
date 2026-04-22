@@ -116,7 +116,10 @@ protected:
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
       mutable Array<unsigned int> lh_offset, gh_offset;
       mutable Vector lh_min, lh_fac, gh_min, gh_fac;
-      double tol;
+      // Tolerance to mark points found on the surface as CODE_INTERNAL
+      // or CODE_BORDER. This is needed because we cannot only use reference
+      // space coordinates to determine if a point is located inside the
+      // element or not.
       mutable double surf_dist_tol;
    } DEV;
 
@@ -425,7 +428,7 @@ public:
     *
     *  @details When using FindPoints, gslib may return points as found on the
     *  boundary even when they are slightly outside the domain. This tolerance
-    *  is used to filter such points based on the distance value and mark them
+    *  is used to filter such points based on the distance^2 value and mark them
     *  as not found.*/
    virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
    {
