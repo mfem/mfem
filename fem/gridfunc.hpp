@@ -578,6 +578,13 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   void AccumulateAndCountTraceValues(Coefficient *coeff[],
+                                      VectorCoefficient *vcoeff,
+                                      Array<int> &values_counter);
+
+   void AccumulateAndCountTraceTangentValues(VectorCoefficient &vcoeff,
+                                             Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -662,6 +669,26 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
+
+   /// Project a Coefficient on a GridFunction defined on H1 trace space
+   void ProjectTraceCoefficient(Coefficient *coeff[]);
+   void ProjectTraceCoefficient(Coefficient &coeff)
+   {
+      Coefficient *coeff_p = &coeff;
+      ProjectTraceCoefficient(&coeff_p);
+   }
+   /** @brief Project a VectorCoefficient @a vcoeff on a GridFunction
+       defined on a Vector H1 trace space. Note that this also works
+       for a scalar H1 trace space, where only the first component of
+       @a vcoeff is used. */
+   void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an RT trace space */
+   void ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an ND trace space */
+   void ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff);
+
 
    /** @brief Project a VectorCoefficient on the GridFunction, modifying only
        DOFs on the boundary associated with the boundary attributes marked in

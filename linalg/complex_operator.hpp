@@ -24,6 +24,9 @@
 
 namespace mfem
 {
+#ifdef MFEM_USE_MPI
+class ComplexHypreParMatrix; // forward declaration
+#endif
 
 /** @brief Mimic the action of a complex operator using two real operators.
 
@@ -117,6 +120,14 @@ public:
    virtual Type GetType() const { return Complex_Operator; }
 
    Convention GetConvention() const { return convention_; }
+
+#ifdef MFEM_USE_MPI
+   /// Returns a ComplexHypreParMatrix view:
+   ///  - wraps if real/imag are HypreParMatrix
+   ///  - merges to a monolothic parallel ComplexHypreParMatrix
+   /// if real/imag are BlockOperator of HypreParMatrix blocks
+   ComplexHypreParMatrix *AsComplexHypreParMatrix() const;
+#endif
 
 protected:
    // Let this be hidden from the public interface since the implementation

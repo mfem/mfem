@@ -569,15 +569,32 @@ private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    bool isvar_order;
+   bool is_trace_space;
+   bool assembled = false;
+   std::unique_ptr<SparseMatrix> P;
+   std::unique_ptr<Operator> tP;
+
+   std::unique_ptr<SparseMatrix> BuildConformingTransferMatrix() const;
+   std::unique_ptr<Operator> BuildConformingTransferOperator() const;
+
+   void AssembleMatrix();
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
    /// which have different FE collections.
-   /** No matrices are assembled, only the action to a vector is being computed.
-       The underlying finite elements need to implement the GetTransferMatrix
-       methods. */
+   /** By default no matrices are assembled, only the action to a vector is
+       being computed. The underlying finite elements need to implement
+       the GetTransferMatrix methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
-                               const FiniteElementSpace& hFESpace_);
+                               const FiniteElementSpace& hFESpace_,
+                               bool assemble_matrix = false);
+
+   Operator * GetTrueTransferOperator();
+   const Operator * GetTrueTransferOperator() const
+   {
+      return const_cast<PRefinementTransferOperator*>(this)
+             ->GetTrueTransferOperator();
+   }
 
    /// Destructor
    virtual ~PRefinementTransferOperator() { }

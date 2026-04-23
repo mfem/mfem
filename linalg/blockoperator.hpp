@@ -16,6 +16,9 @@
 #include "../general/array.hpp"
 #include "operator.hpp"
 #include "blockvector.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre.hpp"
+#endif
 
 namespace mfem
 {
@@ -104,6 +107,12 @@ public:
 
    /// Action of the transpose operator
    void MultTranspose (const Vector & x, Vector & y) const override;
+
+#ifdef MFEM_USE_MPI
+   /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
+       this BlockOperator, assuming every block is a HypreParMatrix. */
+   HypreParMatrix * GetMonolithicHypreParMatrix() const;
+#endif
 
    ~BlockOperator();
 
