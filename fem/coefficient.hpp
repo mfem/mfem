@@ -2526,23 +2526,9 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
    return int(a) & int(b);
 }
 
-class CoefficientVariant
-{
-   using VariantType =
-      std::variant<std::monostate, Coefficient*, VectorCoefficient*, MatrixCoefficient*>;
-   VariantType coeff;
-public:
-
-   CoefficientVariant() = default;
-   CoefficientVariant(VariantType coeff_) : coeff(coeff_) {};
-   CoefficientVariant(Coefficient *coeff, VectorCoefficient *vec_coeff = nullptr,
-                      MatrixCoefficient *mat_coeff = nullptr);
-
-   Coefficient *GetCoefficient();
-   VectorCoefficient *GetVectorCoefficient();
-   MatrixCoefficient *GetMatrixCoefficient();
-   operator bool() const;
-};
+CoefficientBase *GetCoefficientBase(Coefficient *coeff = nullptr,
+                                    VectorCoefficient *vec_coeff = nullptr,
+                                    MatrixCoefficient *mat_coeff = nullptr);
 
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
@@ -2613,8 +2599,8 @@ public:
    /// @brief Evaluate the given coefficient at the quadrature points defined by
    /// @ref qs.
    ///
-   /// @a coeff_variant may be a scalar, vector, or matrix coefficient.
-   void Project(CoefficientVariant coeff_variant);
+   /// @a coeff may be a scalar, vector, or matrix coefficient.
+   void Project(CoefficientBase &coeff);
 
    /// @brief Project the transpose of @a coeff.
    ///

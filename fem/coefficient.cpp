@@ -2117,23 +2117,23 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
    }
 }
 
-void CoefficientVector::Project(CoefficientVariant coeff_variant)
+void CoefficientVector::Project(CoefficientBase &coeff)
 {
-   if (auto *coeff = coeff_variant.GetCoefficient())
+   if (auto *scalar_coeff = dynamic_cast<Coefficient*>(&coeff))
    {
-      Project(*coeff);
+      Project(*scalar_coeff);
    }
-   else if (auto *vec_coeff = coeff_variant.GetVectorCoefficient())
+   else if (auto *vec_coeff = dynamic_cast<VectorCoefficient*>(&coeff))
    {
       Project(*vec_coeff);
    }
-   else if (auto *mat_coeff = coeff_variant.GetMatrixCoefficient())
+   else if (auto *mat_coeff = dynamic_cast<MatrixCoefficient*>(&coeff))
    {
       Project(*mat_coeff);
    }
    else
    {
-      MFEM_ABORT("Empty variant.");
+      MFEM_ABORT("Projecting null coefficient.");
    }
 }
 
@@ -2220,62 +2220,14 @@ CoefficientVector::~CoefficientVector()
    delete qf;
 }
 
-CoefficientVariant::CoefficientVariant(Coefficient *coeff_,
-                                       VectorCoefficient *vec_coeff,
-                                       MatrixCoefficient *mat_coeff)
+CoefficientBase *GetCoefficientBase(Coefficient *coeff,
+                                    VectorCoefficient *vec_coeff,
+                                    MatrixCoefficient *mat_coeff)
 {
-   MFEM_VERIFY((coeff_ != nullptr) + (vec_coeff != nullptr) +
-               (mat_coeff != nullptr) <= 1,
-               "At most one of the provided coefficients may be non-null.");
-   if (coeff_) { coeff = coeff_; }
-   else if (vec_coeff) { coeff = vec_coeff; }
-   else if (mat_coeff) { coeff = mat_coeff; }
+   if (coeff) { return static_cast<CoefficientBase*>(coeff); }
+   else if (vec_coeff) { return static_cast<VectorCoefficient*>(vec_coeff); }
+   else if (mat_coeff) { return static_cast<CoefficientBase*>(mat_coeff); }
+   else { return nullptr; }
 }
-
-Coefficient *CoefficientVariant::GetCoefficient()
-{
-   if (std::holds_alternative<Coefficient*>(coeff))
-   {
-      return std::get<Coefficient*>(coeff);
-   }
-   return nullptr;
-}
-
-VectorCoefficient *CoefficientVariant::GetVectorCoefficient()
-{
-   if (std::holds_alternative<VectorCoefficient*>(coeff))
-   {
-      return std::get<VectorCoefficient*>(coeff);
-   }
-   return nullptr;
-}
-
-MatrixCoefficient *CoefficientVariant::GetMatrixCoefficient()
-{
-   if (std::holds_alternative<MatrixCoefficient*>(coeff))
-   {
-      return std::get<MatrixCoefficient*>(coeff);
-   }
-   return nullptr;
-}
-
-CoefficientVariant::operator bool() const
-{
-   return std::visit([](auto p)
-   {
-      if constexpr (std::is_same_v<std::decay_t<decltype(p)>, std::monostate>)
-      {
-         // Variant is empty: return false.
-         return false;
-      }
-      else
-      {
-         // Variant is non-empty: return true if pointer is non-null.
-         return p != nullptr;
-      }
-   }, coeff);
-}
-
-
 
 }
