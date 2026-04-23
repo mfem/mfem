@@ -145,11 +145,16 @@ MFEM_HOST_DEVICE void dipole_pulse(const real_t *x, real_t t, real_t *j,
 /// in a special linear form integrator
 struct CurrentIntegrator : public LinearFormIntegrator
 {
+   ParMesh *pmesh;
    // parameters state
    const Vector *dp_params;
-   real_t t;
-   CurrentIntegrator(const Vector &dp, const IntegrationRule *ir = nullptr)
-      : LinearFormIntegrator(ir), dp_params(&dp)
+   // for getting the coordinates evaluated at quadrature points
+   const GeometricFactors *geo = nullptr;
+   real_t tscale = 1;
+   real_t t = 0;
+   CurrentIntegrator(ParMesh &pm, const Vector &dp, real_t ts,
+                     const IntegrationRule *ir = nullptr)
+      : LinearFormIntegrator(ir), pmesh(&pm), dp_params(&dp), tscale(ts)
    {}
 
    bool SupportsDevice() const override { return true; }
@@ -309,7 +314,7 @@ int main(int argc, char *argv[])
    Vector dp_params(0);
 
    // Scale factor between input time units and seconds
-   real_t tScale_ = 1e-9; // Input time in nanosecond
+   real_t tscale = 1e-9; // Input time in nanosecond
 
    Array<int> abcs;
    Array<int> dbcs;
@@ -490,7 +495,7 @@ int main(int argc, char *argv[])
    if (dp_params.Size() > 0)
    {
       // TODO: current source
-      current_integrator = new CurrentIntegrator(dp_params);
+      current_integrator = new CurrentIntegrator(pmesh, dp_params, tscale);
    }
    AmpereOperator ampere(pmesh, hcurl_space, hdiv_space, assembly_type,
                          *eps_coeff, *inv_mu_coeff, sigma_coeff.get(),
