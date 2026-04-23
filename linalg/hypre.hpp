@@ -2261,6 +2261,8 @@ public:
    /// Solve the eigenproblem
    void Solve() override;
 
+   int GetNumConverged() const override { return nev; }
+
    /// Collect the converged eigenvalues
    void GetEigenvalues(Array<real_t> & eigenvalues) const override;
 
@@ -2338,6 +2340,8 @@ public:
 
    /// Solve the eigenproblem
    void Solve() override;
+
+   int GetNumConverged() const override { return nev; }
 
    /// Collect the converged eigenvalues
    void GetEigenvalues(Array<real_t> & eigenvalues) const override;

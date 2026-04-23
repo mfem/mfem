@@ -113,7 +113,7 @@ public:
    virtual void SetNumModes(int num_eigs) = 0;
 
    /// @brief Get the number of converged eigenmodes
-   virtual int GetNumConverged() = 0;
+   virtual int GetNumConverged() const = 0;
 
    /// @brief Perform the eigenvalue solve
    virtual void Solve() = 0;
