@@ -164,8 +164,8 @@ private:
 
 public:
    /// Constructs the domain integrator $ (Q, \nabla v) $
-   DomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   DomainLFGradIntegrator(VectorCoefficient &QF, const IntegrationRule *ir = NULL)
+      : DeltaLFIntegrator(QF, ir), Q(QF) { }
 
    bool SupportsDevice() const override { return true; }
 
