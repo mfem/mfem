@@ -181,6 +181,12 @@ constexpr int NBZ(int D1D)
 {
    return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
 }
+constexpr int NBZ3D(int MDQ)
+{
+   return MDQ > 0 ? std::min<int>(
+             (128 + MDQ * MDQ * MDQ - 1) / (MDQ * MDQ * MDQ), 64)
+          : 1;
+}
 }
 
 // Shared memory PA Mass Diagonal 2D kernel
@@ -804,14 +810,11 @@ void PAMassApply3D_Element(const int e,
    }
 }
 
-template<int T_D1D, int T_Q1D, int TBATCH, bool ACCUMULATE = true>
-MFEM_HOST_DEVICE inline
-void SmemPAMassApply3D_Element(const int e,
-                               const int NE,
-                               const real_t *b_,
-                               const real_t *d_,
-                               const real_t *x_,
-                               real_t *y_)
+template <int T_D1D, int T_Q1D, int TBATCH, bool ACCUMULATE = true>
+MFEM_HOST_DEVICE inline void
+SmemPAMassApply3D_Element(const int e, const int NE, const real_t *b_,
+                          const real_t *d_, const real_t *x_, real_t *y_,
+                          int d1d = 0, int q1d = 0)
 {
    static_assert(TBATCH > 0, "TBATCH must be positive");
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
@@ -822,10 +825,10 @@ void SmemPAMassApply3D_Element(const int e,
    constexpr int tbatch = 1;
    constexpr int tidz = 0;
 #endif
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int MQ1 = T_Q1D;
-   constexpr int MD1 = T_D1D;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -1155,7 +1158,7 @@ inline void SmemPAMassApply3D(const int NE,
                                                  [=] MFEM_HOST_DEVICE(int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D, T_Q1D, TBATCH>(e, NE, b, d, x,
-                                                                y);
+                                                                y, d1d, q1d);
    });
 }
 
@@ -1416,9 +1419,8 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
       // max 64 threads in z limit in cuda and hip
       if constexpr (MDQ > 0)
       {
-         return internal::SmemPAMassApply3D<
-                T_D1D, T_Q1D,
-                std::min<int>((128 + MDQ * MDQ * MDQ - 1) / (MDQ * MDQ * MDQ), 64)>;
+         return internal::SmemPAMassApply3D<T_D1D, T_Q1D,
+                internal::mass::NBZ3D(MDQ)>;
       }
    }
    MFEM_ABORT("");
