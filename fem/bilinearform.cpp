@@ -273,6 +273,32 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_face_integs_marker.Append(&bdr_marker);
 }
 
+void BilinearForm::ElementWiseInnerProduct(const GridFunction &x,
+                                           const GridFunction &y,
+                                           Vector &v)
+{
+   MFEM_ASSERT(v.Size() == fes->GetNE(),
+               "Incorrect size for result vector");
+
+   v = 0.0;
+
+   Vector loc_x, loc_y;
+   DenseMatrix elmat;
+
+   Array<int> vdofs;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      x.GetSubVector(vdofs, loc_x);
+      y.GetSubVector(vdofs, loc_y);
+
+      ComputeElementMatrix(i, elmat);
+
+      v[i] = elmat.InnerProduct(loc_x, loc_y);
+   }
+}
+
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 {
    if (element_matrices)
