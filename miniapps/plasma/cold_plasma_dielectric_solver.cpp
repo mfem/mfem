@@ -2317,7 +2317,8 @@ CPDSolver::Solve()
    {
       if (dim2_)
       {
-         cout << "Global Total Dissipation: " << global_diss/mesh_vol << " W/m" << endl;
+         cout << "Global Dissipation: " << global_diss << " W in 3° wedge" << endl;
+         cout << "Total Toroidal Dissipation: " << (global_diss*120.0)*1e-6 << " MW" << endl;
       }
       else
       {
