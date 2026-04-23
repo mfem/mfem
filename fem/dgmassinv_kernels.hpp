@@ -57,7 +57,7 @@ void DGMassApply(const int e,
       }
       else if (DIM == 3)
       {
-         SmemPAMassApply3D_Element<TD1D,TQ1D,1,ACCUM>(e, NE, B, pa_data, x, y);
+         SmemPAMassApply3D_Element<TD1D,TQ1D,NBZ,ACCUM>(e, NE, B, pa_data, x, y);
       }
       else
       {
