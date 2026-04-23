@@ -17,7 +17,4 @@ using namespace std;
 namespace mfem
 {
 
-Eigensolver::Eigensolver()
-{}
-
 };

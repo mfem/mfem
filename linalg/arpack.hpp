@@ -18,8 +18,6 @@
 
 #include <string>
 
-using namespace std;
-
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include "hypre.hpp"
@@ -166,7 +164,7 @@ protected:
 
    mutable Vector ** eigenvectors_;
 
-   string solverName_;
+   std::string solverName_;
 
    void reverseComm();
 
