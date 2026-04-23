@@ -37,13 +37,15 @@ public:
 ///    A x_i = lambda_i x_i
 /// Where A is complex-valued, the lambda_i are the eigenvalues and
 /// x_i are the eigenvectors.
-class ComplexEigenequation
+class ComplexEigenequation : public Eigenequation
 {
 protected:
   ComplexEigenequation() = default;
   virtual ~ComplexEigenequation() = default;
 
 public:
+  using Eigenequation::SetOperator;
+  
    /// @brief Set the real and imaginary parts of the operator A
   virtual void SetOperator(const Operator & Ar, const Operator & Ai) = 0;
 };
@@ -75,6 +77,8 @@ protected:
   virtual ~ComplexGenEigenequation() = default;
 
 public:
+  using GenEigenequation::SetMassMatrix;
+  
    /// @brief Set the real and imaginary parts of the mass operator M
    virtual void SetMassMatrix(const Operator & Mr, const Operator & Mi) = 0;
 };
