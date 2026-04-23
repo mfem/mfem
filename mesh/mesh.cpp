@@ -15236,17 +15236,17 @@ void GeometricFactors::Compute(const GridFunction &nodes,
                         Device::GetDeviceMemoryType();
    if (computed_factors & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, my_d_mt); // NQ x SDIM x NE
+      X.SetSize(bigint(vdim)*NQ*NE, my_d_mt); // NQ x SDIM x NE
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (computed_factors & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
+      J.SetSize(bigint(dim)*vdim*NQ*NE, my_d_mt); // NQ x SDIM x DIM x NE
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (computed_factors & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, my_d_mt); // NQ x NE
+      detJ.SetSize(bigint(NQ)*NE, my_d_mt); // NQ x NE
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -15264,7 +15264,7 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 
    if (elem_restr) // Always true as of 2021-04-27
    {
-      Vector Enodes(vdim*ND*NE, my_d_mt);
+      Vector Enodes(bigint(vdim)*ND*NE, my_d_mt);
       elem_restr->Mult(nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
@@ -15306,22 +15306,22 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
 
    if (flags & FaceGeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NF, my_d_mt);
+      X.SetSize(bigint(vdim)*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*(mesh->Dimension() - 1)*NQ*NF, my_d_mt);
+      J.SetSize(bigint(vdim)*(mesh->Dimension() - 1)*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NF, my_d_mt);
+      detJ.SetSize(bigint(NQ)*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      normal.SetSize(vdim*NQ*NF, my_d_mt);
+      normal.SetSize(bigint(vdim)*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
