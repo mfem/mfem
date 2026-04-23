@@ -213,6 +213,7 @@ set(HDRS
   dfem/qfunction_apply.hpp
   dfem/qfunction_transform.hpp
   dfem/tuple.hpp
+  dfem/univarsolvers.hpp
   dfem/util.hpp
   eltrans.hpp
   estimators.hpp
