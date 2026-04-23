@@ -24,14 +24,14 @@ namespace mfem
 class Eigenequation
 {
 protected:
-  Eigenequation() = default;
-  virtual ~Eigenequation() = default;
+   Eigenequation() = default;
+   virtual ~Eigenequation() = default;
 
 public:
    /// @brief Set the operator A of the eigenvalue equation
    virtual void SetOperator(const Operator & A) = 0;
 };
-  
+
 /// Abstract Complex-valued Eigenequation
 /// Defines the operator of the linear eigenvalue equation
 ///    A x_i = lambda_i x_i
@@ -40,16 +40,16 @@ public:
 class ComplexEigenequation : public Eigenequation
 {
 protected:
-  ComplexEigenequation() = default;
-  virtual ~ComplexEigenequation() = default;
+   ComplexEigenequation() = default;
+   virtual ~ComplexEigenequation() = default;
 
 public:
-  using Eigenequation::SetOperator;
-  
+   using Eigenequation::SetOperator;
+
    /// @brief Set the real and imaginary parts of the operator A
-  virtual void SetOperator(const Operator & Ar, const Operator & Ai) = 0;
+   virtual void SetOperator(const Operator & Ar, const Operator & Ai) = 0;
 };
-  
+
 /// Abstract Generalized Eigenequation
 /// Defines the operator of the linear eigenvalue equation
 ///    A x_i = lambda_i M x_i
@@ -57,8 +57,8 @@ public:
 class GenEigenequation : public Eigenequation
 {
 protected:
-  GenEigenequation() = default;
-  virtual ~GenEigenequation() = default;
+   GenEigenequation() = default;
+   virtual ~GenEigenequation() = default;
 
 public:
    /// @brief Set the mass operator M of the generalized eigenvalue equation
@@ -69,16 +69,16 @@ public:
 /// Defines the operator of the linear eigenvalue equation
 ///    A x_i = lambda_i M x_i
 /// Where the lambda_i are the eigenvalues and x_i are the eigenvectors.
-  class ComplexGenEigenequation :
-    public ComplexEigenequation, public GenEigenequation
+class ComplexGenEigenequation :
+   public ComplexEigenequation, public GenEigenequation
 {
 protected:
-  ComplexGenEigenequation() = default;
-  virtual ~ComplexGenEigenequation() = default;
+   ComplexGenEigenequation() = default;
+   virtual ~ComplexGenEigenequation() = default;
 
 public:
-  using GenEigenequation::SetMassMatrix;
-  
+   using GenEigenequation::SetMassMatrix;
+
    /// @brief Set the real and imaginary parts of the mass operator M
    virtual void SetMassMatrix(const Operator & Mr, const Operator & Mi) = 0;
 };
