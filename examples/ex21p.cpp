@@ -340,11 +340,11 @@ int main(int argc, char *argv[])
       mesh_name << "ex21p_deformed_mesh." << setfill('0') << setw(6) << myid;
       sol_name << "ex21p_displacement." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ref_out(mref_name.str().c_str());
+      ofstream mesh_ref_out(mref_name.str());
       mesh_ref_out.precision(16);
       pmesh.Print(mesh_ref_out);
 
-      ofstream mesh_out(mesh_name.str().c_str());
+      ofstream mesh_out(mesh_name.str());
       mesh_out.precision(16);
       GridFunction nodes(&fespace), *nodes_p = &nodes;
       pmesh.GetNodes(nodes);
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
       pmesh.Print(mesh_out);
       pmesh.SwapNodes(nodes_p, own_nodes);
 
-      ofstream x_out(sol_name.str().c_str());
+      ofstream x_out(sol_name.str());
       x_out.precision(16);
       x.Save(x_out);
    }

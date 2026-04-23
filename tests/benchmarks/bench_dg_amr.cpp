@@ -70,18 +70,17 @@ struct Kernel: public KernelMesh
    VectorFunctionCoefficient velocity;
 
    Kernel(int order, int N, double prob = -1, bool GLL = false)
-      :
-      KernelMesh(N, prob),
-      p(order),
-      q(2*p + (GLL?-1:3)),
-      fec(p, dim, BasisType::GaussLobatto),
-      fes(&mesh, &fec),
-      dofs(fes.GetTrueVSize()),
-      x(&fes),
-      y(&fes),
-      a(&fes),
-      mdofs(0.0),
-      velocity(dim, velocity_function)
+      : KernelMesh(N, prob),
+        p(order),
+        q(2*p + (GLL?-1:3)),
+        fec(p, dim, BasisType::GaussLobatto),
+        fes(&mesh, &fec),
+        dofs(fes.GetTrueVSize()),
+        x(&fes),
+        y(&fes),
+        a(&fes),
+        mdofs(0.0),
+        velocity(dim, velocity_function)
    {
       if (is_runnable())
       {
@@ -177,7 +176,7 @@ int main(int argc, char *argv[])
          device_config = device->second;
       }
    }
-   Device device(device_config.c_str());
+   Device device(device_config);
    device.Print();
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }

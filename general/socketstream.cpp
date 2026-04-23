@@ -91,7 +91,7 @@ int socketbuf::attach(int sd)
    return old_sd;
 }
 
-int socketbuf::open(const char hostname[], int port)
+int socketbuf::open(const std::string &hostname, int port)
 {
    struct addrinfo     hints, *res, *rp;
 
@@ -115,7 +115,7 @@ int socketbuf::open(const char hostname[], int port)
    hints.ai_next = NULL;
 
    std::string portStr = std::to_string(port);
-   int s = getaddrinfo(hostname, portStr.c_str(), &hints, &res);
+   int s = getaddrinfo(hostname.c_str(), portStr.c_str(), &hints, &res);
    if (s != 0)
    {
 #ifdef MFEM_DEBUG
@@ -771,7 +771,7 @@ int GnuTLS_socketbuf::attach(int sd)
    return old_sd;
 }
 
-int GnuTLS_socketbuf::open(const char hostname[], int port)
+int GnuTLS_socketbuf::open(const std::string &hostname, int port)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
    mfem::out << "[GnuTLS_socketbuf::open]" << std::endl;
@@ -1064,7 +1064,7 @@ socketstream::socketstream(int s, bool secure) : std::iostream(0)
    if (secure) { check_secure_socket(); }
 }
 
-int socketstream::open(const char hostname[], int port)
+int socketstream::open(const std::string &hostname, int port)
 {
    int err_flag = buf__->open(hostname, port);
    if (err_flag)

@@ -150,7 +150,7 @@ void parseVector(char * str, Vector & var)
 
 void OptionsParser::Parse()
 {
-   option_check.SetSize(options.Size());
+   option_check.SetSize(options.size());
    option_check = 0;
    for (int i = 1; i < argc; )
    {
@@ -161,9 +161,9 @@ void OptionsParser::Parse()
          return;
       }
 
-      for (int j = 0; true; j++)
+      for (size_t j = 0; true; j++)
       {
-         if (j >= options.Size())
+         if (j >= options.size())
          {
             // unrecognized option
             error_type = 2;
@@ -171,8 +171,7 @@ void OptionsParser::Parse()
             return;
          }
 
-         if (strcmp(argv[i], options[j].short_name) == 0 ||
-             strcmp(argv[i], options[j].long_name) == 0)
+         if (options[j].short_name == argv[i] || options[j].long_name == argv[i])
          {
             OptionType type = options[j].type;
 
@@ -239,7 +238,7 @@ void OptionsParser::Parse()
    }
 
    // check for missing required options
-   for (int i = 0; i < options.Size(); i++)
+   for (size_t i = 0; i < options.size(); i++)
       if (options[i].required &&
           (option_check[i] == 0 ||
            (options[i].type == ENABLE && option_check[++i] == 0)))
@@ -333,7 +332,7 @@ void OptionsParser::PrintOptions(ostream &os) const
    static const char *indent = "   ";
 
    os << "Options used:\n";
-   for (int j = 0; j < options.Size(); j++)
+   for (size_t j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 
@@ -415,7 +414,7 @@ void OptionsParser::PrintHelp(ostream &os) const
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
       << "Print this help message and exit.\n" << line_sep;
-   for (int j = 0; j < options.Size(); j++)
+   for (size_t j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 
@@ -451,7 +450,7 @@ void OptionsParser::PrintHelp(ostream &os) const
       }
       os << descr_sep;
 
-      if (options[j].description)
+      if (!options[j].description.empty())
       {
          os << options[j].description << '\n';
       }

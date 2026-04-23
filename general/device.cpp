@@ -194,7 +194,7 @@ void Device::Configure(const std::string &device, const int device_id)
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
    {
-      std::memcpy((void*)this, &Get(), sizeof(Device));
+      *this = Get();
       Get().destroy_mm = false;
       return;
    }
@@ -274,7 +274,7 @@ void Device::Configure(const std::string &device, const int device_id)
    Get().UpdateMemoryTypeAndClass(device_option);
 
    // Copy all data members from the global 'singleton_device' into '*this'.
-   if (this != &Get()) { std::memcpy((void*)this, &Get(), sizeof(Device)); }
+   if (this != &Get()) { *this = Get(); }
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
@@ -530,14 +530,14 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void CeedDeviceSetup(const char* ceed_spec)
+static void CeedDeviceSetup(const std::string &ceed_spec)
 {
 #ifdef MFEM_USE_CEED
-   CeedInit(ceed_spec, &internal::ceed);
+   CeedInit(ceed_spec.c_str(), &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
-       strcmp(ceed_spec, "/gpu/hip"))
+   if (ceed_spec != ceed_backend && ceed_spec != "/cpu/self" &&
+       ceed_spec != "/gpu/hip")
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"

@@ -519,13 +519,13 @@ int main(int argc, char *argv[])
       sol_i_name << "sol_i." << setfill('0') << setw(6) << myid;
       sol_z_name << "sol_z." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream sol_r_ofs(sol_r_name.str().c_str());
-      ofstream sol_i_ofs(sol_i_name.str().c_str());
-      ofstream sol_z_ofs(sol_z_name.str().c_str());
+      ofstream sol_r_ofs(sol_r_name.str());
+      ofstream sol_i_ofs(sol_i_name.str());
+      ofstream sol_z_ofs(sol_z_name.str());
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
       sol_z_ofs.precision(8);
