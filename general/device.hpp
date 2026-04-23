@@ -138,6 +138,7 @@ private:
    bool destroy_mm = false;
    bool mpi_gpu_aware = false;
 
+   bool switch_host_umpire_to_host = true;
    MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
    MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
