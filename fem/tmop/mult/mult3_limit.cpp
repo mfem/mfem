@@ -215,7 +215,8 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
 MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim3D, TMOP_AddMultPA_AdaptLim_3D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim3D);
 
-void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x, Vector &y) const
+void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
+                                            Vector &y) const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;

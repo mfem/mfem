@@ -204,7 +204,8 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim, TMOP_AddMultPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim);
 
-void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x, Vector &y) const
+void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
+                                            Vector &y) const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;
