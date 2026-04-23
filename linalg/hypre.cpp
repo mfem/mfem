@@ -6875,11 +6875,17 @@ HypreAME::SetOperator(const Operator & op)
       mfem_error("HypreAME::SetOperator : not HypreParMatrix!");
    }
 
+   SetOperator(*A);
+}
+
+void
+HypreAME::SetOperator(const HypreParMatrix & A)
+{
    if ( !setT )
    {
       HYPRE_Solver ams_precond_ptr = (HYPRE_Solver)*ams_precond;
 
-      ams_precond->SetupFcn()(*ams_precond,*A,NULL,NULL);
+      ams_precond->SetupFcn()(*ams_precond,A,NULL,NULL);
 
       HYPRE_AMESetAMSSolver(ame_solver, ams_precond_ptr);
    }
@@ -6893,10 +6899,16 @@ HypreAME::SetMassMatrix(const Operator & op)
    const HypreParMatrix * M = dynamic_cast<const HypreParMatrix *>(&op);
    if (M == NULL)
    {
-      mfem_error("HypreAME::SetMassOperator : not HypreParMatrix!");
+      mfem_error("HypreAME::SetMassMatrix : not HypreParMatrix!");
    }
 
-   HYPRE_ParCSRMatrix parcsr_M = *M;
+   SetMassMatrix(*M);
+}
+
+void
+HypreAME::SetMassMatrix(const HypreParMatrix & M)
+{
+   HYPRE_ParCSRMatrix parcsr_M = M;
    HYPRE_AMESetMassMatrix(ame_solver,(HYPRE_ParCSRMatrix)parcsr_M);
 }
 
@@ -6956,7 +6968,7 @@ HypreAME::StealEigenvectors()
    }
 
    // Set the local pointers to NULL so that they won't be deleted later
-   HypreParVector ** vecs = eigenvectors;
+   Vector ** vecs = (Vector**)eigenvectors;
    eigenvectors = NULL;
    multi_vec = NULL;
 
