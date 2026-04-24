@@ -25,9 +25,10 @@ class Eigenequation
 {
 protected:
    Eigenequation() = default;
-   virtual ~Eigenequation() = default;
 
 public:
+   virtual ~Eigenequation() = default;
+
    /// @brief Set the operator A of the eigenvalue equation
    virtual void SetOperator(const Operator & A) = 0;
 };
@@ -41,9 +42,10 @@ class ComplexEigenequation : public Eigenequation
 {
 protected:
    ComplexEigenequation() = default;
-   virtual ~ComplexEigenequation() = default;
 
 public:
+   virtual ~ComplexEigenequation() = default;
+
    using Eigenequation::SetOperator;
 
    /// @brief Set the real and imaginary parts of the operator A
@@ -58,9 +60,10 @@ class GenEigenequation : public Eigenequation
 {
 protected:
    GenEigenequation() = default;
-   virtual ~GenEigenequation() = default;
 
 public:
+   virtual ~GenEigenequation() = default;
+
    /// @brief Set the mass operator M of the generalized eigenvalue equation
    virtual void SetMassMatrix(const Operator & M) = 0;
 };
@@ -74,9 +77,10 @@ class ComplexGenEigenequation :
 {
 protected:
    ComplexGenEigenequation() = default;
-   virtual ~ComplexGenEigenequation() = default;
 
 public:
+   virtual ~ComplexGenEigenequation() = default;
+
    using GenEigenequation::SetMassMatrix;
 
    /// @brief Set the real and imaginary parts of the mass operator M
@@ -87,13 +91,14 @@ public:
 /// Computes eigenvalue/eigenvector pairs for the linear system
 ///    A x_i = lambda_i x_i
 /// Where the lambda_i are the eigenvalues and x_i are the eigenvectors.
-class Eigensolver
+class EigensolverBase
 {
 protected:
-   Eigensolver() = default;
-   virtual ~Eigensolver() = default;
+   EigensolverBase() = default;
 
 public:
+   virtual ~EigensolverBase() = default;
+
    /// @brief Stopping criteria based on numerical tolerance
    ///
    /// @note This may be defined differently by different solvers.
@@ -120,15 +125,43 @@ public:
 };
 
 /// Symmetric Eigensolver
-/// If A^T = A and M^T = M the linear system must have real-valued eigenvalues
+/// If A^T = A the linear system must have real-valued eigenvalues
 /// and eigenvectors.
-class SymEigensolver : public Eigensolver
+class SymEigensolver : public EigensolverBase, public Eigenequation
 {
 protected:
    SymEigensolver() = default;
-   virtual ~SymEigensolver() = default;
 
 public:
+   virtual ~SymEigensolver() = default;
+
+   /// @brief Collect the converged eigenvalues
+   ///
+   /// The length of the array should equal the number of converged eigenvalues.
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const = 0;
+
+   /// @brief Extract a single eigenvector
+   ///
+   /// The index i should be in the range [0, numConverged). The
+   virtual const Vector & GetEigenvector(unsigned int i) const = 0;
+
+   /// @brief Transfer ownership of the converged eigenvectors
+   ///
+   /// The array should contain numConverged vectors.
+   virtual Vector ** StealEigenvectors() = 0;
+};
+
+/// Symmetric Generalized Eigensolver
+/// If A^T = A and M^T = M the linear system must have real-valued eigenvalues
+/// and eigenvectors.
+class SymGenEigensolver : public EigensolverBase, public GenEigenequation
+{
+protected:
+   SymGenEigensolver() = default;
+
+public:
+   virtual ~SymGenEigensolver() = default;
+
    /// @brief Collect the converged eigenvalues
    ///
    /// The length of the array should equal the number of converged eigenvalues.
@@ -146,15 +179,50 @@ public:
 };
 
 /// Hermetian Eigensolver
-/// If A^H = A and M^H = M the linear system must have real-valued eigenvalues
+/// If A^H = A the linear system must have real-valued eigenvalues
 /// but may have complex-valued eigenvectors.
-class HermEigensolver : public Eigensolver
+class HermEigensolver : public EigensolverBase, public ComplexEigenequation
 {
 protected:
    HermEigensolver() = default;
-   virtual ~HermEigensolver() = default;
 
 public:
+   virtual ~HermEigensolver() = default;
+
+   /// @brief Collect the converged eigenvalues
+   ///
+   /// The length of the array should equal the number of converged eigenvalues.
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const = 0;
+
+   /// @brief Extract a single eigenvector
+   ///
+   /// The index i should be in the range [0, 2*numConverged). The
+   /// vectors corresponding to even indices are the real parts of the
+   /// converged eigenvectors and the odd indices correspond to the
+   /// imaginary parts.
+   virtual const Vector & GetEigenvector(unsigned int i) const = 0;
+
+   /// @brief Transfer ownership of the converged eigenvectors
+   ///
+   /// The array should contain 2*numConverged vectors with the even
+   /// indices corresponding to the real parts of the converged
+   /// eigenvectors and the odd indices corresponding to the imaginary
+   /// parts.
+   virtual Vector ** StealEigenvectors() = 0;
+};
+
+/// Hermetian Generalized Eigensolver
+/// If A^H = A and M^H = M the linear system must have real-valued eigenvalues
+/// but may have complex-valued eigenvectors.
+class HermGenEigensolver :
+   public EigensolverBase, public ComplexGenEigenequation
+{
+protected:
+   HermGenEigensolver() = default;
+
+public:
+   virtual ~HermGenEigensolver() = default;
+
    /// @brief Collect the converged eigenvalues
    ///
    /// The length of the array should equal the number of converged eigenvalues.
@@ -180,13 +248,53 @@ public:
 /// Non-Symmetric Eigensolver
 /// For general real-valued operators A the linear system must have
 /// eigenvalues and eigenvectors which form complex conjugate pairs.
-class NonSymEigensolver : public Eigensolver
+class NonSymEigensolver : public EigensolverBase, public Eigenequation
 {
 protected:
    NonSymEigensolver() = default;
-   virtual ~NonSymEigensolver() = default;
 
 public:
+   virtual ~NonSymEigensolver() = default;
+
+   /// @brief Collect the converged eigenvalues
+   ///
+   /// The length of the array should be the number of converged
+   /// eigenvalues. The complex-valued eigenvalues can be constructed
+   /// as: lambda_{2*j} = eig[2*j]+i*eig[2*j+1] and
+   /// lambda_{2*j+1} = eig[2*j]-i*eig[2*j+1]
+   /// With j in the range [0, numConverged/2)
+   virtual void GetEigenvalues(Array<real_t> & eig) const = 0;
+
+   /// @brief Extract a single eigenvector
+   ///
+   /// The index i should be in the range [0, numConverged). The
+   /// vectors corresponding to even indices are the real parts of the
+   /// converged eigenvectors and the odd indices correspond to the
+   /// imaginary parts. If needed, the complex conjugate pairs of
+   /// eigenvectors can be constructed in the same manner described
+   /// for the eigenvalues.
+   virtual const Vector & GetEigenvector(unsigned int i) const = 0;
+
+   /// @brief Transfer ownership of the converged eigenvectors
+   ///
+   /// The array should contain numConverged vectors with the even
+   /// indices corresponding to the real parts of the converged
+   /// eigenvectors and the odd indices corresponding to the imaginary
+   /// parts.
+   virtual Vector ** StealEigenvectors() = 0;
+};
+
+/// Non-Symmetric Eigensolver
+/// For general real-valued operators A and M the linear system must have
+/// eigenvalues and eigenvectors which form complex conjugate pairs.
+class NonSymGenEigensolver : public EigensolverBase, public GenEigenequation
+{
+protected:
+   NonSymGenEigensolver() = default;
+
+public:
+   virtual ~NonSymGenEigensolver() = default;
+
    /// @brief Collect the converged eigenvalues
    ///
    /// The length of the array should be the number of converged
@@ -217,13 +325,49 @@ public:
 
 /// Complex Eigensolver
 /// Can have arbitrary complex-valued eigenvalues and eigenvectors
-class ComplexEigensolver : public NonSymEigensolver
+class ComplexEigensolver : public EigensolverBase, public ComplexEigenequation
 {
 protected:
    ComplexEigensolver() = default;
-   virtual ~ComplexEigensolver() = default;
 
 public:
+   virtual ~ComplexEigensolver() = default;
+
+   /// @brief Collect the converged eigenvalues
+   ///
+   /// The length of the array should be twice the number of converged
+   /// eigenvalues. The complex-valued eigenvalues can be constructed
+   /// as: lambda_j = eig[2*j]+i*eig[2*j+1]
+   virtual void GetEigenvalues(Array<real_t> & eig) const = 0;
+
+   /// @brief Extract a single eigenvector
+   ///
+   /// The index i should be in the range [0, 2*numConverged). The
+   /// vectors corresponding to even indices are the real parts of the
+   /// converged eigenvectors and the odd indices correspond to the
+   /// imaginary parts.
+   virtual const Vector & GetEigenvector(unsigned int i) const = 0;
+
+   /// @brief Transfer ownership of the converged eigenvectors
+   ///
+   /// The array should contain 2*numConverged vectors with the even
+   /// indices corresponding to the real parts of the converged
+   /// eigenvectors and the odd indices corresponding to the imaginary
+   /// parts.
+   virtual Vector ** StealEigenvectors() = 0;
+};
+
+/// Complex Generalized Eigensolver
+/// Can have arbitrary complex-valued eigenvalues and eigenvectors
+class ComplexGenEigensolver :
+   public EigensolverBase, public ComplexGenEigenequation
+{
+protected:
+   ComplexGenEigensolver() = default;
+
+public:
+   virtual ~ComplexGenEigensolver() = default;
+
    /// @brief Collect the converged eigenvalues
    ///
    /// The length of the array should be twice the number of converged
