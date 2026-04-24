@@ -72,7 +72,7 @@ extern "C" {
 namespace mfem
 {
 
-class ArPackSym : public Eigensolver
+class ArPackSym : public SymEigensolver, public GenEigenequation
 {
 public:
 
@@ -111,6 +111,8 @@ public:
    virtual void SetMassMatrix(const Operator & M);
 
    void Solve();
+
+   virtual int GetNumConverged() const { return iparam_[4]; }
 
    /// Collect the converged eigenvalues
    virtual void GetEigenvalues(Array<real_t> & eigenvalues) const;

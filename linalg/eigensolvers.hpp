@@ -126,9 +126,10 @@ class SymEigensolver : public Eigensolver
 {
 protected:
    SymEigensolver() = default;
-   virtual ~SymEigensolver() = default;
 
 public:
+   virtual ~SymEigensolver() = default;
+
    /// @brief Collect the converged eigenvalues
    ///
    /// The length of the array should equal the number of converged eigenvalues.

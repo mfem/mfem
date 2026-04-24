@@ -600,7 +600,7 @@ ArPackSym::reverseComm()
 
    nlocf = this->computeNlocf();
 
-   ncv_ = max(2*nev_,20);
+   ncv_ = max(2*nev_+1,20);
 
    int nevf = nev_;
    int ncvf = ncv_;
@@ -614,7 +614,7 @@ ArPackSym::reverseComm()
    // the following vectors are work space for PDSAUPD
    resid_  = new real_t[nlocf];      // initial vector, and residual vector
    workd_  = new real_t[3*nlocf];    // workspace for reverse communication
-   lworkl_ = ncvf * (ncvf + 8);      // length of workl_ array
+   lworkl_ = 3 * ncvf * (ncvf + 2);  // length of workl_ array
    workl_  = new real_t[lworkl_];    // workspace for tridiagnonal system
 
    ////////////////////////////////////////////////////////////////////////////
@@ -724,7 +724,7 @@ ArPackSym::Solve()
 
 void ArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
 {
-   eigenvalues.SetSize(nev_);
+   eigenvalues.SetSize(iparam_[4]);
    eigenvalues = NAN;
 
    for (int i=0; i<iparam_[4]; i++)

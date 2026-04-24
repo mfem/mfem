@@ -310,21 +310,27 @@ int main(int argc, char *argv[])
       {
          precond = strumpack;
       }
+   }
 #endif
 #ifdef MFEM_USE_MKL_CPARDISO
-      if (cpardiso_solver)
+   else if (cpardiso_solver)
+   {
+      auto cpardiso = new CPardisoSolver(A->GetComm());
+      cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+      cpardiso->SetPrintLevel(1);
+      cpardiso->SetOperator(*A);
+      if (arp_solver)
       {
-         auto cpardiso = new CPardisoSolver(A->GetComm());
-         cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
-         cpardiso->SetPrintLevel(1);
-         cpardiso->SetOperator(*A);
+         solver = cpardiso;
+      }
+      else
+      {
          precond = cpardiso;
       }
-#endif
    }
 #endif
 
-   Eigensolver * eig_solver = NULL;
+   SymEigensolver * eig_solver = NULL;
 
    if (lob_solver)
    {
