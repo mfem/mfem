@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+#
+# Example usage:
+#   Serial (uses ./reconstruction automatically):
+#           python run_convergence_study.py -m element_average_reconstruction
+#   Parallel (uses ./p-reconstruction automatically):
+#           python run_convergence_study.py --np 4
+#   Print cached results only:
+#           python run_convergence_study.py --print-only
+#
+#   Print argument options:
+#           python run_convergence_study.py --help
+
 import subprocess
 import re
 import numpy as np
@@ -9,18 +21,30 @@ import json
 import os
 import argparse
 
-def run_reconstruction(refinement_level, ho_value, method):
+def run_reconstruction(refinement_level, ho_value, method,
+                       executable='./reconstruction', np_count=1):
     """
     Run the reconstruction executable with given refinement level, ho value,
     and reconstruction method.
     Returns the L2 error value.
     """
     try:
+        # Build the command
+        cmd = [executable, '-r', str(refinement_level),
+               '-f', 'exponential',
+               '-ho', str(ho_value)]
+
+        # Only add -m flag if executable is not p-reconstruction
+        if 'p-reconstruction' not in executable:
+            cmd.extend(['-m', method])
+
+        cmd.append('-no-vis')
+        if np_count > 1:
+            cmd = ['mpirun', '-np', str(np_count)] + cmd
+
         # Run the executable
         result = subprocess.run(
-            ['./reconstruction', '-r', str(refinement_level),
-             '-f', 'exponential',
-             '-ho', str(ho_value), '-m', method],
+            cmd,
             capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
@@ -217,7 +241,10 @@ def main():
     """
     Main function to run convergence study.
     """
-    parser = argparse.ArgumentParser(description="Run or print reconstruction convergence study results.")
+    parser = argparse.ArgumentParser(
+        description="Run or print reconstruction convergence study results.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument(
         '--print-only',
         action='store_true',
@@ -226,13 +253,35 @@ def main():
     )
     parser.add_argument(
         '-m', '--method',
-        default='element_average_reconstruction',
-        help='Method passed to ./reconstruction via -m (default: element_average_reconstruction).'
+        default='LOR_reconstruction',
+        help='Method passed to ./reconstruction via -m.'
+    )
+    parser.add_argument(
+        '--executable',
+        default=None,
+        help='Path to the reconstruction executable. Auto-selects ./reconstruction (serial) or ./p-reconstruction (parallel based on --np).'
+    )
+    parser.add_argument(
+        '--np',
+        type=int,
+        default=None,
+        help='Number of MPI processes. If provided and > 1, runs with mpirun.'
     )
     cli_args = parser.parse_args()
 
+    # Determine executable based on --np if not explicitly provided
+    if cli_args.executable is None:
+        if cli_args.np is not None and cli_args.np > 1:
+            cli_args.executable = './p-reconstruction'
+        else:
+            cli_args.executable = './reconstruction'
+
+    # Set np to 1 if not provided
+    if cli_args.np is None:
+        cli_args.np = 1
+
     # Refinement levels to test
-    refinement_levels = [0, 1, 2, 3]
+    refinement_levels = [0, 1, 2, 3, 4, 5, 6]
     
     # ho values to test
     ho_values = [1, 3]
@@ -274,7 +323,8 @@ def main():
             errors = []
             for r in refinement_levels:
                 print(f"\nRunning refinement level {r} with ho {ho}...")
-                error = run_reconstruction(r, ho, cli_args.method)
+                error = run_reconstruction(r, ho, cli_args.method,
+                                           cli_args.executable, cli_args.np)
                 
                 if error is not None:
                     errors.append(error)

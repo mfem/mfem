@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	reconstruction tmop-check-metric tmop-metric-magnitude compare-dc
 
-PAR_MINIAPPS = nodal-transfer plor-transfer
+PAR_MINIAPPS = nodal-transfer plor-transfer p-reconstruction
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
