@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
       pmesh->Print(adios2output);
       for (int i=0; i<nev; i++)
       {
-         x = lobpcg->GetEigenvector(i);
+         x.Distribute(lobpcg->GetEigenvector(i));
          // x is a temporary that must be saved immediately
          x.Save(adios2output, "mode_" + std::to_string(i));
       }
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
          }
 
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = lobpcg->GetEigenvector(i);
+         x.Distribute(lobpcg->GetEigenvector(i));
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << x << flush
