@@ -25,6 +25,13 @@ namespace mfem
 namespace bin_io
 {
 
+/// Enum to specify if values should be read in binary or ASCII format.
+enum BinaryOrASCII : bool
+{
+   ASCII = false,
+   BINARY = true
+};
+
 /// Write 'value' to stream.
 template<typename T>
 inline void write(std::ostream& os, T value)
@@ -72,6 +79,39 @@ void DecodeBase64(const char *src, size_t len, std::vector<char> &buf);
 ///
 /// This is equal to 4*nbytes/3, rounded up to the nearest multiple of 4.
 size_t NumBase64Chars(size_t nbytes);
+
+/// @brief Read a value of type @a T from the input stream, in either binary or
+/// ASCII format, depending on the value of @a binary.
+template <typename T>
+T ReadBinaryOrASCII(std::istream &input, BinaryOrASCII binary)
+{
+   if (binary)
+   {
+      return read<T>(input);
+   }
+   else
+   {
+      T val;
+      input >> val;
+      if (input.peek() == '\n') { input.get(); } // Chomp up to one newline
+      return val;
+   }
+}
+
+/// @brief Skip @a num values of type @a T from the input stream, in either
+/// binary or ASCII format, depending on the value of @a binary.
+template <typename T>
+void Skip(std::istream &input, int num, BinaryOrASCII binary)
+{
+   if (binary)
+   {
+      input.ignore(sizeof(T) * num);
+   }
+   else
+   {
+      for (int i = 0; i < num; ++i) { ReadBinaryOrASCII<T>(input, ASCII); }
+   }
+}
 
 } // namespace mfem::bin_io
 

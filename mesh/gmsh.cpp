@@ -14,6 +14,7 @@
 #include "../general/hash_util.hpp"
 
 using namespace std;
+using namespace mfem::bin_io;
 
 namespace mfem
 {
@@ -496,13 +497,6 @@ static int NumNodesInElement(Geometry::Type geom, int order)
    return GlobGeometryRefiner.Refine(geom, order, 1)->RefPts.GetNPoints();
 }
 
-/// Enum to specify if values should be read in binary or ASCII format.
-enum BinaryOrASCII : bool
-{
-   ASCII = false,
-   BINARY = true
-};
-
 /// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };
 
@@ -574,15 +568,15 @@ public:
 
    GmshReader(istream &input_) : input(input_)
    {
-      const string version_str = ReadBinaryOrASCII<string>(ASCII);
+      const string version_str = ReadBinaryOrASCII<string>(input, ASCII);
       MFEM_VERIFY(version_str == "2.2" || version_str == "4.1",
                   "Unsupported Gmsh file version. Supported versions: 2.2 and 4.1");
       version = version_str == "2.2" ? GmshVersion::V2_2 : GmshVersion::V4_1;
-      is_binary = BinaryOrASCII(ReadBinaryOrASCII<bool>(ASCII));
-      data_size = ReadBinaryOrASCII<int>(ASCII);
+      is_binary = BinaryOrASCII(ReadBinaryOrASCII<bool>(input, ASCII));
+      data_size = ReadBinaryOrASCII<int>(input, ASCII);
       if (is_binary)
       {
-         const int one = ReadBinaryOrASCII<int>(BINARY);
+         const int one = ReadBinaryOrASCII<int>(input, BINARY);
          MFEM_VERIFY(one == 1, "Incompatible endianness.");
       }
    }
@@ -783,36 +777,6 @@ public:
       }
    }
 
-   /// Read a value of type @a T from the input stream, in either binary or ASCII
-   /// format, depending on the value of @a binary.
-   template <typename T>
-   T ReadBinaryOrASCII(BinaryOrASCII binary)
-   {
-      if (binary)
-      {
-         return bin_io::read<T>(input);
-      }
-      else
-      {
-         T val;
-         input >> val;
-         if (input.peek() == '\n') { input.get(); } // Chomp up to one newline
-         return val;
-      }
-   }
-
-   /// Skip @a num values of type @a T from the input stream, in either binary or
-   /// ASCII format, depending on the value of @a binary.
-   template <typename T>
-   void Skip(int num, BinaryOrASCII binary)
-   {
-      if (binary) { input.ignore(sizeof(T) * num); }
-      else
-      {
-         for (int i = 0; i < num; ++i) { ReadBinaryOrASCII<T>(binary); }
-      }
-   }
-
    istream &GetInputStream() { return input; }
 };
 
@@ -902,11 +866,11 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
       if (section == "PhysicalNames")
       {
          // $PhysicalNames is always encoded in ASCII
-         const int n_phys_names = g.ReadBinaryOrASCII<int>(ASCII);
+         const int n_phys_names = ReadBinaryOrASCII<int>(input, ASCII);
          for (int i = 0; i < n_phys_names; ++i)
          {
-            const int phys_name_dim = g.ReadBinaryOrASCII<int>(ASCII);
-            const int phys_name_tag = g.ReadBinaryOrASCII<int>(ASCII);
+            const int phys_name_dim = ReadBinaryOrASCII<int>(input, ASCII);
+            const int phys_name_tag = ReadBinaryOrASCII<int>(input, ASCII);
             const string phys_name = ReadQuotedString(input);
 
             g.phys_names_by_dim[phys_name_dim][phys_name_tag] = phys_name;
@@ -914,10 +878,10 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
       }
       else if (section == "Entities")
       {
-         const size_t n_points = g.ReadBinaryOrASCII<size_t>(b);
-         const size_t n_curves = g.ReadBinaryOrASCII<size_t>(b);
-         const size_t n_surfaces = g.ReadBinaryOrASCII<size_t>(b);
-         const size_t n_volumes = g.ReadBinaryOrASCII<size_t>(b);
+         const size_t n_points = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_curves = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_surfaces = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_volumes = ReadBinaryOrASCII<size_t>(input, b);
 
          const size_t n_entities[4] = {n_points, n_curves, n_surfaces, n_volumes};
 
@@ -929,12 +893,12 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
          {
             for (size_t i = 0; i < n_entities[d]; ++i)
             {
-               const int tag = g.ReadBinaryOrASCII<int>(b);
-               g.Skip<double>(d == 0 ? 3 : 6, b); // Skip X, Y, Z
-               const size_t n_phys_tags = g.ReadBinaryOrASCII<size_t>(b);
+               const int tag = ReadBinaryOrASCII<int>(input, b);
+               Skip<double>(input, d == 0 ? 3 : 6, b); // Skip X, Y, Z
+               const size_t n_phys_tags = ReadBinaryOrASCII<size_t>(input, b);
                for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
                {
-                  const int phys_tag = g.ReadBinaryOrASCII<int>(b);
+                  const int phys_tag = ReadBinaryOrASCII<int>(input, b);
                   // Keep track of codim-0 and codim-1 entities.
                   if (d == Dim || d == Dim - 1)
                   {
@@ -943,17 +907,17 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
                }
                if (d > 0)
                {
-                  const size_t n_bounding = g.ReadBinaryOrASCII<size_t>(b);
-                  g.Skip<int>(n_bounding, b);
+                  const size_t n_bounding = ReadBinaryOrASCII<size_t>(input, b);
+                  Skip<int>(input, n_bounding, b);
                }
             }
          }
       }
       else if (section == "Nodes")
       {
-         const size_t n_blocks = g.ReadBinaryOrASCII<size_t>(b);
-         const size_t n_nodes = g.ReadBinaryOrASCII<size_t>(b);
-         g.Skip<size_t>(2, b); // Skip min and max tags
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, b);
+         Skip<size_t>(input, 2, b); // Skip min and max tags
 
          NumOfVertices = n_nodes;
          vertices.SetSize(n_nodes);
@@ -963,23 +927,23 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
 
          for (size_t iblock = 0; iblock < n_blocks; ++iblock)
          {
-            g.Skip<int>(2, b); // Skip entity dim and tag.
-            const int is_parametric = g.ReadBinaryOrASCII<int>(b);
-            const size_t n_nodes_in_block = g.ReadBinaryOrASCII<size_t>(b);
+            Skip<int>(input, 2, b); // Skip entity dim and tag.
+            const int is_parametric = ReadBinaryOrASCII<int>(input, b);
+            const size_t n_nodes_in_block = ReadBinaryOrASCII<size_t>(input, b);
 
             MFEM_VERIFY(!is_parametric, "Parametric nodes not supported.");
 
             vector<size_t> node_tags(n_nodes_in_block);
             for (size_t i = 0; i < n_nodes_in_block; ++i)
             {
-               const size_t node_tag = g.ReadBinaryOrASCII<size_t>(b);
+               const size_t node_tag = ReadBinaryOrASCII<size_t>(input, b);
                node_tags[i] = node_tag;
             }
             for (size_t i = 0; i < n_nodes_in_block; ++i)
             {
                for (int d = 0; d < 3; ++d)
                {
-                  c[d] = g.ReadBinaryOrASCII<double>(b);
+                  c[d] = ReadBinaryOrASCII<double>(input, b);
                   g.bb_min[d] = min(g.bb_min[d], c[d]);
                   g.bb_max[d] = max(g.bb_max[d], c[d]);
                }
@@ -992,19 +956,19 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
       }
       else if (section == "Elements")
       {
-         const size_t n_blocks = g.ReadBinaryOrASCII<size_t>(b);
-         g.Skip<size_t>(3, b); // Skip n_elements and min/max tags.
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
+         Skip<size_t>(input, 3, b); // Skip n_elements and min/max tags.
 
          for (size_t iblock = 0; iblock < n_blocks; ++iblock)
          {
-            const int entity_dim = g.ReadBinaryOrASCII<int>(b);
-            const int entity_tag = g.ReadBinaryOrASCII<int>(b);
-            const int element_type = g.ReadBinaryOrASCII<int>(b);
-            const size_t n_elements = g.ReadBinaryOrASCII<size_t>(b);
+            const int entity_dim = ReadBinaryOrASCII<int>(input, b);
+            const int entity_tag = ReadBinaryOrASCII<int>(input, b);
+            const int element_type = ReadBinaryOrASCII<int>(input, b);
+            const size_t n_elements = ReadBinaryOrASCII<size_t>(input, b);
 
             for (size_t ie = 0; ie < n_elements; ++ie)
             {
-               g.Skip<size_t>(1, b); // Skip element tag
+               Skip<size_t>(input, 1, b); // Skip element tag
                const auto [geom, el_order] = g.GetGeometryAndOrder(element_type);
 
                if (g.mesh_order < 0) { g.mesh_order = el_order; }
@@ -1015,7 +979,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
                vector<size_t> node_tags(n_elem_nodes);
                for (int inode = 0; inode < n_elem_nodes; ++inode)
                {
-                  node_tags[inode] = g.ReadBinaryOrASCII<size_t>(b);
+                  node_tags[inode] = ReadBinaryOrASCII<size_t>(input, b);
                }
 
                // We only add codim-0 and codim-1 elements.
@@ -1032,7 +996,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
       }
       else if (section == "Periodic")
       {
-         const size_t n_periodic = g.ReadBinaryOrASCII<size_t>(b);
+         const size_t n_periodic = ReadBinaryOrASCII<size_t>(input, b);
          if (n_periodic == 0) { continue; }
 
          g.periodic = true;
@@ -1041,14 +1005,14 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g)
 
          for (size_t i = 0; i < n_periodic; ++i)
          {
-            g.Skip<int>(3, b); // Skip entity information
-            const size_t n_affine = g.ReadBinaryOrASCII<size_t>(b);
-            g.Skip<double>(n_affine, b); // Skip affine information
-            const size_t n_nodes = g.ReadBinaryOrASCII<size_t>(b);
+            Skip<int>(input, 3, b); // Skip entity information
+            const size_t n_affine = ReadBinaryOrASCII<size_t>(input, b);
+            Skip<double>(input, n_affine, b); // Skip affine information
+            const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, b);
             for (size_t j = 0; j < n_nodes; ++j)
             {
-               const size_t node_num = g.ReadBinaryOrASCII<size_t>(b);
-               const size_t primary_node_num = g.ReadBinaryOrASCII<size_t>(b);
+               const size_t node_num = ReadBinaryOrASCII<size_t>(input, b);
+               const size_t primary_node_num = ReadBinaryOrASCII<size_t>(input, b);
                g.v2v[node_num - 1] = int(primary_node_num - 1);
             }
          }
@@ -1070,15 +1034,15 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
       section = GoToNextSection(input);
       if (section == "Nodes")
       {
-         NumOfVertices = g.ReadBinaryOrASCII<int>(ASCII);
+         NumOfVertices = ReadBinaryOrASCII<int>(input, ASCII);
          vertices.SetSize(NumOfVertices);
          double c[3];
          for (int v = 0; v < NumOfVertices; ++v)
          {
-            const int node_num = g.ReadBinaryOrASCII<int>(b);
+            const int node_num = ReadBinaryOrASCII<int>(input, b);
             for (int d = 0; d < 3; ++d)
             {
-               c[d] = g.ReadBinaryOrASCII<double>(b);
+               c[d] = ReadBinaryOrASCII<double>(input, b);
                g.bb_min[d] = min(g.bb_min[d], c[d]);
                g.bb_max[d] = max(g.bb_max[d], c[d]);
             }
@@ -1091,7 +1055,7 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
       }
       else if (section == "Elements")
       {
-         const int num_elements = g.ReadBinaryOrASCII<int>(ASCII);
+         const int num_elements = ReadBinaryOrASCII<int>(input, ASCII);
          int num_el_read = 0;
 
          vector<vector<unique_ptr<Element>>> elems_by_dim(4);
@@ -1111,25 +1075,25 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
             if (b)
             {
                // Header
-               const int el_type  = g.ReadBinaryOrASCII<int>(BINARY);
-               const int n_els  = g.ReadBinaryOrASCII<int>(BINARY);
-               const int n_tags = g.ReadBinaryOrASCII<int>(BINARY);
+               const int el_type  = ReadBinaryOrASCII<int>(input, BINARY);
+               const int n_els  = ReadBinaryOrASCII<int>(input, BINARY);
+               const int n_tags = ReadBinaryOrASCII<int>(input, BINARY);
                const auto [geom, el_order] = g.GetGeometryAndOrder(el_type);
                const int n_el_nodes = NumNodesInElement(geom, el_order);
                vector<int> el_nodes(n_el_nodes);
                // Element blocks
                for (int e = 0; e < n_els; ++e)
                {
-                  g.Skip<int>(1, BINARY); // Skip element number
+                  Skip<int>(input, 1, BINARY); // Skip element number
                   int el_phys_tag = 0;
                   if (n_tags > 0)
                   {
-                     el_phys_tag = g.ReadBinaryOrASCII<int>(BINARY);
-                     g.Skip<int>(n_tags - 1, BINARY);
+                     el_phys_tag = ReadBinaryOrASCII<int>(input, BINARY);
+                     Skip<int>(input, n_tags - 1, BINARY);
                   }
                   for (int i = 0; i < n_el_nodes; ++i)
                   {
-                     el_nodes[i] = g.ReadBinaryOrASCII<int>(BINARY);
+                     el_nodes[i] = ReadBinaryOrASCII<int>(input, BINARY);
                   }
                   add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
                   num_el_read += 1;
@@ -1137,21 +1101,21 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
             }
             else
             {
-               g.Skip<int>(1, ASCII); // Skip element number
-               const int el_type = g.ReadBinaryOrASCII<int>(ASCII);
-               const int n_tags = g.ReadBinaryOrASCII<int>(ASCII);
+               Skip<int>(input, 1, ASCII); // Skip element number
+               const int el_type = ReadBinaryOrASCII<int>(input, ASCII);
+               const int n_tags = ReadBinaryOrASCII<int>(input, ASCII);
                int el_phys_tag = 0;
                if (n_tags > 0)
                {
-                  el_phys_tag = g.ReadBinaryOrASCII<int>(ASCII);
-                  g.Skip<int>(n_tags - 1, ASCII);
+                  el_phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
+                  Skip<int>(input, n_tags - 1, ASCII);
                }
                const auto [geom, el_order] = g.GetGeometryAndOrder(el_type);
                const int n_el_nodes = NumNodesInElement(geom, el_order);
                vector<int> el_nodes(n_el_nodes);
                for (int i = 0; i < n_el_nodes; ++i)
                {
-                  el_nodes[i] = g.ReadBinaryOrASCII<int>(ASCII);
+                  el_nodes[i] = ReadBinaryOrASCII<int>(input, ASCII);
                }
                add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
                num_el_read += 1;
@@ -1177,17 +1141,17 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
       }
       else if (section == "PhysicalNames")
       {
-         const int num_names = g.ReadBinaryOrASCII<int>(ASCII);
+         const int num_names = ReadBinaryOrASCII<int>(input, ASCII);
          for (int i = 0; i < num_names; ++i)
          {
-            const int phys_dim = g.ReadBinaryOrASCII<int>(ASCII);
-            const int phys_tag = g.ReadBinaryOrASCII<int>(ASCII);
+            const int phys_dim = ReadBinaryOrASCII<int>(input, ASCII);
+            const int phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
             g.phys_names_by_dim[phys_dim][phys_tag] = ReadQuotedString(input);
          }
       }
       else if (section == "Periodic")
       {
-         const int n_periodic_entities = g.ReadBinaryOrASCII<int>(ASCII);
+         const int n_periodic_entities = ReadBinaryOrASCII<int>(input, ASCII);
          if (n_periodic_entities == 0) { continue; }
 
          g.periodic = true;
@@ -1196,10 +1160,10 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
 
          for (int i = 0; i < n_periodic_entities; i++)
          {
-            g.Skip<int>(3, ASCII); // Skip dimension, tag, and master tag
+            Skip<int>(input, 3, ASCII); // Skip dimension, tag, and master tag
             // Next section might be "Affine"; if so, skip.
             auto pos = input.tellg();
-            if (g.ReadBinaryOrASCII<string>(ASCII) == "Affine")
+            if (ReadBinaryOrASCII<string>(input, ASCII) == "Affine")
             {
                string line;
                getline(input, line);
@@ -1209,11 +1173,11 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g)
                input.clear();
                input.seekg(pos);
             }
-            const int n_nodes = g.ReadBinaryOrASCII<int>(ASCII);
+            const int n_nodes = ReadBinaryOrASCII<int>(input, ASCII);
             for (int j = 0; j < n_nodes; ++j)
             {
-               const int node_num = g.ReadBinaryOrASCII<int>(ASCII);
-               const int primary_node_num = g.ReadBinaryOrASCII<int>(ASCII);
+               const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
+               const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
                g.v2v[node_num - 1] = primary_node_num - 1;
             }
          }
