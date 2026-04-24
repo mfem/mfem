@@ -19,7 +19,7 @@ using namespace mfem;
 namespace pa_kernels
 {
 
-template <int DIM>
+template<int DIM>
 void test_nl_convection_pa_grad(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -36,7 +36,8 @@ void test_nl_convection_pa_grad(const char *filename, int p)
    dx.Randomize(0x9e3779b9);
 
    ConstantCoefficient const_coeff(M_PI);
-   FunctionCoefficient funct_coeff([](const Vector &x) { return M_1_PI + x[0]*x[0]; });
+   FunctionCoefficient funct_coeff([](const Vector &x)
+   { return M_1_PI + x[0] * x[0]; });
 
    NonlinearForm nlf_fa(&fes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
@@ -66,6 +67,15 @@ void test_nl_convection_pa_grad(const char *filename, int p)
       y_fa -= y_pa;
       REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
    }
+
+   SECTION("Diagonal")
+   {
+      Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+      dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(diag_fa);
+      nlf_pa.GetGradient(x).AssembleDiagonal(diag_pa);
+      diag_fa -= diag_pa;
+      REQUIRE(diag_fa.Norml2() == MFEM_Approx(0.0));
+   }
 }
 
 TEST_CASE("NL Convection PA Gradient",
@@ -77,42 +87,40 @@ TEST_CASE("NL Convection PA Gradient",
    if (static auto done = false; !std::exchange(done, true))
    {
       using Grad = QuadratureInterpolator::GradKernels;
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,2,7>::Add();
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,3,7>::Add();
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,4,8>::Add();
-      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,2,7>::Add();
-      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,3,7>::Add();
-      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,3,8>::Add();
-      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,4,9>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 2, 7>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 3, 7>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 4, 8>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 3, 7>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 3, 8>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 9>::Add();
    }
 
    SECTION("2D")
    {
-      const auto filename2d =
-         all_tests ?
-         GENERATE("../../data/star-q2.mesh",
-                  "../../data/star-q3.mesh",
-                  "../../data/rt-2d-q3.mesh",
-                  "../../data/inline-quad.mesh",
-                  "../../data/periodic-square.mesh"):
-         GENERATE("../../data/inline-quad.mesh",
-                  "../../data/periodic-square.mesh");
+      const auto filename2d = all_tests
+                                 ? GENERATE("../../data/star-q2.mesh",
+                                            "../../data/star-q3.mesh",
+                                            "../../data/rt-2d-q3.mesh",
+                                            "../../data/inline-quad.mesh",
+                                            "../../data/periodic-square.mesh")
+                                 : GENERATE("../../data/inline-quad.mesh",
+                                            "../../data/periodic-square.mesh");
       test_nl_convection_pa_grad<2>(filename2d, p);
    }
 
    SECTION("3D")
    {
-      const auto filename3d =
-         all_tests ?
-         GENERATE("../../data/beam-hex.mesh",
-                  "../../data/fichera.mesh",
-                  "../../data/fichera-q2.mesh",
-                  "../../data/fichera-q3.mesh",
-                  "../../data/inline-hex.mesh",
-                  "../../data/periodic-cube.mesh",
-                  "../../data/toroid-hex.mesh") :
-         GENERATE("../../data/inline-hex.mesh",
-                  "../../data/periodic-cube.mesh");
+      const auto filename3d = all_tests
+                                 ? GENERATE("../../data/beam-hex.mesh",
+                                            "../../data/fichera.mesh",
+                                            "../../data/fichera-q2.mesh",
+                                            "../../data/fichera-q3.mesh",
+                                            "../../data/inline-hex.mesh",
+                                            "../../data/periodic-cube.mesh",
+                                            "../../data/toroid-hex.mesh")
+                                 : GENERATE("../../data/inline-hex.mesh",
+                                            "../../data/periodic-cube.mesh");
       test_nl_convection_pa_grad<3>(filename3d, p);
    }
 }

@@ -428,6 +428,8 @@ public:
                          (int, int, int));
 
    void AddMultGradPA(const Vector &x, Vector &y) const override;
+   
+   void AssembleGradDiagonalPA(Vector&) const override;
 
    using VectorConvectionNLFAddMultGradPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
