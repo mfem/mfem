@@ -929,8 +929,7 @@ public:
 
    /// Read a value of type @a T from the input stream, in either binary or ASCII
    /// format, depending on the value of @a binary.
-   template <typename T>
-   T ReadBinaryOrASCII(BinaryOrASCII binary)
+   template <typename T> T ReadBinaryOrASCII(BinaryOrASCII binary)
    {
       if (binary)
       {
@@ -945,10 +944,9 @@ public:
       }
    }
 
-   /// Skip @a num values of type @a T from the input stream, in either binary or
-   /// ASCII format, depending on the value of @a binary.
-   template <typename T>
-   void Skip(int num, BinaryOrASCII binary)
+   /// Skip @a num values of type @a T from the input stream, in either binary
+   /// or ASCII format, depending on the value of @a binary.
+   template <typename T> void Skip(int num, BinaryOrASCII binary)
    {
       if (binary) { input.ignore(sizeof(T) * num); }
       else
