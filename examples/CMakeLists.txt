@@ -51,6 +51,13 @@ list(APPEND ALL_EXE_SRCS
   ex41.cpp
   )
 
+if (MFEM_USE_ARPACK)
+list(APPEND ALL_EXE_SRCS
+  ex11.pp
+  ex13.pp
+)
+endif()
+
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
     ex0p.cpp
