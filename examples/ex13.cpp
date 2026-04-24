@@ -28,6 +28,8 @@
 using namespace std;
 using namespace mfem;
 
+#ifdef MFEM_USE_ARPACK
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -83,7 +85,6 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   mesh->ReorientTetMesh();
 
    // 4. Define a finite element space on the mesh. Here we use the lowest
    //    order Nedelec finite elements, but we can easily switch
@@ -268,3 +269,5 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+#endif // MFEM_USE_ARPACK
