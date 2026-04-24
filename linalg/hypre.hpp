@@ -2148,7 +2148,7 @@ public:
     A. Knyazev, M. Argentati, I. Lashuk, and E. Ovtchinnikov, SISC, 29(5),
     2224-2239, 2007.
 */
-class HypreLOBPCG : public SymEigensolver, public GenEigenequation
+class HypreLOBPCG : public SymGenEigensolver
 {
 private:
    MPI_Comm comm;
@@ -2297,7 +2297,7 @@ public:
     mass matrix but it seems unlikely that this would be useful so it is not the
     default behavior.
 */
-class HypreAME : public SymEigensolver, public GenEigenequation
+class HypreAME : public SymGenEigensolver
 {
 private:
    int myid;
