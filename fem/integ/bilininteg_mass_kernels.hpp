@@ -181,6 +181,12 @@ constexpr int NBZ(int D1D)
 {
    return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
 }
+constexpr int NBZ3D(int MDQ)
+{
+   return MDQ > 0 ? std::min<int>(
+             (128 + MDQ * MDQ * MDQ - 1) / (MDQ * MDQ * MDQ), 64)
+          : 1;
+}
 }
 
 // Shared memory PA Mass Diagonal 2D kernel
@@ -804,19 +810,23 @@ void PAMassApply3D_Element(const int e,
    }
 }
 
-template<int T_D1D, int T_Q1D, bool ACCUMULATE = true>
-MFEM_HOST_DEVICE inline
-void SmemPAMassApply3D_Element(const int e,
-                               const int NE,
-                               const real_t *b_,
-                               const real_t *d_,
-                               const real_t *x_,
-                               real_t *y_,
-                               const int d1d = 0,
-                               const int q1d = 0)
+template <int T_D1D, int T_Q1D, int TBATCH, bool ACCUMULATE = true>
+MFEM_HOST_DEVICE inline void
+SmemPAMassApply3D_Element(const int e, const int NE, const real_t *b_,
+                          const real_t *d_, const real_t *x_, real_t *y_,
+                          int d1d = 0, int q1d = 0)
 {
-   constexpr int D1D = T_D1D ? T_D1D : d1d;
-   constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
+   static_assert(TBATCH > 0, "TBATCH must be positive");
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   constexpr int tbatch = TBATCH;
+   const int tidz = MFEM_THREAD_ID(z);
+#else
+   // host always batch size 1
+   constexpr int tbatch = 1;
+   constexpr int tidz = 0;
+#endif
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -829,33 +839,37 @@ void SmemPAMassApply3D_Element(const int e,
    MFEM_SHARED real_t sDQ[MQ1*MD1];
    real_t (*B)[MD1] = (real_t (*)[MD1]) sDQ;
    real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) sDQ;
-   MFEM_SHARED real_t sm0[MDQ*MDQ*MDQ];
-   MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
-   real_t (*X)[MD1][MD1]   = (real_t (*)[MD1][MD1]) sm0;
-   real_t (*DDQ)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) sm1;
-   real_t (*DQQ)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm0;
-   real_t (*QQQ)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm1;
-   real_t (*QQD)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) sm0;
-   real_t (*QDD)[MD1][MD1] = (real_t (*)[MD1][MD1]) sm1;
-   MFEM_FOREACH_THREAD(dy,y,D1D)
+   MFEM_SHARED real_t sm0[tbatch][MDQ*MDQ*MDQ];
+   MFEM_SHARED real_t sm1[tbatch][MDQ*MDQ*MDQ];
+   real_t (*X)[MD1][MD1]   = (real_t (*)[MD1][MD1]) (sm0+tidz);
+   real_t (*DDQ)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm1+tidz);
+   real_t (*DQQ)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+tidz);
+   real_t (*QQQ)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+tidz);
+   real_t (*QQD)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm0+tidz);
+   real_t (*QDD)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm1+tidz);
+   MFEM_FOREACH_THREAD(dy, y, D1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dx, x, D1D)
       {
          MFEM_UNROLL(MD1)
          for (int dz = 0; dz < D1D; ++dz)
          {
-            X[dz][dy][dx] = x(dx,dy,dz,e);
+            X[dz][dy][dx] = x(dx, dy, dz, e);
          }
       }
-      MFEM_FOREACH_THREAD(dx,x,Q1D)
+      MFEM_FOREACH_THREAD(dx, x, Q1D) { B[dx][dy] = b(dx, dy); }
+   }
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(dy, y, D1D)
       {
-         B[dx][dy] = b(dx,dy);
+         MFEM_FOREACH_THREAD(dx, x, Q1D) { B[dx][dy] = b(dx, dy); }
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(dy,y,D1D)
+   MFEM_FOREACH_THREAD(dy, y, D1D)
    {
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
          real_t u[D1D];
          MFEM_UNROLL(MD1)
@@ -880,9 +894,9 @@ void SmemPAMassApply3D_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   MFEM_FOREACH_THREAD(qy, y, Q1D)
    {
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
          real_t u[D1D];
          MFEM_UNROLL(MD1)
@@ -907,9 +921,9 @@ void SmemPAMassApply3D_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   MFEM_FOREACH_THREAD(qy, y, Q1D)
    {
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
          real_t u[Q1D];
          MFEM_UNROLL(MQ1)
@@ -929,22 +943,22 @@ void SmemPAMassApply3D_Element(const int e,
          MFEM_UNROLL(MQ1)
          for (int qz = 0; qz < Q1D; qz++)
          {
-            QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
+            QQQ[qz][qy][qx] = u[qz] * d(qx, qy, qz, e);
          }
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(di,y,D1D)
+   if (tidz == 0)
    {
-      MFEM_FOREACH_THREAD(q,x,Q1D)
+      MFEM_FOREACH_THREAD(di, y, D1D)
       {
-         Bt[di][q] = b(q,di);
+         MFEM_FOREACH_THREAD(q, x, Q1D) { Bt[di][q] = b(q, di); }
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   MFEM_FOREACH_THREAD(qy, y, Q1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dx, x, D1D)
       {
          real_t u[Q1D];
          MFEM_UNROLL(MQ1)
@@ -969,9 +983,9 @@ void SmemPAMassApply3D_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(dy,y,D1D)
+   MFEM_FOREACH_THREAD(dy, y, D1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dx, x, D1D)
       {
          real_t u[Q1D];
          MFEM_UNROLL(MQ1)
@@ -996,9 +1010,9 @@ void SmemPAMassApply3D_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(dy,y,D1D)
+   MFEM_FOREACH_THREAD(dy, y, D1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dx, x, D1D)
       {
          real_t u[D1D];
          MFEM_UNROLL(MD1)
@@ -1020,11 +1034,11 @@ void SmemPAMassApply3D_Element(const int e,
          {
             if (ACCUMULATE)
             {
-               y(dx,dy,dz,e) += u[dz];
+               y(dx, dy, dz, e) += u[dz];
             }
             else
             {
-               y(dx,dy,dz,e) = u[dz];
+               y(dx, dy, dz, e) = u[dz];
             }
          }
       }
@@ -1115,8 +1129,8 @@ inline void PAMassApply3D(const int NE,
    });
 }
 
-// Shared memory PA Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
+// Shared memory PA Mass Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0, int TBATCH=1>
 inline void SmemPAMassApply3D(const int NE,
                               const Array<real_t> &b_,
                               const Array<real_t> &bt_,
@@ -1126,6 +1140,9 @@ inline void SmemPAMassApply3D(const int NE,
                               const int d1d = 0,
                               const int q1d = 0)
 {
+   static_assert(T_D1D > 0, "T_D1D must be positive");
+   static_assert(T_Q1D > 0, "T_Q1D must be positive");
+   static_assert(TBATCH > 0, "TBATCH must be positive");
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1137,9 +1154,11 @@ inline void SmemPAMassApply3D(const int NE,
    const auto d = d_.Read();
    const auto x = x_.Read();
    auto y = y_.ReadWrite();
-   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch<T_Q1D * T_Q1D * TBATCH>(NE, Q1D, Q1D, TBATCH,
+                                                 [=] MFEM_HOST_DEVICE(int e)
    {
-      internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
+      internal::SmemPAMassApply3D_Element<T_D1D, T_Q1D, TBATCH>(e, NE, b, d, x,
+                                                                y, d1d, q1d);
    });
 }
 
@@ -1394,7 +1413,16 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
    else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
+   else if constexpr (DIM == 3)
+   {
+      constexpr int MDQ = T_D1D >= T_Q1D ? T_D1D : T_Q1D;
+      // max 64 threads in z limit in cuda and hip
+      if constexpr (MDQ > 0)
+      {
+         return internal::SmemPAMassApply3D<T_D1D, T_Q1D,
+                internal::mass::NBZ3D(MDQ)>;
+      }
+   }
    MFEM_ABORT("");
 }
 
