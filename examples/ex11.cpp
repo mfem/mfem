@@ -42,6 +42,8 @@
 using namespace std;
 using namespace mfem;
 
+#ifdef MFEM_USE_ARPACK
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -284,3 +286,5 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+#endif // MFEM_USE_ARPACK
