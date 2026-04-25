@@ -56,11 +56,8 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
 
       for (int v = 0; v < VDIM; ++v)
       {
-         const future::tensor<real_t, VDIM> e_v =
-         {
-            (v == 0) ? 1.0 : 0.0,
-            (v == 1) ? 1.0 : 0.0
-         };
+         future::tensor<real_t, VDIM> e_v = {};
+         e_v[v] = real_t(1);
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -169,12 +166,8 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
 
       for (int v = 0; v < VDIM; ++v)
       {
-         const future::tensor<real_t, VDIM> e_v =
-         {
-            (v == 0) ? 1.0 : 0.0,
-            (v == 1) ? 1.0 : 0.0,
-            (v == 2) ? 1.0 : 0.0
-         };
+         future::tensor<real_t, VDIM> e_v = {};
+         e_v[v] = real_t(1);
          for (int dz = 0; dz < D1D; ++dz)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
