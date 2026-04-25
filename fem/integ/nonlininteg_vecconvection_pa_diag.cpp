@@ -308,6 +308,8 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
    {
       if (static auto ini = false; !std::exchange(ini, true))
       {
+         VectorConvNLFGradDiagPA2D::Specialization<2, 2>::Add();
+         VectorConvNLFGradDiagPA2D::Specialization<2, 3>::Add();
          VectorConvNLFGradDiagPA2D::Specialization<3, 4>::Add();
          VectorConvNLFGradDiagPA2D::Specialization<3, 5>::Add();
          VectorConvNLFGradDiagPA2D::Specialization<4, 5>::Add();
@@ -330,6 +332,7 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
    {
       if (static auto ini = false; !std::exchange(ini, true))
       {
+         VectorConvNLFGradDiagPA3D::Specialization<2, 3>::Add();
          VectorConvNLFGradDiagPA3D::Specialization<3, 4>::Add();
          VectorConvNLFGradDiagPA3D::Specialization<3, 5>::Add();
          VectorConvNLFGradDiagPA3D::Specialization<3, 6>::Add();
