@@ -145,8 +145,8 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_diagonal.cpp
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
-  fem/test_pa_chop.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_nlvc.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
@@ -195,11 +195,7 @@ add_dependencies(unit_tests_srcs
 # All serial non-device unit tests are built into a single executable,
 # 'unit_tests'.
 mfem_add_executable(unit_tests unit_test_main.cpp)
-if (fmt_FOUND)
-    target_link_libraries(unit_tests unit_tests_srcs fmt::fmt)
-else()
-    target_link_libraries(unit_tests unit_tests_srcs)
-endif()
+target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
@@ -223,7 +219,7 @@ if (MFEM_USE_CUDA)
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests unit_tests_srcs fmt::fmt)
+    target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)

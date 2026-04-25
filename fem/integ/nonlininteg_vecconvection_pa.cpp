@@ -71,10 +71,11 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (dim == 2)
    {
       const int Q1D = q1d;
+      constexpr int VDIM = 2, DIM = 2;
       const auto W = Reshape(w_r, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
-      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, 2, 2, ne);
-      auto A = Reshape(pa_adj.Write(), 2, 2, Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, DIM, ne);
+      auto A = Reshape(pa_adj.Write(), VDIM, DIM, Q1D, Q1D, ne);
 
       mfem::forall_2D(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -101,10 +102,11 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else if (dim == 3)
    {
       const int Q1D = q1d;
+      constexpr int VDIM = 3, DIM = 3;
       const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
-      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, 3, 3, ne);
-      auto A = Reshape(pa_adj.Write(), 3, 3, Q1D, Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, VDIM, DIM, ne);
+      auto A = Reshape(pa_adj.Write(), VDIM, DIM, Q1D, Q1D, Q1D, ne);
 
       mfem::forall_3D(ne, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -170,6 +172,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       // 3D
       VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 2,4>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 2,5>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,4>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,5>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,6>::Add();
@@ -195,13 +198,13 @@ static void SmemPAConvectionNLApply2D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
-   constexpr int SDIM = 2, VDIM = 2;
+   constexpr int VDIM = 2, DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto T = Reshape(d_.Read(), VDIM, SDIM, Q1D, Q1D, NE);
+   const auto T = Reshape(d_.Read(), VDIM, DIM, Q1D, Q1D, NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
 
@@ -212,7 +215,7 @@ static void SmemPAConvectionNLApply2D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs2d_t<VDIM, SDIM, MQ1> g0, g1;
+      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1;
       kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
       kernels::internal::v_regs2d_t<VDIM, MQ1> s0, s1;
 
@@ -264,14 +267,14 @@ static void SmemPAConvectionNLApply3D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
-   constexpr int SDIM = 3, VDIM = 3;
+   constexpr int VDIM = 3, DIM = 3;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto T = Reshape(d_.Read(), VDIM, SDIM, Q1D, Q1D, Q1D, NE);
+   const auto T = Reshape(d_.Read(), VDIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
@@ -282,7 +285,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs3d_t<VDIM, SDIM, MQ1> g0, g1;
+      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
       kernels::internal::v_regs3d_t<VDIM, MQ1> s0, s1;
 

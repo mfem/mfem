@@ -20,8 +20,8 @@ namespace LO = mfem::kernels::internal::LO;
 namespace mfem
 {
 
-void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
-                                                   const FiniteElementSpace &fes)
+void VectorConvectionNLFIntegrator::AssembleGradPA(
+   const Vector &u, const FiniteElementSpace &fes)
 {
    this->pa_u = u;
    AssemblePA(fes);
@@ -30,6 +30,7 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
    {
       // 2D
       VectorConvectionNLFAddMultGradPA2D::Specialization<2, 2>::Add();
+      VectorConvectionNLFAddMultGradPA2D::Specialization<2, 3>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<3, 4>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<3, 5>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<4, 5>::Add();
@@ -38,7 +39,6 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
       VectorConvectionNLFAddMultGradPA2D::Specialization<5, 8>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<6, 8>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<7, 10>::Add();
-
       // 3D, low orders
       LOVectorConvectionNLFAddMultGradPA3D::Specialization<3>::Add();
       LOVectorConvectionNLFAddMultGradPA3D::Specialization<4>::Add();
@@ -66,16 +66,16 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const int d1d,
                                           const int q1d)
 {
-   constexpr int DIM = 2;
+   constexpr int VDIM = 2, DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto T = Reshape(a, DIM, DIM, Q1D, Q1D, ne);
-   const auto U = Reshape(u, D1D, D1D, DIM, ne);
-   const auto dU = Reshape(du, D1D, D1D, DIM, ne);
-   auto Y = Reshape(y, D1D, D1D, DIM, ne);
+   const auto T = Reshape(a, VDIM, DIM, Q1D, Q1D, ne);
+   const auto U = Reshape(u, D1D, D1D, VDIM, ne);
+   const auto dU = Reshape(du, D1D, D1D, VDIM, ne);
+   auto Y = Reshape(y, D1D, D1D, VDIM, ne);
 
-   mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D * T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
       constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
@@ -108,7 +108,9 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
          {
             // First part of the Jacobian: u·∇δu
             const future::tensor<real_t, DIM> u_val =
-            { r2[0][qy][qx], r2[1][qy][qx] };
+            {
+               r2[0][qy][qx], r2[1][qy][qx]
+            };
             const future::tensor<real_t, DIM, DIM> Q_adj =
             {
                {  { T(0, 0, qx, qy, e), T(1, 0, qx, qy, e) },
@@ -124,9 +126,10 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             const auto one = transpose(grad_dU) * (Q_adj * u_val);
 
             // Second part of the Jacobian: δu·∇u
-            const future::tensor<real_t, DIM> du_val = { r1[0][qy][qx],
-                                                         r1[1][qy][qx]
-                                                       };
+            const future::tensor<real_t, DIM> du_val =
+            {
+               r1[0][qy][qx], r1[1][qy][qx]
+            };
             const future::tensor<real_t, DIM, DIM> grad_U =
             {
                {  { g2[0][0][qy][qx], g2[1][0][qy][qx] },
@@ -157,16 +160,16 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
                                             const int d1d,
                                             const int q1d)
 {
-   constexpr int DIM = 3;
+   constexpr int VDIM = 3, DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto T = Reshape(a, DIM, DIM, Q1D, Q1D, Q1D, ne);
-   const auto U = Reshape(u, D1D, D1D, D1D, DIM, ne);
-   const auto dU = Reshape(du, D1D, D1D, D1D, DIM, ne);
-   auto Y = Reshape(y, D1D, D1D, D1D, DIM, ne);
+   const auto T = Reshape(a, VDIM, DIM, Q1D, Q1D, Q1D, ne);
+   const auto U = Reshape(u, D1D, D1D, D1D, VDIM, ne);
+   const auto dU = Reshape(du, D1D, D1D, D1D, VDIM, ne);
+   auto Y = Reshape(y, D1D, D1D, D1D, VDIM, ne);
 
-   mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D * T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
@@ -174,8 +177,8 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::v_regs3d_t<DIM, MQ1> r0, r1, r2;
-      kernels::internal::vd_regs3d_t<DIM, DIM, MQ1> g0, g1, g2;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1, r2;
+      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1, g2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
@@ -199,10 +202,12 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                // First part of the Jacobian: u·∇δu
-               const future::tensor<real_t, DIM> u_val = { r2[0][qz][qy][qx],
-                                                           r2[1][qz][qy][qx],
-                                                           r2[2][qz][qy][qx]
-                                                         };
+               const future::tensor<real_t, DIM> u_val =
+               {
+                  r2[0][qz][qy][qx],
+                  r2[1][qz][qy][qx],
+                  r2[2][qz][qy][qx]
+               };
                const future::tensor<real_t, DIM, DIM> Q_adj =
                {
                   {  {
@@ -293,24 +298,27 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
                                             real_t *y,
                                             const int q1d)
 {
-   constexpr int DIM = 3;
+   constexpr int VDIM = 3, DIM = 3;
    const int D1D = d1d, Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto A = Reshape(a, DIM, DIM, Q1D, Q1D, Q1D, ne);
-   const auto U = Reshape(u, D1D, D1D, D1D, DIM, ne);
-   const auto dU = Reshape(du, D1D, D1D, D1D, DIM, ne);
-   auto Y = Reshape(y, D1D, D1D, D1D, DIM, ne);
+   const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, Q1D, ne);
+   const auto U = Reshape(u, D1D, D1D, D1D, VDIM, ne);
+   const auto dU = Reshape(du, D1D, D1D, D1D, VDIM, ne);
+   auto Y = Reshape(y, D1D, D1D, D1D, VDIM, ne);
 
-   mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(ne, Q1D, Q1D, Q1D,
-                                      [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D<T_Q1D * T_Q1D * T_Q1D>(ne,
+                                          Q1D,
+                                          Q1D,
+                                          Q1D,
+                                          [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
-      MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][DIM][DIM];
-      MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][DIM][DIM];
+      MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][VDIM][DIM];
+      MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][VDIM][DIM];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      LO::vd_regs3d_t<DIM, DIM, MQ1> g1, g2;
+      LO::vd_regs3d_t<VDIM, DIM, MQ1> g1, g2;
       LO::d_regs3d_t<DIM, MQ1> r0, r1, r2;
 
       LO::LoadMatrix(D1D, Q1D, b, sB);
@@ -446,8 +454,7 @@ VectorConvectionNLFIntegrator::HOVectorConvectionNLFAddMultGradPA3D::Kernel()
 { return HOSmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>; }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
-VectorConvectionNLFIntegrator::HOVectorConvectionNLFAddMultGradPA3D::Fallback(
-   int, int)
-{ return HOSmemPAConvectionNLGradApply3D<>; }
+VectorConvectionNLFIntegrator::HOVectorConvectionNLFAddMultGradPA3D::Fallback
+(int, int) { return HOSmemPAConvectionNLGradApply3D<>; }
 
 } // namespace mfem

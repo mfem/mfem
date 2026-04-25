@@ -34,7 +34,7 @@ void test_nl_convection_pa_grad(const char *filename, int p)
    x.Randomize(0x100001b3);
    dx.Randomize(0x9e3779b9);
 
-   ConstantCoefficient const_coeff(M_PI);
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
    { return M_1_PI + x[0] * x[0]; });
 
@@ -81,7 +81,7 @@ TEST_CASE("NL Convection PA Gradient",
           "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
    const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(2, 3, 4);
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
 
    if (static auto done = false; !std::exchange(done, true))
    {
