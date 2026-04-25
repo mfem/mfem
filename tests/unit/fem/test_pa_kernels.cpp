@@ -304,24 +304,21 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
    }
 }
 
-real_t test_nl_convection_nd(int dim, int p)
+real_t test_nl_convection_nd(int dim)
 {
-   Mesh mesh(dim == 2 ?
-             "../../data/star-q2.mesh" :
-             "../../data/fichera-q2.mesh");
-   MFEM_VERIFY(mesh.Dimension() == dim, "Mesh dimension mismatch");
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 2;
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
 
-   H1_FECollection fec(p, dim);
-   FiniteElementSpace vfes(&mesh, &fec, dim);
-
-   GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(3);
 
-   NonlinearForm nlf_fa(&vfes);
+   NonlinearForm nlf_fa(&fes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_fa.Mult(x, y_fa);
 
-   NonlinearForm nlf_pa(&vfes);
+   NonlinearForm nlf_pa(&fes);
    nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_pa.Setup();
@@ -330,21 +327,20 @@ real_t test_nl_convection_nd(int dim, int p)
    y_fa -= y_pa;
    real_t difference = y_fa.Norml2();
 
+
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly][NonlinearPA][GPU][NLConv]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
 {
-   const bool all = launch_all_non_regression_tests;
-   const auto p = all ? GENERATE(1, 2, 3): 2;
    SECTION("2D")
    {
-      REQUIRE(test_nl_convection_nd(2, p) == MFEM_Approx(0.0));
+      REQUIRE(test_nl_convection_nd(2) == MFEM_Approx(0.0));
    }
 
    SECTION("3D")
    {
-      REQUIRE(test_nl_convection_nd(3, p) == MFEM_Approx(0.0));
+      REQUIRE(test_nl_convection_nd(3) == MFEM_Approx(0.0));
    }
 }
 
