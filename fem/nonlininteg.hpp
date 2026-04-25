@@ -414,8 +414,6 @@ public:
 
    void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
 
-   void AssembleMF(const FiniteElementSpace &fes) override;
-
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    using VectorConvectionNLFAddMultPAType =
@@ -436,6 +434,7 @@ public:
    MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA2D,
                          VectorConvectionNLFAddMultGradPAType,
                          (int, int));
+                         
    using LOVectorConvectionNLFAddMultGradPA3DType =
       void(*)(const int ne, const int d1d,
               const real_t *B, const real_t *G, const real_t *A,
@@ -447,6 +446,25 @@ public:
    MFEM_REGISTER_KERNELS(HOVectorConvectionNLFAddMultGradPA3D,
                          VectorConvectionNLFAddMultGradPAType,
                          (int, int));
+
+   void AssembleGradDiagonalPA(Vector &) const override;
+
+   using VectorConvNLFGradDiagPAType = void (*)(const int ne,
+                                                         const real_t *B,
+                                                         const real_t *G,
+                                                         const real_t *A,
+                                                         const real_t *pa_u,
+                                                         real_t *y,
+                                                         const int d1d,
+                                                         const int q1d);
+   MFEM_REGISTER_KERNELS(VectorConvNLFGradDiagPA2D,
+                         VectorConvNLFGradDiagPAType,
+                         (int, int) );
+   MFEM_REGISTER_KERNELS(VectorConvNLFGradDiagPA3D,
+                         VectorConvNLFGradDiagPAType,
+                         (int, int) );
+
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
    void AddMultMF(const Vector &x, Vector &y) const override;
 
