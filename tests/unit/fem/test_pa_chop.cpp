@@ -26,7 +26,6 @@ void test_nl_convection_pa_grad(const char *filename, int p)
 
    Mesh mesh(filename);
    MFEM_VERIFY(mesh.Dimension() == DIM, "Mesh dimension mismatch");
-   dbg("filename: {}, DIM: {}, p: {}", filename, DIM, p);
 
    H1_FECollection fec(p, DIM);
    FiniteElementSpace fes(&mesh, &fec, DIM);

@@ -306,8 +306,6 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
 
 real_t test_nl_convection_nd(int dim, int p)
 {
-   dbg("Nonlinear Convection dim: {} order: {}", dim, p);
-
    Mesh mesh(dim == 2 ?
              "../../data/star-q2.mesh" :
              "../../data/fichera-q2.mesh");
@@ -318,16 +316,6 @@ real_t test_nl_convection_nd(int dim, int p)
 
    GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
    x.Randomize(3);
-
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << std::flush;
-   }
-
-   // ConstantCoefficient rho_cc(1.0);
 
    NonlinearForm nlf_fa(&vfes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);

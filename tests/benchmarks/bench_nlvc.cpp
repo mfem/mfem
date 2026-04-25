@@ -46,18 +46,6 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    }
 }
 
-/// AlmostEqual ///////////////////////////////////////////////////////////////
-// template <class T>
-// [[nodiscard]]
-// inline constexpr std::enable_if_t<std::is_floating_point_v<T>, bool>
-// AlmostEqualEq(T a, T b, T eps_rel = 1e-10, T eps_abs = 1e-14) noexcept
-// {
-//    T diff = std::abs(a - b);
-//    if (diff <= eps_abs) { return true; }
-//    T scale = std::max(T(1), std::max(std::abs(a), std::abs(b)));
-//    return diff <= eps_rel * scale;
-// }
-
 /// Basic Kernels Specializations /////////////////////////////////////////////
 static void AddBasicKernelSpecializations()
 {
@@ -77,7 +65,7 @@ template <int DIM>
 struct VectorConvectionNLFBenchmark
 {
    const int p, c, q, n, nx, ny, nz;
-   const std::function<Mesh()> MakeMesh = [&]()
+   const std::function<Mesh()> MakeCartesianMesh = [&]()
    {
       if constexpr (DIM == 2)
       {
@@ -95,48 +83,42 @@ struct VectorConvectionNLFBenchmark
    IntegrationRules irs;
    const IntegrationRule *ir;
    ConstantCoefficient const_coeff { M_2_SQRTPI };
-   FunctionCoefficient funct_coeff { [](const Vector &x) { return M_1_PI + x[0]*x[0];} };
-   NonlinearFormIntegrator *nlfi_fa, *nlfi_pa;
-   Operator *grad_pa;
-   NonlinearForm nlf_fa, nlf_pa;
-   GridFunction x, dx, y_fa, y_pa;
+   NonlinearFormIntegrator *nlfi;
+   NonlinearForm nlf;
+   Operator *grad;
+   GridFunction x, dx, y_pa;
    Vector xe, dxe, ye;
    const int dofs;
-   const int d1d, q1d;
+   const int q1d;
    double mdofs{};
 
    VectorConvectionNLFBenchmark(int p, int side):
       p(p), c(side), q(2 * p + 3), n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)), nz(n),
-      mesh(MakeMesh()),
+      mesh(MakeCartesianMesh()),
       fec(p, DIM),
       fes(&mesh, &fec, DIM),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)),
-      // funct_coeff triggers projection, not needed for benchmark
-      nlfi_fa(new VectorConvectionNLFIntegrator(const_coeff)),
-      nlfi_pa(new VectorConvectionNLFIntegrator(const_coeff)),
-      nlf_fa(&fes),
-      nlf_pa(&fes),
+      nlfi(new VectorConvectionNLFIntegrator(const_coeff)),
+      nlf(&fes),
       x(&fes),
       dx(&fes),
-      y_fa(&fes),
       y_pa(&fes),
       dofs(fes.GetTrueVSize()),
-      d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints())
    {
       MFEM_VERIFY(q1d*q1d*(DIM == 3 ? q1d : 1) == ir->GetNPoints(), "");
 
-      nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      nlf_pa.AddDomainIntegrator(nlfi_pa);
-      nlf_pa.Setup();
+      nlf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      nlf.AddDomainIntegrator(nlfi);
+      nlf.Setup();
 
       dx.Randomize(0x9e3779b9), x.Randomize(0x100001b3);
 
-      grad_pa = &nlf_pa.GetGradient(x);
+      grad = &nlf.GetGradient(x);
 
       const Table &el2dof = fes.GetElementToDofTable();
       const int e_size = el2dof.Size_of_connections()*fes.GetVDim();
@@ -151,42 +133,42 @@ struct VectorConvectionNLFBenchmark
 
    void Setup()
    {
-      nlfi_pa->AssembleGradPA(xe, fes);
+      nlfi->AssembleGradPA(xe, fes);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
    void AddMult()
    {
-      nlf_pa.AddMult(x, y_pa);
+      nlf.AddMult(x, y_pa);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
    void AddMultPA()
    {
-      nlfi_pa->AddMultPA(xe, ye);
+      nlfi->AddMultPA(xe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
    void AddMultGrad()
    {
-      grad_pa->Mult(dx, y_pa);
+      grad->Mult(dx, y_pa);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
    void AddMultGradPA()
    {
-      nlfi_pa->AddMultGradPA(dxe, ye);
+      nlfi->AddMultGradPA(dxe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
    void AssembleGradDiagonal()
    {
-      grad_pa->AssembleDiagonal(ye);
+      grad->AssembleDiagonal(ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
@@ -230,7 +212,6 @@ RegisterVectorConvectionNLFBenchmark(AssembleGradDiagonal,2);
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
-   dbg();
    AddBasicKernelSpecializations();
 
    bm::ConsoleReporter CR;
