@@ -17,37 +17,37 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
-                                             const real_t *adj_t,
+                                             const real_t *a,
                                              const real_t *u,
                                              real_t *de,
                                              const int d1d = 0,
                                              const int q1d = 0)
 {
-   constexpr int DIM = 2, VDIM = 2;
+   constexpr int SDIM = 2, VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
-   const auto T = Reshape(adj_t, DIM, DIM, Q1D, Q1D, NE);
+   const auto A = Reshape(a, VDIM, SDIM, Q1D, Q1D, NE);
    const auto U = Reshape(u, D1D, D1D, VDIM, NE);
    auto D = Reshape(de, D1D, D1D, VDIM, NE);
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : 16;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 16;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
       MFEM_SHARED real_t sM[3][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
       kernels::internal::v_regs2d_t<3, MQ1> qc;
       kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r2;
-      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g2;
+      kernels::internal::vd_regs2d_t<VDIM, SDIM, MQ1> g0, g2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
@@ -60,7 +60,7 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
 
       for (int v = 0; v < VDIM; ++v)
       {
-         const future::tensor<real_t, DIM> e_v =
+         const future::tensor<real_t, SDIM> e_v =
          {
             (v == 0) ? 1.0 : 0.0,
             (v == 1) ? 1.0 : 0.0
@@ -69,17 +69,17 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               const future::tensor<real_t, DIM> u_val =
+               const future::tensor<real_t, SDIM> u_val =
                {
                   r2[0][qy][qx], r2[1][qy][qx]
                };
-               const future::tensor<real_t, DIM, DIM> Q_adj =
+               const future::tensor<real_t, VDIM, SDIM> Q_adj =
                {
-                  {  { T(0, 0, qx, qy, e), T(1, 0, qx, qy, e) },
-                     { T(0, 1, qx, qy, e), T(1, 1, qx, qy, e) }
+                  {  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
+                     { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
                   }
                };
-               const future::tensor<real_t, DIM, DIM> grad_U =
+               const future::tensor<real_t, VDIM, SDIM> grad_U =
                {
                   {  { g2[0][0][qy][qx], g2[1][0][qy][qx] },
                      { g2[0][1][qy][qx], g2[1][1][qy][qx] }
@@ -133,37 +133,37 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
-                                             const real_t *adj_t,
+                                             const real_t *a,
                                              const real_t *u,
                                              real_t *de,
                                              const int d1d = 0,
                                              const int q1d = 0)
 {
-   constexpr int DIM = 3, VDIM = 3;
+   constexpr int SDIM = 3, VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
-   const auto T = Reshape(adj_t, DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto A = Reshape(a, VDIM, SDIM, Q1D, Q1D, Q1D, NE);
    const auto U = Reshape(u, D1D, D1D, D1D, VDIM, NE);
    auto D = Reshape(de, D1D, D1D, D1D, VDIM, NE);
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : 16;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 16;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
       MFEM_SHARED real_t sM[4][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
       kernels::internal::v_regs2d_t<4, MQ1> qq;
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r2;
-      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g2;
+      kernels::internal::vd_regs3d_t<VDIM, SDIM, MQ1> g0, g2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
@@ -176,7 +176,7 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
 
       for (int v = 0; v < VDIM; ++v)
       {
-         const future::tensor<real_t, DIM> e_v =
+         const future::tensor<real_t, SDIM> e_v =
          {
             (v == 0) ? 1.0 : 0.0,
             (v == 1) ? 1.0 : 0.0,
@@ -191,30 +191,30 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                   real_t s[4] = {};
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const future::tensor<real_t, DIM> u_val =
+                     const future::tensor<real_t, SDIM> u_val =
                      {
                         r2[0][qz][qy][qx], r2[1][qz][qy][qx], r2[2][qz][qy][qx]
                      };
-                     const future::tensor<real_t, DIM, DIM> Q_adj =
+                     const future::tensor<real_t, VDIM, SDIM> Q_adj =
                      {
                         {  {
-                              T(0, 0, qx, qy, qz, e),
-                              T(1, 0, qx, qy, qz, e),
-                              T(2, 0, qx, qy, qz, e)
+                              A(0, 0, qx, qy, qz, e),
+                              A(1, 0, qx, qy, qz, e),
+                              A(2, 0, qx, qy, qz, e)
                            },
                            {
-                              T(0, 1, qx, qy, qz, e),
-                              T(1, 1, qx, qy, qz, e),
-                              T(2, 1, qx, qy, qz, e)
+                              A(0, 1, qx, qy, qz, e),
+                              A(1, 1, qx, qy, qz, e),
+                              A(2, 1, qx, qy, qz, e)
                            },
                            {
-                              T(0, 2, qx, qy, qz, e),
-                              T(1, 2, qx, qy, qz, e),
-                              T(2, 2, qx, qy, qz, e)
+                              A(0, 2, qx, qy, qz, e),
+                              A(1, 2, qx, qy, qz, e),
+                              A(2, 2, qx, qy, qz, e)
                            }
                         }
                      };
-                     const future::tensor<real_t, DIM, DIM> grad_U =
+                     const future::tensor<real_t, VDIM, SDIM> grad_U =
                      {
                         {  {
                               g2[0][0][qz][qy][qx],
@@ -295,7 +295,6 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
 
 void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 {
-   NVTX_MARK_FUNCTION;
    if (dim == 2)
    {
       if (static auto ini = false; !std::exchange(ini, true))
@@ -314,7 +313,7 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
                                            ne,
                                            maps->B.Read(),
                                            maps->G.Read(),
-                                           pa_adj_t.Read(),
+                                           pa_adj.Read(),
                                            pa_u.Read(),
                                            de.ReadWrite(),
                                            d1d,
@@ -340,7 +339,7 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
                                            ne,
                                            maps->B.Read(),
                                            maps->G.Read(),
-                                           pa_adj_t.Read(),
+                                           pa_adj.Read(),
                                            pa_u.Read(),
                                            de.ReadWrite(),
                                            d1d,
@@ -355,12 +354,16 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Kernel()
-{ return SmemPAConvectionNLGradDiagonal2D<T_D1D, T_Q1D>; }
+{
+   static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
+   return SmemPAConvectionNLGradDiagonal2D<T_D1D, T_Q1D>;
+}
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Fallback
 (int d1d, int q1d)
 {
+   MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
    MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
    MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
    return SmemPAConvectionNLGradDiagonal2D<>;
@@ -375,6 +378,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Fallback
 (int d1d, int q1d)
 {
+   MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
    MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
    MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
    return SmemPAConvectionNLGradDiagonal3D<>;

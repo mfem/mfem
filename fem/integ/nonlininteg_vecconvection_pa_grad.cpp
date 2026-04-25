@@ -23,7 +23,6 @@ namespace mfem
 void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
                                                    const FiniteElementSpace &fes)
 {
-   NVTX_MARK_FUNCTION;
    this->pa_u = u;
    AssemblePA(fes);
 
@@ -56,7 +55,7 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
    }
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const real_t *b,
                                           const real_t *g,
@@ -67,7 +66,6 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const int d1d,
                                           const int q1d)
 {
-   NVTX_MARK_FUNCTION;
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -77,11 +75,11 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    const auto dU = Reshape(du, D1D, D1D, DIM, ne);
    auto Y = Reshape(y, D1D, D1D, DIM, ne);
 
-   mfem::forall_2D<T_Q1D * T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;
-      constexpr int MD1 = T_D1D ? kernels::internal::SetMaxOf(T_D1D) : 16;
-      constexpr int MQ1 = T_Q1D ? kernels::internal::SetMaxOf(T_Q1D) : 16;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -148,7 +146,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void HOSmemPAConvectionNLGradApply3D(const int ne,
                                             const real_t *b,
                                             const real_t *g,
@@ -159,7 +157,6 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
                                             const int d1d,
                                             const int q1d)
 {
-   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -169,16 +166,16 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
    const auto dU = Reshape(du, D1D, D1D, D1D, DIM, ne);
    auto Y = Reshape(y, D1D, D1D, D1D, DIM, ne);
 
-   mfem::forall_2D<T_Q1D * T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? kernels::internal::SetMaxOf(T_D1D) : 16;
-      constexpr int MQ1 = T_Q1D ? kernels::internal::SetMaxOf(T_Q1D) : 16;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs3d_t<DIM, DIM, MQ1> g0, g1, g2;
       kernels::internal::v_regs3d_t<DIM, MQ1> r0, r1, r2;
+      kernels::internal::vd_regs3d_t<DIM, DIM, MQ1> g0, g1, g2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
@@ -285,7 +282,7 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
    });
 }
 
-template<int T_Q1D = 0>
+template<int T_Q1D = 0, int T_MDQ = 6>
 static void LOSmemPAConvectionNLGradApply3D(const int ne,
                                             const int d1d,
                                             const real_t *b,
@@ -296,22 +293,18 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
                                             real_t *y,
                                             const int q1d)
 {
-   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3;
    const int D1D = d1d, Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto T = Reshape(a, DIM, DIM, Q1D, Q1D, Q1D, ne);
+   const auto A = Reshape(a, DIM, DIM, Q1D, Q1D, Q1D, ne);
    const auto U = Reshape(u, D1D, D1D, D1D, DIM, ne);
    const auto dU = Reshape(du, D1D, D1D, D1D, DIM, ne);
    auto Y = Reshape(y, D1D, D1D, D1D, DIM, ne);
 
-   mfem::forall_3D<T_Q1D * T_Q1D * T_Q1D>(ne,
-                                          Q1D,
-                                          Q1D,
-                                          Q1D,
-                                          [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(ne, Q1D, Q1D, Q1D,
+                                      [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 6;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
       MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][DIM][DIM];
       MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][DIM][DIM];
@@ -342,18 +335,13 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                // First part of the Jacobian: u·∇δu
-               const auto u_val =
-                  LO::as_tensor<real_t, DIM>(&r2[qz][qy][qx][0]);
-               const auto Q_adj =
-                  LO::as_tensor<real_t, DIM, DIM>(&T(0, 0, qx, qy, qz, e));
-               const auto grad_dU =
-                  LO::as_tensor<real_t, DIM, DIM>(&g1[qz][qy][qx][0][0]);
+               const auto u_val = LO::as_tensor<real_t, DIM>(&r2[qz][qy][qx][0]);
+               const auto Q_adj = LO::as_tensor<real_t, DIM, DIM>(&A(0, 0, qx, qy, qz, e));
+               const auto grad_dU = LO::as_tensor<real_t, DIM, DIM>(&g1[qz][qy][qx][0][0]);
                const auto uGdu = grad_dU * (Q_adj * u_val);
                // Second part of the Jacobian: δu·∇u
-               const auto du_val =
-                  LO::as_tensor<real_t, DIM>(&r1[qz][qy][qx][0]);
-               const auto grad_U =
-                  LO::as_tensor<real_t, DIM, DIM>(&g2[qz][qy][qx][0][0]);
+               const auto du_val = LO::as_tensor<real_t, DIM>(&r1[qz][qy][qx][0]);
+               const auto grad_U = LO::as_tensor<real_t, DIM, DIM>(&g2[qz][qy][qx][0][0]);
                const auto duGu = grad_U * (Q_adj * du_val);
                // u⋅∇δu + δu⋅∇u
                r0[qz][qy][qx][0] = uGdu[0] + duGu[0];
@@ -371,7 +359,6 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
-   NVTX_MARK_FUNCTION;
    if (dim == 2)
    {
       VectorConvectionNLFAddMultGradPA2D::Run(d1d,
@@ -379,7 +366,7 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                               ne,
                                               maps->B.Read(),
                                               maps->G.Read(),
-                                              pa_adj_t.Read(),
+                                              pa_adj.Read(),
                                               pa_u.Read(),
                                               x.Read(),
                                               y.ReadWrite(),
@@ -393,7 +380,7 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                 d1d,
                                                 maps->B.Read(),
                                                 maps->G.Read(),
-                                                pa_adj_t.Read(),
+                                                pa_adj.Read(),
                                                 pa_u.Read(),
                                                 x.Read(),
                                                 y.ReadWrite(),
@@ -406,7 +393,7 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                 ne,
                                                 maps->B.Read(),
                                                 maps->G.Read(),
-                                                pa_adj_t.Read(),
+                                                pa_adj.Read(),
                                                 pa_u.Read(),
                                                 x.Read(),
                                                 y.ReadWrite(),
@@ -422,22 +409,36 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Kernel()
-{ return SmemPAConvectionNLGradApply2D<T_D1D, T_Q1D>; }
+{
+   static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
+   return SmemPAConvectionNLGradApply2D<T_D1D, T_Q1D>;
+}
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Fallback(int,
-                                                                            int)
-{ return SmemPAConvectionNLGradApply2D<>; }
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Fallback
+(int d1d, int q1d)
+{
+   MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
+   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
+   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   return SmemPAConvectionNLGradApply2D<>;
+}
 
 template<int T_Q1D>
 VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA3DType
 VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA3D::Kernel()
-{ return LOSmemPAConvectionNLGradApply3D<T_Q1D>; }
+{
+   static_assert(T_Q1D <= 6, "Unsupported Q1D");
+   return LOSmemPAConvectionNLGradApply3D<T_Q1D>;
+}
 
 VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA3DType
-VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA3D::Fallback(
-   int)
-{ return LOSmemPAConvectionNLGradApply3D<>; }
+VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA3D::Fallback
+(int q1d)
+{
+   MFEM_ABORT("Unsupported Q1D:" << q1d);
+   return nullptr;
+}
 
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType

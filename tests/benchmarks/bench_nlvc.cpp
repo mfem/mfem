@@ -97,6 +97,7 @@ struct VectorConvectionNLFBenchmark
    ConstantCoefficient const_coeff { M_2_SQRTPI };
    FunctionCoefficient funct_coeff { [](const Vector &x) { return M_1_PI + x[0]*x[0];} };
    NonlinearFormIntegrator *nlfi_fa, *nlfi_pa;
+   Operator *grad_pa;
    NonlinearForm nlf_fa, nlf_pa;
    GridFunction x, dx, y_fa, y_pa;
    Vector xe, dxe, ye;
@@ -127,23 +128,15 @@ struct VectorConvectionNLFBenchmark
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints())
    {
-      NVTX_MARK_FUNCTION;
-      // db1("p:{} q:{} d1d:{} q1d:{} dofs:{}", p, q, d1d, q1d, dofs);
       MFEM_VERIFY(q1d*q1d*(DIM == 3 ? q1d : 1) == ir->GetNPoints(), "");
 
-      NVTX_INI("NLF_PA Setup");
       nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       nlf_pa.AddDomainIntegrator(nlfi_pa);
       nlf_pa.Setup();
-      NVTX_END("NLF_PA Setup");
 
-      NVTX_INI("X Randomize");
       dx.Randomize(0x9e3779b9), x.Randomize(0x100001b3);
-      NVTX_END("X Randomize");
 
-      NVTX_INI("NLF_PA GetGradient");
-      nlf_pa.GetGradient(x);
-      NVTX_END("NLF_PA GetGradient");
+      grad_pa = &nlf_pa.GetGradient(x);
 
       const Table &el2dof = fes.GetElementToDofTable();
       const int e_size = el2dof.Size_of_connections()*fes.GetVDim();
@@ -151,46 +144,13 @@ struct VectorConvectionNLFBenchmark
       MFEM_VERIFY(e_size == R->Height(), "Input/Output E-vector size mismatch!");
       xe.SetSize(R->Height()), dxe.SetSize(R->Height()), ye.SetSize(R->Height());
       xe.UseDevice(true), dxe.UseDevice(true), ye.UseDevice(true);
-
-      NVTX_INI("XE Randomize");
       xe.Randomize(0x100001b3), dxe.Randomize(0x9e3779b9), ye = 0.0;
-      NVTX_END("XE Randomize");
 
-      /*if (dofs < ((mfem_use_gpu ? 128 : 16) * 1024))
-      {
-         NVTX_INI("NLF_FA Setup");
-         nlf_fa.AddDomainIntegrator(nlfi_fa);
-         nlf_fa.Setup();
-         NVTX_END("NLF_FA Setup");
-
-         nlf_fa.Mult(x, y_fa);
-         nlf_pa.Mult(x, y_pa);
-         y_fa -= y_pa;
-         MFEM_VERIFY(AlmostEqual(y_fa.Norml2(), 0.0),
-                     "FA and PA Apply results differ: " << y_fa.Norml2());
-
-         Operator &nlf_fa_grad = nlf_fa.GetGradient(x);
-         Operator &nlf_pa_grad = nlf_pa.GetGradient(x);
-         nlf_fa_grad.Mult(dx, y_fa);
-         nlf_pa_grad.Mult(dx, y_pa);
-         y_fa -= y_pa;
-         MFEM_VERIFY(AlmostEqual(y_fa.Norml2(), 0.0),
-                     "FA and PA Gradient results differ: " << y_fa.Norml2());
-
-         Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
-         dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(diag_fa);
-         nlf_pa.GetGradient(x).AssembleDiagonal(diag_pa);
-         diag_fa -= diag_pa;
-         MFEM_VERIFY(AlmostEqual(diag_fa.Norml2(), 0.0),
-                     "FA and PA Diagonal results differ: " << diag_fa.Norml2());
-         dbg("✅");
-      }*/
       mdofs = 0.0;
    }
 
    void Setup()
    {
-      NVTX_MARK_FUNCTION;
       nlfi_pa->AssembleGradPA(xe, fes);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
@@ -198,7 +158,6 @@ struct VectorConvectionNLFBenchmark
 
    void AddMult()
    {
-      NVTX_MARK_FUNCTION;
       nlf_pa.AddMult(x, y_pa);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
@@ -206,7 +165,6 @@ struct VectorConvectionNLFBenchmark
 
    void AddMultPA()
    {
-      NVTX_MARK_FUNCTION;
       nlfi_pa->AddMultPA(xe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
@@ -214,22 +172,13 @@ struct VectorConvectionNLFBenchmark
 
    void AddMultGrad()
    {
-      NVTX_MARK_FUNCTION;
-      NVTX_INI("GetGradient");
-      const auto &grad = nlf_pa.GetGradient(x);
+      grad_pa->Mult(dx, y_pa);
       MFEM_DEVICE_SYNC;
-      NVTX_END("GetGradient");
-
-      NVTX_INI("Mult");
-      grad.Mult(dx, y_pa);
-      MFEM_DEVICE_SYNC;
-      NVTX_END("Mult");
       mdofs += this->MDofs();
    }
 
    void AddMultGradPA()
    {
-      NVTX_MARK_FUNCTION;
       nlfi_pa->AddMultGradPA(dxe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
@@ -237,16 +186,8 @@ struct VectorConvectionNLFBenchmark
 
    void AssembleGradDiagonal()
    {
-      NVTX_MARK_FUNCTION;
-      NVTX_INI("GetGradient");
-      const auto &grad = nlf_pa.GetGradient(x);
+      grad_pa->AssembleDiagonal(ye);
       MFEM_DEVICE_SYNC;
-      NVTX_END("GetGradient");
-
-      NVTX_INI("AssembleDiagonal");
-      grad.AssembleDiagonal(ye);
-      MFEM_DEVICE_SYNC;
-      NVTX_END("AssembleDiagonal");
       mdofs += this->MDofs();
    }
 
@@ -279,11 +220,12 @@ RegisterVectorConvectionNLFBenchmark(AddMultGrad,3);
 RegisterVectorConvectionNLFBenchmark(AddMultGradPA,3);
 RegisterVectorConvectionNLFBenchmark(AssembleGradDiagonal,3);
 
-// RegisterVectorConvectionNLFBenchmark(Setup,2);
-// RegisterVectorConvectionNLFBenchmark(AddMult,2);
-// RegisterVectorConvectionNLFBenchmark(AddMultPA,2);
-// RegisterVectorConvectionNLFBenchmark(AddMultGrad,2);
-// RegisterVectorConvectionNLFBenchmark(AddMultGradPA,2);
+RegisterVectorConvectionNLFBenchmark(Setup,2);
+RegisterVectorConvectionNLFBenchmark(AddMult,2);
+RegisterVectorConvectionNLFBenchmark(AddMultPA,2);
+RegisterVectorConvectionNLFBenchmark(AddMultGrad,2);
+RegisterVectorConvectionNLFBenchmark(AddMultGradPA,2);
+RegisterVectorConvectionNLFBenchmark(AssembleGradDiagonal,2);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
