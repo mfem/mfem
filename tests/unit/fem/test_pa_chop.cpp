@@ -99,28 +99,28 @@ TEST_CASE("NL Convection PA Gradient",
    SECTION("2D")
    {
       const auto filename2d = all_tests
-                                 ? GENERATE("../../data/star-q2.mesh",
-                                            "../../data/star-q3.mesh",
-                                            "../../data/rt-2d-q3.mesh",
-                                            "../../data/inline-quad.mesh",
-                                            "../../data/periodic-square.mesh")
-                                 : GENERATE("../../data/inline-quad.mesh",
-                                            "../../data/periodic-square.mesh");
+                              ? GENERATE("../../data/star-q2.mesh",
+                                         "../../data/star-q3.mesh",
+                                         "../../data/rt-2d-q3.mesh",
+                                         "../../data/inline-quad.mesh",
+                                         "../../data/periodic-square.mesh")
+                              : GENERATE("../../data/inline-quad.mesh",
+                                         "../../data/periodic-square.mesh");
       test_nl_convection_pa_grad<2>(filename2d, p);
    }
 
    SECTION("3D")
    {
       const auto filename3d = all_tests
-                                 ? GENERATE("../../data/beam-hex.mesh",
-                                            "../../data/fichera.mesh",
-                                            "../../data/fichera-q2.mesh",
-                                            "../../data/fichera-q3.mesh",
-                                            "../../data/inline-hex.mesh",
-                                            "../../data/periodic-cube.mesh",
-                                            "../../data/toroid-hex.mesh")
-                                 : GENERATE("../../data/inline-hex.mesh",
-                                            "../../data/periodic-cube.mesh");
+                              ? GENERATE("../../data/beam-hex.mesh",
+                                         "../../data/fichera.mesh",
+                                         "../../data/fichera-q2.mesh",
+                                         "../../data/fichera-q3.mesh",
+                                         "../../data/inline-hex.mesh",
+                                         "../../data/periodic-cube.mesh",
+                                         "../../data/toroid-hex.mesh")
+                              : GENERATE("../../data/inline-hex.mesh",
+                                         "../../data/periodic-cube.mesh");
       test_nl_convection_pa_grad<3>(filename3d, p);
    }
 }
