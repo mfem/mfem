@@ -311,6 +311,8 @@ int main(int argc, char *argv[])
    using namespace std::literals::string_literals;
 
    Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    if (Mpi::Root())
@@ -415,6 +417,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(std::cout);
    }
+   ti *= tscale;
+   tf *= tscale;
+   ts *= tscale;
 
    Device device(device_config);
    if (Mpi::Root())
@@ -543,9 +548,59 @@ int main(int argc, char *argv[])
    siaSolver.Init(faraday, ampere);
    // TODO: initialize visualization
    // TODO: run sim
-   Vector dEdt(hcurl_space.GetVSize());
-   dEdt.UseDevice(true);
-   ampere.ImplicitSolve(dt, B_gf, dEdt);
+   // Vector dEdt(hcurl_space.GetVSize());
+   // dEdt.UseDevice(true);
+   // ampere.ImplicitSolve(dt, B_gf, dEdt);
+
+   socketstream E_sock, B_sock;
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      E_sock.open(vishost, visport);
+      B_sock.open(vishost, visport);
+      if (!E_sock || !B_sock)
+      {
+         visualization = false;
+         if (Mpi::Root())
+         {
+            std::cout << "GLVis visualization disabled" << std::endl;
+         }
+      }
+      else
+      {
+         E_sock << "parallel " << num_procs << " " << myid << "\n";
+         E_sock.precision(8);
+         E_sock << "solution\n"
+                << pmesh << E_gf << std::endl
+                << "keys cFF" << std::endl;
+         E_sock << "window_title 'E t=" << ti << "'" << std::endl;
+
+         B_sock << "parallel " << num_procs << " " << myid << "\n";
+         B_sock.precision(8);
+         B_sock << "solution\n"
+                << pmesh << B_gf << std::endl
+                << "keys cFF" << std::endl;
+         B_sock << "window_title 'B t=" << ti << "'" << std::endl;
+      }
+   }
+   real_t t = ti;
+   int it = 1;
+   while (t < tf)
+   {
+      std::cout << "siaSolver.Run" << std::endl;
+      siaSolver.Run(E_gf, B_gf, t, dt, std::max(t + dt, ti + ts * it));
+      if (visualization)
+      {
+         E_sock << "parallel " << num_procs << " " << myid << "\n";
+         E_sock << "solution\n" << pmesh << E_gf << std::endl;
+         // E_sock << "window_title 'E t=" << t << "'" << std::endl;
+         B_sock << "parallel " << num_procs << " " << myid << "\n";
+         B_sock << "solution\n" << pmesh << B_gf << std::endl;
+         // B_sock << "window_title 'B t=" << t << "'" << std::endl;
+      }
+      ++it;
+   }
    return 0;
 }
 
@@ -571,9 +626,9 @@ AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                            Coefficient *sigma, VectorCoefficient *dEdtbc,
                            Array<int> &abcs, Array<int> &dbcs,
                            CurrentIntegrator *current_integrator_)
-   : Operator(hcurl.GetTrueVSize()), pmesh(&pmesh_),
-     hcurl_space(&hcurl), hdiv_space(&hdiv), hcurl_mass(&hcurl),
-     weak_curl(&hdiv, &hcurl), sigma_coeff(sigma), dEdtbc_coeff(dEdtbc),
+   : Operator(hcurl.GetTrueVSize()), pmesh(&pmesh_), hcurl_space(&hcurl),
+     hdiv_space(&hdiv), hcurl_mass(&hcurl), weak_curl(&hdiv, &hcurl),
+     sigma_coeff(sigma), dEdtbc_coeff(dEdtbc),
      current_integrator(current_integrator_)
 {
    hcurl_mass.AddDomainIntegrator(new VectorFEMassIntegrator(&eps_coeff));
@@ -627,7 +682,7 @@ AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
    }
    // TODO: full assembly
    ampere_pa.reset(new AmperePA(*this));
-   Operator* oper;
+   Operator *oper;
    ampere_pa->FormSystemOperator(dbc_dofs, oper);
    linsys.Reset(oper);
 }
@@ -660,7 +715,7 @@ AmpereOperator::AmpereOperator(
    solver.SetAbsTol(0);
    solver.SetRelTol(1e-6);
    solver.SetMaxIter(300);
-   solver.SetPrintLevel(1);
+   // solver.SetPrintLevel(1);
 }
 
 void AmpereAction::Mult(const Vector &x, Vector &y) const
@@ -695,6 +750,7 @@ void AmpereAction::EliminateRHS(Vector &b) const
 void AmpereOperator::Mult(const Vector &B, Vector &dEdt) const
 {
    // TODO
+   const_cast<AmpereOperator *>(this)->ImplicitSolve(0, B, dEdt);
 }
 
 void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
@@ -732,6 +788,7 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
    }
    else
    {
+      // TODO: can just set reference
       rhs_tdofs = rhs;
    }
 
@@ -878,12 +935,16 @@ void dEdtBCFunc(const Vector &x, real_t t, Vector &dE)
 void EFieldFunc(const Vector &x, Vector &E)
 {
    E.SetSize(3);
-   E = 0_r;
+   E(0) = 0;
+   E(1) = sin(2 * M_PI * x(0));
+   E(2) = cos(2 * M_PI * x(0));
 }
 void BFieldFunc(const Vector &x, Vector &B)
 {
    B.SetSize(3);
-   B = 0_r;
+   B(0) = 0;
+   B(1) = sin(2 * M_PI * x(0));
+   B(2) = cos(2 * M_PI * x(0));
 }
 
 /// assumes fes is an H(curl) space
