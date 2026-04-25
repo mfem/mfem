@@ -9,10 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
 #include "../kernels.hpp"
 #include "../nonlininteg.hpp"
-#include "../../linalg/tensor.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
@@ -35,7 +34,6 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(
       VectorConvectionNLFAddMultGradPA2D::Specialization<5, 7>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<5, 8>::Add();
       VectorConvectionNLFAddMultGradPA2D::Specialization<6, 8>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<7, 10>::Add();
       // 3D
       VectorConvectionNLFAddMultGradPA3D::Specialization<2, 3>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<2, 4>::Add();
@@ -50,9 +48,6 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(
       VectorConvectionNLFAddMultGradPA3D::Specialization<4, 8>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<5, 7>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<5, 8>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 9>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<6, 9>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<7, 10>::Add();
    }
 }
 
@@ -254,31 +249,25 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
 {
    if (dim == 2)
    {
-      VectorConvectionNLFAddMultGradPA2D::Run(d1d,
-                                              q1d,
-                                              ne,
+      VectorConvectionNLFAddMultGradPA2D::Run(d1d, q1d, ne,
                                               maps->B.Read(),
                                               maps->G.Read(),
                                               pa_adj.Read(),
                                               pa_u.Read(),
                                               x.Read(),
                                               y.ReadWrite(),
-                                              d1d,
-                                              q1d);
+                                              d1d, q1d);
    }
    else if (dim == 3)
    {
-      VectorConvectionNLFAddMultGradPA3D::Run(d1d,
-                                              q1d,
-                                              ne,
+      VectorConvectionNLFAddMultGradPA3D::Run(d1d, q1d, ne,
                                               maps->B.Read(),
                                               maps->G.Read(),
                                               pa_adj.Read(),
                                               pa_u.Read(),
                                               x.Read(),
                                               y.ReadWrite(),
-                                              d1d,
-                                              q1d);
+                                              d1d, q1d);
    }
    else
    {
@@ -307,7 +296,10 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Fallback
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Kernel()
-{ return SmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>; }
+{
+   static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
+   return SmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>;
+}
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Fallback

@@ -9,11 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
-#include "../nonlininteg.hpp"
-#include "../ceed/integrators/nlconvection/nlconvection.hpp"
 #include "../kernels.hpp"
-#include "../../linalg/tensor.hpp"
+#include "../nonlininteg.hpp"
+#include "../../general/forall.hpp"
+#include "../ceed/integrators/nlconvection/nlconvection.hpp"
 
 namespace mfem
 {
@@ -26,6 +25,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Tr = *mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Tr);
+
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -41,12 +41,13 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       return;
    }
+
    ne = mesh->GetNE();
    nq = ir->GetNPoints();
    dim = mesh->Dimension();
+   pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
    d1d = maps->ndof;
    q1d = maps->nqpt;
 
@@ -168,7 +169,6 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       VectorConvectionNLFAddMultPA::Specialization<2, 5,7>::Add();
       VectorConvectionNLFAddMultPA::Specialization<2, 5,8>::Add();
       VectorConvectionNLFAddMultPA::Specialization<2, 6,8>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 7,10>::Add();
       // 3D
       VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 2,4>::Add();
@@ -181,9 +181,6 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       VectorConvectionNLFAddMultPA::Specialization<3, 4,8>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 5,7>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 5,8>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 5,9>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 6,9>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 7,10>::Add();
    }
 }
 
@@ -340,8 +337,7 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d,
-                                        ne,
+      VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d, ne,
                                         maps->B.Read(),
                                         maps->G.Read(),
                                         pa_adj.Read(),
