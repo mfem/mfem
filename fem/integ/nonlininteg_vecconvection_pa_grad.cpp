@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <utility>
+
 #include "../kernels.hpp"
 #include "../nonlininteg.hpp"
 #include "../../general/forall.hpp"
@@ -304,7 +306,13 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Kernel()
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Fallback
-(int, int) { return SmemPAConvectionNLGradApply3D<>; }
+(int d1d, int q1d)
+{
+   MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
+   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
+   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   return SmemPAConvectionNLGradApply3D<>; 
+}
 
 /// \endcond DO_NOT_DOCUMENT
 

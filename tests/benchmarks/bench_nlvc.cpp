@@ -13,10 +13,11 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include <cassert>
 #include <cstdlib>
 #include <functional>
 
-#include <fem/qinterp/grad.hpp>
+#include "fem/qinterp/grad.hpp"
 
 using namespace mfem;
 

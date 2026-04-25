@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <utility>
+
 #include "../kernels.hpp"
 #include "../nonlininteg.hpp"
 #include "../../general/forall.hpp"
@@ -45,8 +47,13 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = mesh->GetNE();
    nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   MFEM_VERIFY(dim == 2 || dim == 3, "Dimension not supported");
+
+   const MemoryType mt = pa_mt == MemoryType::DEFAULT
+                         ? Device::GetDeviceMemoryType()
+                         : pa_mt;
+   pa_adj.SetSize(ne * nq * dim * dim, mt);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    d1d = maps->ndof;
    q1d = maps->nqpt;
@@ -66,13 +73,15 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       coeff.SetConstant(1.0);
    }
+   MFEM_VERIFY(coeff.Size() == q1d*q1d*(dim==3?q1d:1)*ne, "Invalid coeff size");
 
+   MFEM_VERIFY(ir->GetWeights().Size() == q1d*q1d*(dim==3?q1d:1), "Invalid weights size");
    const auto w_r = ir->GetWeights().Read();
 
    if (dim == 2)
    {
       const int Q1D = q1d;
-      constexpr int VDIM = 2, DIM = 2;
+      constexpr int VDIM = 2, DIM = 2;     
       const auto W = Reshape(w_r, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
       const auto J = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, DIM, ne);
