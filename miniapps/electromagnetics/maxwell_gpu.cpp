@@ -71,12 +71,18 @@
 #include "mfem.hpp"
 
 #include "../common/mesh_extras.hpp"
-#include "electromagnetics.hpp"
+// #include "electromagnetics.hpp"
 
 #include <fstream>
 #include <iostream>
 
 using namespace mfem;
+
+namespace electromagnetics
+{
+constexpr real_t epsilon0_ = 1;
+constexpr real_t mu0_ = 1;
+}
 
 // Prints the program's logo to the given output stream
 void display_banner(std::ostream &os);
@@ -321,7 +327,8 @@ int main(int argc, char *argv[])
    }
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/ball-nurbs.mesh";
+   // const char *mesh_file = "../../data/ball-nurbs.mesh";
+   const char *mesh_file = "../../data/periodic-cube.mesh";
    int sOrder = 1;
    int tOrder = 1;
    int serial_ref_levels = 0;
@@ -329,10 +336,11 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool visualization = true;
    bool visit = true;
-   real_t dt = 1.0e-12;
+   // real_t dt = 1.0e-12;
+   real_t dt = 1e-2;
    real_t dtsf = 0.95;
    real_t ti = 0.0;
-   real_t ts = 1.0;
+   real_t ts = 1e-2;
    real_t tf = 40.0;
 
    // Permittivity Function
@@ -351,7 +359,7 @@ int main(int argc, char *argv[])
    Vector dp_params(0);
 
    // Scale factor between input time units and seconds
-   real_t tscale = 1e-9; // Input time in nanosecond
+   real_t tscale = 1;//1e-9; // Input time in nanosecond
 
    Array<int> abcs;
    Array<int> dbcs;
@@ -547,10 +555,6 @@ int main(int argc, char *argv[])
    SIAVSolver siaSolver(tOrder);
    siaSolver.Init(faraday, ampere);
    // TODO: initialize visualization
-   // TODO: run sim
-   // Vector dEdt(hcurl_space.GetVSize());
-   // dEdt.UseDevice(true);
-   // ampere.ImplicitSolve(dt, B_gf, dEdt);
 
    socketstream E_sock, B_sock;
 
@@ -573,31 +577,35 @@ int main(int argc, char *argv[])
          E_sock.precision(8);
          E_sock << "solution\n"
                 << pmesh << E_gf << std::endl
-                << "keys cFF" << std::endl;
+                << "keys c" << std::endl;
          E_sock << "window_title 'E t=" << ti << "'" << std::endl;
+         E_sock << "pause" << std::endl;
 
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock.precision(8);
          B_sock << "solution\n"
                 << pmesh << B_gf << std::endl
-                << "keys cFF" << std::endl;
+                << "keys c" << std::endl;
          B_sock << "window_title 'B t=" << ti << "'" << std::endl;
+         B_sock << "pause" << std::endl;
       }
    }
    real_t t = ti;
    int it = 1;
    while (t < tf)
    {
-      std::cout << "siaSolver.Run" << std::endl;
-      siaSolver.Run(E_gf, B_gf, t, dt, std::max(t + dt, ti + ts * it));
+      siaSolver.Run(B_gf, E_gf, t, dt, std::max(t + dt, ti + ts * it));
+
       if (visualization)
       {
          E_sock << "parallel " << num_procs << " " << myid << "\n";
          E_sock << "solution\n" << pmesh << E_gf << std::endl;
-         // E_sock << "window_title 'E t=" << t << "'" << std::endl;
+         E_sock << "window_title 'E t=" << t << "'" << std::endl;
+         // E_sock << "pause" << std::endl;
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock << "solution\n" << pmesh << B_gf << std::endl;
-         // B_sock << "window_title 'B t=" << t << "'" << std::endl;
+         B_sock << "window_title 'B t=" << t << "'" << std::endl;
+         // B_sock << "pause" << std::endl;
       }
       ++it;
    }
@@ -749,7 +757,6 @@ void AmpereAction::EliminateRHS(Vector &b) const
 
 void AmpereOperator::Mult(const Vector &B, Vector &dEdt) const
 {
-   // TODO
    const_cast<AmpereOperator *>(this)->ImplicitSolve(0, B, dEdt);
 }
 
@@ -762,7 +769,6 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
    {
       dedt.reset(new ParGridFunction);
       dedt->MakeRef(action.hcurl_space, dEdt, 0);
-      *dedt = 0_r;
    }
    else
    {
@@ -821,8 +827,8 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
 FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                  ParFiniteElementSpace &hdiv,
                                  size_t assembly_type)
-   : pmesh(&pmesh_), hcurl_space(&hcurl), hdiv_space(&hdiv),
-     curl_op(&hcurl, &hdiv)
+   : Operator(hdiv.GetVSize(), hcurl.GetVSize()), pmesh(&pmesh_),
+     hcurl_space(&hcurl), hdiv_space(&hdiv), curl_op(&hcurl, &hdiv)
 {
    curl_op.AddDomainInterpolator(new CurlInterpolator);
 #ifdef FARADAY_HAS_PA
@@ -936,15 +942,15 @@ void EFieldFunc(const Vector &x, Vector &E)
 {
    E.SetSize(3);
    E(0) = 0;
-   E(1) = sin(2 * M_PI * x(0));
-   E(2) = cos(2 * M_PI * x(0));
+   E(1) = sin(M_PI * x(0));
+   E(2) = 0;
 }
 void BFieldFunc(const Vector &x, Vector &B)
 {
    B.SetSize(3);
    B(0) = 0;
-   B(1) = sin(2 * M_PI * x(0));
-   B(2) = cos(2 * M_PI * x(0));
+   B(1) = 0;
+   B(2) = sin(M_PI * x(0));
 }
 
 /// assumes fes is an H(curl) space
