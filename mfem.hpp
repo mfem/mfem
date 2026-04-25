@@ -52,8 +52,4 @@
 #include "fem/moonolith/transfer.hpp"
 #endif // MFEM_USE_MOONOLITH
 
-#ifdef NVTX_FMT_HPP
-#include NVTX_FMT_HPP
-#endif
-
 #endif
