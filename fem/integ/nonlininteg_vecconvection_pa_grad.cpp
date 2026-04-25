@@ -23,6 +23,7 @@ namespace mfem
 void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
                                                    const FiniteElementSpace &fes)
 {
+   NVTX_MARK_FUNCTION;
    this->pa_u = u;
    AssemblePA(fes);
 
@@ -66,6 +67,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const int d1d,
                                           const int q1d)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -157,6 +159,7 @@ static void HOSmemPAConvectionNLGradApply3D(const int ne,
                                             const int d1d,
                                             const int q1d)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -254,6 +257,7 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
                                             real_t *y,
                                             const int q1d)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3;
    const int D1D = d1d, Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -320,6 +324,7 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    if (dim == 2)
    {
       VectorConvectionNLFAddMultGradPA2D::Run(d1d, q1d,

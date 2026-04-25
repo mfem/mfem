@@ -438,10 +438,10 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 {
-   // dbg();
+   NVTX_MARK_FUNCTION;
    if (ext)
    {
-      // dbg("ext");
+      NVTX_MARK("PA");
       hGrad.Clear();
       Operator &grad = ext->GetGradient(Prolongate(x));
       Operator *Gop;
@@ -452,6 +452,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
       return *hGrad;
    }
 
+   NVTX_MARK("FA");
    const int skip_zeros = 0;
    Array<int> vdofs;
    Vector el_x;

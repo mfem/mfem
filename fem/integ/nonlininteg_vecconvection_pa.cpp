@@ -57,10 +57,12 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (Q)
    {
+      NVTX_MARK("Project Q");
       coeff.Project(*Q);
    }
    else
    {
+      NVTX_MARK("SetConstant 1.0");
       coeff.SetConstant(1.0);
    }
 
@@ -1036,6 +1038,7 @@ template<int DIM, int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
 {
+   NVTX_MARK_FUNCTION;
    if constexpr (DIM == 2)
    {
       return SmemPAConvectionNLApply2D<T_D1D,T_Q1D>;
@@ -1051,6 +1054,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
 (int dim, int, int)
 {
+   NVTX_MARK_FUNCTION;
    if (dim == 2)
    {
       return SmemPAConvectionNLApply2D<>;

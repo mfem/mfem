@@ -126,6 +126,7 @@ struct VectorConvectionNLFBenchmark
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints())
    {
+      NVTX_MARK_FUNCTION;
       // db1("p:{} q:{} d1d:{} q1d:{} dofs:{}", p, q, d1d, q1d, dofs);
       MFEM_VERIFY(q1d*q1d*(DIM == 3 ? q1d : 1) == ir->GetNPoints(), "");
 
@@ -171,20 +172,46 @@ struct VectorConvectionNLFBenchmark
 
    void Setup()
    {
+      NVTX_MARK_FUNCTION;
       nlfi_pa->AssembleGradPA(xe, fes);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
-   void Mult()
+   void AddMult()
    {
+      NVTX_MARK_FUNCTION;
+      nlf_pa.AddMult(x, y_pa);
+      MFEM_DEVICE_SYNC;
+      mdofs += this->MDofs();
+   }
+
+   void AddMultPA()
+   {
+      NVTX_MARK_FUNCTION;
       nlfi_pa->AddMultPA(xe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
-   void Grad()
+   void AddMultGrad()
    {
+      NVTX_MARK_FUNCTION;
+      NVTX_INI("GetGradient");
+      const auto &grad = nlf_pa.GetGradient(x);
+      MFEM_DEVICE_SYNC;
+      NVTX_END("GetGradient");
+
+      NVTX_INI("Mult");
+      grad.Mult(dx, y_pa);
+      MFEM_DEVICE_SYNC;
+      NVTX_END("Mult");
+      mdofs += this->MDofs();
+   }
+
+   void AddMultGradPA()
+   {
+      NVTX_MARK_FUNCTION;
       nlfi_pa->AddMultGradPA(dxe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
@@ -213,12 +240,16 @@ struct VectorConvectionNLFBenchmark
       ->Unit(bm::kMillisecond)
 
 RegisterVectorConvectionNLFBenchmark(Setup,3);
-RegisterVectorConvectionNLFBenchmark(Mult,3);
-RegisterVectorConvectionNLFBenchmark(Grad,3);
+RegisterVectorConvectionNLFBenchmark(AddMult,3);
+RegisterVectorConvectionNLFBenchmark(AddMultPA,3);
+RegisterVectorConvectionNLFBenchmark(AddMultGrad,3);
+RegisterVectorConvectionNLFBenchmark(AddMultGradPA,3);
 
-RegisterVectorConvectionNLFBenchmark(Setup,2);
-RegisterVectorConvectionNLFBenchmark(Mult,2);
-RegisterVectorConvectionNLFBenchmark(Grad,2);
+// RegisterVectorConvectionNLFBenchmark(Setup,2);
+// RegisterVectorConvectionNLFBenchmark(AddMult,2);
+// RegisterVectorConvectionNLFBenchmark(AddMultPA,2);
+// RegisterVectorConvectionNLFBenchmark(AddMultGrad,2);
+// RegisterVectorConvectionNLFBenchmark(AddMultGradPA,2);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
