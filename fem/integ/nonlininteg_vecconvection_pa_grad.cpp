@@ -62,7 +62,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const int d1d,
                                           const int q1d)
 {
-   constexpr int VDIM = 2, DIM = 2;
+   static constexpr int VDIM = 2, DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -79,7 +79,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs2d_t<DIM, DIM, MQ1> g0, g1, g2;
+      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1, g2;
       kernels::internal::v_regs2d_t<DIM, MQ1> r0, r1, r2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
@@ -106,13 +106,13 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             {
                r2[0][qy][qx], r2[1][qy][qx]
             };
-            const future::tensor<real_t, DIM, DIM> Q_adj =
+            const future::tensor<real_t, VDIM, DIM> Q_adj =
             {
                {  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
                   { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
                }
             };
-            const future::tensor<real_t, DIM, DIM> grad_dU =
+            const future::tensor<real_t, VDIM, DIM> grad_dU =
             {
                {  { g1[0][0][qy][qx], g1[1][0][qy][qx] },
                   { g1[0][1][qy][qx], g1[1][1][qy][qx] }
@@ -125,7 +125,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             {
                r1[0][qy][qx], r1[1][qy][qx]
             };
-            const future::tensor<real_t, DIM, DIM> grad_U =
+            const future::tensor<real_t, VDIM, DIM> grad_U =
             {
                {  { g2[0][0][qy][qx], g2[1][0][qy][qx] },
                   { g2[0][1][qy][qx], g2[1][1][qy][qx] }
@@ -155,7 +155,7 @@ static void SmemPAConvectionNLGradApply3D(const int ne,
                                           const int d1d,
                                           const int q1d)
 {
-   constexpr int VDIM = 3, DIM = 3;
+   static constexpr int VDIM = 3, DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
