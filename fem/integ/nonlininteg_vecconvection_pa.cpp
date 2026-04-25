@@ -75,13 +75,14 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    MFEM_VERIFY(coeff.Size() == q1d*q1d*(dim==3?q1d:1)*ne, "Invalid coeff size");
 
-   MFEM_VERIFY(ir->GetWeights().Size() == q1d*q1d*(dim==3?q1d:1), "Invalid weights size");
+   MFEM_VERIFY(ir->GetWeights().Size() == q1d*q1d*(dim==3?q1d:1),
+               "Invalid weights size");
    const auto w_r = ir->GetWeights().Read();
 
    if (dim == 2)
    {
       const int Q1D = q1d;
-      constexpr int VDIM = 2, DIM = 2;     
+      constexpr int VDIM = 2, DIM = 2;
       const auto W = Reshape(w_r, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
       const auto J = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, DIM, ne);

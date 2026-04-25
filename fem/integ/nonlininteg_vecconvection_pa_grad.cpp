@@ -311,7 +311,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Fallback
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
    MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
    MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
-   return SmemPAConvectionNLGradApply3D<>; 
+   return SmemPAConvectionNLGradApply3D<>;
 }
 
 /// \endcond DO_NOT_DOCUMENT
