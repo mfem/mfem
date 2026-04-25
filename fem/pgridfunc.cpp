@@ -717,9 +717,9 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
 }
 
 
-void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
+void ParGridFunction::ProjectDiscCoefficient(
+   std::variant<Coefficient*, VectorCoefficient*> coeff)
 {
-   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    // local maximal element attribute for each dof
    Array<int> ldof_attr;
 
