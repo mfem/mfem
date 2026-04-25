@@ -438,10 +438,8 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 {
-   // dbg();
    if (ext)
    {
-      // dbg("ext");
       hGrad.Clear();
       Operator &grad = ext->GetGradient(Prolongate(x));
       Operator *Gop;
@@ -496,7 +494,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
       DofTransformation doftrans;
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         // dbg("\x1b[37me: {}", i);
          const int attr = mesh->GetAttribute(i);
          if (attr_marker[attr-1] == 0) { continue; }
 
@@ -507,7 +504,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
          doftrans.InvTransformPrimal(el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
-            // dbg("Domain integrator: {}", k);
             if (dnfi_marker[k] &&
                 (*dnfi_marker[k])[attr-1] == 0) { continue; }
 
