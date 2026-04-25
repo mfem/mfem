@@ -274,6 +274,8 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
    }
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Kernel()
@@ -303,5 +305,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Kernel()
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Fallback
 (int, int) { return SmemPAConvectionNLGradApply3D<>; }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

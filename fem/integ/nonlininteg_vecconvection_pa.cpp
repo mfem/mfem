@@ -347,6 +347,8 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int DIM, int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
@@ -380,5 +382,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
    }
    else { MFEM_ABORT("Unsupported kernel"); }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

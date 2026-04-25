@@ -313,6 +313,8 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
    }
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Kernel()
@@ -348,5 +350,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Fallback
    MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
    return SmemPAConvectionNLGradDiagonal3D<>;
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
