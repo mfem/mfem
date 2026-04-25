@@ -221,7 +221,7 @@ if (MFEM_USE_CUDA)
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests unit_tests_srcs)
+    target_link_libraries(gpu_unit_tests unit_tests_srcs fmt::fmt)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)

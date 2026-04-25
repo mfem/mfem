@@ -27,6 +27,7 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                                              const int d1d = 0,
                                              const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 2, VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -151,6 +152,7 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                                              const int d1d = 0,
                                              const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3, VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -304,6 +306,7 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
 
 void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 {
+   NVTX_MARK_FUNCTION;
    if (dim == 2)
    {
       if (static auto ini = false; !std::exchange(ini, true))
