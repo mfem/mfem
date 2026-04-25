@@ -204,6 +204,35 @@ struct AmpereAction : public Operator
    // current dt, needed if there are loss terms
    mutable real_t dt = 0;
 
+   struct AmperePA : public Operator
+   {
+      AmpereAction *action;
+      AmperePA(AmpereAction &a)
+         : Operator(a.hcurl_space->GetVSize()), action(&a)
+      {}
+
+      void Mult(const Vector &x, Vector &y) const override;
+
+      /// Get the parallel finite element space prolongation matrix
+      const Operator *GetProlongation() const override
+      {
+         return action->hcurl_space->GetProlongationMatrix();
+      }
+      /// Get the transpose of GetRestriction, useful for matrix-free RAP
+      virtual const Operator *GetRestrictionTranspose() const
+      {
+         return action->hcurl_space->GetRestrictionTransposeOperator();
+      }
+      /// Get the parallel finite element space restriction matrix
+      const Operator *GetRestriction() const override
+      {
+         return action->hcurl_space->GetRestrictionOperator();
+      }
+   };
+
+   std::unique_ptr<AmperePA> ampere_pa;
+   OperatorHandle linsys;
+
    AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                 ParFiniteElementSpace &hdiv, size_t assembly_type,
                 Coefficient &eps_coeff, Coefficient &inv_mu_coeff,
@@ -230,7 +259,13 @@ struct AmpereOperator : public TimeDependentOperator
    AmpereAction action;
    CGSolver solver;
 
+   // ldofs
    mutable ParGridFunction rhs;
+   // tdofs
+   mutable Vector rhs_tdofs;
+   // tdofs
+   mutable Vector X;
+   // ldofs
    mutable std::unique_ptr<ParGridFunction> dedt;
 
    // not owned, needed to compute loss terms
@@ -455,7 +490,7 @@ int main(int argc, char *argv[])
    }
    {
       VectorFunctionCoefficient b0(3, BFieldFunc);
-      E_gf.ProjectCoefficient(b0);
+      B_gf.ProjectCoefficient(b0);
    }
 
    // Use separate operators for Ampere and Faraday equations for each part of
@@ -509,6 +544,7 @@ int main(int argc, char *argv[])
    // TODO: initialize visualization
    // TODO: run sim
    Vector dEdt(hcurl_space.GetVSize());
+   dEdt.UseDevice(true);
    ampere.ImplicitSolve(dt, B_gf, dEdt);
    return 0;
 }
@@ -535,7 +571,7 @@ AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                            Coefficient *sigma, VectorCoefficient *dEdtbc,
                            Array<int> &abcs, Array<int> &dbcs,
                            CurrentIntegrator *current_integrator_)
-   : Operator(hcurl.GetVSize(), hcurl.GetVSize()), pmesh(&pmesh_),
+   : Operator(hcurl.GetTrueVSize()), pmesh(&pmesh_),
      hcurl_space(&hcurl), hdiv_space(&hdiv), hcurl_mass(&hcurl),
      weak_curl(&hdiv, &hcurl), sigma_coeff(sigma), dEdtbc_coeff(dEdtbc),
      current_integrator(current_integrator_)
@@ -589,6 +625,11 @@ AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
          weak_curl.Assemble();
          break;
    }
+   // TODO: full assembly
+   ampere_pa.reset(new AmperePA(*this));
+   Operator* oper;
+   ampere_pa->FormSystemOperator(dbc_dofs, oper);
+   linsys.Reset(oper);
 }
 
 AmpereOperator::AmpereOperator(
@@ -599,8 +640,12 @@ AmpereOperator::AmpereOperator(
    : TimeDependentOperator(hcurl.GetVSize(), hdiv.GetVSize()),
      action(pmesh_, hcurl, hdiv, assembly_type, eps_coeff, inv_mu_coeff, sigma,
             dEdtbc, abcs, dbcs, current_integrator),
-     rhs(&hcurl), E_gf(&E)
+     solver(hcurl.GetParMesh()->GetComm()), rhs(&hcurl),
+     rhs_tdofs(hcurl.GetTrueVSize()), X(hcurl.GetTrueVSize()), E_gf(&E)
 {
+   rhs.UseDevice(true);
+   rhs_tdofs.UseDevice(true);
+   X.UseDevice(true);
    if (action.loss_term)
    {
       type = IMPLICIT;
@@ -615,16 +660,12 @@ AmpereOperator::AmpereOperator(
    solver.SetAbsTol(0);
    solver.SetRelTol(1e-6);
    solver.SetMaxIter(300);
+   solver.SetPrintLevel(1);
 }
 
 void AmpereAction::Mult(const Vector &x, Vector &y) const
 {
-   // TODO: full assembly version
-   hcurl_mass.Mult(x, y);
-   if (loss_term)
-   {
-      loss_term->AddMult(x, y, 0.5_r * dt);
-   }
+   linsys->Mult(x, y);
    // bcs
    if (dbc_dofs.Size() > 0)
    {
@@ -632,7 +673,17 @@ void AmpereAction::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void AmpereAction::EliminateRHS(Vector& b) const
+void AmpereAction::AmperePA::Mult(const Vector &x, Vector &y) const
+{
+   // TODO: full assembly version
+   action->hcurl_mass.Mult(x, y);
+   if (action->loss_term)
+   {
+      action->loss_term->AddMult(x, y, 0.5_r * action->dt);
+   }
+}
+
+void AmpereAction::EliminateRHS(Vector &b) const
 {
    // for partial assembly
    if (dbc_dofs.Size() > 0)
@@ -674,16 +725,35 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
       action.j_term->Assemble();
       rhs -= *action.j_term;
    }
+   const Operator *P = action.hcurl_space->GetProlongationMatrix();
+   if (P)
+   {
+      P->MultTranspose(rhs, rhs_tdofs);
+   }
+   else
+   {
+      rhs_tdofs = rhs;
+   }
+
    if (action.dEdtbc_coeff)
    {
       action.dEdtbc_coeff->SetTime(t);
       // TODO: projecting bdr coefficient happens on the CPU
-      dedt->ProjectBdrCoefficientTangent(*action.dEdtbc_coeff, action.dbc_marker);
+      dedt->ProjectBdrCoefficientTangent(*action.dEdtbc_coeff,
+                                         action.dbc_marker);
    }
    // dirichlet bc's handled directly by action
-   action.EliminateRHS(rhs);
-   solver.Mult(rhs, *dedt);
-   dedt->SyncAliasMemory(dEdt);
+   action.EliminateRHS(rhs_tdofs);
+   action.hcurl_space->GetRestrictionOperator()->Mult(*dedt, X);
+   solver.Mult(rhs_tdofs, X);
+   if (P)
+   {
+      P->Mult(X, dEdt);
+   }
+   else
+   {
+      dEdt = X;
+   }
 }
 
 /// TODO: for now this always does full assembly into a hypre matrix.
