@@ -66,14 +66,13 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto T = Reshape(a, VDIM, DIM, Q1D, Q1D, ne);
+   const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, ne);
    const auto U = Reshape(u, D1D, D1D, VDIM, ne);
    const auto dU = Reshape(du, D1D, D1D, VDIM, ne);
    auto Y = Reshape(y, D1D, D1D, VDIM, ne);
 
    mfem::forall_2D<T_Q1D * T_Q1D>(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int DIM = 2;
       constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
@@ -109,8 +108,8 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             };
             const future::tensor<real_t, DIM, DIM> Q_adj =
             {
-               {  { T(0, 0, qx, qy, e), T(1, 0, qx, qy, e) },
-                  { T(0, 1, qx, qy, e), T(1, 1, qx, qy, e) }
+               {  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
+                  { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
                }
             };
             const future::tensor<real_t, DIM, DIM> grad_dU =

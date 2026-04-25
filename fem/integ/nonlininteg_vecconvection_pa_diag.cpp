@@ -23,15 +23,13 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                                              const real_t *a,
                                              const real_t *u,
                                              real_t *de,
-                                             const int d1d = 0,
-                                             const int q1d = 0)
+                                             const int d1d,
+                                             const int q1d)
 {
    constexpr int VDIM = 2, DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto B = Reshape(b, Q1D, D1D);
-   const auto G = Reshape(g, Q1D, D1D);
    const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, NE);
    const auto U = Reshape(u, D1D, D1D, VDIM, NE);
    auto D = Reshape(de, D1D, D1D, VDIM, NE);
@@ -41,15 +39,14 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
-      MFEM_SHARED real_t sM[3][MQ1][MQ1];
+      MFEM_SHARED real_t sM[3][MQ1][MQ1], sQ[3][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::v_regs2d_t<3, MQ1> rq;
       kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
       kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1;
 
-      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
       kernels::internal::LoadDofs2d(e, D1D, U, r0);
       kernels::internal::Eval2d(D1D, Q1D, sM[0], sB, r0, r1);
@@ -86,9 +83,9 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                };
                const auto one = Q_adj * u_val;
                const auto two = transpose(grad_U) * (Q_adj * e_v);
-               rq[0][qx][qy] = one[0];
-               rq[1][qx][qy] = one[1];
-               rq[2][qx][qy] = two[v];
+               sQ[0][qx][qy] = one[0];
+               sQ[1][qx][qy] = one[1];
+               sQ[2][qx][qy] = two[v];
             }
          }
          MFEM_SYNC_THREAD;
@@ -97,17 +94,17 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               real_t s1 = 0.0, s2 = 0.0, s3 = 0.0;
+               real_t s[3] = {};
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const real_t By = B(qy, dy), Gy = G(qy, dy);
-                  s1 += By * By * rq[0][qx][qy];
-                  s2 += Gy * By * rq[1][qx][qy];
-                  s3 += By * By * rq[2][qx][qy];
+                  const real_t By = sB[dy][qy], Gy = sG[dy][qy];
+                  s[0] += By * By * sQ[0][qx][qy];
+                  s[1] += Gy * By * sQ[1][qx][qy];
+                  s[2] += By * By * sQ[2][qx][qy];
                }
-               sM[0][qx][dy] = s1;
-               sM[1][qx][dy] = s2;
-               sM[2][qx][dy] = s3;
+               sM[0][qx][dy] = s[0];
+               sM[1][qx][dy] = s[1];
+               sM[2][qx][dy] = s[2];
             }
          }
          MFEM_SYNC_THREAD;
@@ -119,7 +116,7 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                real_t d = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const real_t Bx = B(qx, dx), Gx = G(qx, dx);
+                  const real_t Bx = sB[dx][qx], Gx = sG[dx][qx];
                   d += Gx * Bx * sM[0][qx][dy] +
                        Bx * Bx * sM[1][qx][dy] +
                        Bx * Bx * sM[2][qx][dy];
@@ -139,15 +136,13 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                                              const real_t *a,
                                              const real_t *u,
                                              real_t *de,
-                                             const int d1d = 0,
-                                             const int q1d = 0)
+                                             const int d1d,
+                                             const int q1d)
 {
    constexpr int VDIM = 3, DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto B = Reshape(b, Q1D, D1D);
-   const auto G = Reshape(g, Q1D, D1D);
    const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto U = Reshape(u, D1D, D1D, D1D, VDIM, NE);
    auto D = Reshape(de, D1D, D1D, D1D, VDIM, NE);
@@ -157,15 +152,14 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
 
-      MFEM_SHARED real_t sM[4][MQ1][MQ1];
+      MFEM_SHARED real_t sM[4][MQ1][MQ1], sQ[4][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::v_regs2d_t<4, MQ1> rq;
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
       kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
 
-      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
       kernels::internal::LoadDofs3d(e, D1D, U, r0);
       kernels::internal::Eval3d(D1D, Q1D, sM[0], sB, r0, r1);
@@ -209,16 +203,16 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                      const auto one = Q_adj * u_val;
                      const auto two = transpose(grad_U) * (Q_adj * e_v);
 
-                     const real_t Bz = B(qz, dz), Gz = G(qz, dz);
+                     const real_t Bz = sB[dz][qz], Gz = sG[dz][qz];
                      s[0] += one[0] * Bz * Bz;
                      s[1] += one[1] * Bz * Bz;
                      s[2] += one[2] * Bz * Gz;
                      s[3] += two[v] * Bz * Bz;
                   }
-                  rq[0][qx][qy] = s[0];
-                  rq[1][qx][qy] = s[1];
-                  rq[2][qx][qy] = s[2];
-                  rq[3][qx][qy] = s[3];
+                  sQ[0][qx][qy] = s[0];
+                  sQ[1][qx][qy] = s[1];
+                  sQ[2][qx][qy] = s[2];
+                  sQ[3][qx][qy] = s[3];
                }
             }
             MFEM_SYNC_THREAD;
@@ -230,11 +224,11 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                   real_t s[4] = {};
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const real_t By = B(qy, dy), Gy = G(qy, dy);
-                     s[0] += By * By * rq[0][qx][qy];
-                     s[1] += Gy * By * rq[1][qx][qy];
-                     s[2] += By * By * rq[2][qx][qy];
-                     s[3] += By * By * rq[3][qx][qy];
+                     const real_t By = sB[dy][qy], Gy = sG[dy][qy];
+                     s[0] += By * By * sQ[0][qx][qy];
+                     s[1] += Gy * By * sQ[1][qx][qy];
+                     s[2] += By * By * sQ[2][qx][qy];
+                     s[3] += By * By * sQ[3][qx][qy];
                   }
                   sM[0][dy][qx] = s[0];
                   sM[1][dy][qx] = s[1];
@@ -251,7 +245,7 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                   real_t d = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const real_t Bx = B(qx, dx), Gx = G(qx, dx);
+                     const real_t Bx = sB[dx][qx], Gx = sG[dx][qx];
                      d += Gx * Bx * sM[0][dy][qx];
                      d += Bx * Bx * sM[1][dy][qx];
                      d += Bx * Bx * sM[2][dy][qx];
