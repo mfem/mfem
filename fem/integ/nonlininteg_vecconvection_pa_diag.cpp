@@ -195,42 +195,16 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                      {
                         r2[0][qz][qy][qx], r2[1][qz][qy][qx], r2[2][qz][qy][qx]
                      };
-                     const future::tensor<real_t, VDIM, DIM> Q_adj =
-                     {
-                        {  {
-                              A(0, 0, qx, qy, qz, e),
-                              A(1, 0, qx, qy, qz, e),
-                              A(2, 0, qx, qy, qz, e)
-                           },
-                           {
-                              A(0, 1, qx, qy, qz, e),
-                              A(1, 1, qx, qy, qz, e),
-                              A(2, 1, qx, qy, qz, e)
-                           },
-                           {
-                              A(0, 2, qx, qy, qz, e),
-                              A(1, 2, qx, qy, qz, e),
-                              A(2, 2, qx, qy, qz, e)
-                           }
+                     const future::tensor<real_t, VDIM, DIM> Q_adj = {{
+                           {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
+                           {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
+                           {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
                         }
                      };
-                     const future::tensor<real_t, VDIM, DIM> grad_U =
-                     {
-                        {  {
-                              g2[0][0][qz][qy][qx],
-                              g2[1][0][qz][qy][qx],
-                              g2[2][0][qz][qy][qx]
-                           },
-                           {
-                              g2[0][1][qz][qy][qx],
-                              g2[1][1][qz][qy][qx],
-                              g2[2][1][qz][qy][qx]
-                           },
-                           {
-                              g2[0][2][qz][qy][qx],
-                              g2[1][2][qz][qy][qx],
-                              g2[2][2][qz][qy][qx]
-                           }
+                     const future::tensor<real_t, VDIM, DIM> grad_U = {{
+                           {g2[0][0][qz][qy][qx], g2[1][0][qz][qy][qx], g2[2][0][qz][qy][qx]},
+                           {g2[0][1][qz][qy][qx], g2[1][1][qz][qy][qx], g2[2][1][qz][qy][qx]},
+                           {g2[0][2][qz][qy][qx], g2[1][2][qz][qy][qx], g2[2][2][qz][qy][qx]}
                         }
                      };
                      const auto one = Q_adj * u_val;

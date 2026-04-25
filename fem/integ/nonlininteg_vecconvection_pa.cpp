@@ -190,11 +190,11 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 // PA Convection NL 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLApply2D(const int NE,
-                                      const Array<real_t> &b_,
-                                      const Array<real_t> &g_,
-                                      const Vector &d_,
-                                      const Vector &x_,
-                                      Vector &y_,
+                                      const real_t *b,
+                                      const real_t *g,
+                                      const real_t *a,
+                                      const real_t *x,
+                                      real_t *y,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
@@ -202,11 +202,11 @@ static void SmemPAConvectionNLApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto B = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto T = Reshape(d_.Read(), VDIM, DIM, Q1D, Q1D, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, NE);
+   const auto X = Reshape(x, D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y, D1D, D1D, VDIM, NE);
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -220,11 +220,11 @@ static void SmemPAConvectionNLApply2D(const int NE,
       kernels::internal::v_regs2d_t<VDIM, MQ1> s0, s1;
 
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
 
-      kernels::internal::LoadDofs2d(e, D1D, x, r0);
+      kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1); // u vector-value
-      kernels::internal::LoadDofs2d(e, D1D, x, g0);
+      kernels::internal::LoadDofs2d(e, D1D, X, g0);
       kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, g0, g1); // u vector-gradient
 
       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -241,8 +241,8 @@ static void SmemPAConvectionNLApply2D(const int NE,
                }
             };
             const future::tensor<real_t, 2,2> Q = {{
-                  {T(0,0,qx,qy,e), T(1,0,qx,qy,e)},
-                  {T(0,1,qx,qy,e), T(1,1,qx,qy,e)},
+                  {A(0,0,qx,qy,e), A(1,0,qx,qy,e)},
+                  {A(0,1,qx,qy,e), A(1,1,qx,qy,e)},
                }
             };
             const future::tensor<real_t, 2> conv = transpose(gradU) * (Q * U);
@@ -259,11 +259,11 @@ static void SmemPAConvectionNLApply2D(const int NE,
 // PA Convection NL 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLApply3D(const int NE,
-                                      const Array<real_t> &b_,
-                                      const Array<real_t> &g_,
-                                      const Vector &d_,
-                                      const Vector &x_,
-                                      Vector &y_,
+                                      const real_t *b,
+                                      const real_t *g,
+                                      const real_t *a,
+                                      const real_t *x,
+                                      real_t *y,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
@@ -272,11 +272,11 @@ static void SmemPAConvectionNLApply3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto T = Reshape(d_.Read(), VDIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   const auto B = Reshape(b, Q1D, D1D);
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto A = Reshape(a, VDIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x, D1D, D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y, D1D, D1D, D1D, VDIM, NE);
 
    mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -289,12 +289,12 @@ static void SmemPAConvectionNLApply3D(const int NE,
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
       kernels::internal::v_regs3d_t<VDIM, MQ1> s0, s1;
 
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
 
-      kernels::internal::LoadDofs3d(e, D1D, x, r0);
+      kernels::internal::LoadDofs3d(e, D1D, X, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1); // u vector-value
-      kernels::internal::LoadDofs3d(e, D1D, x, g0);
+      kernels::internal::LoadDofs3d(e, D1D, X, g0);
       kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, g0, g1); // u vector-gradient
 
       for (int qz = 0; qz < Q1D; qz++)
@@ -314,9 +314,9 @@ static void SmemPAConvectionNLApply3D(const int NE,
                   }
                };
                const future::tensor<real_t, 3,3> Q = {{
-                     {T(0,0,qx,qy,qz,e), T(1,0,qx,qy,qz,e), T(2,0,qx,qy,qz,e)},
-                     {T(0,1,qx,qy,qz,e), T(1,1,qx,qy,qz,e), T(2,1,qx,qy,qz,e)},
-                     {T(0,2,qx,qy,qz,e), T(1,2,qx,qy,qz,e), T(2,2,qx,qy,qz,e)}
+                     {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
+                     {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
+                     {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
                   }
                };
                const future::tensor<real_t, 3> conv = transpose(gradU) * (Q * U);
@@ -341,7 +341,12 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else
    {
       VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d,
-                                        ne, maps->B, maps->G, pa_adj, x, y,
+                                        ne,
+                                        maps->B.Read(),
+                                        maps->G.Read(),
+                                        pa_adj.Read(),
+                                        x.Read(),
+                                        y.ReadWrite(),
                                         d1d, q1d);
    }
 }
