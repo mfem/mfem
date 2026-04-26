@@ -13,6 +13,8 @@
 #define MFEM_FESPACE
 
 #include "../config/config.hpp"
+#include "../general/hash_util.hpp"
+#include "../linalg/ordering.hpp"
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
@@ -23,29 +25,6 @@
 
 namespace mfem
 {
-
-/** @brief The ordering method used when the number of unknowns per mesh node
-    (vector dimension) is bigger than 1. */
-class Ordering
-{
-public:
-   /// %Ordering methods:
-   enum Type
-   {
-      byNODES, /**< loop first over the nodes (inner loop) then over the vector
-                    dimension (outer loop); symbolically it can be represented
-                    as: XXX...,YYY...,ZZZ... */
-      byVDIM   /**< loop first over the vector dimension (inner loop) then over
-                    the nodes (outer loop); symbolically it can be represented
-                    as: XYZ,XYZ,XYZ,... */
-   };
-
-   template <Type Ord>
-   static inline int Map(int ndofs, int vdim, int dof, int vd);
-
-   template <Type Ord>
-   static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
-};
 
 /// @brief Type describing possible layouts for Q-vectors.
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
@@ -63,20 +42,6 @@ enum class QVectorLayout
        - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
    byVDIM
 };
-
-template <> inline int
-Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? dof+ndofs*vd : dof-ndofs*vd;
-}
-
-template <> inline int
-Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
-}
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
@@ -356,18 +321,11 @@ protected:
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
    using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
-   struct key_hash
-   {
-      std::size_t operator()(const key_face& k) const
-      {
-         return std::get<0>(k)
-                + 2 * (int)std::get<1>(k)
-                + 4 * (int)std::get<2>(k)
-                + 8 * (int)std::get<3>(k);
-      }
-   };
-   using map_L2F = std::unordered_map<const key_face,FaceRestriction*,key_hash>;
-   mutable map_L2F L2F;
+   mutable std::unordered_map<key_face,std::unique_ptr<FaceRestriction>,
+           TupleHasher> L2F;
+
+   mutable std::unordered_map<std::tuple<ElementDofOrdering,FaceType>,
+           std::unique_ptr<InterpolationManager>, TupleHasher> interpolations;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
@@ -787,6 +745,9 @@ public:
       ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
+   const InterpolationManager &GetInterpolationManager(
+      ElementDofOrdering f_ordering, FaceType type) const;
+
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */
    /** An E-vector represents the element-wise discontinuous version of the FE
@@ -799,7 +760,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -815,7 +779,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
@@ -825,7 +792,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by FaceQuadratureInterpolator,
+       nullptr is returned. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
@@ -869,7 +839,7 @@ public:
        Note: For vector-valued elements, the results pads up the range dimension
        to the spatial dimension. E.g., consider a stack of 5 vector-valued
        elements each representing 2D vectors, living in a 3 dimensional space.
-       Then this fucntion would give 15, not 10.
+       Then this function would give 15, not 10.
        */
    int GetVectorDim() const;
 
@@ -1180,7 +1150,7 @@ public:
 
    /// Helper to return the DOF associated with a sign encoded DOF
    static inline int DecodeDof(int dof)
-   { return (dof >= 0) ? dof : (-1 - dof); }
+   { return UnsignIndex(dof); }
 
    /// Helper to determine the DOF and sign of a sign encoded DOF
    static inline int DecodeDof(int dof, real_t& sign)
@@ -1353,11 +1323,23 @@ public:
         associated with i'th boundary face in the mesh object. */
    const FiniteElement *GetBE(int i) const;
 
+   /// @brief Return a "typical" boundary element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalBE() const;
+
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th face in the mesh object.  Faces in this case refer
         to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
    const FiniteElement *GetFaceElement(int i) const;
+
+   /// @brief Return a "typical" face element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalFaceElement() const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */

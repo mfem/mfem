@@ -34,14 +34,16 @@ class ParNCSubMesh;
  * subset of the parent Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. Its boundary
- * attributes are generated (there will be one boundary attribute 1 for all of
- * the boundaries).
+ * from a volume, it has the same domain attribute as the parent. Its new
+ * boundary attributes are, for any boundary common to the parent and the new
+ * submesh, the boundary attribute of the parent; and, for all new boundaries,
+ * a single, generated, common attribute equal to one plus the largest boundary
+ * attribute of the parent.
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. Its boundary attributes
- * are generated (there will be one boundary attribute 1 for all of the
- * boundaries).
+ * parent is assigned to be the new domain attribute. Its new boundary attribute
+ * is a single, generated, common attribute equal to one plus the largest
+ * boundary attribute of the parent.
  *
  * For more customized boundary attributes, the resulting ParSubMesh has to be
  * postprocessed.
@@ -225,13 +227,27 @@ public:
                                            const ParGridFunction &dst);
 
    /**
-   * @brief Check if ParMesh @a m is a ParSubMesh.
+   * @brief Check if Mesh @a m is a ParSubMesh.
    *
-   * @param m The input ParMesh
+   * @param m The input Mesh
    */
-   static bool IsParSubMesh(const ParMesh *m)
+   static bool IsParSubMesh(const Mesh *m)
    {
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
+   }
+
+   /**
+   * @brief Check if Mesh @a sub is a ParSubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsParSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsParSubMesh(sub) &&
+             (sub = static_cast<const ParSubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
    }
 
 private:

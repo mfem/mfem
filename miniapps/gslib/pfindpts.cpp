@@ -52,7 +52,6 @@
 
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
 
 using namespace mfem;

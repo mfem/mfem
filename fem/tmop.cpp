@@ -4102,8 +4102,11 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 #ifdef MFEM_USE_MPI
       // Don't count the overlapping DOFs in parallel.
       // The pfes might be ordered byVDIM, while the loop goes consecutively.
-      const int dof_i = pfes->DofToVDof(i, 0);
-      if (parallel && pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
+      if (parallel)
+      {
+         const int dof_i = pfes->DofToVDof(i, 0);
+         if (pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
+      }
 #endif
 
       dof_cnt++;
@@ -5367,6 +5370,15 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
+
+void TMOP_Integrator::GetNormalizationFactors(real_t &m_normal,
+                                              real_t &l_normal,
+                                              real_t &s_normal)
+{
+   m_normal = this->metric_normal;
+   l_normal = this->lim_normal;
+   s_normal = this->surf_fit_normal;
+}
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
