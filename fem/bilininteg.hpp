@@ -3738,6 +3738,74 @@ protected:
       DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
+/* Integrator for the Nitsche elasticity form,
+ *
+ * a(u,v) := - <σ(u) n⃗ ⋅ ñ, v ⋅ ñ>
+ *           + α <σ(v) n⃗ ⋅ ñ, u ⋅ ñ>
+ *           + κ <h⁻¹ (λ + 2μ) u ⋅ ñ, v ⋅ ñ>
+ *         = - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
+ *           + α ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+ *           + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS.
+ *
+ * For isotropic media,
+ *
+ * σ(u) = λ (∇ ⋅ u) I + 2μ ε(u)
+ *      = λ (∇ ⋅ u) I + 2μ (∇u + ∇uᵀ)/2
+ *      = λ (∇ ⋅ u) I + μ (∇u + ∇uᵀ),
+ *
+ * where I is identity matrix, λ and μ are Lame coefficients (see
+ * ElasticityIntegrator), ñ is a unit vector field, α = ±1, κ > 0 are the
+ * Nitsche parameters, and u, v are the trial and test functions, respectively.
+ *
+ * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
+ * copies of a scalar FE space.
+ */
+class SlidingElasticityIntegrator : public BilinearFormIntegrator
+{
+public:
+   SlidingElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+                               real_t kappa_)
+      : nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) { }
+
+   SlidingElasticityIntegrator(VectorCoefficient &nt_, Coefficient &lambda_,
+                               Coefficient &mu_, real_t alpha_, real_t kappa_)
+      : nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+protected:
+   VectorCoefficient *nt;
+   Coefficient *lambda, *mu;
+   real_t alpha, kappa;
+
+#ifndef MFEM_THREAD_SAFE
+   // values of all scalar basis functions for one component of u (which is a
+   // vector) at the integration point in the reference space
+   Vector shape1;
+   // values of derivatives of all scalar basis functions for one component
+   // of u (which is a vector) at the integration point in the reference space
+   DenseMatrix dshape1;
+   // Adjugate of the Jacobian of the transformation: adjJ = det(J) J^{-1}
+   DenseMatrix adjJ;
+   // gradient of shape functions in the real (physical, not reference)
+   // coordinates, scaled by det(J):
+   //    dshape_ps(jdof,jm) = sum_{t} adjJ(t,jm)*dshape(jdof,t)
+   DenseMatrix dshape1_ps;
+   Vector nor;  // nor = |weight(J_face)| n
+   Vector nL1;  // nL1 = (lambda1 * ip.weight / detJ1) nor
+   Vector nM1;  // nM1 = (mu1     * ip.weight / detJ1) nor
+   Vector nt1;  // nt1 = vector function ñ evaluated at ip1
+   Vector dshape1_dnM; // dshape1_dnM = dshape1_ps . nM1
+   Vector dshape1_dnt; // dshape1_dnt = dshape1_ps . nt1
+   // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ ñ, v ⋅ ñ>
+   DenseMatrix jmat;
+#endif
+};
+
 /** Integrator for the DPG form:$ \langle v, [w] \rangle $ over all faces (the interface) where
     the trial variable $v$ is defined on the interface and the test variable $w$ is
     defined inside the elements, generally in a DG space. */
