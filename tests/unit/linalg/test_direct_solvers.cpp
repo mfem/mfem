@@ -188,8 +188,6 @@ TEST_CASE("Serial Direct Solvers", "[GPU]")
 
 TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
 {
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    const int ne = 4;
    for (int dim = 1; dim < 4; ++dim)
    {
@@ -357,3 +355,104 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
 }
 
 #endif
+
+
+#ifdef MFEM_USE_COMPLEX_MUMPS
+
+TEST_CASE("ComplexMUMPS Solver", "[Parallel], [GPU]")
+{
+   const int ne = 4;
+   for (int dim = 1; dim < 4; ++dim)
+   {
+      CAPTURE(dim);
+
+      Mesh mesh;
+      if (dim == 1)
+      {
+         mesh = Mesh::MakeCartesian1D(ne, 1.0);
+      }
+      else if (dim == 2)
+      {
+         mesh = Mesh::MakeCartesian2D(
+                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      }
+      else
+      {
+         mesh = Mesh::MakeCartesian3D(
+                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      }
+
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
+      int order = 3;
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
+      Array<int> ess_tdof_list, ess_bdr;
+      if (pmesh.bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      ConstantCoefficient one(1.0);
+      ConstantCoefficient negone(-1.0);
+      ConstantCoefficient two(2.0);
+
+      ComplexLinearForm b(&fespace);
+      b.AddDomainIntegrator(new DomainLFIntegrator(one), new DomainLFIntegrator(two));
+      b.Assemble();
+
+      ParSesquilinearForm a_r(&fespace);
+      a_r.AddDomainIntegrator(new DiffusionIntegrator(one), nullptr);
+      a_r.AddDomainIntegrator(new MassIntegrator(one), nullptr);
+      a_r.Assemble();
+
+      ParSesquilinearForm a_i(&fespace);
+      a_i.AddDomainIntegrator(nullptr, new DiffusionIntegrator(one));
+      a_i.AddDomainIntegrator(nullptr, new MassIntegrator(one));
+      a_i.Assemble();
+
+      ParSesquilinearForm a_c(&fespace);
+      a_c.AddDomainIntegrator(new DiffusionIntegrator(one), new MassIntegrator(two));
+      a_c.AddDomainIntegrator(new MassIntegrator(negone),nullptr);
+      a_c.Assemble();
+
+      ParComplexGridFunction x_c(&fespace);
+      ParComplexGridFunction x_r(&fespace);
+      ParComplexGridFunction x_i(&fespace);
+      x_c = 0.0; x_r = 0.0; x_i = 0.0;
+
+      OperatorPtr Ac, Ar, Ai;
+      Vector Bc, Br, Bi, Xr, Xc, Xi;
+      a_c.FormLinearSystem(ess_tdof_list, x_c, b, Ac, Xc, Bc);
+      a_r.FormLinearSystem(ess_tdof_list, x_r, b, Ar, Xr, Br);
+      a_i.FormLinearSystem(ess_tdof_list, x_i, b, Ai, Xi, Bi);
+
+      ComplexHypreParMatrix *Ahc = Ac.As<ComplexHypreParMatrix>();
+      ComplexHypreParMatrix *Ahr = Ar.As<ComplexHypreParMatrix>();
+      ComplexHypreParMatrix *Ahi = Ai.As<ComplexHypreParMatrix>();
+
+      ComplexMUMPSSolver cmumps(MPI_COMM_WORLD);
+      cmumps.SetPrintLevel(0);
+
+      cmumps.SetOperator(*Ahc);
+      cmumps.Mult(Bc, Xc);
+
+      cmumps.SetOperator(*Ahr);
+      cmumps.Mult(Br, Xr);
+
+      cmumps.SetOperator(*Ahi);
+      cmumps.Mult(Bi, Xi);
+
+      Vector Yc(Xc.Size()), Yr(Xr.Size()), Yi(Xi.Size());
+      Ahc->Mult(Xc, Yc); Ahr->Mult(Xr, Yr); Ahi->Mult(Xi, Yi);
+      Yc -= Bc; Yr -= Br; Yi -= Bi;
+      REQUIRE(Yc.Norml2() < 1.e-12);
+      REQUIRE(Yr.Norml2() < 1.e-12);
+      REQUIRE(Yi.Norml2() < 1.e-12);
+   }
+
+} // Test case "ComplexMUMPS Solver"
+
+#endif // MFEM_USE_COMPLEX_MUMPS
