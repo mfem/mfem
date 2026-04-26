@@ -137,7 +137,7 @@ static void HdivDLFAssemble3D(
    const auto W = Reshape(weights, q, q, q);
    const bool cst = coeff.Size() == vdim;
    const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
-   auto Y = Reshape(y, 2*(d-1)*(d-1)*d, ne);
+   auto Y = Reshape(y, 3*(d-1)*(d-1)*d, ne);
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -300,6 +300,7 @@ static void HdivDLFAssemble(const FiniteElementSpace &fes,
       if (d==6 && q==6) { ker=HdivDLFAssemble2D<6,6>; }
       if (d==7 && q==7) { ker=HdivDLFAssemble2D<7,7>; }
       if (d==8 && q==8) { ker=HdivDLFAssemble2D<8,8>; }
+      MFEM_ASSERT(y.Size() == 2 * (d - 1) * d * mesh.GetNE(), "");
    }
 
    if (dim==3)
@@ -311,6 +312,7 @@ static void HdivDLFAssemble(const FiniteElementSpace &fes,
       if (d==6 && q==6) { ker=HdivDLFAssemble3D<6,6>; }
       if (d==7 && q==7) { ker=HdivDLFAssemble3D<7,7>; }
       if (d==8 && q==8) { ker=HdivDLFAssemble3D<8,8>; }
+      MFEM_ASSERT(y.Size() == 3 * (d - 1) * (d - 1) * d * mesh.GetNE(), "");
    }
 
    MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
