@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.8.1)
+set(${PROJECT_NAME}_VERSION 4.9.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -300,7 +300,14 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
 endif()
 
-# Umpire (must be included before hypre, so hypre can use it if needed)
+# Warn user if deprecated FETCH_TPLS is provided
+if (DEFINED FETCH_TPLS)
+  message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
+  set (MFEM_FETCH_TPLS FETCH_TPLS)
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+endif()
+
+  # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
    # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
@@ -645,6 +652,8 @@ foreach(TPL IN LISTS MFEM_TPLS)
   endif()
 endforeach(TPL)
 
+# reverse to remove the first instance of entries in TPL_LIBRARIES
+# so later duplicates are kept (for dependency ordering)
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
@@ -716,6 +725,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (TPL_TARGETS)
@@ -862,11 +872,12 @@ add_dependencies(exec
 #  - https://cmake.org/Bug/view.php?id=8438
 
 # Add a target to copy the mfem data directory to the build directory
-add_custom_command(OUTPUT data_is_copied
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/data data
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying the data directory ...")
-add_custom_target(copy_data DEPENDS data_is_copied)
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the data directory ...")
 # Add 'copy_data' as a prerequisite for all executables, if the source and the
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
@@ -998,9 +1009,15 @@ install(FILES
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
 
+# Install the data directory if present, i.e. if the copy_data target is built
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+  DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
-
+if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+  option(MFEM_EXPORT_GPU_CONFIG "Export config.mk for GPU-enabled downstream packages" ON)
+endif()
 mfem_export_mk_files()

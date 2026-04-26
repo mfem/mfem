@@ -792,7 +792,7 @@ struct BufferReader : BufferReaderBase
             dest_ptr += dest_len;
             source_ptr += source_len;
          }
-         MFEM_VERIFY(size_t(sizeof(F)*n) == (dest_ptr - dest_start),
+         MFEM_VERIFY(size_t(sizeof(F)*n) == size_t(dest_ptr - dest_start),
                      "AppendedData: wrong data size");
          buf = uncompressed_data.data();
 #else
@@ -1328,11 +1328,12 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       read_gf = 0;
       spaceDim = Nodes->VectorDim();
@@ -1515,12 +1516,15 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
 void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
-   real_t version;
+   string version;
    int binary, dsize;
    input >> version >> binary >> dsize;
-   if (version < 2.2)
+   if (version != "2.2")
    {
-      MFEM_ABORT("Gmsh file version < 2.2");
+      MFEM_ABORT("Gmsh file version must be 2.2, found version "
+                 << version << ".\n"
+                 "To convert your mesh to the required format, use:\n"
+                 "  gmsh -format msh22 -save -o output.msh input.msh");
    }
    if (dsize != sizeof(double))
    {
