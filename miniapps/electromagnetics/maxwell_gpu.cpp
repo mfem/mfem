@@ -52,16 +52,16 @@
 // clang-format off
 //
 //   Current source in a sphere with absorbing boundary conditions:
-//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //
 //   Current source in a metal sphere with dielectric and conducting materials:
-//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2 -dbcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -cs '0.0 0.0 -0.5 .2 3e6' -ds '0.0 0.0 0.5 .2 10'
+//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -dbcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -cs '0.0 0.0 -0.5 .2 3e6' -ds '0.0 0.0 0.5 .2 10'
 //
 //   Current source in a metal box:
-//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //
 //   Current source with a mixture of absorbing and reflecting boundaries:
-//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18'
+//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18'
 //
 //   By default the sources and fields are all zero:
 //   * mpirun -np 4 maxwell
@@ -70,19 +70,15 @@
 
 #include "mfem.hpp"
 
+#include "fem/kernels.hpp"
+
 #include "../common/mesh_extras.hpp"
-// #include "electromagnetics.hpp"
+#include "electromagnetics.hpp"
 
 #include <fstream>
 #include <iostream>
 
 using namespace mfem;
-
-namespace electromagnetics
-{
-constexpr real_t epsilon0_ = 1;
-constexpr real_t mu0_ = 1;
-}
 
 // Prints the program's logo to the given output stream
 void display_banner(std::ostream &os);
@@ -98,10 +94,14 @@ void dEdtBCFunc(const Vector &x, real_t t, Vector &E);
 void EFieldFunc(const Vector &x, Vector &E);
 void BFieldFunc(const Vector &x, Vector &B);
 
+int SnapTimeStep(real_t tmax, real_t dtmax, real_t &dt);
+
 /// assumes x is 3D
-MFEM_HOST_DEVICE void dipole_pulse(const real_t *x, real_t t, real_t *j,
+MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y,
+                                   const real_t z, real_t t, real_t *j,
                                    const real_t *dp_params, real_t tscale)
 {
+   real_t x[3] = {x_, y, z};
    constexpr int ndims = 3;
    real_t v[ndims];
    real_t xu[ndims];
@@ -151,27 +151,57 @@ MFEM_HOST_DEVICE void dipole_pulse(const real_t *x, real_t t, real_t *j,
 /// in a special linear form integrator
 struct CurrentIntegrator : public LinearFormIntegrator
 {
+   // not owned
    ParMesh *pmesh;
+   const GeometricFactors *geom = nullptr;
+   const DofToQuad *maps_o = nullptr;
+   const DofToQuad *maps_c = nullptr;
    // parameters state
    const Vector *dp_params;
-   // for getting the coordinates evaluated at quadrature points
-   const GeometricFactors *geo = nullptr;
    real_t tscale = 1;
    real_t t = 0;
    CurrentIntegrator(ParMesh &pm, const Vector &dp, real_t ts,
-                     const IntegrationRule *ir = nullptr)
-      : LinearFormIntegrator(ir), pmesh(&pm), dp_params(&dp), tscale(ts)
-   {}
+                     const IntegrationRule *ir = nullptr);
 
    bool SupportsDevice() const override { return true; }
 
    void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
-                       Vector &b) override;
+                       Vector &y) override;
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
                                Vector &elvect) override;
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// args: ne, d1d, q1d, markers, B, J, W, coords, dp_params, y, t,
+   /// tscale
+   using AssembleKernelType = void (*)(const int ne, const int d1d,
+                                       const int q1d, const int *markers,
+                                       const real_t *Bo, const real_t *Bc,
+                                       const real_t *J, const real_t *W,
+                                       const real_t *coords,
+                                       const real_t *dp_params, real_t *y,
+                                       real_t t, real_t tscale);
+
+   /// call when new dofmap or geometric factors are needed
+   void Update()
+   {
+      geom = nullptr;
+      maps_o = nullptr;
+      maps_c = nullptr;
+   }
+
+   /// parameters: use T_D1D, T_Q1D
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int));
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <int D1D, int Q1D> static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<D1D, Q1D>::Add();
+   }
 };
 
 ///
@@ -336,12 +366,11 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool visualization = true;
    bool visit = true;
-   // real_t dt = 1.0e-12;
-   real_t dt = 1e-2;
+   real_t dt = 1.0e-12;
    real_t dtsf = 0.95;
-   real_t ti = 0.0;
-   real_t ts = 1e-2;
-   real_t tf = 40.0;
+   real_t ti = 0;
+   real_t ts = 1;
+   real_t tf = 40;
 
    // Permittivity Function
    // Center, Radius, and Permittivity of dielectric sphere
@@ -359,7 +388,7 @@ int main(int argc, char *argv[])
    Vector dp_params(0);
 
    // Scale factor between input time units and seconds
-   real_t tscale = 1;//1e-9; // Input time in nanosecond
+   real_t tscale = 1e-9; // Input time in nanosecond
 
    Array<int> abcs;
    Array<int> dbcs;
@@ -428,6 +457,11 @@ int main(int argc, char *argv[])
    ti *= tscale;
    tf *= tscale;
    ts *= tscale;
+
+   MFEM_VERIFY(ds_params.Size() == 0 || ds_params.Size() == 5, "");
+   MFEM_VERIFY(ms_params.Size() == 0 || ms_params.Size() == 6, "");
+   MFEM_VERIFY(cs_params.Size() == 0 || cs_params.Size() == 5, "");
+   MFEM_VERIFY(dp_params.Size() == 0 || dp_params.Size() == 10, "");
 
    Device device(device_config);
    if (Mpi::Root())
@@ -551,6 +585,16 @@ int main(int argc, char *argv[])
                          E_gf);
    FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
 
+   // TODO: compute dtmax
+   real_t dtmax = dt;
+   int nsteps = SnapTimeStep(tf - ti, dtsf * dtmax, dt);
+   if ( Mpi::Root() )
+   {
+      std::cout << "Number of Time Steps:  " << nsteps << std::endl;
+      std::cout << "Time Step Size:        " << dt / tscale << "ns"
+                << std::endl;
+   }
+
    // Create the ODE solver
    SIAVSolver siaSolver(tOrder);
    siaSolver.Init(faraday, ampere);
@@ -578,34 +622,32 @@ int main(int argc, char *argv[])
          E_sock << "solution\n"
                 << pmesh << E_gf << std::endl
                 << "keys c" << std::endl;
-         E_sock << "window_title 'E t=" << ti << "'" << std::endl;
-         E_sock << "pause" << std::endl;
+         E_sock << "window_title 'Electric Field (E)'" << std::endl;
 
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock.precision(8);
          B_sock << "solution\n"
                 << pmesh << B_gf << std::endl
                 << "keys c" << std::endl;
-         B_sock << "window_title 'B t=" << ti << "'" << std::endl;
-         B_sock << "pause" << std::endl;
+         B_sock << "window_title 'Magnetic Flux Density (B)'" << std::endl;
       }
    }
    real_t t = ti;
    int it = 1;
    while (t < tf)
    {
+      if (myid == 0)
+      {
+         std::cout << "t = " << t << std::endl;
+      }
       siaSolver.Run(B_gf, E_gf, t, dt, std::max(t + dt, ti + ts * it));
 
       if (visualization)
       {
          E_sock << "parallel " << num_procs << " " << myid << "\n";
          E_sock << "solution\n" << pmesh << E_gf << std::endl;
-         E_sock << "window_title 'E t=" << t << "'" << std::endl;
-         // E_sock << "pause" << std::endl;
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock << "solution\n" << pmesh << B_gf << std::endl;
-         B_sock << "window_title 'B t=" << t << "'" << std::endl;
-         // B_sock << "pause" << std::endl;
       }
       ++it;
    }
@@ -942,7 +984,7 @@ void EFieldFunc(const Vector &x, Vector &E)
 {
    E.SetSize(3);
    E(0) = 0;
-   E(1) = sin(M_PI * x(0));
+   E(1) = 0;
    E(2) = 0;
 }
 void BFieldFunc(const Vector &x, Vector &B)
@@ -950,17 +992,263 @@ void BFieldFunc(const Vector &x, Vector &B)
    B.SetSize(3);
    B(0) = 0;
    B(1) = 0;
-   B(2) = sin(M_PI * x(0));
+   B(2) = 0;
+}
+
+CurrentIntegrator::Kernels::Kernels()
+{
+   CurrentIntegrator::AddSpecialization<1, 1>();
+   CurrentIntegrator::AddSpecialization<1, 2>();
+   CurrentIntegrator::AddSpecialization<2, 2>();
+   CurrentIntegrator::AddSpecialization<2, 3>();
+   CurrentIntegrator::AddSpecialization<3, 3>();
+   CurrentIntegrator::AddSpecialization<3, 4>();
+   CurrentIntegrator::AddSpecialization<4, 4>();
+   CurrentIntegrator::AddSpecialization<4, 5>();
+}
+
+CurrentIntegrator::CurrentIntegrator(ParMesh &pm, const Vector &dp, real_t ts,
+                                     const IntegrationRule *ir)
+   : LinearFormIntegrator(ir), pmesh(&pm), dp_params(&dp), tscale(ts)
+{
+   static Kernels kernels{};
+}
+
+template <int T_D1D, int T_Q1D>
+void CurrentIntegratorKernel(const int ne, const int d, const int q,
+                             const int *markers, const real_t *bo,
+                             const real_t *bc, const real_t *j_,
+                             const real_t *weights, const real_t *coords,
+                             const real_t *dp_params, real_t *Y, real_t t,
+                             real_t tscale)
+{
+   {
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
+      MFEM_VERIFY(q <= Q, "");
+      MFEM_VERIFY(d <= D, "");
+      MFEM_VERIFY(d <= q, "");
+   }
+   // TODO
+   constexpr int vdim = 3;
+   const auto BO = Reshape(bo, q, d - 1);
+   const auto BC = Reshape(bc, q, d);
+   const auto J = Reshape(j_, q, q, q, vdim, vdim, ne);
+   const auto W = Reshape(weights, q, q, q);
+   const auto C = Reshape(coords, q, q, q, vdim, ne);
+
+   // auto Y = Reshape(y, 3 * (d - 1) * d * d, ne);
+
+   // TODO: batching
+
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE(int e)
+   {
+      if (markers[e] == 0)
+      {
+         // ignore
+         return;
+      }
+
+      constexpr int vdim = 3;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
+
+      // D-1 could be zero, dummy have space for one
+      MFEM_SHARED real_t sBot[D > 1 ? Q * (D - 1) : 1];
+      MFEM_SHARED real_t sBct[Q * D];
+
+      // Bo and Bc into shared memory
+      const DeviceMatrix Bot(sBot, d - 1, q);
+      // nvcc can't first-capture in an if constexpr
+      auto Bo = BO;
+      if constexpr (D > 1)
+      {
+         kernels::internal::LoadB<D - 1, Q>(d - 1, q, Bo, sBot);
+      }
+      const DeviceMatrix Bct(sBct, d, q);
+      kernels::internal::LoadB<D, Q>(d, q, BC, sBct);
+
+      MFEM_SHARED real_t sm0[vdim * Q * Q * Q];
+      MFEM_SHARED real_t sm1[vdim * Q * Q * Q];
+      DeviceTensor<4> QQQ(sm1, q, q, q, vdim);
+      DeviceTensor<4> DQQ(sm0, d, q, q, vdim);
+      DeviceTensor<4> DDQ(sm1, d, d, q, vdim);
+
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         MFEM_FOREACH_THREAD(y, y, q)
+         {
+            MFEM_FOREACH_THREAD(x, x, q)
+            {
+               for (int z = 0; z < q; ++z)
+               {
+                  const real_t J0 = J(x, y, z, 0, vd, e);
+                  const real_t J1 = J(x, y, z, 1, vd, e);
+                  const real_t J2 = J(x, y, z, 2, vd, e);
+                  real_t curr[3];
+                  dipole_pulse(C(x, y, z, 0, e), C(x, y, z, 1, e),
+                               C(x, y, z, 2, e), t, curr, dp_params, tscale);
+                  QQQ(x, y, z, vd) =
+                     W(x, y, z) * (J0 * curr[0] + J1 * curr[1] + J2 * curr[2]);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         DeviceMatrix Btx = (vd == 0) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(qy, y, q)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  u[qz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += QQQ(qx, qy, qz, vd) * Btx(dx, qx);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  DQQ(dx, qy, qz, vd) = u[qz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         const int ny = (vd == 1) ? d - 1 : d;
+         DeviceMatrix Bty = (vd == 1) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(dy, y, ny)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  u[qz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += DQQ(dx, qy, qz, vd) * Bty(dy, qy);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  DDQ(dx, dy, qz, vd) = u[qz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         const int ny = (vd == 1) ? d - 1 : d;
+         const int nz = (vd == 2) ? d - 1 : d;
+         DeviceTensor<5> Yxyz(Y, nx, ny, nz, vdim, ne);
+         DeviceMatrix Btz = (vd == 2) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(dy, y, ny)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[D];
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  u[dz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  MFEM_UNROLL(D)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += DDQ(dx, dy, qz, vd) * Btz(dz, qz);
+                  }
+               }
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  Yxyz(dx, dy, dz, vd, e) += u[dz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+template <int T_D1D, int T_Q1D>
+CurrentIntegrator::AssembleKernelType
+CurrentIntegrator::AssembleKernels::Kernel()
+{
+   return CurrentIntegratorKernel<T_D1D, T_Q1D>;
+}
+
+CurrentIntegrator::AssembleKernelType
+CurrentIntegrator::AssembleKernels::Fallback(int d1d, int q1d)
+{
+   return CurrentIntegratorKernel<0, 0>;
 }
 
 /// assumes fes is an H(curl) space
 void CurrentIntegrator::AssembleDevice(const FiniteElementSpace &fes,
-                                       const Array<int> &markers, Vector &b)
+                                       const Array<int> &markers, Vector &y)
 {
-   const FiniteElement &fe = *fes.GetTypicalFE();
-   const int qorder = 2 * fe.GetOrder();
-   const Geometry::Type gtype = fe.GetGeomType();
+   const FiniteElement *fe = fes.GetTypicalFE();
+   const VectorTensorFiniteElement *vfe =
+      dynamic_cast<const VectorTensorFiniteElement *>(fe);
+   MFEM_VERIFY(vfe != nullptr, "Must be a VectorTensorFiniteElement");
+   const int qorder = 2 * fe->GetOrder();
+   const Geometry::Type gtype = vfe->GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   if (!geom)
+   {
+      geom = pmesh->GetGeometricFactors(
+                *ir, GeometricFactors::COORDINATES | GeometricFactors::JACOBIANS, mt);
+   }
+   if (!maps_o)
+   {
+      maps_o = &vfe->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   }
+   if (!maps_c)
+   {
+      maps_c = &vfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
+   const int d = maps_c->ndof, q = maps_c->nqpt;
+   const int ne = fes.GetMesh()->GetNE();
+
+   const real_t *Bo = maps_o->B.Read();
+   const real_t *Bc = maps_c->B.Read();
+   const int *M = markers.Read();
+   const real_t *coords = geom->X.Read();
+   const real_t *J = geom->J.Read();
+   const real_t *W = ir->GetWeights().Read();
+   real_t *Y = y.ReadWrite();
+   AssembleKernels::Run(d, q, ne, d, q, M, Bo, Bc, J, W, coords,
+                        dp_params->Read(), Y, t, tscale);
 }
 
 void CurrentIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -968,4 +1256,24 @@ void CurrentIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                Vector &elvect)
 {
    // TODO
+}
+
+int
+SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt)
+{
+   real_t dsteps = tmax/dtmax;
+
+   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
+
+   for (int i=1; i<=5; i++)
+   {
+      int a = (int)ceil(log10(dsteps/pow(5.0,i)));
+      int nstepsi = (int)pow(5,i)*max(1,(int)pow(10,a));
+
+      nsteps = min(nsteps,nstepsi);
+   }
+
+   dt = tmax / nsteps;
+
+   return nsteps;
 }
