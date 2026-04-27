@@ -2224,9 +2224,9 @@ CoefficientBase *GetCoefficientBase(Coefficient *coeff,
                                     VectorCoefficient *vec_coeff,
                                     MatrixCoefficient *mat_coeff)
 {
-   if (coeff) { return static_cast<CoefficientBase*>(coeff); }
-   else if (vec_coeff) { return static_cast<VectorCoefficient*>(vec_coeff); }
-   else if (mat_coeff) { return static_cast<CoefficientBase*>(mat_coeff); }
+   if (coeff) { return coeff; }
+   else if (vec_coeff) { return vec_coeff; }
+   else if (mat_coeff) { return mat_coeff; }
    else { return nullptr; }
 }
 
