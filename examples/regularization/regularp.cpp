@@ -179,12 +179,11 @@ public:
 class RegLogPrimeCoefficient : public RegLogCoefficientBase
 {
 public:
-   RegLogPrimeCoefficient(GridFunction *u, real_t N = 1e2, real_t _sign = 1.0)
+   RegLogPrimeCoefficient(GridFunction *u, real_t N = 1e2)
       : RegLogCoefficientBase(u, NULL, N) {}
 
    RegLogPrimeCoefficient(GridFunction *u, VectorCoefficient *n_tilde,
-      real_t N = 1e2, real_t _sign = 1.0)
-      : RegLogCoefficientBase(u, n_tilde, N) {}
+         real_t N = 1e2) : RegLogCoefficientBase(u, n_tilde, N) {}
 
    static real_t RegLogPrime(const real_t a, const real_t M);
 
