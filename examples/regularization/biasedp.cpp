@@ -194,13 +194,13 @@ public:
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  * @param sign Sign to apply to the coefficient (default: 1.0)
  */
-class RegLogPrimeCoefficient : public RegLogCoefficientBase
+class RegLogCoefficient : public RegLogCoefficientBase
 {
 private:
    real_t sign;
 
 public:
-   RegLogPrimeCoefficient(GridFunction *u1, GridFunction *u2,
+   RegLogCoefficient(GridFunction *u1, GridFunction *u2,
       Coefficient *gap, VectorCoefficient *n,
       real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u1, u2, gap, n, N), sign(_sign) {}
@@ -223,10 +223,10 @@ public:
  * @param n VectorCoefficient
  * @param N Regularization parameter for the regularized log function (default: 1e2)
  */
-class RegLogDoublePrimeCoefficient : public RegLogCoefficientBase
+class RegLogPrimeCoefficient : public RegLogCoefficientBase
 {
 public:
-   RegLogDoublePrimeCoefficient(GridFunction *u1, GridFunction *u2,
+   RegLogPrimeCoefficient(GridFunction *u1, GridFunction *u2,
       Coefficient *gap, VectorCoefficient *n, real_t N = 1e2)
       : RegLogCoefficientBase(u1, u2, gap, n, N) { }
 
@@ -652,11 +652,11 @@ int main(int argc, char *argv[])
          ScalarVectorProductCoefficient alpha_f1_coeff(alpha, f1_coeff);
          ScalarVectorProductCoefficient alpha_f2_coeff(alpha, f2_coeff);
 
-         RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u1_current,
-            &u2_curr_on_mesh1, &gap_coeff, &n_coeff, N);
          RegLogPrimeCoefficient reg_log_p_curr_coeff(&u1_current,
             &u2_curr_on_mesh1, &gap_coeff, &n_coeff, N);
-         RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u1_previous,
+         RegLogCoefficient reg_log_curr_coeff(&u1_current,
+            &u2_curr_on_mesh1, &gap_coeff, &n_coeff, N);
+         RegLogCoefficient nreg_log_prev_coeff(&u1_previous,
             &u2_prev_on_mesh1, &gap_coeff, &n_coeff, N, -1.0);
          StressGridFunctionCoefficient stress_u1_curr_coeff(lambda1, mu1, &u1_current);
          FlatVectorCoefficient nalpha_vstress_u1_curr_coeff(stress_u1_curr_coeff, -alpha);
@@ -669,7 +669,7 @@ int main(int argc, char *argv[])
          ParBilinearForm *a1 = new ParBilinearForm(fespace1);
          a1->AddDomainIntegrator(new ElasticityIntegrator(alpha_coeff,lambda1,mu1));
          a1->AddBdrFaceIntegrator(
-            new BoundaryProjectionIntegrator(reg_log_dp_curr_coeff,
+            new BoundaryProjectionIntegrator(reg_log_p_curr_coeff,
             n_coeff), ess_bdr_z);
          a1->Assemble();
 
@@ -677,11 +677,11 @@ int main(int argc, char *argv[])
          ParLinearForm *b1 = new ParLinearForm(fespace1);
          b1->AddDomainIntegrator(new VectorDomainLFStrainIntegrator(nalpha_vstress_u1_curr_coeff));
          b1->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(reg_log_p_curr_coeff, &n_coeff),
+            new BoundaryProjectionLFIntegrator(reg_log_curr_coeff, &n_coeff),
             ess_bdr_z);
          b1->AddDomainIntegrator(new VectorDomainLFIntegrator(alpha_f1_coeff));
          b1->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(nreg_log_p_prev_coeff, &n_coeff),
+            new BoundaryProjectionLFIntegrator(nreg_log_prev_coeff, &n_coeff),
             ess_bdr_z);
          b1->Assemble();
 
@@ -887,7 +887,7 @@ real_t GapFunctionCoefficient::Eval(ElementTransformation &T,
    return diff * n_val;
 }
 
-real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
+real_t RegLogCoefficient::RegLogPrime(const real_t a, const real_t M)
 {
    if (a > M)
    {
@@ -903,8 +903,8 @@ real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
    }
 }
 
-real_t RegLogDoublePrimeCoefficient::RegLogDoublePrime(const real_t a,
-                                                       const real_t M)
+real_t RegLogPrimeCoefficient::RegLogDoublePrime(const real_t a,
+                                                 const real_t M)
 {
    if (a > M)
    {
