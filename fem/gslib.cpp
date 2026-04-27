@@ -314,38 +314,29 @@ void obboxsurf_calc_3(Vector &bb,
 {
    auto h_bb = bb.HostWrite();
    const double *x = elx[0], *y = elx[1], *z = elx[2];
-   const unsigned nr = n, ns = n;
-   const unsigned mr = m, ms = m;
    const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
 
-   const unsigned nrs = nr*ns;
-   const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr),
-                  lbsize1 = gslib::lob_bnd_size(ns,ms);
+   const unsigned n2 = n*n;
+   const unsigned lbsize = gslib::lob_bnd_size(n, m);
 
-   unsigned wsize = std::max(3*nr*ns+2*mr*(ns+ms+1),2*nr*ns+3*nr);
-   wsize = std::max(wsize, gslib::gll_lag_size(nr));
-   wsize = std::max(wsize, gslib::gll_lag_size(ns));
+   // 2*n for tensor_ig2
+   // 2*m*(n+m+1) for lob_bnd_2 (always greater than 2*n for n and m >=1)
+   // gslib::gll_lag_size(n) for lag_setup and then lag
+   unsigned wsize = std::max(2*m*(n+m+1), gslib::gll_lag_size(n));
 
-   Vector datavec(2*(nr+ns)+lbsize0+lbsize1+wsize);
+   Vector datavec(2*n + lbsize + wsize);
    double *data = datavec.GetData();
 
    {
-      double *const I0r            = data;
-      double *const I0s            = I0r  + 2*nr;
-      double *const lob_bnd_data_r = data + 2*(nr+ns);
-      double *const lob_bnd_data_s = data + 2*(nr+ns) + lbsize0;
-      double *const work           = data + 2*(nr+ns) + lbsize0 + lbsize1;
+      double *const I0           = data; // basis and derivative at r=0
+      double *const lob_bnd_data = data + 2*n;
+      double *const work         = data + 2*n + lbsize;
 
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
-      SETUP_DIR(r);
-      SETUP_DIR(s);
-#undef SETUP_DIR
+      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n);
+      lag(I0, work, n, 1, 0);
+      gslib::lob_bnd_setup(lob_bnd_data, n, m); // setup machinery for bounding
 
-      for (int ie = 0; ie < nel; ie++,x+=nrs,y+=nrs,z+=nrs)
+      for (int ie = 0; ie < nel; ie++,x+=n2,y+=n2,z+=n2)
       {
          struct gslib::dbl_range ab[3];
          struct gslib::dbl_range tb[3];
@@ -359,9 +350,9 @@ void obboxsurf_calc_3(Vector &bb,
           * tv[5], tv[6]: dy/dr, dy/ds
           * tv[7], tv[8]: dz/dr, dz/ds
           */
-         x0[0] = gslib::tensor_ig2(tv+3, I0r,nr, I0s,ns, x, work);
-         x0[1] = gslib::tensor_ig2(tv+5, I0r,nr, I0s,ns, y, work);
-         x0[2] = gslib::tensor_ig2(tv+7, I0r,nr, I0s,ns, z, work);
+         x0[0] = gslib::tensor_ig2(tv+3, I0,n, I0,n, x, work);
+         x0[1] = gslib::tensor_ig2(tv+5, I0,n, I0,n, y, work);
+         x0[2] = gslib::tensor_ig2(tv+7, I0,n, I0,n, z, work);
 
          // tangent vector 1 moved to tv[0], tv[1], tv[2]
          tv[0] = tv[3], tv[1] = tv[5], tv[2] = tv[7];
@@ -408,16 +399,10 @@ void obboxsurf_calc_3(Vector &bb,
          A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
          A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
 
-         /* double work[2*m##r*(n##s+m##s+1)] */
-#define DO_BOUND(bnd,r,s,x,work) do { \
-        bnd = gslib::lob_bnd_2(lob_bnd_data_##r,n##r,m##r, \
-                        lob_bnd_data_##s,n##s,m##s, \
-                        x, work); \
-      } while(0)
-
-         DO_BOUND(ab[0],r,s,x,work);
-         DO_BOUND(ab[1],r,s,y,work);
-         DO_BOUND(ab[2],r,s,z,work);
+         // compute bounds in physical space
+         ab[0] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m, x, work);
+         ab[1] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m, y, work);
+         ab[2] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m, z, work);
          // expand bounding box based on (tol*diagonal_length) in each direction
          // to avoid 0 extent in 1 direction.
          double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
@@ -428,10 +413,12 @@ void obboxsurf_calc_3(Vector &bb,
          h_bb[n_el_ents*ie + 7] = ab[1].max;
          h_bb[n_el_ents*ie + 8] = ab[2].max;
 
-         Array<double> xtfm(3*nrs);
-         bbox_3_tfm(xtfm.GetData(), x0,A, x,y,z,nrs);
+         // rotate to align normal with z-axis
+         Array<double> xtfm(3*n2);
+         bbox_3_tfm(xtfm.GetData(), x0,A, x,y,z,n2);
          // The rotated z-coords are used to calculate z-bounds.
-         DO_BOUND(tb[2],r,s,xtfm.GetData()+2*nrs,work);
+         tb[2] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m,
+                                  xtfm.GetData()+2*n2, work);
 
          tb[2].min -= aabb_diag_len;
          tb[2].max += aabb_diag_len;
@@ -453,19 +440,20 @@ void obboxsurf_calc_3(Vector &bb,
          // their reference space.
          // Important to note that the nodes used here already have the element
          // center at (0,0). Hence, Ji can be directly applied to them.
-         for (unsigned i=0; i<nrs; ++i)
+         for (unsigned i=0; i<n2; ++i)
          {
-            const double xt = xtfm[i], yt = xtfm[nrs+i];
-            xtfm[    i] = Ji[0]*xt + Ji[1]*yt;
-            xtfm[nrs+i] = Ji[2]*xt + Ji[3]*yt;
+            const double xt = xtfm[i], yt = xtfm[n2+i];
+            xtfm[   i] = Ji[0]*xt + Ji[1]*yt;
+            xtfm[n2+i] = Ji[2]*xt + Ji[3]*yt;
          }
          // Bound these reference space xy coordinates
-         DO_BOUND(tb[0],r,s,xtfm,work);
-         DO_BOUND(tb[1],r,s,xtfm+nrs,work);
+         tb[0] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m,
+                                  xtfm.GetData(), work);
+         tb[1] = gslib::lob_bnd_2(lob_bnd_data,n,m, lob_bnd_data,n,m,
+                                  xtfm.GetData()+n2, work);
          // Expand the bounds based on the tol
          tb[0] = dbl_range_expand(tb[0],tol);
          tb[1] = dbl_range_expand(tb[1],tol);
-#undef DO_BOUND
 
          /* We now have a BB whose bounds represent bounds of a OBB around the
           * original element.
@@ -541,6 +529,8 @@ void obboxedge_calc_2(Vector &bb,
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
 
+   //  2*mr for lob_bnd_1
+   // +2*nr for storing rotated coordinates computed by bbox_2_tfm
    unsigned wsize = std::max(2*nr+2*mr, gslib::gll_lag_size(nr));
 
    Vector datavec(2*nr + lbsize0 + wsize);
@@ -550,52 +540,43 @@ void obboxedge_calc_2(Vector &bb,
    double *const lob_bnd_data_r = data + 2*nr;
    double *const work = data + 2*nr + lbsize0;
 
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
-
-   SETUP_DIR(r);
-#undef SETUP_DIR
+   gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
+   lag(I0r, work, nr, 1, 0);
+   gslib::lob_bnd_setup(lob_bnd_data_r, nr, mr);
 
    for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr)
    {
       double x0[2], A[4];
       struct gslib::dbl_range ab[2], tb[2];
 
+      // Find the physical-space coordinates of center of the element (r=0).
+      // A holds the Jacobian/tangent dx/dr and dy/dr
       x0[0] = gslib::tensor_ig1(A,I0r,nr,x);
       x0[1] = gslib::tensor_ig1(A+1,I0r,nr,y);
-      //
+      // Normalize the tangent and construct the 2x2 rotation matrix A that
+      // aligns the tangent with the x-axis. Rows of A are [tangent, normal].
       A[2] = sqrt(A[0]*A[0] + A[1]*A[1]);
       A[0] = A[0]/A[2];
       A[1] = A[1]/A[2];
       A[2] = -A[1];
       A[3] =  A[0];
 
-      /* double work[2*m##r]
-       * Find the bounds along a specific physical dimension.
-       */
-#define DO_BOUND(bnd,r,x,work) do { \
-        bnd = gslib::lob_bnd_1(lob_bnd_data_##r,n##r,m##r, x, work); \
-      } while(0)
+      // Compute AABB in x and y.
+      ab[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, x, work);
+      ab[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, y, work);
+      // Transform nodes to the reference frame and compute bounds.
+      bbox_2_tfm(work, x0, A, x, y, nr);
+      tb[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, work,    work+2*nr);
+      tb[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, work+nr, work+2*nr);
 
-      /* double work[2*n##r + 2*m##r] */
-#define DO_EDGE(r,x,y,work) do { \
-        DO_BOUND(ab[0],r,x,work); \
-        DO_BOUND(ab[1],r,y,work); \
-        bbox_2_tfm(work, x0,A, x,y,n##r); \
-        DO_BOUND(tb[0],r,(work),(work)+2*n##r); \
-        DO_BOUND(tb[1],r,(work)+n##r,(work)+2*n##r); \
-      } while(0)
-      DO_EDGE(r,x,y,work);
-#undef DO_EDGE
-#undef DO_BOUND
-
+      // expand AABB
       double aabb_diag_len = dbl_range_diag_expand_2(ab, tol);
 
+      // The center of the OBB in the rotated frame.
       const double av0 = (tb[0].min+tb[0].max)/2,
                    av1 = (tb[1].min+tb[1].max)/2;
+      // A is orthogonal, so A^-1 = A^T. Untransform [av0,av1] back to
+      // physical space to get the physical OBB center.
       const double dx0 =  A[0]*av0 - A[1]*av1,
                    dx1 = -A[2]*av0 + A[3]*av1;
       h_bb[n_el_ents*ie + 0] = x0[0] + dx0;
@@ -605,7 +586,9 @@ void obboxedge_calc_2(Vector &bb,
       h_bb[n_el_ents*ie + 4] = ab[0].max;
       h_bb[n_el_ents*ie + 5] = ab[1].max;
 
-      // Expand by aabb_diag_len
+      // Expand the rotated-frame bounds by aabb_diag_len, then premultiply
+      // A by the scaling matrix L = diag(di0,di1) to obtain L*A. This maps
+      // a physical displacement from the OBB center to [-1,1]^2.
       tb[0].min -= aabb_diag_len;
       tb[0].max += aabb_diag_len;
       tb[1].min -= aabb_diag_len;
@@ -633,7 +616,9 @@ void obboxedge_calc_3(Vector &bb,
    const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
-   unsigned wsize = std::max(4*nr+2*mr, gslib::gll_lag_size(nr));
+   // 2*mr for lob_bnd_1
+   // +3*nr for storing rotated coordinates computed by bbox_3_tfm
+   unsigned wsize = std::max(3*nr+2*mr, gslib::gll_lag_size(nr));
 
    Vector datavec(2*nr + lbsize0 + wsize);
    double *data = datavec.GetData();
@@ -643,25 +628,22 @@ void obboxedge_calc_3(Vector &bb,
       double *const lob_bnd_data_r = data + 2*nr;        // lbsize0 doubles
       double *const work = data + 2*nr + lbsize0;        // wsize doubles
 
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
-
-      SETUP_DIR(r);
-#undef SETUP_DIR
+      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
+      lag(I0r, work, nr, 1, 0);
+      gslib::lob_bnd_setup(lob_bnd_data_r, nr, mr);
 
       for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr,z+=nr)
       {
          double x0[3], A[9], Ai[9];
          struct gslib::dbl_range ab[3], tb[3];
 
+         // Find the physical-space coordinates of center of the element (r=0).
+         // A holds the Jacobian/tangent dx/dr, dy/dr, and dz/dr.
          x0[0] = gslib::tensor_ig1(A,I0r,nr,x);
          x0[1] = gslib::tensor_ig1(A+1,I0r,nr,y);
          x0[2] = gslib::tensor_ig1(A+2,I0r,nr,z);
 
-         // normalize the normal vector
+         // Normalize the tangent vector.
          double nmag  = A[0]*A[0] + A[1]*A[1] + A[2]*A[2];
          if (nmag > 0)
          {
@@ -678,6 +660,8 @@ void obboxedge_calc_3(Vector &bb,
             A[1] = A[1]/nmag2;
             A[0] = A[0]/nmag2;
          }
+         // Rodrigues formula: axis of rotation is tangent x [1,0,0],
+         // normalized to k = [kx,ky,kz]. ct and st are cos/sin of the angle.
          double kx = A[1];
          double ky = -A[0];
          double kz = 0.0;
@@ -685,7 +669,8 @@ void obboxedge_calc_3(Vector &bb,
          double ct = A[2];
          double st = nmag2; //1.0 - ct*ct;
 
-         // row-major rotation matrix to align the tangent with x-axis
+         // Construct the 3x3 rotation matrix A that aligns the tangent with
+         // the x-axis (row-major).
          A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
          A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
          A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
@@ -702,61 +687,56 @@ void obboxedge_calc_3(Vector &bb,
          DenseMatrix AiM(Ai, 3, 3);
          CalcInverse(AM, AiM);
 
-#define DO_BOUND(bnd,r,x,work) do { \
-        bnd = gslib::lob_bnd_1(lob_bnd_data_##r,n##r,m##r, x, work); \
-      } while(0)
+         // Compute AABB in x, y, and z.
+         ab[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, x, work);
+         ab[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, y, work);
+         ab[2] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, z, work);
+         // Transform nodes to the rotated frame and compute bounds.
+         bbox_3_tfm(work, x0, A, x, y, z, nr);
+         tb[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, work,      work+3*nr);
+         tb[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, work+nr,   work+3*nr);
+         tb[2] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, work+2*nr, work+3*nr);
 
-         /* double work[2*n##r + 2*m##r] */
-#define DO_EDGE(r,x,y,z,work) do { \
-        DO_BOUND(ab[0],r,x,work); \
-        DO_BOUND(ab[1],r,y,work); \
-        DO_BOUND(ab[2],r,z,work); \
-        bbox_3_tfm(work, x0, A, x,y,z,n##r); \
-        DO_BOUND(tb[0],r,(work),(work)+3*n##r); \
-        DO_BOUND(tb[1],r,(work)+n##r,(work)+3*n##r); \
-        DO_BOUND(tb[2],r,(work)+2*n##r,(work)+3*n##r); \
-      } while(0)
-         DO_EDGE(r,x,y,z,work);
-#undef DO_EDGE
-#undef DO_BOUND
-
+         // expand AABB
          double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
 
-         {
-            const double av0 = (tb[0].min+tb[0].max)/2,
-                         av1 = (tb[1].min+tb[1].max)/2,
-                         av2 = (tb[2].min+tb[2].max)/2;
-            h_bb[n_el_ents*ie + 0] = x0[0] + Ai[0]*av0 + Ai[1]*av1 + Ai[2]*av2;
-            h_bb[n_el_ents*ie + 1] = x0[1] + Ai[3]*av0 + Ai[4]*av1 + Ai[5]*av2;
-            h_bb[n_el_ents*ie + 2] = x0[2] + Ai[6]*av0 + Ai[7]*av1 + Ai[8]*av2;
-            h_bb[n_el_ents*ie + 3] = ab[0].min;
-            h_bb[n_el_ents*ie + 4] = ab[1].min;
-            h_bb[n_el_ents*ie + 5] = ab[2].min;
-            h_bb[n_el_ents*ie + 6] = ab[0].max;
-            h_bb[n_el_ents*ie + 7] = ab[1].max;
-            h_bb[n_el_ents*ie + 8] = ab[2].max;
-         }
+         // The center of the OBB in the rotated frame.
+         const double av0 = (tb[0].min+tb[0].max)/2,
+                      av1 = (tb[1].min+tb[1].max)/2,
+                      av2 = (tb[2].min+tb[2].max)/2;
+         // Untransform [av0,av1,av2] back to physical space using A^-1
+         // to obtain the physical OBB center.
+         h_bb[n_el_ents*ie + 0] = x0[0] + Ai[0]*av0 + Ai[1]*av1 + Ai[2]*av2;
+         h_bb[n_el_ents*ie + 1] = x0[1] + Ai[3]*av0 + Ai[4]*av1 + Ai[5]*av2;
+         h_bb[n_el_ents*ie + 2] = x0[2] + Ai[6]*av0 + Ai[7]*av1 + Ai[8]*av2;
+         h_bb[n_el_ents*ie + 3] = ab[0].min;
+         h_bb[n_el_ents*ie + 4] = ab[1].min;
+         h_bb[n_el_ents*ie + 5] = ab[2].min;
+         h_bb[n_el_ents*ie + 6] = ab[0].max;
+         h_bb[n_el_ents*ie + 7] = ab[1].max;
+         h_bb[n_el_ents*ie + 8] = ab[2].max;
 
+         // Expand the rotated-frame bounds by aabb_diag_len, then premultiply
+         // A by the scaling matrix L = diag(di0,di1,di2) to obtain L*A. This
+         // maps a physical displacement from the OBB center to [-1,1]^3.
          tb[0].min -= aabb_diag_len;
          tb[0].max += aabb_diag_len;
          tb[1].min -= aabb_diag_len;
          tb[1].max += aabb_diag_len;
          tb[2].min -= aabb_diag_len;
          tb[2].max += aabb_diag_len;
-         {
-            const double di0 = 2/((1+tol)*(tb[0].max-tb[0].min)),
-                         di1 = 2/((1+tol)*(tb[1].max-tb[1].min)),
-                         di2 = 2/((1+tol)*(tb[2].max-tb[2].min));
-            h_bb[n_el_ents*ie + 9 ]=di0*A[0];
-            h_bb[n_el_ents*ie + 10]=di0*A[1];
-            h_bb[n_el_ents*ie + 11]=di0*A[2];
-            h_bb[n_el_ents*ie + 12]=di1*A[3];
-            h_bb[n_el_ents*ie + 13]=di1*A[4];
-            h_bb[n_el_ents*ie + 14]=di1*A[5];
-            h_bb[n_el_ents*ie + 15]=di2*A[6];
-            h_bb[n_el_ents*ie + 16]=di2*A[7];
-            h_bb[n_el_ents*ie + 17]=di2*A[8];
-         }
+         const double di0 = 2/((1+tol)*(tb[0].max-tb[0].min)),
+                      di1 = 2/((1+tol)*(tb[1].max-tb[1].min)),
+                      di2 = 2/((1+tol)*(tb[2].max-tb[2].min));
+         h_bb[n_el_ents*ie + 9 ]=di0*A[0];
+         h_bb[n_el_ents*ie + 10]=di0*A[1];
+         h_bb[n_el_ents*ie + 11]=di0*A[2];
+         h_bb[n_el_ents*ie + 12]=di1*A[3];
+         h_bb[n_el_ents*ie + 13]=di1*A[4];
+         h_bb[n_el_ents*ie + 14]=di1*A[5];
+         h_bb[n_el_ents*ie + 15]=di2*A[6];
+         h_bb[n_el_ents*ie + 16]=di2*A[7];
+         h_bb[n_el_ents*ie + 17]=di2*A[8];
       }
    }
 }
@@ -3445,11 +3425,9 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
          Vector temp(DEV.dof1d_sol);
          gslib::lobatto_nodes(temp.GetData(), DEV.dof1d_sol);
          DEV.gll1d_sol = temp.GetData();
-         MFEM_DEVICE_SYNC;
 
          gslib::gll_lag_setup(temp.GetData(), DEV.dof1d_sol);
          DEV.lagcoeff_sol = temp.GetData();
-         MFEM_DEVICE_SYNC;
       }
       else
       {
@@ -4624,7 +4602,7 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
       for (int d = 0; d < sdim; d++)
       {
          BBoxTensorGridMap::GetGridRange(d, gmap_n, gmap_fac,
-                                         gmap_bnd_min, gmap_bnd_max,
+                                         gmap_bnd_min,
                                          gmap_bnd_min_loc[d],
                                          gmap_bnd_max_loc[d],
                                          loc_idx_min[d], loc_idx_max[d]);
