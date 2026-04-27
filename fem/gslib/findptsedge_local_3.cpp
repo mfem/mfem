@@ -11,7 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -27,8 +26,6 @@
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
-
-#include <climits>
 
 namespace mfem
 {
@@ -319,7 +316,7 @@ newton_edge_fin:
    }
    out->r = nr;
    out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags<<3);
+   out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<3);
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
@@ -366,7 +363,6 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                                          const double *lagcoeff,
                                          const int pN = 0)
 {
-#define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NEL = nel*D1D;

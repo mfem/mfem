@@ -11,7 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 #ifdef MFEM_USE_GSLIB
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
@@ -25,8 +24,6 @@
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
-
-#include <climits>
 
 namespace mfem
 {
@@ -551,7 +548,7 @@ newton_face_fin:
       new_flags |= CONVERGED_FLAG;
    }
    out->r[0] = r[0], out->r[1] = r[1];
-   out->flags = new_flags | (p->flags<<5);
+   out->flags = new_flags | ((p->flags & FLAG_MASK)<<5);
 }
 
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
@@ -643,7 +640,7 @@ newton_edge_fin:
    out->r[de] = nr;
    out->r[dn] = p->r[dn];
    out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags<<5);
+   out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<5);
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
@@ -699,7 +696,6 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                                          const double *lagcoeff,
                                          const int pN = 0)
 {
-#define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NE  = D1D*D1D;  // total nos. points in an element
@@ -708,7 +704,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
    MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
-   const int nThreads = MAXC(D1D*sDIM, 9);
+   const int nThreads = D1D*sDIM > 9 ? D1D*sDIM : 9;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -949,7 +945,9 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                         {
                            if (!reject_prior_step_q(fpt,resid,tmp,tol))
                            {
-                              newton_face(fpt,jac,hes,resid,(tmp->flags & CONVERGED_FLAG),tmp,tol);
+                              newton_face(fpt,jac,hes,resid,
+                                          (tmp->flags&CONVERGED_FLAG),
+                                           tmp,tol);
                            }
                         }
                         MFEM_SYNC_THREAD;
