@@ -40,7 +40,7 @@ constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
    {
       if (x[0] <=2.5 && x[0] >=1.0 && x[1] <=0.8 && x[1] >=0.2)
       {
-        return 1.0;
+        return 10.0;
         //return 1.0 + 100* sin((x[0]-0.5)*M_PI/2.0) * sin((x[1]-0.2)*M_PI/0.6);
       }
    return 1.0;
@@ -447,20 +447,25 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    bool paraview = true;
    bool visualization = true;
-   real_t epsilon = 0.02;
+   real_t epsilon = 0.02;       //dens filterrad
    real_t alpha = 1.0;
    real_t vol_fraction = 0.5;
-   real_t rho_min = 1e-6;
-   real_t lambda = 0.5769230769;
-   real_t mu = 1.0/2.6;
+   real_t rho_min = 1e-3;
+   real_t lambda = 1.0;
+   real_t mu = 1.0;
+   // real_t lambda = 0.5769230769;
+   // real_t mu = 1.0/2.6;
+   const int ref_levels = 6;
 
-   int neumannBCIndex = 3;  // 1 based
-   double neumannLoad = -1.0e-0;
+   int neumannBCIndex = 2;  // 1 based
+   double neumannLoad = -5.0e-3;
 
-   double weight_1 = -1e01;
+   double weight_1 = -1e03;
    double weight_tmop = 1e-2;
 
-   double filterRadius = 0.4;
+   double filterRadius = 0.2;
+
+     double max_ch=0.02;       //opt solver step size
 
    bool dQduFD =false;
    bool dQdxFD =false;
@@ -497,8 +502,14 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
-                                     true, 3.0, 1.0);
+   real_t Nx = 3;
+   real_t Ny = 1;
+
+   real_t Lx = 3.0;
+   real_t Ly = 1.0;
+
+   Mesh mesh = Mesh::MakeCartesian2D(Nx, Ny, mfem::Element::Type::QUADRILATERAL,
+                                     true, Lx, Ly);
    const int dim = mesh.Dimension();
    constexpr int DIM = 2;
 
@@ -507,7 +518,6 @@ int main(int argc, char *argv[])
    // 'ref_levels' to be the largest number that gives a final mesh with no
    // more than 1000 elements.
    {
-      const int ref_levels = 4;
          //(int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
@@ -589,7 +599,7 @@ int main(int argc, char *argv[])
 
 
    ParaViewDataCollection paraview_dc("isoel", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetPrefixPath("ParaView_Rref_TO");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
@@ -606,7 +616,7 @@ int main(int argc, char *argv[])
   Vector volgrad(numOptVars); volgrad=1.0;
   Vector xxmax(numOptVars);   xxmax=  0.001;
   Vector xxmin(numOptVars);   xxmin= -0.001;
-  double max_ch=0.1;
+
 
    while(isConverged)
    {
@@ -654,7 +664,7 @@ int main(int argc, char *argv[])
       // set convergence tolerances and max iterations
       elsolver.SetLinearSolver(1e-6,1e-8,100);
 
-      int numTOit = 0;
+      int numTOit = 40;
       for( int ik = 0; ik < numTOit; ik++)
       {
          if (ik > 1) { alpha *= ((real_t) ik) / ((real_t) ik-1); }
@@ -872,7 +882,7 @@ int main(int argc, char *argv[])
       MMA* mma=new MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 
       ParaViewDataCollection paraview_dc_morph("isoel_morph", &pmesh);
-      paraview_dc_morph.SetPrefixPath("ParaView");
+      paraview_dc_morph.SetPrefixPath("ParaView_Rref_TO");
       paraview_dc_morph.SetLevelsOfDetail(order);
       paraview_dc_morph.SetDataFormat(VTKFormat::BINARY);
       paraview_dc_morph.SetHighOrderOutput(true);
@@ -880,16 +890,35 @@ int main(int argc, char *argv[])
       paraview_dc_morph.SetTime(0.0);
       paraview_dc_morph.RegisterField("disp", &u_morph);
       paraview_dc_morph.RegisterField("mesh_disp", &mesh_disp);
-      paraview_dc_morph.RegisterField("design", &test_design_filter);
+      //paraview_dc_morph.RegisterField("design", &test_design_filter);
+      paraview_dc_morph.RegisterField("design", &rho_filter);
       paraview_dc_morph.RegisterQField("designQuadrature", &dens_interp);
       paraview_dc_morph.RegisterField("sensitivity", &sensitivity_GF);
 
       paraview_dc_morph.Save();
 
       ParGridFunction gridfuncBoundIndicator(&coord_fes);
+      ParGridFunction gridfuncBoundfunc_Min(&coord_fes);
+      ParGridFunction gridfuncBoundfunc_Max(&coord_fes);
       gridfuncBoundIndicator = 0.0;
+      gridfuncBoundfunc_Min = 0.0;
+      gridfuncBoundfunc_Max = 0.0;
       Array<int> vdofs;
+      int numNodes   = gridfuncBoundfunc_Min.Size() / DIM;
+      mfem::Vector locationVector(DIM);
 
+      int nodesinX = Nx*ref_levels+1;
+      int nodesinY = Ny*ref_levels+1;
+
+      int eleinX = Nx*ref_levels;
+      int eleinY = Ny*ref_levels;
+
+      real_t initialEleEdgeLenghtY = Ly / eleinY;
+      real_t initialEleEdgeLenghtX = Lx / eleinX;
+
+      real_t initialEleEdgeLenghtX_noroundoff = std::round(initialEleEdgeLenghtX * 10e5) / 10e5;
+      real_t initialEleEdgeLenghtY_noroundoff = std::round(initialEleEdgeLenghtY * 10e5) / 10e5;
+      
     for (int i = 0; i < pmesh.GetNBE(); i++)
     {
       Element * tEle = pmesh.GetBdrElement(i);
@@ -912,7 +941,25 @@ int main(int argc, char *argv[])
         }
       }
     }
+
+    for ( int Ik = 0; Ik<numNodes; Ik++)
+    {
+       pmesh.GetNode(Ik, &locationVector[0]);
+       const double * pCoords(locationVector.GetData());
+
+       int ijk_X = pCoords[0] / initialEleEdgeLenghtX_noroundoff;
+       int ijk_Y = pCoords[1] / initialEleEdgeLenghtY_noroundoff;
+
+       gridfuncBoundfunc_Max[Ik] = Lx - pCoords[0] - (nodesinX - ijk_X)*1e-6;
+       gridfuncBoundfunc_Min[Ik] = -(pCoords[0] -  ijk_X*1e-6);
+
+       gridfuncBoundfunc_Max[Ik + numNodes] = Ly - pCoords[1] - (nodesinY - ijk_Y)*1e-6;
+       gridfuncBoundfunc_Min[Ik + numNodes] = -(pCoords[1] -  ijk_Y*1e-6);
+    }
+
     gridfuncBoundIndicator.SetTrueVector();
+    gridfuncBoundfunc_Max.SetTrueVector();
+    gridfuncBoundfunc_Min.SetTrueVector();
 
     std::vector<std::pair<int, double>> essentialBC(pmesh.bdr_attributes.Max());
     essentialBC.resize(1);   essentialBC[0] = {4, 0};
@@ -920,7 +967,7 @@ int main(int argc, char *argv[])
     elasticitysolver_old->SetLoad(&tractionLoad);
 
 
-      for(int i=1;i<40;i++)
+      for(int i=1;i<100;i++)
       {
          filterSolver.setLoadGridFunction(gridfuncOptVar);
          filterSolver.FSolve();
@@ -939,8 +986,7 @@ int main(int argc, char *argv[])
          FindPointsGSLIB finder(pmesh.GetComm());
          finder.SetL2AvgType(FindPointsGSLIB::NONE);
          finder.Setup(pmesh);
-         finder.Interpolate(pos_quad_final, test_design_filter, dens_interp);      //TODO filtered density
-         //finder.Interpolate(pos_quad_final, rho_filter, dens_interp);      //TODO filtered density
+         finder.Interpolate(pos_quad_final, rho_filter, dens_interp); 
 
          // ----------------------- compute and set material 
 
@@ -952,9 +998,9 @@ int main(int argc, char *argv[])
          pmesh.DeleteGeometricFactors();
 
          QuadratureFunctionCoefficient newDensityCoeff(dens_interp);         
-         //SIMPInterpolationCoefficientUsingCoeff SIMP_cf_morph(&newDensityCoeff,rho_min, 1.0, 1.0);
-         GridFunctionCoefficient tGFCoeff(&test_design_filter);
-         SIMPInterpolationCoefficientUsingCoeff SIMP_cf_morph(&desing_func,rho_min, 1.0, 1.0);
+         SIMPInterpolationCoefficientUsingCoeff SIMP_cf_morph(&newDensityCoeff,rho_min, 1.0, 1.0);
+         //GridFunctionCoefficient tGFCoeff(&rho_filter);
+         //SIMPInterpolationCoefficientUsingCoeff SIMP_cf_morph(&tGFCoeff,rho_min, 1.0, 3.0);
          ProductCoefficient lambda_SIMP_cf_morph(lambda_cf,SIMP_cf_morph);
          ProductCoefficient mu_SIMP_cf_morph(mu_cf,SIMP_cf_morph);
 
@@ -1404,11 +1450,22 @@ int main(int argc, char *argv[])
 //       //----------------------------------------------------------------------------------------------------------
 //       gridfuncOptVar.SetTrueVector();
       Vector & trueBounds = gridfuncBoundIndicator.GetTrueVector();
+      Vector & trueBounds_Max = gridfuncBoundfunc_Max.GetTrueVector();
+      Vector & trueBounds_Min = gridfuncBoundfunc_Min.GetTrueVector();
 
       // impose desing variable bounds - set xxmin and xxmax
       xxmin=trueOptvar; xxmin-=max_ch;
       xxmax=trueOptvar; xxmax+=max_ch;
       for(int li=0;li<xxmin.Size();li++){
+         if(xxmin[li] <= trueBounds_Min[li])
+         {
+            xxmin[li] = trueBounds_Min[li];
+         }
+         if(xxmax[li] >= trueBounds_Max[li])
+         {
+            xxmax[li] = trueBounds_Max[li];
+         }
+
         if( trueBounds[li] ==1.0)
         {
           xxmin[li] = -1e-10;

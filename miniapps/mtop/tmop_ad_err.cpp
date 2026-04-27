@@ -876,7 +876,7 @@ void ElasticityStiffnessShapeSensitivityIntegrator::AssembleRHSElementVect(const
     elvect = 0.0;
 
     // set integration rule
-     const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2*T.OrderGrad(&el));
+     const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 1*T.OrderGrad(&el));
   //IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
   //const IntegrationRule *ir = &IntRulesGLL.Get(el.GetGeomType(), 8);
 
@@ -1401,7 +1401,7 @@ void Elasticity_Solver::ASolve( Vector & rhs )
     LHS_sensitivity.Assemble();
 
     ParLinearForm RHS_sensitivity(coord_fes_);
-    RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 12,12), bdr);
+    RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 1,1), bdr);
     RHS_sensitivity.Assemble();
 
     *dQdx_ = 0.0;
