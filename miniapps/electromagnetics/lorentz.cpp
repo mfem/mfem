@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   bool use_dev = ctx.device_config != "cpu";
+   bool use_device = (ctx.device_config != "cpu") && Device::IsEnabled();
    Device device(ctx.device_config);
    if (Mpi::Root()) { device.Print(); }
 
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
          return 1;
       }
       E_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmin, bb_xmax, 2);
-      E_gf->UseDevice(use_dev);
+      E_gf->UseDevice(use_device);
    }
 
    // Read B field if provided
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
       }
       Vector bb_xmint, bb_xmaxt;
       B_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmint, bb_xmaxt, 2);
-      B_gf->UseDevice(use_dev);
+      B_gf->UseDevice(use_device);
       if (ctx.E.coll_name != "")
       {
          // compute intersection of bounding boxes
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
    int num_particles = ctx.npt/num_ranks +
                        (rank < (ctx.npt % num_ranks) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type,
-               use_dev);
+               use_device);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
                               ctx.p_min, ctx.p_max, ctx.m, ctx.q);
 
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
    for (int step = 1; step <= ctx.nt; step++)
    {
       // Step the Boris algorithm
-      if (Device::IsEnabled())
+      if (use_device)
       {
          boris.StepDevice(t, dt);
       }
