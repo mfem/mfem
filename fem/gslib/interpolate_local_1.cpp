@@ -89,18 +89,15 @@ static void InterpolateLocal1DKernel(const double *const gf_in,
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,D1D)
+         MFEM_FOREACH_THREAD(j,x,1)
          {
-            if (j==0)
+            double sumv = 0.0;
+            // sum the contributions of each lagrange polynomial
+            for (int jj=0; jj<D1D; ++jj)
             {
-               double sumv = 0.0;
-               // sum the contributions of each lagrange polynomial
-               for (int jj=0; jj<D1D; ++jj)
-               {
-                  sumv += sums[jj];
-               }
-               int_out[fld*npt + i] = sumv;
+               sumv += sums[jj];
             }
+            int_out[fld*npt + i] = sumv;
          }
          MFEM_SYNC_THREAD;
       }
