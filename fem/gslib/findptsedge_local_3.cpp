@@ -128,7 +128,7 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
       {
          dxyz[d] = x[d] - b->c0[d];
       }
-      // tranform dxyz to the local coordinate system of the OBB,
+      // transform dxyz to the local coordinate system of the OBB,
       // and check if the point is inside the OBB [-1,1]^sDIM
       double test = 1;
       for (int d=0; d<sDIM; ++d)

@@ -510,7 +510,7 @@ public:
 
    /// Return the axis-aligned bounding boxes (AABB) computed during \ref Setup.
    /// The size of the returned vector is (nel x nverts x dim), where nel is the
-   /// number of elements (after splitting for simplcies), nverts is number of
+   /// number of elements (after splitting for simplicies), nverts is number of
    /// vertices (4 in 2D, 8 in 3D), and dim is the spatial dimension.
    void GetAxisAlignedBoundingBoxes(Vector &aabb) const;
 
