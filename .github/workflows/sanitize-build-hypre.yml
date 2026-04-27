@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     name: 2.19.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/config
       - name: Cache
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{env.HYPRE_DIR}}
           key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-v2.5

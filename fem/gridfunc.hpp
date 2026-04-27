@@ -23,6 +23,7 @@
 #include <limits>
 #include <ostream>
 #include <string>
+#include <variant>
 
 namespace mfem
 {
@@ -79,10 +80,18 @@ protected:
                         bool wcoef,
                         int subdomain);
 
-   /** Project a discontinuous vector coefficient in a continuous space and
-       return in dof_attr the maximal attribute of the elements containing each
-       degree of freedom. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
+   /** @brief Project a discontinuous (vector) coefficient as a grid function on
+       a continuous finite element space. Return in dof_attr the maximal
+       attribute of the elements containing each degree of freedom. */
+   virtual void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff, Array<int> &dof_attr);
+
+   /** @brief Project a discontinuous (vector) coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff)
+   { Array<int> dof_attr; ProjectDiscCoefficient(coeff, dof_attr); };
 
    /** Helper function for ProjectCoefficientElementL2 */
    void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);
@@ -150,11 +159,13 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
-   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
-   int VectorDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+       underlying #fes */
+   int VectorDim() const { return fes->GetVectorDim(); }
 
-   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
-   int CurlDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetCurlDim() on the
+       underlying #fes */
+   int CurlDim() const { return fes->GetCurlDim(); }
 
    /// Read only access to the (optional) internal true-dof Vector.
    const Vector &GetTrueVector() const
@@ -513,10 +524,17 @@ public:
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
 
+   /** @brief Project a discontinuous coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(Coefficient &coeff)
+   { ProjectDiscCoefficient(&coeff); }
+
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
        determined from the element with maximal attribute. */
-   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff);
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff)
+   { ProjectDiscCoefficient(&coeff); }
 
    enum AvgType {ARITHMETIC, HARMONIC};
    /** @brief Projects a discontinuous coefficient so that the values in shared
@@ -532,6 +550,9 @@ public:
    std::unique_ptr<GridFunction> ProlongateToMaxOrder() const;
 
 protected:
+   void ProjectBdrCoefficientNormal(Coefficient *coeff, VectorCoefficient *vcoeff,
+                                    const Array<int> &attr);
+
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
@@ -656,15 +677,26 @@ public:
    virtual void ProjectBdrCoefficient(Coefficient *coeff[],
                                       const Array<int> &attr);
 
-   /** Project the normal component of the given VectorCoefficient on
-       the boundary. Only boundary attributes that are marked in
-       'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
+   /** @brief Project the normal component of the given VectorCoefficient on
+       the boundary. */
+   /** Only boundary attributes that are marked in @a bdr_attr are
+       projected. Assumes RT-type vector finite element GridFunction. */
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
-                                    const Array<int> &bdr_attr);
+                                    const Array<int> &bdr_attr)
+   { ProjectBdrCoefficientNormal(NULL, &vcoeff, bdr_attr); }
+
+   /** @brief Project the given Coefficient in the normal direction on the
+       boundary. */
+   /** Only boundary attributes that are marked in @a bdr_attr are projected.
+       Assumes RT-type vector finite element GridFunction. */
+   void ProjectBdrCoefficientNormal(Coefficient &coeff,
+                                    const Array<int> &bdr_attr)
+   { ProjectBdrCoefficientNormal(&coeff, NULL, bdr_attr); }
 
    /** @brief Project the tangential components of the given VectorCoefficient
-       on the boundary. Only boundary attributes that are marked in @a bdr_attr
-       are projected. Assumes ND-type VectorFE GridFunction. */
+       on the boundary. */
+   /** Only boundary attributes that are marked in @a bdr_attr
+       are projected. Assumes ND-type vector finite element GridFunction. */
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              const Array<int> &bdr_attr);
 
@@ -1914,7 +1946,7 @@ real_t ComputeElementLpDistance(real_t p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
 
 
-/// Class used for extruding scalar GridFunctions
+/// Class used for extruding a scalar coefficient
 class ExtrudeCoefficient : public Coefficient
 {
 private:
@@ -1922,13 +1954,53 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
+   /// Constructs an instance of VectorExtrudeCoefficient
+   /**
+    * @param m      1D mesh
+    * @param s      1D vector coefficient
+    * @param n_     number of transverse elements of the extruded mesh
+    */
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
-      : n(n_), mesh_in(m), sol_in(s) { }
+      : n(n_), mesh_in(m), sol_in(s)
+   { MFEM_VERIFY(n > 0, "Number of transverse elements must be positive!"); }
+
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+
    virtual ~ExtrudeCoefficient() { }
 };
 
-/// Extrude a scalar 1D GridFunction, after extruding the mesh with Extrude1D.
+/// Class used for extruding a vector coefficient
+class VectorExtrudeCoefficient : public VectorCoefficient
+{
+private:
+   int n;
+   Mesh *mesh_in;
+   VectorCoefficient &sol_in;
+public:
+   /// Constructs an instance of VectorExtrudeCoefficient
+   /**
+    * @param m      1D mesh
+    * @param s      1D vector coefficient
+    * @param n_     number of transverse elements of the extruded mesh
+    */
+   VectorExtrudeCoefficient(Mesh *m, VectorCoefficient &s, int n_)
+      : VectorCoefficient(s.GetVDim()), n(n_), mesh_in(m), sol_in(s)
+   { MFEM_VERIFY(n > 0, "Number of transverse elements must be positive!"); }
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+   using VectorCoefficient::Eval;
+
+   virtual ~VectorExtrudeCoefficient() { }
+};
+
+/// Extrude a 1D GridFunction, after extruding the mesh with Extrude1D()
+/**
+ * @param mesh      1D mesh
+ * @param mesh2d    extruded mesh
+ * @param sol       grid function
+ * @param ny        number of transverse elements of the extruded mesh
+ */
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
