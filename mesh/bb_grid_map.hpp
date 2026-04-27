@@ -137,7 +137,7 @@ public:
     *  with the given bounding box. */
    static void GetGridRange(const int d, const Array<int> &lh_n,
                             const Vector &lh_fac,
-                            const Vector &lh_bnd_min, const Vector &lh_bnd_max,
+                            const Vector &lh_bnd_min,
                             const real_t &xmin, const real_t &xmax,
                             int &imin, int &imax);
 

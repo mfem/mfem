@@ -12,10 +12,7 @@
 #include "bb_grid_map.hpp"
 
 #include <limits>
-#include <cstring>
-#include <string>
 #include <cmath>
-#include <iostream>
 #include <algorithm>
 
 namespace mfem
@@ -310,7 +307,6 @@ Array<int> BBoxTensorGridMap::MapPointToElements(Vector &xyz) const
 void BBoxTensorGridMap::GetGridRange(const int d, const Array<int> &lh_n,
                                      const Vector &lh_fac,
                                      const Vector &lh_bnd_min,
-                                     const Vector &lh_bnd_max,
                                      const real_t &xmin, const real_t &xmax,
                                      int &imin, int &imax)
 {
@@ -363,7 +359,7 @@ int BBoxTensorGridMap::GetGridCountAndRange(const Array<int> &lh_n,
       int count_el = 1;
       for (int d = 0; d < dim; d++)
       {
-         GetGridRange(d, lh_n, lh_fac, lh_bnd_min, lh_bnd_max,
+         GetGridRange(d, lh_n, lh_fac, lh_bnd_min,
                       elmin[d*nel + i], elmax[d*nel + i],
                       elmin_h[d*nel + i], elmax_h[d*nel + i]);
          int imax = elmax_h[d*nel + i];

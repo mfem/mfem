@@ -11,7 +11,6 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
-#include "fem/gslib.hpp"
 
 using namespace mfem;
 
