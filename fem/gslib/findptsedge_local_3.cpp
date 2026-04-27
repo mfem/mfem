@@ -317,6 +317,7 @@ newton_edge_fin:
    out->r = nr;
    out->dist2p = -v;
    out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<3);
+#undef EVAL
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],

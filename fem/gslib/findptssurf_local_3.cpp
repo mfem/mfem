@@ -641,6 +641,7 @@ newton_edge_fin:
    out->r[dn] = p->r[dn];
    out->dist2p = -v;
    out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<5);
+#undef EVAL
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
@@ -947,7 +948,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                            {
                               newton_face(fpt,jac,hes,resid,
                                           (tmp->flags&CONVERGED_FLAG),
-                                           tmp,tol);
+                                          tmp,tol);
                            }
                         }
                         MFEM_SYNC_THREAD;

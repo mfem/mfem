@@ -562,7 +562,7 @@ newton_area_fin:
       int f = flags >> (2 * dd) & 3u;
       res->r[dd] = f == 0 ? r0[dd] + dr[dd] : (f == 1 ? -1 : 1);
    }
-   res->flags = flags | (p->flags << 5);
+   res->flags = flags | ((p->flags & FLAG_MASK) << 5);
 }
 
 // Full Newton solve on the face. One of r/s/t is constrained.
@@ -635,7 +635,8 @@ newton_edge_fin:
    res->r[de] = nr;
    res->r[dn]=p->r[dn];
    res->dist2p = -v;
-   res->flags = flags | new_flags | (p->flags << 5);
+   res->flags = flags | new_flags | ((p->flags & FLAG_MASK) << 5);
+#undef EVAL
 }
 
 // Find closest mesh node to the sought point.
@@ -714,7 +715,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      const double *lagcoeff,
                                      const int pN = 0)
 {
-#define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_NE = D1D*D1D;
@@ -1201,6 +1201,8 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                          pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
+#undef DIM2
+#undef DIM
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
