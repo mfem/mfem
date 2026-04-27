@@ -199,7 +199,7 @@ protected:
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
-                          int nel, int dof1dsol);
+                          int dof1dsol);
 
    /// Interpolate on device for 2D.
    void InterpolateLocal2(const Vector &field_in,
@@ -207,14 +207,14 @@ protected:
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
-                          int nel, int dof1dsol);
+                          int dof1dsol);
 
    /// Interpolate on device for 1D.
    void InterpolateLocal1(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
                           Vector &field_out,
-                          int npt, int ncomp, int nel, int dof1dsol);
+                          int npt, int ncomp, int dof1dsol);
 
    /// Prepare data for device execution for volume meshes.
    void SetupDevice();

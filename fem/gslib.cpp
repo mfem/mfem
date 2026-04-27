@@ -1732,7 +1732,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                            gsl_ref_temp,
                            interp_vals,
                            nlocal, ncomp,
-                           nel, dof1Dsol);
+                           dof1Dsol);
       }
       else
       {
@@ -1741,7 +1741,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                            gsl_ref_temp,
                            interp_vals,
                            nlocal, ncomp,
-                           nel, dof1Dsol);
+                           dof1Dsol);
 
       }
 #ifdef MFEM_USE_MPI
@@ -1806,16 +1806,14 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
          InterpolateLocal2(field_in_evec,
                            gsl_elem_temp,
                            gsl_ref_temp,
-                           interp_vals, n, ncomp,
-                           nel, dof1Dsol);
+                           interp_vals, n, ncomp, dof1Dsol);
       }
       else
       {
          InterpolateLocal3(field_in_evec,
                            gsl_elem_temp,
                            gsl_ref_temp,
-                           interp_vals, n, ncomp,
-                           nel, dof1Dsol);
+                           interp_vals, n, ncomp, dof1Dsol);
       }
 #ifdef MFEM_USE_MPI
       MPI_Barrier(gsl_comm->c);
@@ -2400,12 +2398,12 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       if (dim == 1)
       {
          InterpolateLocal1(field_in, gsl_elem_temp, gsl_ref_temp,
-                           interp_vals, nlocal, ncomp, nel, dof1Dsol);
+                           interp_vals, nlocal, ncomp, dof1Dsol);
       }
       else if (dim == 2)
       {
          InterpolateLocal2(field_in, gsl_elem_temp, gsl_ref_temp,
-                           interp_vals, nlocal, ncomp, nel, dof1Dsol);
+                           interp_vals, nlocal, ncomp, dof1Dsol);
 
       }
 #ifdef MFEM_USE_MPI
@@ -2460,12 +2458,12 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       if (dim == 1)
       {
          InterpolateLocal1(field_in, gsl_elem_temp, gsl_ref_temp,
-                           interp_vals, n, ncomp, nel, dof1Dsol);
+                           interp_vals, n, ncomp, dof1Dsol);
       }
       else if (dim == 2)
       {
          InterpolateLocal2(field_in, gsl_elem_temp, gsl_ref_temp,
-                           interp_vals, n, ncomp, nel, dof1Dsol);
+                           interp_vals, n, ncomp, dof1Dsol);
       }
 #ifdef MFEM_USE_MPI
       MPI_Barrier(gsl_comm->c);

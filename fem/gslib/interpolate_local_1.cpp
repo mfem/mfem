@@ -52,8 +52,6 @@ static void InterpolateLocal1DKernel(const double *const gf_in,
                                      double *const int_out,
                                      const int npt,
                                      const int nfields,
-                                     const int nel,
-                                     const int gf_offset,
                                      double *gll1D,
                                      double *lagcoeff,
                                      const int pN = 0)
@@ -81,9 +79,9 @@ static void InterpolateLocal1DKernel(const double *const gf_in,
 
       for (int fld=0; fld<nfields; ++fld)
       {
-         // If using GetNodalValues, ordering is NDOFSxNELxVDIM
-         // const int elemOffset = el[i] * p_Np + fld * gf_offset;
-         //if using R->Mult for L -> E-Vec use below: NDOFSxVDIMxNEL
+         // If using GetNodalValues, ordering is NDOFS x NEL x VDIM and the
+         // offset would be `el[i] * p_Nq + fld * gf_offset`.
+         // R->Mult produces element vectors in NDOFS x VDIM x NEL layout.
          const int elemOffset = el[i]*nfields*p_Nq + fld*p_Nq;
          MFEM_FOREACH_THREAD(j,x,D1D)
          {
@@ -115,12 +113,10 @@ void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
                                          Vector &field_out,
                                          int npt,
                                          int ncomp,
-                                         int nel,
                                          int dof1Dsol )
 {
    MFEM_VERIFY(dim == 1, "Kernel for edges only.");
    if (npt == 0) { return; }
-   const int gf_offset = field_in.Size()/ncomp;
    bool use_dev = field_in.UseDevice();
    auto pfin = field_in.Read(use_dev);
    auto pgsl = gsl_elem_dev_l.ReadWrite(use_dev);
@@ -131,19 +127,19 @@ void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
    switch (dof1Dsol)
    {
       case 2: return InterpolateLocal1DKernel<2>(pfin, pgsl, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 3: return InterpolateLocal1DKernel<3>(pfin, pgsl, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 4: return InterpolateLocal1DKernel<4>(pfin, pgsl, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 5: return InterpolateLocal1DKernel<5>(pfin, pgsl, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       default: return InterpolateLocal1DKernel(pfin, pgsl, pgslr, pfout,
-                                                  npt, ncomp, nel, gf_offset,
+                                                  npt, ncomp,
                                                   pgll, plcf, dof1Dsol);
    }
 }
@@ -156,7 +152,7 @@ void FindPointsGSLIB::InterpolateLocal1(const Vector &field_in,
                                         Vector &gsl_ref_l,
                                         Vector &field_out,
                                         int npt, int ncomp,
-                                        int nel, int dof1Dsol) {};
+                                        int dof1Dsol) {};
 #endif
 
 } // namespace mfem
