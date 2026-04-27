@@ -307,6 +307,29 @@ if (DEFINED FETCH_TPLS)
   message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
 endif()
 
+# Proteus config
+if (MFEM_USE_PROTEUS)
+  set(MFEM_USE_PROTEUS ON)
+  if (NOT "${PROTEUS_INSTALL_DIR}" STREQUAL "")
+    find_package(proteus REQUIRED PATHS "${PROTEUS_INSTALL_DIR}")
+    message(STATUS "${PROTEUS_INSTALL_DIR}/include")
+    include_directories("${PROTEUS_INSTALL_DIR}/include")
+  else()
+    set(PROTEUS_ENABLE_HIP  "${MFEM_ENABLE_HIP}" CACHE BOOL "Enable JIT compilation of HIP kernels")
+    set(PROTEUS_ENABLE_CUDA "${MFEM_ENABLE_CUDA}" CACHE BOOL "Enable JIT compilation of CUDA kernels")
+
+    include(FetchContent)
+    FetchContent_Declare(
+      proteus
+      GIT_REPOSITORY https://github.com/Olympus-HPC/proteus.git
+      GIT_TAG        257707cf7e60452ed38161f6429421be303ddaf3
+      )
+    FetchContent_MakeAvailable(proteus)
+    include(${proteus_SOURCE_DIR}/cmake/ProteusFunctions.cmake)
+    set(PROTEUS_HEADERS_DIR "${proteus_SOURCE_DIR}/include" CACHE STRING "")
+  endif()
+endif()
+
   # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
    # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
@@ -728,6 +751,9 @@ mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+if (MFEM_USE_PROTEUS)
+  add_proteus(mfem)
+endif()
 if (TPL_TARGETS)
   add_dependencies(mfem ${TPL_TARGETS})
 endif()
