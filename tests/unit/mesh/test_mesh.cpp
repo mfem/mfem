@@ -512,8 +512,8 @@ TEST_CASE("Mesh::Swap preserves named attribute sets", "[Mesh]")
    REQUIRE(!b.bdr_attribute_sets.AttributeSetExists("bdr_set_b"));
 
    // Verify set contents survived the swap.
-   REQUIRE(a.bdr_attribute_sets.GetAttributeSet("bdr_set_b")[0] == 3);
-   REQUIRE(a.bdr_attribute_sets.GetAttributeSet("bdr_set_b")[1] == 4);
-   REQUIRE(b.bdr_attribute_sets.GetAttributeSet("bdr_set_a")[0] == 1);
-   REQUIRE(b.bdr_attribute_sets.GetAttributeSet("bdr_set_a")[1] == 2);
+   Array<int> a_bdr_result = a.bdr_attribute_sets.GetAttributeSet("bdr_set_b");
+   Array<int> b_bdr_result = b.bdr_attribute_sets.GetAttributeSet("bdr_set_a");
+   REQUIRE(a_bdr_result == b_bdr_attrs);
+   REQUIRE(b_bdr_result == a_bdr_attrs);
 }
