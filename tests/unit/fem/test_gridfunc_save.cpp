@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("GridFunction Save", "[GridFunction]")
+TEST_CASE("GridFunction Save", "[GridFunction][Pyramid]")
 {
    const int order = 3;
 
@@ -94,7 +94,7 @@ TEST_CASE("GridFunction Save", "[GridFunction]")
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("ParGridFunction Save", "[ParGridFunction][Parallel]")
+TEST_CASE("ParGridFunction Save", "[ParGridFunction][Pyramid][Parallel]")
 {
    const int num_procs = Mpi::WorldSize();
    const int my_rank = Mpi::WorldRank();
