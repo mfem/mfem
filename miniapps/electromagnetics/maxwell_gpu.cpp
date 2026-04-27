@@ -97,11 +97,11 @@ void BFieldFunc(const Vector &x, Vector &B);
 int SnapTimeStep(real_t tmax, real_t dtmax, real_t &dt);
 
 /// assumes x is 3D
-MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y,
-                                   const real_t z, real_t t, real_t *j,
+MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y_,
+                                   const real_t z_, real_t t, real_t *j,
                                    const real_t *dp_params, real_t tscale)
 {
-   real_t x[3] = {x_, y, z};
+   real_t x[3] = {x_, y_, z_};
    constexpr int ndims = 3;
    real_t v[ndims];
    real_t xu[ndims];
@@ -110,6 +110,9 @@ MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y,
    {
       j[i] = 0;
       xu[i] = x[i] - dp_params[i];
+   }
+   for (int i = 0; i < ndims; ++i)
+   {
       v[i] = dp_params[ndims + i] - dp_params[i];
       h += v[i] * v[i];
    }
@@ -117,6 +120,7 @@ MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y,
    {
       return;
    }
+   h = sqrt(h);
    for (int i = 0; i < ndims; ++i)
    {
       v[i] /= h;
@@ -137,6 +141,7 @@ MFEM_HOST_DEVICE void dipole_pulse(const real_t x_, const real_t y,
       xu[i] -= xv * v[i];
       xp += xu[i] * xu[i];
    }
+   xp = sqrt(xp);
    if (xv >= 0 && xv <= h && xp <= r)
    {
       real_t mag = a * (t - b) * exp(-0.5 * pow((t - b) / c, 2)) / (c * c);
@@ -173,8 +178,6 @@ struct CurrentIntegrator : public LinearFormIntegrator
                                Vector &elvect) override;
    using LinearFormIntegrator::AssembleRHSElementVect;
 
-   /// args: ne, d1d, q1d, markers, B, J, W, coords, dp_params, y, t,
-   /// tscale
    using AssembleKernelType = void (*)(const int ne, const int d1d,
                                        const int q1d, const int *markers,
                                        const real_t *Bo, const real_t *Bc,
@@ -620,15 +623,13 @@ int main(int argc, char *argv[])
          E_sock << "parallel " << num_procs << " " << myid << "\n";
          E_sock.precision(8);
          E_sock << "solution\n"
-                << pmesh << E_gf << std::endl
-                << "keys c" << std::endl;
+                << pmesh << E_gf << std::endl;
          E_sock << "window_title 'Electric Field (E)'" << std::endl;
 
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock.precision(8);
          B_sock << "solution\n"
-                << pmesh << B_gf << std::endl
-                << "keys c" << std::endl;
+                << pmesh << B_gf << std::endl;
          B_sock << "window_title 'Magnetic Flux Density (B)'" << std::endl;
       }
    }
@@ -763,7 +764,7 @@ AmpereOperator::AmpereOperator(
    solver.SetOperator(action);
    // TODO: make configurable parameters
    solver.SetAbsTol(0);
-   solver.SetRelTol(1e-6);
+   solver.SetRelTol(1e-12);
    solver.SetMaxIter(300);
    // solver.SetPrintLevel(1);
 }
@@ -851,6 +852,7 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
    action.EliminateRHS(rhs_tdofs);
    action.hcurl_space->GetRestrictionOperator()->Mult(*dedt, X);
    solver.Mult(rhs_tdofs, X);
+   MFEM_VERIFY(solver.GetConverged(), "");
    if (P)
    {
       P->Mult(X, dEdt);
@@ -1029,15 +1031,12 @@ void CurrentIntegratorKernel(const int ne, const int d, const int q,
       MFEM_VERIFY(d <= D, "");
       MFEM_VERIFY(d <= q, "");
    }
-   // TODO
    constexpr int vdim = 3;
    const auto BO = Reshape(bo, q, d - 1);
    const auto BC = Reshape(bc, q, d);
    const auto J = Reshape(j_, q, q, q, vdim, vdim, ne);
    const auto W = Reshape(weights, q, q, q);
    const auto C = Reshape(coords, q, q, q, vdim, ne);
-
-   // auto Y = Reshape(y, 3 * (d - 1) * d * d, ne);
 
    // TODO: batching
 
@@ -1082,14 +1081,35 @@ void CurrentIntegratorKernel(const int ne, const int d, const int q,
             {
                for (int z = 0; z < q; ++z)
                {
-                  const real_t J0 = J(x, y, z, 0, vd, e);
-                  const real_t J1 = J(x, y, z, 1, vd, e);
-                  const real_t J2 = J(x, y, z, 2, vd, e);
                   real_t curr[3];
                   dipole_pulse(C(x, y, z, 0, e), C(x, y, z, 1, e),
                                C(x, y, z, 2, e), t, curr, dp_params, tscale);
-                  QQQ(x, y, z, vd) =
-                     W(x, y, z) * (J0 * curr[0] + J1 * curr[1] + J2 * curr[2]);
+
+                  const real_t J11 = J(x, y, z, 0, 0, e);
+                  const real_t J21 = J(x, y, z, 1, 0, e);
+                  const real_t J31 = J(x, y, z, 2, 0, e);
+                  const real_t J12 = J(x, y, z, 0, 1, e);
+                  const real_t J22 = J(x, y, z, 1, 1, e);
+                  const real_t J32 = J(x, y, z, 2, 1, e);
+                  const real_t J13 = J(x, y, z, 0, 2, e);
+                  const real_t J23 = J(x, y, z, 1, 2, e);
+                  const real_t J33 = J(x, y, z, 2, 2, e);
+                  // adj(J)
+                  const real_t A11 = (J22 * J33) - (J23 * J32);
+                  const real_t A12 = (J32 * J13) - (J12 * J33);
+                  const real_t A13 = (J12 * J23) - (J22 * J13);
+                  const real_t A21 = (J31 * J23) - (J21 * J33);
+                  const real_t A22 = (J11 * J33) - (J13 * J31);
+                  const real_t A23 = (J21 * J13) - (J11 * J23);
+                  const real_t A31 = (J21 * J32) - (J31 * J22);
+                  const real_t A32 = (J31 * J12) - (J11 * J32);
+                  const real_t A33 = (J11 * J22) - (J12 * J21);
+                  const real_t A[9] = {A11, A12, A13, A21, A22,
+                                       A23, A31, A32, A33
+                                      };
+                  QQQ(x, y, z, vd) = W(x, y, z) * (A[vd * vdim] * curr[0] +
+                                                   A[vd * vdim + 1] * curr[1] +
+                                                   A[vd * vdim + 2] * curr[2]);
                }
             }
          }
