@@ -38,7 +38,7 @@ class CuDSSSolver : public Solver
 {
 public:
    /// Specify the type of matrix we are applying the solver to
-   enum class MatType
+   enum MatType
    {
       /// CUDSS_MTYPE_GENERAL: General matrix [default].
       NONSYMMETRIC = 0,
@@ -49,7 +49,7 @@ public:
    };
 
    /// Specify the view type of matrix we are applying the solver to
-   enum class MatViewType
+   enum MatViewType
    {
       /// CUDSS_MVIEW_FULL: Full matrix [default]
       FULL = 0,

@@ -261,8 +261,8 @@ int main(int argc, char *argv[])
       // Solve using a direct solver with cuDSS
       CuDSSSolver cudss_solver(MPI_COMM_WORLD);
       cudss_solver.SetMatrixSymType(
-         CuDSSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-      cudss_solver.SetMatrixViewType(CuDSSSolver::MatViewType::UPPER);
+         CuDSSSolver::SYMMETRIC_POSITIVE_DEFINITE);
+      cudss_solver.SetMatrixViewType(CuDSSSolver::UPPER);
       cudss_solver.SetOperator(*A);
       cudss_solver.Mult(B, X);
    }
