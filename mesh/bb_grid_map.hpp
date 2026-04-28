@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /* The BBoxTensorGridMap class is adapted from similar functionality in the
-gslib library.
+gslib library. Below is the gslib license and copyright statement:
 
 Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
 

@@ -21,7 +21,7 @@
 
 #ifdef MFEM_USE_GSLIB
 
-/* Copyright statement for code adapted from gslib:
+/* gslib license and copyright statement for code adapted from gslib:
 
 Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
 

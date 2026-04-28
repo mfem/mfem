@@ -19,7 +19,7 @@
 /* The class GlobalBBoxTensorGridMap, and certain methods including
 dbl_range_diag_expand_2, dbl_range_diag_expand_3, bbox_2_tfm, bbox_3_tfm,
 dbl_range_expand, and obbox{surf/edge}_calc_{D}, were adapted from the gslib
-library.
+library. Below is the gslib license and copyright statement:
 
 Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
 
