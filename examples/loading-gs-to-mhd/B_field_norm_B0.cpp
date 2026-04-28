@@ -121,6 +121,19 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool mixed_bilinear_form = false;
    bool from_psi = false;
+   double B0 = -1.0;
+   double r_ma = 0.0;
+   double z_ma = 0.0;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&B0, "-B0", "--B0",
+                  "Target B0. If negative, scale from |B| at (r_ma, z_ma).");
+   args.AddOption(&r_ma, "-r_ma", "--r_ma",
+                  "Radial coordinate used when B0 is negative.");
+   args.AddOption(&z_ma, "-z_ma", "--z_ma",
+                  "Axial coordinate used when B0 is negative.");
+   args.Parse();
+   args.PrintOptions(cout);
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -131,27 +144,6 @@ int main(int argc, char *argv[])
    GridFunction psi(&mesh, psi_log);
    ifstream gg_log(gg_log_filename);
    GridFunction gg(&mesh, gg_log);
-
-   MFEM_ASSERT(psi.Size() == mesh.GetNV(),
-               "This vertex scan assumes first-order CG (one DOF per vertex).");
-   double psi_max = -std::numeric_limits<double>::infinity();
-   int psi_max_vertex = -1;
-   Vector psi_max_x(dim);
-   for (int v = 0; v < mesh.GetNV(); v++)
-   {
-      const double psi_val = psi(v);
-      if (psi_val > psi_max)
-      {
-         psi_max = psi_val;
-         psi_max_vertex = v;
-         const double *xv = mesh.GetVertex(v);
-         for (int d = 0; d < dim; d++) { psi_max_x(d) = xv[d]; }
-      }
-   }
-   cout << "psi max = " << psi_max << ", vertex = " << psi_max_vertex
-        << ", at x = ";
-   psi_max_x.Print(cout, dim);
-   cout << "psi.Max() check = " << psi.Max() << endl;
 
    cout << "Mesh loaded" << endl;
 
@@ -164,22 +156,35 @@ int main(int argc, char *argv[])
    GridFunction B_tor = computeBTor(gg, scalar_fespace, mixed_bilinear_form, from_psi);
 
    FindPointsGSLIBOneByOne finder(&psi);
-   Vector B_tor_at_psi_max(1);
-   finder.InterpolateOneByOne(psi_max_x, B_tor, B_tor_at_psi_max, Ordering::byNODES);
-   Vector B_pol_at_psi_max(dim);
-   finder.InterpolateOneByOne(psi_max_x, B_pol, B_pol_at_psi_max, Ordering::byNODES);
-   cout << "B_tor(psi_max point) = " << B_tor_at_psi_max(0) << endl;
-   cout << "B_pol(psi_max point) = ";
-   B_pol_at_psi_max.Print(cout, dim);
-   const double B_mag =
-      std::sqrt(B_tor_at_psi_max(0) * B_tor_at_psi_max(0) + B_pol_at_psi_max * B_pol_at_psi_max);
+   double B_scale = B0;
+   Vector B_tor_at_scale(1);
+   Vector B_pol_at_scale(dim);
+   if (B_scale < 0.0)
+   {
+      MFEM_VERIFY(dim >= 2, "r_ma and z_ma require a 2D mesh with axes 0 and 1.");
+      Vector scale_point(dim);
+      scale_point = 0.0;
+      scale_point(0) = r_ma;
+      scale_point(1) = z_ma;
+      finder.InterpolateOneByOne(scale_point, B_tor, B_tor_at_scale, Ordering::byNODES);
+      finder.InterpolateOneByOne(scale_point, B_pol, B_pol_at_scale, Ordering::byNODES);
+      cout << "B_tor(r_ma, z_ma) = " << B_tor_at_scale(0) << endl;
+      cout << "B_pol(r_ma, z_ma) = ";
+      B_pol_at_scale.Print(cout, dim);
+      B_scale = std::sqrt(B_tor_at_scale(0) * B_tor_at_scale(0) +
+                          B_pol_at_scale * B_pol_at_scale);
+   }
+   else
+   {
+      cout << "Using provided B0 = " << B_scale << endl;
+   }
    // precision 8
-   cout << "B magnitude = " << std::setprecision(8) << B_mag << endl;
-   MFEM_VERIFY(B_mag > 0.0, "B magnitude is zero; cannot normalize psi and gg.");
+   cout << "B scale = " << std::setprecision(8) << B_scale << endl;
+   MFEM_VERIFY(B_scale > 0.0, "B scale must be positive; cannot normalize psi and gg.");
 
-   const double inv_B_mag = 1.0 / B_mag;
-   psi *= inv_B_mag;
-   gg *= inv_B_mag;
+   const double inv_B_scale = 1.0 / B_scale;
+   psi *= inv_B_scale;
+   gg *= inv_B_scale;
 
    auto scaled_filename = [](const string &filename)
    {
