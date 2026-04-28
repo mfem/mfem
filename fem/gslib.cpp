@@ -16,6 +16,48 @@
 
 #ifdef MFEM_USE_GSLIB
 
+/* The class GlobalBBoxTensorGridMap, and certain methods including
+dbl_range_diag_expand_2, dbl_range_diag_expand_3, bbox_2_tfm, bbox_3_tfm,
+dbl_range_expand, and obbox{surf/edge}_calc_{D}, were adapted from the gslib
+library.
+
+Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
+
+The UChicago Argonne, LLC as Operator of Argonne National
+Laboratory holds copyright in the Software. The copyright holder
+reserves all rights except those expressly granted to licensees,
+and U.S. Government license rights.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+notice, this list of conditions and the disclaimer below.
+
+2. Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the disclaimer (as noted below)
+in the documentation and/or other materials provided with the
+distribution.
+
+3. Neither the name of ANL nor the names of its contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+UCHICAGO ARGONNE, LLC, THE U.S. DEPARTMENT OF
+ENERGY OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 // Ignore warnings from the gslib header (GCC version)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic push
