@@ -2255,8 +2255,10 @@ public:
 
    // The following four methods support general operators
    void SetPreconditioner(Solver & precond);
-   void SetOperator(const Operator & A) override;
-   void SetMassMatrix(const Operator & M) override;
+   void SetOperators(const Operator & A, const Operator & B) override
+   { SetOperator(A); SetMassMatrix(B); }
+   void SetOperator(const Operator & A);
+   void SetMassMatrix(const Operator & M);
    void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
@@ -2334,9 +2336,8 @@ public:
 
    // The following four methods support operators of type HypreParMatrix.
    void SetPreconditioner(HypreSolver & precond);
-   void SetOperator(const Operator & op) override;
+   void SetOperators(const Operator & opA, const Operator & opB) override;
    void SetOperator(const HypreParMatrix & A);
-   void SetMassMatrix(const Operator & op) override;
    void SetMassMatrix(const HypreParMatrix & M);
 
    /// Solve the eigenproblem

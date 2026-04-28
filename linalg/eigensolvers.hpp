@@ -20,7 +20,8 @@ namespace mfem
 /// Abstract Eigenequation
 /// Defines the operator of the linear eigenvalue equation
 ///    A x_i = lambda_i x_i
-/// Where the lambda_i are the eigenvalues and x_i are the eigenvectors.
+/// Where A is a real-valued operator, the lambda_i are the eigenvalues,
+/// and x_i are the eigenvectors.
 class Eigenequation
 {
 protected:
@@ -36,9 +37,9 @@ public:
 /// Abstract Complex-valued Eigenequation
 /// Defines the operator of the linear eigenvalue equation
 ///    A x_i = lambda_i x_i
-/// Where A is complex-valued, the lambda_i are the eigenvalues and
-/// x_i are the eigenvectors.
-class ComplexEigenequation : public Eigenequation
+/// Where A is a complex-valued operator, the lambda_i are the eigenvalues,
+/// and x_i are the eigenvectors.
+class ComplexEigenequation
 {
 protected:
    ComplexEigenequation() = default;
@@ -46,17 +47,16 @@ protected:
 public:
    virtual ~ComplexEigenequation() = default;
 
-   using Eigenequation::SetOperator;
-
    /// @brief Set the real and imaginary parts of the operator A
    virtual void SetOperator(const Operator & Ar, const Operator & Ai) = 0;
 };
 
 /// Abstract Generalized Eigenequation
 /// Defines the operator of the linear eigenvalue equation
-///    A x_i = lambda_i M x_i
-/// Where the lambda_i are the eigenvalues and x_i are the eigenvectors.
-class GenEigenequation : public Eigenequation
+///    A x_i = lambda_i B x_i
+/// Where A and B are real-valued operators, the lambda_i are the eigenvalues,
+/// and x_i are the eigenvectors.
+class GenEigenequation
 {
 protected:
    GenEigenequation() = default;
@@ -64,16 +64,16 @@ protected:
 public:
    virtual ~GenEigenequation() = default;
 
-   /// @brief Set the mass operator M of the generalized eigenvalue equation
-   virtual void SetMassMatrix(const Operator & M) = 0;
+   /// @brief Set the operators A and B of the generalized eigenvalue equation
+   virtual void SetOperators(const Operator & A, const Operator & B) = 0;
 };
 
 /// Abstract Complex-valued Generalized Eigenequation
 /// Defines the operator of the linear eigenvalue equation
-///    A x_i = lambda_i M x_i
-/// Where the lambda_i are the eigenvalues and x_i are the eigenvectors.
-class ComplexGenEigenequation :
-   public ComplexEigenequation, public GenEigenequation
+///    A x_i = lambda_i B x_i
+/// Where A and B are complex-valued operators, the lambda_i are the
+/// eigenvalues, and x_i are the eigenvectors.
+class ComplexGenEigenequation
 {
 protected:
    ComplexGenEigenequation() = default;
@@ -81,10 +81,9 @@ protected:
 public:
    virtual ~ComplexGenEigenequation() = default;
 
-   using GenEigenequation::SetMassMatrix;
-
-   /// @brief Set the real and imaginary parts of the mass operator M
-   virtual void SetMassMatrix(const Operator & Mr, const Operator & Mi) = 0;
+   /// @brief Set the real and imaginary parts of the operators A and B
+   virtual void SetOperators(const Operator & Ar, const Operator & Ai,
+                             const Operator & Br, const Operator & Bi) = 0;
 };
 
 /// Abstract Eigensolver

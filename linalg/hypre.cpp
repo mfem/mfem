@@ -6867,15 +6867,21 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
-HypreAME::SetOperator(const Operator & op)
+HypreAME::SetOperators(const Operator & opA, const Operator & opB)
 {
-   const HypreParMatrix * A = dynamic_cast<const HypreParMatrix *>(&op);
+   const HypreParMatrix * A = dynamic_cast<const HypreParMatrix *>(&opA);
    if (A == NULL)
    {
-      mfem_error("HypreAME::SetOperator : not HypreParMatrix!");
+      mfem_error("HypreAME::SetOperator : first operator not HypreParMatrix!");
    }
-
    SetOperator(*A);
+
+   const HypreParMatrix * B = dynamic_cast<const HypreParMatrix *>(&opB);
+   if (B == NULL)
+   {
+      mfem_error("HypreAME::SetOperator : second operator not HypreParMatrix!");
+   }
+   SetMassMatrix(*B);
 }
 
 void
@@ -6891,18 +6897,6 @@ HypreAME::SetOperator(const HypreParMatrix & A)
    }
 
    HYPRE_AMESetup(ame_solver);
-}
-
-void
-HypreAME::SetMassMatrix(const Operator & op)
-{
-   const HypreParMatrix * M = dynamic_cast<const HypreParMatrix *>(&op);
-   if (M == NULL)
-   {
-      mfem_error("HypreAME::SetMassMatrix : not HypreParMatrix!");
-   }
-
-   SetMassMatrix(*M);
 }
 
 void
