@@ -73,6 +73,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_particlevector.cpp
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
+  linalg/test_tripack.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp

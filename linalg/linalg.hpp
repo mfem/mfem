@@ -26,6 +26,7 @@
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
 #include "symmat.hpp"
+#include "tripack.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
