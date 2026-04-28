@@ -197,12 +197,12 @@ void PAHcurlMassApply3D(const int NE, const bool symmetric,
                         const int TestD1D, const int Q1D);
 
 // Shared memory PA H(curl) Mass Apply 3D kernel
-template <int T_D1D = 0, int T_TESTD1D = 0, int T_Q1D = 0>
+template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0>
 inline void SmemPAHcurlMassApply3D(
    const int NE, const bool symmetric, const bool scalar_coeff,
    const Array<real_t> &bo, const Array<real_t> &bc, const Array<real_t> &bot,
    const Array<real_t> &bct, const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d = 0, const int test_d1d = 0, const int q1d = 0)
+   const int d1d = 0, const int = 0, const int q1d = 0)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
@@ -213,14 +213,20 @@ inline void SmemPAHcurlMassApply3D(
 
    const int dataSize = symmetric ? 6 : 9;
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   // assume trial space == test space
+   auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
-   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto X = Reshape(x.Read(), 3 * (D1D - 1) * D1D * D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3 * (D1D - 1) * D1D * D1D, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+      constexpr int nbz = TBATCH ? TBATCH : 1;
+#else
+      constexpr int nbz = 1;
+#endif
       constexpr int VDIM = 3;
       constexpr int MD1D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
       constexpr int MQ1D = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;

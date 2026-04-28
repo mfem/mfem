@@ -29,7 +29,11 @@ namespace mfem
 /// \cond DO_NOT_DOCUMENT
 namespace internal
 {
-}
+namespace hcurlmass
+{
+constexpr int NBZ3D(int MDQ) { return std::min(128 / MDQ, 64); }
+} // namespace hcurlmass
+} // namespace internal
 
 template <FiniteElement::DerivType TrialType, FiniteElement::DerivType TestType,
           int DIM, int TrialD1D, int TestD1D, int Q1D>
@@ -48,7 +52,9 @@ VectorFEMassIntegrator::ApplyPAKernels::Kernel()
          if (Device::Allows(Backend::DEVICE_MASK))
          {
             // assume TrialD1D == TestD1D
-            return internal::SmemPAHcurlMassApply3D<TrialD1D, Q1D>;
+            return internal::SmemPAHcurlMassApply3D<
+                   TrialD1D, Q1D,
+                   internal::hcurlmass::NBZ3D(std::max(TrialD1D, Q1D))>;
          }
          else
          {
