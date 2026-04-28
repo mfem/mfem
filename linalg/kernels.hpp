@@ -14,6 +14,8 @@
 
 #include "../config/config.hpp"
 
+#include <cfloat>
+
 #include "tmatrix.hpp"
 #include "tlayout.hpp"
 #include "ttensor.hpp"
@@ -563,7 +565,12 @@ void Swap(T &a, T &b)
    b = tmp;
 }
 
+#if defined(__CUDA_ARCH__)
+static __device__ const real_t Epsilon = (sizeof(real_t) == 8) ? DBL_EPSILON :
+                                         FLT_EPSILON;
+#else
 const real_t Epsilon = std::numeric_limits<real_t>::epsilon();
+#endif
 
 /// Utility function used in CalcSingularvalue<3>.
 MFEM_HOST_DEVICE static inline
