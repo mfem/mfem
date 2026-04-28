@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int ref_levels = 0;
    int max_iterations = 20;
-   real_t alpha = 0.005;
+   real_t alpha = 1;
    real_t tol = 1e-6;
    bool visualization = true;
 
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
 
    // 8. Set up the coefficients.
    Vector f(dim);
-   f = 0.0; f(dim-1) = -0.5;
+   f = 0.0; f(dim-1) = -0.1;
 
    Vector n_tilde(dim);
    n_tilde = 0.0; n_tilde(dim-1) = -1.0;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    psi_old_gf = 0.0;
 
    // 9. Initialize the solutions.
-   VectorFunctionCoefficient init_u_c(dim, InitialCondition);
+   VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
 
@@ -225,7 +225,6 @@ int main(int argc, char *argv[])
    A10->EliminateCols(col_markers);
 
    HypreParMatrix *A01 = A10->Transpose();
-   (*A01) *= -1.0;
 
    BlockOperator A(toffsets);
    A.SetBlock(0,0,A00);
@@ -261,9 +260,8 @@ int main(int argc, char *argv[])
                                 A00->GetRowStarts());
    A00->GetDiag(A00_diag_base);
 
-   for (int k = 0; k <= max_iterations; k++)
+   for (int k = 0; k < max_iterations; k++)
    {
-      alpha *= 2.0;
       ParGridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
 
@@ -308,16 +306,17 @@ int main(int argc, char *argv[])
 
          A.SetBlockCoef(0,0,alpha);
          A.SetBlock(1,1,A11);
+         A.SetBlockCoef(1,1,-1.0);
 
          // Construct the Schur complement preconditioner.
          // P =   [ diag(K)                  0          ]
-         //       [  0           H + M diag(K)^(-1) M^T ]
+         //       [  0          -H - M diag(K)^(-1) M^T ]
          HypreParVector A00_diag(A00_diag_base);
          A00_diag *= alpha;
          HypreParMatrix KinvMt(*A01);
          KinvMt.InvScaleRows(A00_diag);
          HypreParMatrix *MKinvMt = ParMult(A10, &KinvMt);
-         HypreParMatrix *S = Add(1.0, *A11, 1.0, *MKinvMt);
+         HypreParMatrix *S = Add(-1.0, *A11, -1.0, *MKinvMt);
 
          HypreDiagScale P00(*A00);
          ScaledOperator P00_scaled(&P00, 1.0 / alpha);
@@ -382,6 +381,7 @@ int main(int argc, char *argv[])
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
+      alpha *= 2.0;
 
       if (increment_u < tol || k == max_iterations-1)
       {
@@ -406,9 +406,9 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    Vector u_val(dim);
    u->GetVectorValue(T, ip, u_val);
 
-   // Return ln(ϕ₁ - u · ñ)
-   real_t val = log(gap->Eval(T, ip) - u_val * *n_tilde);
-   return max(min_val, val);
+   // Return -ln(ϕ₁ - u · ñ)
+   real_t val = -log(gap->Eval(T, ip) - u_val * *n_tilde);
+   return min(max_val, val);
 }
 
 real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
@@ -416,17 +416,17 @@ real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
-   // Return exp(ψ)
-   return min(max_val, max(min_val, exp(psi->GetValue(T, ip))));
+   // Return exp(-ψ)
+   return min(max_val, max(min_val, exp(-psi->GetValue(T, ip))));
 }
 
-void InitialCondition(const Vector &x, Vector &u)
+void InitialGuess(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
    const real_t disp = -0.1;
 
    u = 0.0;
-   u(dim-1) = disp*x(dim-1);
+   u(dim-1) = disp;
 }
 
 real_t GapFunction(const Vector &x)

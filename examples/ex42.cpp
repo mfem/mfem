@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int ref_levels = 0;
    int max_iterations = 20;
-   real_t alpha = 0.005;
+   real_t alpha = 1;
    real_t tol = 1e-6;
    bool visualization = true;
 
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
    // 8. Set up the coefficients.
    Vector f(dim);
-   f = 0.0; f(dim-1) = -0.5;
+   f = 0.0; f(dim-1) = -0.1;
 
    Vector n_tilde(dim);
    n_tilde = 0.0; n_tilde(dim-1) = -1.0;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
-   VectorFunctionCoefficient init_u_c(dim, InitialCondition);
+   VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
 
@@ -198,7 +198,6 @@ int main(int argc, char *argv[])
    A10.EliminateCols(col_markers);
 
    SparseMatrix *A01 = Transpose(A10);
-   (*A01) *= -1.0;
 
    BlockOperator A(offsets);
    A.SetBlock(0,0,&A00);
@@ -231,7 +230,7 @@ int main(int argc, char *argv[])
    Vector A00_diag_base(A00.Height());
    A00.GetDiag(A00_diag_base);
 
-   for (int k = 0; k <= max_iterations; k++)
+   for (int k = 0; k < max_iterations; k++)
    {
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
@@ -263,13 +262,14 @@ int main(int argc, char *argv[])
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
+         A11 *= -1.0;
 
          A.SetBlockCoef(0,0,alpha);
          A.SetBlock(1,1,&A11);
 
          // Construct the Schur complement preconditioner.
          // P =   [ diag(K)                  0          ]
-         //       [  0           H + M diag(K)^(-1) M^T ]
+         //       [  0           - H - M diag(K)^(-1) M^T ]
          Vector A00_diag(A00_diag_base);
          A00_diag *= alpha;
          SparseMatrix KinvMt(*A01);
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
             KinvMt.ScaleRow(i, 1.0/A00_diag(i));
          }
          SparseMatrix *MKinvMt = Mult(A10, KinvMt);
-         SparseMatrix *S = Add(1.0, A11, 1.0, *MKinvMt);
+         SparseMatrix *S = Add(-1.0, A11, -1.0, *MKinvMt);
 
          DSmoother P00(A00);
          ScaledOperator P00_scaled(&P00, 1.0 / alpha);
@@ -353,9 +353,9 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    Vector u_val(dim);
    u->GetVectorValue(T, ip, u_val);
 
-   // Return ln(ϕ₁ - u · ñ)
-   real_t val = log(gap->Eval(T, ip) - u_val * *n_tilde);
-   return max(min_val, val);
+   // Return -ln(ϕ₁ - u · ñ)
+   real_t val = -log(gap->Eval(T, ip) - u_val * *n_tilde);
+   return min(max_val, val);
 }
 
 real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
@@ -363,17 +363,17 @@ real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
-   // Return exp(ψ)
-   return min(max_val, max(min_val, exp(psi->GetValue(T, ip))));
+   // Return exp(-ψ)
+   return min(max_val, max(min_val, exp(-psi->GetValue(T, ip))));
 }
 
-void InitialCondition(const Vector &x, Vector &u)
+void InitialGuess(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
    const real_t disp = -0.1;
 
    u = 0.0;
-   u(dim-1) = disp*x(dim-1);
+   u(dim-1) = disp;
 }
 
 real_t GapFunction(const Vector &x)

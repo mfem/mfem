@@ -2,28 +2,28 @@
 
 using namespace mfem;
 
-void InitialCondition(const Vector &x, Vector &u);
+void InitialGuess(const Vector &x, Vector &u);
 real_t GapFunction(const Vector &x);
 
-/// @brief Coefficient that evaluates ln(ϕ₁ - u · ñ) with a clipping bound.
-/// Used to initialize the latent variable ψ
+/// @brief Coefficient that evaluates -ln(ϕ₁ - u · ñ) with a clipping bound.
+/// Used to initialize the latent variable ψ.
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
 private:
    GridFunction *u;
    Coefficient *gap;
    Vector *n_tilde;
-   real_t min_val;
+   real_t max_val;
 
 public:
    LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &gap_,
-                                    Vector &n_tilde_, real_t min_val_=-36)
-      : u(&u_), gap(&gap_), n_tilde(&n_tilde_), min_val(min_val_) { }
+                                    Vector &n_tilde_, real_t max_val_=36)
+      : u(&u_), gap(&gap_), n_tilde(&n_tilde_), max_val(max_val_) { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
-/// @brief Coefficient that evaluates exp(ψ) with clipping bounds.
+/// @brief Coefficient that evaluates exp(-ψ) with clipping bounds.
 /// Used for computing the nonlinear terms of the system.
 class ExponentialGridFunctionCoefficient : public Coefficient
 {
