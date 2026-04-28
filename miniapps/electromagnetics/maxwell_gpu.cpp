@@ -77,6 +77,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 using namespace mfem;
 
@@ -471,6 +472,7 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
+   KernelReporter::Enable();
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
    // volume meshes with the same code.
@@ -589,7 +591,7 @@ int main(int argc, char *argv[])
    FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
 
    // TODO: compute dtmax
-   real_t dtmax = dt;
+   real_t dtmax = 0.03e-9;
    int nsteps = SnapTimeStep(tf - ti, dtsf * dtmax, dt);
    if ( Mpi::Root() )
    {
@@ -623,17 +625,20 @@ int main(int argc, char *argv[])
          E_sock << "parallel " << num_procs << " " << myid << "\n";
          E_sock.precision(8);
          E_sock << "solution\n"
-                << pmesh << E_gf << std::endl;
-         E_sock << "window_title 'Electric Field (E)'" << std::endl;
+                << pmesh << E_gf << std::flush;
+         E_sock << " window_title 'Electric Field (E)'";
+         E_sock << " window_geometry 0 0 1024 768" << " keys cm" << std::endl;
 
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock.precision(8);
          B_sock << "solution\n"
-                << pmesh << B_gf << std::endl;
-         B_sock << "window_title 'Magnetic Flux Density (B)'" << std::endl;
+                << pmesh << B_gf << std::flush;
+         B_sock << " window_title 'Magnetic Flux Density (B)'";
+         B_sock << " window_geometry 0 0 1024 768" << " keys cm" << std::endl;
       }
    }
    real_t t = ti;
+   std::chrono::high_resolution_clock timer;
    int it = 1;
    while (t < tf)
    {
@@ -641,12 +646,23 @@ int main(int argc, char *argv[])
       {
          std::cout << "t = " << t << std::endl;
       }
+      auto start = timer.now();
       siaSolver.Run(B_gf, E_gf, t, dt, std::max(t + dt, ti + ts * it));
+      auto stop = timer.now();
+
+      if (Mpi::Root())
+      {
+         std::cout << "walltime: "
+                   << std::chrono::duration_cast<std::chrono::duration<double>>(
+                      stop - start)
+                   .count()
+                   << std::endl;
+      }
 
       if (visualization)
       {
          E_sock << "parallel " << num_procs << " " << myid << "\n";
-         E_sock << "solution\n" << pmesh << E_gf << std::endl;
+         E_sock << "solution\n" << pmesh << E_gf << std::flush;
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock << "solution\n" << pmesh << B_gf << std::endl;
       }
@@ -1276,6 +1292,7 @@ void CurrentIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                Vector &elvect)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 int

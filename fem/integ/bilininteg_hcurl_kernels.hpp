@@ -181,44 +181,28 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
 }
 
 // PA H(curl) Mass Apply 2D kernel
-void PAHcurlMassApply2D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y);
+void PAHcurlMassApply2D(const int NE, const bool symmetric,
+                        const bool scalar_coeff, const Array<real_t> &bo,
+                        const Array<real_t> &bc, const Array<real_t> &bot,
+                        const Array<real_t> &bct, const Vector &pa_data,
+                        const Vector &x, Vector &y, const int TrialD1D,
+                        const int TestD1D, const int Q1D);
 
 // PA H(curl) Mass Apply 3D kernel
-void PAHcurlMassApply3D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y);
+void PAHcurlMassApply3D(const int NE, const bool symmetric,
+                        const bool scalar_coeff, const Array<real_t> &bo,
+                        const Array<real_t> &bc, const Array<real_t> &bot,
+                        const Array<real_t> &bct, const Vector &pa_data,
+                        const Vector &x, Vector &y, const int TrialD1D,
+                        const int TestD1D, const int Q1D);
 
 // Shared memory PA H(curl) Mass Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAHcurlMassApply3D(const int d1d,
-                                   const int q1d,
-                                   const int NE,
-                                   const bool symmetric,
-                                   const Array<real_t> &bo,
-                                   const Array<real_t> &bc,
-                                   const Array<real_t> &bot,
-                                   const Array<real_t> &bct,
-                                   const Vector &pa_data,
-                                   const Vector &x,
-                                   Vector &y)
+template <int T_D1D = 0, int T_TESTD1D = 0, int T_Q1D = 0>
+inline void SmemPAHcurlMassApply3D(
+   const int NE, const bool symmetric, const bool scalar_coeff,
+   const Array<real_t> &bo, const Array<real_t> &bc, const Array<real_t> &bot,
+   const Array<real_t> &bct, const Vector &pa_data, const Vector &x, Vector &y,
+   const int d1d = 0, const int test_d1d = 0, const int q1d = 0)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
