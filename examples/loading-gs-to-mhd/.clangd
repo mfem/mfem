@@ -9,7 +9,6 @@ CompileFlags:
     - -I../../..
     - -I../../../..
     # Match make/mpicxx includes
-    - -I../../../hypre/src/hypre/include
     - -I../../../gslib/build/include
 
 ---
