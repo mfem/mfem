@@ -208,7 +208,7 @@ void PerturbParticleDataOnHost(std::vector<Particle> &particles)
       for (int f = -1; f < p.GetNFields(); f++)
       {
          Vector &field = f == -1 ? p.Coords() : p.Field(f);
-         const real_t scale = (f == -1) ? 0.01 : 1.0;
+         const real_t scale = (f == -1) ? 0.001 : 1.0;
          for (int c = 0; c < field.Size(); c++)
          {
             field(c) += scale * (f + c + 2);
@@ -234,7 +234,7 @@ void PerturbParticleDataOnDevice(ParticleSet &pset)
       ParticleVector &field = f == -1 ? pset.Coords() : pset.Field(f);
       const int vdim = field.GetVDim();
       const bool by_vdim = (field.GetOrdering() == Ordering::byVDIM);
-      const real_t scale = (f == -1) ? 0.01 : 1.0;
+      const real_t scale = (f == -1) ? 0.001 : 1.0;
       auto d_field = field.ReadWrite();
 
       MFEM_FORALL(i, np,

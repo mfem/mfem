@@ -1810,6 +1810,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 #endif
 
    bool field_in_on_dev = Device::IsEnabled() && field_in.UseDevice();
+   bool field_out_on_dev = Device::IsEnabled() && field_out.UseDevice();
 
    if (field_in_on_dev && fec_h1 &&
        !field_in.FESpace()->IsVariableOrder() && tensor_product_only)
@@ -1860,7 +1861,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
        mesh->GetNodalFESpace()->IsVariableOrder())
    {
       InterpolateH1(field_in, field_out, field_out_ordering);
-      if (field_in_on_dev)
+      if (field_in_on_dev || field_out_on_dev)
       {
          field_out.UseDevice(true);
          field_out.ReadWrite();
@@ -1872,7 +1873,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       InterpolateGeneral(field_in, field_out, field_out_ordering);
       if (!fec_l2 || avgtype == AvgType::NONE)
       {
-         if (field_in_on_dev)
+         if (field_in_on_dev || field_out_on_dev)
          {
             field_out.UseDevice(true);
             field_out.ReadWrite();
@@ -1939,7 +1940,10 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
             field_out(idx) = field_out_l2(idx);
          }
       }
-      if (field_in_on_dev) { field_out.UseDevice(true); field_out.ReadWrite(); }
+      if (field_in_on_dev || field_out_on_dev)
+      {
+         field_out.UseDevice(true); field_out.ReadWrite();
+      }
    }
 }
 

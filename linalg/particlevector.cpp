@@ -57,7 +57,7 @@ void ParticleVector::GetValues(int i, Vector &nvals) const
    const int ordering_ = (int)ordering;
    const int nv = (ordering == Ordering::byNODES) ? size / vdim : 0;
 
-   MFEM_FORALL(c, vdim_,
+   mfem::forall_switch(use_dev, vdim_, [=] MFEM_HOST_DEVICE (int c)
    {
       if (ordering_ == Ordering::byNODES)
       {
@@ -127,7 +127,7 @@ void ParticleVector::SetValues(int i, const Vector &nvals)
    const int ordering_ = (int)ordering;
    const int nv = (ordering == Ordering::byNODES) ? size / vdim : 0;
 
-   MFEM_FORALL(c, vdim_,
+   mfem::forall_switch(use_dev, vdim_, [=] MFEM_HOST_DEVICE (int c)
    {
       if (ordering_ == Ordering::byNODES)
       {
@@ -169,7 +169,8 @@ real_t& ParticleVector::operator()(int i, int comp)
                "Component index " << comp <<
                " is invalid for vector dimension " << vdim);
 
-   HostRead();
+   // non-const so we make host flag valid in case user modifies data
+   HostReadWrite();
 
    if (ordering == Ordering::byNODES)
    {
@@ -284,7 +285,7 @@ void ParticleVector::SetOrdering(Ordering::Type ordering_, bool keep_data)
 
       if (ordering_ == Ordering::byNODES) // byVDIM -> byNODES
       {
-         MFEM_FORALL(k, size_,
+         mfem::forall_switch(use_dev, size_, [=] MFEM_HOST_DEVICE (int k)
          {
             int i = k / vdim_; // src particle index
             int d = k % vdim_; // src component index
@@ -293,7 +294,7 @@ void ParticleVector::SetOrdering(Ordering::Type ordering_, bool keep_data)
       }
       else // byNODES -> byVDIM
       {
-         MFEM_FORALL(k, size_,
+         mfem::forall_switch(use_dev, size_, [=] MFEM_HOST_DEVICE (int k)
          {
             int d = k / num_particles; // src component index
             int i = k % num_particles; // src particle index
@@ -327,7 +328,8 @@ void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
 
       if (!keep_data) { return; }
 
-      auto d_dest = this->ReadWrite(UseDevice());
+      const bool use_dev = UseDevice();
+      auto d_dest = this->ReadWrite(use_dev);
 
       if (ordering == Ordering::byNODES)
       {
@@ -336,11 +338,12 @@ void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
          old_slice.MakeRef(*this, 0, old_nv * vdim);
          Vector old_copy(old_slice);
 
-         const auto d_src = old_copy.Read(UseDevice());
+         const auto d_src = old_copy.Read(use_dev);
          const int vdim_ = vdim;
 
          // Shift entries for byNODES
-         MFEM_FORALL(k, old_nv * vdim_,
+         mfem::forall_switch(use_dev, old_nv * vdim_,
+                             [=] MFEM_HOST_DEVICE (int k)
          {
             const int d = k / old_nv;
             const int i = k % old_nv;
@@ -349,7 +352,8 @@ void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
 
          // Zero-out new data slots
          const int diff = num_vectors - old_nv;
-         MFEM_FORALL(k, diff * vdim,
+         mfem::forall_switch(use_dev, diff * vdim,
+                             [=] MFEM_HOST_DEVICE (int k)
          {
             const int d = k / diff;
             const int i = k % diff;
@@ -361,7 +365,7 @@ void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
          const int start_idx = old_nv * vdim;
          const int end_idx = num_vectors * vdim;
          const int diff = end_idx - start_idx;
-         MFEM_FORALL(i, diff,
+         mfem::forall_switch(use_dev, diff, [=] MFEM_HOST_DEVICE (int i)
          {
             d_dest[start_idx + i] = 0.0;
          });
