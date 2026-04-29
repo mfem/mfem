@@ -164,6 +164,27 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
       // Interpolation workspaces.
       kernels::internal::s_regs2d_t<MQ1> r0, r1;
 
+      // real_t Jpr_inv[4];
+      kernels::internal::vd_regs2d_t<2, 2, MD1> Jpri;
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            const real_t Jpr[4] =
+            {
+               r_J[0][0][dy][dx], r_J[1][0][dy][dx],
+               r_J[0][1][dy][dx], r_J[1][1][dy][dx]
+            };
+            real_t Jpr_inv[4];
+            kernels::CalcInverse<2>(Jpr, Jpr_inv);
+            Jpri(0, 0, dx, dy) = Jpr_inv[0];
+            Jpri(1, 0, dx, dy) = Jpr_inv[1];
+            Jpri(0, 1, dx, dy) = Jpr_inv[2];
+            Jpri(1, 1, dx, dy) = Jpr_inv[3];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       // Compute/interpolate gradient and Hessian one vector component at a time.
       for (int c = 0; c < 2; c++)
       {
@@ -173,20 +194,9 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
             {
-               const real_t Jpr[4] =
-               {
-                  r_J[0][0][dy][dx], r_J[1][0][dy][dx],
-                  r_J[0][1][dy][dx], r_J[1][1][dy][dx]
-               };
-               real_t Jpr_inv[4];
-               kernels::CalcInverse<2>(Jpr, Jpr_inv);
-
-               const real_t dalf_dx = dalf_dx_n[dy][dx];
-               const real_t dalf_dy = dalf_dy_n[dy][dx];
-               const int row = 2 * c;
                grad_c[dy][dx] =
-                  Jpr_inv[row + 0] * dalf_dx +
-                  Jpr_inv[row + 1] * dalf_dy;
+                  Jpri(0, c, dx, dy) * dalf_dx_n[dy][dx] +
+                  Jpri(1, c, dx, dy) * dalf_dy_n[dy][dx];
             }
          }
          MFEM_SYNC_THREAD;
@@ -239,18 +249,12 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
             {
-               const real_t Jpr[4] =
-               {
-                  r_J[0][0][dy][dx], r_J[1][0][dy][dx],
-                  r_J[0][1][dy][dx], r_J[1][1][dy][dx]
-               };
-               real_t Jpr_inv[4];
-               kernels::CalcInverse<2>(Jpr, Jpr_inv);
                const real_t ddalf_dx = ddalf_dx_n[dy][dx];
                const real_t ddalf_dy = ddalf_dy_n[dy][dx];
-               const real_t ddx = Jpr_inv[0] * ddalf_dx + Jpr_inv[1] * ddalf_dy;
-               const real_t ddy = Jpr_inv[2] * ddalf_dx + Jpr_inv[3] * ddalf_dy;
-
+               const real_t ddx = Jpri(0, 0, dy, dx) * ddalf_dx +
+                                  Jpri(1, 0, dy, dx) * ddalf_dy;
+               const real_t ddy = Jpri(0, 1, dy, dx) * ddalf_dx +
+                                  Jpri(1, 1, dy, dx) * ddalf_dy;
                hess_c[0][dy][dx] = ddx;
                hess_c[1][dy][dx] = ddy;
             }
