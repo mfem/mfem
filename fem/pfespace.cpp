@@ -835,6 +835,38 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    nd_strias = glb_nd_strias > 0;
 }
 
+void ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
+   Array<int> &ltori, Array<int> &ldsize) const
+{
+   const int n = GetNDofs();
+   ltori.SetSize(n);  ltori = 0;
+   ldsize.SetSize(n); ldsize = 0;
+   if (fec->GetOrder() <= 1 || pmesh->Dimension() != 3) { return; }
+
+   // Ensure face orientations have been communicated.
+   pmesh->ExchangeFaceNbrData();
+
+   const int ngrps = pmesh->GetNGroups();
+   const int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
+   Array<int> sdofs;
+   for (int g = 1; g < ngrps; g++)
+   {
+      if (pmesh->gtopo.IAmMaster(g)) { continue; }
+      for (int fi = 0; fi < pmesh->GroupNTriangles(g); fi++)
+      {
+         int face, ori, info1, info2;
+         pmesh->GroupTriangle(g, fi, face, ori);
+         pmesh->GetFaceInfos(face, &info1, &info2);
+         GetSharedTriangleDofs(g, fi, sdofs);
+         for (int j = 3*nedofs; j < sdofs.Size(); j++)
+         {
+            ldsize[sdofs[j]] = 2;
+            ltori[sdofs[j]]  = info2 % 64;
+         }
+      }
+   }
+}
+
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
@@ -909,9 +941,15 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       pmesh->ExchangeFaceNbrData();
 
       // Locate and count non-zeros in off-diagonal portion of P
-      int nnz_offd = 0;
       Array<int> ldsize(ldof); ldsize = 0;
-      Array<int> ltori(ldof);  ltori = 0; // Local triangle orientations
+      Array<int> ltori; // Local triangle orientations
+      GetSharedTriFaceDofOrientations(ltori, ldsize);
+      // Count nnz_offd from triangle face DOFs already marked by the above call.
+      int nnz_offd = 0;
+      for (int ii = 0; ii < ldof; ii++)
+      {
+         if (ldsize[ii] == 2) { nnz_offd += 2; }
+      }
       {
          int ngrps = pmesh->GetNGroups();
          int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
@@ -934,9 +972,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             }
             for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
             {
-               int face, ori, info1, info2;
-               pmesh->GroupTriangle(g, fi, face, ori);
-               pmesh->GetFaceInfos(face, &info1, &info2);
                this->GetSharedTriangleDofs(g, fi, sdofs);
                for (int i=0; i<3*nedofs; i++)
                {
@@ -944,12 +979,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
                   if (ldsize[ind] == 0) { nnz_offd++; }
                   ldsize[ind] = 1;
                }
-               for (int i=3*nedofs; i<sdofs.Size(); i++)
-               {
-                  if (ldsize[sdofs[i]] == 0) { nnz_offd += 2; }
-                  ldsize[sdofs[i]] = 2;
-                  ltori[sdofs[i]]  = info2 % 64;
-               }
+               // Face DOFs already counted by GetSharedTriFaceDofOrientations.
             }
             for (int fi=0; fi<pmesh->GroupNQuadrilaterals(g); fi++)
             {
