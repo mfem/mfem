@@ -255,9 +255,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   bool use_device = (ctx.device_config != "cpu") && Device::IsEnabled();
    Device device(ctx.device_config);
    if (Mpi::Root()) { device.Print(); }
+   bool use_device = (ctx.device_config != "cpu") && Device::IsEnabled();
 
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
