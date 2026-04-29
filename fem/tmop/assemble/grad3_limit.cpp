@@ -223,6 +223,9 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       for (int c = 0; c < 3; c++)
       {
          kernels::internal::s_regs3d_t<MD1> rgrad_nodes, dd_dxi_n, dd_deta_n, dd_dzeta_n;
+
+         // Precompute the inverse of the physical Jacobian.
+         kernels::internal::vd_regs3d_t<3, 3, MD1> Jpr_inv;
          for (int dz = 0; dz < D1D; dz++)
          {
             MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
@@ -235,17 +238,22 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                      r_J[0][1][dz][dy][dx], r_J[1][1][dz][dy][dx], r_J[2][1][dz][dy][dx],
                      r_J[0][2][dz][dy][dx], r_J[1][2][dz][dy][dx], r_J[2][2][dz][dy][dx]
                   };
-                  real_t Jpr_inv[9];
-                  kernels::CalcInverse<3>(Jpr, Jpr_inv);
+                  real_t Jpri[9];
+                  kernels::CalcInverse<3>(Jpr, Jpri);
+                  Jpr_inv(0, 0, dx, dy, dz) = Jpri[0];
+                  Jpr_inv(1, 0, dx, dy, dz) = Jpri[1];
+                  Jpr_inv(2, 0, dx, dy, dz) = Jpri[2];
+                  Jpr_inv(0, 1, dx, dy, dz) = Jpri[3];
+                  Jpr_inv(1, 1, dx, dy, dz) = Jpri[4];
+                  Jpr_inv(2, 1, dx, dy, dz) = Jpri[5];
+                  Jpr_inv(0, 2, dx, dy, dz) = Jpri[6];
+                  Jpr_inv(1, 2, dx, dy, dz) = Jpri[7];
+                  Jpr_inv(2, 2, dx, dy, dz) = Jpri[8];
 
-                  const real_t dalf_dxi   = dalf_dxi_n[dz][dy][dx];
-                  const real_t dalf_deta  = dalf_deta_n[dz][dy][dx];
-                  const real_t dalf_dzeta = dalf_dzeta_n[dz][dy][dx];
-                  const int row = 3 * c;
                   grad_c[dz][dy][dx] =
-                     Jpr_inv[row + 0] * dalf_dxi +
-                     Jpr_inv[row + 1] * dalf_deta +
-                     Jpr_inv[row + 2] * dalf_dzeta;
+                     Jpr_inv(0, c, dx, dy, dz) * dalf_dxi_n[dz][dy][dx] +
+                     Jpr_inv(1, c, dx, dy, dz) * dalf_deta_n[dz][dy][dx] +
+                     Jpr_inv(2, c, dx, dy, dz) * dalf_dzeta_n[dz][dy][dx];
                }
             }
             MFEM_SYNC_THREAD;
@@ -329,25 +337,18 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
             {
                MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
-                  const real_t Jpr[9] =
-                  {
-                     r_J[0][0][dz][dy][dx], r_J[1][0][dz][dy][dx], r_J[2][0][dz][dy][dx],
-                     r_J[0][1][dz][dy][dx], r_J[1][1][dz][dy][dx], r_J[2][1][dz][dy][dx],
-                     r_J[0][2][dz][dy][dx], r_J[1][2][dz][dy][dx], r_J[2][2][dz][dy][dx]
-                  };
-                  real_t Jpr_inv[9];
-                  kernels::CalcInverse<3>(Jpr, Jpr_inv);
                   const real_t dd_dxi   = dd_dxi_n[dz][dy][dx];
                   const real_t dd_deta  = dd_deta_n[dz][dy][dx];
                   const real_t dd_dzeta = dd_dzeta_n[dz][dy][dx];
-
-                  const real_t ddx =
-                     Jpr_inv[0] * dd_dxi + Jpr_inv[1] * dd_deta + Jpr_inv[2] * dd_dzeta;
-                  const real_t ddy =
-                     Jpr_inv[3] * dd_dxi + Jpr_inv[4] * dd_deta + Jpr_inv[5] * dd_dzeta;
-                  const real_t ddz =
-                     Jpr_inv[6] * dd_dxi + Jpr_inv[7] * dd_deta + Jpr_inv[8] * dd_dzeta;
-
+                  const real_t ddx = Jpr_inv(0, 0, dx, dy, dz) * dd_dxi +
+                                     Jpr_inv(1, 0, dx, dy, dz) * dd_deta +
+                                     Jpr_inv(2, 0, dx, dy, dz) * dd_dzeta;
+                  const real_t ddy = Jpr_inv(0, 1, dx, dy, dz) * dd_dxi +
+                                     Jpr_inv(1, 1, dx, dy, dz) * dd_deta +
+                                     Jpr_inv(2, 1, dx, dy, dz) * dd_dzeta;
+                  const real_t ddz = Jpr_inv(0, 2, dx, dy, dz) * dd_dxi +
+                                     Jpr_inv(1, 2, dx, dy, dz) * dd_deta +
+                                     Jpr_inv(2, 2, dx, dy, dz) * dd_dzeta;
                   hess_c[0][dz][dy][dx] = ddx;
                   hess_c[1][dz][dy][dx] = ddy;
                   hess_c[2][dz][dy][dx] = ddz;

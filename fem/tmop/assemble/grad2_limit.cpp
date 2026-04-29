@@ -164,8 +164,8 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
       // Interpolation workspaces.
       kernels::internal::s_regs2d_t<MQ1> r0, r1;
 
-      // real_t Jpr_inv[4];
-      kernels::internal::vd_regs2d_t<2, 2, MD1> Jpri;
+      // Precompute the inverse of the physical Jacobian.
+      kernels::internal::vd_regs2d_t<2, 2, MD1> Jpr_inv;
       MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
@@ -175,12 +175,12 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
                r_J[0][0][dy][dx], r_J[1][0][dy][dx],
                r_J[0][1][dy][dx], r_J[1][1][dy][dx]
             };
-            real_t Jpr_inv[4];
-            kernels::CalcInverse<2>(Jpr, Jpr_inv);
-            Jpri(0, 0, dx, dy) = Jpr_inv[0];
-            Jpri(1, 0, dx, dy) = Jpr_inv[1];
-            Jpri(0, 1, dx, dy) = Jpr_inv[2];
-            Jpri(1, 1, dx, dy) = Jpr_inv[3];
+            real_t Jpri[4];
+            kernels::CalcInverse<2>(Jpr, Jpri);
+            Jpr_inv(0, 0, dx, dy) = Jpri[0];
+            Jpr_inv(1, 0, dx, dy) = Jpri[1];
+            Jpr_inv(0, 1, dx, dy) = Jpri[2];
+            Jpr_inv(1, 1, dx, dy) = Jpri[3];
          }
       }
       MFEM_SYNC_THREAD;
@@ -195,8 +195,8 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
             MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
             {
                grad_c[dy][dx] =
-                  Jpri(0, c, dx, dy) * dalf_dx_n[dy][dx] +
-                  Jpri(1, c, dx, dy) * dalf_dy_n[dy][dx];
+                  Jpr_inv(0, c, dx, dy) * dalf_dx_n[dy][dx] +
+                  Jpr_inv(1, c, dx, dy) * dalf_dy_n[dy][dx];
             }
          }
          MFEM_SYNC_THREAD;
@@ -251,10 +251,10 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
             {
                const real_t ddalf_dx = ddalf_dx_n[dy][dx];
                const real_t ddalf_dy = ddalf_dy_n[dy][dx];
-               const real_t ddx = Jpri(0, 0, dy, dx) * ddalf_dx +
-                                  Jpri(1, 0, dy, dx) * ddalf_dy;
-               const real_t ddy = Jpri(0, 1, dy, dx) * ddalf_dx +
-                                  Jpri(1, 1, dy, dx) * ddalf_dy;
+               const real_t ddx = Jpr_inv(0, 0, dy, dx) * ddalf_dx +
+                                  Jpr_inv(1, 0, dy, dx) * ddalf_dy;
+               const real_t ddy = Jpr_inv(0, 1, dy, dx) * ddalf_dx +
+                                  Jpr_inv(1, 1, dy, dx) * ddalf_dy;
                hess_c[0][dy][dx] = ddx;
                hess_c[1][dy][dx] = ddy;
             }

@@ -210,8 +210,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff 
-                     ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
+   const auto ALC = const_coeff
+                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
                     : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();
