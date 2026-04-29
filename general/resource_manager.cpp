@@ -660,9 +660,7 @@ MemoryManager::~MemoryManager()
 
 void MemoryManager::Destroy()
 {
-   // TODO update for reusable_storage
-#if 0
-   for (auto &seg : storage.segments)
+   storage.segments.iterate([&](auto &seg, size_t idx)
    {
       if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
       {
@@ -683,8 +681,7 @@ void MemoryManager::Destroy()
          seg.lowers[0] = nullptr;
          // seg.mtypes[0] = MemoryType::DEFAULT;
       }
-   }
-#endif
+   });
    // temporary device allocators need to have Clear called
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    // HOST_PINNED

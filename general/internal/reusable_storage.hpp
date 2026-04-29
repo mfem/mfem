@@ -44,19 +44,20 @@ public:
       MFEM_ASSERT(idx, "invalid idx");
       MFEM_ASSERT(idx <= data.size(), "idx oob");
       EraseInternal(idx);
-      if (idx == data.size())
-      {
-         while (data.size())
-         {
-            --idx;
-            if (status.at(idx >> 6) & (1ull << (idx & 0x3f)))
-            {
-               break;
-            }
-            data.pop_back();
-         }
-      }
+      // if (idx == data.size())
+      // {
+      //    while (data.size())
+      //    {
+      //       --idx;
+      //       if (status.at(idx >> 6) & (1ull << (idx & 0x3f)))
+      //       {
+      //          break;
+      //       }
+      //       data.pop_back();
+      //    }
+      // }
    }
+
    /// @return stable index
    size_t CreateNext()
    {
@@ -72,6 +73,18 @@ public:
          data[res - 1] = T{};
       }
       return res;
+   }
+
+   template<class F>
+   void iterate(F&& func)
+   {
+      for (size_t i = 0; i < data.size(); ++i)
+      {
+         if (status.at(i >> 6) & (1ull << (i & 0x3f)))
+         {
+            func(data[i], i + 1);
+         }
+      }
    }
 };
 } // namespace internal
