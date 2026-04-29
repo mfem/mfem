@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "../error.hpp"
+
 namespace mfem
 {
 namespace internal
@@ -35,17 +37,19 @@ private:
    std::vector<T> data;
 
 public:
-   T &Get(size_t idx) { return data[idx - 1]; }
-   const T &Get(size_t idx) const { return data[idx - 1]; }
+   T &Get(size_t idx) { return data.at(idx - 1); }
+   const T &Get(size_t idx) const { return data.at(idx - 1); }
    void Erase(size_t idx)
    {
+      MFEM_ASSERT(idx, "invalid idx");
+      MFEM_ASSERT(idx <= data.size(), "idx oob");
       EraseInternal(idx);
       if (idx == data.size())
       {
          while (data.size())
          {
             --idx;
-            if (status[idx >> 6] & (1ull << (idx & 0x3f)))
+            if (status.at(idx >> 6) & (1ull << (idx & 0x3f)))
             {
                break;
             }
@@ -60,6 +64,7 @@ public:
       size_t res = next;
       if (res > data.size())
       {
+         MFEM_ASSERT(res == data.size() + 1,"");
          data.emplace_back();
       }
       else

@@ -64,7 +64,7 @@ void ReusableStorageBase::EraseInternal(size_t idx)
 {
    next = std::min<size_t>(idx, next);
    --idx;
-   status[idx >> 6] &= ~(1ull << (idx & 0x3f));
+   status.at(idx >> 6) &= ~(1ull << (idx & 0x3f));
 }
 
 void ReusableStorageBase::CreateNextInternal()
@@ -72,7 +72,7 @@ void ReusableStorageBase::CreateNextInternal()
    size_t idx = (next - 1) >> 6;
    while (idx < status.size())
    {
-      size_t tmp = LowestUnset(status[idx]);
+      size_t tmp = LowestUnset(status.at(idx));
       if (tmp)
       {
          next = (idx << 6) + tmp;
@@ -85,7 +85,7 @@ void ReusableStorageBase::CreateNextInternal()
       status.push_back(0);
       next = (idx << 6) + 1;
    }
-   status[idx] |= 1ull << ((next - 1) & 0x3f);
+   status.at(idx) |= 1ull << ((next - 1) & 0x3f);
 }
 
 } // namespace internal
