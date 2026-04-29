@@ -8,30 +8,25 @@
                                https://mfem.org
 
 
-Version 4.10 (development)
-==========================
-
-Discretization improvements
----------------------------
-- Replaced legacy simplex quadrature rules with symmetric positive-weight
-  rules for triangles (orders 0-25) and tetrahedra (orders 0-20). These
-  rules guarantee all-positive weights and interior quadrature points,
-  improving numerical stability. Higher orders fall back to Grundmann-Moller.
-  Triangle rules: Witherden & Vincent, Comput. Math. Appl. 69(10):1232-1241,
-  2015.
-  Tet rules (d=1-13): Witherden & Vincent (ibid).
-  Tet rules (d=14-20): Chuluunbaatar et al., Comput. Math. Appl. 124:89-97,
-  2022.
-
-
 Version 4.9.1 (development)
 ===========================
 
+- Policy for AI-assisted contribution added to CONTRIBUTING.md
+
 Discretization improvements
 ---------------------------
+- Replaced legacy simplex quadrature rules with symmetric positive
+  weight rules for triangles (orders 0-25) and tetrahedra (orders
+  0-20). These rules guarantee all-positive weights and interior
+  quadrature points, improving numerical stability. Higher orders fall
+  back to Grundmann-Moller.
+  * Triangle rules: Witherden and Vincent, DOI: 10.1016/j.camwa.2015.03.017
+  * Tet rules (d=1-13): Witherden and  Vincent (same as above)
+  * Tet rules (d=14-20): Chuluunbaatar et al., DOI: 10.1016/j.camwa.2022.08.016
+
 - Improved the gridfunction projection routines. Projections work for Scalar,
   Vector and VectorFE, also NURBS versions. Optionally different types of
-  projections can be selected, default behaviour has not changed.
+  projections can be selected, default behavior has not changed.
 
 - Added methods to estimate function extremum using piecewise linear bounds +
   recursive subdivision.
