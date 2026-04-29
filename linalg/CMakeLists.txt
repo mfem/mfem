@@ -55,6 +55,7 @@ list(APPEND HDRS
   dinvariants.hpp
   dtensor.hpp
   dual.hpp
+  eigensolvers.hpp
   filteredsolver.hpp
   handle.hpp
   invariants.hpp
