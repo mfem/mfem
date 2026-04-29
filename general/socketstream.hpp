@@ -13,6 +13,11 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_GLVIS
+#include "glvis_stream.hpp"
+#endif
+
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -27,6 +32,10 @@
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_GLVIS
+using socketstream = mfem::glvis_stream;
+#endif
 
 class socketbuf : public std::streambuf
 {
@@ -207,6 +216,8 @@ protected:
 
 #endif // MFEM_USE_GNUTLS
 
+#ifndef MFEM_USE_GLVIS
+
 class socketstream : public std::iostream
 {
 protected:
@@ -273,6 +284,7 @@ public:
 
    virtual ~socketstream();
 };
+#endif // MFEM_USE_GLVIS
 
 
 class socketserver

@@ -213,4 +213,7 @@
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
 
+// Enable GLVis
+#cmakedefine MFEM_USE_GLVIS
+
 #endif // MFEM_CONFIG_HEADER

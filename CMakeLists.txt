@@ -592,6 +592,11 @@ if (MFEM_USE_ENZYME)
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
+# GLVis
+if (MFEM_USE_GLVIS AND NOT MFEM_FETCH_GLVIS)
+  find_package(GLVis REQUIRED)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -633,7 +638,7 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
-    ALGOIM ENZYME CUDA::cudart)
+    ALGOIM ENZYME GLVIS CUDA::cudart)
 
 # Add all created targets and *_FOUND libraries in the variables TPL_TARGETS and
 # TPL_LIBRARIES, respectively.
@@ -813,6 +818,11 @@ endif()
 
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+    # needs to be after mfem_add_library(mfem) to be able to depend on it
+    find_package(GLVis REQUIRED)
+endif()
+
 #-------------------------------------------------------------------------------
 # Examples, miniapps, benchmarks and testing
 #-------------------------------------------------------------------------------
@@ -912,6 +922,10 @@ message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
+
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+    target_link_libraries(mfem GLVIS)
+endif()
 
 # The 'install' target will not depend on 'all'.
 # set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)

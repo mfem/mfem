@@ -620,6 +620,9 @@ MFEM_USE_ENZYME = YES/NO
    config/defaults.mk. For more detailed instructions, see the section "Specific
    options for Enzyme" below.
 
+MFEM_USE_GLVIS = YES/NO
+   Enables to use a GLVis stream directly instead of the socket one.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -1077,6 +1080,7 @@ MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
 MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
+MFEM_USE_GLVIS
 
 The following options are CMake specific:
 
@@ -1087,6 +1091,7 @@ MFEM_FETCH_TPLS      - Enable fetching of all supported third-party libraries.
 MFEM_FETCH_GSLIB     - Enable fetching of gslib.
 MFEM_FETCH_HYPRE     - Enable fetching of hypre.
 MFEM_FETCH_METIS     - Enable fetching of metis.
+MFEM_FETCH_GLVIS     - Enable fetching of GLVis.
 
 External libraries (CMake):
 ---------------------------
