@@ -487,23 +487,32 @@ int main()
       Y[i] = static_cast<double>(N - i);
    }
 
-   // >>> user interface calls
-   const std::string kernel_path = std::string(util::thisFileDir) +
-                                   "/jitplayground.hpp";
-   JitQFunction qf(daxpy_op{}, kernel_path, std::array{false, true, false});
-   // <<< user interface calls
+   // // >>> user interface calls
+   // const std::string kernel_path = std::string(util::thisFileDir) +
+   //                                 "/jitplayground.hpp";
+   // JitQFunction qf(daxpy_op{}, kernel_path, std::array{false, true, false});
+   // // <<< user interface calls
 
-   // this will happen internally in dFEM
+   // // this will happen internally in dFEM
+
+   daxpy_op op;
+   printf("\n\nfunction call\n");
+   op(&A, X.data(), Y.data(), &N);
+
+   // reset X for the derivative test
+   for (size_t i = 0; i < N; ++i)
+   {
+      X[i] = static_cast<double>(i + 1);
+      Y[i] = static_cast<double>(N - i);
+   }
 
    std::vector<double> dX(N, 1.0);
-   const std::string n_str = std::to_string(N);
-   const std::string m_str = std::to_string(M);
-   qf.run_primal<void>({{"num_elements", m_str}, {"n", n_str}}, &A, &X, &Y);
+   printf("\n\nforward diff call\n");
+   daxpy_op_fwddiff(&A, X.data(), dX.data(), Y.data(), &N);
 
-   qf.run_derivative<void>({{"n", n_str}, {"num_elements", m_str}}, &A, &X, &dX,
-   &Y);
    std::vector<double> dX_manual(N, A);
 
+   printf("\n\nderivative checks\n");
    std::cout << "dX: ";
    for (size_t i = 0; i < N; ++i)
    {
