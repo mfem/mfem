@@ -1265,6 +1265,37 @@ public:
    }
 };
 
+/// @brief Input $vector_field$ and return $vector_field r$
+class FieldRVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *gf;
+   const bool flip_sign;
+   FindPointsGSLIBOneByOne finder;
+
+public:
+   int counter = 0;
+
+   FieldRVectorGridFunctionCoefficient() = delete;
+
+   FieldRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0);
+      counter++;
+      finder.InterpolateOneByOne(x, *gf, V, 0);
+      V *= r * (flip_sign ? -1 : 1);
+   }
+};
+
 /// @brief Input $\psi$ and return $r\nabla p$
 class GradPRVectorGridFunctionCoefficient : public VectorCoefficient
 {
