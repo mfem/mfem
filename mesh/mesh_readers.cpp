@@ -379,7 +379,7 @@ const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
 // see Pyramid::edges & Mesh::GenerateFaces
-// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+// https://www.vtk.org/doc/nightly/html/classvtkQuadraticPyramid.html
 const int Mesh::vtk_quadratic_pyramid[13] =
 { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
@@ -578,6 +578,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
                case Geometry::PYRAMID:
+                  MFEM_ABORT("vtk Quadratic Pyramids contain only 13 vertices "
+                             "but MFEM expects 14. We don't curently have a "
+                             "solution to this issue.");
                   vtk_mfem = vtk_quadratic_pyramid; break;
                default:
                   vtk_mfem = NULL; // suppress a warning
