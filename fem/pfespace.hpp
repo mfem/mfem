@@ -340,8 +340,14 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
+   bool HaveDofSigns() const { return ldof_sign.Size() != 0; }
+   /** @brief Apply the DOF signs to the given host data @a h_data which must be
+       of size GetVSize() if HaveDofSigns() is true. If HaveDofSigns() is false,
+       this method is no-op and returns immediately. */
+   void ApplyDofSigns(real_t *h_data) const;
    int GetDofSign(int i)
-   { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
+   { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
+
    HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
    HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
    HYPRE_BigInt GlobalVSize() const

@@ -4838,6 +4838,8 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
+   Array<int> interface_faces;
+   int interface_bdr_attr = 0;
 
    if (NURBSext)
    {
@@ -4882,6 +4884,19 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    const bool set_names = attribute_sets.SetsExist() ||
                           bdr_attribute_sets.SetsExist();
 
+   // Add material interfaces as boundary elements for visualization. We build a
+   // list of local faces to print as extra boundary elements. This does not
+   // modify the ParMesh object, only the printed mesh.
+   if (print_interfaces && Dim > 1)
+   {
+      FindInterface(interface_faces);
+
+      // Choose a boundary attribute that does not collide with existing ones,
+      // including those introduced by print_shared.
+      const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
+      interface_bdr_attr = max_bdr_attr + 1 + (print_shared ? NRanks : 0);
+   }
+
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
@@ -4916,6 +4931,16 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    {
       num_bdr_elems += s2l_face->Size();
    }
+   if (print_interfaces && Dim > 1)
+   {
+      // FIXME: If an interface face is also a shared face, we don't need to
+      //        double it -- the other processor will create the second face.
+      // FIXME: Double the faces also in 2D to get the boundaries when we shrink
+      //        the materials in GLVis?
+      // in 3D we print two oriented copies for each material interface face
+      num_bdr_elems += (Dim == 3) ? 2*interface_faces.Size()
+                       : interface_faces.Size();
+   }
    os << "\nboundary\n" << num_bdr_elems << '\n';
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -4937,6 +4962,57 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
          PrintElement(faces[(*s2l_face)[i]], os);
+      }
+   }
+
+   // Print interface faces as additional boundary elements. In 3D we print two
+   // copies of each face, with opposite orientation, so material subdomains can
+   // be pulled apart with F11/F12 in GLVis.
+   if (print_interfaces && Dim > 1)
+   {
+      for (int i = 0; i < interface_faces.Size(); i++)
+      {
+         const int f = interface_faces[i];
+         const int *fv = faces[f]->GetVertices();
+         // FIXME: Print the interface faces with the attribute of the material?
+         if (Dim == 2)
+         {
+            // FIXME: Double the edges also in 2D to get the boundaries when we
+            //        shrink the materials in GLVis?
+            Segment seg(fv, interface_bdr_attr);
+            PrintElement(&seg, os);
+         }
+         else // Dim == 3
+         {
+            // FIXME: If an interface face is also a shared face, we don't need
+            //        to double it -- the other processor will create the second
+            //        face.
+            const Geometry::Type geom = faces[f]->GetGeometryType();
+            if (geom == Geometry::TRIANGLE)
+            {
+               int v0[3] = { fv[0], fv[1], fv[2] };
+               int v1[3] = { fv[0], fv[2], fv[1] };
+               Triangle t0(v0, interface_bdr_attr);
+               Triangle t1(v1, interface_bdr_attr);
+               PrintElement(&t0, os);
+               PrintElement(&t1, os);
+            }
+            else if (geom == Geometry::SQUARE)
+            {
+               int v0[4] = { fv[0], fv[1], fv[2], fv[3] };
+               int v1[4] = { fv[0], fv[3], fv[2], fv[1] };
+               Quadrilateral q0(v0, interface_bdr_attr);
+               Quadrilateral q1(v1, interface_bdr_attr);
+               PrintElement(&q0, os);
+               PrintElement(&q1, os);
+            }
+            else
+            {
+               MFEM_ABORT("unsupported 3D face geometry type '"
+                          << Geometry::Name[geom]
+                          << "' while printing interface boundaries.");
+            }
+         }
       }
    }
 
@@ -4989,8 +5065,9 @@ void ParMesh::Print(adios2stream &os) const
 }
 #endif
 
-static void dump_element(const Element* elem, Array<int> &data)
+static void dump_element_with_attr(const Element* elem, Array<int> &data)
 {
+   data.Append(elem->GetAttribute());
    data.Append(elem->GetGeometryType());
 
    int nv = elem->GetNVertices();
@@ -5001,13 +5078,50 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
+void ParMesh::FindInterface(Array<int> &interface) const
+{
+   // We need face neighbor elements to determine if shared faces in parallel
+   // are on material interfaces.
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
+
+   const int nf = GetNumFaces();
+   for (int f = 0; f < nf; f++)
+   {
+      if (!FaceIsTrueInterior(f)) { continue; } // skip true boundary
+
+      const int e1 = faces_info[f].Elem1No;
+      if (e1 < 0) { continue; }
+      const int a1 = elements[e1]->GetAttribute();
+
+      int a2 = a1;
+      if (faces_info[f].Elem2No >= 0)
+      {
+         a2 = elements[faces_info[f].Elem2No]->GetAttribute();
+      }
+      else
+      {
+         // Shared face: element 2 is a face-neighbor element with index
+         // -1-Elem2No (see Mesh::FaceInfo).
+         const int nbr_el = -1 - faces_info[f].Elem2No;
+         MFEM_ASSERT(0 <= nbr_el && nbr_el < face_nbr_elements.Size(),
+                     "ParMesh::Print: invalid face-neighbor index");
+         a2 = face_nbr_elements[nbr_el]->GetAttribute();
+      }
+
+      if (a1 != a2) { interface.Append(f); }
+   }
+}
+
 void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 {
-   int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
+   int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1];
+   long long vc; // global vertex offset
    const int *v;
    MPI_Status status;
    Array<real_t> vert;
    Array<int> ints;
+   Array<int> interface_faces;
+   int interface_bdr_attr = 0;
 
    if (MyRank == 0)
    {
@@ -5030,15 +5144,20 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       os << "\ndimension\n" << Dim;
    }
 
-   nv = NumOfElements;
-   MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   long long loc_ne = NumOfElements, glob_ne = 0;
+   MPI_Reduce(&loc_ne, &glob_ne, 1, MPI_LONG_LONG, MPI_SUM, 0, MyComm);
    if (MyRank == 0)
    {
-      os << "\n\nelements\n" << ne << '\n';
+      MFEM_VERIFY(static_cast<int>(glob_ne) == glob_ne,
+                  "integer overflow detected!");
+      os << "\n\nelements\n" << glob_ne << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
-         // processor number + 1 as attribute and geometry type
-         os << 1 << ' ' << elements[i]->GetGeometryType();
+         // Print attribute + geometry:
+         // * if print_shared != 0, use processor number + 1 as attribute
+         // * otherwise, use the real attribute
+         os << (print_shared ? 1 : GetAttribute(i))
+            << ' ' << elements[i]->GetGeometryType();
          // vertices
          nv = elements[i]->GetNVertices();
          v  = elements[i]->GetVertices();
@@ -5048,19 +5167,26 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          }
          os << '\n';
       }
-      vc = NumOfVertices;
+      vc = NumOfVertices;  // global offset for vertex indices
       for (p = 1; p < NRanks; p++)
       {
          MPI_Recv(nv_ne, 2, MPI_INT, p, 444, MyComm, &status);
          ints.SetSize(ne);
          if (ne)
          {
+            // Receive an array that contains attribute + geometry + vertices
+            // for each element.
             MPI_Recv(&ints[0], ne, MPI_INT, p, 445, MyComm, &status);
          }
+         MFEM_VERIFY(static_cast<int>(vc + nv) == (vc + nv),
+                     "integer overflow detected!");
          for (i = 0; i < ne; )
          {
-            // processor number + 1 as attribute and geometry type
-            os << p+1 << ' ' << ints[i];
+            // Print attribute + geometry:
+            // * if print_shared != 0, use processor number + 1 as attribute
+            // * otherwise, use the real attribute
+            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[i+1];
+            i++;
             // vertices
             k = Geometries.GetVertices(ints[i++])->GetNPoints();
             for (j = 0; j < k; j++)
@@ -5074,11 +5200,11 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
    else
    {
-      // for each element send its geometry type and its vertices
+      // for each element send its attribute, geometry type and vertices
       ne = 0;
       for (i = 0; i < NumOfElements; i++)
       {
-         ne += 1 + elements[i]->GetNVertices();
+         ne += 2 + elements[i]->GetNVertices(); // attribute + geom + vertices
       }
       nv = NumOfVertices;
       MPI_Send(nv_ne, 2, MPI_INT, 0, 444, MyComm);
@@ -5087,7 +5213,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       ints.SetSize(0);
       for (i = 0; i < NumOfElements; i++)
       {
-         dump_element(elements[i], ints);
+         dump_element_with_attr(elements[i], ints);
       }
       MFEM_ASSERT(ints.Size() == ne, "");
       if (ne)
@@ -5096,36 +5222,59 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       }
    }
 
-   // boundary + shared boundary
+   // Add material interfaces as boundary elements for visualization. We build a
+   // list of local faces to print as extra boundary elements. This does not
+   // modify the ParMesh object, only the printed mesh.
+   if (print_interfaces && Dim > 1)
+   {
+      FindInterface(interface_faces);
+
+      // Choose a boundary attribute that does not collide with existing ones.
+      const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
+      // If print_shared is enabled, this attribute will be replaced:
+      interface_bdr_attr = max_bdr_attr + 1;
+   }
+
+   // boundary + (optionally) shared faces + (optionally) interface faces
    ne = NumOfBdrElements;
-   if (!pncmesh)
+   if (print_shared && !pncmesh)
    {
       ne += GetNSharedFaces();
    }
-   else if (Dim > 1)
+   if (print_shared && pncmesh && Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       ne += list.conforming.Size() + list.masters.Size() + list.slaves.Size();
       // In addition to the number returned by GetNSharedFaces(), include the
       // the master shared faces as well.
    }
-   ints.Reserve(ne * (1 + 2*(Dim-1))); // just an upper bound
+   if (print_interfaces && Dim > 1)
+   {
+      // FIXME: If an interface face is also a shared face, we don't need to
+      //        double it -- the other processor will create the second face.
+      // FIXME: Double the faces also in 2D to get the boundaries when we shrink
+      //        the materials in GLVis?
+      // In 3D we print two oriented copies for each material interface face:
+      ne += (Dim == 3 ? 2 : 1) * interface_faces.Size();
+   }
+   ints.Reserve(ne * (2 + (1 << Dim))); // just an upper bound
    ints.SetSize(0);
 
-   // for each boundary and shared boundary element send its geometry type
-   // and its vertices
+   // For each boundary, (optionally) shared face, and (optionally) interface
+   // face send its attribute, geometry type, and vertices.
    ne = 0;
-   for (i = j = 0; i < NumOfBdrElements; i++)
+   for (i = 0; i < NumOfBdrElements; i++)
    {
-      dump_element(boundary[i], ints); ne++;
+      dump_element_with_attr(boundary[i], ints); ne++;
    }
-   if (!pncmesh)
+   if (print_shared && !pncmesh)
    {
       switch (Dim)
       {
          case 1:
             for (i = 0; i < svert_lvert.Size(); i++)
             {
+               ints.Append(1); // attribute
                ints.Append(Geometry::POINT);
                ints.Append(svert_lvert[i]);
                ne++;
@@ -5135,19 +5284,21 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          case 2:
             for (i = 0; i < shared_edges.Size(); i++)
             {
-               dump_element(shared_edges[i], ints); ne++;
+               dump_element_with_attr(shared_edges[i], ints); ne++;
             }
             break;
 
          case 3:
             for (i = 0; i < shared_trias.Size(); i++)
             {
+               ints.Append(1); // attribute
                ints.Append(Geometry::TRIANGLE);
                ints.Append(shared_trias[i].v, 3);
                ne++;
             }
             for (i = 0; i < shared_quads.Size(); i++)
             {
+               ints.Append(1); // attribute
                ints.Append(Geometry::SQUARE);
                ints.Append(shared_quads[i].v, 4);
                ne++;
@@ -5158,32 +5309,91 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             MFEM_ABORT("invalid dimension: " << Dim);
       }
    }
-   else if (Dim > 1)
+   if (print_shared && pncmesh && Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       const int nfaces = GetNumFaces();
       for (i = 0; i < list.conforming.Size(); i++)
       {
          int index = list.conforming[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element_with_attr(faces[index], ints); ne++;
+         }
       }
       for (i = 0; i < list.masters.Size(); i++)
       {
          int index = list.masters[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element_with_attr(faces[index], ints); ne++;
+         }
       }
       for (i = 0; i < list.slaves.Size(); i++)
       {
          int index = list.slaves[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element_with_attr(faces[index], ints); ne++;
+         }
+      }
+   }
+   if (print_interfaces && Dim > 1)
+   {
+      for (i = 0; i < interface_faces.Size(); i++)
+      {
+         const int f = interface_faces[i];
+         const int *fv = faces[f]->GetVertices();
+         // FIXME: Print the interface faces with the attribute of the material?
+         if (Dim == 2)
+         {
+            // FIXME: Double the edges also in 2D to get the boundaries when we
+            //        shrink the materials in GLVis?
+            Segment seg(fv, interface_bdr_attr);
+            dump_element_with_attr(&seg, ints); ne++;
+         }
+         else // Dim == 3
+         {
+            // FIXME: If an interface face is also a shared face, we don't need
+            //        to double it -- the other processor will create the second
+            //        face.
+            const Geometry::Type geom = faces[f]->GetGeometryType();
+            if (geom == Geometry::TRIANGLE)
+            {
+               int v0[3] = { fv[0], fv[1], fv[2] };
+               int v1[3] = { fv[0], fv[2], fv[1] };
+               Triangle t0(v0, interface_bdr_attr);
+               Triangle t1(v1, interface_bdr_attr);
+               dump_element_with_attr(&t0, ints); ne++;
+               dump_element_with_attr(&t1, ints); ne++;
+            }
+            else if (geom == Geometry::SQUARE)
+            {
+               int v0[4] = { fv[0], fv[1], fv[2], fv[3] };
+               int v1[4] = { fv[0], fv[3], fv[2], fv[1] };
+               Quadrilateral q0(v0, interface_bdr_attr);
+               Quadrilateral q1(v1, interface_bdr_attr);
+               dump_element_with_attr(&q0, ints); ne++;
+               dump_element_with_attr(&q1, ints); ne++;
+            }
+            else
+            {
+               MFEM_ABORT("unsupported 3D face geometry type '"
+                          << Geometry::Name[geom]
+                          << "' while printing interface boundaries.");
+            }
+         }
       }
    }
 
-   MPI_Reduce(&ne, &k, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   long long loc_nb = ne, glob_nb = 0;
+   MPI_Reduce(&loc_nb, &glob_nb, 1, MPI_LONG_LONG, MPI_SUM, 0, MyComm);
    if (MyRank == 0)
    {
-      os << "\nboundary\n" << k << '\n';
-      vc = 0;
+      MFEM_VERIFY(static_cast<int>(glob_nb) == glob_nb,
+                  "integer overflow detected!");
+      os << "\nboundary\n" << glob_nb << '\n';
+      vc = 0;  // global vertex offset
       for (p = 0; p < NRanks; p++)
       {
          if (p)
@@ -5202,8 +5412,11 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          }
          for (i = 0; i < ne; )
          {
-            // processor number + 1 as bdr. attr. and bdr. geometry type
-            os << p+1 << ' ' << ints[i];
+            // Print bdr attribute + bdr geometry:
+            // * if print_shared != 0, use processor number + 1 as bdr attribute
+            // * otherwise, use the real bdr attribute
+            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[i+1];
+            i++;
             k = Geometries.NumVerts[ints[i++]];
             // vertices
             for (j = 0; j < k; j++)
@@ -5212,7 +5425,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             }
             os << '\n';
          }
-         vc += nv;
+         vc += nv;  // checked for overflow above, when printing the elements
       }
    }
    else
@@ -5227,6 +5440,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
 
    // vertices / nodes
+   // checked for overflow above, when printing the elements:
    MPI_Reduce(const_cast<int*>(&NumOfVertices), &nv, 1, MPI_INT, MPI_SUM, 0,
               MyComm);
    if (MyRank == 0)
@@ -5253,8 +5467,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             vert.SetSize(nv*spaceDim);
             if (nv)
             {
-               MPI_Recv(&vert[0], nv*spaceDim, MPITypeMap<real_t>::mpi_type, p, 449, MyComm,
-                        &status);
+               MPI_Recv(&vert[0], nv*spaceDim, MPITypeMap<real_t>::mpi_type, p,
+                        449, MyComm, &status);
             }
             for (i = 0; i < nv; i++)
             {
@@ -5281,8 +5495,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          }
          if (NumOfVertices)
          {
-            MPI_Send(&vert[0], NumOfVertices*spaceDim, MPITypeMap<real_t>::mpi_type, 0, 449,
-                     MyComm);
+            MPI_Send(&vert[0], NumOfVertices*spaceDim,
+                     MPITypeMap<real_t>::mpi_type, 0, 449, MyComm);
          }
       }
    }
@@ -6879,7 +7093,9 @@ void ParMesh::Swap(ParMesh &other)
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
 
-   print_shared = other.print_shared;
+   // Keep Print() behavior consistent after move/swap operations.
+   mfem::Swap(print_shared, other.print_shared);
+   mfem::Swap(print_interfaces, other.print_interfaces);
 }
 
 void ParMesh::Destroy()
