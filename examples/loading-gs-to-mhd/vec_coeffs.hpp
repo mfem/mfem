@@ -47,7 +47,9 @@ private:
    {
       if (z < z_min || z > z_max || r < r_min || r > r_max)
          return f_x;
-      return min(f_x + alpha * (psi - psi_x), f_x);
+      if (alpha >= 0)
+         return min(f_x + alpha * (psi - psi_x), f_x);
+      return max(f_x + alpha * (psi - psi_x), f_x);
    };
 
 public:
@@ -136,7 +138,9 @@ private:
    {
       if (z < z_min || z > z_max || r < r_min || r > r_max)
          return f_x;
-      return min(f_x + alpha * (psi - psi_x), f_x);
+      if (alpha >= 0)
+         return min(f_x + alpha * (psi - psi_x), f_x);
+      return max(f_x + alpha * (psi - psi_x), f_x);
    };
 
 public:
@@ -751,7 +755,6 @@ public:
    }
 };
 
-
 /// @brief Compute r*(curl B_pol × B_pol_perp)
 class RCurlBPerpBPerpPerpVectorGridFunctionCoefficient : public VectorCoefficient
 {
@@ -924,9 +927,9 @@ public:
 
    BPolGradRBTorGridFunctionCoefficient() = delete;
 
-   BPolGradRBTorGridFunctionCoefficient(const GridFunction *B_pol, const GridFunction *B_tor, 
+   BPolGradRBTorGridFunctionCoefficient(const GridFunction *B_pol, const GridFunction *B_tor,
                                         bool flip_sign = false)
-       : Coefficient(), flip_sign(flip_sign), 
+       : Coefficient(), flip_sign(flip_sign),
          grad_B_tor_coef(B_tor), B_pol_coef(B_pol), B_tor_coef(B_tor)
    {
    }
@@ -1013,7 +1016,6 @@ public:
    }
 };
 
-
 /// @brief Return $[[0, -1/r], [1/r, 0]]$
 class OneOverRPerpMatrixGridFunctionCoefficient : public MatrixCoefficient
 {
@@ -1095,7 +1097,6 @@ public:
    }
 };
 
-
 /// @brief Return $(1/r, 0)$
 class OneOverRVectorGridFunctionCoefficient : public VectorCoefficient
 {
@@ -1170,8 +1171,6 @@ public:
       return r * r * (flip_sign ? -1 : 1);
    }
 };
-
-
 
 enum WeightedHarmonicType
 {
