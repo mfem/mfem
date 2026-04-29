@@ -44,18 +44,6 @@ public:
       MFEM_ASSERT(idx, "invalid idx");
       MFEM_ASSERT(idx <= data.size(), "idx oob");
       EraseInternal(idx);
-      // if (idx == data.size())
-      // {
-      //    while (data.size())
-      //    {
-      //       --idx;
-      //       if (status.at(idx >> 6) & (1ull << (idx & 0x3f)))
-      //       {
-      //          break;
-      //       }
-      //       data.pop_back();
-      //    }
-      // }
    }
 
    /// @return stable index

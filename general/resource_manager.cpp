@@ -21,14 +21,6 @@
 #endif
 #endif // MFEM_USE_UMPIRE
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
-
-#if defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
-#include <immintrin.h>
-#endif
-
 #include <algorithm>
 #include <cstdlib>
 #include <tuple>
@@ -36,8 +28,6 @@
 #ifdef USE_NEW_MEM_MANAGER
 
 #include "internal/mmu.tcc"
-
-// #define MFEM_USE_BLIT_KERNEL
 
 namespace mfem
 {
@@ -507,12 +497,12 @@ MemoryManager::MemoryManager()
       allocs_storage[1].get();
 
    allocs[static_cast<int>(MemoryType::HOST_32)] = allocs_storage[2].get();
-   // TODO: this is actually 128-byte aligned
+   // this is actually 128-byte aligned
    allocs[static_cast<int>(MemoryType::HOST_32) + MemoryTypeSize] =
       allocs_storage[1].get();
 
    allocs[static_cast<int>(MemoryType::HOST_64)] = allocs_storage[3].get();
-   // TODO: this is actually 128-byte aligned
+   // this is actually 128-byte aligned
    allocs[static_cast<int>(MemoryType::HOST_64) + MemoryTypeSize] =
       allocs_storage[1].get();
 
@@ -848,7 +838,7 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
                                     bool on_device, bool valid)
 {
-   size_t idx = create_next_node();
+   size_t idx = nodes.CreateNext();
    auto &n = nodes.Get(idx);
    n.offset = offset;
    if (valid)
@@ -861,7 +851,7 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
                                     ptrdiff_t offset, bool on_device,
                                     bool valid)
 {
-   size_t idx = create_next_node();
+   size_t idx = nodes.CreateNext();
    auto &n = nodes.Get(idx);
    n.offset = offset;
    if (valid)
@@ -872,27 +862,15 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
    return insert(get_segment(segment).roots[on_device], node, idx);
 }
 
-size_t MemoryManager::RBase::create_next_node()
-{
-   return nodes.CreateNext();
-}
-
-size_t MemoryManager::RBase::create_next_segment()
-{
-   return segments.CreateNext();
-}
-
 void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
 {
-   invalidate_node(b);
+   nodes.Erase(b);
 }
-
-void MemoryManager::RBase::invalidate_node(size_t idx) { nodes.Erase(idx); }
 
 void MemoryManager::erase_node(size_t &root, size_t idx)
 {
    storage.erase(root, idx);
-   storage.invalidate_node(idx);
+   storage.nodes.Erase(idx);
 }
 
 template <class F>
@@ -1149,7 +1127,7 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(hloc != MemoryType::DEFAULT, "hloc cannot be DEFAULT");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
-   size_t next_segment = storage.create_next_segment();
+   size_t next_segment = storage.segments.CreateNext();
    auto &seg = storage.get_segment(next_segment);
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
@@ -1191,7 +1169,7 @@ void MemoryManager::clear_segment(RBase::Segment &seg)
       storage.visit(seg.roots[i], [](size_t) { return true; },
       [](size_t) { return true; }, [&](size_t idx)
       {
-         storage.invalidate_node(idx);
+         storage.nodes.Erase(idx);
          return false;
       });
    }
@@ -1209,7 +1187,7 @@ void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
    storage.visit(seg.roots[on_device], [](size_t) { return true; },
    [](size_t) { return true; }, [&](size_t idx)
    {
-      storage.invalidate_node(idx);
+      storage.nodes.Erase(idx);
       return false;
    });
    seg.roots[on_device] = 0;

@@ -95,8 +95,6 @@ private:
       using RBTree<RBase>::visit;
       using RBTree<RBase>::successor;
 
-      constexpr static size_t seg_offset = 1;
-
       Node &get_node(size_t curr) { return nodes.Get(curr); }
       const Node &get_node(size_t curr) const { return nodes.Get(curr); }
 
@@ -119,18 +117,12 @@ private:
 
       void insert_duplicate(size_t a, size_t b);
 
-      size_t create_next_node();
-
-      size_t create_next_segment();
-
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
                     bool on_device, bool valid);
-
-      void invalidate_node(size_t node);
    };
 
    void print_segment(size_t segment);
