@@ -22,6 +22,8 @@ namespace mfem
 namespace gmsh
 {
 
+/// Given barycentric indices @a b of a node in a tetrahedral element of degree
+/// @a ref, return its Gmsh index.
 static int BarycentricToGmshTet(int *b, int ref)
 {
    int i = b[0];
@@ -124,6 +126,8 @@ static int BarycentricToGmshTet(int *b, int ref)
    }
 }
 
+/// Given the Cartesian indices @a idx_in of a node in a quadrilateral of order
+/// @a ref, return its Gmsh index.
 static int CartesianToGmshQuad(int idx_in[], int ref)
 {
    int i = idx_in[0];
@@ -154,6 +158,8 @@ static int CartesianToGmshQuad(int idx_in[], int ref)
    }
 }
 
+/// Given the Cartesian indices @a idx_in of a node in a hexahedron of order
+/// @a ref, return its Gmsh index.
 static int CartesianToGmshHex(int idx_in[], int ref)
 {
    int i = idx_in[0];
@@ -220,7 +226,9 @@ static int CartesianToGmshHex(int idx_in[], int ref)
    }
 }
 
-static int WedgeToGmshPri(int idx_in[], int ref)
+/// Given the indices @a idx_in of a node in a prism of order @a ref, return its
+/// Gmsh index.
+static int WedgeToGmshPrism(int idx_in[], int ref)
 {
    int i = idx_in[0];
    int j = idx_in[1];
@@ -315,6 +323,8 @@ static int WedgeToGmshPri(int idx_in[], int ref)
    }
 }
 
+/// Given the Cartesian indices @a idx_in of a node in a pyramid of order @a ref
+/// return its Gmsh index.
 static int CartesianToGmshPyramid(int idx_in[], int ref)
 {
    int i = idx_in[0];
@@ -382,6 +392,7 @@ static int CartesianToGmshPyramid(int idx_in[], int ref)
    }
 }
 
+/// Form the mapping from MFEM to Gmsh segment indices.
 static void HOSegmentMapping(int order, int *map)
 {
    map[0] = 0;
@@ -392,6 +403,7 @@ static void HOSegmentMapping(int order, int *map)
    }
 }
 
+/// Form the mapping from MFEM to Gmsh triangle indices.
 static void HOTriangleMapping(int order, int *map)
 {
    int b[3];
@@ -407,6 +419,7 @@ static void HOTriangleMapping(int order, int *map)
    }
 }
 
+/// Form the mapping from MFEM to Gmsh quadrilateral indices.
 static void HOQuadrilateralMapping(int order, int *map)
 {
    int b[2];
@@ -421,6 +434,7 @@ static void HOQuadrilateralMapping(int order, int *map)
    }
 }
 
+/// Form the mapping from MFEM to Gmsh tetrahedron indices.
 static void HOTetrahedronMapping(int order, int *map)
 {
    int b[4];
@@ -440,6 +454,7 @@ static void HOTetrahedronMapping(int order, int *map)
    }
 }
 
+/// Form the mapping from MFEM to Gmsh hexahedron indices.
 static void HOHexahedronMapping(int order, int *map)
 {
    int b[3];
@@ -457,7 +472,8 @@ static void HOHexahedronMapping(int order, int *map)
    }
 }
 
-static void HOWedgeMapping(int order, int *map)
+/// Form the mapping from MFEM to Gmsh prism indices.
+static void HOPrismMapping(int order, int *map)
 {
    int b[3];
    int o = 0;
@@ -467,13 +483,14 @@ static void HOWedgeMapping(int order, int *map)
       {
          for (b[0]=0; b[0]<=order - b[1]; b[0]++)
          {
-            map[o] = WedgeToGmshPri(b, order);
+            map[o] = WedgeToGmshPrism(b, order);
             o++;
          }
       }
    }
 }
 
+/// Form the mapping from MFEM to Gmsh pyramid indices.
 static void HOPyramidMapping(int order, int *map)
 {
    int b[3];
@@ -672,7 +689,7 @@ class GmshReader
             case Geometry::SQUARE: HOQuadrilateralMapping(order, data); break;
             case Geometry::TETRAHEDRON: HOTetrahedronMapping(order, data); break;
             case Geometry::CUBE: HOHexahedronMapping(order, data); break;
-            case Geometry::PRISM: HOWedgeMapping(order, data); break;
+            case Geometry::PRISM: HOPrismMapping(order, data); break;
             case Geometry::PYRAMID: HOPyramidMapping(order, data); break;
             default: MFEM_ABORT("Unsupported element type.");
          }
@@ -833,6 +850,8 @@ class GmshReader
       }
    }
 
+   /// @brief Read the mesh in Gmsh 4.1 format from the input stream into the
+   /// Mesh @a mesh.
    void ReadGmsh4Mesh(Mesh &mesh)
    {
       MFEM_VERIFY(data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
@@ -1002,6 +1021,8 @@ class GmshReader
       while (!section.empty());
    }
 
+   /// @brief Read the mesh in Gmsh 2.2 format from the input stream into the
+   /// Mesh @a mesh.
    void ReadGmsh2Mesh(Mesh &mesh)
    {
       const auto b = is_binary;
@@ -1167,7 +1188,10 @@ class GmshReader
 
 public:
 
-   /// Read the mesh from the input stream @a input_ into mesh @a mesh.
+   /// @brief Read the mesh from the input stream @a input_ into mesh @a mesh.
+   ///
+   /// Meshes in Gmsh format 2.2 or 4.1 and in either binary or ASCII can be
+   /// read; the format is determined automatically.
    GmshReader(istream &input_, Mesh &mesh) : input(input_)
    {
       const string version_str = ReadBinaryOrASCII<string>(input, ASCII);
