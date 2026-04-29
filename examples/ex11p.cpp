@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   SymEigensolver * eig_solver = NULL;
+   SymGenEigensolver * eig_solver = NULL;
 
    if (lob_solver)
    {
@@ -342,26 +342,24 @@ int main(int argc, char *argv[])
       lobpcg->SetTol(1e-8);
       lobpcg->SetPrecondUsageMode(1);
       lobpcg->SetPrintLevel(1);
-      lobpcg->SetMassMatrix(*M);
-      lobpcg->SetOperator(*A);
+
       eig_solver = lobpcg;
    }
 #ifdef MFEM_USE_ARPACK
    else if (arp_solver)
    {
-      ParArPackSym * arpack = new ParArPackSym(MPI_COMM_WORLD);
+      ArPackPSAUPD * arpack = new ArPackPSAUPD(MPI_COMM_WORLD);
       arpack->SetNumModes(nev);
       arpack->SetMaxIter(400);
       arpack->SetTol(1e-8);
       arpack->SetMode(3);
       arpack->SetPrintLevel(2);
-
-      arpack->SetOperator(*A);
-      arpack->SetMassMatrix(*M);
       arpack->SetSolver(*solver);
+
       eig_solver = arpack;
    }
 #endif
+   eig_solver->SetOperators(*A, *M);
 
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
