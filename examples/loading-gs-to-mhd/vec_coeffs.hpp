@@ -1302,6 +1302,7 @@ class GradPRVectorGridFunctionCoefficient : public VectorCoefficient
 private:
    const GridFunction *gf;
    const bool flip_sign;
+   GridFunctionCoefficient psi_coef;
    GradientGridFunctionCoefficient grad_psi_coef;
    FindPointsGSLIBOneByOne finder;
    real_t alpha, f_x, psi_x, z_x;
@@ -1314,7 +1315,7 @@ public:
    GradPRVectorGridFunctionCoefficient() = delete;
 
    GradPRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), grad_psi_coef(gf), finder(gf)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), psi_coef(gf), grad_psi_coef(gf), finder(gf)
    {
       ifstream infile("input/p_from_psi_coefficients.txt");
       if (!infile)
@@ -1325,7 +1326,7 @@ public:
 
       // Expected order matches other from_psi readers in this file.
       infile >> alpha >> f_x >> psi_x >> z_x;
-      infile >> z_min >> z_max >> r_min >> r_max;
+      infile >> r_min >> r_max >> z_min >> z_max;
       infile >> r0 >> delta >> beta >> gamma >> psi_ma;
    }
 
@@ -1344,9 +1345,12 @@ public:
          return;
       }
 
-      Vector psi_val(1);
-      finder.InterpolateOneByOne(x, *gf, psi_val, 0);
-      const real_t psi = psi_val(0);
+      const real_t psi = psi_coef.Eval(T, ip);
+      if (psi < psi_ma || psi > psi_x)
+      {
+         V = 0.0;
+         return;
+      }
 
       grad_psi_coef.Eval(V, T, ip);
 
