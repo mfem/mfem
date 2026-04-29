@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
       LinearForm b(&fespace);
    
       GradPRVectorGridFunctionCoefficient grad_p_r_coef(&psi, false);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(grad_p_r_coef));
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(grad_p_r_coef));
       b.Assemble();
 
       // Make the mass matrix
