@@ -6966,7 +6966,7 @@ HypreAME::StealEigenvectors()
    eigenvectors = NULL;
    multi_vec = NULL;
 
-   return vecs;
+   return (Vector**)vecs;
 }
 
 }

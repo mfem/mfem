@@ -1,0 +1,271 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_ARPACK
+#define MFEM_ARPACK
+
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_ARPACK
+
+#include <string>
+
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#include "hypre.hpp"
+#endif
+
+#include "operator.hpp"
+
+#define SSAUPD  ssaupd_
+#define SSEUPD  sseupd_
+#define DSAUPD  dsaupd_
+#define DSEUPD  dseupd_
+
+#ifdef MFEM_USE_MPI
+#define PSSAUPD pssaupd_
+#define PSSEUPD psseupd_
+#define PDSAUPD pdsaupd_
+#define PDSEUPD pdseupd_
+#endif
+
+extern "C" void SSAUPD(int *ido, char *bmat, int *n,
+                       char *which, int *nev, float *tol, float *resid,
+                       int *ncv, float *v, int *ldv,
+                       int *iparam, int *ipntr,
+                       float *workd, float *workl, int *lworkl, int *info);
+
+extern "C" void SSEUPD(int *, char *, int *, float *,
+                       float *, int *, float *, char *, int *, char *,
+                       int *, float *, float *, int *, float *,
+                       int *, int  *, int *, float *,
+                       float *, int *, int *);
+
+extern "C" void DSAUPD(int *ido, char *bmat, int *n,
+                       char *which, int *nev, double *tol, double *resid,
+                       int *ncv, double *v, int *ldv,
+                       int *iparam, int *ipntr,
+                       double *workd, double *workl, int *lworkl, int *info);
+
+extern "C" void DSEUPD(int *, char *, int *, double *,
+                       double *, int *, double *, char *, int *, char *,
+                       int *, double *, double *, int *, double *,
+                       int *, int  *, int *, double *,
+                       double *, int *, int *);
+
+#ifdef MFEM_USE_MPI
+
+extern "C" void PSSAUPD(int *comm, int *ido, char *bmat, int *n,
+                        char *which, int *nev, float *tol, float *resid,
+                        int *ncv, float *v, int *ldv,
+                        int *iparam, int *ipntr,
+                        float *workd, float *workl, int *lworkl, int *info);
+
+extern "C" void PSSEUPD(int *comm, int *, char *, int *, float *,
+                        float *, int *, float *, char *, int *, char *,
+                        int *, float *, float *, int *, float *,
+                        int *, int  *, int *, float *,
+                        float *, int *, int *);
+
+extern "C" void PDSAUPD(int *comm, int *ido, char *bmat, int *n,
+                        char *which, int *nev, double *tol, double *resid,
+                        int *ncv, double *v, int *ldv,
+                        int *iparam, int *ipntr,
+                        double *workd, double *workl, int *lworkl, int *info);
+
+extern "C" void PDSEUPD(int *comm, int *, char *, int *, double *,
+                        double *, int *, double *, char *, int *, char *,
+                        int *, double *, double *, int *, double *,
+                        int *, int  *, int *, double *,
+                        double *, int *, int *);
+
+#endif
+
+extern "C" {
+   void arpackgetcommdbg_(int *,int *,int *);
+   void arpacksetcommdbg_(int *,int *,int *);
+   void arpacksymdbg_(int *,int *,int *,int *,int *,int *,int *);
+   void arpacknonsymdbg_(int *,int *,int *,int *,int *,int *,int *);
+   void arpackcmplxdbg_(int *,int *,int *,int *,int *,int *,int *);
+}
+
+namespace mfem
+{
+
+/// Wrapper for the ARPACK routine SSAUPD or DSAUPD
+class ArPackSAUPD : public SymEigensolver, public SymGenEigensolver
+{
+public:
+
+   ArPackSAUPD();
+   virtual ~ArPackSAUPD();
+
+   /** ARPACK modes are described in section 3.5 of the ARPACK manual.
+       Mode 1: regular mode to solve A x = lambda x
+               No solver and no mass matrix are needed.
+       Mode 2: regular inverse mode to solve A x = lambda M x
+               Both A and M are needed and the solver should compute M^{-1}.
+       Mode 3: shift-invert mode to solve either A x = lambda x
+               or A x = lambda M x
+               Mass matrix is optional.  The solver should compute
+               (A-sigma I)^{-1} or (A-sigma M)^{-1}.  The shift parameter,
+               sigma, also needs to be set with SetShift().
+       Mode 4: Buckling mode to solve K x = lambda K_G x
+               K is set using SetMassMatrix(), K_G is set using SetOperator(),
+          and the solver should compute (K-sigma K_G)^{-1}.  The shift
+               parameter, sigma, also needs to be set with SetShift().
+       Mode 5: Cayley mode to solve A x = lambda M x
+               Both A and M are needed and the solver should compute
+               (A - sigma M)^{-1}.  The shift parameter, sigma, also needs
+               to be set with SetShift().
+    */
+   void SetMode(int mode);
+
+   inline void SetTol(real_t tol) override         {      tol_ = tol;      }
+   inline void SetMaxIter(int max_iter) override   { max_iter_ = max_iter; }
+   inline void SetPrintLevel(int logging) override {  logging_ = logging;  }
+   inline void SetShift(real_t sigma)              {    sigma_ = sigma;    }
+   inline void SetNumModes(int num_eigs) override  {      nev_ = num_eigs; }
+
+   virtual void SetSolver(Solver & solver);
+   virtual void SetOperator(const Operator & A) override;
+   virtual void SetMassMatrix(const Operator & M);
+   virtual void SetOperators(const Operator & A, const Operator & B) override
+   { SetOperator(A); SetMassMatrix(B); }
+
+   void Solve() override;
+
+   virtual int GetNumConverged() const override { return iparam_[4]; }
+
+   /// Collect the converged eigenvalues
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const override;
+
+   /// Extract a single eigenvector
+   virtual const Vector & GetEigenvector(unsigned int i) const override;
+
+   /// Transfer ownership of the converged eigenvectors
+   Vector ** StealEigenvectors() override;
+
+protected:
+
+   int myid_;       // Index of this processor
+   int max_iter_;
+   int logging_;
+
+   // The following variables are for ARPACK
+   int nloc_;       // number of items stored locally
+   int nev_;        // number of requested eigenvalues
+   int ncv_;        // number of ritz vectors
+   int rvec_;       // boolean to return eigenvectors as well
+   int mode_;       // 1 = standard, 2 = generalized, 3 = shift invert,
+   // 4 = buckling, 5 = Cayley
+   int lworkl_;     // length of lworkl_ work array
+   int iparam_[12]; // arpack parameters
+   int ipntr_[12];  // arpack pointers
+
+   char bmat_;      // I for standard problem, G for generalized
+   char which_[3];  // spectrum portion: LA, SA, LM, SM, BE
+   char hwmny_;     // DSEUPD: A for all eigenvalues, S for some
+
+   real_t tol_;     // relative accuracy bound for Ritz values
+   real_t sigma_;   // eigenvalue shift parameter
+
+   int    * select_;// workspace used during eigenvalue computation
+   real_t * dv_;    // Ritz values
+   real_t * v_;     // ncv Lanczos basis vectors
+   real_t * resid_; // residual vector
+   real_t * workd_; // work array for 3 vectors used in Arnoldi iteration
+   real_t * workl_; // work array
+
+   // Operators and Vectors needed outside of ARPACK
+   Solver   * solver_;
+   const Operator * A_;
+   const Operator * B_;
+
+   Vector * w_;
+   Vector * x_;
+   Vector * y_;
+   Vector * z_;
+
+   mutable Vector ** eigenvectors_;
+
+   std::string solverName_;
+
+   void reverseComm();
+
+   int reverseCommMode1();
+   int reverseCommMode2();
+   int reverseCommMode3();
+   int reverseCommMode4();
+   int reverseCommMode5();
+
+   virtual void prepareEigenvectors() const;
+
+   void printErrors(const int & info, const int iparam[],
+                    const char & bmat, const int & n,
+                    const char which[],
+                    const int & nev, const int & ncv,
+                    const int & lworkl );
+
+private:
+
+   virtual int computeNlocf() { return nloc_; }
+   virtual int computeIter(int & ido);
+   virtual int computeEigs();
+
+};
+
+#ifdef MFEM_USE_MPI
+
+class ArPackPSAUPD : public ArPackSAUPD
+{
+public:
+   ArPackPSAUPD(MPI_Comm comm);
+   virtual ~ArPackPSAUPD() {}
+
+   void SetOperator(const Operator & A);
+   void SetMassMatrix(const Operator & M);
+
+   /// Collect the converged eigenvalues
+   void GetEigenvalues(Array<real_t> & eigenvalues) const;
+
+   /// Extract a single eigenvector
+   const Vector & GetEigenvector(unsigned int i) const;
+
+   /// Transfer ownership of the converged eigenvectors
+   // HypreParVector ** StealEigenvectors();
+   Vector ** StealEigenvectors();
+
+protected:
+
+   void prepareEigenvectors() const;
+
+private:
+
+   MPI_Comm comm_;
+   MPI_Fint commf_; // Fortran style MPI communicator
+   int numProcs_;   // Number of processors
+
+   mutable HYPRE_Int * part_; // parallel partitioning for eigenvectors
+
+   int computeNlocf();
+   int computeIter(int & ido);
+   int computeEigs();
+
+};
+
+#endif // MFEM_USE_MPI
+
+};
+
+#endif // MFEM_USE_ARPACK
+
+#endif // MFEM_ARPACK

@@ -58,6 +58,10 @@
 #include "ginkgo.hpp"
 #endif
 
+#ifdef MFEM_USE_ARPACK
+#include "arpack.hpp"
+#endif
+
 #ifdef MFEM_USE_MKL_PARDISO
 #include "pardiso.hpp"
 #endif

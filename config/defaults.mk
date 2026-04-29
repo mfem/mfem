@@ -178,6 +178,7 @@ MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
+MFEM_USE_ARPACK        = NO
 MFEM_USE_MKL_CPARDISO  = NO
 MFEM_USE_MKL_PARDISO   = NO
 MFEM_USE_MOONOLITH     = NO
@@ -426,6 +427,14 @@ NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
  -lnetcdf -lhdf5_hl -lhdf5 $(ZLIB_LIB)
+
+# ARPACK library configuration
+ARPACK_DIR = @MFEM_DIR@/../ARPACK
+ifeq ($(MFEM_USE_MPI),YES)
+ARPACK_LIB = -L$(ARPACK_DIR) -lparpack -larpack
+else
+ARPACK_LIB = -L$(ARPACK_DIR) -larpack
+endif
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug

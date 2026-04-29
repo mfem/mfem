@@ -20,6 +20,7 @@
 #include "sparsemat.hpp"
 #include "eigensolvers.hpp"
 #include "hypre_parcsr.hpp"
+#include "eigensolvers.hpp"
 #include <mpi.h>
 
 // Enable internal hypre timing routines

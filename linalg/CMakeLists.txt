@@ -23,6 +23,7 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
+  eigensolvers.cpp
   filteredsolver.cpp
   handle.cpp
   matrix.cpp
@@ -100,6 +101,11 @@ if (MFEM_USE_MPI)
         slepc.hpp)
     endif()
   endif()
+endif()
+
+if (MFEM_USE_ARPACK)
+  list(APPEND SRCS arpack.cpp)
+  list(APPEND HDRS arpack.hpp)
 endif()
 
 if (MFEM_USE_SUNDIALS)
