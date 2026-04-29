@@ -68,6 +68,7 @@ class Mesh
    friend class NCMesh;
    friend class NURBSExtension;
    friend class NCNURBSExtension;
+   friend class gmsh::GmshReader;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
@@ -365,8 +366,6 @@ protected:
                       bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input);
-   void ReadGmsh2Mesh(class gmsh::GmshReader &g);
-   void ReadGmsh4Mesh(class gmsh::GmshReader &g);
 
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
