@@ -1265,33 +1265,65 @@ public:
    }
 };
 
-/// @brief Input $vector_field$ and return $vector_field r$
-class FieldRVectorGridFunctionCoefficient : public VectorCoefficient
+/// @brief Input $\psi$ and return $r\nabla p$
+class GradPRVectorGridFunctionCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction *gf;
    const bool flip_sign;
+   GradientGridFunctionCoefficient grad_psi_coef;
    FindPointsGSLIBOneByOne finder;
+   real_t alpha, f_x, psi_x, z_x;
+   real_t z_min, z_max, r_min, r_max;
+   real_t r0, delta, beta, gamma, psi_ma;
 
 public:
    int counter = 0;
 
-   FieldRVectorGridFunctionCoefficient() = delete;
+   GradPRVectorGridFunctionCoefficient() = delete;
 
-   FieldRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
-       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), finder(gf)
+   GradPRVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), gf(gf), flip_sign(flip_sign), grad_psi_coef(gf), finder(gf)
    {
+      ifstream infile("input/p_from_psi_coefficients.txt");
+      if (!infile)
+      {
+         cerr << "Error: could not open input file" << endl;
+         exit(1);
+      }
+
+      // Expected order matches other from_psi readers in this file.
+      infile >> alpha >> f_x >> psi_x >> z_x;
+      infile >> z_min >> z_max >> r_min >> r_max;
+      infile >> r0 >> delta >> beta >> gamma >> psi_ma;
    }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
-      // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x(0);
+      const real_t r = x(0);
+      const real_t z = x(1);
       counter++;
-      finder.InterpolateOneByOne(x, *gf, V, 0);
-      V *= r * (flip_sign ? -1 : 1);
+
+      if (z < z_min || z > z_max || r < r_min || r > r_max)
+      {
+         V = 0.0;
+         return;
+      }
+
+      Vector psi_val(1);
+      finder.InterpolateOneByOne(x, *gf, psi_val, 0);
+      const real_t psi = psi_val(0);
+
+      grad_psi_coef.Eval(V, T, ip);
+
+      const real_t psi_denom = psi_x - psi_ma;
+      const real_t psi_ratio = (psi - psi_ma) / psi_denom;
+      const real_t profile = pow(1.0 - pow(psi_ratio, delta), gamma);
+      const real_t scale = alpha * (beta / r0) * profile;
+      V *= scale;
+      V *= r * (flip_sign ? -1.0 : 1.0);
    }
 };
