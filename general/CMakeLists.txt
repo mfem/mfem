@@ -26,6 +26,7 @@ list(APPEND SRCS
   osockstream.cpp
   resource_manager.cpp
   internal/mem_op_debug.cpp
+  internal/reusable_storage.cpp
   sets.cpp
   socketstream.cpp
   stable3d.cpp

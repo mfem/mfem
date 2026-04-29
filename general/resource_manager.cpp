@@ -649,8 +649,6 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
 
 MemoryManager::~MemoryManager()
 {
-   storage.nodes.clear();
-   storage.segments.clear();
    for (size_t i = 0; i < allocs_storage.size(); ++i)
    {
       if (allocs_storage[i])
@@ -662,6 +660,8 @@ MemoryManager::~MemoryManager()
 
 void MemoryManager::Destroy()
 {
+   // TODO update for reusable_storage
+#if 0
    for (auto &seg : storage.segments)
    {
       if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
@@ -684,6 +684,7 @@ void MemoryManager::Destroy()
          // seg.mtypes[0] = MemoryType::DEFAULT;
       }
    }
+#endif
    // temporary device allocators need to have Clear called
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    // HOST_PINNED
@@ -848,174 +849,48 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 }
 
 size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
-                                    bool on_device, bool valid, size_t &nn)
+                                    bool on_device, bool valid)
 {
-   create_next_node(nn);
-   auto &n = nodes[nn - 1];
+   size_t idx = create_next_node();
+   auto &n = nodes.Get(idx);
    n.offset = offset;
    if (valid)
    {
       n.set_valid();
    }
-   return insert(get_segment(segment).roots[on_device], nn);
+   return insert(get_segment(segment).roots[on_device], idx);
 }
 size_t MemoryManager::RBase::insert(size_t segment, size_t node,
                                     ptrdiff_t offset, bool on_device,
-                                    bool valid, size_t &nn)
+                                    bool valid)
 {
-   create_next_node(nn);
-   auto &n = nodes[nn - 1];
+   size_t idx = create_next_node();
+   auto &n = nodes.Get(idx);
    n.offset = offset;
    if (valid)
    {
       n.set_valid();
    }
 
-   return insert(get_segment(segment).roots[on_device], node, nn);
+   return insert(get_segment(segment).roots[on_device], node, idx);
 }
 
-#if defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
-namespace
+size_t MemoryManager::RBase::create_next_node()
 {
-template <class T> struct IdxTypeHelper;
-
-template <class R, class T0, class T1> struct IdxTypeHelper<R (*)(T0, T1)>
-{
-   using type = std::remove_pointer_t<T0>;
-};
-
-/// Identifies the base index type for _BitScanForward64
-template <class T> struct IdxType : IdxTypeHelper<std::add_pointer_t<T>> {};
-} // namespace
-#endif
-
-/// index of first unset bit + 1 starting from the LSB, or 0 if all bits are set
-static int lowest_unset(uint64_t val)
-{
-#if defined(__GNUC__) || defined(__clang__)
-   static_assert(sizeof(long long) == 8, "long long expected to be 64-bits");
-   return __builtin_ffsll(~val);
-#elif defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
-   if (val == ~0ull)
-   {
-      return 0;
-   }
-   // argument 0 has a (potentially) different type between MSVC and Intel compilers
-   typename IdxType<decltype(_BitScanForward64)>::type res;
-   _BitScanForward64(&res, ~val);
-   return res + 1;
-#else
-   for (int i = 0; i < sizeof(val) * 8; ++i)
-   {
-      if (val & (1ull << i))
-      {
-         return i + 1;
-      }
-   }
-   return 0;
-#endif
+   return nodes.CreateNext();
 }
 
-void MemoryManager::RBase::create_next_node(size_t &nn)
+size_t MemoryManager::RBase::create_next_segment()
 {
-   size_t idx = (nn - 1) >> 6;
-   while (idx < nodes_status.size())
-   {
-      size_t tmp = lowest_unset(nodes_status[idx]);
-      if (tmp)
-      {
-         nn = (idx << 6) + tmp;
-         break;
-      }
-      ++idx;
-   }
-   if (idx >= nodes_status.size())
-   {
-      nodes_status.push_back(0);
-      nn = (idx << 6) + 1;
-   }
-   if (nn > nodes.size())
-   {
-      nodes.emplace_back();
-      MFEM_ASSERT(nn <= nodes.size(), "nn too large");
-   }
-   else
-   {
-      MFEM_ASSERT(nn <= nodes.size(), "nn too large");
-      nodes[nn - 1] = Node{};
-   }
-   nodes_status[idx] |= 1ull << ((nn - 1) & 0x3f);
-}
-
-void MemoryManager::RBase::create_next_segment(size_t &ns)
-{
-   size_t idx = (ns - 1) >> 6;
-   while (idx < segments_status.size())
-   {
-      size_t tmp = lowest_unset(segments_status.at(idx));
-      if (tmp)
-      {
-         ns = (idx << 6) + tmp;
-         break;
-      }
-      ++idx;
-   }
-   if (idx >= segments_status.size())
-   {
-      segments_status.push_back(0);
-      ns = (idx << 6) + 1;
-   }
-   if (ns > segments.size())
-   {
-      segments.emplace_back();
-      MFEM_ASSERT(ns <= segments.size(), "ns too large");
-   }
-   else
-   {
-      MFEM_ASSERT(ns <= segments.size(), "ns too large");
-      segments[ns - 1] = Segment{};
-   }
-   segments_status[idx] |= 1ull << ((ns - 1) & 0x3f);
+   return segments.CreateNext();
 }
 
 void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
 {
    invalidate_node(b);
-   cleanup_nodes();
 }
 
-void MemoryManager::RBase::cleanup_nodes()
-{
-   size_t idx = nodes.size();
-   while (nodes.size())
-   {
-      --idx;
-      if (nodes_status[idx >> 6] & (1ull << (idx & 0x3f)))
-      {
-         break;
-      }
-      nodes.pop_back();
-   }
-}
-
-void MemoryManager::RBase::cleanup_segments()
-{
-   while (segments.size())
-   {
-      if (segments.back().ref_count)
-      {
-         break;
-      }
-      segments.pop_back();
-   }
-}
-
-void MemoryManager::RBase::invalidate_node(size_t idx)
-{
-   instance().next_node = std::min(instance().next_node, idx);
-   --idx;
-   nodes_status[idx >> 6] &= ~(1ull << (idx & 0x3f));
-}
+void MemoryManager::RBase::invalidate_node(size_t idx) { nodes.Erase(idx); }
 
 void MemoryManager::erase_node(size_t &root, size_t idx)
 {
@@ -1055,7 +930,6 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                   erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
                   erase_node(seg.roots[on_device], next);
-                  storage.cleanup_nodes();
                   if (curr)
                   {
                      pos = storage.get_node(curr).offset;
@@ -1082,8 +956,8 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                {
                   storage.insert(segment,
                                  storage.insert(segment, curr, pos, on_device,
-                                                true, next_node),
-                                 stop, on_device, false, next_node);
+                                                true),
+                                 stop, on_device, false);
                }
                break;
             }
@@ -1100,17 +974,14 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                else
                {
                   erase_node(seg.roots[on_device], curr);
-                  storage.cleanup_nodes();
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, true,
-                                         next_node);
+               auto tmp = storage.insert(segment, curr, pos, on_device, true);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, false,
-                                 next_node);
+                  storage.insert(segment, tmp, stop, on_device, false);
                }
             }
             break;
@@ -1138,10 +1009,10 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
    if (!curr)
    {
       func(start, stop);
-      storage.insert(segment, start, on_device, false, next_node);
+      storage.insert(segment, start, on_device, false);
       if (stop < seg.nbytes)
       {
-         storage.insert(segment, stop, on_device, true, next_node);
+         storage.insert(segment, stop, on_device, true);
       }
       return;
    }
@@ -1173,8 +1044,8 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
             // need new start and stop markers
             storage.insert(segment,
                            storage.insert(segment, curr, start, on_device,
-                                          false, next_node),
-                           stop, on_device, true, next_node);
+                                          false),
+                           stop, on_device, true);
             return;
          }
       }
@@ -1199,7 +1070,6 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                   erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
                   erase_node(seg.roots[on_device], next);
-                  storage.cleanup_nodes();
 
                   if (curr)
                   {
@@ -1227,8 +1097,8 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                {
                   storage.insert(segment,
                                  storage.insert(segment, curr, pos, on_device,
-                                                false, next_node),
-                                 stop, on_device, true, next_node);
+                                                false),
+                                 stop, on_device, true);
                }
                break;
             }
@@ -1245,17 +1115,14 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                else
                {
                   erase_node(seg.roots[on_device], curr);
-                  storage.cleanup_nodes();
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, false,
-                                         next_node);
+               auto tmp = storage.insert(segment, curr, pos, on_device, false);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, true,
-                                 next_node);
+                  storage.insert(segment, tmp, stop, on_device, true);
                }
             }
             break;
@@ -1285,7 +1152,7 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(hloc != MemoryType::DEFAULT, "hloc cannot be DEFAULT");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
-   storage.create_next_segment(next_segment);
+   size_t next_segment = storage.create_next_segment();
    auto &seg = storage.get_segment(next_segment);
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
@@ -1331,7 +1198,6 @@ void MemoryManager::clear_segment(RBase::Segment &seg)
          return false;
       });
    }
-   storage.cleanup_nodes();
 }
 
 void MemoryManager::clear_segment(size_t segment)
@@ -1349,7 +1215,6 @@ void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
       storage.invalidate_node(idx);
       return false;
    });
-   storage.cleanup_nodes();
    seg.roots[on_device] = 0;
 }
 
@@ -1373,10 +1238,7 @@ void MemoryManager::erase(size_t segment)
             seg.nbytes = 0;
             clear_segment(segment);
             seg.reset_temporary();
-            storage.cleanup_segments();
-            size_t idx = segment - 1;
-            storage.segments_status[idx >> 6] &= ~(1ull << (idx & 0x3f));
-            next_segment = std::min<size_t>(next_segment, segment);
+            storage.segments.Erase(segment);
          }
       }
    }

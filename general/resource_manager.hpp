@@ -5,6 +5,8 @@
 
 #include "rb_tree.hpp"
 
+#include "internal/reusable_storage.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +41,7 @@ template <class T> class AllocatorAdaptor;
 class MemoryManager
 {
 private:
+
    // used to only track when invalid
    struct RBase : RBTree<RBase>
    {
@@ -83,10 +86,8 @@ private:
          void reset_temporary() { temporary = false; }
          bool is_temporary() const { return temporary; }
       };
-      std::vector<Node> nodes;
-      std::vector<Segment> segments;
-      std::vector<uint64_t> nodes_status;
-      std::vector<uint64_t> segments_status;
+      internal::ReusableStorage<Node> nodes;
+      internal::ReusableStorage<Segment> segments;
 
       using RBTree<RBase>::insert;
       using RBTree<RBase>::erase;
@@ -96,13 +97,13 @@ private:
 
       constexpr static size_t seg_offset = 1;
 
-      Node &get_node(size_t curr) { return nodes[curr - 1]; }
-      const Node &get_node(size_t curr) const { return nodes[curr - 1]; }
+      Node &get_node(size_t curr) { return nodes.Get(curr); }
+      const Node &get_node(size_t curr) const { return nodes.Get(curr); }
 
-      Segment &get_segment(size_t curr) { return segments[curr - seg_offset]; }
+      Segment &get_segment(size_t curr) { return segments.Get(curr); }
       const Segment &get_segment(size_t curr) const
       {
-         return segments[curr - seg_offset];
+         return segments.Get(curr);
       }
 
       void post_left_rotate(size_t) {}
@@ -118,20 +119,16 @@ private:
 
       void insert_duplicate(size_t a, size_t b);
 
-      void cleanup_nodes();
-      void cleanup_segments();
+      size_t create_next_node();
 
-      void create_next_node(size_t &nn);
-
-      void create_next_segment(size_t &ns);
+      size_t create_next_segment();
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid,
-                    size_t &nn);
+      size_t insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
-                    bool on_device, bool valid, size_t &nn);
+                    bool on_device, bool valid);
 
       void invalidate_node(size_t node);
    };
@@ -145,8 +142,6 @@ private:
    MemoryManager();
 
    RBase storage;
-   size_t next_node = 1;
-   size_t next_segment = 1;
    void erase_node(size_t &root, size_t idx);
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
    std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
@@ -171,7 +166,7 @@ private:
       /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
    };
 
-   bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
+   bool valid_segment(size_t seg) const { return seg; }
 
    /// remove all validity markers for a segment
    void clear_segment(size_t segment);
