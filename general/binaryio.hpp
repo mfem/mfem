@@ -80,8 +80,8 @@ void DecodeBase64(const char *src, size_t len, std::vector<char> &buf);
 /// This is equal to 4*nbytes/3, rounded up to the nearest multiple of 4.
 size_t NumBase64Chars(size_t nbytes);
 
-/// @brief Read a value of type @a T from the input stream, in either binary or
-/// ASCII format, depending on the value of @a binary.
+/// @brief Read and return a value of type @a T from the input stream, in either
+/// binary or ASCII format, depending on the value of @a binary.
 template <typename T>
 T ReadBinaryOrASCII(std::istream &input, BinaryOrASCII binary)
 {
