@@ -150,6 +150,9 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const real_t inv_delta_sq =
+      1.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
@@ -165,8 +168,6 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);
 
       kernels::internal::s_regs3d_t<MQ1> r0, r1;
-      const real_t inv_delta_sq =
-         1.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
 
       for (int v = 0; v < 3; ++v)
       {
