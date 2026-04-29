@@ -950,7 +950,6 @@ ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
    pgfi->ProjectCoefficient(imag_coeff);
    pgfr->SyncAliasMemory(*this);
    pgfi->SyncAliasMemory(*this);
-
 }
 
 void
