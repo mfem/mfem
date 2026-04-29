@@ -134,12 +134,11 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
       // Load ALF and ALF0 (scalar pattern).
-      kernels::internal::s_regs3d_t<MQ1> ralf_0, ralf_1;
-      kernels::internal::LoadDofs3d(e, D1D, ALF, ralf_0);
-      kernels::internal::Eval3d(D1D, Q1D, smem, sB, ralf_0, ralf_1);
-      kernels::internal::s_regs3d_t<MQ1> ralf0_0, ralf0_1;
-      kernels::internal::LoadDofs3d(e, D1D, ALF0, ralf0_0);
-      kernels::internal::Eval3d(D1D, Q1D, smem, sB, ralf0_0, ralf0_1);
+      kernels::internal::s_regs3d_t<MQ1> rtmp, ralf, ralf0;
+      kernels::internal::LoadDofs3d(e, D1D, ALF, rtmp);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, rtmp, ralf);
+      kernels::internal::LoadDofs3d(e, D1D, ALF0, rtmp);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, rtmp, ralf0);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -151,8 +150,8 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
 
-               const real_t gf_val = ralf_1(qz, qy, qx);
-               const real_t gf0_val = ralf0_1(qz, qy, qx);
+               const real_t gf_val = ralf(qz, qy, qx);
+               const real_t gf0_val = ralf0(qz, qy, qx);
                const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
 
                const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
@@ -201,7 +200,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim3D, TMOP_EnergyPA_AdaptLim_3D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim3D);
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D(const Vector &x) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;
@@ -211,7 +210,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D(const Vector &x) const
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
+   const auto ALC = const_coeff 
+                     ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
                     : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();

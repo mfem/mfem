@@ -550,14 +550,14 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
    {
       GetLocalStateEnergyPA_2D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
-      if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_2D(xe); }
+      if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_2D(); }
    }
 
    if (PA.dim == 3)
    {
       GetLocalStateEnergyPA_3D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
-      if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_3D(xe); }
+      if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_3D(); }
    }
 
    return energy;

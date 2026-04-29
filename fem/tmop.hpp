@@ -1440,6 +1440,7 @@ public:
    void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
                 DenseMatrix &d2) const override
    {
+      MFEM_CONTRACT_VAR(x0);
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       d2.Diag(1.0 / (dist * dist), x.Size());
@@ -2241,11 +2242,11 @@ protected:
    void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
-   void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
+   void GetLocalStateEnergyPA_3D(const Vector &x, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_AdaptLim_2D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_AdaptLim_3D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_AdaptLim_2D() const;
+   real_t GetLocalStateEnergyPA_AdaptLim_3D() const;
    void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
                                            real_t &met_energy,
                                            real_t &lim_energy) const;

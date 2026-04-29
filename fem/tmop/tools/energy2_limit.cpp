@@ -119,12 +119,11 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
       // Load ALF and ALF0 (scalar pattern).
-      kernels::internal::s_regs2d_t<MQ1> ralf_0, ralf_1;
-      kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_0);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf_0, ralf_1);
-      kernels::internal::s_regs2d_t<MQ1> ralf0_0, ralf0_1;
-      kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_0);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_0, ralf0_1);
+      kernels::internal::s_regs2d_t<MQ1> rtmp, ralf, ralf0;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, rtmp);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, rtmp, ralf);
+      kernels::internal::LoadDofs2d(e, D1D, ALF0, rtmp);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, rtmp, ralf0);
 
       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
@@ -134,8 +133,8 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
             const real_t detJtr = kernels::Det<2>(Jtr);
             const real_t weight = W(qx, qy) * detJtr;
 
-            const real_t gf_val = ralf_1(qy, qx);
-            const real_t gf0_val = ralf0_1(qy, qx);
+            const real_t gf_val = ralf(qy, qx);
+            const real_t gf0_val = ralf0(qy, qx);
             const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
 
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
@@ -185,7 +184,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim2D, TMOP_EnergyPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D);
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;
@@ -204,7 +203,6 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
    const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
    auto E = Reshape(PA.E.Write(), q, q, NE);
-
 
    TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
                              ALF, ALF0, E, d, q);
