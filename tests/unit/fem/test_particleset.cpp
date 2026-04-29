@@ -200,10 +200,70 @@ int CheckArrayEquality(const Array<T> &arr1, const Array<T> &arr2)
    return wrong_ct;
 }
 
+// Apply a deterministic perturbation to particle data on host.
+void PerturbParticleDataOnHost(std::vector<Particle> &particles)
+{
+   for (auto &p : particles)
+   {
+      for (int f = -1; f < p.GetNFields(); f++)
+      {
+         Vector &field = f == -1 ? p.Coords() : p.Field(f);
+         const real_t scale = (f == -1) ? 0.001 : 1.0;
+         for (int c = 0; c < field.Size(); c++)
+         {
+            field(c) += scale * (f + c + 2);
+         }
+      }
+
+      for (int t = 0; t < p.GetNTags(); t++)
+      {
+         p.Tag(t) += t + 1;
+      }
+   }
+}
+
+// Apply a deterministic perturbation to particle data on device.
+void PerturbParticleDataOnDevice(ParticleSet &pset)
+{
+   const int np = pset.GetNParticles();
+
+   // Shift coordinates and fields using the same per-component formula while
+   // honoring the ParticleVector ordering selected by the test.
+   for (int f = -1; f < pset.GetNFields(); f++)
+   {
+      ParticleVector &field = f == -1 ? pset.Coords() : pset.Field(f);
+      const int vdim = field.GetVDim();
+      const bool by_vdim = (field.GetOrdering() == Ordering::byVDIM);
+      const real_t scale = (f == -1) ? 0.001 : 1.0;
+      auto d_field = field.ReadWrite();
+
+      MFEM_FORALL(i, np,
+      {
+         for (int c = 0; c < vdim; c++)
+         {
+            const int idx = by_vdim ? i * vdim + c : i + c * np;
+            d_field[idx] += scale * (f + c + 2);
+         }
+      });
+   }
+
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      Array<int> &tag = pset.Tag(t);
+      auto d_tag = tag.ReadWrite();
+
+      MFEM_FORALL(i, np,
+      {
+         d_tag[i] += t + 1;
+      });
+   }
+}
+
 void TestRedistribute(Ordering::Type ordering)
 {
    int size = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
+   const bool use_device = Device::IsEnabled();
 
    // Create a 3D hex mesh
    Mesh m = Mesh::MakeCartesian3D(N_e, N_e, N_e, Element::Type::HEXAHEDRON);
@@ -252,13 +312,18 @@ void TestRedistribute(Ordering::Type ordering)
    SECTION(std::string("Ordering: ") +
            (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      // Add the particles uniquely to each rank particleset
       ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
-                       NumTags, ordering);
+                       NumTags, ordering, use_device);
 
       for (int i = 0; i < N_rank; i++)
       {
          pset.AddParticle(all_particles[i*size+rank]);
+      }
+
+      if (use_device)
+      {
+         PerturbParticleDataOnDevice(pset);
+         PerturbParticleDataOnHost(all_particles);
       }
 
       // Find points
@@ -317,13 +382,13 @@ void TestRedistribute(Ordering::Type ordering)
             wrong_particle_count++;
          }
       }
-      MPI_Allreduce(MPI_IN_PLACE, &wrong_proc_count, 1, MPI_INT, MPI_SUM,
+      MPI_Allreduce(MPI_IN_PLACE, &wrong_particle_count, 1, MPI_INT, MPI_SUM,
                     MPI_COMM_WORLD);
       CHECK(wrong_particle_count == 0);
    }
 }
 
-TEST_CASE("Particle Redistribution", "[ParticleSet][Parallel]")
+TEST_CASE("Particle Redistribution", "[ParticleSet][Parallel][GPU]")
 {
    TestRedistribute(Ordering::byNODES);
    TestRedistribute(Ordering::byVDIM);

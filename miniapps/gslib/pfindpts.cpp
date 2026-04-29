@@ -48,7 +48,7 @@
 // Device runs:
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
-//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug -ft 1
 
 
 #include "mfem.hpp"
@@ -375,7 +375,10 @@ int main (int argc, char *argv[])
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
-   Vector rst = finder.GetReferencePosition();
+
+   auto h_code_out = code_out.HostRead();
+   auto h_task_id_out = task_id_out.HostRead();
+   auto h_dist_p_out = dist_p_out.HostRead();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double error = 0.0, max_error = 0.0, max_dist = 0.0;
@@ -387,10 +390,10 @@ int main (int argc, char *argv[])
       {
          if (j == 0)
          {
-            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+            (h_task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
          }
 
-         if (code_out[i] < 2)
+         if (h_code_out[i] < 2)
          {
             for (int d = 0; d < dim; d++)
             {
@@ -404,8 +407,8 @@ int main (int argc, char *argv[])
                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_error  = std::max(max_error, error);
-            max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 0) { face_pts++; }
+            max_dist = std::max(max_dist, h_dist_p_out[i]);
+            if (h_code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
       }
