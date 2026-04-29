@@ -47,7 +47,7 @@ private:
    {
       if (z < z_min || z > z_max || r < r_min || r > r_max)
          return f_x;
-      return min(f_x + alpha * (psi - psi_x), f_x);
+      return alpha > 0 ? min(f_x + alpha * (psi - psi_x), f_x) : max(f_x + alpha * (psi - psi_x), f_x);
    };
 
 public:
@@ -136,7 +136,7 @@ private:
    {
       if (z < z_min || z > z_max || r < r_min || r > r_max)
          return f_x;
-      return min(f_x + alpha * (psi - psi_x), f_x);
+      return alpha > 0 ? min(f_x + alpha * (psi - psi_x), f_x) : max(f_x + alpha * (psi - psi_x), f_x);
    };
 
 public:
