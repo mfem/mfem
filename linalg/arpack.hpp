@@ -25,39 +25,67 @@
 
 #include "operator.hpp"
 
+#define SSAUPD  ssaupd_
+#define SSEUPD  sseupd_
 #define DSAUPD  dsaupd_
 #define DSEUPD  dseupd_
 
 #ifdef MFEM_USE_MPI
+#define PSSAUPD pssaupd_
+#define PSSEUPD psseupd_
 #define PDSAUPD pdsaupd_
 #define PDSEUPD pdseupd_
 #endif
 
-extern "C" void DSAUPD(int *ido,char *bmat, int *n,
-                       char *which, int *nev,double *tol,double *resid,
-                       int *ncv,double *v, int *ldv,
+extern "C" void SSAUPD(int *ido, char *bmat, int *n,
+                       char *which, int *nev, float *tol, float *resid,
+                       int *ncv, float *v, int *ldv,
+                       int *iparam, int *ipntr,
+                       float *workd, float *workl, int *lworkl, int *info);
+
+extern "C" void SSEUPD(int *, char *, int *, float *,
+                       float *, int *, float *, char *, int *, char *,
+                       int *, float *, float *, int *, float *,
+                       int *, int  *, int *, float *,
+                       float *, int *, int *);
+
+extern "C" void DSAUPD(int *ido, char *bmat, int *n,
+                       char *which, int *nev, double *tol, double *resid,
+                       int *ncv, double *v, int *ldv,
                        int *iparam, int *ipntr,
                        double *workd, double *workl, int *lworkl, int *info);
 
-extern "C" void DSEUPD(int *, char *,int *, double *,
-                       double *,int *, double *,char *, int *, char *,
-                       int *,double *,double *,int *, double *,
-                       int *, int  *,int *, double *,
-                       double *,int *, int *);
+extern "C" void DSEUPD(int *, char *, int *, double *,
+                       double *, int *, double *, char *, int *, char *,
+                       int *, double *, double *, int *, double *,
+                       int *, int  *, int *, double *,
+                       double *, int *, int *);
 
 #ifdef MFEM_USE_MPI
 
-extern "C" void PDSAUPD(int *comm, int *ido,char *bmat, int *n,
-                        char *which, int *nev,double *tol,double *resid,
-                        int *ncv,double *v, int *ldv,
+extern "C" void PSSAUPD(int *comm, int *ido, char *bmat, int *n,
+                        char *which, int *nev, float *tol, float *resid,
+                        int *ncv, float *v, int *ldv,
+                        int *iparam, int *ipntr,
+                        float *workd, float *workl, int *lworkl, int *info);
+
+extern "C" void PSSEUPD(int *comm, int *, char *, int *, float *,
+                        float *, int *, float *, char *, int *, char *,
+                        int *, float *, float *, int *, float *,
+                        int *, int  *, int *, float *,
+                        float *, int *, int *);
+
+extern "C" void PDSAUPD(int *comm, int *ido, char *bmat, int *n,
+                        char *which, int *nev, double *tol, double *resid,
+                        int *ncv, double *v, int *ldv,
                         int *iparam, int *ipntr,
                         double *workd, double *workl, int *lworkl, int *info);
 
-extern "C" void PDSEUPD(int *comm, int *, char *,int *, double *,
-                        double *,int *, double *,char *, int *, char *,
-                        int *,double *,double *,int *, double *,
-                        int *, int  *,int *, double *,
-                        double *,int *, int *);
+extern "C" void PDSEUPD(int *comm, int *, char *, int *, double *,
+                        double *, int *, double *, char *, int *, char *,
+                        int *, double *, double *, int *, double *,
+                        int *, int  *, int *, double *,
+                        double *, int *, int *);
 
 #endif
 
@@ -72,12 +100,13 @@ extern "C" {
 namespace mfem
 {
 
-class ArPackSym : public SymEigensolver, public GenEigenequation
+/// Wrapper for the ARPACK routine SSAUPD or DSAUPD
+class ArPackSAUPD : public SymEigensolver, public SymGenEigensolver
 {
 public:
 
-   ArPackSym();
-   virtual ~ArPackSym();
+   ArPackSAUPD();
+   virtual ~ArPackSAUPD();
 
    /** ARPACK modes are described in section 3.5 of the ARPACK manual.
        Mode 1: regular mode to solve A x = lambda x
@@ -100,28 +129,30 @@ public:
     */
    void SetMode(int mode);
 
-   inline void SetTol(real_t tol)         {      tol_ = tol;      }
-   inline void SetMaxIter(int max_iter)   { max_iter_ = max_iter; }
-   inline void SetPrintLevel(int logging) {  logging_ = logging;  }
-   inline void SetShift(real_t sigma)     {    sigma_ = sigma;    }
-   inline void SetNumModes(int num_eigs)  {      nev_ = num_eigs; }
+   inline void SetTol(real_t tol) override         {      tol_ = tol;      }
+   inline void SetMaxIter(int max_iter) override   { max_iter_ = max_iter; }
+   inline void SetPrintLevel(int logging) override {  logging_ = logging;  }
+   inline void SetShift(real_t sigma)              {    sigma_ = sigma;    }
+   inline void SetNumModes(int num_eigs) override  {      nev_ = num_eigs; }
 
    virtual void SetSolver(Solver & solver);
-   virtual void SetOperator(const Operator & A);
+   virtual void SetOperator(const Operator & A) override;
    virtual void SetMassMatrix(const Operator & M);
+   virtual void SetOperators(const Operator & A, const Operator & B) override
+   { SetOperator(A); SetMassMatrix(B); }
 
-   void Solve();
+   void Solve() override;
 
-   virtual int GetNumConverged() const { return iparam_[4]; }
+   virtual int GetNumConverged() const override { return iparam_[4]; }
 
    /// Collect the converged eigenvalues
-   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const;
+   virtual void GetEigenvalues(Array<real_t> & eigenvalues) const override;
 
    /// Extract a single eigenvector
-   virtual const Vector & GetEigenvector(unsigned int i) const;
+   virtual const Vector & GetEigenvector(unsigned int i) const override;
 
    /// Transfer ownership of the converged eigenvectors
-   Vector ** StealEigenvectors();
+   Vector ** StealEigenvectors() override;
 
 protected:
 
@@ -194,11 +225,11 @@ private:
 
 #ifdef MFEM_USE_MPI
 
-class ParArPackSym : public ArPackSym
+class ArPackPSAUPD : public ArPackSAUPD
 {
 public:
-   ParArPackSym(MPI_Comm comm);
-   virtual ~ParArPackSym() {}
+   ArPackPSAUPD(MPI_Comm comm);
+   virtual ~ArPackPSAUPD() {}
 
    void SetOperator(const Operator & A);
    void SetMassMatrix(const Operator & M);

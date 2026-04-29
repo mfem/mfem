@@ -23,7 +23,7 @@ using namespace std;
 namespace mfem
 {
 
-ArPackSym::ArPackSym()
+ArPackSAUPD::ArPackSAUPD()
    : myid_(0),
      nloc_(-1),
      ncv_(20),
@@ -51,7 +51,7 @@ ArPackSym::ArPackSym()
 {
 }
 
-ArPackSym::~ArPackSym()
+ArPackSAUPD::~ArPackSAUPD()
 {
    delete w_;
    delete x_;
@@ -68,7 +68,7 @@ ArPackSym::~ArPackSym()
 }
 
 void
-ArPackSym::SetMode(int mode)
+ArPackSAUPD::SetMode(int mode)
 {
    mode_ = mode;
 
@@ -88,13 +88,13 @@ ArPackSym::SetMode(int mode)
 }
 
 void
-ArPackSym::SetSolver(Solver & solver)
+ArPackSAUPD::SetSolver(Solver & solver)
 {
    solver_ = &solver;
 }
 
 void
-ArPackSym::SetOperator(const Operator & A)
+ArPackSAUPD::SetOperator(const Operator & A)
 {
    A_ = &A;
 
@@ -108,7 +108,7 @@ ArPackSym::SetOperator(const Operator & A)
 }
 
 void
-ArPackSym::SetMassMatrix(const Operator & B)
+ArPackSAUPD::SetMassMatrix(const Operator & B)
 {
    B_ = &B;
 
@@ -124,7 +124,7 @@ ArPackSym::SetMassMatrix(const Operator & B)
 }
 
 int
-ArPackSym::reverseCommMode1()
+ArPackSAUPD::reverseCommMode1()
 {
    ////////////////////////////////////////////////////////////////////////////
    //
@@ -194,7 +194,7 @@ ArPackSym::reverseCommMode1()
 }
 
 int
-ArPackSym::reverseCommMode2()
+ArPackSAUPD::reverseCommMode2()
 {
    ////////////////////////////////////////////////////////////////////////////
    //
@@ -270,7 +270,7 @@ ArPackSym::reverseCommMode2()
 }
 
 int
-ArPackSym::reverseCommMode3()
+ArPackSAUPD::reverseCommMode3()
 {
    ////////////////////////////////////////////////////////////////////////////
    //
@@ -364,7 +364,7 @@ ArPackSym::reverseCommMode3()
 
 
 int
-ArPackSym::reverseCommMode4()
+ArPackSAUPD::reverseCommMode4()
 {
    ////////////////////////////////////////////////////////////////////////////
    //
@@ -457,7 +457,7 @@ ArPackSym::reverseCommMode4()
 }
 
 int
-ArPackSym::reverseCommMode5()
+ArPackSAUPD::reverseCommMode5()
 {
    ////////////////////////////////////////////////////////////////////////////
    //
@@ -565,7 +565,7 @@ ArPackSym::reverseCommMode5()
 }
 
 void
-ArPackSym::reverseComm()
+ArPackSAUPD::reverseComm()
 {
    // The following variables are for ARPACK
    // int ido = 0;             // reverse communication what to do flag
@@ -693,7 +693,7 @@ ArPackSym::reverseComm()
 }
 
 void
-ArPackSym::Solve()
+ArPackSAUPD::Solve()
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
@@ -722,7 +722,7 @@ ArPackSym::Solve()
    }
 }
 
-void ArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
+void ArPackSAUPD::GetEigenvalues(Array<real_t> & eigenvalues) const
 {
    eigenvalues.SetSize(iparam_[4]);
    eigenvalues = NAN;
@@ -734,11 +734,11 @@ void ArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
 }
 
 void
-ArPackSym::prepareEigenvectors() const
+ArPackSAUPD::prepareEigenvectors() const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Entering ArPAckSym::prepareEigenvectors ..." << endl;
+      mfem::out << "Entering ArPackSAUPD::prepareEigenvectors ..." << endl;
    }
 
    if ( eigenvectors_ )
@@ -770,11 +770,11 @@ ArPackSym::prepareEigenvectors() const
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Leaving ArPAckSym::prepareEigenvectors ..." << endl;
+      mfem::out << "Leaving ArPackSAUPD::prepareEigenvectors ..." << endl;
    }
 }
 
-const Vector & ArPackSym::GetEigenvector(unsigned int i) const
+const Vector & ArPackSAUPD::GetEigenvector(unsigned int i) const
 {
    if ( !eigenvectors_ )
    {
@@ -784,7 +784,7 @@ const Vector & ArPackSym::GetEigenvector(unsigned int i) const
    return *eigenvectors_[i];
 }
 
-Vector ** ArPackSym::StealEigenvectors()
+Vector ** ArPackSAUPD::StealEigenvectors()
 {
    if ( !eigenvectors_ )
    {
@@ -798,7 +798,7 @@ Vector ** ArPackSym::StealEigenvectors()
 }
 
 int
-ArPackSym::computeIter(int & ido)
+ArPackSAUPD::computeIter(int & ido)
 {
    int info = 0;
 
@@ -810,7 +810,7 @@ ArPackSym::computeIter(int & ido)
 }
 
 int
-ArPackSym::computeEigs()
+ArPackSAUPD::computeEigs()
 {
    int ierr = 0;
 
@@ -823,11 +823,11 @@ ArPackSym::computeEigs()
 }
 
 void
-ArPackSym::printErrors(const int & info, const int iparam[],
-                       const char & bmat, const int & n,
-                       const char which[],
-                       const int & nev, const int & ncv,
-                       const int & lworkl )
+ArPackSAUPD::printErrors(const int & info, const int iparam[],
+                         const char & bmat, const int & n,
+                         const char which[],
+                         const int & nev, const int & ncv,
+                         const int & lworkl )
 {
    switch (info)
    {
@@ -919,8 +919,8 @@ ArPackSym::printErrors(const int & info, const int iparam[],
 
 #ifdef MFEM_USE_MPI
 
-ParArPackSym::ParArPackSym(MPI_Comm comm)
-   : ArPackSym(),
+ArPackPSAUPD::ArPackPSAUPD(MPI_Comm comm)
+   : ArPackSAUPD(),
      comm_(comm),
      commf_(MPI_Comm_c2f(comm))
 {
@@ -932,7 +932,7 @@ ParArPackSym::ParArPackSym(MPI_Comm comm)
 
 
 void
-ParArPackSym::SetOperator(const Operator & A)
+ArPackPSAUPD::SetOperator(const Operator & A)
 {
    A_ = &A;
 
@@ -947,7 +947,7 @@ ParArPackSym::SetOperator(const Operator & A)
 }
 
 void
-ParArPackSym::SetMassMatrix(const Operator & B)
+ArPackPSAUPD::SetMassMatrix(const Operator & B)
 {
    B_ = &B;
 
@@ -962,7 +962,7 @@ ParArPackSym::SetMassMatrix(const Operator & B)
    }
 }
 
-void ParArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
+void ArPackPSAUPD::GetEigenvalues(Array<real_t> & eigenvalues) const
 {
    eigenvalues.SetSize(nev_);
    eigenvalues = NAN;
@@ -974,11 +974,11 @@ void ParArPackSym::GetEigenvalues(Array<real_t> & eigenvalues) const
 }
 
 void
-ParArPackSym::prepareEigenvectors() const
+ArPackPSAUPD::prepareEigenvectors() const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Entering ParArPAckSym::prepareEigenvectors ..." << endl;
+      mfem::out << "Entering ArPackPSAUPD::prepareEigenvectors ..." << endl;
    }
 
    if ( eigenvectors_ )
@@ -1040,16 +1040,16 @@ ParArPackSym::prepareEigenvectors() const
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Leaving ParArPAckSym::prepareEigenvectors ..." << endl;
+      mfem::out << "Leaving ArPackPSAUPD::prepareEigenvectors ..." << endl;
    }
 }
 
-//HypreParVector & ParArPackSym::GetEigenvector(unsigned int i)
-const Vector & ParArPackSym::GetEigenvector(unsigned int i) const
+//HypreParVector & ArPackPSAUPD::GetEigenvector(unsigned int i)
+const Vector & ArPackPSAUPD::GetEigenvector(unsigned int i) const
 {
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Entering ParArPackSym::GetEigenvector" << endl;
+      mfem::out << "Entering ArPackPSAUPD::GetEigenvector" << endl;
    }
 
    if ( !eigenvectors_ )
@@ -1061,13 +1061,13 @@ const Vector & ParArPackSym::GetEigenvector(unsigned int i) const
 
    if ( myid_ == 0 && logging_ >= 3 )
    {
-      mfem::out << "Leaving ParArPackSym::GetEigenvector" << endl;
+      mfem::out << "Leaving ArPackPSAUPD::GetEigenvector" << endl;
    }
    return *vec;
 }
 
-//HypreParVector ** ParArPackSym::StealEigenvectors()
-Vector ** ParArPackSym::StealEigenvectors()
+//HypreParVector ** ArPackPSAUPD::StealEigenvectors()
+Vector ** ArPackPSAUPD::StealEigenvectors()
 {
    if ( !eigenvectors_ )
    {
@@ -1081,7 +1081,7 @@ Vector ** ParArPackSym::StealEigenvectors()
 }
 
 int
-ParArPackSym::computeIter(int & ido)
+ArPackPSAUPD::computeIter(int & ido)
 {
    int info = 0;
 
@@ -1093,7 +1093,7 @@ ParArPackSym::computeIter(int & ido)
 }
 
 int
-ParArPackSym::computeNlocf()
+ArPackPSAUPD::computeNlocf()
 {
    int nlocf = 0;
 
@@ -1103,7 +1103,7 @@ ParArPackSym::computeNlocf()
 }
 
 int
-ParArPackSym::computeEigs()
+ArPackPSAUPD::computeEigs()
 {
    int ierr = 0;
 

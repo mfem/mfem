@@ -2,9 +2,10 @@
 //
 // Compile with: make ex3p
 //
-// Sample runs:  ex13 -m ../data/star.mesh
-//               ex13 -m ../data/square-disc.mesh -o 2 -n 4
+// Sample runs:  ex13 -m ../data/star.mesh -s 5
+//               ex13 -m ../data/square-disc.mesh -o 2 -n 4 // minres fails to conv.
 //               ex13 -m ../data/beam-hex.mesh
+//               ex13 -m ../data/square-disc.mesh -rs 1 -s 26
 //               ex13 -m ../data/square-disc-nurbs.mesh -rs 3 -s 26
 //               ex13 -m ../data/amr-quad.mesh -o 2 // minres fails to conv.
 //               ex13 -m ../data/mobius-strip.mesh -n 8
@@ -39,6 +40,7 @@ int main(int argc, char *argv[])
    int sr = 2;
    double sigma = 11.0;
    bool visualization = 1;
+   bool arp_solver = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -129,9 +131,8 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
-   // 7. Define and configure the ARPACK eigensolver and a GMRES
+   // 7. Define and configure the GMRES
    //    solver to be used within the eigensolver.
-   ArPackSym * arpack = new ArPackSym();
    Solver    * solver = NULL;
    if ( false )
    {
@@ -163,25 +164,33 @@ int main(int argc, char *argv[])
    }
    solver->SetOperator(a->SpMat());
 
-   arpack->SetNumModes(nev);
-   arpack->SetMaxIter(400);
-   arpack->SetTol(1e-8);
-   arpack->SetShift(sigma);
-   arpack->SetMode(3);
-   arpack->SetPrintLevel(2);
+   // 7. Define and configure the ARPACK eigensolver
+   SymGenEigensolver * eig_solver = NULL;
+   if (arp_solver)
+   {
+      ArPackSAUPD * arpack = new ArPackSAUPD();
 
-   arpack->SetOperator(*a);
-   arpack->SetMassMatrix(*m);
-   arpack->SetSolver(*solver);
+      arpack->SetNumModes(nev);
+      arpack->SetMaxIter(400);
+      arpack->SetTol(1e-8);
+      arpack->SetShift(sigma);
+      arpack->SetMode(3);
+      arpack->SetPrintLevel(2);
+      arpack->SetSolver(*solver);
+
+      eig_solver = arpack;
+   }
+
+   eig_solver->SetOperators(*a, *m);
 
    // Obtain the eigenvalues and eigenvectors
    Array<double> eigenvalues(nev);
    eigenvalues = -1.0;
 
    // arpack->Solve(eigenvalues, *eigenvectors);
-   arpack->Solve();
+   eig_solver->Solve();
 
-   arpack->GetEigenvalues(eigenvalues);
+   eig_solver->GetEigenvalues(eigenvalues);
 
    cout << endl;
    std::ios::fmtflags old_fmt = cout.flags();
@@ -200,7 +209,7 @@ int main(int argc, char *argv[])
    for (int i=0; i<min(nev,eigenvalues.Size()); i++)
    {
       mode[i] = new GridFunction(fespace);
-      *mode[i] = arpack->GetEigenvector(i);
+      *mode[i] = eig_solver->GetEigenvector(i);
 
       ostringstream modeName;
       modeName << "mode_" << setfill('0') << setw(2) << i;
@@ -217,7 +226,7 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<min(nev,eigenvalues.Size()); i++)
       {
-         x = arpack->GetEigenvector(i);
+         x = eig_solver->GetEigenvector(i);
 
          ostringstream modeName;
          modeName << "mode_" << setfill('0') << setw(2) << i;
@@ -239,7 +248,7 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<min(nev,eigenvalues.Size()); i++)
       {
-         x = arpack->GetEigenvector(i);
+         x = eig_solver->GetEigenvector(i);
 
          mode_sock << "solution\n" << *mesh << x << flush;
 
@@ -260,7 +269,7 @@ int main(int argc, char *argv[])
    delete m;
    delete negSigma;
    delete muinv;
-   delete arpack;
+   delete eig_solver;
    delete solver;
    // delete X;
    delete fespace;

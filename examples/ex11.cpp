@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    int nev = 5;
    double dbc_eig = 1e3;
    bool visualization = 1;
+   bool arp_solver = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -162,12 +163,10 @@ int main(int argc, char *argv[])
    }
    m->Finalize();
 
-   // 6. Define and configure the ARPACK eigensolver
-   ArPackSym * arpack = new ArPackSym();
-   Solver    * solver = NULL;
+   Solver       * solver = NULL;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 7. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 6. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system A X = B with PCG.
    cout << "Building CGSolver" << endl;
    GSSmoother M(m->SpMat());
@@ -184,22 +183,31 @@ int main(int argc, char *argv[])
 #endif
    solver->SetOperator(m->SpMat());
 
-   arpack->SetNumModes(nev);
-   arpack->SetMaxIter(400);
-   arpack->SetTol(1e-8);
-   arpack->SetMode(2);
-   arpack->SetPrintLevel(2);
+   // 7. Define and configure the ARPACK eigensolver
+   SymGenEigensolver * eig_solver = NULL;
 
-   arpack->SetOperator(*a);
-   arpack->SetMassMatrix(*m);
-   arpack->SetSolver(*solver);
+   if (arp_solver)
+   {
+      // ArPackSymGen * arpack = new ArPackSymGen();
+      ArPackSAUPD * arpack = new ArPackSAUPD();
+      arpack->SetMode(2);
+      arpack->SetNumModes(nev);
+      arpack->SetMaxIter(400);
+      arpack->SetTol(1e-8);
+      arpack->SetPrintLevel(2);
+      arpack->SetSolver(*solver);
+
+      eig_solver = arpack;
+   }
+
+   eig_solver->SetOperators(*a, *m);
 
    // 8. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
    //    the solver.
    Array<double> eigenvalues;
-   arpack->Solve();
-   arpack->GetEigenvalues(eigenvalues);
+   eig_solver->Solve();
+   eig_solver->GetEigenvalues(eigenvalues);
 
    cout << endl;
    std::ios::fmtflags old_fmt = cout.flags();
@@ -227,8 +235,8 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<nev; i++)
       {
-         // convert eigenvector from HypreParVector to ParGridFunction
-         x = arpack->GetEigenvector(i);
+         // convert eigenvector from Vector to GridFunction
+         x = eig_solver->GetEigenvector(i);
 
          mode_name << "mode_" << setfill('0') << setw(2) << i;
 
@@ -252,8 +260,8 @@ int main(int argc, char *argv[])
          cout << "Eigenmode " << i+1 << '/' << nev
               << ", Lambda = " << eigenvalues[i] << endl;
 
-         // convert eigenvector from HypreParVector to ParGridFunction
-         x = arpack->GetEigenvector(i);
+         // convert eigenvector from Vector to GridFunction
+         x = eig_solver->GetEigenvector(i);
 
          mode_sock << "solution\n" << *mesh << x << flush
                    << "window_title 'Eigenmode " << i+1 << '/' << nev
@@ -272,7 +280,7 @@ int main(int argc, char *argv[])
    }
 
    // 11. Free the used memory.
-   delete arpack;
+   delete eig_solver;
    delete solver;
    delete m;
    delete a;
