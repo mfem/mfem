@@ -969,7 +969,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       real_t    *d_diag = Memory<real_t>(ltdof);
       int diag_counter;
 
-      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof + 1);
       HYPRE_Int *j_offd = Memory<HYPRE_Int>(nnz_offd);
       real_t    *d_offd = Memory<real_t>(nnz_offd);
       int offd_counter;

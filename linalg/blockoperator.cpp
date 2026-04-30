@@ -381,4 +381,4 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
-} // namespace mfem
+}

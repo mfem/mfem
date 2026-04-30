@@ -26,12 +26,50 @@
 #endif
 
 #include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <numeric>
-#include <cstddef>
 
 namespace mfem
 {
+namespace internal
+{
+template <class Op> void DoDeviceScan(Op &&op)
+{
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+   size_t bytes = 0;
+#else
+   static Array<std::byte> workspace;
+   size_t bytes = workspace.Size();
+   if (bytes)
+   {
+      auto err = op(workspace.Write(), bytes);
+#if defined(MFEM_USE_CUDA)
+      if (err == cudaSuccess)
+      {
+         return;
+      }
+#elif defined(MFEM_USE_HIP)
+      if (err == hipSuccess)
+      {
+         return;
+      }
+#endif
+   }
+   bytes = 0;
+#endif
+   // determine buffer size
+   MFEM_GPU_CHECK(op(nullptr, bytes));
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+   Array<std::byte> workspace(
+      bytes, MemoryManager::instance().GetDeviceMemoryType(), true);
+#else
+   workspace.SetSize(bytes, MemoryManager::instance().GetDeviceMemoryType());
+#endif
+   MFEM_GPU_CHECK(op(workspace.Write(), bytes));
+}
+} // namespace internal
+
 /// Equivalent to InclusiveScan(use_dev, d_in, d_out, num_items, workspace,
 /// std::plus<>{})
 template <class InputIt, class OutputIt>
@@ -41,31 +79,11 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                       workspace.Write(), bytes, d_in, d_out, num_items);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                        nullptr, bytes, d_in, d_out, num_items));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                        workspace.Write(), bytes, d_in, d_out, num_items));
+         return MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(ptr, bytes, d_in,
+                                                             d_out, num_items);
+      });
       return;
    }
 #endif
@@ -105,31 +123,11 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                        nullptr, bytes, d_in, d_out, scan_op, num_items));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                        workspace.Write(), bytes, d_in, d_out, scan_op, num_items));
+         return MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
+                   ptr, bytes, d_in, d_out, scan_op, num_items);
+      });
       return;
    }
 #endif
@@ -168,33 +166,11 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                       num_items);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                        nullptr, bytes, d_in, d_out, scan_op, init_value, num_items));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                        workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                        num_items));
+         return MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
+                   ptr, bytes, d_in, d_out, scan_op, init_value, num_items);
+      });
       return;
    }
 #endif
@@ -239,36 +215,13 @@ void CopyFlagged(bool use_dev, InputIt d_in, FlagIt d_flags, OutputIt d_out,
                  NumSelectedIt d_num_selected_out, size_t num_items)
 {
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-   if (use_dev &&
-       mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
-                       workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
-                       num_items);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
-                        nullptr, bytes, d_in, d_flags, d_out, d_num_selected_out, num_items));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
-                        workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
-                        num_items));
+         return MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
+                   ptr, bytes, d_in, d_flags, d_out, d_num_selected_out, num_items);
+      });
       return;
    }
 #endif
@@ -297,47 +250,29 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
             SelectOp select_op)
 {
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-   if (use_dev &&
-       mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
 #if defined(MFEM_USE_CUDA) &&                                                  \
-    (__CUDACC_VER_MAJOR__ < 12 ||                                              \
-     (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 5))
+   (__CUDACC_VER_MAJOR__ < 12 ||                                               \
+    (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 5))
       // bug in cuda < 12.5, work-around: use Flagged instead
-      Array<bool> flags(num_items);
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+      Array<bool> flags(num_items,
+                        MemoryManager::instance().GetDeviceMemoryType(), true);
+#else
+      Array<bool> flags(num_items,
+                        MemoryManager::instance().GetDeviceMemoryType());
+#endif
       auto ptr = flags.Write();
       forall(num_items,
       [=] MFEM_HOST_DEVICE(int i) { ptr[i] = select_op(d_in[i]); });
       CopyFlagged(use_dev, d_in, ptr, d_out, d_num_selected_out, num_items);
 #else
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::If(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items, select_op);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::If(
-                        nullptr, bytes, d_in, d_out, d_num_selected_out, num_items,
-                        select_op));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::If(
-                        workspace.Write(), bytes, d_in, d_out, d_num_selected_out, num_items,
-                        select_op));
+         return MFEM_CUB_NAMESPACE::DeviceSelect::If(
+                   ptr, bytes, d_in, d_out, d_num_selected_out, num_items, select_op);
+      });
 #endif
       return;
    }
@@ -366,36 +301,13 @@ void CopyUnique(bool use_dev, InputIt d_in, OutputIt d_out,
                 NumSelectedIt d_num_selected_out, size_t num_items)
 {
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-   if (use_dev &&
-       mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      internal::DoDeviceScan([&](auto ptr, auto &bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items);
-#if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
-         {
-            return;
-         }
-#elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
-         {
-            return;
-         }
-#endif
-      }
-      // try allocating a larger buffer
-      bytes = 0;
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
-                        nullptr, bytes, d_in, d_out, d_num_selected_out, num_items));
-      workspace.SetSize(bytes);
-      MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
-                        workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                        num_items));
+         return MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
+                   ptr, bytes, d_in, d_out, d_num_selected_out, num_items);
+      });
       return;
    }
 #endif
