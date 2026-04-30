@@ -22,15 +22,21 @@ using namespace mfem;
 namespace pa_kernels
 {
 
-template<int DIM>
 void test_pa_simplices(const char *filename, int p)
 {
-   CAPTURE(filename, DIM, p);
-
    Mesh mesh(filename);
-   MFEM_VERIFY(mesh.Dimension() == DIM, "Mesh dimension mismatch");
+   if (mesh.GetTypicalElementGeometry() == Geometry::SQUARE ||
+       mesh.GetTypicalElementGeometry() == Geometry::CUBE)
+   {
+      mesh = Mesh::MakeSimplicial(mesh);
+   }
+   const int dim = mesh.Dimension();
 
-   H1_FECollection fec(p, DIM, BasisType::Positive);
+   CAPTURE(filename, dim, p);
+
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+
+   H1_FECollection fec(p, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
@@ -40,8 +46,8 @@ void test_pa_simplices(const char *filename, int p)
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
-   const int order = 2 * fe.GetOrder() + Tr.OrderW();
-   const IntegrationRule *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW();
+   const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
@@ -72,26 +78,53 @@ void test_pa_simplices(const char *filename, int p)
    REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Simplices", "[PartialAssembly][GPU][Simplices]")
+TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+
+   const auto GenMesh = [&](const auto &meshs, const auto &extra)
+   {
+      return !all_tests
+             ? GENERATE_REF(from_range(meshs))
+             : GENERATE_REF(from_range(meshs), from_range(extra));
+   };
 
    SECTION("2D")
    {
-      const auto filename2d = GENERATE("../../data/beam-tri.mesh",
-                                       "../../data/inline-tri.mesh",
-                                       "../../data/rt-2d-p4-tri.mesh",
-                                       "../../data/ref-triangle.mesh");
-      test_pa_simplices<2>(filename2d, p);
+      auto meshs = { "../../data/beam-tri.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh",
+                     "../../data/rt-2d-p4-tri.mesh",
+                     "../../data/square-disc-p2.mesh",
+                     "../../data/square-disc-p3.mesh",
+                     "../../data/periodic-annulus-sector.msh"
+                   };
+      auto extra = { "../../data/star-q2.mesh",
+                     "../../data/star-q3.mesh",
+                     "../../data/inline-quad.mesh",
+                     "../../data/klein-donut.mesh",
+                     "../../data/fichera-quad.mesh",
+                     "../../data/square-disc-p2.mesh",
+                     "../../data/square-disc-p3.mesh",
+                     "../../data/periodic-square.mesh"
+                   };
+      test_pa_simplices(GenMesh(meshs, extra), p);
    }
 
    SECTION("3D")
    {
-      const auto filename3d = GENERATE("../../data/beam-tet.mesh",
-                                       "../../data/inline-tet.mesh",
-                                       "../../data/ref-tetrahedron.mesh");
-      test_pa_simplices<3>(filename3d, p);
+      auto meshs = { "../../data/beam-tet.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      auto extra = { "../../data/escher.mesh",
+                     "../../data/escher-p2.mesh",
+                     "../../data/inline-hex.mesh",
+                     "../../data/fichera-q2.mesh",
+                     "../../data/periodic-cube.mesh"
+                   };
+      test_pa_simplices(GenMesh(meshs, extra), p);
    }
 }
 
