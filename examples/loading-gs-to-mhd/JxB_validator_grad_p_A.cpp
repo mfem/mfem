@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 
    H1_FECollection scaler_fec(1, dim);
    FiniteElementSpace scaler_fespace(new_mesh, &scaler_fec);
-   RT_FECollection fec(0, dim);
+   ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(new_mesh, &fec);
    // First scale p by mu
    GridFunction scaled_p(&scaler_fespace);
