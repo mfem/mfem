@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -19,6 +20,14 @@ namespace mfem
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P
+   DiffusionIntegrator::AddSpecialization<2,2,1>();
+   DiffusionIntegrator::AddSpecialization<2,3,2>();
+   DiffusionIntegrator::AddSpecialization<2,4,3>();
+   DiffusionIntegrator::AddSpecialization<2,5,4>();
+   DiffusionIntegrator::AddSpecialization<2,6,5>();
+   DiffusionIntegrator::AddSpecialization<2,7,6>();
+
    // Q = P+1
    DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
@@ -41,6 +50,15 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,9,10>();
    // others
    // 3D
+   // Q = P
+   DiffusionIntegrator::AddSpecialization<3,2,1>();
+   DiffusionIntegrator::AddSpecialization<3,3,2>();
+   DiffusionIntegrator::AddSpecialization<3,4,3>();
+   DiffusionIntegrator::AddSpecialization<3,5,4>();
+   DiffusionIntegrator::AddSpecialization<3,6,5>();
+   DiffusionIntegrator::AddSpecialization<3,7,6>();
+   DiffusionIntegrator::AddSpecialization<3,8,7>();
+
    // Q = P+1
    DiffusionIntegrator::AddSpecialization<3,1,1>();
    DiffusionIntegrator::AddSpecialization<3,2,2>();

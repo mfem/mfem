@@ -15,6 +15,7 @@
 #include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_mass_kernels.hpp"
+#include "bilininteg_mass_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -29,9 +30,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
+   const bool stroud = fes.UsesRaggedTensorBasis();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -48,17 +51,27 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       return;
    }
    int map_type = el.GetMapType();
-   dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   if (stroud)
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
+      maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
+      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   }
+   else
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
    {
       const int NE = ne;
       const int NQ = nq;
@@ -147,8 +160,6 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const int D1D = dofs1D;
       const int Q1D = quad1D;
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &Bt = maps->Bt;
       const Vector &D = pa_data;
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
@@ -164,7 +175,34 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-      ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+
+      if (fespace->UsesRaggedTensorBasis())
+      {
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+
+         const Array<real_t> &Ba1 = rmaps->Ba1;
+         const Array<real_t> &Ba2 = rmaps->Ba2;
+         const Array<real_t> &Ba3 = rmaps->Ba3;
+         const Array<real_t> &Ba1t = rmaps->Ba1t;
+         const Array<real_t> &Ba2t = rmaps->Ba2t;
+         const Array<real_t> &Ba3t = rmaps->Ba3t;
+         const Array<real_t> &T = rmaps->T;
+         const Array<int> &lex_map = rmaps->lex_map;
+         const Array<int> &forward_map2d = rmaps->forward_map2d_mass;
+         const Array<int> &inverse_map2d = rmaps->inverse_map2d_mass;
+         const Array<int> &forward_map3d = rmaps->forward_map3d_mass;
+         const Array<int> &inverse_map3d = rmaps->inverse_map3d_mass;
+         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, forward_map2d,
+                                    inverse_map2d,
+                                    forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t,
+                                    T, D, x, y, D1D, Q1D);
+      }
+      else
+      {
+         const Array<real_t> &B = maps->B;
+         const Array<real_t> &Bt = maps->Bt;
+         ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+      }
    }
 }
 
