@@ -2363,8 +2363,8 @@ public:
    static void AddSpecialization()
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

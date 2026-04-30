@@ -1967,13 +1967,13 @@ inline void PAMassApplyTetrahedron(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX,
-               "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX,
-               "");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const int BASIS_DIM = d1d * (d1d + 1) * (d1d + 2) / 6;
-   const int BASIS_DIM2D = d1d * (d1d + 1) / 2;
+   const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
+   const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
    // const auto lex_map = lex_map_.Read();
    const auto forward_map2d = forward_map2d_.Read();
    const auto inverse_map2d = inverse_map2d_.Read();

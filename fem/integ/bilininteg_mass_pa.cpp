@@ -177,7 +177,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (fespace->UsesRaggedTensorBasis())
       {
-         const RaggedDofToQuad *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
 
          const Array<real_t> &Ba1 = rmaps->Ba1;
          const Array<real_t> &Ba2 = rmaps->Ba2;

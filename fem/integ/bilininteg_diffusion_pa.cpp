@@ -15,6 +15,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -70,7 +71,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (fespace->UsesRaggedTensorBasis())
       {
-         const RaggedDofToQuad *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
          return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
                                            rmaps->lex_map,
                                            rmaps->forward_map2d_diff,
