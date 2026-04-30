@@ -41,8 +41,7 @@ void test_pa_simplices(const char *filename, int p)
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const int order = 2 * fe.GetOrder() + Tr.OrderW();
-   const bool stroud = fes.UsesRaggedTensorBasis();
-   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order, stroud);
+   const IntegrationRule *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
