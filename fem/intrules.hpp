@@ -269,15 +269,6 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
-   /// Duffy Transformation of 2D and 3D tensor product rules of the form
-   /// $X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i$, where $x_i$ are the vertices
-   /// of the simplex and $\lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1})$, with
-   /// $t$ being the coordinates in the unit square/cube.
-   void DuffyTrans(int dim);
-
-   /// Inverse Duffy Transformation for 2D and 3D tensor product rules.
-   const IntegrationRule InverseDuffyTrans(int dim) const;
-
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
@@ -441,10 +432,8 @@ private:
    Array<IntegrationRule *> PointIntRules;
    Array<IntegrationRule *> SegmentIntRules;
    Array<IntegrationRule *> TriangleIntRules;
-   Array<IntegrationRule *> TriangleStroudIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
-   Array<IntegrationRule *> TetrahedronStroudIntRules;
    Array<IntegrationRule *> PyramidIntRules;
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
@@ -473,15 +462,12 @@ private:
    /// The following methods allocate new IntegrationRule objects without
    /// checking if they already exist.  To avoid memory leaks use
    /// IntegrationRules::Get(int GeomType, int Order) instead.
-   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order,
-                                            bool stroud = false);
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
    IntegrationRule *PointIntegrationRule(int Order);
    IntegrationRule *SegmentIntegrationRule(int Order);
    IntegrationRule *TriangleIntegrationRule(int Order);
-   IntegrationRule *TriangleStroudIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
-   IntegrationRule *TetrahedronStroudIntegrationRule(int Order);
    IntegrationRule *PyramidIntegrationRule(int Order);
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
@@ -493,15 +479,68 @@ public:
                              int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
-   const IntegrationRule &Get(int GeomType, int Order, bool stroud = false);
+   const IntegrationRule &Get(int GeomType, int Order);
 
-   void Set(int GeomType, int Order, IntegrationRule &IntRule,
-            bool stroud = false);
+   void Set(int GeomType, int Order, IntegrationRule &IntRule);
 
    void SetOwnRules(int o) { own_rules = o; }
 
    /// Destroys an IntegrationRules object
    ~IntegrationRules();
+};
+
+/// Container class for integration rules
+class StroudIntegrationRules
+{
+private:
+   int own_rules;
+
+   Array<IntegrationRule *> SquareStroudIntRules;
+   Array<IntegrationRule *> TriangleStroudIntRules;
+   Array<IntegrationRule *> CubeStroudIntRules;
+   Array<IntegrationRule *> TetrahedronStroudIntRules;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   Array<omp_lock_t> IntRuleLocks;
+#endif
+
+   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      if (ir_array.Size() <= Order)
+      {
+         ir_array.SetSize(Order + 1, NULL);
+      }
+   }
+   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      return (ir_array.Size() > Order && ir_array[Order] != NULL);
+   }
+   int GetSegmentRealOrder(int Order) const
+   {
+      return Order | 1; // valid for all quad_type's
+   }
+   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array) const;
+
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order,
+                                            bool Pullback);
+   IntegrationRule *TriangleStroudIntegrationRule(int Order, bool Pullback);
+   IntegrationRule *TetrahedronStroudIntegrationRule(int Order, bool Pullback);
+
+public:
+   /// Sets initial sizes for the integration rule arrays, but rules
+   /// are defined the first time they are requested with the Get method.
+   explicit StroudIntegrationRules();
+
+   /// Returns a Stroud integration rule for given GeomType and Order.
+   const IntegrationRule &Get(int GeomType, int Order, bool Pullback);
+
+   void SetOwnRules(int o) { own_rules = o; }
+
+   /// Destroys an StroudIntegrationRules object
+   ~StroudIntegrationRules();
 };
 
 /// A global object with all integration rules (defined in intrules.cpp)
@@ -510,6 +549,17 @@ extern MFEM_EXPORT IntegrationRules IntRules;
 /// A global object with all refined integration rules
 extern MFEM_EXPORT IntegrationRules RefinedIntRules;
 
+/// A global object with all Stroud integration rules (defined in intrules.cpp)
+extern MFEM_EXPORT StroudIntegrationRules StroudIntRules;
+
+/// Duffy Transformation of 2D and 3D tensor product rules of the form
+/// $X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i$, where $x_i$ are the vertices
+/// of the simplex and $\lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1})$, with
+/// $t$ being the coordinates in the unit square/cube.
+const IntegrationRule DuffyTrans(const IntegrationRule ir, int dim);
+
+/// Inverse Duffy Transformation for 2D and 3D tensor product rules.
+const IntegrationRule InverseDuffyTrans(const IntegrationRule ir, int dim);
 }
 
 #endif
