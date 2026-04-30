@@ -27,6 +27,8 @@ Discretization improvements
 Version 4.9.1 (development)
 ===========================
 
+- Policy for AI-assisted contribution added to CONTRIBUTING.md
+
 Discretization improvements
 ---------------------------
 - Improved the gridfunction projection routines. Projections work for Scalar,
