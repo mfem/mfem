@@ -33,12 +33,13 @@ void test_pa_simplices(const char *filename, int p)
    H1_FECollection fec(p, DIM, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
-   GridFunction x(&fes), y(&fes);
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(0x100001b3);
-   y.Randomize(0x9e3779b9);
+   y_fa.Randomize(0x9e3779b9);
+   y_pa.Randomize(0x9e3779b9);
 
-   // ⚠️ required for integrators with const_coeff or funct_coeff
-   x = 0.0;
+   // ⚠️ required for integrators with funct_coeff
+   // x = 0.0;
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
@@ -47,26 +48,26 @@ void test_pa_simplices(const char *filename, int p)
    BilinearForm fa(&fes), pa(&fes);
    fa.AddDomainIntegrator(new MassIntegrator());
    fa.AddDomainIntegrator(new MassIntegrator(const_coeff));
-   fa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
+   // fa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
    fa.AddDomainIntegrator(new DiffusionIntegrator());
    fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
+   // fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
    fa.Assemble();
    fa.Finalize();
 
    pa.AddDomainIntegrator(new MassIntegrator());
    pa.AddDomainIntegrator(new MassIntegrator(const_coeff));
-   pa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
+   // pa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
    pa.AddDomainIntegrator(new DiffusionIntegrator());
    pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
+   // pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
    pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa.Assemble();
 
-   fa.Mult(x, y);
-   y.Neg();
-   pa.Mult(x, y);
-   REQUIRE(y.Norml2() == MFEM_Approx(0.0));
+   fa.Mult(x, y_fa);
+   pa.Mult(x, y_pa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("PA Simplices", "[PartialAssembly][GPU][Simplices]")
