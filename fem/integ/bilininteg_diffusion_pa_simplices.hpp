@@ -16,7 +16,6 @@
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
-// #include "../kernel_dispatch.hpp"
 
 namespace mfem
 {

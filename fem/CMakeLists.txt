@@ -198,6 +198,7 @@ set(HDRS
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
+  integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
   coefficient.hpp

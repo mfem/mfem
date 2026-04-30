@@ -15,6 +15,7 @@
 #include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_mass_kernels.hpp"
+#include "bilininteg_mass_pa_simplices.hpp"
 
 namespace mfem
 {

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_mass_kernels.hpp"
+#include "bilininteg_mass_pa_simplices.hpp"
 
 namespace mfem
 {
