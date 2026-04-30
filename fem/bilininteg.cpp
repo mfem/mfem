@@ -1364,7 +1364,14 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
 
-   return IntRules.Get(trial_fe.GetGeomType(), order, stroud);
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order, false);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 MassIntegrator::MassIntegrator(const IntegrationRule *ir)
@@ -1462,7 +1469,14 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
 
-   return IntRules.Get(trial_fe.GetGeomType(), order, stroud);
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order, false);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 
