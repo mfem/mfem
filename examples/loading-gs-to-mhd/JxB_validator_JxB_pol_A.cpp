@@ -32,8 +32,8 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   // make a RT space with the mesh
-   RT_FECollection fec(0, dim);
+   // make a ND space with the mesh
+   ND_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    GridFunction JxB_pol(&fespace);

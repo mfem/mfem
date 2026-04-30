@@ -32,8 +32,8 @@ int main(int argc, char *argv[])
 
    cout << "Mesh loaded" << endl;
 
-   L2_FECollection fec(0, dim);
-   // H1_FECollection fec(1, dim);
+   // L2_FECollection fec(0, dim);
+   H1_FECollection fec(1, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
    GridFunction JxB_tor(&fespace);
