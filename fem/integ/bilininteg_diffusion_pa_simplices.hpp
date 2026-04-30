@@ -21,6 +21,7 @@ namespace mfem
 {
 
 /// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -39,16 +40,16 @@ template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTriangle(const int NE,
                                      const bool symmetric,
                                      const Array<int> &lex_map_,
-                                     [[maybe_unused]] const Array<int> &/*forward_map2d_*/,
-                                     [[maybe_unused]] const Array<int> &/*inverse_map2d_*/,
-                                     [[maybe_unused]] const Array<int> &/*forward_map3d_*/,
-                                     [[maybe_unused]] const Array<int> &/*inverse_map3d_*/,
+                                     const Array<int> &/*forward_map2d_*/,
+                                     const Array<int> &/*inverse_map2d_*/,
+                                     const Array<int> &/*forward_map3d_*/,
+                                     const Array<int> &/*inverse_map3d_*/,
                                      const Array<real_t> &ga1_,
                                      const Array<real_t> &ga2_,
-                                     [[maybe_unused]] const Array<real_t> &/*ga3_*/,
+                                     const Array<real_t> &/*ga3_*/,
                                      const Array<real_t> &ga1t_,
                                      const Array<real_t> &ga2t_,
-                                     [[maybe_unused]] const Array<real_t> &/*ga3t_*/,
+                                     const Array<real_t> &/*ga3t_*/,
                                      const Vector &d_,
                                      const Vector &x_,
                                      Vector &y_,
@@ -58,8 +59,11 @@ inline void PADiffusionApplyTriangle(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
+   const int p2 = (D1D-1) * (D1D-1);
+
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
+
    const auto lex_map = lex_map_.Read();
    const auto Ga1 = ConstDeviceMatrix(ga1_.Read(), D1D-1, Q1D);
    const auto Ga2 = ConstDeviceCube(ga2_.Read(), D1D-1, D1D-1, Q1D);
@@ -68,21 +72,14 @@ inline void PADiffusionApplyTriangle(const int NE,
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto X = Reshape(x_.Read(), BASIS_DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
-   int p2 = (D1D-1) * (D1D-1);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
-
-      for (int idx = 0; idx < BASIS_DIM; idx++)
-      {
-         Y(idx, e) = 0.0;
-      }
 
       real_t cin[2 * (max_D1D-1) * (max_D1D-1)];
       real_t C1[2 * (max_D1D-1) * max_Q1D];
@@ -294,9 +291,12 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
+   const int p2 = (D1D-1) * (D1D-1);
+
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
-   const auto lex_map__ = DeviceTensor<2,const int>(lex_map_.Read(), D1D, D1D);
+
+   const auto map = DeviceTensor<2,const int>(lex_map_.Read(), D1D, D1D);
    const auto ga1 = ConstDeviceMatrix(ga1_.Read(), D1D-1, Q1D);
    const auto ga2 = ConstDeviceCube(ga2_.Read(), D1D-1, D1D-1, Q1D);
    const auto ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
@@ -304,13 +304,13 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
-   int p2 = (D1D-1) * (D1D-1);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -339,7 +339,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       {
          MFEM_FOREACH_THREAD(a2,x,D1D-a1)
          {
-            const int idx = lex_map__(a2,a1);
+            const int idx = map(a2,a1);
             lex_map[a1][a2] = idx;
             X[idx] = x(idx,e);
          }
@@ -515,8 +515,11 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
+   const int p2 = (D1D-1) * (D1D-1);
+
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
+
    const auto lex_map = lex_map_.Read();
    const auto forward_map2d = forward_map2d_.Read();
    const auto inverse_map2d = inverse_map2d_.Read();
@@ -529,7 +532,6 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    const auto X = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
-   const int p2 = (D1D-1) * (D1D-1);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -537,7 +539,6 @@ inline void PADiffusionApplyTetrahedron(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
 
@@ -775,7 +776,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                                             const Array<int> &forward_map2d_,
                                             const Array<int> &inverse_map2d_,
                                             const Array<int> &forward_map3d_,
-                                            [[maybe_unused]] const Array<int> &/*inverse_map3d_*/,
+                                            const Array<int> &/*inverse_map3d_*/,
                                             const Array<real_t> &ga1_,
                                             const Array<real_t> &ga2_,
                                             const Array<real_t> &ga3_,
@@ -793,10 +794,13 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
+   const int p2 = (D1D-1) * (D1D-1);
+
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
+
    const auto forward_map3d__ =
       DeviceTensor<3,const int>(forward_map3d_.Read(), D1D-1, D1D-1, D1D-1);
    const auto forward_map2d__ =
@@ -805,21 +809,22 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       DeviceTensor<2,const int>(inverse_map2d_.Read(), 2, BASIS_DIM2D_DIFF);
    const auto lex_map__ =
       DeviceTensor<3,const int>(lex_map_.Read(), D1D, D1D, D1D);
+
    const auto ga1 = ConstDeviceMatrix(ga1_.Read(), D1D-1, Q1D);
    const auto ga2 = ConstDeviceMatrix(ga2_.Read(), BASIS_DIM2D_DIFF, Q1D);
    const auto ga3 = ConstDeviceMatrix(ga3_.Read(), BASIS_DIM3D_DIFF, Q1D);
    const auto ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto ga2t = ConstDeviceMatrix(ga2t_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto ga3t = ConstDeviceMatrix(ga3t_.Read(), Q1D, BASIS_DIM3D_DIFF);
-   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
+   const auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
-   const int p2 = (D1D-1) * (D1D-1);
 
    mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -1082,25 +1087,32 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 }
 } // namespace internal
 
-namespace
-{
-using ApplySimplexKernelType = DiffusionIntegrator::ApplySimplexKernelType;
-}
-
 template<int DIM, int T_D1D, int T_Q1D>
-ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
+DiffusionIntegrator::ApplySimplexKernelType
+DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>; }
+   if constexpr (DIM == 2)
+   {
+      return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>;
+   }
    else { MFEM_ABORT(""); }
 }
 
-inline
-ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Fallback(
-   int dim, int, int)
+inline DiffusionIntegrator::ApplySimplexKernelType
+DiffusionIntegrator::ApplySimplexPAKernels::Fallback(int dim, int, int)
 {
-   if (dim == 2) { return internal::PADiffusionApplyTriangle; }
-   else if (dim == 3) { return internal::PADiffusionApplyTetrahedron; }
+   if (dim == 2)
+   {
+      return internal::PADiffusionApplyTriangle;
+   }
+   else if (dim == 3)
+   {
+      return internal::PADiffusionApplyTetrahedron;
+   }
    else { MFEM_ABORT(""); }
 }
 

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_mass_kernels.hpp"
-#include "bilininteg_mass_pa_simplices.hpp"
+#include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -40,8 +40,10 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,9,10>();
    // others
    MassIntegrator::AddSpecialization<2,2,4>();
+   MassIntegrator::AddSpecialization<2,2,5>();
    MassIntegrator::AddSpecialization<2,3,6>();
    MassIntegrator::AddSpecialization<2,4,6>();
+
    // 3D
    // Q=P+1
    MassIntegrator::AddSpecialization<3,1,1>();

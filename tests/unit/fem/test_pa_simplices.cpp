@@ -36,31 +36,34 @@ void test_pa_simplices(const char *filename, int p)
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(0x100001b3);
    y_fa.Randomize(0x9e3779b9);
-   y_pa.Randomize(0x9e3779b9);
+   y_pa = y_fa;
 
-   // ⚠️ required for integrators with funct_coeff
-   // x = 0.0;
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = 2 * fe.GetOrder() + Tr.OrderW();
+   const bool stroud = fes.UsesRaggedTensorBasis();
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order, stroud);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
    { return M_1_PI + x[0] * x[0]; });
 
    BilinearForm fa(&fes), pa(&fes);
-   fa.AddDomainIntegrator(new MassIntegrator());
-   fa.AddDomainIntegrator(new MassIntegrator(const_coeff));
-   // fa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
-   fa.AddDomainIntegrator(new DiffusionIntegrator());
-   fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff));
-   // fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
+   fa.AddDomainIntegrator(new MassIntegrator(ir));
+   fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   fa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
    fa.Assemble();
    fa.Finalize();
 
-   pa.AddDomainIntegrator(new MassIntegrator());
-   pa.AddDomainIntegrator(new MassIntegrator(const_coeff));
-   // pa.AddDomainIntegrator(new MassIntegrator(funct_coeff));
-   pa.AddDomainIntegrator(new DiffusionIntegrator());
-   pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff));
-   // pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff));
+   pa.AddDomainIntegrator(new MassIntegrator(ir));
+   pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   pa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
    pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa.Assemble();
 
@@ -79,7 +82,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][GPU][Simplices]")
    {
       const auto filename2d = GENERATE("../../data/beam-tri.mesh",
                                        "../../data/inline-tri.mesh",
-                                       // "../../data/rt-2d-p4-tri.mesh",
+                                       "../../data/rt-2d-p4-tri.mesh",
                                        "../../data/ref-triangle.mesh");
       test_pa_simplices<2>(filename2d, p);
    }

@@ -1389,7 +1389,6 @@ inline void EAMassAssemble3D(const int NE,
 namespace
 {
 using ApplyKernelType = MassIntegrator::ApplyKernelType;
-using ApplySimplexKernelType = MassIntegrator::ApplySimplexKernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 }
 

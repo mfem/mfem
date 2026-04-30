@@ -17,8 +17,6 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
-#include "bilininteg_mass_kernels.hpp" // for mass::NBZ
-
 namespace mfem
 {
 
@@ -178,29 +176,30 @@ void PAMassApplyTriangle_Element(const int e,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassApplyTriangle(const int NE,
                                 const Array<int> &lex_map_,
-                                const Array<int> &forward_map2d_,
-                                const Array<int> &inverse_map2d_,
-                                const Array<int> &forward_map3d_,
-                                const Array<int> &inverse_map3d_,
+                                const Array<int> &/*forward_map2d_*/,
+                                const Array<int> &/*inverse_map2d_*/,
+                                const Array<int> &/*forward_map3d_*/,
+                                const Array<int> &/*inverse_map3d_*/,
                                 const Array<real_t> &ba1_,
                                 const Array<real_t> &ba2_,
-                                const Array<real_t> &ba3_, // unused in 2D...
+                                const Array<real_t> &/*ba3_*/,
                                 const Array<real_t> &ba1t_,
                                 const Array<real_t> &ba2t_,
-                                const Array<real_t> &ba3t_, // unused in 2D...
-                                const Array<real_t> &t_,
+                                const Array<real_t> &/*ba3t_*/,
+                                const Array<real_t> &/*t_*/,
                                 const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
                                 const int d1d = 0,
                                 const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX,
-               "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX,
-               "");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int BASIS_DIM = D1D * (D1D + 1) / 2;
 
-   const int BASIS_DIM = d1d * (d1d + 1) / 2;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
+
    const auto lex_map = lex_map_.Read();
    const auto Ba1 = ba1_.Read();
    const auto Ba2 = ba2_.Read();
@@ -212,13 +211,14 @@ inline void PAMassApplyTriangle(const int NE,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::PAMassApplyTriangle_Element(e, NE, BASIS_DIM, lex_map, Ba1, Ba2, Ba1t,
-                                            Ba2t, D, X,
-                                            Y, d1d, q1d);
+      internal::PAMassApplyTriangle_Element(e, NE, BASIS_DIM,
+                                            lex_map, Ba1, Ba2, Ba1t, Ba2t, D,
+                                            X, Y,
+                                            d1d, q1d);
    });
 }
 
-template<int T_D1D, int T_Q1D, int T_NBZ, bool ACCUMULATE = true>
+template<int T_D1D, int T_Q1D, bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void SmemPAMassApplyTriangle_Element(const int e,
                                      const int NE,
@@ -235,6 +235,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
    constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -245,8 +246,8 @@ void SmemPAMassApplyTriangle_Element(const int e,
    const auto ba2 = ConstDeviceCube(ba2_, D1D, D1D, Q1D);
    const auto ba1t = ConstDeviceMatrix(ba1t_, Q1D, D1D);
    const auto ba2t = ConstDeviceCube(ba2t_, Q1D, D1D, D1D);
-   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
-   auto x = ConstDeviceMatrix(x_, BASIS_DIM, NE);
+   const auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   const auto x = ConstDeviceMatrix(x_, BASIS_DIM, NE);
    auto Y = DeviceMatrix(y_, BASIS_DIM, NE);
 
    MFEM_SHARED real_t B[2][MQ1*MD1*MD1];
@@ -379,26 +380,26 @@ void SmemPAMassApplyTriangle_Element(const int e,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAMassApplyTriangle(const int NE,
                                     const Array<int> &lex_map_,
-                                    const Array<int> &forward_map2d_,
-                                    const Array<int> &inverse_map2d_,
-                                    const Array<int> &forward_map3d_,
-                                    const Array<int> &inverse_map3d_,
+                                    const Array<int> &/*forward_map2d_*/,
+                                    const Array<int> &/*inverse_map2d_*/,
+                                    const Array<int> &/*forward_map3d_*/,
+                                    const Array<int> &/*inverse_map3d_*/,
                                     const Array<real_t> &ba1_,
                                     const Array<real_t> &ba2_,
-                                    const Array<real_t> &ba3_, // unused in 2D...
+                                    const Array<real_t> &/*ba3_*/, // unused in 2D...
                                     const Array<real_t> &ba1t_,
                                     const Array<real_t> &ba2t_,
-                                    const Array<real_t> &ba3t_, // unused in 2D...
-                                    const Array<real_t> &t_,
+                                    const Array<real_t> &/*ba3t_*/, // unused in 2D...
+                                    const Array<real_t> &/*t_*/,
                                     const Vector &d_,
                                     const Vector &x_,
                                     Vector &y_,
                                     const int d1d = 0,
                                     const int q1d = 0)
 {
-   static constexpr int T_NBZ = mass::NBZ(T_D1D);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -415,9 +416,8 @@ inline void SmemPAMassApplyTriangle(const int NE,
 
    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, lex_map,
-                                                                   Ba1, Ba2, Ba1t, Ba2t, D, X,
-                                                                   Y, d1d, q1d);
+      internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D>
+      (e, NE, lex_map, Ba1, Ba2, Ba1t, Ba2t, D, X, Y, d1d, q1d);
    });
 }
 
@@ -439,9 +439,9 @@ void PAMassApplyTetrahedron_Element(const int e,
                                     const int BASIS_DIM,
                                     const int BASIS_DIM2D,
                                     const int *forward_map2d,
-                                    const int *inverse_map2d,
+                                    const int */*inverse_map2d*/,
                                     const int *forward_map3d,
-                                    const int *inverse_map3d,
+                                    const int */*inverse_map3d*/,
                                     const real_t *ba1_,
                                     const real_t *ba2_,
                                     const real_t *ba3_,
@@ -454,8 +454,8 @@ void PAMassApplyTetrahedron_Element(const int e,
                                     const int d1d = 0,
                                     const int q1d = 0)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
+   const int D1D = d1d, Q1D = q1d;
+
    const auto Ba1 = ConstDeviceMatrix(ba1_, D1D, Q1D);
    const auto Ba2 = ConstDeviceMatrix(ba2_, BASIS_DIM2D, Q1D);
    const auto Ba3 = ConstDeviceMatrix(ba3_, BASIS_DIM, Q1D);
@@ -615,7 +615,7 @@ void PAMassApplyTetrahedron_Element(const int e,
 // PA Mass Apply 3D kernel on tetrahedrons (Bernstein only)
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassApplyTetrahedron(const int NE,
-                                   const Array<int> &lex_map_,
+                                   const Array<int> &/*lex_map_*/,
                                    const Array<int> &forward_map2d_,
                                    const Array<int> &inverse_map2d_,
                                    const Array<int> &forward_map3d_,
@@ -626,7 +626,7 @@ inline void PAMassApplyTetrahedron(const int NE,
                                    const Array<real_t> &ba1t_,
                                    const Array<real_t> &ba2t_,
                                    const Array<real_t> &ba3t_,
-                                   const Array<real_t> &t_,
+                                   const Array<real_t> &/*t_*/,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -635,12 +635,12 @@ inline void PAMassApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
+   const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
+
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
-   const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
-   // const auto lex_map = lex_map_.Read();
    const auto forward_map2d = forward_map2d_.Read();
    const auto inverse_map2d = inverse_map2d_.Read();
    const auto forward_map3d = forward_map3d_.Read();
@@ -658,9 +658,10 @@ inline void PAMassApplyTetrahedron(const int NE,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, BASIS_DIM2D,
-                                               forward_map2d,
-                                               inverse_map2d, forward_map3d, inverse_map3d, Ba1, Ba2,
-                                               Ba3, Ba1t, Ba2t, Ba3t, D, X, Y, d1d, q1d);
+                                               forward_map2d, inverse_map2d,
+                                               forward_map3d, inverse_map3d,
+                                               Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t,
+                                               D, X, Y, d1d, q1d);
    });
 }
 
@@ -679,7 +680,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
                                         const real_t *ba1_,
                                         const real_t *ba2_,
                                         const real_t *ba3_,
-                                        const real_t *t_,
+                                        const real_t */*t_*/,
                                         const real_t *ba1t_,
                                         const real_t *ba2t_,
                                         const real_t *ba3t_,
@@ -691,6 +692,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
 {
    constexpr int D1D = T_D1D ? T_D1D : d1d;
    constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
+
    constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
    constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -706,12 +708,13 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
    const auto d = DeviceTensor<4,const real_t>(d_, Q1D, Q1D, Q1D, NE);
    const auto x = ConstDeviceMatrix(x_, BASIS_DIM, NE);
    auto y = DeviceMatrix(y_, BASIS_DIM, NE);
-   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_, D1D, D1D,
-                                                          D1D);
-   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_, D1D,
-                                                          D1D);
-   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_, 2,
-                                                          BASIS_DIM2D);
+
+   const auto forward_map3d__ =
+      DeviceTensor<3,const int>(forward_map3d_, D1D, D1D, D1D);
+   const auto forward_map2d__ =
+      DeviceTensor<2,const int>(forward_map2d_, D1D, D1D);
+   const auto inverse_map2d__ =
+      DeviceTensor<2,const int>(inverse_map2d_, 2, BASIS_DIM2D);
 
    MFEM_SHARED real_t sDQ[BASIS_DIM_*MQ1];
    auto Ba1 = (real_t (*)[MD1]) sDQ;
@@ -911,11 +914,11 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
 // Shared memory PA Mass Apply 3D Kernel on tetrahedrons (Bernstein only)
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAMassApplyTetrahedron(const int NE,
-                                       const Array<int> &lex_map_,
+                                       const Array<int> &/*lex_map_*/,
                                        const Array<int> &forward_map2d_,
                                        const Array<int> &inverse_map2d_,
                                        const Array<int> &forward_map3d_,
-                                       const Array<int> &inverse_map3d_,
+                                       const Array<int> &/*inverse_map3d_*/,
                                        const Array<real_t> &ba1_,
                                        const Array<real_t> &ba2_,
                                        const Array<real_t> &ba3_,
@@ -931,13 +934,16 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
-   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
+   const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
+   const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
+
+   constexpr int max_q1d =
+      T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
+   constexpr int max_d1d =
+      T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
 
-   const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
-   const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
    const auto forward_map2d = forward_map2d_.Read();
    const auto inverse_map2d = inverse_map2d_.Read();
    const auto forward_map3d = forward_map3d_.Read();
@@ -954,33 +960,42 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 
    mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>(e, NE, BASIS_DIM,
-                                                                 BASIS_DIM2D, forward_map2d,
-                                                                 inverse_map2d, forward_map3d, Ba1, Ba2, Ba3, T,
-                                                                 Ba1t, Ba2t, Ba3t, D, X, Y, d1d, q1d);
+      internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>
+      (e, NE, BASIS_DIM, BASIS_DIM2D,
+       forward_map2d, inverse_map2d, forward_map3d,
+       Ba1, Ba2, Ba3, T, Ba1t, Ba2t, Ba3t, D, X, Y,
+       d1d, q1d);
    });
 }
 
 } // namespace internal
 
-namespace
-{
-using ApplySimplexKernelType = MassIntegrator::ApplySimplexKernelType;
-}
-
 template<int DIM, int T_D1D, int T_Q1D>
-ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Kernel()
+MassIntegrator::ApplySimplexKernelType
+MassIntegrator::ApplySimplexPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPAMassApplyTriangle<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassApplyTetrahedron<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 2)
+   {
+      return internal::SmemPAMassApplyTriangle<T_D1D,T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::SmemPAMassApplyTetrahedron<T_D1D, T_Q1D>;
+   }
    else { MFEM_ABORT(""); }
 }
 
-inline ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Fallback(
-   int dim, int, int)
+inline MassIntegrator::ApplySimplexKernelType
+MassIntegrator::ApplySimplexPAKernels::Fallback(int dim, int, int)
 {
-   if (dim == 2) { return internal::PAMassApplyTriangle; }
-   else if (dim == 3) { return internal::PAMassApplyTetrahedron; }
+   if (dim == 2)
+   {
+      return internal::PAMassApplyTriangle;
+   }
+   else if (dim == 3)
+   {
+      return internal::PAMassApplyTetrahedron;
+   }
    else { MFEM_ABORT(""); }
 }
 

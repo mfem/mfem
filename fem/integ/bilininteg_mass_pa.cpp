@@ -215,6 +215,8 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    }
    else
    {
+      MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
+                  "AbsMultPA not implemented for ragged tensor basis");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();
       Array<real_t> absB(maps->B);
