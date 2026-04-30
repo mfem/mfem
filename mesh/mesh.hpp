@@ -2201,6 +2201,18 @@ public:
        by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
    FaceInformation GetFaceInformation(int f) const;
 
+   /// @brief Return the indices of the elements sharing face @a Face.
+   ///
+   /// @param[in]  Face  Index of the face.
+   /// @param[out] Elem1 Index of the first (always local) element. This is
+   ///                   always the element that generated the face (the slave
+   ///                   element in the nonconforming case).
+   /// @param[out] Elem2 Index of the second neighboring element. A non-negative
+   ///                   value is a local element index on the same MPI rank. A
+   ///                   negative value indicates a local boundary face. See the
+   ///                   FaceInfo documentation for the full classification.
+   ///
+   /// @sa GetFaceInfos(), GetFaceInformation(), FaceInfo
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
