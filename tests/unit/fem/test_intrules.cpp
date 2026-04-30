@@ -195,7 +195,9 @@ TEST_CASE("Gauss-Jacobi integration rules", "[GaussJacobiRules]")
             const IntegrationPoint &ip = ir_a_b.IntPoint(i);
             integral += ip.weight * pow(ip.x, n);
          }
-         double exact = std::beta(beta+n+1, alpha+1);
+         double exact = std::tgamma(beta+n+1) * std::tgamma(alpha+1) / std::tgamma(
+                           alpha+n+2+beta);
+         // use tgamma instead of beta for compliance with C++11 standard
          double relerr = 1. - integral/exact;
 
          INFO("p=" << n << ", alpha=" << alpha << ", beta=" << beta);
