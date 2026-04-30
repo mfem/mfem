@@ -17,4 +17,6 @@ make all -j 8
 # third group
 ./B_field_projector_div_B_pol_vec_CG &
 ./B_field_projector_div_B_pol_Hcurl &
-./B_field_projector_div_B_pol_Hdiv
+./B_field_projector_div_B_pol_Hdiv &
+./JxB_validator_grad_p_A &
+./JxB_validator_grad_p_B
