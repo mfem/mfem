@@ -2117,6 +2117,26 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
    }
 }
 
+void CoefficientVector::Project(CoefficientBase &coeff)
+{
+   if (auto *scalar_coeff = dynamic_cast<Coefficient*>(&coeff))
+   {
+      Project(*scalar_coeff);
+   }
+   else if (auto *vec_coeff = dynamic_cast<VectorCoefficient*>(&coeff))
+   {
+      Project(*vec_coeff);
+   }
+   else if (auto *mat_coeff = dynamic_cast<MatrixCoefficient*>(&coeff))
+   {
+      Project(*mat_coeff);
+   }
+   else
+   {
+      MFEM_ABORT("Projecting null coefficient.");
+   }
+}
+
 void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
 {
    Project(coeff, true);
@@ -2198,6 +2218,16 @@ int CoefficientVector::GetVDim() const { return vdim; }
 CoefficientVector::~CoefficientVector()
 {
    delete qf;
+}
+
+CoefficientBase *GetCoefficientBase(Coefficient *coeff,
+                                    VectorCoefficient *vec_coeff,
+                                    MatrixCoefficient *mat_coeff)
+{
+   if (coeff) { return coeff; }
+   else if (vec_coeff) { return vec_coeff; }
+   else if (mat_coeff) { return mat_coeff; }
+   else { return nullptr; }
 }
 
 }
