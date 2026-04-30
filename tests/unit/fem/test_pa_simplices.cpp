@@ -35,6 +35,7 @@ void test_pa_simplices(const char *filename, int p)
 
    GridFunction x(&fes), y(&fes);
    x.Randomize(0x100001b3);
+   y.Randomize(0x9e3779b9);
 
    // ⚠️ required for integrators with const_coeff or funct_coeff
    x = 0.0;
