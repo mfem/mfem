@@ -10,23 +10,21 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/plasma/diffusion/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = 
+PAR_MINIAPPS = umansky_cg umansky_dg
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
-
-PLASMA_SUBDIRS = diffusion pic
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -40,27 +38,25 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
    $(MFEM_BUILD_DIR)/miniapps/common))
 
+COMMON_HDR = umansky.hpp
+
 COMMON_O=
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS) subdirs
-
-.PHONY: subdirs $(PLASMA_SUBDIRS)
-subdirs: $(PLASMA_SUBDIRS)
-$(PLASMA_SUBDIRS): lib-common
-	$(MAKE) -C $(BLD)$(@)
+all: $(MINIAPPS)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%: $(SRC)%.cpp $(COMMON_HDR) $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) \
+	| lib-common
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(COMMON_LIB) \
         $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(COMMON_HDR) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 # Rule for building lib-common
@@ -72,6 +68,20 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+umansky_cg-test-par: umansky_cg-test-0 umansky_cg-test-1
+umansky_cg-test-0: umansky_cg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2 -e 0)
+umansky_cg-test-1: umansky_cg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2)
+umansky_dg-test-par: umansky_dg-test-0 umansky_dg-test-1
+umansky_dg-test-0: umansky_dg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2 -e 0 -k 5)
+umansky_dg-test-1: umansky_dg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2 -k 5)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -79,15 +89,11 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
-.PHONY: $(ALL_CLEAN_SUBDIRS)
-$(ALL_CLEAN_SUBDIRS):
-	$(MAKE) -C $(BLD)$(@D) $(@F)
-
 clean: clean-build clean-exec
 
-clean-build: $(addsuffix /clean,$(PLASMA_SUBDIRS))
+clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf Umansky-CG-AMR* Umansky-DG-AMR*
