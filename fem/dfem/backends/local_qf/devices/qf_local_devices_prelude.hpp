@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../../integrator_ctx.hpp"
-#include "action.hpp"
+#include "../../../integrator_ctx.hpp"
+#include "qf_local_devices_action.hpp"
 
 namespace mfem::future
 {

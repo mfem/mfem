@@ -227,6 +227,7 @@ inline void interpolate(
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
+   dbg();
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }

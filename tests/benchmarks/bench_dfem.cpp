@@ -14,6 +14,8 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#define MFEM_ADD_SPECIALIZATIONS
+
 #include <memory>
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
@@ -23,20 +25,14 @@
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
 
-#include <fem/dfem/backends/devices.hpp>
-using device_backend = mfem::future::DeviceBackend;
+#include "fem/dfem/backends/global_qf/devices/qf_global_devices.hpp"
+using global_device_backend = mfem::future::DeviceBackend;
 
-#define DFEM_USE_DEFAULT_BACKEND
-#ifdef DFEM_USE_DEFAULT_BACKEND
-#include "fem/dfem/backends/global_qf/prelude.hpp"
-using default_backend = mfem::future::GlobalQFBackend;
-#else
-#include "fem/dfem/backends/local_qf/prelude.hpp"
-using default_backend = mfem::future::LocalQFBackend;
-#endif
+#include "fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
+using global_default_backend = mfem::future::GlobalQFBackend;
 
-#include <fem/dfem/doperator.hpp>
-#include <linalg/tensor.hpp>
+#include "fem/dfem/doperator.hpp"
+#include "linalg/tensor.hpp"
 #include "linalg/tensor_arrays.hpp"
 
 #include "fem/kernels.hpp"
@@ -45,8 +41,6 @@ namespace ker = kernels::internal;
 #if defined(__HIP__)
 #include "../usr/src/array/tensor_std_array.hpp"
 #endif
-
-// #include NVTX_FMT_HPP
 
 using namespace mfem;
 
@@ -74,7 +68,7 @@ void info()
    mfem::out << "version 3: PA ∂fem-global 'default' backend" << std::endl;
    mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
    mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
-   // local vQF ersions
+   // local QF versions
    mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
    mfem::out << "version 7: PA ∂fem-local 'default' backend" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
@@ -103,7 +97,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 16; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 4; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -114,6 +108,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 // Register kernel specializations used in the benchmarks /////////////////////
 static void AddKernelSpecializations()
 {
+#ifdef MFEM_ADD_SPECIALIZATIONS
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 2>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 3>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 5>();
@@ -160,6 +155,7 @@ static void AddKernelSpecializations()
    VDIFF::Add<3, 3, 6, 6>();
    VDIFF::Add<3, 3, 7, 7>();
    VDIFF::Add<3, 3, 8, 8>();
+#endif // MFEM_ADD_SPECIALIZATIONS
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -177,8 +173,7 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator()
    {
-      dbg();
-      NVTX();
+#ifdef MFEM_ADD_SPECIALIZATIONS
       StiffnessKernels::Add<2, 3>();
       StiffnessKernels::Add<3, 4>();
       StiffnessKernels::Add<4, 5>();
@@ -186,6 +181,7 @@ public:
       StiffnessKernels::Add<6, 7>();
       StiffnessKernels::Add<7, 8>();
       StiffnessKernels::Add<9, 10>();
+#endif // MFEM_ADD_SPECIALIZATIONS
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -258,7 +254,7 @@ public:
       });
    }
 
-   template <int T_D1D, int T_Q1D>
+   template <int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
@@ -327,13 +323,12 @@ StiffnessIntegrator::StiffnessKernels::Kernel()
 }
 
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
-                                                [[maybe_unused]] int q1d)
+StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
-   return nullptr;
-   // return StiffnessMult;
+   db1("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   // MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   // return nullptr;
+   return StiffnessMult;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -634,37 +629,38 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // MF ∂fem-global 'default' backend
       {
          dbg("\x1b[33m MF ∂FEM-Global");
-         dMFOperatorSetup(default_backend{});
+         dMFOperatorSetup(global_default_backend{});
       }
       else if (version == 3) // PA ∂fem-global 'default' backend
       {
-         dbg("\x1b[33m PA ∂FEM + default backend");
-         dPAOperatorSetup(default_backend{});
+         dbg("\x1b[33m PA ∂FEM global + default backend");
+         dPAOperatorSetup(global_default_backend{});
       }
       else if (version == 4) // MF ∂fem-global 'devices' backend
       {
-         dbg("\x1b[33m MF ∂FEM + devices backend");
-         dMFOperatorSetup(device_backend{});
+         dbg("\x1b[33m MF ∂FEM global + devices backend");
+         dMFOperatorSetup(global_device_backend{});
       }
       else if (version == 5) // PA ∂fem-global 'devices' backend
       {
-         dbg("\x1b[33m PA ∂FEM + devices backend");
-         dPAOperatorSetup(device_backend{});
+         dbg("\x1b[33m PA ∂FEM global + devices backend");
+         dPAOperatorSetup(global_device_backend{});
       }
       else if (version == 6) // MF ∂fem-local 'default' backend
       {
          dbg("\x1b[33m MF ∂FEM-Local");
-         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
-         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         dop->SetParameters({nodes});
-         MFApply_local_qf<DIM> mf_apply;
-         dop->AddDomainIntegrator(mf_apply,
-                                  std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                  std::tuple{Gradient<U>{}},
-                                  *ir, ess_bdr);
-         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         MFEM_ABORT("MF ∂FEM-Local not implemented yet");
+         // auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         // auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         // dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         // dop->SetParameters({nodes});
+         // MFApply_local_qf<DIM> mf_apply;
+         // dop->AddDomainIntegrator(mf_apply,
+         //                          std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+         //                          std::tuple{Gradient<U>{}},
+         //                          *ir, ess_bdr);
+         // dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         // A.Reset(A_ptr);
       }
       else if (version ==7) // PA ∂fem-local 'default' backend
       {
@@ -678,6 +674,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024)
       {
+         dbg("check");
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);

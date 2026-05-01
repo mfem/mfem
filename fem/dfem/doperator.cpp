@@ -18,13 +18,15 @@
 using namespace mfem;
 using namespace mfem::future;
 
+// Used for the GLOBAL operator
 DifferentiableOperator::DifferentiableOperator(
-   int height, int width,
+   const int height, const int width,
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
-   const ParMesh &mesh) :
+   const ParMesh &mesh):
    Operator(height, width),
    mesh(mesh),
+   use_global_qf(true),
    infds(infds),
    outfds(outfds)
 {
@@ -45,14 +47,17 @@ DifferentiableOperator::DifferentiableOperator(
    infields_e.resize(infds.size());
 }
 
+// Used for the LOCAL operator
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &solutions,
    const std::vector<FieldDescriptor> &parameters,
    const ParMesh &mesh) :
    mesh(mesh),
+   use_global_qf(false),
    solutions(solutions),
    parameters(parameters)
 {
+   NVTX_MARK_FUNCTION;
    fields.resize(solutions.size() + parameters.size());
    fields_e.resize(fields.size());
    solutions_l.resize(solutions.size());
@@ -69,10 +74,27 @@ DifferentiableOperator::DifferentiableOperator(
    }
 }
 
+// Used for the LOCAL operator
+void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
+{
+   assert(false);
+   MFEM_ASSERT(parameters.size() == p.size(),
+               "number of parameters doesn't match descriptors");
+   for (size_t i = 0; i < parameters.size(); i++)
+   {
+      p[i]->Read();
+      parameters_l[i] = *p[i];
+   }
+}
 
 void DifferentiableOperator::SetMultLevel(MultLevel level)
 {
    mult_level = level;
+}
+
+void DifferentiableOperator::DisableTensorProductStructure(bool disable)
+{
+   use_tensor_product_structure = !disable;
 }
 
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
@@ -91,11 +113,6 @@ void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
    auto &by = static_cast<BlockVector &>(y);
 
    Mult(bx, by);
-}
-
-void DifferentiableOperator::DisableTensorProductStructure(bool disable)
-{
-   use_tensor_product_structure = !disable;
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(

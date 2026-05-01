@@ -1,9 +1,10 @@
 #pragma once
 
-#include "fem/quadinterpolator.hpp"
-#include "../../integrator_ctx.hpp"
-#include "../util.hpp"
 #include <utility>
+
+// #include "fem/quadinterpolator.hpp"
+#include "../../../integrator_ctx.hpp"
+#include "../../util.hpp"
 
 namespace mfem::future
 {
@@ -82,10 +83,9 @@ struct DerivativeActionEnzyme
       shadow_xq.Update(shadow_xq_offsets);
    }
 
-   void operator()(
-      const std::vector<Vector *> &xe,
-      const Vector *de,
-      std::vector<Vector *> &ye) const
+   void operator()(const std::vector<Vector *> &xe,
+                   [[maybe_unused]]const Vector *de,
+                   std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
@@ -127,5 +127,6 @@ struct DerivativeActionEnzyme
    mutable BlockVector xq, shadow_xq, yq;
 };
 
-}
-}
+} // namespace GlobalQFImpl
+
+} // namespace mfem::future

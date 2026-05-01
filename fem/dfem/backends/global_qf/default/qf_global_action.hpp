@@ -1,8 +1,11 @@
 #pragma once
 
-#include "../util.hpp"
-#include "../../integrator_ctx.hpp"
 #include <utility>
+
+#include "../../util.hpp"
+#include "../../../integrator_ctx.hpp"
+
+// #include NVTX_DBG_FMT
 
 namespace mfem::future
 {
@@ -10,19 +13,17 @@ namespace mfem::future
 namespace GlobalQFImpl
 {
 
-template<
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t,
-   size_t ninputs = std::tuple_size_v<inputs_t>,
-   size_t noutputs = std::tuple_size_v<outputs_t>>
+template<typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         size_t ninputs = std::tuple_size_v<inputs_t>,
+         size_t noutputs = std::tuple_size_v<outputs_t>>
 struct Action
 {
-   Action(
-      IntegratorContext ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs) :
+   Action(IntegratorContext ctx,
+          qfunc_t qfunc,
+          inputs_t inputs,
+          outputs_t outputs) :
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
@@ -65,17 +66,19 @@ struct Action
       yq.Update(yq_offsets);
    }
 
-   void operator()(
-      const std::vector<Vector *> &xe,
-      std::vector<Vector *> &ye) const
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector *> &ye) const
    {
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
 
-      // E -> Q
+      dbg("E -> Q");
+      // dbg("input_to_infd: {}", input_to_infd);
+      // dbg("input_bases: {}", input_bases);
+      // dbg("xe: {}", (int)xe.size());
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      // Q -> Q
+      dbg("Q -> Q");
       static_assert(
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
@@ -85,7 +88,7 @@ struct Action
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
-      // Q -> E
+      dbg("Q -> E");
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 
@@ -108,5 +111,6 @@ struct Action
    mutable BlockVector xq, yq;
 };
 
-}
-}
+} // namespace GlobalQFImpl
+
+} // namespace mfem::future

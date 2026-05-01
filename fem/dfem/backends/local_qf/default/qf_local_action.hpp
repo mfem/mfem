@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../util.hpp"
-#include "../../integrator_ctx.hpp"
-
 #include <utility>
+
+#include "../../util.hpp"
+#include "../../../integrator_ctx.hpp"
 
 namespace mfem::future
 {
@@ -146,7 +146,6 @@ struct Action
       // num_entities, thread_blocks, 0, nullptr);
    }
 
-
    IntegratorContext ctx;
    qfunc_t qfunc;
    inputs_t inputs;
@@ -159,5 +158,6 @@ struct Action
    std::array<const DofToQuad*, noutputs> output_dtq_maps;
 };
 
-}
-}
+} // namespace LocalQFImpl
+
+} // namespace mfem::future
