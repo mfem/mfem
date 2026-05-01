@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../config/config.hpp" // IWYU pragma: keep
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 // #include "../fespace.hpp"
@@ -328,13 +328,23 @@ class DifferentiableOperator : public Operator
 public:
    /// Constructor for the DifferentiableOperator class.
    ///
-   /// @param solutions The solution fields that the operator will act on.
-   /// @param parameters The parameter fields that define coefficients.
+   /// @param infds The input fields the operator will act on.
+   /// @param outfds The output fields the operator will produce.
    /// @param mesh The mesh on which the operator is defined.
    DifferentiableOperator(
       int height, int width,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds,
+      const ParMesh &mesh);
+
+   /// Constructor for the DifferentiableOperator class.
+   ///
+   /// @param solutions The solution fields that the operator will act on.
+   /// @param parameters The parameter fields that define coefficients.
+   /// @param mesh The mesh on which the operator is defined.
+   DifferentiableOperator(
+      const std::vector<FieldDescriptor> &solutions,
+      const std::vector<FieldDescriptor> &parameters,
       const ParMesh &mesh);
 
    /// MultLevel enum to indicate if the T->L Operators are used in the
@@ -520,15 +530,22 @@ private:
        std::vector<assemble_derivative_hypreparmatrix_callback_t>>
        assemble_derivative_hypreparmatrix_callbacks;
 
-   std::vector<FieldDescriptor> infds;
-   std::vector<FieldDescriptor> outfds;
-   std::vector<FieldDescriptor> unionfds;
+   // local data
+   struct Local
+   {
+      std::vector<FieldDescriptor> solutions, parameters, fields;
+      mutable std::vector<Vector> solutions_l, parameters_l;
+      mutable Vector residual_l, residual_e;
+      mutable std::vector<Vector> fields_e;
+   } local;
 
-   mutable std::vector<Vector *> infields_l;
-   mutable std::vector<Vector *> infields_e;
-
-   mutable std::vector<Vector *> residual_l;
-   mutable std::vector<Vector *> residual_e;
+   // global data
+   struct Global
+   {
+      std::vector<FieldDescriptor> infds, outfds, unionfds;
+      mutable std::vector<Vector *> infields_l, infields_e;
+      mutable std::vector<Vector *> residual_l, residual_e;
+   } global;
 
    // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
@@ -641,9 +658,9 @@ void DifferentiableOperator::AddIntegrator(
 
    // pretty_print(dependency_map);
 
-   [[maybe_unused]] const auto input_to_field =
+   const auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   [[maybe_unused]] const auto output_to_field =
+   const auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
@@ -692,6 +709,11 @@ void DifferentiableOperator::AddIntegrator(
          use_sum_factorization = true;
       }
    }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      MFEM_ABORT("BoundaryElement to be re-implemented!");
+   }
+   else { MFEM_ABORT("unsupported entity type"); }
    // dbg("use_sum_factorization: {}", use_sum_factorization);
 
    // ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;

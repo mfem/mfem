@@ -11,19 +11,17 @@ namespace mfem::future
 namespace LocalQFImpl
 {
 
-template<
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t,
-   size_t ninputs = tuple_size<inputs_t>::value,
-   size_t noutputs = tuple_size<outputs_t>::value>
+template<typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         size_t ninputs = std::tuple_size_v<inputs_t>,
+         size_t noutputs = std::tuple_size_v<outputs_t>>
 struct Action
 {
-   Action(
-      IntegratorContext ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs) :
+   Action(IntegratorContext ctx,
+          qfunc_t qfunc,
+          inputs_t inputs,
+          outputs_t outputs) :
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
@@ -70,9 +68,8 @@ struct Action
       });
    }
 
-   void operator()(
-      const std::vector<Vector *> &xe,
-      std::vector<Vector *> &ye) const
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
 

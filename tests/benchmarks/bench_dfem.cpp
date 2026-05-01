@@ -69,10 +69,14 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem-global" << std::endl;
-   mfem::out << "version 3: PA ∂fem-global" << std::endl;
+   // global QF versions
+   mfem::out << "version 2: MF ∂fem-global 'default' backend" << std::endl;
+   mfem::out << "version 3: PA ∂fem-global 'default' backend" << std::endl;
    mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
    mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
+   // local vQF ersions
+   mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
+   mfem::out << "version 7: PA ∂fem-local 'default' backend" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -81,7 +85,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5 };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -407,7 +411,7 @@ struct BakeOff
 
 /// Q-Functions ///////////////////////////////////////////////////////////////
 template<int DIM>
-struct MFApply_gqf
+struct MFApply_global_qf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &J,
@@ -425,7 +429,20 @@ struct MFApply_gqf
 };
 
 template<int DIM>
-struct PASetup_gqf
+struct MFApply_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM>& Gu,
+                   const tensor<real_t, DIM, DIM>& J,
+                   const real_t& w) const
+   {
+      auto invJ = inv(J);
+      return std::tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+   }
+};
+
+template<int DIM>
+struct PASetup_global_qf
 {
    void operator()(tensor_array<const real_t, DIM, DIM> &J,
                    tensor_array<const real_t> &weight,
@@ -442,7 +459,7 @@ struct PASetup_gqf
 };
 
 template<int DIM>
-struct PAApply_gqf
+struct PAApply_global_qf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
@@ -452,6 +469,29 @@ struct PAApply_gqf
       NVTX_MARK_FUNCTION;
       mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q) { Gv(q) = D(q) * Gu(q); });
    }
+};
+
+template<int DIM>
+struct PASetup_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()([[maybe_unused]] const real_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w)const
+   {
+      return std::tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+   }
+};
+
+template<int DIM>
+struct PAApply_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM> &Gu,
+                   const tensor<real_t, DIM, DIM> &q) const
+   {
+      return std::tuple{q * Gu};
+   };
 };
 
 /// Diffusion /////////////////////////////////////////////////////////////////
@@ -522,7 +562,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      // Global MF setup ////////////////////////////////////////////
+      // MF ∂FEM Global setup ///////////////////////////////////////
       const auto dMFOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -530,7 +570,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto ofs = std::vector<FieldDescriptor> {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
-         MFApply_gqf<DIM> mf_apply_gqf;
+         MFApply_global_qf<DIM> mf_apply_gqf;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_gqf,
                                                       std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
@@ -541,7 +581,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
-      // Global PA setup ////////////////////////////////////////////
+      // PA ∂FEM Global setup ///////////////////////////////////////
       const auto dPAOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -551,7 +591,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i0 = std::vector<FieldDescriptor> { {Ξ, &mfes}};
          const auto o0 = std::vector<FieldDescriptor> { {Q, &qdata}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
-         PASetup_gqf<DIM> pa_setup_gqf;
+         PASetup_global_qf<DIM> pa_setup_gqf;
          dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
                                                std::tuple{Gradient<Ξ>{}, Weight{}},
                                                std::tuple{Identity<Q>{}},
@@ -563,7 +603,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qdata}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
-         PAApply_gqf<DIM> pa_apply_gqf;
+         PAApply_global_qf<DIM> pa_apply_gqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
                                                       std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
@@ -591,25 +631,45 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // 2: MF ∂FEM ////////////////////////////////////
+      else if (version == 2) // MF ∂fem-global 'default' backend
       {
-         dbg("\x1b[33m MF ∂FEM");
+         dbg("\x1b[33m MF ∂FEM-Global");
          dMFOperatorSetup(default_backend{});
       }
-      else if (version == 3) // PA ∂FEM ///////////////////////////////////////
+      else if (version == 3) // PA ∂fem-global 'default' backend
       {
          dbg("\x1b[33m PA ∂FEM + default backend");
          dPAOperatorSetup(default_backend{});
       }
-      else if (version == 4) // MF ∂FEM 'devices' backend /////////////////////
+      else if (version == 4) // MF ∂fem-global 'devices' backend
       {
          dbg("\x1b[33m MF ∂FEM + devices backend");
          dMFOperatorSetup(device_backend{});
       }
-      else if (version == 5) // PA ∂FEM 'devices' backend /////////////////////
+      else if (version == 5) // PA ∂fem-global 'devices' backend
       {
          dbg("\x1b[33m PA ∂FEM + devices backend");
          dPAOperatorSetup(device_backend{});
+      }
+      else if (version == 6) // MF ∂fem-local 'default' backend
+      {
+         dbg("\x1b[33m MF ∂FEM-Local");
+         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         dop->SetParameters({nodes});
+         MFApply_local_qf<DIM> mf_apply;
+         dop->AddDomainIntegrator(mf_apply,
+                                  std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                  std::tuple{Gradient<U>{}},
+                                  *ir, ess_bdr);
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      }
+      else if (version ==7) // PA ∂fem-local 'default' backend
+      {
+         dbg("\x1b[33m PA ∂FEM-Local");
+         // dPAOperatorSetup(default_backend{});
       }
       else { MFEM_ABORT("Invalid version"); }
 

@@ -45,6 +45,31 @@ DifferentiableOperator::DifferentiableOperator(
    infields_e.resize(infds.size());
 }
 
+DifferentiableOperator::DifferentiableOperator(
+   const std::vector<FieldDescriptor> &solutions,
+   const std::vector<FieldDescriptor> &parameters,
+   const ParMesh &mesh) :
+   mesh(mesh),
+   solutions(solutions),
+   parameters(parameters)
+{
+   fields.resize(solutions.size() + parameters.size());
+   fields_e.resize(fields.size());
+   solutions_l.resize(solutions.size());
+   parameters_l.resize(parameters.size());
+
+   for (size_t i = 0; i < solutions.size(); i++)
+   {
+      fields[i] = solutions[i];
+   }
+
+   for (size_t i = 0; i < parameters.size(); i++)
+   {
+      fields[i + solutions.size()] = parameters[i];
+   }
+}
+
+
 void DifferentiableOperator::SetMultLevel(MultLevel level)
 {
    mult_level = level;
