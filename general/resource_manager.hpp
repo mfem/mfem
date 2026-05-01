@@ -67,8 +67,8 @@ private:
          void set_red() { flag = static_cast<Flags>(flag | RED_COLOR); }
          void copy_color(const Node &o)
          {
-            set_black();
-            flag = static_cast<Flags>(flag & (o.flag & RED_COLOR));
+            flag =
+               static_cast<Flags>((flag & ~RED_COLOR) | (o.flag & RED_COLOR));
          }
 
          bool is_red() const { return flag & RED_COLOR; }
