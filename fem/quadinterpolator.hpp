@@ -152,8 +152,8 @@ public:
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Vector &q_val,
-                      const Vector &q_der, Vector &e_vec) const;
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec) const;
 
    /// @brief Returns true if the given finite element space is supported by
    /// QuadratureInterpolator.
@@ -178,6 +178,13 @@ public:
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
+   using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
+                                                 const real_t *,
+                                                 real_t *, const int, const int, const int);
+   using GradTransposeKernelType = void(*)(const int, const real_t *,
+                                           const real_t *, const real_t *,
+                                           const real_t *, real_t *,
+                                           const int, const int, const int, const int);
 
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
                          (int, QVectorLayout, int, int, int), (int));
@@ -189,6 +196,10 @@ public:
                          (int, QVectorLayout, bool, int, int), (int));
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
+   MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,
+                         (int, QVectorLayout, bool, int, int, int), (int));
 };
 
 }

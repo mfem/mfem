@@ -47,6 +47,7 @@ list(APPEND ALL_EXE_SRCS
   ex39.cpp
   ex40.cpp
   ex41.cpp
+  jitplayground.cpp
   )
 
 if (MFEM_USE_MPI)
