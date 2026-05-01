@@ -82,10 +82,19 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    const size_t dfidx = FindIdx(derivative_id, infds);
 
+   // Get transpose callbacks if available, otherwise pass empty vector
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it = daction_transpose_callbacks.find(derivative_id);
+   if (it != daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it->second;
+   }
+
    return std::make_shared<DerivativeOperator>(
              height,
              GetTrueVSize(infds[dfidx]),
              derivative_action_callbacks[derivative_id],
+             transpose_callbacks,
              infds[dfidx],
              x,
              infds,
@@ -101,10 +110,19 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    const size_t dfidx = FindIdx(derivative_id, infds);
 
+   // Get transpose callbacks if available, otherwise pass empty vector
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it = daction_transpose_callbacks.find(derivative_id);
+   if (it != daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it->second;
+   }
+
    return std::make_shared<DerivativeOperator>(
              height,
              GetTrueVSize(infds[dfidx]),
              derivative_action_callbacks[derivative_id],
+             transpose_callbacks,
              infds[dfidx],
              x,
              infds,

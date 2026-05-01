@@ -19,7 +19,7 @@
 #include "util.hpp"
 #include "integrator_ctx.hpp"
 
-// #include "backends/default/default.hpp"
+// #include "backends/global_qf/prelude.hpp"
 
 namespace mfem::future
 {
@@ -78,12 +78,15 @@ public:
       const int &height,
       const int &width,
       const std::vector<derivative_action_t> &derivative_actions,
+      const std::vector<derivative_action_t> &derivative_actions_transpose,
       const FieldDescriptor &direction,
       const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds) :
       Operator(height, width),
       derivative_actions(derivative_actions),
+      derivative_actions_transpose(derivative_actions_transpose),
+      direction(direction),
       infds(infds),
       outfds(outfds),
       direction(direction)
@@ -148,23 +151,91 @@ public:
    /// action. It does not use reverse mode automatic differentiation.
    ///
    /// @param direction_t The direction vector in which to compute the
-   /// derivative. This has to be a T-dof vector.
+   /// transpose. This has to be a T-dof vector in the output space.
    /// @param result_t Result vector of the transpose action of the derivative on
-   /// direction_t on T-dofs.
+   /// direction_t on T-dofs in the input space (the "direction" field).
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
       MFEM_ASSERT(!derivative_actions_transpose.empty(),
-                  "derivative can't be used to be multiplied in transpose mode");
+                  "derivative can't be used in transpose mode");
 
-      // daction_l.SetSize(width);
-      // daction_l = 0.0;
+      // direction_t is in the OUTPUT T-space (all output fields concatenated)
+      // We need to split it into individual output fields and prolong each to L-space
 
-      // prolongation(transpose_direction, direction_t, direction_l);
-      // for (const auto &f : derivative_actions_transpose)
-      // {
-      //    f(fields_e, direction_l, daction_l);
-      // }
-      // prolongation_transpose(daction_l, result_t);
+      // First, split direction_t into components for each output field
+      std::vector<Vector *> direction_t_fields(outfds.size());
+      int offset = 0;
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         int field_size = GetTrueVSize(outfds[i]);
+         // Create a view into direction_t data (doesn't own the data)
+         direction_t_fields[i] = new Vector(
+            const_cast<real_t*>(direction_t.GetData()) + offset, field_size);
+         offset += field_size;
+      }
+
+      // Prolong each output field from T-space to L-space
+      std::vector<Vector *> direction_l_fields(outfds.size());
+      int total_l_size = 0;
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         direction_l_fields[i] = new Vector(GetVSize(outfds[i]));
+         prolongation(outfds[i], *direction_t_fields[i], *direction_l_fields[i]);
+         total_l_size += direction_l_fields[i]->Size();
+      }
+
+      // Concatenate all output L-space directions into a single vector
+      Vector direction_l_concat(total_l_size);
+      offset = 0;
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         for (int j = 0; j < direction_l_fields[i]->Size(); j++)
+         {
+            direction_l_concat[offset + j] = (*direction_l_fields[i])[j];
+         }
+         offset += direction_l_fields[i]->Size();
+      }
+
+      // Restrict primal inputs to element space
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+
+      // Prepare result in element space (in INPUT space)
+      std::vector<Vector *> result_e(infds.size());
+      prepare_residual<Entity::Element>(infds, result_e);
+
+      // Apply transpose derivative actions
+      // These compute J^T * direction_l_concat and store in result_e
+      for (const auto &f : derivative_actions_transpose)
+      {
+         f(infields_e, &direction_l_concat, result_e);
+      }
+
+      // Restrict transpose: element -> L-space (in INPUT space)
+      std::vector<Vector *> result_l(infds.size());
+      for (size_t i = 0; i < infds.size(); i++)
+      {
+         result_l[i] = new Vector(GetVSize(infds[i]));
+         *result_l[i] = 0.0;
+      }
+      restriction_transpose<Entity::Element>(infds, result_e, result_l);
+
+      // Prolongation transpose: L-space -> T-space
+      // Only for the active direction field
+      result_t = 0.0;
+      prolongation_transpose(direction, *result_l[FindIdx(direction.id, infds)],
+                             result_t);
+
+      // Cleanup
+      for (size_t i = 0; i < infds.size(); i++)
+      {
+         delete result_l[i];
+      }
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         // direction_t_fields[i] is a view, don't own data, just delete the wrapper
+         delete direction_t_fields[i];
+         delete direction_l_fields[i];
+      }
    };
 
    /// @brief Assemble the derivative operator into a SparseMatrix.
@@ -333,7 +404,7 @@ public:
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
-      typename backend_t, // = DefaultBackend,
+      typename backend_t, // = GlobalQFBackend,
       typename entity_t,
       typename qfunc_t,
       typename input_t,
@@ -360,7 +431,7 @@ public:
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
    template <
-      typename backend_t, // = DefaultBackend,
+      typename backend_t, // = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -653,7 +724,7 @@ void DifferentiableOperator::AddIntegrator(
    {
 #ifdef MFEM_USE_ENZYME
       derivative_action_callbacks[i].push_back(
-         backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
+         backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
       MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
                  "but MFEM_USE_ENZYME is not defined.");

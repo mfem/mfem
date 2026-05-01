@@ -1,10 +1,12 @@
 #pragma once
 
+
 #include <tuple>
 
-#include "fem/quadinterpolator.hpp"
+#include "../fem/quadinterpolator.hpp"
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
+
 #include "general/enzyme.hpp"
 #include "../../../../linalg/tensor_arrays.hpp"
 
@@ -644,6 +646,21 @@ void create_fop_to_fd(const fops_t &fops,
       {
          MFEM_ABORT("not found");
       }
+   });
+}
+
+template <typename fops_t, size_t nfops>
+void create_qlayouts(const fops_t &fops,
+                     const std::unordered_map<std::type_index, std::vector<int>> &a,
+                     std::array<std::vector<int>, nfops> &b)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      using fop_t =
+         std::remove_cv_t<std::remove_reference_t<decltype(get<i>(fops))>>;
+      auto it = a.find(std::type_index(typeid(fop_t)));
+      if (it != a.end()) { b[i] = it->second; }
+      else               { b[i].clear(); }
    });
 }
 

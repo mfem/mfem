@@ -492,6 +492,8 @@ void VisItDataCollection::SaveRootFile()
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
    std::ofstream root_file(root_name);
+   MFEM_VERIFY(root_file.is_open(),
+               "Failed to open ofstream " << root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -977,7 +979,10 @@ void ParaViewDataCollection::Save()
    // Save the local part of the mesh and grid functions fields to the local
    // VTU file. Also save coefficient fields.
    {
-      std::ofstream os(vtu_prefix + GenerateVTUFileName("proc", myid));
+      std::string os_str = vtu_prefix + GenerateVTUFileName("proc", myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
       os.precision(precision);
       SaveDataVTU(os, levels_of_detail);
    }
@@ -989,7 +994,10 @@ void ParaViewDataCollection::Save()
                   "QuadratureFunction output is not supported for "
                   "ParaViewDataCollection on domain boundary!");
       const std::string &field_name = qfield.first;
-      std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
+      std::string os_str = vtu_prefix + GenerateVTUFileName(field_name, myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
       qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
    }
 
@@ -1000,7 +1008,10 @@ void ParaViewDataCollection::Save()
    {
       // Create the main PVTU file
       {
-         std::ofstream pvtu_out(vtu_prefix + GeneratePVTUFileName("data"));
+         std::string os_str = vtu_prefix + GeneratePVTUFileName("data");
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
 
          // Grid function fields and coefficient fields
@@ -1055,8 +1066,10 @@ void ParaViewDataCollection::Save()
          const std::string &q_field_name = q_field.first;
          std::string q_fname = GeneratePVTUPath() + "/"
                                + GeneratePVTUFileName(q_field_name);
-
-         std::ofstream pvtu_out(col_path + "/" + q_fname);
+         std::string os_str = col_path + "/" + q_fname;
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
          int vec_dim = q_field.second->GetVDim();
          pvtu_out << "<PPointData>\n";
