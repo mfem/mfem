@@ -89,6 +89,9 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const real_t normal_inv_delta_sq =
+      2.0 * lim_normal / (adapt_lim_delta_max * adapt_lim_delta_max);
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
@@ -142,9 +145,7 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
             // Hessian action:
             // H = factor * (grad x grad + (gf - gf0) * hess)
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
-            const real_t factor =
-               weight * lim_normal * coeff *
-               2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
+            const real_t factor = weight * coeff * normal_inv_delta_sq;
             const real_t grad_dot_R = grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1];
             real_t hess_R[2];
             hess_R[0] = hess_alf[0][0] * R_q[0] + hess_alf[0][1] * R_q[1];

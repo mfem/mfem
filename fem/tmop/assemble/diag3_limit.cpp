@@ -150,8 +150,8 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const real_t inv_delta_sq =
-      1.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
+   const real_t normal_inv_delta_sq =
+      2.0 * lim_normal / (adapt_lim_delta_max * adapt_lim_delta_max);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -188,7 +188,7 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
                      const real_t detJtr = kernels::Det<3>(Jtr);
                      const real_t weight = W(qx, qy, qz) * detJtr;
                      const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
-                     const real_t factor = weight * lim_normal * coeff * 2.0 * inv_delta_sq;
+                     const real_t factor = weight * coeff * normal_inv_delta_sq;
 
                      const real_t diff = alf_quad(qz, qy, qx) - alf0_quad(qz, qy, qx);
                      const real_t grad_v = ALF_grad(v, qx, qy, qz, e);

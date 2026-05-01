@@ -127,6 +127,9 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const real_t normal_inv_delta_sq =
+      2.0 * lim_normal / (adapt_lim_delta_max * adapt_lim_delta_max);
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -154,9 +157,8 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
             const real_t weight = W(qx, qy) * detJtr;
 
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
-            const real_t factor = weight * lim_normal * coeff *
-                                  2.0 * (alf_quad(qy, qx) - alf0_quad(qy, qx)) /
-                                  (adapt_lim_delta_max * adapt_lim_delta_max);
+            const real_t factor = weight * coeff * normal_inv_delta_sq *
+                                  (alf_quad(qy, qx) - alf0_quad(qy, qx));
 
             r00(0, qy, qx) = factor * ALF_grad(0, qx, qy, e);
             r00(1, qy, qx) = factor * ALF_grad(1, qx, qy, e);
