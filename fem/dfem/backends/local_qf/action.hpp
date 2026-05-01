@@ -2,6 +2,7 @@
 
 #include "../util.hpp"
 #include "../../integrator_ctx.hpp"
+#include "../fem/kernels3d.hpp"
 
 #include <utility>
 
@@ -37,36 +38,18 @@ struct Action
 
       const int nqp = ctx.ir.GetNPoints();
 
-      // Initialize DofToQuad maps for inputs
       for_constexpr<ninputs>([&](auto i)
       {
          const auto &fd = ctx.infds[input_to_infd[i]];
-         std::visit([&](auto* space_ptr)
-         {
-            using T = std::decay_t<decltype(*space_ptr)>;
-            if constexpr (std::is_same_v<T, FiniteElementSpace> ||
-                          std::is_same_v<T, ParFiniteElementSpace>)
-            {
-               const auto *fe = space_ptr->GetTypicalFE();
-               input_dtq_maps[i] = &fe->GetDofToQuad(ctx.ir, DofToQuad::TENSOR);
-            }
-         }, fd.data);
+         idtq[i] = GetDofToQuad<Entity::Element>(fd, ctx.ir,
+                                                 DofToQuad::TENSOR);
       });
 
-      // Initialize DofToQuad maps for outputs
       for_constexpr<noutputs>([&](auto i)
       {
          const auto &fd = ctx.outfds[output_to_outfd[i]];
-         std::visit([&](auto* space_ptr)
-         {
-            using T = std::decay_t<decltype(*space_ptr)>;
-            if constexpr (std::is_same_v<T, FiniteElementSpace> ||
-                          std::is_same_v<T, ParFiniteElementSpace>)
-            {
-               const auto *fe = space_ptr->GetTypicalFE();
-               output_dtq_maps[i] = &fe->GetDofToQuad(ctx.ir, DofToQuad::TENSOR);
-            }
-         }, fd.data);
+         odtq[i] = GetDofToQuad<Entity::Element>(fd, ctx.ir,
+                                                 DofToQuad::TENSOR);
       });
    }
 
@@ -74,12 +57,38 @@ struct Action
       const std::vector<Vector *> &xe,
       std::vector<Vector *> &ye) const
    {
+      constexpr int T_Q1D = 0;
+      constexpr int DIM = 3;
+
       if (ctx.attr.Size() == 0) { return; }
 
-      // input_dtq_maps
+      // read all maps into GPU memory
+      for_constexpr<ninputs>([&](auto i)
+      {
+         idtqb[i] = idtq[i]->B.Read();
+         idtqg[i] = idtq[i]->G.Read();
+      });
 
-      // const auto B = (const real_t*)input_dtq_maps[0/*i*/].B;
-      // const auto G = (const real_t*)input_dtq_maps[0/*i*/].G;
+      for_constexpr<noutputs>([&](auto i)
+      {
+         odtqb[i] = odtq[i]->B.Read();
+         odtqg[i] = odtq[i]->G.Read();
+      });
+
+      const auto XE = Reshape(fields_e[0].Read(), d1d, d1d, d1d, VDIM, NE);
+      const real_t *dx_ptr = fields_e[1].Read();
+
+      mfem::future::forall([=] MFEM_HOST_DEVICE (int e, void *)
+      {
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+
+         MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
+         MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
+
+         mfem::kernels::internal::low::regs3d_t<DIM, MQ1> reg;
+         const real_t *rd = dx_ptr;
+
+      });
 
       //    dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       //    {
@@ -158,8 +167,15 @@ struct Action
    std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;
 
-   std::array<const DofToQuad*, ninputs> input_dtq_maps;
-   std::array<const DofToQuad*, noutputs> output_dtq_maps;
+   std::array<const DofToQuad*, ninputs> idtq;
+   std::array<const DofToQuad*, noutputs> odtq;
+
+   std::array<const real_t*, ninputs> idtqb;
+   std::array<const real_t*, ninputs> idtqg;
+
+   std::array<const real_t*, ninputs> odtqb;
+   std::array<const real_t*, ninputs> odtqg;
+
 };
 
 }
