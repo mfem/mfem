@@ -30,7 +30,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Custom benchmark arguments generator
-static void CustomArguments(bmi::Benchmark *b) noexcept
+static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
@@ -96,28 +96,7 @@ struct BakeOff
    static constexpr bool Simplices = SIMPLICES;
 
    const int p, c, q, n, nx, ny, nz;
-   const std::function<Mesh()> MeshFactory = [&]()
-   {
-      if constexpr (SIMPLICES)
-      {
-         if constexpr (DIM == 2)
-         {
-            return Mesh::MakeCartesian2D(nx, ny, Element::TRIANGLE);
-         }
-         else
-         {
-            return Mesh::MakeCartesian3D(nx, ny, nz, Element::TETRAHEDRON);
-         }
-      }
-      if constexpr (DIM == 2)
-      {
-         return Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL);
-      }
-      else
-      {
-         return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
-      }
-   };
+
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fes;
@@ -140,12 +119,17 @@ struct BakeOff
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
       nz(n),
-      mesh(MeshFactory()),
+      mesh(Mesh::MakeCartesian3D(nx, ny, nz,
+                                 SIMPLICES
+                                 ? Element::TETRAHEDRON
+                                 : Element::HEXAHEDRON)),
       fec(p, DIM, SIMPLICES ? BasisType::Positive : BasisType::GaussLobatto),
       fes(&mesh, &fec, VDIM, VDIM == 3 ? Ordering::byVDIM : Ordering::byNODES),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      ir(&irs.Get(geom_type, q, SIMPLICES)),
+      ir(SIMPLICES
+         ? &StroudIntRules.Get(geom_type, q, false)
+         : &irs.Get(geom_type, q)),
       ir_rhs(&IntRules.Get(geom_type, 2*p)),
       one(1.0),
       uvec(DIM),
@@ -320,8 +304,8 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["Simplices"] = bm::Counter(run.Simplices);
 }
 
-#define MAKE_NAME_false(PK, BFI)   #PK #BFI
-#define MAKE_NAME_true(PK, BFI)    #PK #BFI "tet"
+#define MAKE_NAME_false(PK, BFI) #PK #BFI
+#define MAKE_NAME_true(PK, BFI)  #PK #BFI "tet"
 #define MAKE_NAME(PK, BFI, SIMPLICES) MAKE_NAME_ ## SIMPLICES (PK, BFI)
 
 #define REGISTER(PK, BFI, VDIM, GLL, SIMPLICES) \
