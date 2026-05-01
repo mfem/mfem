@@ -98,7 +98,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 16; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 4; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -621,12 +621,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       if (dofs < 128 * 1024)
       {
          dbg("check");
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         // mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
