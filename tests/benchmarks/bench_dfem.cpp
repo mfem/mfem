@@ -28,10 +28,11 @@ using device_backend = mfem::future::DeviceBackend;
 
 #define DFEM_USE_DEFAULT_BACKEND
 #ifdef DFEM_USE_DEFAULT_BACKEND
-#include <fem/dfem/backends/default/default.hpp>
-using default_backend = mfem::future::DefaultBackend;
+#include "fem/dfem/backends/global_qf/prelude.hpp"
+using default_backend = mfem::future::GlobalQFBackend;
 #else
-using default_backend = mfem::future::DeviceBackend;
+#include "fem/dfem/backends/local_qf/prelude.hpp"
+using default_backend = mfem::future::LocalQFBackend;
 #endif
 
 #include <fem/dfem/doperator.hpp>
@@ -258,7 +259,6 @@ public:
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      // NVTX();
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -391,12 +391,10 @@ struct BakeOff
       qdata(qspace, DIM*DIM)
    {
       NVTX_MARK_FUNCTION;
-      // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
 
       gD1D = d1d, gQ1D = q1d;
-      // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
 
@@ -409,7 +407,7 @@ struct BakeOff
 
 /// Q-Functions ///////////////////////////////////////////////////////////////
 template<int DIM>
-struct MFApply
+struct MFApply_gqf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &J,
@@ -427,7 +425,7 @@ struct MFApply
 };
 
 template<int DIM>
-struct PASetup
+struct PASetup_gqf
 {
    void operator()(tensor_array<const real_t, DIM, DIM> &J,
                    tensor_array<const real_t> &weight,
@@ -444,7 +442,7 @@ struct PASetup
 };
 
 template<int DIM>
-struct PAApply
+struct PAApply_gqf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
@@ -524,7 +522,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      // MF setup ///////////////////////////////////////////////////
+      // Global MF setup ////////////////////////////////////////////
       const auto dMFOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -532,8 +530,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto ofs = std::vector<FieldDescriptor> {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
-         MFApply<DIM> mf_apply_qf;
-         dop->template AddDomainIntegrator<backend_t>(mf_apply_qf,
+         MFApply_gqf<DIM> mf_apply_gqf;
+         dop->template AddDomainIntegrator<backend_t>(mf_apply_gqf,
                                                       std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
@@ -543,7 +541,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
-      // PA setup ///////////////////////////////////////////////////
+      // Global PA setup ////////////////////////////////////////////
       const auto dPAOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -553,8 +551,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i0 = std::vector<FieldDescriptor> { {Ξ, &mfes}};
          const auto o0 = std::vector<FieldDescriptor> { {Q, &qdata}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
-         PASetup<DIM> pa_setup_qf;
-         dSetup.AddDomainIntegrator<backend_t>(pa_setup_qf,
+         PASetup_gqf<DIM> pa_setup_gqf;
+         dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
                                                std::tuple{Gradient<Ξ>{}, Weight{}},
                                                std::tuple{Identity<Q>{}},
                                                *ir, ess_bdr);
@@ -565,8 +563,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qdata}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
-         PAApply<DIM> pa_apply_qf;
-         dop->template AddDomainIntegrator<backend_t>(pa_apply_qf,
+         PAApply_gqf<DIM> pa_apply_gqf;
+         dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
                                                       std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
@@ -620,7 +618,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024)
       {
-         dbg("check");
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);

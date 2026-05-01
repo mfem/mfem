@@ -4,11 +4,11 @@
 #include <tuple>
 
 #include "../fem/quadinterpolator.hpp"
-#include "../../util.hpp"
-#include "../../integrator_ctx.hpp"
+#include "../util.hpp"
+#include "../integrator_ctx.hpp"
 
 #include "general/enzyme.hpp"
-#include "../../../../linalg/tensor_arrays.hpp"
+#include "../../../linalg/tensor_arrays.hpp"
 
 namespace mfem::future
 {
@@ -565,12 +565,12 @@ inline void enzyme_fwddiff(
 
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    typename tuple_element<Is, qf_param_ts>::type>>>(
+                    typename std::tuple_element<Is, qf_param_ts>::type>>>(
                        xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    auto shadows = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     typename tuple_element<Is, qf_param_ts>::type>>>(
+                     typename std::tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    std::array<Vector, noutputs> primal_storage;
@@ -578,12 +578,12 @@ inline void enzyme_fwddiff(
 
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                         typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                             primal_storage[Os].ReadWrite(), &out_layouts[Os], gnqp)...);
 
    auto derivs_out = std::make_tuple(
                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                        typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                        typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                            yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
    using wrapper_fn_t = qf_return_t (*)(
