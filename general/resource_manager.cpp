@@ -1201,7 +1201,7 @@ void MemoryManager::clear_segment(size_t segment, bool on_device)
 
 void MemoryManager::erase(size_t segment)
 {
-   if (valid_segment(segment))
+   if (segment)
    {
       auto &seg = storage.get_segment(segment);
       if (seg.ref_count)
@@ -1264,7 +1264,7 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
 
 void MemoryManager::print_segment(size_t segment)
 {
-   if (!valid_segment(segment))
+   if (!segment)
    {
       mfem::out << "nullptr" << std::endl;
       return;
@@ -1410,7 +1410,7 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
 MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
                                         size_t nbytes)
 {
-   if (valid_segment(segment))
+   if (segment)
    {
       auto &seg = storage.get_segment(segment);
       {
@@ -1454,7 +1454,7 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
 bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
                              bool on_device)
 {
-   if (valid_segment(segment))
+   if (segment)
    {
       bool all_valid = true;
       check_valid(segment, on_device, offset, offset + nbytes,
@@ -1493,7 +1493,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
-   if (valid_segment(segment) && nbytes > 0)
+   if (segment && nbytes > 0)
    {
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
@@ -1628,7 +1628,7 @@ bool MemoryManager::check_read_write(size_t segment, size_t offset,
                                      size_t nbytes, bool on_device)
 {
    bool valid = true;
-   if (valid_segment(segment) && nbytes > 0)
+   if (segment && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1680,7 +1680,7 @@ bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
                                bool on_device)
 {
    bool valid = true;
-   if (valid_segment(segment) && nbytes > 0)
+   if (segment && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1712,7 +1712,7 @@ bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment) && nbytes > 0)
+   if (segment && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1800,7 +1800,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment) && nbytes > 0)
+   if (segment && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1882,7 +1882,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 int MemoryManager::compare_host_device(size_t segment, size_t offset,
                                        size_t nbytes)
 {
-   if (valid_segment(segment))
+   if (segment)
    {
       // only compare if both host and device are valid
       for (int i = 0; i < 2; ++i)
@@ -2356,7 +2356,7 @@ void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
 
 void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
 {
-   if (valid_segment(segment))
+   if (segment)
    {
       auto &seg = storage.get_segment(segment);
       if (seg.lowers[1])
