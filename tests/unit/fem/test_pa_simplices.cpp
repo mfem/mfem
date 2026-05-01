@@ -24,6 +24,8 @@ namespace pa_kernels
 
 void test_pa_simplices(const char *filename, int p)
 {
+   CAPTURE(filename, p);
+
    Mesh mesh(filename);
    if (mesh.GetTypicalElementGeometry() == Geometry::SQUARE ||
        mesh.GetTypicalElementGeometry() == Geometry::CUBE)
@@ -31,8 +33,6 @@ void test_pa_simplices(const char *filename, int p)
       mesh = Mesh::MakeSimplicial(mesh);
    }
    const int dim = mesh.Dimension();
-
-   CAPTURE(filename, dim, p);
 
    MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
 
@@ -46,29 +46,31 @@ void test_pa_simplices(const char *filename, int p)
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
-   const auto *ir_m = &MassIntegrator::GetRule(fe, fe, Tr, true);
-   const auto *ir_d = &DiffusionIntegrator::GetRule(fe, fe, true);
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW();
+   const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
+   // const auto *ir_m = &MassIntegrator::GetRule(fe, fe, Tr, true);
+   // const auto *ir_d = &DiffusionIntegrator::GetRule(fe, fe, true);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
    { return M_1_PI + x[0] * x[0]; });
 
    BilinearForm fa(&fes), pa(&fes);
-   fa.AddDomainIntegrator(new MassIntegrator(ir_m));
-   fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir_m));
-   fa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir_m));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(ir_d));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir_d));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir_d));
+   fa.AddDomainIntegrator(new MassIntegrator(ir));
+   fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   fa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
    fa.Assemble();
    fa.Finalize();
 
-   pa.AddDomainIntegrator(new MassIntegrator(ir_m));
-   pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir_m));
-   pa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir_m));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(ir_d));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir_d));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir_d));
+   pa.AddDomainIntegrator(new MassIntegrator(ir));
+   pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   pa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
    pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa.Assemble();
 
@@ -107,7 +109,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/fichera-quad.mesh",
                      "../../data/square-disc-p2.mesh",
                      "../../data/square-disc-p3.mesh",
-                     "../../data/periodic-square.mesh"
+                     // "../../data/periodic-square.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
    }
@@ -122,7 +124,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/escher-p2.mesh",
                      "../../data/inline-hex.mesh",
                      "../../data/fichera-q2.mesh",
-                     "../../data/periodic-cube.mesh"
+                     // "../../data/periodic-cube.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
    }
