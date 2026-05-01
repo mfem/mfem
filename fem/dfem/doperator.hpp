@@ -85,11 +85,11 @@ public:
       const std::vector<FieldDescriptor> &outfds) :
       Operator(height, width),
       derivative_actions(derivative_actions),
-      derivative_actions_transpose(derivative_actions_transpose),
-      direction(direction),
       infds(infds),
       outfds(outfds),
-      direction(direction)
+      direction(direction),
+      derivative_actions_transpose(derivative_actions_transpose)
+      // direction(direction)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -723,8 +723,9 @@ void DifferentiableOperator::AddIntegrator(
    for_constexpr([&](auto i)
    {
 #ifdef MFEM_USE_ENZYME
-      derivative_action_callbacks[i].push_back(
-         backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
+      MFEM_ABORT("Enzyme derivatives are currently disabled.");
+      // derivative_action_callbacks[i].push_back(
+      //    backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
       MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
                  "but MFEM_USE_ENZYME is not defined.");

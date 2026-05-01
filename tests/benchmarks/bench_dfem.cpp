@@ -28,8 +28,8 @@ using device_backend = mfem::future::DeviceBackend;
 
 #define DFEM_USE_DEFAULT_BACKEND
 #ifdef DFEM_USE_DEFAULT_BACKEND
-#include <fem/dfem/backends/default/default.hpp>
-using default_backend = mfem::future::DefaultBackend;
+#include <fem/dfem/backends/global_qf/prelude.hpp>
+using default_backend = mfem::future::GlobalQFBackend;
 #else
 using default_backend = mfem::future::DeviceBackend;
 #endif
