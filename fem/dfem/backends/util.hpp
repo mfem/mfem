@@ -28,8 +28,8 @@ struct FieldBasis
    std::function<void(const Vector &, Vector &)> transpose;
 };
 
-FieldBasis FromQI(const QuadratureInterpolator *qi,
-                  QuadratureInterpolator::EvalFlags mode)
+inline FieldBasis FromQI(const QuadratureInterpolator *qi,
+                         QuadratureInterpolator::EvalFlags mode)
 {
    return
    {
@@ -62,7 +62,7 @@ FieldBasis FromQI(const QuadratureInterpolator *qi,
 }
 
 // QuadratureFunction identity copy
-FieldBasis FromQF()
+inline FieldBasis FromQF()
 {
    return
    {
@@ -72,7 +72,7 @@ FieldBasis FromQF()
 }
 
 // User-defined parameter space B
-FieldBasis FromPS(const Operator *B, const Operator *Bt)
+inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
    return
    {
@@ -81,7 +81,7 @@ FieldBasis FromPS(const Operator *B, const Operator *Bt)
    };
 }
 
-FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
+inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
    return
    {
@@ -102,9 +102,9 @@ FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
-const FieldBasis GetFieldBasis(const FieldDescriptor &f,
-                               const IntegrationRule &ir,
-                               QuadratureInterpolator::EvalFlags mode)
+inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
+                                      const IntegrationRule &ir,
+                                      QuadratureInterpolator::EvalFlags mode)
 {
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {

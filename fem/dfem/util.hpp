@@ -1271,15 +1271,6 @@ void prolongation_transpose(
    P->MultTranspose(field_l, x);
 }
 
-inline
-void prolongation_transpose(
-   const FieldDescriptor &field, const Vector &field_l, Vector &x)
-{
-   const auto P = get_prolongation(field);
-   x.SetSize(P->Width());
-   P->MultTranspose(field_l, x);
-}
-
 /// @brief Apply the prolongation operator to a vector of fields.
 ///
 /// x is a long vector containing the data for all fields on tdofs and

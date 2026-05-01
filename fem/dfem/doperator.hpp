@@ -93,10 +93,10 @@ public:
       const std::vector<FieldDescriptor> &outfds) :
       Operator(height, width),
       derivative_actions(derivative_actions),
-      derivative_actions_transpose(derivative_actions_transpose),
-      direction(direction),
       infds(infds),
-      outfds(outfds)
+      outfds(outfds),
+      direction(direction),
+      derivative_actions_transpose(derivative_actions_transpose)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -386,10 +386,10 @@ public:
    {
       // TODO: Do we want those extensive checks here?
       static_assert(
-         std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector> ||
-         std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, MultiVector> ||
-         std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, BlockVector> ||
-         std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>,
+         (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector>) ||
+         (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, MultiVector>) ||
+         (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, BlockVector>) ||
+         (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
          "input and output vector types are incompatible");
 
       prolongation(infds, x, infields_l);
@@ -703,12 +703,12 @@ void DifferentiableOperator::AddIntegrator(
       }
    }
 
-   ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
-   DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
+   // ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
+   // DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
    if (use_sum_factorization)
    {
-      element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-      doftoquad_mode = DofToQuad::Mode::TENSOR;
+      // element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      // doftoquad_mode = DofToQuad::Mode::TENSOR;
    }
 
    const int num_entities = GetNumEntities<entity_t>(mesh);

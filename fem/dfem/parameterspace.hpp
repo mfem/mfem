@@ -125,6 +125,18 @@ public:
       return lsize;
    }
 
+   const Operator* GetB() const override
+   {
+      MFEM_ABORT("UniformParameterSpace does not support GetB");
+      return nullptr;
+   }
+
+   const Operator* GetBt() const override
+   {
+      MFEM_ABORT("UniformParameterSpace does not support GetBt");
+      return nullptr;
+   }
+
 private:
    /// T-vector size
    int tsize;

@@ -650,17 +650,17 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                          bool use_kernels_specialization)
       {
          dbg("MF ∂fem {} kernels", use_new_kernels ? "NEW" : "STD");
-         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
-         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         dop->SetParameters({nodes});
+         std::vector<FieldDescriptor> in_fds = {{U, &pfes}, {Ξ, &mfes}};
+         std::vector<FieldDescriptor> out_fds = {{U, &pfes}};
+         dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, pmesh);
+         // dop->SetParameters({nodes});
          if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
          if (use_new_kernels) { dop->UseNewKernels(); }
-         MFApply<DIM> mf_apply;
-         dop->AddDomainIntegrator(mf_apply,
-                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                  tuple{Gradient<U>{}},
-                                  *ir, ess_bdr);
+         // MFApply<DIM> mf_apply;
+         // dop->AddDomainIntegrator(mf_apply,
+         //                          tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}}, // local API 🔥
+         //                          tuple{Gradient<U>{}},
+         //                          *ir, ess_bdr);
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
@@ -694,18 +694,18 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          }
 #endif
          dbg("[PA ∂fem] Apply");
-         auto Iq = Identity<Q> {};
-         auto Gu = Gradient<U> {};
-         tuple Gu_Iq = {Gu, Iq};
-         PAApply<DIM> pa_apply_qf;
+         // auto Iq = Identity<Q> {};
+         // auto Gu = Gradient<U> {};
+         // tuple Gu_Iq = {Gu, Iq};
+         // PAApply<DIM> pa_apply_qf;
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
          if (use_new_kernels) { dop->UseNewKernels(); }
          else { dbg("[PA ∂fem] NOT using kernels specialization"); }
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
+         // dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr); // local API 🔥
          assert(qdata*qdata > 0.0);
-         dop->SetParameters({ &qdata });
+         // dop->SetParameters({ &qdata });
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
          dbg("[PA ∂fem] done");
