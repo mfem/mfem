@@ -2006,7 +2006,7 @@ RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 4, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R1D, FunctionSpace::Pk),
      dof2nk(dof),
      cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
@@ -2281,7 +2281,7 @@ const real_t RT_R2D_SegmentElement::nk[2] = { 0.,1.};
 RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, p + 1, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R2D, FunctionSpace::Pk),
      dof2nk(dof),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
@@ -2392,7 +2392,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const real_t *nk_fe)
    : VectorFiniteElement(2, G, Do, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R2D, FunctionSpace::Pk),
      nk(nk_fe),
      dof_map(dof),
      dof2nk(dof)

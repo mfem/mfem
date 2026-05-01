@@ -294,7 +294,7 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
       face.dxdn[d] = workspace+(3+d)*p_Nfr;
    }
 
-   if (side_init != (1u << fi))
+   if (static_cast<unsigned>(side_init) != (1u << fi))
    {
       const int e_stride[3] = {1, pN, pN*pN};
 #define ELX(d, j, k, l) elx[d][j*e_stride[d1]+k*e_stride[d2]+l*e_stride[dn]]
@@ -342,7 +342,7 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
 
    if (jidx >= 3*pN) { return edge; }
 
-   if (side_init != (64u << ei))
+   if (static_cast<unsigned>(side_init) != (64u << ei))
    {
       const int e_stride[3] = {1, pN, pN*pN};
 #define ELX(d, j, k, l) elx[d][j*e_stride[de]+k*e_stride[dn1]+l*e_stride[dn2]]
