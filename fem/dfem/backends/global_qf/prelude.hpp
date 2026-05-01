@@ -6,7 +6,7 @@
 namespace mfem::future
 {
 
-struct DefaultBackend
+struct GlobalQFBackend
 {
    template<
       typename qfunc_t,
@@ -18,7 +18,7 @@ struct DefaultBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return Action(ctx, qfunc, inputs, outputs);
+      return GlobalQFImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    template<
@@ -26,13 +26,13 @@ struct DefaultBackend
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeDerivativeActionEnzyme(
+   auto static MakeDerivativeAction(
       const IntegratorContext &ctx,
       qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs)
    {
-      return DerivativeActionEnzyme<
+      return GlobalQFImpl::DerivativeActionEnzyme<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc, inputs, outputs);
    }

@@ -12,6 +12,7 @@
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
+#include "../fem/dfem/backends/local_qf/prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
 
 #ifdef NVTX_DEBUG_HPP
@@ -21,6 +22,8 @@
 #else
 #define dbg(...)
 #endif
+
+#include <proteus/JitInterface.h>
 
 #ifdef MFEM_USE_MPI
 
@@ -129,8 +132,28 @@ struct mass_diffusion_qdata_qf
          const auto detJq = det(J(q));
 
          out1(q) = u(q) * detJq * w(q);
-         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
+         // out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
+      }
+
+      jit_bounds(dudxi, J, w, out2, u.size());
+   }
+
+   // XXX: Attribute instrumentation does not work due to ABI differences that
+   // change the argument number.
+   //__attribute__((annotate("jit", 5)))
+   void jit_bounds(
+      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t> &w,
+      tensor_array<real_t, DIM> &out,
+      size_t NQ) const
+   {
+      for (size_t q = 0; q < NQ; q++)
+      {
+         const auto invJq = inv(J(q));
+         const auto detJq = det(J(q));
+         out(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
       }
    }
 };
@@ -293,49 +316,78 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          {S, &qdata}
       };
 
-      DifferentiableOperator dop(din, dout, pmesh);
+      {
+         DifferentiableOperator dop(din, dout, pmesh);
 
-      dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
+         dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
-      // auto derivatives = std::integer_sequence<size_t, U> {};
-      auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
-      dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-                              tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
-                              *ir, all_domain_attr);//, derivatives);
+         // auto derivatives = std::integer_sequence<size_t, U> {};
+         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         dop.AddDomainIntegrator(mass_diffusion_qfunc,
+                                 tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+                                 tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+                                 *ir, all_domain_attr);//, derivatives);
 
-      fes.GetRestrictionMatrix()->Mult(x, xtvec);
-      dop.Mult(X, Z);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         dop.Mult(X, Z);
 
-      std::cout << "dfem: ";
-      pretty_print(Z[0]);
+         std::cout << "dfem: ";
+         pretty_print(Z[0]);
 
-      Vector Y0(ytvecmfem);
-      Y0 -= Z[0];
+         Vector Y0(ytvecmfem);
+         Y0 -= Z[0];
 
-      real_t norm_l = Y0.Normlinf();
-      real_t norm_g = norm_l;
-      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-      REQUIRE(norm_g == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         real_t norm_l = Y0.Normlinf();
+         real_t norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
 
-      dbg("🔥🔥🔥");
-      return;
+         dbg("🔥🔥🔥");
+         return;
 
-      auto ddop = dop.GetDerivative(U, X);
+         auto ddop = dop.GetDerivative(U, X);
 
-      ddop->Mult(X[0], Z);
-      Y0 = ytvecmfem;
-      Y0 -= Z[0];
+         ddop->Mult(X[0], Z);
+         Y0 = ytvecmfem;
+         Y0 -= Z[0];
 
-      std::cout << "∂dfem: ";
-      pretty_print(Z[0]);
+         std::cout << "∂dfem: ";
+         pretty_print(Z[0]);
 
-      norm_l = Y0.Normlinf();
-      norm_g = norm_l;
-      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-      REQUIRE(norm_g == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         norm_l = Y0.Normlinf();
+         norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+      {
+         DifferentiableOperator dop(in, out, pmesh);
+
+         dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
+
+         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            mass_diffusion_qfunc,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+            tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+            *ir, all_domain_attr);
+
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         dop.Mult(X, Z);
+
+         std::cout << "dfem: ";
+         pretty_print(Z[0]);
+
+         Vector Y0(ytvecmfem);
+         Y0 -= Z[0];
+
+         real_t norm_l = Y0.Normlinf();
+         real_t norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 }
 

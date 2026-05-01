@@ -592,6 +592,13 @@ if (MFEM_USE_ENZYME)
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
+if (MFEM_USE_PROTEUS)
+    enable_language(C)
+    find_package(proteus REQUIRED PATHS "${PROTEUS_DIR}")
+    message(STATUS "${PROTEUS_DIR}/include")
+    include_directories("${PROTEUS_DIR}/include")
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -726,6 +733,16 @@ mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+
+if (MFEM_USE_PROTEUS)
+    add_library(ClangProteusFlags INTERFACE IMPORTED)
+    set_target_properties(ClangProteusFlags PROPERTIES
+        INTERFACE_COMPILE_OPTIONS "-fpass-plugin=$<TARGET_FILE:ProteusPass>"
+    )
+    target_link_libraries(mfem PUBLIC ClangProteusFlags)
+    target_link_libraries(mfem PUBLIC proteus)
+endif()
+
 if (TPL_TARGETS)
   add_dependencies(mfem ${TPL_TARGETS})
 endif()
