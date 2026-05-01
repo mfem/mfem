@@ -48,8 +48,6 @@ void test_pa_simplices(const char *filename, int p)
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const auto order = 2 * fe.GetOrder() + Tr.OrderW();
    const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
-   // const auto *ir_m = &MassIntegrator::GetRule(fe, fe, Tr, true);
-   // const auto *ir_d = &DiffusionIntegrator::GetRule(fe, fe, true);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
@@ -109,7 +107,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/fichera-quad.mesh",
                      "../../data/square-disc-p2.mesh",
                      "../../data/square-disc-p3.mesh",
-                     // "../../data/periodic-square.mesh"
+                     "../../data/periodic-square.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
    }
@@ -124,7 +122,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/escher-p2.mesh",
                      "../../data/inline-hex.mesh",
                      "../../data/fichera-q2.mesh",
-                     // "../../data/periodic-cube.mesh"
+                     "../../data/periodic-cube.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
    }
