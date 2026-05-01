@@ -2364,6 +2364,12 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      AddSimplexSpecialization<DIM,D1D,Q1D>();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
@@ -2477,6 +2483,12 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      AddSimplexSpecialization<DIM,D1D,Q1D>();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 

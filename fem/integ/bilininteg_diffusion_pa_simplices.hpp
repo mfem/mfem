@@ -1087,17 +1087,17 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 }
 } // namespace internal
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 DiffusionIntegrator::ApplySimplexKernelType
 DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
 {
    if constexpr (DIM == 2)
    {
-      return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>;
+      return internal::SmemPADiffusionApplyTriangle<D1D, Q1D>;
    }
    else if constexpr (DIM == 3)
    {
-      return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>;
+      return internal::SmemPADiffusionApplyTetrahedron<D1D, Q1D>;
    }
    else { MFEM_ABORT(""); }
 }

@@ -12,7 +12,6 @@
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
-// #include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
@@ -637,8 +636,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
                                    const Array<real_t> &g_,
-                                   const Array<real_t> &bt_,
-                                   const Array<real_t> &gt_,
+                                   const Array<real_t> &,
+                                   const Array<real_t> &,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1222,11 +1221,11 @@ using ApplySimplexKernelType = DiffusionIntegrator::ApplySimplexKernelType;
 using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<D1D, Q1D>; }
    MFEM_ABORT("");
 }
 
@@ -1241,7 +1240,7 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
 template<int DIM, int D1D, int Q1D>
 DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
@@ -1253,9 +1252,9 @@ DiffusionIntegrator::DiagonalPAKernels::Fallback(int dim, int, int)
    else if (dim == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
+
 /// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
-
 
 #endif

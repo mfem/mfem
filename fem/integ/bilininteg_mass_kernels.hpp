@@ -1058,7 +1058,6 @@ inline void PAMassApply2D(const int NE,
    });
 }
 
-
 // Shared memory PA Mass Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAMassApply2D(const int NE,
@@ -1090,7 +1089,6 @@ inline void SmemPAMassApply2D(const int NE,
    });
 }
 
-
 // PA Mass Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassApply3D(const int NE,
@@ -1116,7 +1114,6 @@ inline void PAMassApply3D(const int NE,
       internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
 }
-
 
 // Shared memory PA Mass Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -1392,12 +1389,12 @@ using ApplyKernelType = MassIntegrator::ApplyKernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1410,12 +1407,12 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
    else { MFEM_ABORT(""); }
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
