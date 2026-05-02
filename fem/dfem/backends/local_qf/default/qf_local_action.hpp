@@ -436,7 +436,6 @@ struct Action
 
    std::array<size_t, nfields> union_to_infd{};
    mutable std::vector<Vector> dummy_fields;
-
 };
 
 } // namespace LocalQFImpl

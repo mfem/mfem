@@ -33,7 +33,7 @@ struct LocalQFDevicesBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return internal::NewActionCallback(ctx, qfunc, inputs, outputs);
+      return LocalQFDevicesImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    /**
