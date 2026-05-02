@@ -13,18 +13,14 @@
 #include <cassert>
 #include <cstddef>
 
-// #include "fem/kernels.hpp"
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 #include "fem/kernel_dispatch.hpp"
 
-// #include "linalg/kernels.hpp"
+#undef MFEM_ADD_SPECIALIZATIONS
 
 #include "../../../util.hpp"
-
-// #undef NVTX_COLOR
-// #define NVTX_COLOR ::nvtx::kOrchid
 
 namespace mfem::future
 {
@@ -268,13 +264,14 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      assert(false && "Kernels specialization not yet implemented!");
-      // NewActionCallbackKernels::template Specialization<3>::Add(); // 1
-      // NewActionCallbackKernels::template Specialization<4>::Add(); // 2
-      // NewActionCallbackKernels::template Specialization<5>::Add(); // 3
-      // NewActionCallbackKernels::template Specialization<6>::Add(); // 4
-      // NewActionCallbackKernels::template Specialization<7>::Add(); // 5
-      // NewActionCallbackKernels::template Specialization<8>::Add(); // 6
+#ifdef MFEM_ADD_SPECIALIZATIONS
+      NewActionCallbackKernels::template Specialization<3>::Add(); // 1
+      NewActionCallbackKernels::template Specialization<4>::Add(); // 2
+      NewActionCallbackKernels::template Specialization<5>::Add(); // 3
+      NewActionCallbackKernels::template Specialization<6>::Add(); // 4
+      NewActionCallbackKernels::template Specialization<7>::Add(); // 5
+      NewActionCallbackKernels::template Specialization<8>::Add(); // 6
+#endif
    }
 
    template<int T_Q1D = 0>
@@ -580,7 +577,7 @@ typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int q1d)
 {
-   dbg("\x1b[33mFallback q1d:{}", q1d);
+   db1("\x1b[33mFallback q1d:{}", q1d);
    // MFEM_ABORT("No kernel for q1d=" << q1d);
    // return nullptr;
    return action_callback_new<>;

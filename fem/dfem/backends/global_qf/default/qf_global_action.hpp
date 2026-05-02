@@ -72,13 +72,13 @@ struct Action
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
 
-      dbg("E -> Q");
+      db1("E -> Q");
       // dbg("input_to_infd: {}", input_to_infd);
       // dbg("input_bases: {}", input_bases);
       // dbg("xe: {}", (int)xe.size());
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      dbg("Q -> Q");
+      db1("Q -> Q");
       static_assert(
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
@@ -88,7 +88,7 @@ struct Action
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
-      dbg("Q -> E");
+      db1("Q -> E");
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 

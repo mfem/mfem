@@ -1184,7 +1184,7 @@ inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
-   const fop_t &fop)
+   [[maybe_unused]] const fop_t &fop)
 {
    NVTX_MARK_FUNCTION;
    if constexpr (is_sum_fop<fop_t>::value)
@@ -1277,22 +1277,22 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param fields the array of field descriptors.
 /// @param x the input vector in tdofs.
 /// @param fields_l the array of output vectors in vdofs.
-// inline
-// void prolongation(const std::vector<FieldDescriptor> fields,
-//                   const Vector &x,
-//                   std::vector<Vector> &fields_l)
-// {
-//    int data_offset = 0;
-//    for (std::size_t i = 0; i < fields.size(); i++)
-//    {
-//       const auto P = get_prolongation(fields[i]);
-//       const int width = P->Width();
-//       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-//       fields_l[i].SetSize(P->Height());
-//       P->Mult(x_i, fields_l[i]);
-//       data_offset += width;
-//    }
-// }
+inline
+void local_prolongation(const std::vector<FieldDescriptor> fields,
+                        const Vector &x,
+                        std::vector<Vector> &fields_l)
+{
+   int data_offset = 0;
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+      const int width = P->Width();
+      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
+      fields_l[i].SetSize(P->Height());
+      P->Mult(x_i, fields_l[i]);
+      data_offset += width;
+   }
+}
 
 inline void prolongation(const std::vector<FieldDescriptor> fields,
                          const BlockVector &x,
@@ -1733,6 +1733,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
+         dbg("GetDofToQuad not supported for QuadratureFunction");
          return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
@@ -2661,11 +2662,14 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    const std::array<size_t, N> &field_map,
    std::index_sequence<Is...>)
 {
+   dbg();
    auto f = [&](auto fop, std::size_t idx)
    {
       [[maybe_unused]] auto g = [&](int idx)
       {
+         dbg("field_map size:{} field_map[idx]:{}", field_map.size(), field_map[idx]);
          auto dtq = dtqs[field_map[idx]];
+         assert(dtq);
 
          int value_dim = 1;
          int grad_dim = 1;
@@ -2683,6 +2687,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       if constexpr (is_value_fop<decltype(fop)>::value ||
                     is_gradient_fop<decltype(fop)>::value)
       {
+         dbg("Value || Gradient #{}", idx);
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
@@ -2693,6 +2698,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {
+         dbg("Weight #{}", idx);
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
@@ -2703,6 +2709,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
                          is_sum_fop<decltype(fop)>::value)
       {
+         dbg("Identity || Sum #{}", idx);
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
@@ -2716,6 +2723,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
+      assert(false);
       return DofToQuadMap
       {
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
@@ -2745,6 +2753,7 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
    std::vector<const DofToQuad*> &dtqmaps,
    const std::array<size_t, num_fields> &to_field_map)
 {
+   dbg();
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,

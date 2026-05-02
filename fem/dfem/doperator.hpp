@@ -422,31 +422,31 @@ public:
    /// @param result_in Result vector of the action of the operator on
    /// solutions. The result is a T-dof vector or L-dof vector depending on
    /// the MultLevel.
-   // void Mult(const Vector &solutions_in, Vector &result_in) const override
-   // {
-   //    NVTX_MARK_FUNCTION;
-   //    MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
+   void LocalMult(const Vector &solutions_in, Vector &result_in) const
+   {
+      NVTX_MARK_FUNCTION;
+      MFEM_ASSERT(!local_action_callbacks.empty(), "no integrators have been set");
 
-   //    if (mult_level == MultLevel::LVECTOR)
-   //    {
-   //       get_lvectors(solutions, solutions_in, solutions_l);
-   //       result_in = 0.0;
-   //       for (auto &action : action_callbacks)
-   //       {
-   //          action(solutions_l, parameters_l, result_in);
-   //       }
-   //    }
-   //    else
-   //    {
-   //       prolongation(solutions, solutions_in, solutions_l);
-   //       residual_l = 0.0;
-   //       for (auto &action : action_callbacks)
-   //       {
-   //          action(solutions_l, parameters_l, residual_l);
-   //       }
-   //       prolongation_transpose(residual_l, result_in);
-   //    }
-   // }
+      if (mult_level == MultLevel::LVECTOR)
+      {
+         get_lvectors(local_solutions, solutions_in, local_solutions_l);
+         result_in = 0.0;
+         for (auto &action : local_action_callbacks)
+         {
+            action(local_solutions_l, local_parameters_l, result_in);
+         }
+      }
+      else
+      {
+         local_prolongation(local_solutions, solutions_in, local_solutions_l);
+         local_residual_l = 0.0;
+         for (auto &action : local_action_callbacks)
+         {
+            action(local_solutions_l, local_parameters_l, local_residual_l);
+         }
+         local_prolongation_transpose(local_residual_l, result_in);
+      }
+   }
 
    ////////////////////////////////////////////////////////////////////////////
    /// @brief Compute the action of the operator on a given vector.
@@ -473,16 +473,18 @@ public:
          (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
          "input and output vector types are incompatible");
 
-      prolongation(infds, x, infields_l);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, residual_e);
+      prolongation(global_infds, x, global_infields_l);
+      restriction<Entity::Element>(global_infds, global_infields_l,
+                                   global_infields_e);
+      prepare_residual<Entity::Element>(global_outfds, global_residual_e);
       for (size_t i = 0; i < global_action_callbacks.size(); i++)
       {
          NVTX_MARK("action callback #{}", i);
-         global_action_callbacks[i](infields_e, residual_e);
+         global_action_callbacks[i](global_infields_e, global_residual_e);
       }
-      restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
-      prolongation_transpose(outfds, residual_l, y);
+      restriction_transpose<Entity::Element>(global_outfds, global_residual_e,
+                                             global_residual_l);
+      prolongation_transpose(global_outfds, global_residual_l, y);
    }
 
    ////////////////////////////////////////////////////////////////////////////
@@ -601,19 +603,18 @@ private:
 
    const bool use_global_qf = true;
    // local data
-   std::vector<FieldDescriptor> solutions, parameters, fields;
-   mutable std::vector<Vector> solutions_l, parameters_l;
+   std::vector<FieldDescriptor> local_solutions, local_parameters, local_fields;
+   mutable std::vector<Vector> local_solutions_l, local_parameters_l;
    mutable Vector local_residual_l, local_residual_e;
-   mutable std::vector<Vector> fields_e;
+   mutable std::vector<Vector> local_fields_e;
    // global data
-   std::vector<FieldDescriptor> infds, outfds, unionfds;
-   mutable std::vector<Vector *> infields_l, infields_e;
-   // local (firsts) or global data
-   mutable std::vector<Vector *> residual_l, residual_e;
+   std::vector<FieldDescriptor> global_infds, global_outfds, global_unionfds;
+   mutable std::vector<Vector *> global_infields_l, global_infields_e;
+   mutable std::vector<Vector *> global_residual_l, global_residual_e;
 
    std::function<void(Vector &, Vector &)> local_prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
-   restriction_callback_t restriction_callback;
+   restriction_callback_t global_restriction_callback;
    local_restriction_callback_t local_restriction_callback;
 
    std::map<size_t, Vector> derivative_qp_caches;
@@ -696,6 +697,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    static constexpr size_t num_inputs = std::tuple_size_v<decltype(inputs)>;
    static constexpr size_t num_outputs = std::tuple_size_v<decltype(outputs)>;
+   dbg("num_inputs: {}, num_outputs: {}", num_inputs, num_outputs);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -740,12 +742,12 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    // merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
-   static constexpr size_t num_fields = count_unique_field_ids(
-                                           filtered_inout_tuple);
+   static constexpr size_t num_fields =
+      count_unique_field_ids(filtered_inout_tuple);
 
    if constexpr (GLOBAL_QF)
    {
-      MFEM_VERIFY(num_fields == unionfds.size(),
+      MFEM_VERIFY(num_fields == global_unionfds.size(),
                   "Total number of fields in the Q-function doesn't match"
                   "the union of FieldDescriptors.");
    }
@@ -753,12 +755,12 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    {
       dbg("Checking num_fields");
       // constexpr auto inout_tuple =
-      //    merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
+      // merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
       // constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
       // static constexpr size_t num_fields =
       // count_unique_field_ids(filtered_inout_tuple);
 
-      MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
+      MFEM_ASSERT(num_fields == local_solutions.size() + local_parameters.size(),
                   "Total number of fields doesn't match sum of solutions and parameters."
                   " This indicates that some fields are not used in the integrator,"
                   " which currently is not supported.");
@@ -766,12 +768,15 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    dbg("Making dependency map");
    auto dependency_map = make_dependency_map(inputs);
-   // pretty_print(dependency_map);
+   pretty_print(dependency_map);
 
    const auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? infds : fields, inputs);
+      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? global_infds :
+                                                 local_fields,
+                                                 inputs);
    const auto output_to_field =
-      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? outfds : fields,
+      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? global_outfds :
+                                                 local_fields,
                                                  outputs);
 
    // TODO: factor out
@@ -793,7 +798,8 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(),
-                                  GLOBAL_QF ? outfds : fields);
+                                  GLOBAL_QF ? global_outfds : local_fields);
+   dbg("test_space_field_idx:{}", test_space_field_idx);
 
    bool use_sum_factorization = false;
    Element::Type entity_element_type;
@@ -840,18 +846,19 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    if constexpr (GLOBAL_QF)
    {
-      residual_e.resize(outfds.size());
-      residual_l.resize(outfds.size());
+      global_residual_e.resize(global_outfds.size());
+      global_residual_l.resize(global_outfds.size());
 
       // TODO: Is this a hack?
-      dbg("width: {}, GetTrueVSize(infds[0]): {}", width, GetTrueVSize(infds[0]));
-      // MFEM_VERIFY(width == GetTrueVSize(infds[0]), ""); // 🔥
-      width = GetTrueVSize(infds[0]);
+      dbg("width: {}, GetTrueVSize(global_infds[0]): {}", width,
+          GetTrueVSize(global_infds[0]));
+      // MFEM_VERIFY(width == GetTrueVSize(global_infds[0]), ""); // 🔥
+      width = GetTrueVSize(global_infds[0]);
 
       IntegratorContext ctx
       {
          mesh, elem_attributes, attributes, num_entities,
-         infds, outfds, unionfds, integration_rule,
+         global_infds, global_outfds, global_unionfds, integration_rule,
          in_qlayouts, out_qlayouts
       };
 
@@ -883,9 +890,10 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
       auto [output_rt,
             output_e_sz] = get_restriction_transpose<entity_t>
-                           (fields[test_space_field_idx],
+                           (local_fields[test_space_field_idx],
                             element_dof_ordering, output_fop);
       auto &output_e_size = output_e_sz;
+      dbg("output_e_size: {}", output_e_size);
 
       output_restriction_transpose = output_rt;
       local_residual_e.SetSize(output_e_size);
@@ -893,7 +901,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       // The explicit captures are necessary to avoid dependency on
       // the specific instance of this class (this pointer).
       local_restriction_callback =
-         [=, solutions = this->solutions, parameters = this->parameters]
+         [=, solutions = this->local_solutions, parameters = this->local_parameters]
          (std::vector<Vector> &sol,
           const std::vector<Vector> &par,
           std::vector<Vector> &f)
@@ -929,29 +937,30 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       }
       else
       {
-         const int residual_lsize = GetVSize(fields[test_space_field_idx]);
+         const int residual_lsize = GetVSize(local_fields[test_space_field_idx]);
          local_residual_l.SetSize(residual_lsize);
-         height = GetTrueVSize(fields[test_space_field_idx]);
+         height = GetTrueVSize(local_fields[test_space_field_idx]);
       }
 
       // TODO: Is this a hack?
-      width = GetTrueVSize(fields[0]);
+      width = GetTrueVSize(local_fields[0]);
+      dbg("width:{} height:{}", width, height);
 
       std::vector<const DofToQuad*> dtq;
-      for (const auto &field : fields)
+      for (const auto &field : local_fields)
       {
+         dbg("DTQ GetDofToQuad ");
          dtq.emplace_back(GetDofToQuad<entity_t>(
                              field,
                              integration_rule,
                              doftoquad_mode));
       }
       const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-      // dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
-      // MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
+      dbg("q1d:{}", q1d);
 
       const int residual_size_on_qp =
          GetSizeOnQP<entity_t>(output_fop,
-                               fields[test_space_field_idx]);
+                               local_fields[test_space_field_idx]);
 
       auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
       auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
@@ -971,10 +980,10 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
       auto action_shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-         (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
+         (input_dtq_maps, output_dtq_maps, local_fields, num_entities, inputs, num_qp,
           input_size_on_qp, residual_size_on_qp, element_dof_ordering);
 
-      Vector shmem_cache(action_shmem_info.total_size);
+      // Vector shmem_cache(action_shmem_info.total_size);
 
       // print_shared_memory_info(action_shmem_info);
 
@@ -1033,7 +1042,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                elem_attributes,                 // const Array<int> *
                // // 🟣🟣🟣🟣 capture by ref:
                &local_restriction_cb = this->local_restriction_callback,
-               &fields_e = this->fields_e,
+               &fields_e = this->local_fields_e,
                &local_residual_e = this->local_residual_e,
                &output_restriction_transpose = this->output_restriction_transpose,
                &use_kernels_specialization = this->use_kernels_specialization   // bool

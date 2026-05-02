@@ -27,24 +27,24 @@ DifferentiableOperator::DifferentiableOperator(
    Operator(height, width),
    mesh(mesh),
    use_global_qf(true),
-   infds(infds),
-   outfds(outfds)
+   global_infds(infds),
+   global_outfds(outfds)
 {
    NVTX_MARK_FUNCTION;
-   unionfds.clear();
-   unionfds.insert(unionfds.end(), infds.begin(), infds.end());
-   unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
-   std::sort(unionfds.begin(), unionfds.end());
-   auto last = std::unique(unionfds.begin(), unionfds.end());
-   unionfds.erase(last, unionfds.end());
+   global_unionfds.clear();
+   global_unionfds.insert(global_unionfds.end(), infds.begin(), infds.end());
+   global_unionfds.insert(global_unionfds.end(), outfds.begin(), outfds.end());
+   std::sort(global_unionfds.begin(), global_unionfds.end());
+   auto last = std::unique(global_unionfds.begin(), global_unionfds.end());
+   global_unionfds.erase(last, global_unionfds.end());
 
-   infields_l.resize(infds.size());
+   global_infields_l.resize(infds.size());
    for (size_t i = 0; i < infds.size(); i++)
    {
-      infields_l[i] = new Vector(GetVSize(infds[i]));
+      global_infields_l[i] = new Vector(GetVSize(infds[i]));
    }
 
-   infields_e.resize(infds.size());
+   global_infields_e.resize(infds.size());
 }
 
 // Used for the LOCAL operator
@@ -54,23 +54,25 @@ DifferentiableOperator::DifferentiableOperator(
    const ParMesh &mesh) :
    mesh(mesh),
    use_global_qf(false),
-   solutions(solutions),
-   parameters(parameters)
+   local_solutions(solutions),
+   local_parameters(parameters)
 {
    NVTX_MARK_FUNCTION;
-   fields.resize(solutions.size() + parameters.size());
-   fields_e.resize(fields.size());
-   solutions_l.resize(solutions.size());
-   parameters_l.resize(parameters.size());
+   local_fields.resize(solutions.size() + parameters.size());
+   dbg("local_fields:{}", local_fields.size());
+
+   local_fields_e.resize(local_fields.size());
+   local_solutions_l.resize(solutions.size());
+   local_parameters_l.resize(parameters.size());
 
    for (size_t i = 0; i < solutions.size(); i++)
    {
-      fields[i] = solutions[i];
+      local_fields[i] = solutions[i];
    }
 
    for (size_t i = 0; i < parameters.size(); i++)
    {
-      fields[i + solutions.size()] = parameters[i];
+      local_fields[i + solutions.size()] = parameters[i];
    }
 }
 
@@ -78,12 +80,12 @@ DifferentiableOperator::DifferentiableOperator(
 void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {
    NVTX_MARK_FUNCTION;
-   MFEM_ASSERT(parameters.size() == p.size(),
+   MFEM_ASSERT(local_parameters.size() == p.size(),
                "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < parameters.size(); i++)
+   for (size_t i = 0; i < local_parameters.size(); i++)
    {
       p[i]->Read();
-      parameters_l[i] = *p[i];
+      local_parameters_l[i] = *p[i];
    }
 }
 
@@ -100,6 +102,10 @@ void DifferentiableOperator::DisableTensorProductStructure(bool disable)
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
    NVTX_MARK_FUNCTION;
+   if (!use_global_qf)
+   {
+      return LocalMult(x, y);
+   }
    MFEM_ASSERT(!global_action_callbacks.empty(),
                "no global integrators have been set");
 
@@ -121,8 +127,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
-
-   const size_t dfidx = FindIdx(derivative_id, infds);
+   assert(use_global_qf);
+   const size_t dfidx = FindIdx(derivative_id, global_infds);
 
    // Get transpose callbacks if available, otherwise pass empty vector
    std::vector<derivative_action_t> transpose_callbacks;
@@ -134,13 +140,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    return std::make_shared<DerivativeOperator>(
              height,
-             GetTrueVSize(infds[dfidx]),
+             GetTrueVSize(global_infds[dfidx]),
              derivative_action_callbacks[derivative_id],
              transpose_callbacks,
-             infds[dfidx],
+             global_infds[dfidx],
              x,
-             infds,
-             outfds);
+             global_infds,
+             global_outfds);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -150,7 +156,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
 
-   const size_t dfidx = FindIdx(derivative_id, infds);
+   assert(use_global_qf);
+   const size_t dfidx = FindIdx(derivative_id, global_infds);
 
    // Get transpose callbacks if available, otherwise pass empty vector
    std::vector<derivative_action_t> transpose_callbacks;
@@ -162,13 +169,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    return std::make_shared<DerivativeOperator>(
              height,
-             GetTrueVSize(infds[dfidx]),
+             GetTrueVSize(global_infds[dfidx]),
              derivative_action_callbacks[derivative_id],
              transpose_callbacks,
-             infds[dfidx],
+             global_infds[dfidx],
              x,
-             infds,
-             outfds);
+             global_infds,
+             global_outfds);
 }
 
 #endif // MFEM_USE_MPI

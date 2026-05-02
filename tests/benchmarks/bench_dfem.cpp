@@ -70,8 +70,8 @@ void info()
    mfem::out << "version 1: PA new" << std::endl;
    // global QF versions
    mfem::out << "version 2: MF ∂fem-global 'default' backend" << std::endl;
-   mfem::out << "version 3: PA ∂fem-global 'default' backend" << std::endl;
-   mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
+   // mfem::out << "version 3: PA ∂fem-global 'default' backend" << std::endl;
+   // mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
    mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
    // local QF versions
    // mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
@@ -84,7 +84,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, /*6,*/ 7 };
+   const auto versions = { 0, 1, 2, /*3, 4,*/ 5, /*6,*/ 7 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -365,7 +365,9 @@ struct BakeOff
    std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
    QuadratureSpace qspace;
-   QuadratureFunction qdata;
+   QuadratureFunction qfct;
+   UniformParameterSpace upspace;
+   ParameterFunction pfct;
 
    double mdofs{};
 
@@ -396,7 +398,9 @@ struct BakeOff
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
-      qdata(qspace, DIM*DIM)
+      qfct(qspace, DIM*DIM),
+      upspace(pmesh, *ir, DIM*DIM),
+      pfct(upspace)
    {
       NVTX_MARK_FUNCTION;
       smesh.Clear();
@@ -545,8 +549,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::mdofs;
    using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
-   using BakeOff<VDIM, GLL>::qdata;
    using BakeOff<VDIM, GLL>::qspace;
+   using BakeOff<VDIM, GLL>::qfct;
+   using BakeOff<VDIM, GLL>::upspace;
+   using BakeOff<VDIM, GLL>::pfct;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
@@ -555,7 +561,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata},
+      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &upspace},
       u_sol{u_fd},
       q_param {q_fd},
       Ξ_q_params {Ξ_fd, q_fd},
@@ -600,7 +606,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("height: {} width: {}", height, width);
          dbg("\x1b[33m PA Setup operator");
          const auto i0 = std::vector<FieldDescriptor> { {Ξ, &mfes}};
-         const auto o0 = std::vector<FieldDescriptor> { {Q, &qdata}};
+         const auto o0 = std::vector<FieldDescriptor> { {Q, &qfct}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
          PASetup_global_qf<DIM> pa_setup_gqf;
          dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
@@ -608,10 +614,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                                std::tuple{Identity<Q>{}},
                                                *ir, ess_bdr);
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         MultiVector N{nodes}, D{qdata};
+         MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
          dbg("\x1b[33m PA Apply operator");
-         const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qdata}};
+         const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
          PAApply_global_qf<DIM> pa_apply_gqf;
@@ -620,7 +626,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, qfct);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
@@ -635,7 +641,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          {
             ParBilinearForm bf(&pfes);
             bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            bf.AddDomainIntegrator(new StiffnessIntegrator(qdata));
+            bf.AddDomainIntegrator(new StiffnessIntegrator(qfct));
             bf.Assemble();
          }
          dbg("[PA ∂fem] Local Apply");
@@ -651,8 +657,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->template AddDomainIntegrator<backend_t>(pa_apply_qf, Gu_Iq, std::tuple{Gu},
                                                       *ir,
                                                       ess_bdr);
-         assert(qdata*qdata > 0.0);
-         dop->SetParameters({ &qdata });
+         assert(qfct*qfct > 0.0);
+         dop->SetParameters({ &qfct });
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
          dbg("[PA ∂fem] done");
@@ -661,7 +667,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
-         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qdata)); }
+         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qfct)); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == 0)
@@ -702,7 +708,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version ==7) // PA ∂fem-local 'default' backend
       {
          dbg("\x1b[33m PA ∂FEM-Local");
-         dPALocalOperatorSetup(local_device_backend{}, true, false);
+         dPALocalOperatorSetup(local_device_backend{}, true, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 
@@ -712,12 +718,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       if (dofs < 128 * 1024)
       {
          dbg("check");
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         // mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
