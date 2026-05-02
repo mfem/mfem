@@ -31,8 +31,12 @@ using global_devices_backend = mfem::future::GlobalQFDevicesBackend;
 
 #include "fem/dfem/backends/local_qf/default/qf_local_prelude.hpp"
 using local_default_backend = mfem::future::LocalQFDefaultBackend;
-#include "fem/dfem/backends/local_qf/devices/qf_local_devices_backend.hpp"
-using local_devices_backend = mfem::future::LocalQFDevicesBackend;
+
+#include "fem/dfem/backends/local_qf/devices/mono/qf_local_devices_mono_backend.hpp"
+using local_devices_mono_backend = mfem::future::LocalQFDevicesMonoBackend;
+
+#include "fem/dfem/backends/local_qf/devices/poly/qf_local_devices_poly_backend.hpp"
+using local_devices_poly_backend = mfem::future::LocalQFDevicesPolyBackend;
 
 #include "fem/dfem/doperator.hpp"
 #include "linalg/tensor.hpp"
@@ -70,14 +74,15 @@ void info()
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
    // global QF versions
-   mfem::out << "version 2: MF ∂fem-global 'default' backend" << std::endl;
-   // mfem::out << "version 3: PA ∂fem-global 'default' backend" << std::endl;
-   // mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
-   mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
-   // local QF versions
-   // ⚠️ PA local default does not support QuadratureFunction fields
-   mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
-   mfem::out << "version 7: PA ∂fem-local 'devices' backend" << std::endl;
+   mfem::out << "version 2: MF ∂FEM: global, default" << std::endl;
+   // mfem::out << "version 3: PA ∂FEM: global, default" << std::endl;
+   // mfem::out << "version 4: MF ∂FEM: global, devices" << std::endl;
+   mfem::out << "version 5: PA ∂FEM: global, devices" << std::endl;
+   // local QF mono/poly versions
+   // ⚠️ PA local-default-multi does not support QuadratureFunction fields
+   mfem::out << "version 6: MF ∂FEM: local, default & poly" << std::endl;
+   mfem::out << "version 7: PA ∂FEM: local, devices & mono" << std::endl;
+   mfem::out << "version 8: PA ∂FEM: local, devices & poly" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -86,7 +91,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, /*3, 4,*/ 5, 6, 7 };
+   const auto versions = { 0, 1, 2, /*3, 4,*/ 5, 6, 7, 8 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -617,6 +622,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       const auto dPAGlobalOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
+         static_assert(backend_t::is_poly, "Backend must be poly");
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dbg("height: {} width: {}", height, width);
          dbg("\x1b[33m PA Setup operator");
@@ -652,6 +658,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       {
          dbg("[MF ∂fem] Local default");
          using backend_t = decltype(backend);
+         static_assert(backend_t::is_poly, "Backend must be poly");
          const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Ξ, &mfes}};
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
@@ -667,11 +674,43 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
-      // PA ∂FEM Local devices backend setup ////////////////////////////////////////
-      const auto dPALocalDevicesOperatorSetup = [&] (auto backend,
-                                                     bool use_kernel_specializations)
+      // PA ∂FEM Local devices mono backend setup ////////////////////////////////////////
+      const auto dPALocalDevicesMonoOperatorSetup = [&] (auto backend,
+                                                         bool use_kernel_specializations)
       {
          using backend_t = decltype(backend);
+         static_assert(backend_t::is_poly == false, "Backend must be mono");
+         dbg("[PA ∂fem] Local Setup (borrowing PA setup)");
+         {
+            ParBilinearForm bf(&pfes);
+            bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            bf.AddDomainIntegrator(new StiffnessIntegrator(qfct));
+            bf.Assemble();
+         }
+         dbg("[PA ∂fem] Local Apply");
+         auto Iq = Identity<Q> {};
+         auto Gu = Gradient<U> {};
+         std::tuple Gu_Iq = {Gu, Iq};
+         PAApply_local_qf<DIM> pa_apply_qf;
+         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
+         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
+         dop->template AddDomainIntegrator<backend_t>(pa_apply_qf, Gu_Iq, std::tuple{Gu},
+                                                      *ir, ess_bdr);
+         assert(qfct*qfct > 0.0);
+         dop->SetParameters({ &qfct });
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+         dbg("[PA ∂fem] done");
+      };
+
+      // PA ∂FEM Local devices poly backend setup ////////////////////////////////////////
+      const auto dPALocalDevicesPolyOperatorSetup = [&] (auto backend,
+                                                         bool use_kernel_specializations)
+      {
+         using backend_t = decltype(backend);
+         static_assert(backend_t::is_poly, "Backend must be poly");
          dbg("[PA ∂fem] Local Setup (borrowing PA setup)");
          {
             ParBilinearForm bf(&pfes);
@@ -739,10 +778,15 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("\x1b[33m MF ∂FEM Local + default backend");
          dMFLocalDefaultOperatorSetup(local_default_backend{});
       }
-      else if (version == 7) // PA ∂fem-local 'devices' backend
+      else if (version == 7) // PA ∂FEM: local, devices & mono
       {
-         dbg("\x1b[33m PA ∂FEM Local + devices backend");
-         dPALocalDevicesOperatorSetup(local_devices_backend{}, true);
+         dbg("\x1b[33m PA ∂FEM: local, devices & mono");
+         dPALocalDevicesMonoOperatorSetup(local_devices_mono_backend{}, true);
+      }
+      else if (version == 8) // PA ∂FEM: local, devices & multi
+      {
+         dbg("\x1b[33m PA ∂FEM: local, devices & poly");
+         dPALocalDevicesPolyOperatorSetup(local_devices_poly_backend{}, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 

@@ -673,6 +673,7 @@ namespace mfem::future
 
 struct GlobalQFDevicesBackend
 {
+   constexpr static bool is_poly = true;
    constexpr static bool is_local = false;
    constexpr static bool is_default = false;
 

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "fem/dfem/integrator_ctx.hpp"
-#include "qf_local_devices_mono_action.hpp"
+
+#include "qf_local_devices_poly_action.hpp"
 
 namespace mfem::future
 {
 
-struct LocalQFDevicesMonoBackend
+struct LocalQFDevicesPolyBackend
 {
-   constexpr static bool is_poly = false;
+   constexpr static bool is_poly = true;
    constexpr static bool is_local = true;
    constexpr static bool is_default = false;
 
@@ -34,7 +35,7 @@ struct LocalQFDevicesMonoBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFDevicesMonoImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQFDevicesPolyImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    /**

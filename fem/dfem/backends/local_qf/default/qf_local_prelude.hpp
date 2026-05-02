@@ -8,6 +8,7 @@ namespace mfem::future
 
 struct LocalQFDefaultBackend
 {
+   constexpr static bool is_poly = true;
    constexpr static bool is_local = true;
    constexpr static bool is_default = true;
 
