@@ -1,3 +1,13 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include <cmath>
@@ -19,19 +29,18 @@ namespace LocalQFImpl
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         size_t ninputs = std::tuple_size_v<inputs_t>,
-         size_t noutputs = std::tuple_size_v<outputs_t>>
+         std::size_t ninputs = std::tuple_size_v<inputs_t>,
+         std::size_t noutputs = std::tuple_size_v<outputs_t>>
 struct Action
 {
    static constexpr auto inout_tuple =  std::tuple_cat(inputs_t {}, outputs_t {});
-   // merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
    Action(IntegratorContext ctx,
           qfunc_t qfunc,
           inputs_t inputs,
-          outputs_t outputs) :
+          outputs_t outputs):
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
@@ -72,7 +81,7 @@ struct Action
       const DofToQuad::Mode dtq_mode =
          use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
 
-      const real_t dim_r = static_cast<real_t>(dimension);
+      const auto dim_r = static_cast<real_t>(dimension);
       q1d = (dimension > 0)
             ? static_cast<int>(std::floor(std::pow(num_qp, 1.0 / dim_r) + 0.5))
             : 0;

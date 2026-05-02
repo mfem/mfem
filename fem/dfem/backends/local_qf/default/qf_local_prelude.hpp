@@ -6,7 +6,7 @@
 namespace mfem::future
 {
 
-struct LocalQFBackend
+struct LocalQFDefaultBackend
 {
    constexpr static bool is_local = true;
    constexpr static bool is_default = true;

@@ -493,5 +493,8 @@ pkg.gitcommit
 # emacs tag file
 TAGS
 
-# vs code
+# vs code directory
 .vscode
+
+# Cursor directory
+.cursor

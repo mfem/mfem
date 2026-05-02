@@ -766,18 +766,18 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    dbg("Making dependency map");
    auto dependency_map = make_dependency_map(inputs);
-   pretty_print(dependency_map);
+   // pretty_print(dependency_map);
 
    const auto input_to_field =
       create_descriptors_to_fields_map<entity_t>((GLOBAL_QF || (LOCAL_QF &&
                                                                 DEFAULT_QF)) ? global_infds :
                                                  local_fields,
                                                  inputs);
-   const auto output_to_field =
-      create_descriptors_to_fields_map<entity_t>((GLOBAL_QF || (LOCAL_QF &&
-                                                                DEFAULT_QF)) ? global_outfds :
-                                                 local_fields,
-                                                 outputs);
+   // const auto output_to_field =
+   create_descriptors_to_fields_map<entity_t>((GLOBAL_QF || (LOCAL_QF &&
+                                                             DEFAULT_QF)) ? global_outfds :
+                                              local_fields,
+                                              outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
@@ -958,30 +958,30 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
       dbg("q1d:{}", q1d);
 
-      const int residual_size_on_qp =
-         GetSizeOnQP<entity_t>(output_fop,
-                               local_fields[test_space_field_idx]);
+      // const int residual_size_on_qp =
+      //    GetSizeOnQP<entity_t>(output_fop,
+      //                          local_fields[test_space_field_idx]);
 
       auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
-      auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
+      // auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
 
       const auto d1d = input_dtq_maps[0].B.GetShape()[2];
       // dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
 
-      const int test_vdim = output_fop.vdim;
+      // const int test_vdim = output_fop.vdim;
       // const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-      const int num_test_dof =
-         num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
+      // const int num_test_dof =
+      // num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
 
       // auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 
       auto input_size_on_qp =
          get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
 
-      auto action_shmem_info =
-         get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-         (input_dtq_maps, output_dtq_maps, local_fields, num_entities, inputs, num_qp,
-          input_size_on_qp, residual_size_on_qp, element_dof_ordering);
+      // auto action_shmem_info =
+      //    get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
+      //    (input_dtq_maps, output_dtq_maps, local_fields, num_entities, inputs, num_qp,
+      //     input_size_on_qp, residual_size_on_qp, element_dof_ordering);
 
       // Vector shmem_cache(action_shmem_info.total_size);
 
@@ -1024,21 +1024,21 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
          local_action_callbacks.push_back(
             [
                // 🟢🟢🟢🟢 capture by copy:
-               dimension,                       // int
+               // dimension,                       // int
                num_entities,                    // int
-               num_test_dof,                    // int
+               // num_test_dof,                    // int
                d1d,                             // int
                q1d,                             // int
-               test_vdim,                       // int (= output_fop.vdim)
-               inputs,                          // input_t
+               // test_vdim,                       // int (= output_fop.vdim)
+               // inputs,                       // input_t
                attributes,                      // const Array<int> &
                input_dtq_maps,                  // std::array<DofToQuadMap, num_inputs>
-               output_dtq_maps,                 // std::array<DofToQuadMap, num_outputs>
-               input_to_field,                  // std::array<size_t, num_inputs>
-               output_fop,                      // class derived from FieldOperator
+               // output_dtq_maps,              // std::array<DofToQuadMap, num_outputs>
+               // input_to_field,               // std::array<size_t, num_inputs>
+               // output_fop,                      // class derived from FieldOperator
                qfunc,                           // qfunc_t
                thread_blocks,                   // ThreadBlocks
-               action_shmem_info,               // SharedMemoryInfo
+               // action_shmem_info,               // SharedMemoryInfo
                elem_attributes,                 // const Array<int> *
                // // 🟣🟣🟣🟣 capture by ref:
                &local_restriction_cb = this->local_restriction_callback,
@@ -1050,28 +1050,28 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
               const std::vector<Vector> &parameters_l,
               Vector &residual_l) mutable
          {
-            NewActionCallback action(use_kernel_specializations,
-                                     local_restriction_cb,
-                                     qfunc,
-                                     inputs,
-                                     input_to_field,
-                                     input_dtq_maps,
-                                     output_dtq_maps,
-                                     num_entities,
-                                     test_vdim,
-                                     num_test_dof,
-                                     dimension,
-                                     thread_blocks,
-                                     action_shmem_info,
-                                     attributes,
-                                     output_fop,
-                                     elem_attributes,
-                                     fields_e,
-                                     local_residual_e,
-                                     output_restriction_transpose,
-                                     solutions_l,
-                                     parameters_l,
-                                     residual_l);
+            internal::NewActionCallback action(use_kernel_specializations,
+                                               local_restriction_cb,
+                                               qfunc,
+                                               // inputs,
+                                               // input_to_field,
+                                               input_dtq_maps,
+                                               // output_dtq_maps,
+                                               num_entities,
+                                               //   test_vdim,
+                                               //   num_test_dof,
+                                               //   dimension,
+                                               thread_blocks,
+                                               //   action_shmem_info,
+                                               attributes,
+                                               //   output_fop,
+                                               elem_attributes,
+                                               fields_e,
+                                               local_residual_e,
+                                               output_restriction_transpose,
+                                               solutions_l,
+                                               parameters_l,
+                                               residual_l);
             action.Apply(d1d, q1d);
          });
       }

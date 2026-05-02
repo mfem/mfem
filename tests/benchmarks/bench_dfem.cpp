@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#define MFEM_ADD_SPECIALIZATIONS
+#undef MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 
@@ -25,14 +25,14 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
 
 #include "fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
-using global_default_backend = mfem::future::GlobalQFBackend;
+using global_default_backend = mfem::future::GlobalQFDefaultBackend;
 #include "fem/dfem/backends/global_qf/devices/qf_global_devices.hpp"
-using global_device_backend = mfem::future::GlobalDeviceBackend;
+using global_devices_backend = mfem::future::GlobalQFDevicesBackend;
 
 #include "fem/dfem/backends/local_qf/default/qf_local_prelude.hpp"
-using local_default_backend = mfem::future::LocalQFBackend;
-#include "fem/dfem/backends/local_qf/devices/qf_local_devices_prelude.hpp"
-using local_device_backend = mfem::future::LocalDeviceBackend;
+using local_default_backend = mfem::future::LocalQFDefaultBackend;
+#include "fem/dfem/backends/local_qf/devices/qf_local_devices_backend.hpp"
+using local_devices_backend = mfem::future::LocalQFDevicesBackend;
 
 #include "fem/dfem/doperator.hpp"
 #include "linalg/tensor.hpp"
@@ -727,12 +727,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 4) // MF ∂fem-global 'devices' backend
       {
          dbg("\x1b[33m MF ∂FEM global + devices backend");
-         dMFGlobalOperatorSetup(global_device_backend{});
+         dMFGlobalOperatorSetup(global_devices_backend{});
       }
       else if (version == 5) // PA ∂fem-global 'devices' backend
       {
          dbg("\x1b[33m PA ∂FEM global + devices backend");
-         dPAGlobalOperatorSetup(global_device_backend{});
+         dPAGlobalOperatorSetup(global_devices_backend{});
       }
       else if (version == 6) // MF ∂fem-local 'default' backend
       {
@@ -742,7 +742,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 7) // PA ∂fem-local 'devices' backend
       {
          dbg("\x1b[33m PA ∂FEM Local + devices backend");
-         dPALocalDevicesOperatorSetup(local_device_backend{}, true);
+         dPALocalDevicesOperatorSetup(local_devices_backend{}, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 

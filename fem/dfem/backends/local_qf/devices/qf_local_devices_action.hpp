@@ -21,19 +21,176 @@ namespace low = mfem::kernels::internal::low;
 
 #include "../../util.hpp"
 
-namespace mfem::future
+namespace mfem::future::internal
 {
 
+///////////////////////////////////////////////////////////////////////////////
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1>` */
+template<typename T, int n1>
+MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)
+{
+   return *std::launder(reinterpret_cast<const tensor<T, n1>*>(ptr));
+}
+
+template<typename T, int n1>
+MFEM_HOST_DEVICE tensor<T, n1>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2>` */
+template<typename T, int n1, int n2>
+MFEM_HOST_DEVICE const tensor<T, n1, n2>& as_tensor(const T* ptr)
+{
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2>*>(ptr));
+}
+
+template<typename T, int n1, int n2>
+MFEM_HOST_DEVICE tensor<T, n1, n2>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3>` */
+template<typename T, int n1, int n2, int n3>
+MFEM_HOST_DEVICE const tensor<T, n1, n2, n3>& as_tensor(const T* ptr)
+{
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3>*>(ptr));
+}
+
+template<typename T, int n1, int n2, int n3>
+MFEM_HOST_DEVICE tensor<T, n1, n2, n3>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3, n4>` */
+template<typename T, int n1, int n2, int n3, int n4>
+MFEM_HOST_DEVICE const tensor<T, n1, n2, n3, n4>& as_tensor(const T* ptr)
+{
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3, n4>*>(ptr));
+}
+
+template<typename T, int n1, int n2, int n3, int n4>
+MFEM_HOST_DEVICE tensor<T, n1, n2, n3, n4>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3, n4>*>(ptr));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// template <std::size_t N>
+// MFEM_HOST_DEVICE inline
+// std::array<real_t*, N>
+// load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
+//                  const int e)
+// {
+//    std::array<real_t*, N> f;
+//    for_constexpr<N>([&](auto i) { f[i] = &fields_e[i](0, e); });
+//    return f;
+// }
+
+///////////////////////////////////////////////////////////////////////////////
+// #define MFEM_D2Q_MAX_SIZE 4
+// static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
+// static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
+
+///////////////////////////////////////////////////////////////////////////////
+namespace qf
+{
+
+template <int T_Q1D,
+          size_t num_args,
+          typename reg_t,
+          typename qfunc_t,
+          typename args_ts>
+MFEM_HOST_DEVICE inline
+void apply_kernel(reg_t &res /*output*/,
+                  reg_t &reg,
+                  const real_t *rd,
+                  const int qx, const int qy, const int qz,
+                  const qfunc_t &qfunc, args_ts &args)
+{
+   if constexpr (num_args == 2) // PAApply
+   {
+      // ∇u
+      tensor<real_t, 3> &arg_0 = get<0>(args);
+      arg_0[0] = reg[qz][qy][qx][0];
+      arg_0[1] = reg[qz][qy][qx][1];
+      arg_0[2] = reg[qz][qy][qx][2];
+
+      // D (PA data)
+      tensor<real_t, 3, 3> &arg_1 = get<1>(args);
+
+      if constexpr (T_Q1D > 0)
+      {
+         const auto *D = (const real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
+         for (int k = 0; k < 3; k++)
+         {
+            for (int j = 0; j < 3; j++)
+            {
+               arg_1[k][j] = D[qx][qy][qz][k][j];
+            }
+         }
+      }
+      else
+      {
+         static_assert(false);
+         // const auto D = Reshape(r2, 3, 3, Q1D, Q1D, Q1D);
+         // for (int j = 0; j < 3; j++)
+         // {
+         //    for (int k = 0; k < 3; k++)
+         //    {
+         //       arg_1[k][j] = D(j, k, qz, qy, qx);
+         //    }
+         // }
+      }
+   }
+   else
+   {
+      // MFApply comes here
+      assert(false);
+      // MFEM_ABORT("Only two arguments (∇u and D) are supported in apply_kernel for now");
+   }
+
+   const auto r = get<0>(apply(qfunc, args));
+
+   if constexpr (decltype(r)::ndim == 1)
+   {
+      // process_qf_result_from_reg(r0, qx, qy, qz, r);
+      as_tensor<real_t, 3>(&res[qz][qy][qx][0]) = r;
+   }
+   else
+   {
+      static_assert(false);
+   }
+}
+
+} // namespace qf
+
+///////////////////////////////////////////////////////////////////////////////
 namespace LocalQFDevicesImpl
 {
 
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         size_t ninputs = std::tuple_size_v<inputs_t>,
-         size_t noutputs = std::tuple_size_v<outputs_t>>
-struct Action
+template<
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t ninputs = std::tuple_size_v<inputs_t>,
+   std::size_t noutputs = std::tuple_size_v<outputs_t>>
+class Action
 {
+   IntegratorContext ctx;
+   qfunc_t qfunc;
+   inputs_t inputs;
+   outputs_t outputs;
+
+   std::array<size_t, ninputs> input_to_infd;
+   std::array<size_t, noutputs> output_to_outfd;
+
+   std::array<const DofToQuad*, ninputs> input_dtq_maps;
+   std::array<const DofToQuad*, noutputs> output_dtq_maps;
+
+public:
    Action(IntegratorContext ctx,
           qfunc_t qfunc,
           inputs_t inputs,
@@ -84,8 +241,8 @@ struct Action
       });
    }
 
-   void operator()(const std::vector<Vector *> &xe,
-                   std::vector<Vector *> &ye) const
+   void operator()(const std::vector<Vector *> &/*xe*/,
+                   std::vector<Vector *> &/*ye*/) const
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -161,201 +318,34 @@ struct Action
       // },
       // num_entities, thread_blocks, 0, nullptr);
    }
-
-
-   IntegratorContext ctx;
-   qfunc_t qfunc;
-   inputs_t inputs;
-   outputs_t outputs;
-
-   std::array<size_t, ninputs> input_to_infd;
-   std::array<size_t, noutputs> output_to_outfd;
-
-   std::array<const DofToQuad*, ninputs> input_dtq_maps;
-   std::array<const DofToQuad*, noutputs> output_dtq_maps;
 };
 
 } // namespace LocalQFDevicesImpl
 
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1>` */
-template<typename T, int n1>
-MFEM_HOST_DEVICE
-const tensor<T, n1>& as_tensor(const T* ptr)
-{
-   // std::launder makes this defined behavior under strict aliasing rules
-   return *std::launder(reinterpret_cast<const tensor<T, n1>*>(ptr));
-}
 
-// convenience overload if you prefer a mutable view
-template<typename T, int n1>
-MFEM_HOST_DEVICE
-tensor<T, n1>& as_tensor(T* ptr)
-{
-   return *std::launder(reinterpret_cast<tensor<T, n1>*>(ptr));
-}
-
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2>` */
-template<typename T, int n1, int n2>
-MFEM_HOST_DEVICE
-const tensor<T, n1, n2>& as_tensor(const T* ptr)
-{
-   // std::launder makes this defined behavior under strict aliasing rules
-   return *std::launder(reinterpret_cast<const tensor<T, n1, n2>*>(ptr));
-}
-
-// convenience overload if you prefer a mutable view
-template<typename T, int n1, int n2>
-MFEM_HOST_DEVICE
-tensor<T, n1, n2>& as_tensor(T* ptr)
-{
-   return *std::launder(reinterpret_cast<tensor<T, n1, n2>*>(ptr));
-}
-
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3>` */
-template<typename T, int n1, int n2, int n3>
-MFEM_HOST_DEVICE
-const tensor<T, n1, n2, n3>& as_tensor(const T* ptr)
-{
-   // std::launder makes this defined behavior under strict aliasing rules
-   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3>*>(ptr));
-}
-
-// convenience overload if you prefer a mutable view
-template<typename T, int n1, int n2, int n3>
-MFEM_HOST_DEVICE
-tensor<T, n1, n2, n3>& as_tensor(T* ptr)
-{
-   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3>*>(ptr));
-}
-
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3, n4>` */
-template<typename T, int n1, int n2, int n3, int n4>
-MFEM_HOST_DEVICE
-const tensor<T, n1, n2, n3, n4>& as_tensor(const T* ptr)
-{
-   // std::launder makes this defined behavior under strict aliasing rules
-   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3, n4>*>(ptr));
-}
-
-// convenience overload if you prefer a mutable view
-template<typename T, int n1, int n2, int n3, int n4>
-MFEM_HOST_DEVICE
-tensor<T, n1, n2, n3, n4>& as_tensor(T* ptr)
-{
-   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3, n4>*>(ptr));
-}
-
-
-template <std::size_t N>
-MFEM_HOST_DEVICE inline
-std::array<real_t*, N>
-load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
-                 const int e)
-{
-   std::array<real_t*, N> f;
-   for_constexpr<N>([&](auto i) { f[i] = &fields_e[i](0, e); });
-   return f;
-}
-
-namespace qf
-{
-
-template <int T_Q1D,
-          size_t num_args,
-          typename reg_t,
-          typename qfunc_t,
-          typename args_ts>
-MFEM_HOST_DEVICE inline
-void apply_kernel(reg_t &res /*output*/,
-                  reg_t &reg,
-                  const real_t *rd,
-                  const int qx, const int qy, const int qz,
-                  const qfunc_t &qfunc, args_ts &args)
-{
-   if constexpr (num_args == 2) // PAApply
-   {
-      // ∇u
-      tensor<real_t, 3> &arg_0 = get<0>(args);
-      arg_0[0] = reg[qz][qy][qx][0];
-      arg_0[1] = reg[qz][qy][qx][1];
-      arg_0[2] = reg[qz][qy][qx][2];
-
-      // D (PA data)
-      tensor<real_t, 3, 3> &arg_1 = get<1>(args);
-
-      if constexpr (T_Q1D > 0)
-      {
-         const auto *D = (const real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
-         for (int k = 0; k < 3; k++)
-         {
-            for (int j = 0; j < 3; j++)
-            {
-               arg_1[k][j] = D[qx][qy][qz][k][j];
-            }
-         }
-      }
-      else
-      {
-         static_assert(false);
-         // const auto D = Reshape(r2, 3, 3, Q1D, Q1D, Q1D);
-         // for (int j = 0; j < 3; j++)
-         // {
-         //    for (int k = 0; k < 3; k++)
-         //    {
-         //       arg_1[k][j] = D(j, k, qz, qy, qx);
-         //    }
-         // }
-      }
-   }
-   else
-   {
-      // MFApply comes here
-      assert(false);
-      // MFEM_ABORT("Only two arguments (∇u and D) are supported in apply_kernel for now");
-   }
-
-   const auto r = get<0>(apply(qfunc, args));
-
-   if constexpr (decltype(r)::ndim == 1)
-   {
-      // process_qf_result_from_reg(r0, qx, qy, qz, r);
-      as_tensor<real_t, 3>(&res[qz][qy][qx][0]) = r;
-   }
-   else
-   {
-      static_assert(false);
-   }
-}
-
-} // namespace qf
-
-// #define MFEM_D2Q_MAX_SIZE 4
-// static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
-// static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
-
-template<size_t num_fields,
-         size_t num_inputs,
-         size_t num_outputs,
-         typename restriction_cb_t,
-         typename qfunc_t,
-         typename input_t,
-         typename output_fop_t>
+template<//size_t num_fields,
+   size_t num_inputs,
+   // size_t num_outputs,
+   typename restriction_cb_t,
+   typename qfunc_t>
+// typename input_t,
+// typename output_fop_t>
 class NewActionCallback
 {
    restriction_cb_t &restriction_cb;
    qfunc_t &qfunc;
-   input_t &inputs;
-   const std::array<size_t, num_inputs> &input_to_field;
+   // input_t &inputs;
+   // const std::array<size_t, num_inputs> &input_to_field;
    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps;
-   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps;
+   // const std::array<DofToQuadMap, num_outputs> &output_dtq_maps;
    const int num_entities;
-   const int test_vdim;
-   const int num_test_dof;
-   const int dimension;
+   // const int test_vdim;
+   // const int num_test_dof;
+   // const int dimension;
    const ThreadBlocks &thread_blocks;
-   SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info;
+   // SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info;
    const Array<int> &attributes;
-   const output_fop_t &output_fop;
+   // const output_fop_t &output_fop;
    const Array<int> *elem_attributes;
    // refs
    std::vector<Vector> &fields_e;
@@ -372,18 +362,18 @@ public:
    NewActionCallback(const bool use_kernel_specializations,
                      restriction_cb_t &restriction_cb,
                      qfunc_t &qfunc,
-                     input_t &inputs,
-                     const std::array<size_t, num_inputs> &input_to_field,
+                     // input_t &inputs,
+                     // const std::array<size_t, num_inputs> &input_to_field,
                      const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-                     const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                     // const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
                      const int num_entities,
-                     const int test_vdim,
-                     const int num_test_dof,
-                     const int dimension,
+                     // const int test_vdim,
+                     // const int num_test_dof,
+                     // const int dimension,
                      const ThreadBlocks &thread_blocks,
-                     SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                     // SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                      const Array<int> &attributes,
-                     const output_fop_t &output_fop,
+                     // const output_fop_t &output_fop,
                      const Array<int> *elem_attributes,
                      // refs
                      std::vector<Vector> &fields_e,
@@ -395,18 +385,18 @@ public:
                      Vector &residual_l):
       restriction_cb(restriction_cb),
       qfunc(qfunc),
-      inputs(inputs),
-      input_to_field(input_to_field),
+      // inputs(inputs),
+      // input_to_field(input_to_field),
       input_dtq_maps(input_dtq_maps),
-      output_dtq_maps(output_dtq_maps),
+      // output_dtq_maps(output_dtq_maps),
       num_entities(num_entities),
-      test_vdim(test_vdim),
-      num_test_dof(num_test_dof),
-      dimension(dimension),
+      // test_vdim(test_vdim),
+      // num_test_dof(num_test_dof),
+      // dimension(dimension),
       thread_blocks(thread_blocks),
-      shmem_info(shmem_info),
+      // shmem_info(shmem_info),
       attributes(attributes),
-      output_fop(output_fop),
+      // output_fop(output_fop),
       elem_attributes(elem_attributes),
       fields_e(fields_e),
       residual_e(residual_e),
@@ -430,20 +420,19 @@ public:
    static void action_callback_new(const int d1d,
                                    restriction_cb_t &restriction_cb,
                                    qfunc_t &qfunc,
-                                   [[maybe_unused]] input_t &inputs,
-                                   [[maybe_unused]] const std::array<size_t, num_inputs> &input_to_field,
+                                   // input_t &inputs,
+                                   // const std::array<size_t, num_inputs> &input_to_field,
                                    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-                                   [[maybe_unused]] const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                                   [[maybe_unused]] const int dimension,
+                                   // const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                                   // const int dimension,
                                    const int num_entities,
-                                   [[maybe_unused]] const int test_vdim,
-                                   [[maybe_unused]] const int num_test_dof,
+                                   // const int test_vdim,
+                                   // const int num_test_dof,
                                    const ThreadBlocks &thread_blocks,
-                                   [[maybe_unused]] SharedMemoryInfo<num_fields, num_inputs, num_outputs>
-                                   &shmem_info,
-                                   [[maybe_unused]] const Array<int> &attributes,
-                                   [[maybe_unused]] const output_fop_t &output_fop,
-                                   [[maybe_unused]] const Array<int> *elem_attributes,
+                                   // SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                                   const Array<int> &attributes,
+                                   // const output_fop_t &output_fop,
+                                   const Array<int> *elem_attributes,
                                    // refs
                                    std::vector<Vector> &fields_e,
                                    Vector &residual_e,
@@ -456,7 +445,7 @@ public:
                                    const int q1d)
    {
       NVTX_MARK_FUNCTION;
-      assert(dimension == 3);
+      // assert(dimension == 3);
       // static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
 
       constexpr int DIM = 3;
@@ -686,22 +675,22 @@ public:
    {
       db1();
       NewActionCallbackKernels::Run(q1d,
-                                    // args
+                                    // arguments
                                     d1d,
                                     restriction_cb,
                                     qfunc,
-                                    inputs,
-                                    input_to_field,
+                                    // inputs,
+                                    // input_to_field,
                                     input_dtq_maps,
-                                    output_dtq_maps,
-                                    dimension,
+                                    // output_dtq_maps,
+                                    // dimension,
                                     num_entities,
-                                    test_vdim,
-                                    num_test_dof,
+                                    // test_vdim,
+                                    // num_test_dof,
                                     thread_blocks,
-                                    shmem_info,
+                                    // shmem_info,
                                     attributes,
-                                    output_fop,
+                                    // output_fop,
                                     elem_attributes,
                                     fields_e,
                                     residual_e,
@@ -714,25 +703,66 @@ public:
    }
 };
 
-template<size_t num_fields, size_t num_inputs, size_t num_outputs,
-         typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
+template<//size_t num_fields,
+   size_t num_inputs,
+   // size_t num_outputs,
+   typename restriction_cb_t,
+   typename qfunc_t>
+// typename input_t,
+// typename output_fop_t>
 template<int T_Q1D>
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
-NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
+typename NewActionCallback<//num_fields,
+num_inputs,
+// num_outputs,
+restriction_cb_t,
+qfunc_t>
+// input_t,
+// output_fop_t>
+::NewActionKernelType
+NewActionCallback<//num_fields,
+num_inputs,
+// num_outputs,
+restriction_cb_t,
+qfunc_t>
+// input_t,
+// output_fop_t>
+::NewActionCallbackKernels::Kernel()
 {
    return action_callback_new<T_Q1D>;
 }
 
-template<size_t num_fields, size_t num_inputs, size_t num_outputs,
-         typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
-NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
+template<//size_t num_fields,
+   size_t num_inputs,
+   // size_t num_outputs,
+   typename restriction_cb_t,
+   typename qfunc_t>
+// typename input_t,
+// typename output_fop_t>
+typename NewActionCallback<//num_fields,
+num_inputs,
+// num_outputs,
+restriction_cb_t,
+qfunc_t>
+// input_t,
+// output_fop_t>
+::NewActionKernelType
+NewActionCallback<//num_fields,
+num_inputs,
+// num_outputs,
+restriction_cb_t,
+qfunc_t>
+// input_t,
+// output_fop_t>
+::NewActionCallbackKernels::Fallback
 (int q1d)
 {
    db1("\x1b[33mFallback q1d:{}", q1d);
+#ifdef MFEM_ADD_SPECIALIZATIONS
    MFEM_ABORT("No kernel for q1d=" << q1d);
    return nullptr;
-   // return action_callback_new<>;
+#else
+   return action_callback_new;
+#endif
 }
 
 } // namespace mfem::future

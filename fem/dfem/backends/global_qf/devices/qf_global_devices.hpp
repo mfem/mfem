@@ -671,7 +671,7 @@ public:
 namespace mfem::future
 {
 
-struct GlobalDeviceBackend
+struct GlobalQFDevicesBackend
 {
    constexpr static bool is_local = false;
    constexpr static bool is_default = false;
