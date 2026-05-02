@@ -8,7 +8,7 @@
 namespace mfem::future
 {
 
-namespace LocalQFImpl
+namespace LocalQFDevicesImpl
 {
 
 template<typename qfunc_t,
@@ -33,7 +33,7 @@ struct Action
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      const int nqp = ctx.ir.GetNPoints();
+      // const int nqp = ctx.ir.GetNPoints();
 
       // Initialize DofToQuad maps for inputs
       for_constexpr<ninputs>([&](auto i)
@@ -159,5 +159,6 @@ struct Action
    std::array<const DofToQuad*, noutputs> output_dtq_maps;
 };
 
-}
-}
+} // namespace LocalQFDevicesImpl
+
+} // namespace mfem::future

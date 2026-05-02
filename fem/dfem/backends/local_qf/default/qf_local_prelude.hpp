@@ -8,6 +8,8 @@ namespace mfem::future
 
 struct LocalQFBackend
 {
+   constexpr static bool is_local = true;
+
    template<typename qfunc_t,
             typename inputs_t,
             typename outputs_t>

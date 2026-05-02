@@ -6,8 +6,10 @@
 namespace mfem::future
 {
 
-struct LocalQFBackend
+struct LocalDeviceBackend
 {
+   constexpr static bool is_local = true;
+
    template<typename qfunc_t,
             typename inputs_t,
             typename outputs_t>
@@ -16,7 +18,7 @@ struct LocalQFBackend
                           inputs_t inputs,
                           outputs_t outputs)
    {
-      return LocalQFImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQFDevicesImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    template<int derivative_id,
@@ -28,8 +30,8 @@ struct LocalQFBackend
                                     inputs_t inputs,
                                     outputs_t outputs)
    {
-      MFEM_ABORT("LocalQFBackend does not support derivative actions.");
+      MFEM_ABORT("LocalDeviceBackend does not support derivative actions.");
    }
 };
 
-}
+} // namespace mfem::future

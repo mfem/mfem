@@ -31,8 +31,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Vector &Dv = pa_data;
-      DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
-                             diag, dofs1D, quad1D);
+      DiffusionDiagonalPAKernel::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
+                                     diag, dofs1D, quad1D);
    }
 }
 
@@ -68,8 +68,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
-                          Gt, Dv, x, y, dofs1D, quad1D);
+      DiffusionApplyPAKernel::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
+                                  Gt, Dv, x, y, dofs1D, quad1D);
    }
 }
 
@@ -174,9 +174,9 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    abs_pa_data.Abs();
    auto abs_maps = maps->Abs();
 
-   ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                       abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
-                       abs_pa_data, x, y, dofs1D, quad1D);
+   DiffusionApplyPAKernel::Run(dim, dofs1D, quad1D, ne, symmetric,
+                               abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
+                               abs_pa_data, x, y, dofs1D, quad1D);
 }
 
 void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,

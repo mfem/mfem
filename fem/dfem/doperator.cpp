@@ -77,7 +77,7 @@ DifferentiableOperator::DifferentiableOperator(
 // Used for the LOCAL operator
 void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {
-   assert(false);
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(parameters.size() == p.size(),
                "number of parameters doesn't match descriptors");
    for (size_t i = 0; i < parameters.size(); i++)
@@ -100,8 +100,8 @@ void DifferentiableOperator::DisableTensorProductStructure(bool disable)
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
    NVTX_MARK_FUNCTION;
-   MFEM_ASSERT(!action_callbacks.empty(),
-               "no integrators have been set");
+   MFEM_ASSERT(!global_action_callbacks.empty(),
+               "no global integrators have been set");
 
    MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
                "x needs to be a BlockVector");

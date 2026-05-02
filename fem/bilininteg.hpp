@@ -2178,18 +2178,22 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   using ApplyKernelType = void(*)(const int, const bool, const Array<real_t>&,
-                                   const Array<real_t>&, const Array<real_t>&,
-                                   const Array<real_t>&,
-                                   const Vector&, const Vector&,
-                                   Vector&, const int, const int);
+   using DiffusionApplyKernelType = void(*)(const int, const bool,
+                                            const Array<real_t>&,
+                                            const Array<real_t>&, const Array<real_t>&,
+                                            const Array<real_t>&,
+                                            const Vector&, const Vector&,
+                                            Vector&, const int, const int);
 
-   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
-                                      const Array<real_t>&, const Vector&, Vector&,
-                                      const int, const int);
+   using DiffusionDiagonalKernelType = void(*)(const int, const bool,
+                                               const Array<real_t>&,
+                                               const Array<real_t>&, const Vector&, Vector&,
+                                               const int, const int);
 
-   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiffusionApplyPAKernel, DiffusionApplyKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(DiffusionDiagonalPAKernel, DiffusionDiagonalKernelType,
+                         (int, int, int));
    struct Kernels { Kernels(); };
 
 protected:
@@ -2351,8 +2355,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM,D1D,Q1D>();
-      DiagonalPAKernels::Add<DIM,D1D,Q1D>();
+      DiffusionApplyPAKernel::Specialization<DIM,D1D,Q1D>::Add();
+      DiffusionDiagonalPAKernel::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2451,8 +2455,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM,D1D,Q1D>();
-      DiagonalPAKernels::Add<DIM,D1D,Q1D>();
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
 protected:
@@ -2546,8 +2550,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM, D1D, Q1D>();
-      ApplyPATKernels::Add<DIM, D1D, Q1D>();
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 
    struct Kernels { Kernels(); };
@@ -2892,8 +2896,8 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM, D1D, Q1D>();
-      DiagonalPAKernels::Add<DIM, D1D, Q1D>();
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 };
 
@@ -3219,7 +3223,7 @@ public:
    template <int DIM, int VDIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM, VDIM, D1D, Q1D>();
+      ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
    }
 
    // struct Kernels { Kernels(); };
@@ -3451,8 +3455,8 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM, D1D, Q1D>();
-      ApplyPATKernels::Add<DIM, D1D, Q1D>();
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 
    struct Kernels { Kernels(); };
@@ -3560,7 +3564,7 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Add<DIM, D1D, Q1D>();
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 
    struct Kernels { Kernels(); };
