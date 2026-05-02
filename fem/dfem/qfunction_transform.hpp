@@ -148,7 +148,7 @@ void process_qf_args(
    qf_args &args,
    const int &qp)
 {
-   for_constexpr<tuple_size<qf_args>::value>([&](auto i)
+   for_constexpr<std::tuple_size_v<qf_args>>([&](auto i)
    {
       process_qf_arg(u[i], v[i], get<i>(args), qp);
    });
@@ -258,7 +258,7 @@ void process_qf_args(
    qf_args &args,
    const int &qp)
 {
-   for_constexpr<tuple_size<qf_args>::value>([&](auto i)
+   for_constexpr<std::tuple_size_v<qf_args>>([&](auto i)
    {
       process_qf_arg(u[i], get<i>(args), qp);
    });

@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#undef MFEM_ADD_SPECIALIZATIONS
+#define MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 
@@ -24,12 +24,13 @@
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
 
+#include "fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
+using global_default_backend = mfem::future::GlobalQFBackend;
 #include "fem/dfem/backends/global_qf/devices/qf_global_devices.hpp"
 using global_device_backend = mfem::future::GlobalDeviceBackend;
 
-#include "fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
-using global_default_backend = mfem::future::GlobalQFBackend;
-
+#include "fem/dfem/backends/local_qf/default/qf_local_prelude.hpp"
+using local_default_backend = mfem::future::LocalQFBackend;
 #include "fem/dfem/backends/local_qf/devices/qf_local_devices_prelude.hpp"
 using local_device_backend = mfem::future::LocalDeviceBackend;
 
@@ -74,8 +75,9 @@ void info()
    // mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
    mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
    // local QF versions
-   // mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
-   mfem::out << "version 7: PA ∂fem-local 'default' backend" << std::endl;
+   // ⚠️ PA local default does not support QuadratureFunction fields
+   mfem::out << "version 6: MF ∂fem-local 'default' backend" << std::endl;
+   mfem::out << "version 7: PA ∂fem-local 'devices' backend" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -84,7 +86,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, /*3, 4,*/ 5, /*6,*/ 7 };
+   const auto versions = { 0, 1, 2, /*3, 4,*/ 5, 6, 7 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -114,52 +116,52 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 static void AddKernelSpecializations()
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
-   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 2>();
-   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 3>();
-   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 5>();
-   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 6>();
-   QuadratureInterpolator::DetKernels::Add<3, 3, 5, 5>();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 2>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 3>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 5>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 6>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 5, 5>::Add();
    // Others use too much shared data
    // uadratureInterpolator::DetKernels::Add<3, 3, 2, 7>();
 
    using GRAD = QuadratureInterpolator::GradKernels;
-   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 2>();
-   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 7>();
-   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 8>();
-   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 9>();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
 
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 3>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 4>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 5>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 6>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 7>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 8>();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
 
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 2, 3>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 4, 5>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 5, 6>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 6, 7>();
-   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 7, 8>();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 4, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 5, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 6, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 7, 8>::Add();
 
    using GRAD_TRANSPOSE = QuadratureInterpolator::GradTransposeKernels;
-   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,2,3>();
-   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,4,5>();
-   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,5,6>();
-   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,6,7>();
-   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,7,8>();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,2,3>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,4,5>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,5,6>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,6,7>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,7,8>::Add();
 
    using LIN = DomainLFIntegrator::AssembleKernels;
-   LIN::Add<3, 7, 7>();
-   LIN::Add<3, 6, 6>();
-   LIN::Add<3, 8, 8>();
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 
    using VDIFF = VectorDiffusionIntegrator::ApplyPAKernels;
-   VDIFF::Add<3, 3, 3, 3>();
-   VDIFF::Add<3, 3, 4, 4>();
-   VDIFF::Add<3, 3, 5, 5>();
-   VDIFF::Add<3, 3, 6, 6>();
-   VDIFF::Add<3, 3, 7, 7>();
-   VDIFF::Add<3, 3, 8, 8>();
+   VDIFF::Specialization<3, 3, 3, 3>::Add();
+   VDIFF::Specialization<3, 3, 4, 4>::Add();
+   VDIFF::Specialization<3, 3, 5, 5>::Add();
+   VDIFF::Specialization<3, 3, 6, 6>::Add();
+   VDIFF::Specialization<3, 3, 7, 7>::Add();
+   VDIFF::Specialization<3, 3, 8, 8>::Add();
 #endif // MFEM_ADD_SPECIALIZATIONS
 }
 
@@ -180,13 +182,13 @@ public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      StiffnessKernels::Add<2, 3>();
-      StiffnessKernels::Add<3, 4>();
-      StiffnessKernels::Add<4, 5>();
-      StiffnessKernels::Add<5, 6>();
-      StiffnessKernels::Add<6, 7>();
-      StiffnessKernels::Add<7, 8>();
-      StiffnessKernels::Add<9, 10>();
+      StiffnessKernels::Specialization<2, 3>::Add();
+      StiffnessKernels::Specialization<3, 4>::Add();
+      StiffnessKernels::Specialization<4, 5>::Add();
+      StiffnessKernels::Specialization<5, 6>::Add();
+      StiffnessKernels::Specialization<6, 7>::Add();
+      StiffnessKernels::Specialization<7, 8>::Add();
+      StiffnessKernels::Specialization<9, 10>::Add();
 #endif // MFEM_ADD_SPECIALIZATIONS
    }
 
@@ -502,6 +504,20 @@ struct PAApply_local_qf
    };
 };
 
+template<int DIM>
+struct MFApply_local_with_outputs_qf
+{
+   MFEM_HOST_DEVICE inline
+   void operator()(const tensor<real_t, DIM> &Gu,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w,
+                   tensor<real_t, DIM> &res) const
+   {
+      const auto invJ = inv(J);
+      res = ((Gu * invJ)) * transpose(invJ) * det(J) * w;
+   };
+};
+
 /// Diffusion /////////////////////////////////////////////////////////////////
 template <int VDIM, bool GLL>
 struct Diffusion : public BakeOff<VDIM, GLL>
@@ -516,7 +532,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    Array<int> ess_tdof_list, ess_bdr, all_domain_attr;
    ParLinearForm b;
    FieldDescriptor u_fd, Ξ_fd, q_fd;
-   std::vector<FieldDescriptor> u_sol, q_param, Ξ_q_params;
+   std::vector<FieldDescriptor> u_sol, q_param;
    OperatorPtr A;
    Operator *A_ptr;
    Vector B, X;
@@ -564,7 +580,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &upspace},
       u_sol{u_fd},
       q_param {q_fd},
-      Ξ_q_params {Ξ_fd, q_fd},
       B(pfes.GetVSize()),
       X(x),
       cg(MPI_COMM_WORLD)
@@ -616,6 +631,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
+
          dbg("\x1b[33m PA Apply operator");
          const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
@@ -631,10 +647,29 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
-      // PA ∂FEM Local setup ////////////////////////////////////////
-      const auto dPALocalOperatorSetup = [&] (auto backend,
-                                              const bool use_new_kernels,
-                                              const bool use_kernels_specialization)
+      // MF ∂FEM Local default backend setup ////////////////////////////////////////
+      const auto dMFLocalDefaultOperatorSetup = [&] (auto backend)
+      {
+         dbg("[MF ∂fem] Local default");
+         using backend_t = decltype(backend);
+         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Ξ, &mfes}};
+         const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         MFApply_local_with_outputs_qf<DIM> mf_apply_lqf;
+         dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
+                                                      std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                                      std::tuple{Gradient<U>{}},
+                                                      *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
+
+      // PA ∂FEM Local devices backend setup ////////////////////////////////////////
+      const auto dPALocalDevicesOperatorSetup = [&] (auto backend,
+                                                     bool use_kernel_specializations)
       {
          using backend_t = decltype(backend);
          dbg("[PA ∂fem] Local Setup (borrowing PA setup)");
@@ -651,18 +686,17 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          PAApply_local_qf<DIM> pa_apply_qf;
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
-         if (use_new_kernels) { dop->UseNewKernels(); }
+         if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
          else { dbg("[PA ∂fem] NOT using kernels specialization"); }
          dop->template AddDomainIntegrator<backend_t>(pa_apply_qf, Gu_Iq, std::tuple{Gu},
-                                                      *ir,
-                                                      ess_bdr);
+                                                      *ir, ess_bdr);
          assert(qfct*qfct > 0.0);
          dop->SetParameters({ &qfct });
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
          dbg("[PA ∂fem] done");
       };
+
       if (version < 2) // standard, new PA regs
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -675,7 +709,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             BilinearFormIntegrator *bfi = a.GetDBFI()->operator[](0);
             auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
             assert(di);
-            const int d1d = di->dofs1D, q1d = di->quad1D;
+            const int d1d = di->GetD1D(), q1d = di->GetQ1D();
             MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
@@ -702,13 +736,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 6) // MF ∂fem-local 'default' backend
       {
-         dbg("\x1b[33m MF ∂FEM-Local");
-         MFEM_ABORT("MF ∂FEM-Local not implemented yet");
+         dbg("\x1b[33m MF ∂FEM Local + default backend");
+         dMFLocalDefaultOperatorSetup(local_default_backend{});
       }
-      else if (version ==7) // PA ∂fem-local 'default' backend
+      else if (version == 7) // PA ∂fem-local 'devices' backend
       {
-         dbg("\x1b[33m PA ∂FEM-Local");
-         dPALocalOperatorSetup(local_device_backend{}, true, true);
+         dbg("\x1b[33m PA ∂FEM Local + devices backend");
+         dPALocalDevicesOperatorSetup(local_device_backend{}, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 
@@ -717,13 +751,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024)
       {
-         dbg("check");
          cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);

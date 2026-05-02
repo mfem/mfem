@@ -674,6 +674,7 @@ namespace mfem::future
 struct GlobalDeviceBackend
 {
    constexpr static bool is_local = false;
+   constexpr static bool is_default = false;
 
    template<typename qfunc_t, typename inputs_t, typename outputs_t>
    auto static MakeAction(const IntegratorContext &ctx,

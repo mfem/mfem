@@ -18,8 +18,6 @@ namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 #include "fem/kernel_dispatch.hpp"
 
-#undef MFEM_ADD_SPECIALIZATIONS
-
 #include "../../../util.hpp"
 
 namespace mfem::future
@@ -217,7 +215,7 @@ class NewActionCallback
 public:
    NewActionCallback() = delete;
 
-   NewActionCallback(const bool use_kernels_specialization,
+   NewActionCallback(const bool use_kernel_specializations,
                      restriction_cb_t &restriction_cb,
                      qfunc_t &qfunc,
                      input_t &inputs,
@@ -263,7 +261,7 @@ public:
       parameters_l(parameters_l),
       residual_l(residual_l)
    {
-      if (!use_kernels_specialization) { return; }
+      if (!use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       NewActionCallbackKernels::template Specialization<3>::Add(); // 1
       NewActionCallbackKernels::template Specialization<4>::Add(); // 2
@@ -578,9 +576,9 @@ NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t
 (int q1d)
 {
    db1("\x1b[33mFallback q1d:{}", q1d);
-   // MFEM_ABORT("No kernel for q1d=" << q1d);
-   // return nullptr;
-   return action_callback_new<>;
+   MFEM_ABORT("No kernel for q1d=" << q1d);
+   return nullptr;
+   // return action_callback_new<>;
 }
 
 } // namespace mfem::future

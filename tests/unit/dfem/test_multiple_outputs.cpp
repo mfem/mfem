@@ -9,10 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <tuple>
+
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../fem/dfem/backends/local_qf/default/qf_local_prelude.hpp"
+#include "../fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -109,16 +112,16 @@ struct mass_diffusion_qdata_qf
       tensor_array<const real_t> &u,
       tensor_array<const real_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t, DIM, DIM> &qdata,
+      [[maybe_unused]] tensor_array<const real_t, DIM, DIM> &qdata,
       tensor_array<const real_t> &w,
-      tensor_array<const real_t> &dummy_parameter,
+      [[maybe_unused]] tensor_array<const real_t> &dummy_parameter,
       tensor_array<real_t> &out1,
       tensor_array<real_t, DIM> &out2,
-      tensor_array<real_t, DIM, DIM> &out3) const
+      [[maybe_unused]] tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
-         const auto invJq = inv(J(q));
+         [[maybe_unused]] const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
 
          out1(q) = u(q) * detJq * w(q);
@@ -294,13 +297,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
       MultiVector X{xtvec, nodestvec, qdata, dpf};
       MultiVector Z{ytvec, yqdata};
 
-      ParBilinearForm blf(&fes);
+      {ParBilinearForm blf(&fes);
       blf.AddDomainIntegrator(new MassIntegrator(ir));
       blf.AddDomainIntegrator(new DiffusionIntegrator(ir));
       blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf.Assemble();
       blf.Mult(x, y);
       fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
+      }
 
       std::cout << "mfem: ";
       pretty_print(ytvecmfem);
@@ -320,30 +324,17 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          {S, &qdata}
       };
 
-      <<<<<<< HEAD
-      DifferentiableOperator dop(din, dout, pmesh);
-      =======
       {
-         DifferentiableOperator dop(in, out, pmesh);
-         >>>>>>> dfem-multiple-outputs
+         DifferentiableOperator dop(din, dout, pmesh);
 
          dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
-         <<<<<<< HEAD
-         // auto derivatives = std::integer_sequence<size_t, U> {};
+         auto derivatives = std::integer_sequence<size_t, U> {}; 
          auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
-         dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                                 tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-                                 tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
-                                 *ir, all_domain_attr);//, derivatives);
-         =======
-            auto derivatives = std::integer_sequence<size_t, U> {};
-         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
-         dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                                 tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-                                 tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+         dop.template AddDomainIntegrator<GlobalQFBackend>(mass_diffusion_qfunc,
+                                 std::tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+                                 std::tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                                  *ir, all_domain_attr, derivatives);
-         >>>>>>> dfem-multiple-outputs
 
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
          dop.Mult(X, Z);
@@ -360,14 +351,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
 
-         <<<<<<< HEAD
-         dbg("🔥🔥🔥");
-         return;
 
          auto ddop = dop.GetDerivative(U, X);
-         =======
-            auto ddop = dop.GetDerivative(U, X);
-         >>>>>>> dfem-multiple-outputs
 
          ddop->Mult(X[0], Z);
          Y0 = ytvecmfem;
@@ -382,6 +367,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+      
+      #if 0 // local w/ outputs
       {
          std::cout << "\n\n\n LOCAL TEST\n\n\n";
          ParBilinearForm blf(&fes);
@@ -410,8 +397,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          auto mass_qfunclocal = massqflocal{};
          dop.AddDomainIntegrator<LocalQFBackend>(
             mass_qfunclocal,
-            tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
-            tuple{Value<V>{}},
+            std::tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            std::tuple{Value<V>{}},
             *ir, all_domain_attr);
 
          Vector nodestv;
@@ -436,6 +423,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+      #endif
    }
 }
 

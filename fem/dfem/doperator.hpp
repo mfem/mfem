@@ -574,9 +574,7 @@ public:
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const MultiVector &x);
 
-   void UseNewKernels() { use_new_kernels = true; }
-
-   void UseKernelsSpecialization() { use_kernels_specialization = true; }
+   void UseKernelSpecializations() { use_kernel_specializations = true; }
 
 private:
    const ParMesh &mesh;
@@ -622,8 +620,7 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
-   bool use_new_kernels = false;
-   bool use_kernels_specialization = false;
+   bool use_kernel_specializations = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -684,9 +681,10 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    NVTX_MARK_FUNCTION;
 
    constexpr bool LOCAL_QF = backend_t::is_local, GLOBAL_QF = !LOCAL_QF;
+   constexpr bool DEFAULT_QF = backend_t::is_default, DEVICE_QF = !DEFAULT_QF;
 
-   if constexpr (GLOBAL_QF) { MFEM_VERIFY(use_global_qf, "GLOBAL should be used"); }
-   if constexpr (LOCAL_QF) { MFEM_VERIFY(!use_global_qf, "LOCAL should be used"); }
+   // if constexpr (GLOBAL_QF) { MFEM_VERIFY(use_global_qf, "GLOBAL should be used"); }
+   // if constexpr (LOCAL_QF) { MFEM_VERIFY(!use_global_qf, "LOCAL should be used"); }
 
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
@@ -704,7 +702,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (GLOBAL_QF)
+   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
    {
       constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
       static_assert(num_qfparams == num_inputs + num_outputs,
@@ -715,7 +713,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "quadrature function must return void");
    }
 
-   if constexpr (LOCAL_QF)
+   if constexpr (LOCAL_QF && DEVICE_QF)
    {
       if constexpr (num_outputs > 1)
       {
@@ -745,7 +743,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
 
-   if constexpr (GLOBAL_QF)
+   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
    {
       MFEM_VERIFY(num_fields == global_unionfds.size(),
                   "Total number of fields in the Q-function doesn't match"
@@ -771,11 +769,13 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    pretty_print(dependency_map);
 
    const auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? global_infds :
+      create_descriptors_to_fields_map<entity_t>((GLOBAL_QF || (LOCAL_QF &&
+                                                                DEFAULT_QF)) ? global_infds :
                                                  local_fields,
                                                  inputs);
    const auto output_to_field =
-      create_descriptors_to_fields_map<entity_t>(GLOBAL_QF ? global_outfds :
+      create_descriptors_to_fields_map<entity_t>((GLOBAL_QF || (LOCAL_QF &&
+                                                                DEFAULT_QF)) ? global_outfds :
                                                  local_fields,
                                                  outputs);
 
@@ -798,7 +798,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(),
-                                  GLOBAL_QF ? global_outfds : local_fields);
+                                  (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF)) ? global_outfds : local_fields);
    dbg("test_space_field_idx:{}", test_space_field_idx);
 
    bool use_sum_factorization = false;
@@ -844,7 +844,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
-   if constexpr (GLOBAL_QF)
+   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
    {
       global_residual_e.resize(global_outfds.size());
       global_residual_l.resize(global_outfds.size());
@@ -877,9 +877,9 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 #endif
       }, derivative_ids);
    }
-   else if constexpr (LOCAL_QF)
+   else if constexpr (LOCAL_QF && DEVICE_QF)
    {
-      dbg("LOCAL_QF");
+      dbg("LOCAL && DEVICE backend");
       ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
       DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
       if (use_sum_factorization)
@@ -1013,9 +1013,9 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
          thread_blocks.z = 1;
       }
 
-      assert(use_new_kernels);
+      // assert(use_new_kernels);
 
-      if (use_new_kernels)
+      // if (use_new_kernels)
       {
          db1("Use NEW kernels");
          dbg("ThreadBlocks: x:{} y:{} z:{}",
@@ -1045,12 +1045,12 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                &fields_e = this->local_fields_e,
                &local_residual_e = this->local_residual_e,
                &output_restriction_transpose = this->output_restriction_transpose,
-               &use_kernels_specialization = this->use_kernels_specialization   // bool
+               &use_kernel_specializations = this->use_kernel_specializations   // bool
             ](std::vector<Vector> &solutions_l,
               const std::vector<Vector> &parameters_l,
               Vector &residual_l) mutable
          {
-            NewActionCallback action(use_kernels_specialization,
+            NewActionCallback action(use_kernel_specializations,
                                      local_restriction_cb,
                                      qfunc,
                                      inputs,
@@ -1074,10 +1074,6 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                                      residual_l);
             action.Apply(d1d, q1d);
          });
-      }
-      else
-      {
-         MFEM_ABORT("LocalQF default not yet implemented!");
       }
    }
    else

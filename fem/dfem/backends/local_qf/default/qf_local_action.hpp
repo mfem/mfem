@@ -1,16 +1,14 @@
 #pragma once
 
-#include "../util.hpp"
-#include "../../integrator_ctx.hpp"
-#include "../../integrate.hpp"
-#include "../../interpolate.hpp"
-#include "../../qfunction_transform.hpp"
-
 #include <cmath>
 #include <utility>
 
 #include "../../util.hpp"
+
 #include "../../../integrator_ctx.hpp"
+#include "../../../integrate.hpp"
+#include "../../../interpolate.hpp"
+#include "../../../qfunction_transform.hpp"
 
 namespace mfem::future
 {
@@ -25,8 +23,8 @@ template<typename qfunc_t,
          size_t noutputs = std::tuple_size_v<outputs_t>>
 struct Action
 {
-   static constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   static constexpr auto inout_tuple =  std::tuple_cat(inputs_t {}, outputs_t {});
+   // merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
@@ -46,6 +44,7 @@ struct Action
       // would require a different memory path.
       for (const auto &fd : ctx.unionfds)
       {
+         MFEM_CONTRACT_VAR(fd);
          MFEM_ASSERT(!std::holds_alternative<const QuadratureFunction *>(fd.data),
                      "LocalQFBackend fused action does not support QuadratureFunction fields");
       }
@@ -151,7 +150,8 @@ struct Action
          const size_t outfd = output_to_outfd[o];
          const auto &fd = ctx.outfds[outfd];
          const Operator *R = get_restriction<Entity::Element>(fd, dof_ordering);
-         MFEM_ASSERT(R != nullptr, "LocalQFBackend: missing element restriction for output");
+         MFEM_ASSERT(R != nullptr,
+                     "LocalQFBackend: missing element restriction for output");
          const int elem_sz = num_entities ? (R->Height() / num_entities) : 0;
          const int vdim = out_vdim[o];
          MFEM_ASSERT(vdim > 0, "LocalQFBackend: invalid output vdim");
@@ -172,7 +172,7 @@ struct Action
       using qf_signature = typename get_function_signature<qfunc_t>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
 
-      static_assert(tuple_size<qf_param_ts>::value == ninputs + noutputs,
+      static_assert(std::tuple_size_v<qf_param_ts> == ninputs + noutputs,
                     "qfunc parameter count must match inputs+outputs");
 
       // Wrap union field data (element-restricted vectors) as [elem_dof, entity].
@@ -228,8 +228,8 @@ struct Action
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          auto packed =
-            unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                         output_dtq_maps_local, wrapped_fields_e, num_qp_local, e);
+         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
+                      output_dtq_maps_local, wrapped_fields_e, num_qp_local, e);
          auto input_dtq_shmem = get<0>(packed);
          auto output_dtq_shmem = get<1>(packed);
          auto fields_shmem = get<2>(packed);
@@ -254,7 +254,8 @@ struct Action
 
             auto fhat = Reshape(&residual_shmem(offset, 0), vdim, op_dim, num_qp_local);
 
-            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof, num_entities_local);
+            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof,
+                                                  num_entities_local);
             auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
 
             map_quadrature_data_to_fields(
@@ -276,7 +277,7 @@ struct Action
    MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
                                                    args_t &args)
    {
-      constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
+      constexpr int nargs = static_cast<int>(std::tuple_size_v<args_t>);
       call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
    }
 

@@ -9,6 +9,7 @@ namespace mfem::future
 struct GlobalQFBackend
 {
    constexpr static bool is_local = false;
+   constexpr static bool is_default = true;
 
    template<typename qfunc_t,
             typename inputs_t,

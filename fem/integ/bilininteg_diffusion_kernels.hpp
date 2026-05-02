@@ -1064,8 +1064,6 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-
-      // Grad X
       MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(dy,y,D1D)
@@ -1086,8 +1084,6 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-
-      // Grad Y
       MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
@@ -1109,8 +1105,6 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-
-      // Grad Z + Q-function
       MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
@@ -1223,23 +1217,20 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 namespace
 {
-using DiffusionApplyKernelType =
-   DiffusionIntegrator::DiffusionApplyKernelType;
-
-using DiffusionDiagonalKernelType =
-   DiffusionIntegrator::DiffusionDiagonalKernelType;
+using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 }
 
 template<int DIM, int T_D1D, int T_Q1D>
-DiffusionApplyKernelType DiffusionIntegrator::DiffusionApplyPAKernel::Kernel()
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
    MFEM_ABORT("");
 }
 
-inline DiffusionApplyKernelType
-DiffusionIntegrator::DiffusionApplyPAKernel::Fallback(int DIM, int, int)
+inline
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionApply2D; }
    else if (DIM == 3) { return internal::PADiffusionApply3D; }
@@ -1247,16 +1238,15 @@ DiffusionIntegrator::DiffusionApplyPAKernel::Fallback(int DIM, int, int)
 }
 
 template<int DIM, int D1D, int Q1D>
-DiffusionDiagonalKernelType
-DiffusionIntegrator::DiffusionDiagonalPAKernel::Kernel()
+DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
    MFEM_ABORT("");
 }
 
-inline DiffusionDiagonalKernelType
-DiffusionIntegrator::DiffusionDiagonalPAKernel::Fallback(int DIM, int, int)
+inline DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
    else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
