@@ -15,7 +15,7 @@
 #ifdef MFEM_USE_MPI
 // #include "../fespace.hpp"
 #include "linalg/multivector.hpp"
-#include "backends/local_qf/devices/action.hpp"
+#include "backends/local_qf/devices/qf_local_devices_action.hpp"
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
