@@ -15,15 +15,6 @@
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
 
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kCyan
-#include NVTX_DEBUG_HPP
-#else
-#define dbg(...)
-#endif
-#include <proteus/JitInterface.h>
-
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -154,6 +145,20 @@ struct mass_diffusion_qdata_qf
          const auto detJq = det(J(q));
          out(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
       }
+   }
+};
+
+struct massqflocal
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      const tensor<real_t> &u,
+      const tensor<real_t, DIM, DIM> &J,
+      const tensor<real_t> &w,
+      tensor<real_t> &out1) const
+   {
+      const auto v = u * det(J) * w;
+      out1 = v;
    }
 };
 
@@ -378,22 +383,49 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          MPI_Barrier(MPI_COMM_WORLD);
       }
       {
+         std::cout << "\n\n\n LOCAL TEST\n\n\n";
+         ParBilinearForm blf(&fes);
+         blf.AddDomainIntegrator(new MassIntegrator(ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
+
+         std::cout << "mfem: ";
+         pretty_print(ytvecmfem);
+
+         const std::vector<FieldDescriptor> in
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         const std::vector<FieldDescriptor> out
+         {
+            {V, &fes},
+         };
+
          DifferentiableOperator dop(in, out, pmesh);
 
-         dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
-
-         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         auto mass_qfunclocal = massqflocal{};
          dop.AddDomainIntegrator<LocalQFBackend>(
-            mass_diffusion_qfunc,
-            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-            tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+            mass_qfunclocal,
+            tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}},
             *ir, all_domain_attr);
 
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector ztvec(xtvec.Size());
+
+         MultiVector X{xtvec, nodestv};
+         MultiVector Z{ztvec};
+
          dop.Mult(X, Z);
 
          std::cout << "dfem: ";
-         pretty_print(Z[0]);
+         pretty_print(ztvec);
 
          Vector Y0(ytvecmfem);
          Y0 -= Z[0];
