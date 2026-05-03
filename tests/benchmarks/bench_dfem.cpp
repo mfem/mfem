@@ -82,7 +82,7 @@ void info()
    // ⚠️ PA local-default-multi does not support QuadratureFunction fields
    mfem::out << "version 6: MF ∂FEM: local, default & poly" << std::endl;
    mfem::out << "version 7: PA ∂FEM: local, devices & mono" << std::endl;
-   mfem::out << "version 8: PA ∂FEM: local, devices & poly" << std::endl;
+   mfem::out << "version 8: MF ∂FEM: local, devices & poly" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -705,35 +705,24 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("[PA ∂fem] done");
       };
 
-      // PA ∂FEM Local devices poly backend setup ////////////////////////////////////////
-      const auto dPALocalDevicesPolyOperatorSetup = [&] (auto backend,
-                                                         bool use_kernel_specializations)
+      // MF ∂FEM Local devices poly backend setup ////////////////////////////////////////
+      const auto dMFLocalDevicesPolyOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
          static_assert(backend_t::is_poly, "Backend must be poly");
-         dbg("[PA ∂fem] Local Setup (borrowing PA setup)");
-         {
-            ParBilinearForm bf(&pfes);
-            bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            bf.AddDomainIntegrator(new StiffnessIntegrator(qfct));
-            bf.Assemble();
-         }
-         dbg("[PA ∂fem] Local Apply");
-         auto Iq = Identity<Q> {};
-         auto Gu = Gradient<U> {};
-         std::tuple Gu_Iq = {Gu, Iq};
-         PAApply_local_qf<DIM> pa_apply_qf;
-         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
-         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
-         dop->template AddDomainIntegrator<backend_t>(pa_apply_qf, Gu_Iq, std::tuple{Gu},
+         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Ξ, &mfes}};
+         const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         MFApply_local_with_outputs_qf<DIM> mf_apply_lqf;
+         dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
+                                                      std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                                      std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
-         assert(qfct*qfct > 0.0);
-         dop->SetParameters({ &qfct });
-         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-         dbg("[PA ∂fem] done");
       };
 
       if (version < 2) // standard, new PA regs
@@ -783,10 +772,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("\x1b[33m PA ∂FEM: local, devices & mono");
          dPALocalDevicesMonoOperatorSetup(local_devices_mono_backend{}, true);
       }
-      else if (version == 8) // PA ∂FEM: local, devices & multi
+      else if (version == 8) // MF ∂FEM: local, devices & poly
       {
-         dbg("\x1b[33m PA ∂FEM: local, devices & poly");
-         dPALocalDevicesPolyOperatorSetup(local_devices_poly_backend{}, true);
+         dbg("\x1b[33m MF ∂FEM: local, devices & poly");
+         dMFLocalDevicesPolyOperatorSetup(local_devices_poly_backend{});
       }
       else { MFEM_ABORT("Invalid version"); }
 

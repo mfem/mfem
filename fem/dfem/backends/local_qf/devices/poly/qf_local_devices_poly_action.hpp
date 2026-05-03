@@ -16,12 +16,14 @@
 
 #include "fem/dfem/integrator_ctx.hpp"
 
-#include "../qf_local_devices.hpp"
+// #include "../qf_local_devices.hpp"
 
-#include "fem/kernels3d.hpp"
-namespace ker = mfem::kernels::internal;
-namespace low = mfem::kernels::internal::low;
-#include "fem/kernel_dispatch.hpp"
+#include "../../../util.hpp"
+
+// #include "fem/kernels3d.hpp"
+// namespace ker = mfem::kernels::internal;
+// namespace low = mfem::kernels::internal::low;
+// #include "fem/kernel_dispatch.hpp"
 
 namespace mfem::future
 {
@@ -43,27 +45,30 @@ class Action
    inputs_t inputs;
    outputs_t outputs;
 
-   // std::array<size_t, ninputs> input_to_infd;
-   // std::array<size_t, noutputs> output_to_outfd;
+   std::array<size_t, ninputs> input_to_infd;
+   std::array<size_t, noutputs> output_to_outfd;
+
+   std::array<FieldBasis, ninputs> input_bases;
+   std::array<FieldBasis, noutputs> output_bases;
 
    // std::array<const DofToQuad*, ninputs> input_dtq_maps;
    // std::array<const DofToQuad*, noutputs> output_dtq_maps;
 
-   using local_restriction_callback_t =
-      std::function<void(std::vector<Vector> &,
-                         const std::vector<Vector> &,
-                         std::vector<Vector> &)>;
+   // using local_restriction_callback_t =
+   //    std::function<void(std::vector<Vector> &,
+   //                       const std::vector<Vector> &,
+   //                       std::vector<Vector> &)>;
 
-   local_restriction_callback_t &restriction_cb;
-   const DofToQuadMap input_dtq_maps;
-   const int num_entities;
-   const ThreadBlocks thread_blocks;
-   const Array<int> &attributes;
-   const Array<int> *elem_attributes;
-   // refs
-   std::vector<Vector> &fields_e;
-   Vector &residual_e;
-   std::function<void(Vector &, Vector &)> &output_restriction_transpose;
+   // local_restriction_callback_t &restriction_cb;
+   // const DofToQuadMap input_dtq_maps;
+   // const int num_entities;
+   // const ThreadBlocks thread_blocks;
+   // const Array<int> &attributes;
+   // const Array<int> *elem_attributes;
+   // // refs
+   // std::vector<Vector> &fields_e;
+   // Vector &residual_e;
+   // std::function<void(Vector &, Vector &)> &output_restriction_transpose;
 
 public:
 
@@ -77,18 +82,27 @@ public:
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
-      outputs(outputs),
-
-      restriction_cb(*ctx.local.local_restriction_callback),
-      input_dtq_maps(ctx.local.input_dtq_maps),
-      num_entities(ctx.local.num_entities),
-      thread_blocks(ctx.local.thread_blocks),
-      attributes(*ctx.local.attributes),
-      elem_attributes(ctx.local.elem_attributes),
-      fields_e(*ctx.local.local_fields_e),
-      residual_e(*ctx.local.local_residual_e),
-      output_restriction_transpose(*ctx.local.output_restriction_transpose)
+      outputs(outputs)
+      // restriction_cb(*ctx.local.local_restriction_callback),
+      // input_dtq_maps(ctx.local.input_dtq_maps),
+      // num_entities(ctx.local.num_entities),
+      // thread_blocks(ctx.local.thread_blocks),
+      // attributes(*ctx.local.attributes),
+      // elem_attributes(ctx.local.elem_attributes),
+      // fields_e(*ctx.local.local_fields_e),
+      // residual_e(*ctx.local.local_residual_e),
+      // output_restriction_transpose(*ctx.local.output_restriction_transpose)
    {
+      NVTX_MARK_FUNCTION;
+      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
+      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
+
+      check_consistency(inputs, input_to_infd, ctx.infds);
+      check_consistency(outputs, output_to_outfd, ctx.outfds);
+
+      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
+      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+
       if (!ctx.local.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       NewActionCallbackKernels::template Specialization<3>::Add(); // 1
@@ -100,211 +114,14 @@ public:
 #endif
    }
 
-   void operator()(std::vector<Vector> &solutions_l,
-                   const std::vector<Vector> &parameters_l,
-                   Vector &residual_l)
-   {
-      ActionCallbackKernels::Run(ctx.local.q1d, ctx.local.d1d,
-                                 // signature
-                                 restriction_cb,
-                                 qfunc,
-                                 input_dtq_maps,
-                                 num_entities,
-                                 thread_blocks,
-                                 attributes,
-                                 elem_attributes,
-                                 // refs
-                                 fields_e,
-                                 residual_e,
-                                 output_restriction_transpose,
-                                 // args
-                                 solutions_l,
-                                 parameters_l,
-                                 residual_l,
-                                 // fallback arguments
-                                 ctx.local.q1d);
-   }
-
-private:
-   ////////////////////////////////////////////////////////
-   template<int T_Q1D = 0>
-   static void action_callback_multi(const int d1d,
-                                     local_restriction_callback_t &restriction_cb,
-                                     qfunc_t &qfunc,
-                                     const DofToQuadMap &input_dtq_maps,
-                                     const int num_entities,
-                                     const ThreadBlocks &thread_blocks,
-                                     const Array<int> &attributes,
-                                     const Array<int> *elem_attributes,
-                                     // refs
-                                     std::vector<Vector> &fields_e,
-                                     Vector &residual_e,
-                                     std::function<void(Vector &, Vector &)> &output_restriction_transpose,
-                                     // args
-                                     std::vector<Vector> &solutions_l,
-                                     const std::vector<Vector> &parameters_l,
-                                     Vector &residual_l,
-                                     // fallback arguments
-                                     const int q1d)
+   void operator()(const std::vector<Vector *> &,
+                   std::vector<Vector *> &) const
    {
       NVTX_MARK_FUNCTION;
-      constexpr int DIM = 3;
-
-      // types
-      using qf_signature =
-         typename create_function_signature<decltype(&qfunc_t::operator())>::type;
-      using qf_param_ts = typename qf_signature::parameter_ts;
-
-      restriction_cb(solutions_l, parameters_l, fields_e);
-
-      NVTX_INI("res=0");
-      residual_e = 0.0;
-      NVTX_END("res=0");
-
-      const bool has_attr = attributes.Size() > 0;
-      const auto d_attr = attributes.Read();
-      const auto d_elem_attr = elem_attributes->Read();
-
-      const int NE = num_entities;
-      constexpr int VDIM = 1;
-
-      const auto XE = Reshape(fields_e[0].Read(), d1d, d1d, d1d, VDIM, NE);
-      const real_t *dx_ptr = fields_e[1].Read();
-
-      auto YE = Reshape(residual_e.ReadWrite(), d1d, d1d, d1d, VDIM, NE);
-
-      const auto B = (const real_t*)input_dtq_maps.B;
-      const auto G = (const real_t*)input_dtq_maps.G;
-
-      NVTX_INI("forall");
-      dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
-      {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-
-         MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
-         MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
-
-         low::regs3d_t<DIM, MQ1> reg;
-         const real_t *rd = dx_ptr;
-
-         MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
-         {
-            // const auto input = get<0/*i*/>(inputs);
-            // using field_operator_t = std::decay_t<decltype(input)>;
-
-            // if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
-            {
-               // const int vdim = input.vdim;
-               // const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
-               // const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-               // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
-               // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-               low::LoadMatrix(d1d, q1d, B, sB);
-               low::LoadMatrix(d1d, q1d, G, sG);
-               // for (int c = 0; c < vdim; c++)
-               // constexpr int c = 0;
-               {
-                  low::LoadDofs3d(e, d1d, XE, sm0);
-                  low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg);
-               }
-            }
-            // else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
-            {
-               // db1("Identity");
-               // rd = fields_e_ptr[input_to_field[i]];
-               // rd = dx_ptr;
-            }
-            // else if constexpr (is_weight_fop<field_operator_t>::value)   // Weight
-            // {
-            //    dbg("Weight");
-            //    rw = fields_e_ptr[input_to_field[i]]; // 🔥
-            // }
-            // else
-            {
-               // MFApply comes here
-               // assert(false);
-               // MFEM_ABORT("Only Grad and Identity field operators are supported");
-            }
-         }
-
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
-               {
-                  auto args = decay_tuple<qf_param_ts> {};
-                  get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
-                  if constexpr (T_Q1D > 0)
-                  {
-                     get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*
-                                                            (qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
-                  }
-                  else
-                  {
-                     get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*
-                                                            (qx*q1d*q1d + qy*q1d + qz));
-                  }
-                  auto r = get<0>(std::apply(qfunc, args));
-                  // auto r = get<0>(apply(qfunc, args));
-                  if constexpr (decltype(r)::ndim == 1)
-                  {
-                     as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
-                  }
-                  else { static_assert(false); }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         // Integrate
-         // if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
-         {
-            // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
-            // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-            low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0);
-            low::WriteDofs3d(d1d, 0, e, reg, YE);
-         }
-      },
-      num_entities, thread_blocks, 0, nullptr);
-      NVTX_END("forall");
-
-      NVTX_INI("out^T");
-      output_restriction_transpose(residual_e, residual_l);
-      NVTX_END("out^T");
+      assert(false && "Not implemented 🔥🔥🔥");
    }
-   using ActionKernelType = decltype(&Action::action_callback_multi<>);
-   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
-} // namespace LocalQFDevicesMultiImpl
-
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t n_inputs,
-         std::size_t n_outputs> template<int Q1D>
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
-(/* instantiated with Q1D */) { return action_callback_multi<Q1D>; }
-
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t n_inputs,
-         std::size_t n_outputs>
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
-(int q1d)
-{
-#ifdef MFEM_ADD_SPECIALIZATIONS
-   MFEM_ABORT("No kernel for q1d=" << q1d);
-   return nullptr;
-#else
-   db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback_multi;
-#endif
-}
+} // namespace LocalQFDevicesPolyImpl
 
 } // namespace mfem::future

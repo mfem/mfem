@@ -678,6 +678,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 {
    NVTX_MARK_FUNCTION;
 
+   constexpr bool POLY_QF = backend_t::is_poly, MONO_QF = !POLY_QF;
    constexpr bool LOCAL_QF = backend_t::is_local, GLOBAL_QF = !LOCAL_QF;
    constexpr bool DEFAULT_QF = backend_t::is_default, DEVICE_QF = !DEFAULT_QF;
 
@@ -697,7 +698,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
+   if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
    {
       constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
       static_assert(num_qfparams == num_inputs + num_outputs,
@@ -708,7 +709,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "quadrature function must return void");
    }
 
-   if constexpr (LOCAL_QF && DEVICE_QF)
+   if constexpr (MONO_QF && DEVICE_QF)
    {
       if constexpr (num_outputs > 1)
       {
@@ -737,7 +738,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
 
-   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
+   if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
    {
       MFEM_VERIFY(num_fields == global_unionfds.size(),
                   "Total number of fields in the Q-function doesn't match"
@@ -764,11 +765,11 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const auto input_to_field =
       create_descriptors_to_fields_map<entity_t>
-      ((GLOBAL_QF || (LOCAL_QF && DEFAULT_QF)) ? global_infds : local_fields,
+      ((GLOBAL_QF || (LOCAL_QF && POLY_QF)) ? global_infds : local_fields,
        inputs);
 
    create_descriptors_to_fields_map<entity_t>
-   ((GLOBAL_QF || (LOCAL_QF && DEFAULT_QF)) ? global_outfds : local_fields,
+   ((GLOBAL_QF || (LOCAL_QF && POLY_QF)) ? global_outfds : local_fields,
     outputs);
 
    // TODO: factor out
@@ -790,7 +791,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(),
-                                  (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF)) ? global_outfds : local_fields);
+                                  (GLOBAL_QF || (LOCAL_QF && POLY_QF)) ? global_outfds : local_fields);
 
    bool use_sum_factorization = false;
    Element::Type entity_element_type;
@@ -828,7 +829,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
    ////////////////////////////////////////////////////////
-   if constexpr (GLOBAL_QF || (LOCAL_QF && DEFAULT_QF))
+   if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
    {
       global_residual_e.resize(global_outfds.size());
       global_residual_l.resize(global_outfds.size());
@@ -865,6 +866,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    else if constexpr (LOCAL_QF && DEVICE_QF)
    {
       dbg("LOCAL && DEVICE backend");
+      static_assert(MONO_QF, "Only mono QF is supported for local device backend");
       ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
       DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
       if (use_sum_factorization)
