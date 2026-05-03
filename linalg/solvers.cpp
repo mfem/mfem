@@ -57,7 +57,6 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
-   NVTX_MARK_FUNCTION;
    if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
 
 #ifndef MFEM_USE_MPI
@@ -869,7 +868,6 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   NVTX_MARK_FUNCTION;
    int i;
    real_t r0, den, nom, nom0, betanom, alpha, beta;
 

@@ -413,7 +413,6 @@ void Vector::Pow(const real_t p)
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
 
@@ -436,7 +435,6 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 
 void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
 {
-   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
 
@@ -1080,8 +1078,6 @@ real_t Vector::Normlp(real_t p) const
 
 real_t Vector::operator*(const Vector &v) const
 {
-   NVTX_MARK_FUNCTION;
-
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
    if (size == 0) { return 0.0; }

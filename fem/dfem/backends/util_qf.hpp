@@ -440,6 +440,7 @@ constexpr auto make_activity_map(inputs_t)
              std::make_index_sequence<std::tuple_size_v<inputs_t>> {});
 }
 
+#ifdef MFEM_USE_ENZYME
 namespace enzyme_detail
 {
 
@@ -447,9 +448,7 @@ template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
 do_enzyme_call([[maybe_unused]] AccArgs... acc)
 {
-#ifdef MFEM_USE_ENZYME
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
-#endif
 }
 
 template <auto wrapper_fn, typename qf_return_t,
@@ -531,6 +530,7 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
 }
 
 } // namespace enzyme_detail
+#endif // MFEM_USE_ENZYME
 
 template <size_t derivative_id, typename qfunc_t, typename inputs_t, typename outputs_t,
           std::size_t... Is, std::size_t... Os>
@@ -670,4 +670,4 @@ void create_qlayouts(const fops_t &fops,
    });
 }
 
-}
+} // namespace mfem::future

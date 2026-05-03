@@ -637,7 +637,6 @@ tensor<decltype(S {} * T{}), n...>
    return C;
 }
 
-
 /**
  * @brief multiply a tensor by a scalar value
  * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number

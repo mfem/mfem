@@ -38,7 +38,6 @@
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
 #include "tuple.hpp"
-// #include <tuple>
 
 namespace mfem::future
 {
@@ -1607,7 +1606,7 @@ template <typename fop_t>
 inline
 std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const FieldDescriptor &f,
-   const fop_t &fop,
+   const fop_t &,
    MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)
@@ -2024,7 +2023,7 @@ get_shmem_info(
    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::vector<FieldDescriptor> &fields,
    const int &num_entities,
-   const input_t &inputs,
+   const input_t &,
    const int &num_qp,
    const std::vector<int> &input_size_on_qp,
    const int &residual_size_on_qp,

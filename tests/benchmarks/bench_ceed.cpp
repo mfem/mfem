@@ -217,7 +217,7 @@ struct BP : public BakeOff<BFI, VDIM, GLL>
       cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
-      cg.iterative_mode = false;
+
       benchmark();
       mdofs = 0.0;
    }

@@ -318,8 +318,6 @@ public:
    void UseDevice(bool use_dev) const
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
-   void ValidateDevice(bool valid) { flags = valid ? (flags | VALID_DEVICE) : (flags & ~VALID_DEVICE); }
-
    /// Return the size of the allocated memory.
    int Capacity() const { return capacity; }
 
