@@ -2318,8 +2318,6 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
-   inline int GetD1D() const { return dofs1D; }
-   inline int GetQ1D() const { return quad1D; }
 
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;

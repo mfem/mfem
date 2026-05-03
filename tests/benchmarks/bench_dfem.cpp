@@ -52,9 +52,8 @@ namespace ker = kernels::internal;
 
 using namespace mfem;
 
-// using mfem::future::tuple;
-using mfem::future::tensor;
-using mfem::future::tensor_array;
+using future::tensor;
+using future::tensor_array;
 
 using future::DifferentiableOperator;
 using future::UniformParameterSpace;
@@ -64,9 +63,6 @@ using future::Gradient;
 using future::Value;
 using future::Weight;
 using future::Identity;
-
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
 
 /// info //////////////////////////////////////////////////////////////////////
 void info()
@@ -127,7 +123,6 @@ static void AddKernelSpecializations()
    QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 6>::Add();
    QuadratureInterpolator::DetKernels::Specialization<3, 3, 5, 5>::Add();
    // Others use too much shared data
-   // uadratureInterpolator::DetKernels::Add<3, 3, 2, 7>();
 
    using GRAD = QuadratureInterpolator::GradKernels;
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
@@ -172,7 +167,6 @@ static void AddKernelSpecializations()
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
-static int gD1D = 0, gQ1D = 0;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -212,8 +206,6 @@ public:
       const int NQPT = ir.GetNPoints();
       d1d = p + 1;
       q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-      MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
-      MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
       MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
       const DofToQuad *maps =
          &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
@@ -415,8 +407,6 @@ struct BakeOff
       NVTX_MARK_FUNCTION;
       smesh.Clear();
       x.Randomize(0x9e3779b9);
-
-      gD1D = d1d, gQ1D = q1d;
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
 
@@ -468,7 +458,6 @@ struct PAApply_global_qf_4_5
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
-                   tensor_array<const real_t> &/*weight*/,
                    tensor_array<real_t, DIM> &Gv) const
    {
       NVTX_MARK_FUNCTION;
@@ -496,9 +485,9 @@ struct PAApply_local_mono_qf_7
 {
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<real_t, DIM> &Gu,
-                   const tensor<real_t, DIM, DIM> &Q) const
+                   const tensor<real_t, DIM, DIM> &D) const
    {
-      return std::tuple{Q * Gu};
+      return std::tuple{D * Gu};
    };
 };
 
@@ -507,10 +496,10 @@ struct PAApply_local_with_outputs_qf_8
 {
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<real_t, DIM> &Gu,
-                   const tensor<real_t, DIM, DIM> &Q,
+                   const tensor<real_t, DIM, DIM> &D,
                    tensor<real_t, DIM> &res) const
    {
-      res = Q * Gu;
+      res = D * Gu;
    };
 };
 
@@ -635,7 +624,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
          PAApply_global_qf_4_5<DIM> pa_apply_gqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
-                                                      std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
+                                                      std::tuple{Gradient<U>{}, Identity<Q>{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
@@ -679,9 +668,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             bf.Assemble();
          }
          dbg("[PA ∂fem] Local Mono Apply");
-         auto Iq = Identity<Q> {};
-         auto Gu = Gradient<U> {};
-         std::tuple Gu_Iq = {Gu, Iq};
+         const auto Iq = Identity<Q> {};
+         const auto Gu = Gradient<U> {};
+         const std::tuple Gu_Iq = {Gu, Iq};
          PAApply_local_mono_qf_7<DIM> pa_apply_qf;
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
@@ -733,15 +722,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qfct)); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-         if (version == 0)
-         {
-            BilinearFormIntegrator *bfi = a.GetDBFI()->operator[](0);
-            auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
-            assert(di);
-            const int d1d = di->GetD1D(), q1d = di->GetQ1D();
-            MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
-            MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
-         }
       }
       else if (version == 2) // 🟠 MF global default
       {

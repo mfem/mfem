@@ -493,5 +493,5 @@ pkg.gitcommit
 # emacs tag file
 TAGS
 
-# vs code directory
+# vs code
 .vscode
