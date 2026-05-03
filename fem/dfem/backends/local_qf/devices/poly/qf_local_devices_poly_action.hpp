@@ -16,14 +16,20 @@
 
 #include "fem/dfem/integrator_ctx.hpp"
 
-// #include "../qf_local_devices.hpp"
+#include "../qf_local_devices.hpp" // for as_tensor
 
-#include "../../../util.hpp"
+#include "fem/kernels3d.hpp"
+namespace ker = mfem::kernels::internal;
+namespace low = mfem::kernels::internal::low;
 
-// #include "fem/kernels3d.hpp"
+// #include "../../../util.hpp"
+
+#include "fem/kernels3d.hpp"
 // namespace ker = mfem::kernels::internal;
-// namespace low = mfem::kernels::internal::low;
+namespace low = mfem::kernels::internal::low;
 // #include "fem/kernel_dispatch.hpp"
+
+// #include NVTX_DBG_FMT
 
 namespace mfem::future
 {
@@ -36,42 +42,29 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-   std::size_t ninputs = std::tuple_size_v<inputs_t>,
-   std::size_t noutputs = std::tuple_size_v<outputs_t>>
+   std::size_t n_inputs = std::tuple_size_v<inputs_t>,
+   std::size_t n_outputs = std::tuple_size_v<outputs_t>>
 class Action
 {
+   static constexpr auto inout_tuple = std::tuple_cat(inputs_t {}, outputs_t {});
+   static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
+   static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
+
    IntegratorContext ctx;
    qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;
 
-   std::array<size_t, ninputs> input_to_infd;
-   std::array<size_t, noutputs> output_to_outfd;
+   const std::array<size_t, n_inputs> input_to_field;
+   const std::array<size_t, n_outputs> output_to_field;
 
-   std::array<FieldBasis, ninputs> input_bases;
-   std::array<FieldBasis, noutputs> output_bases;
-
-   // std::array<const DofToQuad*, ninputs> input_dtq_maps;
-   // std::array<const DofToQuad*, noutputs> output_dtq_maps;
-
-   // using local_restriction_callback_t =
-   //    std::function<void(std::vector<Vector> &,
-   //                       const std::vector<Vector> &,
-   //                       std::vector<Vector> &)>;
-
-   // local_restriction_callback_t &restriction_cb;
-   // const DofToQuadMap input_dtq_maps;
-   // const int num_entities;
-   // const ThreadBlocks thread_blocks;
-   // const Array<int> &attributes;
-   // const Array<int> *elem_attributes;
-   // // refs
-   // std::vector<Vector> &fields_e;
-   // Vector &residual_e;
-   // std::function<void(Vector &, Vector &)> &output_restriction_transpose;
+   std::vector<const DofToQuad*> dtqs;
+   std::array<DofToQuadMap, n_inputs> input_dtq_maps{};
+   std::array<DofToQuadMap, n_outputs> output_dtq_maps{};
+   int dim, ne, nq, d1d, q1d;
+   ThreadBlocks thread_blocks;
 
 public:
-
    ////////////////////////////////////////////////////////
    Action() = delete;
 
@@ -82,43 +75,165 @@ public:
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
-      outputs(outputs)
-      // restriction_cb(*ctx.local.local_restriction_callback),
-      // input_dtq_maps(ctx.local.input_dtq_maps),
-      // num_entities(ctx.local.num_entities),
-      // thread_blocks(ctx.local.thread_blocks),
-      // attributes(*ctx.local.attributes),
-      // elem_attributes(ctx.local.elem_attributes),
-      // fields_e(*ctx.local.local_fields_e),
-      // residual_e(*ctx.local.local_residual_e),
-      // output_restriction_transpose(*ctx.local.output_restriction_transpose)
+      outputs(outputs),
+      // Maps from qfunc inputs/outputs -> union field indices
+      input_to_field(
+         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, inputs)),
+      output_to_field(
+         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, outputs))
    {
       NVTX_MARK_FUNCTION;
-      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
-      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
+      dbg("nfields:{}", nfields);
 
-      check_consistency(inputs, input_to_infd, ctx.infds);
-      check_consistency(outputs, output_to_outfd, ctx.outfds);
+      // Build DofToQuad maps
+      dbg("create_dtq_maps");
+      dtqs.reserve(ctx.unionfds.size());
+      constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
+      for (const auto &field : ctx.unionfds)
+      {
+         dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
+      }
+      input_dtq_maps =
+         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field);
+      output_dtq_maps =
+         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      // Compute constants & thread blocks
+      dim = ctx.mesh.Dimension();
+      ne = ctx.nentities;
+      nq = ctx.ir.GetNPoints();
+      d1d = input_dtq_maps[0].B.GetShape()[2];
+      const auto dim_r = static_cast<real_t>(dim);
+      q1d = static_cast<int>(std::floor(std::pow(nq, 1.0 / dim_r) + 0.5));
+      dbg("d1d:{} q1d:{}", d1d, q1d);
 
-      if (!ctx.local.use_kernel_specializations) { return; }
-#ifdef MFEM_ADD_SPECIALIZATIONS
-      NewActionCallbackKernels::template Specialization<3>::Add(); // 1
-      NewActionCallbackKernels::template Specialization<4>::Add(); // 2
-      NewActionCallbackKernels::template Specialization<5>::Add(); // 3
-      NewActionCallbackKernels::template Specialization<6>::Add(); // 4
-      NewActionCallbackKernels::template Specialization<7>::Add(); // 5
-      NewActionCallbackKernels::template Specialization<8>::Add(); // 6
-#endif
+      thread_blocks.x = q1d;
+      thread_blocks.y = (dim >= 2) ? q1d : 1;
+      thread_blocks.z = (dim >= 3) ? q1d : 1;
    }
 
-   void operator()(const std::vector<Vector *> &,
-                   std::vector<Vector *> &) const
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector *> &ye) const
    {
       NVTX_MARK_FUNCTION;
-      assert(false && "Not implemented 🔥🔥🔥");
+      if (ctx.attr.Size() == 0) { return; }
+
+      using qf_signature = typename get_function_signature<qfunc_t>::type;
+      using qf_param_ts = typename qf_signature::parameter_ts;
+
+      for (auto v : ye) { *v = 0.0; }
+
+      dbg("NE:{} NQ:{} Q1D:{}", ne, nq, q1d);
+      constexpr int DIM = 3, VDIM = 1;
+      assert(DIM == dim);
+
+      const auto XE = Reshape(xe[0]->Read(), d1d, d1d, d1d, VDIM, ne);
+      // const auto J = Reshape(xe[1]->Read(), q1d, q1d, q1d, VDIM, DIM, ne);
+      const real_t *rd = xe[1]->Read();
+      auto YE = Reshape(ye[0]->ReadWrite(), d1d, d1d, d1d, VDIM, ne);
+
+      const real_t *B = input_dtq_maps[0].B;
+      const real_t *G = input_dtq_maps[0].G;
+
+      NVTX_INI("forall");
+
+      const bool has_attr = ctx.attr.Size() > 0;
+      const auto d_attr = ctx.attr.Read();
+      const auto d_elem_attr = ctx.elem_attr->Read();
+
+      dfem::forall([=] MFEM_HOST_DEVICE (int e, void *)
+      {
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+
+         constexpr int MQ1 = 8;
+
+         MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
+         MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
+
+         low::regs3d_t<DIM, MQ1> reg;
+         // const real_t *rd = dx_ptr;
+
+         MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+         {
+            // const auto input = get<0/*i*/>(inputs);
+            // using field_operator_t = std::decay_t<decltype(input)>;
+
+            // if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
+            {
+               // const int vdim = input.vdim;
+               // const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
+               // const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
+               // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
+               // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+               low::LoadMatrix(d1d, q1d, B, sB);
+               low::LoadMatrix(d1d, q1d, G, sG);
+               // for (int c = 0; c < vdim; c++)
+               // constexpr int c = 0;
+               {
+                  low::LoadDofs3d(e, d1d, XE, sm0);
+                  low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg);
+               }
+            }
+            // else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
+            {
+               // db1("Identity");
+               // rd = fields_e_ptr[input_to_field[i]];
+               // rd = dx_ptr;
+            }
+            // else if constexpr (is_weight_fop<field_operator_t>::value)   // Weight
+            // {
+            //    dbg("Weight");
+            //    rw = fields_e_ptr[input_to_field[i]]; // 🔥
+            // }
+            // else
+            {
+               // MFApply comes here
+               // assert(false);
+               // MFEM_ABORT("Only Grad and Identity field operators are supported");
+            }
+         }
+
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+               {
+                  auto args = decay_tuple<qf_param_ts> {};
+                  get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
+                  // if constexpr (T_Q1D > 0)
+                  // {
+                  //    get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*
+                  //                                           (qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
+                  // }
+                  // else
+                  {
+                     get<1>(args) =
+                        as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+                  }
+                  // 🔥 QFApply comes here
+                  // auto r = get<0>(std::apply(qfunc, args));
+                  // auto r = get<0>(apply(qfunc, args));
+                  // if constexpr (decltype(r)::ndim == 1)
+                  // {
+                  //    as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
+                  // }
+                  // else { static_assert(false); }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         // Integrate
+         // if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
+         {
+            // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+            // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+            low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0);
+            low::WriteDofs3d(d1d, 0, e, reg, YE);
+         }
+      },
+      ne, thread_blocks, 0, nullptr);
+      NVTX_END("forall");
    }
 };
 
