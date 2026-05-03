@@ -22,17 +22,25 @@
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 
-// #include "../../../util.hpp"
+#include "fem/dfem/util.hpp"
 
 #include "fem/kernels3d.hpp"
-// namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
-// #include "fem/kernel_dispatch.hpp"
 
 // #include NVTX_DBG_FMT
 
+template <typename...> struct show_types;
+
 namespace mfem::future
 {
+template <typename T>
+constexpr decltype(auto) tuple_last(T&& t)
+{
+   constexpr std::size_t N =
+      std::tuple_size_v<std::remove_reference_t<T>>;
+   static_assert(N > 0);
+   return std::get<N - 1>(std::forward<T>(t));
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 namespace LocalQFDevicesPolyImpl
@@ -120,17 +128,20 @@ public:
 
       using qf_signature = typename get_function_signature<qfunc_t>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
+      using args_tuple_t = decay_tuple<qf_param_ts>;
 
       for (auto v : ye) { *v = 0.0; }
 
-      dbg("NE:{} NQ:{} Q1D:{}", ne, nq, q1d);
-      constexpr int DIM = 3, VDIM = 1;
+      db1("NE:{} NQ:{} Q1D:{}", ne, nq, q1d);
+      constexpr int DIM = 3;
       assert(DIM == dim);
 
-      const auto XE = Reshape(xe[0]->Read(), d1d, d1d, d1d, VDIM, ne);
-      // const auto J = Reshape(xe[1]->Read(), q1d, q1d, q1d, VDIM, DIM, ne);
+      const auto XE = Reshape(xe[0]->Read(), d1d, d1d, d1d, 1, ne);
       const real_t *rd = xe[1]->Read();
-      auto YE = Reshape(ye[0]->ReadWrite(), d1d, d1d, d1d, VDIM, ne);
+
+      // const auto ΞE = Reshape(xe[1]->Read(), d1d, d1d, d1d, 3, ne);
+      // const real_t *w = ctx.ir.GetWeights().Read();
+      auto YE = Reshape(ye[0]->ReadWrite(), d1d, d1d, d1d, 1, ne);
 
       const real_t *B = input_dtq_maps[0].B;
       const real_t *G = input_dtq_maps[0].G;
@@ -199,26 +210,31 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
-                  auto args = decay_tuple<qf_param_ts> {};
-                  get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
-                  // if constexpr (T_Q1D > 0)
-                  // {
-                  //    get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*
-                  //                                           (qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
-                  // }
-                  // else
-                  {
-                     get<1>(args) =
-                        as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
-                  }
+                  args_tuple_t args = {};
+                  // show_types<args_tuple_t> dump {};
+
+                  // ∇u
+                  std::get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
+
+                  // Q
+                  std::get<1>(args) =
+                     as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+
+                  // Integration weight
+                  // std::get<2>(args) = w[qx*q1d*q1d + qy*q1d + qz];
+
                   // 🔥 QFApply comes here
-                  // auto r = get<0>(std::apply(qfunc, args));
-                  // auto r = get<0>(apply(qfunc, args));
-                  // if constexpr (decltype(r)::ndim == 1)
-                  // {
-                  //    as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
-                  // }
-                  // else { static_assert(false); }
+                  db1("🔥 QFApply");
+                  std::apply(qfunc, args);
+
+                  // auto r = tuple_last(args);
+                  auto r = std::get<2>(args);
+
+                  if constexpr (decltype(r)::ndim == 1)
+                  {
+                     as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
+                  }
+                  else { static_assert(false); }
                }
             }
          }

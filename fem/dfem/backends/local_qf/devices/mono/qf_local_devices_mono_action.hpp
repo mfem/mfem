@@ -90,12 +90,12 @@ public:
    {
       if (!ctx.local.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      NewActionCallbackKernels::template Specialization<3>::Add(); // 1
-      NewActionCallbackKernels::template Specialization<4>::Add(); // 2
-      NewActionCallbackKernels::template Specialization<5>::Add(); // 3
-      NewActionCallbackKernels::template Specialization<6>::Add(); // 4
-      NewActionCallbackKernels::template Specialization<7>::Add(); // 5
-      NewActionCallbackKernels::template Specialization<8>::Add(); // 6
+      ActionCallbackKernels::template Specialization<3>::Add(); // 1
+      ActionCallbackKernels::template Specialization<4>::Add(); // 2
+      ActionCallbackKernels::template Specialization<5>::Add(); // 3
+      ActionCallbackKernels::template Specialization<6>::Add(); // 4
+      ActionCallbackKernels::template Specialization<7>::Add(); // 5
+      ActionCallbackKernels::template Specialization<8>::Add(); // 6
 #endif
       // create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       // create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
@@ -322,7 +322,7 @@ template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
-         std::size_t n_outputs> template<int Q1D>
+         std::size_t n_outputs> template<int Q1D> typename
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
 (/* instantiated with Q1D */) { return action_callback_new<Q1D>; }
@@ -331,7 +331,7 @@ template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
-         std::size_t n_outputs>
+         std::size_t n_outputs> typename
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)

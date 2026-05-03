@@ -2667,19 +2667,20 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    {
       [[maybe_unused]] auto g = [&](int idx)
       {
-         dbg("field_map size:{} field_map[idx]:{}", field_map.size(), field_map[idx]);
+         dbg("[G] field_map size:{} field_map[idx]:{}", field_map.size(),
+             field_map[idx]);
          auto dtq = dtqs[field_map[idx]];
-         assert(dtq);
 
          int value_dim = 1;
          int grad_dim = 1;
 
-         if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
+         if ((dtq && dtq->mode != DofToQuad::Mode::TENSOR) &&
              (!is_identity_fop<decltype(fop)>::value))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
          }
+         else { dbg("[G] 🔥 nullptr"); }
 
          return std::tuple{dtq, value_dim, grad_dim};
       };
@@ -2687,7 +2688,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       if constexpr (is_value_fop<decltype(fop)>::value ||
                     is_gradient_fop<decltype(fop)>::value)
       {
-         dbg("Value || Gradient #{}", idx);
+         dbg("Value || Gradient #{}: ✅", idx);
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
@@ -2698,7 +2699,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {
-         dbg("Weight #{}", idx);
+         dbg("Weight #{}: nullptr 🔥", idx);
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
@@ -2709,12 +2710,12 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
                          is_sum_fop<decltype(fop)>::value)
       {
-         dbg("Identity || Sum #{}", idx);
+         dbg("Identity || Sum #{}: nullptr 🔥", idx);
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq ? dtq->nqpt : -1, value_dim, dtq ? dtq->ndof : -1),
+            DeviceTensor<3, const real_t>(nullptr, dtq ? dtq->nqpt : -1, grad_dim, dtq ? dtq->ndof : -1),
             -1
          };
       }
