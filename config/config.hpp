@@ -170,6 +170,8 @@ constexpr real_t operator""_r(unsigned long long v)
 #define NVTX_MARK_INI(...)
 #define NVTX_MARK_END(...)
 #define NVTX_MARK(...)
+#define NVTX_INI(...)
+#define NVTX_END(...)
 #define NVTX(...)
 #endif
 

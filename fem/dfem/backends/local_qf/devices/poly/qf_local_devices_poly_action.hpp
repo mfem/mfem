@@ -15,32 +15,14 @@
 #include <utility>
 
 #include "fem/dfem/integrator_ctx.hpp"
-
 #include "../qf_local_devices.hpp" // for as_tensor
 
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 
-#include "fem/dfem/util.hpp"
-
-#include "fem/kernels3d.hpp"
-namespace low = mfem::kernels::internal::low;
-
-// #include NVTX_DBG_FMT
-
-template <typename...> struct show_types;
-
 namespace mfem::future
 {
-template <typename T>
-constexpr decltype(auto) tuple_last(T&& t)
-{
-   constexpr std::size_t N =
-      std::tuple_size_v<std::remove_reference_t<T>>;
-   static_assert(N > 0);
-   return std::get<N - 1>(std::forward<T>(t));
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 namespace LocalQFDevicesPolyImpl
@@ -58,10 +40,10 @@ class Action
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   IntegratorContext ctx;
+   const IntegratorContext ctx;
    qfunc_t qfunc;
-   inputs_t inputs;
-   outputs_t outputs;
+   const inputs_t inputs;
+   const outputs_t outputs;
 
    const std::array<size_t, n_inputs> input_to_field;
    const std::array<size_t, n_outputs> output_to_field;
@@ -69,14 +51,14 @@ class Action
    std::vector<const DofToQuad*> dtqs;
    std::array<DofToQuadMap, n_inputs> input_dtq_maps{};
    std::array<DofToQuadMap, n_outputs> output_dtq_maps{};
-   int dim, ne, nq, d1d, q1d;
+   int dim, ne, nq, ndof, nqpt;
    ThreadBlocks thread_blocks;
 
 public:
    ////////////////////////////////////////////////////////
    Action() = delete;
 
-   Action(IntegratorContext ctx,
+   Action(const IntegratorContext ctx,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs) :
@@ -110,18 +92,56 @@ public:
       dim = ctx.mesh.Dimension();
       ne = ctx.nentities;
       nq = ctx.ir.GetNPoints();
-      d1d = input_dtq_maps[0].B.GetShape()[2];
+      ndof = input_dtq_maps[0].B.GetShape()[2];
       const auto dim_r = static_cast<real_t>(dim);
-      q1d = static_cast<int>(std::floor(std::pow(nq, 1.0 / dim_r) + 0.5));
-      dbg("d1d:{} q1d:{}", d1d, q1d);
+      nqpt = static_cast<int>(std::floor(std::pow(nq, 1.0 / dim_r) + 0.5));
+      dbg("ndof:{} nqpt:{}", ndof, nqpt);
 
-      thread_blocks.x = q1d;
-      thread_blocks.y = (dim >= 2) ? q1d : 1;
-      thread_blocks.z = (dim >= 3) ? q1d : 1;
+      thread_blocks.x = nqpt;
+      thread_blocks.y = (dim >= 2) ? nqpt : 1;
+      thread_blocks.z = (dim >= 3) ? nqpt : 1;
+      if (!ctx.use_kernel_specializations) { assert(false); return; }
+#ifdef MFEM_ADD_SPECIALIZATIONS
+      ActionCallbackKernels::template Specialization<3>::Add(); // 1
+      ActionCallbackKernels::template Specialization<4>::Add(); // 2
+      ActionCallbackKernels::template Specialization<5>::Add(); // 3
+      ActionCallbackKernels::template Specialization<6>::Add(); // 4
+      ActionCallbackKernels::template Specialization<7>::Add(); // 5
+      ActionCallbackKernels::template Specialization<8>::Add(); // 6
+#endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
+   {
+      ActionCallbackKernels::Run(nqpt,
+                                 // arguments
+                                 ctx,
+                                 qfunc,
+                                 dim,
+                                 ne,
+                                 ndof,
+                                 input_dtq_maps,
+                                 thread_blocks,
+                                 xe, ye,
+                                 // fallback arguments
+                                 nqpt);
+   }
+
+public:
+   ////////////////////////////////////////////////////////
+   template<int T_Q1D = 0>
+   static void action_callback(const IntegratorContext &ctx,
+                               const qfunc_t &qfunc,
+                               const int dim,
+                               const int ne,
+                               const int ndof,
+                               const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
+                               const ThreadBlocks &thread_blocks,
+                               const std::vector<Vector *> &xe,
+                               std::vector<Vector *> &ye,
+                               // fallback arguments
+                               const int q1d)
    {
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
@@ -132,15 +152,13 @@ public:
 
       for (auto v : ye) { *v = 0.0; }
 
-      db1("NE:{} NQ:{} Q1D:{}", ne, nq, q1d);
+      db1("NE:{} d1d:{} q1d:{}", ne, ndof, q1d);
       constexpr int DIM = 3;
       assert(DIM == dim);
 
+      const int d1d = ndof;
       const auto XE = Reshape(xe[0]->Read(), d1d, d1d, d1d, 1, ne);
-      const real_t *rd = xe[1]->Read();
-
-      // const auto ΞE = Reshape(xe[1]->Read(), d1d, d1d, d1d, 3, ne);
-      // const real_t *w = ctx.ir.GetWeights().Read();
+      const real_t *dx_ptr = xe[1]->Read();
       auto YE = Reshape(ye[0]->ReadWrite(), d1d, d1d, d1d, 1, ne);
 
       const real_t *B = input_dtq_maps[0].B;
@@ -152,17 +170,17 @@ public:
       const auto d_attr = ctx.attr.Read();
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      dfem::forall([=] MFEM_HOST_DEVICE (int e, void *)
+      dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = 8;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
 
          MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
 
          low::regs3d_t<DIM, MQ1> reg;
-         // const real_t *rd = dx_ptr;
+         const real_t *rd = dx_ptr;
 
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
          {
@@ -211,7 +229,6 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
                   args_tuple_t args = {};
-                  // show_types<args_tuple_t> dump {};
 
                   // ∇u
                   std::get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
@@ -220,11 +237,6 @@ public:
                   std::get<1>(args) =
                      as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
 
-                  // Integration weight
-                  // std::get<2>(args) = w[qx*q1d*q1d + qy*q1d + qz];
-
-                  // 🔥 QFApply comes here
-                  db1("🔥 QFApply");
                   std::apply(qfunc, args);
 
                   // auto r = tuple_last(args);
@@ -251,8 +263,38 @@ public:
       ne, thread_blocks, 0, nullptr);
       NVTX_END("forall");
    }
+   using ActionKernelType = decltype(&Action::action_callback<>);
+   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
 } // namespace LocalQFDevicesPolyImpl
+
+template<typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         std::size_t n_inputs,
+         std::size_t n_outputs> template<int Q1D> typename
+LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
+(/* instantiated with Q1D */) { return action_callback<Q1D>; }
+
+template<typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         std::size_t n_inputs,
+         std::size_t n_outputs> typename
+LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
+(int q1d)
+{
+#ifdef MFEM_ADD_SPECIALIZATIONS
+   MFEM_ABORT("No kernel for q1d=" << q1d);
+   return nullptr;
+#else
+   MFEM_CONTRACT_VAR(q1d);
+   db1("\x1b[33mFallback q1d:{}", q1d);
+   return action_callback;
+#endif
+}
 
 } // namespace mfem::future

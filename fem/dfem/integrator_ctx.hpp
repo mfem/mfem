@@ -23,10 +23,10 @@ struct IntegratorContext
    const IntegrationRule &ir;
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
+   const bool use_kernel_specializations = false;
 
    const struct
    {
-      const bool use_kernel_specializations = false;
       const int num_entities = 0, d1d = 0, q1d = 0;
       const Array<int> *attributes = nullptr;
       const DofToQuadMap input_dtq_maps = {};

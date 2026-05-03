@@ -3,9 +3,8 @@
 
 #include <tuple>
 
-#include "../fem/quadinterpolator.hpp"
+#include "../../quadinterpolator.hpp"
 #include "../util.hpp"
-#include "../integrator_ctx.hpp"
 
 #include "general/enzyme.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
@@ -446,7 +445,7 @@ namespace enzyme_detail
 
 template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
-do_enzyme_call(AccArgs... acc)
+do_enzyme_call([[maybe_unused]] AccArgs... acc)
 {
 #ifdef MFEM_USE_ENZYME
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
@@ -609,8 +608,14 @@ inline void enzyme_fwddiff(
      primals_out, derivs_out,
      enzyme_const, &qfunc // seed: qfunc is always inactive
     );
-
 #else
+   MFEM_CONTRACT_VAR(qfunc);
+   MFEM_CONTRACT_VAR(xq);
+   MFEM_CONTRACT_VAR(shadow_xq);
+   MFEM_CONTRACT_VAR(yq);
+   MFEM_CONTRACT_VAR(gnqp);
+   MFEM_CONTRACT_VAR(in_layouts);
+   MFEM_CONTRACT_VAR(out_layouts);
    MFEM_ABORT("enzyme_fwddiff requires MFEM_USE_ENZYME");
 #endif
 }

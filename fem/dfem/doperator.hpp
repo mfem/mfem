@@ -846,7 +846,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       {
          mesh, elem_attributes, attributes, num_entities,
          global_infds, global_outfds, global_unionfds, integration_rule,
-         in_qlayouts, out_qlayouts,
+         in_qlayouts, out_qlayouts, use_kernel_specializations,
          {} // local data
       };
 
@@ -982,13 +982,14 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       dbg("ThreadBlocks: x:{} y:{} z:{}",
           thread_blocks.x, thread_blocks.y, thread_blocks.z);
 
+      assert(use_kernel_specializations);
       IntegratorContext ctx
       {
          mesh, elem_attributes, attributes, num_entities,
          global_infds, global_outfds, global_unionfds, integration_rule,
-         in_qlayouts, out_qlayouts,
+         in_qlayouts, out_qlayouts, use_kernel_specializations,
          {
-            use_kernel_specializations, num_entities, d1d, q1d,
+            num_entities, d1d, q1d,
             &attributes,
             input_dtq_maps[0],
             thread_blocks,

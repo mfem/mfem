@@ -88,7 +88,7 @@ public:
       residual_e(*ctx.local.local_residual_e),
       output_restriction_transpose(*ctx.local.output_restriction_transpose)
    {
-      if (!ctx.local.use_kernel_specializations) { return; }
+      if (!ctx.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
       ActionCallbackKernels::template Specialization<4>::Add(); // 2
@@ -162,28 +162,28 @@ public:
                                  // fallback arguments
                                  ctx.local.q1d);
    }
-
-private:
+   // extended host device lambda cannot have private or protected access within its class
+public:
    ////////////////////////////////////////////////////////
    template<int T_Q1D = 0>
-   static void action_callback_new(const int d1d,
-                                   local_restriction_callback_t &restriction_cb,
-                                   qfunc_t &qfunc,
-                                   const DofToQuadMap &input_dtq_maps,
-                                   const int num_entities,
-                                   const ThreadBlocks &thread_blocks,
-                                   const Array<int> &attributes,
-                                   const Array<int> *elem_attributes,
-                                   // refs
-                                   std::vector<Vector> &fields_e,
-                                   Vector &residual_e,
-                                   std::function<void(Vector &, Vector &)> &output_restriction_transpose,
-                                   // args
-                                   std::vector<Vector> &solutions_l,
-                                   const std::vector<Vector> &parameters_l,
-                                   Vector &residual_l,
-                                   // fallback arguments
-                                   const int q1d)
+   static void action_callback(const int d1d,
+                               local_restriction_callback_t &restriction_cb,
+                               qfunc_t &qfunc,
+                               const DofToQuadMap &input_dtq_maps,
+                               const int num_entities,
+                               const ThreadBlocks &thread_blocks,
+                               const Array<int> &attributes,
+                               const Array<int> *elem_attributes,
+                               // refs
+                               std::vector<Vector> &fields_e,
+                               Vector &residual_e,
+                               std::function<void(Vector &, Vector &)> &output_restriction_transpose,
+                               // args
+                               std::vector<Vector> &solutions_l,
+                               const std::vector<Vector> &parameters_l,
+                               Vector &residual_l,
+                               // fallback arguments
+                               const int q1d)
    {
       NVTX_MARK_FUNCTION;
       constexpr int DIM = 3;
@@ -312,7 +312,7 @@ private:
       output_restriction_transpose(residual_e, residual_l);
       NVTX_END("out^T");
    }
-   using ActionKernelType = decltype(&Action::action_callback_new<>);
+   using ActionKernelType = decltype(&Action::action_callback<>);
    MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
@@ -325,7 +325,7 @@ template<typename qfunc_t,
          std::size_t n_outputs> template<int Q1D> typename
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
 LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
-(/* instantiated with Q1D */) { return action_callback_new<Q1D>; }
+(/* instantiated with Q1D */) { return action_callback<Q1D>; }
 
 template<typename qfunc_t,
          typename inputs_t,
@@ -341,7 +341,7 @@ LocalQFDevicesMonoImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs
    return nullptr;
 #else
    db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback_new;
+   return action_callback;
 #endif
 }
 

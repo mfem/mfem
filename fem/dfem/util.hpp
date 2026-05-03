@@ -37,8 +37,8 @@
 #include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
-// #include "tuple.hpp"
-#include <tuple>
+#include "tuple.hpp"
+// #include <tuple>
 
 namespace mfem::future
 {
@@ -80,7 +80,7 @@ constexpr void for_constexpr(lambda&& f,
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
+constexpr void for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
@@ -89,7 +89,7 @@ constexpr void for_constexpr(lambda&& f)
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+constexpr void for_constexpr_with_arg(lambda&&, arg_t&&,
                                       std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
@@ -568,7 +568,7 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
-constexpr auto filter_fields(const std::tuple<Ts...>& t)
+constexpr auto filter_fields(const std::tuple<Ts...>&)
 {
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
@@ -603,7 +603,7 @@ struct ThreadBlocks
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+__global__ void forall_kernel_extern_shmem(func_t f, int n)
 {
    int i = blockIdx.x;
    extern __shared__ real_t shmem[];
@@ -612,24 +612,50 @@ __global__ void forall_kernel_shmem(func_t f, int n)
       f(i, shmem);
    }
 }
-#endif
 
 template <typename func_t>
+__global__ void forall_kernel_static_smem(func_t f, int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   f(i, nullptr);
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename func_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
+{
+   for (int k = blockIdx.x; k < n; k += gridDim.x) { f(k, nullptr); }
+}
+#endif
+
+template </*typename kernel_tag,*/ typename func_t>
 void forall(func_t f,
             const int &N,
-            const ThreadBlocks &blocks,
-            int num_shmem = 0,
+            [[maybe_unused]] const ThreadBlocks &blocks,
+            [[maybe_unused]] int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-   NVTX_MARK_FUNCTION;
+   db1();
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
 #if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
+      db1("num_bytes:{}", num_bytes);
+      db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+      // ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
+      if (num_bytes > 0)
+      {
+         forall_kernel_extern_shmem<<<N, block_size, num_bytes>>>(f, N);
+      }
+      else
+      {
+         forall_kernel_static_smem<<<N, block_size>>>(f, N);
+      }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
@@ -640,6 +666,7 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
+      db1("CPU_MASK");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
@@ -2416,7 +2443,7 @@ auto unpack_shmem(
    MFEM_SYNC_THREAD;
 
    // nvcc needs make_tuple to be fully qualified
-   return std::make_tuple(
+   return mfem::future::make_tuple(
              input_dtq_shmem, output_dtq_shmem, fields_shmem,
              input_shmem, residual_shmem, scratch_mem);
 }

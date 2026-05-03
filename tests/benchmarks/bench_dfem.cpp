@@ -109,7 +109,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 4; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 8; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -686,7 +686,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
-         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
          dop->template AddDomainIntegrator<backend_t>(pa_apply_qf, Gu_Iq, std::tuple{Gu},
                                                       *ir, ess_bdr);
          assert(qfct * qfct > 0.0);
@@ -697,7 +696,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       };
 
       // PA ∂FEM Local devices poly backend setup ////////////////////////////////////////
-      const auto dMFLocalDevicesPolyOperatorSetup_8 = [&] (auto backend)
+      const auto dMFLocalDevicesPolyOperatorSetup_8 = [&] (auto backend,
+                                                           bool use_kernel_specializations)
       {
          using backend_t = decltype(backend);
          static_assert(backend_t::is_poly, "Backend must be poly");
@@ -713,6 +713,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
          PAApply_local_with_outputs_qf_8<DIM> pa_apply_lqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_lqf,
                                                       std::tuple{Gradient<U>{}, Identity<Q>{}},
@@ -724,7 +725,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
-
 
       if (version < 2) // standard, new PA regs
       {
@@ -776,7 +776,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 8) // 🟢 PA local devices poly
       {
          dbg("\x1b[33m PA ∂FEM local devices poly");
-         dMFLocalDevicesPolyOperatorSetup_8(local_devices_poly_backend{});
+         dMFLocalDevicesPolyOperatorSetup_8(local_devices_poly_backend{}, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 
