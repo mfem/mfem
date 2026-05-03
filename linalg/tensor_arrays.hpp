@@ -126,8 +126,6 @@ public:
    /// Number of dynamic array dimensions.
    static constexpr std::size_t rank() { return ndims; }
 
-   // scalar_t *get_data() const { return data; }
-
    /// Array size in the @a k-th dynamic dimension.
    std::size_t size(int k = 0) const { return dyn_sizes[k]; }
 
