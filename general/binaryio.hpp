@@ -93,7 +93,6 @@ T ReadBinaryOrASCII(std::istream &input, BinaryOrASCII binary)
    {
       T val;
       input >> val;
-      if (input.peek() == '\n') { input.get(); } // Chomp up to one newline
       return val;
    }
 }

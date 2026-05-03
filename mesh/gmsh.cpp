@@ -544,6 +544,7 @@ static string GoToNextSection(istream &input)
    string line;
    while (getline(input, line))
    {
+      filter_dos(line);
       // Find the next line that starts with '$', but does not start with "$End"
       if (line.size() >= 1 &&
           line[0] == '$' &&
@@ -579,6 +580,12 @@ static string ReadQuotedString(istream &input)
    }
    MFEM_ABORT("Failed to read string.");
 }
+
+void ChompNewline(istream &input)
+{
+   if (input.peek() == '\r') { input.get(); }
+   MFEM_VERIFY(input.get() == '\n', "Inconsistent newlines.");
+};
 
 /// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };
@@ -1035,6 +1042,7 @@ class GmshReader
          if (section == "Nodes")
          {
             mesh.NumOfVertices = ReadBinaryOrASCII<int>(input, ASCII);
+            ChompNewline(input);
             mesh.vertices.SetSize(mesh.NumOfVertices);
             double c[3];
             for (int v = 0; v < mesh.NumOfVertices; ++v)
@@ -1056,6 +1064,7 @@ class GmshReader
          else if (section == "Elements")
          {
             const int num_elements = ReadBinaryOrASCII<int>(input, ASCII);
+            ChompNewline(input);
             int num_el_read = 0;
 
             vector<vector<unique_ptr<Element>>> elems_by_dim(4);
@@ -1200,6 +1209,7 @@ public:
       version = version_str == "2.2" ? GmshVersion::V2_2 : GmshVersion::V4_1;
       is_binary = BinaryOrASCII(ReadBinaryOrASCII<bool>(input, ASCII));
       data_size = ReadBinaryOrASCII<int>(input, ASCII);
+      ChompNewline(input);
       if (is_binary)
       {
          const int one = ReadBinaryOrASCII<int>(input, BINARY);
