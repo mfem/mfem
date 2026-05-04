@@ -487,7 +487,7 @@ void SparseMatrix::SortColumnIndices()
    }
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK))
+   if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) && useGPUSparse)
    {
       const int m = Height();
       const int n = Width();
