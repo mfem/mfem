@@ -38,6 +38,7 @@ template<
 class Action
 {
    IntegratorContext ctx;
+   IntegratorContextLocal ctx_local;
    qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;
@@ -70,23 +71,24 @@ public:
    Action() = delete;
 
    Action(IntegratorContext ctx,
+          IntegratorContextLocal ctx_local,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs) :
       ctx(ctx),
+      ctx_local(ctx_local),
       qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs),
-
-      restriction_cb(*ctx.local.local_restriction_callback),
-      input_dtq_maps(ctx.local.input_dtq_maps),
-      num_entities(ctx.local.num_entities),
-      thread_blocks(ctx.local.thread_blocks),
-      attributes(*ctx.local.attributes),
-      elem_attributes(ctx.local.elem_attributes),
-      fields_e(*ctx.local.local_fields_e),
-      residual_e(*ctx.local.local_residual_e),
-      output_restriction_transpose(*ctx.local.output_restriction_transpose)
+      restriction_cb(*ctx_local.local_restriction_callback),
+      input_dtq_maps(ctx_local.input_dtq_maps),
+      num_entities(ctx.n_entities),
+      thread_blocks(ctx_local.thread_blocks),
+      attributes(*ctx_local.attributes),
+      elem_attributes(ctx_local.elem_attributes),
+      fields_e(*ctx_local.local_fields_e),
+      residual_e(*ctx_local.local_residual_e),
+      output_restriction_transpose(*ctx_local.output_restriction_transpose)
    {
       if (!ctx.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -142,7 +144,7 @@ public:
                    const std::vector<Vector> &parameters_l,
                    Vector &residual_l)
    {
-      ActionCallbackKernels::Run(ctx.local.q1d, ctx.local.d1d,
+      ActionCallbackKernels::Run(ctx_local.q1d, ctx_local.d1d,
                                  // signature
                                  restriction_cb,
                                  qfunc,
@@ -160,7 +162,7 @@ public:
                                  parameters_l,
                                  residual_l,
                                  // fallback arguments
-                                 ctx.local.q1d);
+                                 ctx_local.q1d);
    }
    // extended host device lambda cannot have private or protected access within its class
 public:

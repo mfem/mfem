@@ -752,7 +752,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
    {
       MFEM_VERIFY(num_fields == global_unionfds.size(),
-                  "Total number of fields in the Q-function doesn't match"
+                  "Total number of fields in the Q-function doesn't match "
                   "the union of FieldDescriptors.");
    }
    else
@@ -855,8 +855,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       {
          mesh, elem_attributes, attributes, num_entities,
          global_infds, global_outfds, global_unionfds, integration_rule,
-         in_qlayouts, out_qlayouts, use_kernel_specializations,
-         {} // local data
+         in_qlayouts, out_qlayouts, use_kernel_specializations
       };
 
       global_action_callbacks.push_back(
@@ -992,27 +991,28 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
           thread_blocks.x, thread_blocks.y, thread_blocks.z);
 
       assert(use_kernel_specializations);
-      IntegratorContext ctx
+      IntegratorContext global_ctx
       {
          mesh, elem_attributes, attributes, num_entities,
          global_infds, global_outfds, global_unionfds, integration_rule,
-         in_qlayouts, out_qlayouts, use_kernel_specializations,
-         {
-            num_entities, d1d, q1d,
-            &attributes,
-            input_dtq_maps[0],
-            thread_blocks,
-            elem_attributes,
-            // ptrs
-            &this->local_restriction_callback,
-            &this->local_fields_e,
-            &this->local_residual_e,
-            &this->output_restriction_transpose
-         }
+         in_qlayouts, out_qlayouts, use_kernel_specializations
+      };
+      IntegratorContextLocal local_ctx
+      {
+         d1d, q1d,
+         &attributes,
+         input_dtq_maps[0],
+         thread_blocks,
+         elem_attributes,
+         // ptrs
+         &this->local_restriction_callback,
+         &this->local_fields_e,
+         &this->local_residual_e,
+         &this->output_restriction_transpose
       };
 
       local_action_callbacks.push_back(
-         backend_t::MakeAction(ctx, qfunc, inputs, outputs));
+         backend_t::MakeAction(global_ctx, local_ctx, qfunc, inputs, outputs));
    }
    else
    {

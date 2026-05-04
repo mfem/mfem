@@ -610,7 +610,7 @@ public:
       });
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
+      gnqp = nqp * ctx.n_entities;
 
       // prepare xq and yq BlockVectors
       xq_offsets.SetSize(N + 1);
@@ -618,7 +618,7 @@ public:
       constexpr_for<0, N>([&](auto i)
       {
          const auto input = std::get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.n_entities;
       });
       xq_offsets.PartialSum();
       xq.Update(xq_offsets, Device::GetMemoryType());
@@ -631,7 +631,7 @@ public:
       constexpr_for<0, M>([&](auto i)
       {
          const auto output = std::get<i>(outputs);
-         yq_offsets[i.value + 1] = nqp * output.size_on_qp * ctx.nentities;
+         yq_offsets[i.value + 1] = nqp * output.size_on_qp * ctx.n_entities;
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets, Device::GetMemoryType());

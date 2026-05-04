@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#define MFEM_ADD_SPECIALIZATIONS
+#undef MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 
@@ -57,6 +57,7 @@ using future::tensor_array;
 
 using future::DifferentiableOperator;
 using future::UniformParameterSpace;
+using future::ParameterFunction;
 using future::FieldDescriptor;
 using future::Gradient;
 using future::Value;
@@ -368,6 +369,7 @@ struct BakeOff
    QuadratureSpace qspace;
    QuadratureFunction qfct;
    UniformParameterSpace upspace;
+   ParameterFunction uppf;
 
    double mdofs{};
 
@@ -399,7 +401,8 @@ struct BakeOff
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
       qfct(qspace, DIM*DIM),
-      upspace(pmesh, *ir, DIM*DIM)
+      upspace(pmesh, *ir, DIM*DIM),
+      uppf(upspace)
    {
       NVTX_MARK_FUNCTION;
       smesh.Clear();
@@ -550,6 +553,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::qspace;
    using BakeOff<VDIM, GLL>::qfct;
    using BakeOff<VDIM, GLL>::upspace;
+   using BakeOff<VDIM, GLL>::uppf;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
@@ -694,7 +698,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             bf.Assemble();
          }
          dbg("[PA ∂fem] Local Poly Apply");
-         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
+         // const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
+         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &upspace}};
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);

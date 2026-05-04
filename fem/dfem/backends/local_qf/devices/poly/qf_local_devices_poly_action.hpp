@@ -21,6 +21,8 @@
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 
+// #include NVTX_DBG_FMT
+
 namespace mfem::future
 {
 
@@ -44,32 +46,67 @@ class Action
    const qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-   const std::array<size_t, n_inputs> input_to_field;
-   const std::array<size_t, n_outputs> output_to_field;
    const std::vector<const DofToQuad*> dtqs;
+   // inputs: dtq, B, G, vdim, d1d, q1d
+   const std::array<size_t, n_inputs> input_to_field;
    const std::array<DofToQuadMap, n_inputs> input_dtq;
+   const std::array<const real_t*, n_inputs> input_B;
+   std::array<const real_t*, n_inputs> input_G;
+   const std::array<int, n_inputs> input_vdim;
+   std::array<int, n_inputs> input_d1d, input_q1d;
+   // outputs: dtq, B, G, vdim, d1d, q1d
+   const std::array<size_t, n_outputs> output_to_field;
    const std::array<DofToQuadMap, n_outputs> output_dtq;
-   const int dim, ne, nq, ndof, nqpt;
+   std::array<const real_t*, n_outputs> output_B, output_G;
+   const std::array<int, n_outputs> output_vdim;
+   std::array<int, n_outputs> output_d1d, output_q1d;
+   // other constants
+   const int dim, ne, nq, nqpt;
    const ThreadBlocks thread_blocks;
 
 private: // helper functions
+
+   // map from field operator types to FieldDescriptor indices.
    template<typename T>
-   auto io_to_field(T& io) const
+   const auto create_io_to_field_map(T& io) const
    {
       using FE = Entity::Element;
       return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
    }
 
-   auto make_dtqs() const
+   const auto make_dtqs() const
    {
+      dbg();
       std::vector<const DofToQuad*> dtq_vec;
       dtq_vec.reserve(ctx.unionfds.size());
       constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
       for (const auto &field: ctx.unionfds)
       {
-         dtq_vec.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
+         auto dtq = GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode);
+         assert(dtq);
+         dbg("ndof:{} nqpt:{}", dtq->ndof, dtq->nqpt);
+         dtq_vec.emplace_back(dtq);
       }
       return dtq_vec;
+   }
+
+   template<typename T>
+   constexpr auto get_vdim(T &fields) const
+   {
+      std::array<int, std::tuple_size_v<T>> vdim;
+      for_constexpr<std::tuple_size_v<T>>([&](auto i)
+      {
+         vdim[i] = get<i>(fields).vdim;
+      });
+      return vdim;
+   }
+
+   template<typename T>
+   constexpr auto get_B(T &dtq) const
+   {
+      std::array<const real_t*, n_inputs> B;
+      for_constexpr<n_inputs>([&](auto i) { B[i] = dtq[i].B; });
+      return B;
    }
 
 public:
@@ -84,22 +121,25 @@ public:
       qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs),
-      // Maps from qfunc inputs/outputs -> union field indices
-      input_to_field(io_to_field(inputs)),
-      output_to_field(io_to_field(outputs)),
       dtqs(make_dtqs()),
-      // Build DofToQuad maps
+      // inputs: dtq, B, G, vdim, d1d, q1d
+      input_to_field(create_io_to_field_map(inputs)),
       input_dtq(create_dtq_maps<Entity::Element>(inputs, dtqs, input_to_field)),
+      input_B(get_B(input_dtq)),
+      input_vdim(get_vdim(inputs)),
+      // outputs: dtq, B, G, vdim, d1d, q1d
+      output_to_field(create_io_to_field_map(outputs)),
       output_dtq(create_dtq_maps<Entity::Element>(outputs, dtqs, output_to_field)),
+      output_vdim(get_vdim(outputs)),
+      // other constants
       dim(ctx.mesh.Dimension()),
-      ne(ctx.nentities),
+      ne(ctx.n_entities),
       nq(ctx.ir.GetNPoints()),
-      ndof(input_dtq[0].B.GetShape()[2]),
       nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
       thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
    {
       NVTX_MARK_FUNCTION;
-      dbg("nfields:{} ndof:{} nqpt:{}", nfields, ndof, nqpt);
+      dbg("nfields:{} nqpt:{}", nfields, nqpt);
       if (!ctx.use_kernel_specializations) { assert(false); return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
@@ -109,6 +149,20 @@ public:
       ActionCallbackKernels::template Specialization<7>::Add(); // 5
       ActionCallbackKernels::template Specialization<8>::Add(); // 6
 #endif
+
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr int i = ic.value;
+         const auto idx = input_to_field[i];
+         const auto dtq = input_dtq[i];
+         const auto d1d = dtq.B.GetShape()[2];
+         const auto q1d = dtq.B.GetShape()[0];
+         db1("#{} idx:{} qpt,dim,dof:[{},{},{}]", i, idx, q1d, dim, d1d);
+         // input_B[i] = dtq.B;
+         input_G[i] = dtq.G;
+         input_d1d[i] = d1d;
+         input_q1d[i] = q1d;
+      });
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -118,10 +172,23 @@ public:
                                  // arguments
                                  ctx,
                                  qfunc,
-                                 dim,
-                                 ne,
-                                 ndof,
+                                 // inputs
+                                 input_to_field,
                                  input_dtq,
+                                 input_B,
+                                 input_G,
+                                 input_vdim,
+                                 input_d1d,
+                                 input_q1d,
+                                 // outputs
+                                 output_to_field,
+                                 output_dtq,
+                                 output_B,
+                                 output_G,
+                                 output_vdim,
+                                 output_d1d,
+                                 output_q1d,
+                                 // others
                                  thread_blocks,
                                  xe, ye,
                                  // fallback arguments
@@ -133,10 +200,22 @@ public:
    template<int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
-                               const int dim,
-                               const int ne,
-                               const int ndof,
-                               const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
+                               // inputs: B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_inputs> &input_to_field,
+                               const std::array<DofToQuadMap, n_inputs> &input_dtq,
+                               const std::array<const real_t*, n_inputs> &input_B,
+                               const std::array<const real_t*, n_inputs> &input_G,
+                               const std::array<int, n_inputs> &input_vdim,
+                               const std::array<int, n_inputs> &input_d1d,
+                               const std::array<int, n_inputs> &input_q1d,
+                               // outputs: B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_outputs> &output_to_field,
+                               const std::array<DofToQuadMap, n_outputs> &output_dtq,
+                               const std::array<const real_t*, n_outputs> &output_B,
+                               const std::array<const real_t*, n_outputs> &output_G,
+                               const std::array<int, n_outputs> &output_vdim,
+                               const std::array<int, n_outputs> &output_d1d,
+                               const std::array<int, n_outputs> &output_q1d,
                                const ThreadBlocks &thread_blocks,
                                const std::vector<Vector *> &xe,
                                std::vector<Vector *> &ye,
@@ -152,17 +231,55 @@ public:
 
       for (auto v : ye) { *v = 0.0; }
 
-      db1("NE:{} d1d:{} q1d:{}", ne, ndof, q1d);
       constexpr int DIM = 3;
-      assert(DIM == dim);
 
-      const int d1d = ndof;
-      const auto XE = Reshape(xe[0]->Read(), d1d, d1d, d1d, 1, ne);
-      const real_t *dx_ptr = xe[1]->Read();
+      const int ne = ctx.n_entities;
+      const int dim = ctx.mesh.Dimension();
+      db1("NE:{} q1d:{}", ne, q1d);
+      MFEM_VERIFY(DIM == dim, "Dimension mismatch");
+
+      std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
+
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr int i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         const size_t idx = input_to_field[i];
+
+         const int d1d = input_d1d[i];
+         const int q1d = input_q1d[i];
+         const int vdim = input_vdim[i];
+
+         db1("#{} idx:{} qpt,dim,dof:[{},{},{}]", i, idx, q1d, dim, d1d);
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            MFEM_VERIFY(xe[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[idx]->Read(), d1d, d1d, d1d, vdim, ne);
+         }
+         else if constexpr (is_identity_fop<FOP>::value)
+         {
+            in_XE[i] = Reshape(xe[idx]->Read(), vdim, q1d, q1d, q1d, ne);
+            MFEM_VERIFY(xe[idx]->Size() == q1d*q1d*q1d*vdim*ne, "Size mismatch");
+         }
+         else if constexpr (is_weight_fop<FOP>::value)
+         {
+            // should handle quadrature weights
+            static_assert(false, "Unsupported");
+         }
+         else
+         {
+            static_assert(false, "Unsupported FieldOperator in generic kernel");
+         }
+      });
+      // std::exit(EXIT_FAILURE && "🔥🔥🔥");
+
+      // const auto& dtq = input_dtq[0];
+      const int d1d = output_dtq[0].B.GetShape()[2];
+
       auto YE = Reshape(ye[0]->ReadWrite(), d1d, d1d, d1d, 1, ne);
 
-      const real_t *B = input_dtq_maps[0].B;
-      const real_t *G = input_dtq_maps[0].G;
+      // const real_t *B = input_dtq[0].B;
+      // const real_t *G = input_dtq[0].G;
 
       NVTX_INI("forall");
 
@@ -180,7 +297,6 @@ public:
          MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
 
          low::regs3d_t<DIM, MQ1> reg;
-         const real_t *rd = dx_ptr;
 
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
          {
@@ -194,12 +310,14 @@ public:
                // const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
                // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-               low::LoadMatrix(d1d, q1d, B, sB);
-               low::LoadMatrix(d1d, q1d, G, sG);
+               const int q1d = input_dtq[0].B.GetShape()[0];
+               const int d1d = input_dtq[0].B.GetShape()[2];
+               low::LoadMatrix(d1d, q1d, input_B[0], sB);
+               low::LoadMatrix(d1d, q1d, input_G[0], sG);
                // for (int c = 0; c < vdim; c++)
                // constexpr int c = 0;
                {
-                  low::LoadDofs3d(e, d1d, XE, sm0);
+                  low::LoadDofs3d(e, d1d, in_XE[0], sm0);
                   low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg);
                }
             }
@@ -234,8 +352,7 @@ public:
                   std::get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
 
                   // Q
-                  std::get<1>(args) =
-                     as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+                  std::get<1>(args) = as_tensor<real_t, 3, 3>(&in_XE[1](0, qx, qy, qz, e));
 
                   std::apply(qfunc, args);
 
@@ -256,6 +373,8 @@ public:
          {
             // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+            const int q1d = output_dtq[0].B.GetShape()[0];
+            const int d1d = output_dtq[0].B.GetShape()[2];
             low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0);
             low::WriteDofs3d(d1d, 0, e, reg, YE);
          }

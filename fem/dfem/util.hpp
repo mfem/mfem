@@ -1753,6 +1753,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       if constexpr (std::is_same_v<T, const FiniteElementSpace *>
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
+         dbg("[GetDofToQuad] FiniteElementSpace ✅");
          if constexpr (std::is_same_v<entity_t, Entity::Element>)
          {
             return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
@@ -1761,14 +1762,22 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
          {
             return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
+         else
+         {
+            static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
+         }
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
-         dbg("GetDofToQuad not supported for QuadratureFunction");
+         dbg("[GetDofToQuad] QuadratureFunction ❌");
+         // MFEM_ABORT("GetDofToQuad not supported for QuadratureFunction");
          return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
+         dbg("[GetDofToQuad] ParameterSpace ✅");
+         const auto dtq = arg->GetDofToQuad();
+         dbg("[GetDofToQuad] ndof:{} nqpt:{}", dtq.ndof, dtq.nqpt);
          return &arg->GetDofToQuad();
       }
       else
@@ -2696,11 +2705,10 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    dbg();
    auto f = [&](auto fop, std::size_t idx)
    {
-      [[maybe_unused]] auto g = [&](int idx)
+      // Get the DofToQuad for a given field operator and return the dimensions
+      const auto get_dtq_dims = [&](int idx)
       {
-         dbg("[G] field_map size:{} field_map[idx]:{}", field_map.size(),
-             field_map[idx]);
-         auto dtq = dtqs[field_map[idx]];
+         const auto *dtq = dtqs[field_map[idx]];
 
          int value_dim = 1;
          int grad_dim = 1;
@@ -2711,7 +2719,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
          }
-         else { dbg("[G] 🔥 nullptr"); }
+         dbg("\t#{} dtq:{} dof:{} qpt:{}", field_map[idx], fmt::ptr(dtq),
+             dtq->ndof, dtq->nqpt);
 
          return std::tuple{dtq, value_dim, grad_dim};
       };
@@ -2719,8 +2728,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       if constexpr (is_value_fop<decltype(fop)>::value ||
                     is_gradient_fop<decltype(fop)>::value)
       {
-         dbg("Value || Gradient #{}: ✅", idx);
-         auto [dtq, value_dim, grad_dim] = g(idx);
+         dbg("Value || Gradient #{}", idx);
+         auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
@@ -2730,7 +2739,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {
-         dbg("Weight #{}: nullptr 🔥", idx);
+         dbg("Weight #{}", idx);
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
@@ -2741,12 +2750,12 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
                          is_sum_fop<decltype(fop)>::value)
       {
-         dbg("Identity || Sum #{}: nullptr 🔥", idx);
-         auto [dtq, value_dim, grad_dim] = g(idx);
+         dbg("Identity || Sum #{}", idx);
+         auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const real_t>(nullptr, dtq ? dtq->nqpt : -1, value_dim, dtq ? dtq->ndof : -1),
-            DeviceTensor<3, const real_t>(nullptr, dtq ? dtq->nqpt : -1, grad_dim, dtq ? dtq->ndof : -1),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
             -1
          };
       }
@@ -2755,7 +2764,6 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
-      assert(false);
       return DofToQuadMap
       {
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),

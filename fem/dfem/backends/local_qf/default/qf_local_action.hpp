@@ -68,7 +68,7 @@ struct Action
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
       dimension = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
+      num_entities = ctx.n_entities;
       num_qp = ctx.ir.GetNPoints();
       gnqp = num_qp * num_entities;
 

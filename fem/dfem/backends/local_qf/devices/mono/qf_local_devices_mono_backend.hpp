@@ -30,11 +30,12 @@ struct LocalQFDevicesMonoBackend
       typename outputs_t>
    auto static MakeAction(
       const IntegratorContext &ctx,
+      const IntegratorContextLocal &local_ctx,
       qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFDevicesMonoImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQFDevicesMonoImpl::Action(ctx, local_ctx, qfunc, inputs, outputs);
    }
 
    /**

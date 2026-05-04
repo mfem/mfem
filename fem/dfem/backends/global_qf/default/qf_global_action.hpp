@@ -43,14 +43,14 @@ struct Action
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
+      gnqp = nqp * ctx.n_entities;
 
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
          const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.n_entities;
       });
       xq_offsets.PartialSum();
       xq.Update(xq_offsets);
@@ -60,7 +60,7 @@ struct Action
       constexpr_for<0, noutputs>([&](auto i)
       {
          const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.n_entities;
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
