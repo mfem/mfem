@@ -382,6 +382,15 @@ public:
          std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>,
          "input and output vector types are incompatible");
 
+      if constexpr (std::is_same_v<y_t, MultiVector>)
+      {
+         MFEM_ASSERT(static_cast<int>(outfds.size()) == y.NumBlocks(),
+                     "output MultiVector block count must match the number of "
+                     "output FieldDescriptors passed to the DifferentiableOperator. "
+                     "The number of FieldOperators in the qfunc output tuple does "
+                     "not determine the number of output blocks.");
+      }
+
       prolongation(infds, x, infields_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);

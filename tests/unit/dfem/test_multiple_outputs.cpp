@@ -155,10 +155,12 @@ struct massqflocal
       const tensor<real_t> &u,
       const tensor<real_t, DIM, DIM> &J,
       const tensor<real_t> &w,
-      tensor<real_t> &out1) const
+      tensor<real_t> &out1,
+      tensor<real_t> &out2) const
    {
       const auto v = u * det(J) * w;
       out1 = v;
+      out2 = v;
    }
 };
 
@@ -364,6 +366,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       }
       {
          std::cout << "\n\n\n LOCAL TEST\n\n\n";
+
+         static constexpr int W = 0;
+
          ParBilinearForm blf(&fes);
          blf.AddDomainIntegrator(new MassIntegrator(ir));
          blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -383,6 +388,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          const std::vector<FieldDescriptor> out
          {
             {V, &fes},
+            {W, &fes},
          };
 
          DifferentiableOperator dop(in, out, pmesh);
@@ -391,21 +397,23 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          dop.AddDomainIntegrator<LocalQFBackend>(
             mass_qfunclocal,
             tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
-            tuple{Value<V>{}},
+            tuple{Value<V>{}, Value<W>{}},
             *ir, all_domain_attr);
 
          Vector nodestv;
          nodes->GetTrueDofs(nodestv);
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
          Vector ztvec(xtvec.Size());
+         Vector zztvec(xtvec.Size());
 
          MultiVector X{xtvec, nodestv};
-         MultiVector Z{ztvec};
+         MultiVector Z{ztvec, zztvec};
 
          dop.Mult(X, Z);
 
          std::cout << "dfem: ";
          pretty_print(ztvec);
+         pretty_print(zztvec);
 
          Vector Y0(ytvecmfem);
          Y0 -= Z[0];

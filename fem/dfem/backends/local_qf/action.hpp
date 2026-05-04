@@ -102,12 +102,12 @@ struct Action
       output_dtq_maps =
          create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field);
 
-      // Residual layout on quadrature points: concatenate all outputs.
-      out_qp_offsets.fill(0);
+      // Output sizes on quadrature points (per output).
+      out_qp_size.fill(0);
       for_constexpr<noutputs>([&](auto o)
       {
          const auto out = get<o>(this->outputs);
-         out_qp_offsets[o + 1] = out_qp_offsets[o] + out.size_on_qp;
+         out_qp_size[o] = out.size_on_qp;
          out_vdim[o] = out.vdim;
          out_op_dim[o] = out.size_on_qp / out.vdim;
       });
@@ -118,7 +118,8 @@ struct Action
       shmem_info = get_shmem_info<Entity::Element, nfields, ninputs, noutputs>(
                       input_dtq_maps, output_dtq_maps, ctx.unionfds, num_entities,
                       this->inputs, num_qp, input_size_on_qp,
-                      out_qp_offsets[noutputs], dof_ordering);
+                      std::accumulate(out_qp_size.begin(), out_qp_size.end(), 0),
+                      dof_ordering);
       shmem_cache.SetSize(shmem_info.total_size);
 
       // Map union fields -> operator input field descriptors (infds).
@@ -210,7 +211,7 @@ struct Action
       const auto input_dtq_maps_local = input_dtq_maps;
       const auto output_dtq_maps_local = output_dtq_maps;
       const auto input_to_field_local = input_to_field;
-      const auto out_qp_offsets_local = out_qp_offsets;
+      const auto out_qp_size_local = out_qp_size;
       const auto out_vdim_local = out_vdim;
       const auto out_op_dim_local = out_op_dim;
       const auto out_num_dof_local = out_num_dof;
@@ -234,7 +235,20 @@ struct Action
          auto output_dtq_shmem = get<1>(packed);
          auto fields_shmem = get<2>(packed);
          auto input_shmem = get<3>(packed);
-         auto residual_shmem = get<4>(packed);
+         // The generic unpack returns a strided residual tensor
+         // (residual_size_on_qp x num_qp). For multiple outputs we need each
+         // output block to be stored contiguously as (out_size_on_qp x num_qp)
+         // to match the expected layout in `map_quadrature_data_to_fields`.
+         const int out_offset = shmem_info_local.offsets[SharedMemory::Index::OUTPUT];
+         real_t *out_base = reinterpret_cast<real_t *>(shmem) + out_offset;
+         std::array<DeviceTensor<2>, noutputs> out_shmem;
+         int out_mem_offset = 0;
+         for_constexpr<noutputs>([&](auto o)
+         {
+            const int osz = out_qp_size_local[o];
+            out_shmem[o] = DeviceTensor<2>(out_base + out_mem_offset, osz, num_qp_local);
+            out_mem_offset += osz * num_qp_local;
+         });
          auto scratch_shmem = get<5>(packed);
 
          map_fields_to_quadrature_data(
@@ -242,7 +256,7 @@ struct Action
             inputs_local, ir_weights, scratch_shmem, dimension_local, use_sum_factorization_local);
 
          call_local_qfunction<qf_param_ts>(
-            qfunc_local, input_shmem, residual_shmem, out_qp_offsets_local,
+            qfunc_local, input_shmem, out_shmem,
             num_qp_local, q1d_local, dimension_local, use_sum_factorization_local);
 
          for_constexpr<noutputs>([&](auto o)
@@ -250,9 +264,8 @@ struct Action
             const int vdim = out_vdim_local[o];
             const int op_dim = out_op_dim_local[o];
             const int ndof = out_num_dof_local[o];
-            const int offset = out_qp_offsets_local[o];
 
-            auto fhat = Reshape(&residual_shmem(offset, 0), vdim, op_dim, num_qp_local);
+            auto fhat = Reshape(&out_shmem[o](0, 0), vdim, op_dim, num_qp_local);
 
             auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof, num_entities_local);
             auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
@@ -284,8 +297,7 @@ struct Action
    MFEM_HOST_DEVICE static void call_local_qfunction(
       const qfunc_t &qfunc,
       const std::array<DeviceTensor<2>, ninputs> &input_shmem,
-      DeviceTensor<2> &residual_shmem,
-      const std::array<int, noutputs + 1> &offsets,
+      std::array<DeviceTensor<2>, noutputs> &output_shmem,
       const int &num_qp,
       const int &q1d,
       const int &dimension,
@@ -306,8 +318,8 @@ struct Action
                for_constexpr<noutputs>([&](auto o)
                {
                   constexpr std::size_t arg_idx = ninputs + o;
-                  auto out_q = Reshape(&residual_shmem(offsets[o], q),
-                                       offsets[o + 1] - offsets[o]);
+                  auto out_q =
+                     Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
                   process_qf_result(out_q, get<arg_idx>(args));
                });
             }
@@ -328,8 +340,8 @@ struct Action
                   for_constexpr<noutputs>([&](auto o)
                   {
                      constexpr std::size_t arg_idx = ninputs + o;
-                     auto out_q = Reshape(&residual_shmem(offsets[o], q),
-                                          offsets[o + 1] - offsets[o]);
+                     auto out_q =
+                        Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
                      process_qf_result(out_q, get<arg_idx>(args));
                   });
                }
@@ -353,8 +365,8 @@ struct Action
                      for_constexpr<noutputs>([&](auto o)
                      {
                         constexpr std::size_t arg_idx = ninputs + o;
-                        auto out_q = Reshape(&residual_shmem(offsets[o], q),
-                                             offsets[o + 1] - offsets[o]);
+                        auto out_q =
+                           Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
                         process_qf_result(out_q, get<arg_idx>(args));
                      });
                   }
@@ -380,8 +392,8 @@ struct Action
             for_constexpr<noutputs>([&](auto o)
             {
                constexpr std::size_t arg_idx = ninputs + o;
-               auto out_q = Reshape(&residual_shmem(offsets[o], q),
-                                    offsets[o + 1] - offsets[o]);
+               auto out_q =
+                  Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
                process_qf_result(out_q, get<arg_idx>(args));
             });
          }
@@ -414,7 +426,7 @@ struct Action
    std::array<DofToQuadMap, ninputs> input_dtq_maps{};
    std::array<DofToQuadMap, noutputs> output_dtq_maps{};
 
-   std::array<int, noutputs + 1> out_qp_offsets{};
+   std::array<int, noutputs> out_qp_size{};
    std::array<int, noutputs> out_vdim{};
    std::array<int, noutputs> out_op_dim{};
    std::array<int, noutputs> out_num_dof{};
