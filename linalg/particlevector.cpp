@@ -119,9 +119,10 @@ void ParticleVector::GetComponentsRef(int vd, Vector &nref)
 void ParticleVector::SetValues(int i, const Vector &nvals)
 {
    const bool use_dev = UseDevice(); // use ParticleVector's device flag
-   const bool nvals_use_dev = nvals.UseDevice();
+   const auto mc = use_dev ? Device::GetDeviceMemoryClass()
+                   : Device::GetHostMemoryClass();
    auto d_dest = ReadWrite(use_dev);
-   const auto d_src = nvals.Read(use_dev);
+   const auto d_src = nvals.GetMemory().Read(mc, nvals.Size());
 
    const int vdim_ = vdim;
    const int ordering_ = (int)ordering;
@@ -138,7 +139,6 @@ void ParticleVector::SetValues(int i, const Vector &nvals)
          d_dest[c + i*vdim_] = d_src[c];
       }
    });
-   nvals.UseDevice(nvals_use_dev);
 }
 
 void ParticleVector::SetComponents(int vd, const Vector &comp)

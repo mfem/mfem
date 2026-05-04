@@ -611,7 +611,7 @@ ParticleSet::ParticleSet(int id_stride_, IDType id_counter_, int num_particles,
    // Initialize fields
    for (int f = 0; f < field_vdims.Size(); f++)
    {
-      AddField(field_vdims[f], field_orderings[f], field_names_[f], use_device);
+      AddField(field_vdims[f], field_orderings[f], field_names_[f]);
    }
 
    // Initialize tags
@@ -774,7 +774,7 @@ ParticleSet::IDType ParticleSet::GetGlobalNParticles() const
 }
 
 int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
-                          const char* field_name, bool use_device)
+                          const char* field_name)
 {
    std::string field_name_str(field_name ? field_name : "");
    if (!field_name)
@@ -783,7 +783,7 @@ int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
    }
    fields.emplace_back(std::make_unique<ParticleVector>(vdim, field_ordering,
                                                         GetNParticles()));
-   if (use_device) { fields.back()->UseDevice(true); }
+   if (coords.UseDevice()) { fields.back()->UseDevice(true); }
    field_names.emplace_back(field_name_str);
 
    return GetNFields() - 1;

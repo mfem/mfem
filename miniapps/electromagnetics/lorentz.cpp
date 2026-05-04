@@ -140,8 +140,10 @@ public:
    /// right after FindParticles has been called.
    void EvaluateFieldsAtParticles();
 
-   /// Advance particles one time step using Boris algorithm
+   /// Advance particles one time step using Boris algorithm. Host version.
    void Step(real_t &t, real_t &dt);
+
+   /// Advance particles one time step using Boris algorithm. Device version.
    void StepDevice(real_t &t, real_t &dt);
 
    /// Remove lost particles and return their indices

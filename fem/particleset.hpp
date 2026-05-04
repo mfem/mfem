@@ -211,6 +211,12 @@ public:
  *  byVDIM). The unique_ptrs to all the ParticleVectors are stored in the
  *  std::vector \ref fields.
  *
+ *  @par Device Behavior:
+ *  When a ParticleSet is constructed with \p use_device=true, \ref coords and
+ *  all ParticleVector fields are marked to use device memory. Fields added
+ *  later through \ref AddField inherit the current device mode (through
+ *  \ref coords).
+ *
  *  @par Tags:
  *  Tags represent integers associated with each particle. For a given tag,
  *  all particle data are stored in a single Array<int>. The unique_ptrs to all
@@ -570,12 +576,13 @@ public:
     *  @param[in] vdim             Vector dimension of the field.
     *  @param[in] field_ordering   (Optional) Ordering::Type of the field.
     *  @param[in] field_name       (Optional) Name of the field.
-    *  @param[in] use_device       (Optional) Use device memory for field.
+    *
+    *  @note New fields inherit the current device mode of \ref coords.
     *
     *  @return Index of the newly-added field.
     */
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
-                const char* field_name=nullptr, bool use_device=false);
+                const char* field_name=nullptr);
 
    /** @brief Add a field to the ParticleSet.
     *
@@ -583,10 +590,9 @@ public:
     *  for convenience
     */
    int AddNamedField(int vdim, const char* field_name,
-                     Ordering::Type field_ordering=Ordering::byVDIM,
-                     bool use_device=false)
+                     Ordering::Type field_ordering=Ordering::byVDIM)
    {
-      return AddField(vdim, field_ordering, field_name, use_device);
+      return AddField(vdim, field_ordering, field_name);
    }
 
    /** @brief Add a tag to the ParticleSet.
