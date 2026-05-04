@@ -24,7 +24,7 @@ template<
 struct Action
 {
    static constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
@@ -151,7 +151,8 @@ struct Action
          const size_t outfd = output_to_outfd[o];
          const auto &fd = ctx.outfds[outfd];
          const Operator *R = get_restriction<Entity::Element>(fd, dof_ordering);
-         MFEM_ASSERT(R != nullptr, "LocalQFBackend: missing element restriction for output");
+         MFEM_ASSERT(R != nullptr,
+                     "LocalQFBackend: missing element restriction for output");
          const int elem_sz = num_entities ? (R->Height() / num_entities) : 0;
          const int vdim = out_vdim[o];
          MFEM_ASSERT(vdim > 0, "LocalQFBackend: invalid output vdim");
@@ -229,8 +230,8 @@ struct Action
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          auto packed =
-            unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                         output_dtq_maps_local, wrapped_fields_e, num_qp_local, e);
+         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
+                      output_dtq_maps_local, wrapped_fields_e, num_qp_local, e);
          auto input_dtq_shmem = get<0>(packed);
          auto output_dtq_shmem = get<1>(packed);
          auto fields_shmem = get<2>(packed);
@@ -267,7 +268,8 @@ struct Action
 
             auto fhat = Reshape(&out_shmem[o](0, 0), vdim, op_dim, num_qp_local);
 
-            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof, num_entities_local);
+            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof,
+                                                  num_entities_local);
             auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
 
             map_quadrature_data_to_fields(
@@ -409,8 +411,8 @@ struct Action
 
    std::array<size_t, noutputs> output_to_outfd;
 
-   std::array<size_t, ninputs> input_to_field{};
-   std::array<size_t, noutputs> output_to_field{};
+   std::array<size_t, ninputs> input_to_field;
+   std::array<size_t, noutputs> output_to_field;
 
    int dimension = 0;
    int num_entities = 0;
@@ -423,20 +425,20 @@ struct Action
    ThreadBlocks thread_blocks;
 
    std::vector<const DofToQuad*> dtqs;
-   std::array<DofToQuadMap, ninputs> input_dtq_maps{};
-   std::array<DofToQuadMap, noutputs> output_dtq_maps{};
+   std::array<DofToQuadMap, ninputs> input_dtq_maps;
+   std::array<DofToQuadMap, noutputs> output_dtq_maps;
 
-   std::array<int, noutputs> out_qp_size{};
-   std::array<int, noutputs> out_vdim{};
-   std::array<int, noutputs> out_op_dim{};
-   std::array<int, noutputs> out_num_dof{};
+   std::array<int, noutputs> out_qp_size;
+   std::array<int, noutputs> out_vdim;
+   std::array<int, noutputs> out_op_dim;
+   std::array<int, noutputs> out_num_dof;
 
    std::vector<int> input_size_on_qp;
 
-   SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info{};
+   SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;
    mutable Vector shmem_cache;
 
-   std::array<size_t, nfields> union_to_infd{};
+   std::array<size_t, nfields> union_to_infd;
    mutable std::vector<Vector> dummy_fields;
 
 };
