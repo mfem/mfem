@@ -41,18 +41,36 @@ class Action
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
    const IntegratorContext ctx;
-   qfunc_t qfunc;
+   const qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-
    const std::array<size_t, n_inputs> input_to_field;
    const std::array<size_t, n_outputs> output_to_field;
+   const std::vector<const DofToQuad*> dtqs;
+   const std::array<DofToQuadMap, n_inputs> input_dtq;
+   const std::array<DofToQuadMap, n_outputs> output_dtq;
+   const int dim, ne, nq, ndof, nqpt;
+   const ThreadBlocks thread_blocks;
 
-   std::vector<const DofToQuad*> dtqs;
-   std::array<DofToQuadMap, n_inputs> input_dtq_maps{};
-   std::array<DofToQuadMap, n_outputs> output_dtq_maps{};
-   int dim, ne, nq, ndof, nqpt;
-   ThreadBlocks thread_blocks;
+private: // helper functions
+   template<typename T>
+   auto io_to_field(T& io) const
+   {
+      using FE = Entity::Element;
+      return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
+   }
+
+   auto make_dtqs() const
+   {
+      std::vector<const DofToQuad*> dtq_vec;
+      dtq_vec.reserve(ctx.unionfds.size());
+      constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
+      for (const auto &field: ctx.unionfds)
+      {
+         dtq_vec.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
+      }
+      return dtq_vec;
+   }
 
 public:
    ////////////////////////////////////////////////////////
@@ -67,39 +85,21 @@ public:
       inputs(inputs),
       outputs(outputs),
       // Maps from qfunc inputs/outputs -> union field indices
-      input_to_field(
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, inputs)),
-      output_to_field(
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, outputs))
+      input_to_field(io_to_field(inputs)),
+      output_to_field(io_to_field(outputs)),
+      dtqs(make_dtqs()),
+      // Build DofToQuad maps
+      input_dtq(create_dtq_maps<Entity::Element>(inputs, dtqs, input_to_field)),
+      output_dtq(create_dtq_maps<Entity::Element>(outputs, dtqs, output_to_field)),
+      dim(ctx.mesh.Dimension()),
+      ne(ctx.nentities),
+      nq(ctx.ir.GetNPoints()),
+      ndof(input_dtq[0].B.GetShape()[2]),
+      nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
+      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
    {
       NVTX_MARK_FUNCTION;
-      dbg("nfields:{}", nfields);
-
-      // Build DofToQuad maps
-      dbg("create_dtq_maps");
-      dtqs.reserve(ctx.unionfds.size());
-      constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
-      for (const auto &field : ctx.unionfds)
-      {
-         dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
-      }
-      input_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field);
-      output_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field);
-
-      // Compute constants & thread blocks
-      dim = ctx.mesh.Dimension();
-      ne = ctx.nentities;
-      nq = ctx.ir.GetNPoints();
-      ndof = input_dtq_maps[0].B.GetShape()[2];
-      const auto dim_r = static_cast<real_t>(dim);
-      nqpt = static_cast<int>(std::floor(std::pow(nq, 1.0 / dim_r) + 0.5));
-      dbg("ndof:{} nqpt:{}", ndof, nqpt);
-
-      thread_blocks.x = nqpt;
-      thread_blocks.y = (dim >= 2) ? nqpt : 1;
-      thread_blocks.z = (dim >= 3) ? nqpt : 1;
+      dbg("nfields:{} ndof:{} nqpt:{}", nfields, ndof, nqpt);
       if (!ctx.use_kernel_specializations) { assert(false); return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
@@ -121,7 +121,7 @@ public:
                                  dim,
                                  ne,
                                  ndof,
-                                 input_dtq_maps,
+                                 input_dtq,
                                  thread_blocks,
                                  xe, ye,
                                  // fallback arguments

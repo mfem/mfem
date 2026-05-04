@@ -57,7 +57,6 @@ using future::tensor_array;
 
 using future::DifferentiableOperator;
 using future::UniformParameterSpace;
-using future::ParameterFunction;
 using future::FieldDescriptor;
 using future::Gradient;
 using future::Value;
@@ -369,7 +368,6 @@ struct BakeOff
    QuadratureSpace qspace;
    QuadratureFunction qfct;
    UniformParameterSpace upspace;
-   ParameterFunction pfct;
 
    double mdofs{};
 
@@ -401,8 +399,7 @@ struct BakeOff
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
       qfct(qspace, DIM*DIM),
-      upspace(pmesh, *ir, DIM*DIM),
-      pfct(upspace)
+      upspace(pmesh, *ir, DIM*DIM)
    {
       NVTX_MARK_FUNCTION;
       smesh.Clear();
@@ -553,7 +550,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::qspace;
    using BakeOff<VDIM, GLL>::qfct;
    using BakeOff<VDIM, GLL>::upspace;
-   using BakeOff<VDIM, GLL>::pfct;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):

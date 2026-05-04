@@ -24,15 +24,18 @@
 #include <typeindex>
 
 #include "../../general/communication.hpp"
-#include "../../general/forall.hpp"
+
 #ifdef MFEM_USE_MPI
+
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
 #include "../qfunction.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../linalg/dtensor.hpp"
 #include "../quadinterpolator.hpp"
+
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../mesh/mesh.hpp"
 
 #include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
@@ -45,7 +48,10 @@ namespace mfem::future
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
+   constexpr auto get_array = [](const Ts&... x)
+   {
+      return std::array<std::common_type_t<Ts...>, sizeof...(Ts)> { x... };
+   };
    return std::apply(get_array, tuple);
 }
 
@@ -65,8 +71,8 @@ constexpr void for_constexpr(lambda&& f,
                              std::integer_sequence<std::size_t, n...>,
                              arg_types... args)
 {
-   (detail::for_constexpr(f, args..., std::integral_constant<std::size_t,n> {}),
-    ...);
+   (detail::for_constexpr(f, args...,
+                          std::integral_constant<std::size_t,n> {}), ...);
 }
 
 }  // namespace detail
@@ -722,7 +728,6 @@ void forall(func_t f,
 #elif defined(MFEM_USE_HIP)
       MFEM_GPU_CHECK(hipGetLastError());
 #endif
-      // MFEM_DEVICE_SYNC; // ⚠️
 #endif
    }
    else if (Device::Allows(Backend::CPU_MASK))
@@ -1869,10 +1874,10 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<size_t, std::tuple_size_v<field_operator_ts>>
-                                                      create_descriptors_to_fields_map(
-                                                         const std::vector<FieldDescriptor> &fields,
-                                                         field_operator_ts &fops)
+std::array<size_t, std::tuple_size_v<field_operator_ts> >
+create_descriptors_to_fields_map(
+   const std::vector<FieldDescriptor> &fields,
+   field_operator_ts &fops)
 {
    std::array<size_t, std::tuple_size_v<field_operator_ts>> map;
 
@@ -2684,7 +2689,7 @@ template <
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> &dtqs,
+   const std::vector<const DofToQuad*> &dtqs,
    const std::array<size_t, N> &field_map,
    std::index_sequence<Is...>)
 {
@@ -2777,7 +2782,7 @@ template <
    std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> &dtqmaps,
+   const std::vector<const DofToQuad*> &dtqmaps,
    const std::array<size_t, num_fields> &to_field_map)
 {
    dbg();
@@ -2808,4 +2813,5 @@ inline static void ExtractQLayouts(
 }
 
 } // namespace mfem::future
-#endif
+
+#endif // MFEM_USE_MPI

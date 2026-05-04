@@ -339,7 +339,7 @@ class DifferentiableOperator: public Operator
 {
 public:
    ////////////////////////////////////////////////////////////////////////////
-   /// Constructor for the LOCAL DifferentiableOperator class.
+   /// Constructor only used for the LOCAL/MONO DifferentiableOperator class.
    ///
    /// @param solutions The solution fields that the operator will act on.
    /// @param parameters The parameter fields that define coefficients.
@@ -359,7 +359,7 @@ public:
    void SetParameters(std::vector<Vector *> p) const;
 
    ////////////////////////////////////////////////////////////////////////////
-   /// Constructor for the GLOBAL DifferentiableOperator class.
+   /// Constructor for the POLY DifferentiableOperator class.
    ///
    /// @param infds The input fields the operator will act on.
    /// @param outfds The output fields the operator will produce.
@@ -458,7 +458,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 
    ////////////////////////////////////////////////////////////////////////////
-   // GLOBAL MultiVector
+   // MultiVector
    template <typename x_t, typename y_t>
    void Mult(const x_t &x, y_t &y) const
    {

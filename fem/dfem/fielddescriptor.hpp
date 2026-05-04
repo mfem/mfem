@@ -21,11 +21,11 @@ namespace mfem::future
 /// This struct is used to store information about a field.
 struct FieldDescriptor
 {
-   using data_variant_t =
-      std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
-      const QuadratureFunction *,
-      const ParameterSpace *>;
+   using data_variant_t = std::variant<
+                          const FiniteElementSpace *,
+                          const ParFiniteElementSpace *,
+                          const QuadratureFunction *,
+                          const ParameterSpace *>;
 
    /// Field ID
    std::size_t id;
@@ -60,4 +60,4 @@ struct FieldDescriptor
    }
 };
 
-}
+} // namespace mfem::future

@@ -18,7 +18,7 @@
 using namespace mfem;
 using namespace mfem::future;
 
-// Used for the GLOBAL operator
+// Used for the GLOBAL or LOCAL/POLY operators
 DifferentiableOperator::DifferentiableOperator(
    const int height, const int width,
    const std::vector<FieldDescriptor> &infds,
@@ -47,7 +47,7 @@ DifferentiableOperator::DifferentiableOperator(
    global_infields_e.resize(infds.size());
 }
 
-// Used for the LOCAL operator
+// Used only for the LOCAL/MONO operator
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &solutions,
    const std::vector<FieldDescriptor> &parameters,
@@ -76,7 +76,7 @@ DifferentiableOperator::DifferentiableOperator(
    }
 }
 
-// Used for the LOCAL operator
+// Used only for the LOCAL/MONO operator
 void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
 {
    NVTX_MARK_FUNCTION;
