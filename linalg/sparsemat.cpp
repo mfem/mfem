@@ -82,13 +82,14 @@ void * SparseMatrix::dBuffer = nullptr;
 #endif
 #endif // MFEM_USE_CUDA_OR_HIP
 
-bool SparseMatrix::use_gpu_sparse = true;
+bool SparseMatrix::use_gpu_vendor_sparse_if_available = true;
 
 void SparseMatrix::InitGPUSparse()
 {
    // Initialize cuSPARSE/hipSPARSE library
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) && use_gpu_sparse)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+       use_gpu_vendor_sparse_if_available)
    {
       if (!handle) { MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreate)(&handle)); }
       useGPUSparse=true;
@@ -487,7 +488,8 @@ void SparseMatrix::SortColumnIndices()
    }
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) && useGPUSparse)
+   if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) &&
+       useGPUSparse)
    {
       const int m = Height();
       const int n = Width();
