@@ -1268,18 +1268,25 @@ public:
       // L2 grid function.
       if (mesh_order > 1 || periodic)
       {
-         mesh.SetCurvature(mesh_order, periodic, mesh.spaceDim, Ordering::byVDIM);
-         const FiniteElementSpace &fes = *mesh.GetNodalFESpace();
-         GridFunction &nodes_gf = *mesh.GetNodes();
-
+         // Gmsh uses uniform nodal points
+         const int bt = BasisType::ClosedUniform;
+         FiniteElementCollection *fec;
+         if (periodic) { fec = new L2_FECollection(mesh_order, mesh.Dim, bt); }
+         else { fec = new H1_FECollection(mesh_order, mesh.Dim, bt); }
+         FiniteElementSpace *fes = new FiniteElementSpace(
+            &mesh, fec, mesh.spaceDim, Ordering::byVDIM);
+         GridFunction *nodes_gf = new GridFunction(fes);
+         // The nodal grid function, owned by mesh, will own fec and fec
+         nodes_gf->MakeOwner(fec);
+         mesh.SetNodalGridFunction(nodes_gf, true);
          Array<int> vdofs;
          for (int e = 0; e < mesh.NumOfElements; ++e)
          {
-            const FiniteElement *fe = fes.GetFE(e);
+            const FiniteElement *fe = fes->GetFE(e);
             auto *nfe = dynamic_cast<const NodalFiniteElement*>(fe);
             MFEM_ASSERT(nfe, "Invalid FE");
             const Array<int> &lex = nfe->GetLexicographicOrdering();
-            fes.GetElementVDofs(e, vdofs);
+            fes->GetElementVDofs(e, vdofs);
             const int n = vdofs.Size() / mesh.spaceDim;
             for (int i = 0; i < n; ++i)
             {
@@ -1287,10 +1294,12 @@ public:
                Vertex v = ho_vertices[ho_el_nodes[mesh.Dim][e][i]];
                for (int d = 0; d < mesh.spaceDim; ++d)
                {
-                  nodes_gf[vdofs[ii + d*n]] = v(d);
+                  (*nodes_gf)[vdofs[ii + d*n]] = v(d);
                }
             }
          }
+         // Set curvature to use Gauss-Lobatto instead of uniform basis
+         mesh.SetCurvature(mesh_order, periodic, mesh.spaceDim, Ordering::byVDIM);
       }
    }
 };
