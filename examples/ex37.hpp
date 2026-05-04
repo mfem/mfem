@@ -137,7 +137,7 @@ public:
         exponent(exponent_), rho_min(rho_min_)
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
-      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
+      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be < 1");
       MFEM_ASSERT(u, "displacement field is not set");
       MFEM_ASSERT(rho_filter, "density field is not set");
    }
@@ -231,9 +231,12 @@ private:
    FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
    Array<int> ess_bdr;
+   Array<int> ess_tdof_list;
    Array<int> neumann_bdr;
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
+   BilinearForm * a = nullptr;
+   OperatorPtr A;
    bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
@@ -267,6 +270,8 @@ public:
    void ResetFEM();
    void SetupFEM();
 
+   void UpdateEssentialTDofs();
+   void AssembleDiffusionBilinear(bool update_ess_tdofs=true);
    void Solve();
    GridFunction * GetFEMSolution();
    LinearForm * GetLinearForm() {return b;}
@@ -371,6 +376,130 @@ public:
 
 };
 
+/**
+ * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+ *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+ *           using the Illinois method
+ *        2. Set ψ ← ψ + c.
+ *
+ * @param psi a GridFunction to be updated
+ * @param alpha_grad alpha multiplied by gradient
+ * @param target_volume θ vol(Ω)
+ * @param tol Illinois iteration tolerance
+ * @param max_its Illinois maximum iteration number
+ * @return real_t Final volume (∫_Ω sigmoid(ψ) dx)
+ */
+real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
+            real_t tol = 1e-12, int max_its = 100)
+{
+#ifdef MFEM_USE_MPI
+   FiniteElementSpace *fes = psi.FESpace();
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+#endif
+   ConstantCoefficient zero_cf(0.0);
+   real_t a = -alpha_grad.ComputeMaxError(zero_cf);
+   real_t b = -a;
+   real_t y = 0.0;
+
+   MappedGridFunctionCoefficient sigmoid_psi(
+   &psi, [&y](const real_t x) { return sigmoid(x + y); });
+   std::unique_ptr<LinearForm> int_sigmoid_psi;
+#ifdef MFEM_USE_MPI
+   ParGridFunction *par_psi = dynamic_cast<ParGridFunction *>(&psi);
+   if (par_psi)
+   {
+      int_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
+   }
+   else
+   {
+      int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+   }
+#else
+   int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+#endif
+   int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
+
+   y = a;
+   int_sigmoid_psi->Assemble();
+   real_t f_a = int_sigmoid_psi->Sum();  // f_a := f(a) + θ vol(Ω)
+
+   y = b;
+   int_sigmoid_psi->Assemble();
+   real_t f_b = int_sigmoid_psi->Sum();  // f_b := f(b) + θ vol(Ω)
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &f_b, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
+   }
+#endif
+   f_a -= target_volume; // f_a := f(a)
+   f_b -= target_volume; // f_b := f(b)
+   real_t c = 0.0;
+   real_t f_c = 0.0;
+   int side = 0;
+
+   bool done = false;
+   for (int k=0; k < max_its; k++)
+   {
+      c = (f_a * b - f_b * a) / (f_a - f_b);
+
+      if (abs(b - a) < tol * abs(b + a)) { done = true; break; }
+
+      y = c;
+      int_sigmoid_psi->Assemble();
+      f_c = int_sigmoid_psi->Sum(); // f_c := f(c) + θ vol(Ω)
+#ifdef MFEM_USE_MPI
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &f_c, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+      }
+#endif
+      f_c -= target_volume; // f_c := f(c)
+
+      if (f_c * f_b > 0)
+      {
+         b = c;
+         f_b = f_c;
+         if (side == -1) { f_a /= 2.0; }
+         side = -1;
+      }
+      else if (f_c * f_a > 0)
+      {
+         a = c;
+         f_a = f_c;
+         if (side == 1) { f_b /= 2.0; }
+         side = 1;
+      }
+      else
+      {
+         done = true; break;
+      }
+   }
+   if (!done)
+   {
+      mfem_warning("Projection reached maximum iteration without converging. "
+                   "Result may not be accurate.");
+   }
+   y = 0.0;
+   psi += c;
+   int_sigmoid_psi->Assemble();
+   real_t material_volume = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
+#endif
+   return material_volume;
+}
 
 // Poisson solver
 
@@ -422,12 +551,8 @@ void DiffusionSolver::SetupFEM()
    }
 }
 
-void DiffusionSolver::Solve()
+void DiffusionSolver::UpdateEssentialTDofs()
 {
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
@@ -440,7 +565,39 @@ void DiffusionSolver::Solve()
 #else
    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
 #endif
-   *u=0.0;
+}
+
+void DiffusionSolver::AssembleDiffusionBilinear(bool update_ess_tdofs)
+{
+   if (update_ess_tdofs)
+   {
+      UpdateEssentialTDofs();
+   }
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+   {
+      a = new BilinearForm(fes);
+   }
+#else
+   a = new BilinearForm(fes);
+#endif
+   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
+   if (masscf)
+   {
+      a->AddDomainIntegrator(new MassIntegrator(*masscf));
+   }
+   a->Assemble();
+   a->FormSystemMatrix(ess_tdof_list, A);
+}
+
+void DiffusionSolver::Solve()
+{
+   Vector B, X;
+
    if (b)
    {
       delete b;
@@ -475,31 +632,33 @@ void DiffusionSolver::Solve()
 
    b->Assemble();
 
-   BilinearForm * a = nullptr;
-
-#ifdef MFEM_USE_MPI
-   if (parallel)
-   {
-      a = new ParBilinearForm(pfes);
-   }
-   else
-   {
-      a = new BilinearForm(fes);
-   }
-#else
-   a = new BilinearForm(fes);
-#endif
-   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
-   if (masscf)
-   {
-      a->AddDomainIntegrator(new MassIntegrator(*masscf));
-   }
-   a->Assemble();
+   *u=0.0;
    if (essbdr_cf)
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
    }
-   a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B);
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      X.SetSize(pfes->TrueVSize());
+      B.SetSize(pfes->TrueVSize());
+      dynamic_cast<ParGridFunction*>(u)->ParallelAssemble(X);
+      dynamic_cast<ParLinearForm*>(b)->ParallelAssemble(B);
+      dynamic_cast<ParBilinearForm*>(a)->ParallelEliminateTDofsInRHS(
+         ess_tdof_list, X, B);
+   }
+   else
+   {
+      X.NewDataAndSize(u->GetData(), u->Size());
+      B.NewDataAndSize(b->GetData(), b->Size());
+      a->EliminateVDofsInRHS(ess_tdof_list, X, B);
+   }
+#else
+   X.NewDataAndSize(u->GetData(), u->Size());
+   B.NewDataAndSize(b->GetData(), b->Size());
+   a->EliminateVDofsInRHS(ess_tdof_list, X, B);
+#endif
 
    CGSolver * cg = nullptr;
    Solver * M = nullptr;
@@ -528,7 +687,6 @@ void DiffusionSolver::Solve()
    delete M;
    delete cg;
    a->RecoverFEMSolution(X, *b, *u);
-   delete a;
 }
 
 GridFunction * DiffusionSolver::GetFEMSolution()
@@ -560,6 +718,8 @@ DiffusionSolver::~DiffusionSolver()
 #endif
    delete fec; fec = nullptr;
    delete b;
+   A.Clear();
+   delete a;
 }
 
 

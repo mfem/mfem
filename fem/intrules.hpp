@@ -43,56 +43,52 @@ public:
       index = i;
    }
 
+   void Set3w(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { x = x1; y = x2; z = x3; weight = w; }
+   void Set2w(const real_t x1, const real_t x2, const real_t w)
+   { x = x1; y = x2; weight = w; }
+   void Set1w(const real_t x1, const real_t w)
+   { x = x1; weight = w; }
+
+   void Set3w(const real_t *p) { Set3w(p[0], p[1], p[2], p[3]); }
+   void Set2w(const real_t *p) { Set2w(p[0], p[1], p[2]); }
+   void Set1w(const real_t *p) { Set1w(p[0], p[1]); }
+
+   void Set3(const real_t x1, const real_t x2, const real_t x3)
+   { x = x1; y = x2; z = x3; }
+   void Set2(const real_t x1, const real_t x2)
+   { x = x1; y = x2; }
+   void Set1(const real_t x1)
+   { x = x1; }
+
+   void Set3(const real_t *p) { Set3(p[0], p[1], p[2]); }
+   void Set2(const real_t *p) { Set2(p[0], p[1]); }
+   void Set1(const real_t *p) { Set1(p[0]); }
+
+   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { Set3w(x1, x2, x3, w); }
+
    void Set(const real_t *p, const int dim)
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      x = p[0];
-      if (dim > 1)
+      switch (dim)
       {
-         y = p[1];
-         if (dim > 2)
-         {
-            z = p[2];
-         }
+         case 3: Set3(p); break;
+         case 2: Set2(p); break;
+         case 1: Set1(p); break;
       }
    }
 
    void Get(real_t *p, const int dim) const
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      p[0] = x;
-      if (dim > 1)
+      switch (dim)
       {
-         p[1] = y;
-         if (dim > 2)
-         {
-            p[2] = z;
-         }
+         case 3: p[2] = z;
+         case 2: p[1] = y;
+         case 1: p[0] = x;
       }
    }
-
-   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
-   { x = x1; y = x2; z = x3; weight = w; }
-
-   void Set3w(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; weight = p[3]; }
-
-   void Set3(const real_t x1, const real_t x2, const real_t x3)
-   { x = x1; y = x2; z = x3; }
-
-   void Set3(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; }
-
-   void Set2w(const real_t x1, const real_t x2, const real_t w)
-   { x = x1; y = x2; weight = w; }
-
-   void Set2w(const real_t *p) { x = p[0]; y = p[1]; weight = p[2]; }
-
-   void Set2(const real_t x1, const real_t x2) { x = x1; y = x2; }
-
-   void Set2(const real_t *p) { x = p[0]; y = p[1]; }
-
-   void Set1w(const real_t x1, const real_t w) { x = x1; weight = w; }
-
-   void Set1w(const real_t *p) { x = p[0]; weight = p[1]; }
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
@@ -124,18 +120,6 @@ private:
 
    void AddTriPoints3b(const int off, const real_t b, const real_t weight)
    { AddTriPoints3(off, (1. - b)/2., b, weight); }
-
-   void AddTriPoints3R(const int off, const real_t a, const real_t b,
-                       const real_t c, const real_t weight)
-   {
-      IntPoint(off + 0).Set2w(a, b, weight);
-      IntPoint(off + 1).Set2w(c, a, weight);
-      IntPoint(off + 2).Set2w(b, c, weight);
-   }
-
-   void AddTriPoints3R(const int off, const real_t a, const real_t b,
-                       const real_t weight)
-   { AddTriPoints3R(off, a, b, 1. - a - b, weight); }
 
    void AddTriPoints6(const int off, const real_t a, const real_t b,
                       const real_t c, const real_t weight)
@@ -183,14 +167,6 @@ private:
       AddTetPoints3(off + 1, a, 1. - 3.*a, weight);
    }
 
-   // given b, add the permutations of (a,a,a,b), where 3*a + b = 1
-   void AddTetPoints4b(const int off, const real_t b, const real_t weight)
-   {
-      const real_t a = (1. - b)/3.;
-      IntPoint(off).Set(a, a, a, weight);
-      AddTetPoints3(off + 1, a, b, weight);
-   }
-
    // add the permutations of (a,a,b,b), 2*(a + b) = 1
    void AddTetPoints6(const int off, const real_t a, const real_t weight)
    {
@@ -209,14 +185,37 @@ private:
       AddTetPoints6(off + 6, a, bc, cb, weight);
    }
 
-   // given (b,c), add the permutations of (a,a,b,c), 2*a + b + c = 1
-   void AddTetPoints12bc(const int off, const real_t b, const real_t c,
-                         const real_t weight)
+   // add all 24 permutations of (a,b,c,d) where a+b+c+d = 1, all distinct
+   void AddTetPoints24(const int off, const real_t a, const real_t b,
+                       const real_t c, const real_t weight)
    {
-      const real_t a = (1. - b - c)/2.;
-      AddTetPoints3(off,     a, b, weight);
-      AddTetPoints3(off + 3, a, c, weight);
-      AddTetPoints6(off + 6, a, b, c, weight);
+      const real_t d = 1. - a - b - c;
+      // all 24 permutations of 4 distinct barycentric coordinates
+      // permuting which coordinate goes to x, y, z (4th is 1-x-y-z)
+      IntPoint(off +  0).Set(a, b, c, weight);
+      IntPoint(off +  1).Set(a, b, d, weight);
+      IntPoint(off +  2).Set(a, c, b, weight);
+      IntPoint(off +  3).Set(a, c, d, weight);
+      IntPoint(off +  4).Set(a, d, b, weight);
+      IntPoint(off +  5).Set(a, d, c, weight);
+      IntPoint(off +  6).Set(b, a, c, weight);
+      IntPoint(off +  7).Set(b, a, d, weight);
+      IntPoint(off +  8).Set(b, c, a, weight);
+      IntPoint(off +  9).Set(b, c, d, weight);
+      IntPoint(off + 10).Set(b, d, a, weight);
+      IntPoint(off + 11).Set(b, d, c, weight);
+      IntPoint(off + 12).Set(c, a, b, weight);
+      IntPoint(off + 13).Set(c, a, d, weight);
+      IntPoint(off + 14).Set(c, b, a, weight);
+      IntPoint(off + 15).Set(c, b, d, weight);
+      IntPoint(off + 16).Set(c, d, a, weight);
+      IntPoint(off + 17).Set(c, d, b, weight);
+      IntPoint(off + 18).Set(d, a, b, weight);
+      IntPoint(off + 19).Set(d, a, c, weight);
+      IntPoint(off + 20).Set(d, b, a, weight);
+      IntPoint(off + 21).Set(d, b, c, weight);
+      IntPoint(off + 22).Set(d, c, a, weight);
+      IntPoint(off + 23).Set(d, c, b, weight);
    }
 
 public:
