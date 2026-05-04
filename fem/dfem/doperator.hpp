@@ -621,7 +621,7 @@ void DifferentiableOperator::AddIntegrator(
    // Consistency checks
    constexpr size_t num_qfparams = tuple_size<qf_param_ts>::value;
    static_assert(num_qfparams == num_inputs + num_outputs,
-                 "quadrature function must take"
+                 "quadrature function must take "
                  "num_inputs + num_outputs parameters");
 
    static_assert(std::is_same_v<qf_output_t, void>,
@@ -633,10 +633,8 @@ void DifferentiableOperator::AddIntegrator(
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
 
-   out << "num_fields: " << num_fields << "\n";
-
    MFEM_ASSERT(num_fields == unionfds.size(),
-               "Total number of fields in the Q-function doesn't match"
+               "Total number of fields in the Q-function doesn't match "
                "the union of FieldDescriptors.");
 
    auto dependency_map = make_dependency_map(inputs);
