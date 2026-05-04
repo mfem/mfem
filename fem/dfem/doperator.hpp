@@ -471,6 +471,15 @@ public:
          (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
          "input and output vector types are incompatible");
 
+      if constexpr (std::is_same_v<y_t, MultiVector>)
+      {
+         MFEM_ASSERT(static_cast<int>(outfds.size()) == y.NumBlocks(),
+                     "output MultiVector block count must match the number of "
+                     "output FieldDescriptors passed to the DifferentiableOperator. "
+                     "The number of FieldOperators in the qfunc output tuple does "
+                     "not determine the number of output blocks.");
+      }
+
       prolongation(global_infds, x, global_infields_l);
       restriction<Entity::Element>(global_infds, global_infields_l,
                                    global_infields_e);
@@ -706,7 +715,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
       dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
       static_assert(num_qfparams == num_inputs + num_outputs,
-                    "quadrature function must take"
+                    "quadrature function must take "
                     "num_inputs + num_outputs parameters");
       static_assert(std::is_same_v<qf_output_t, void>,
                     "quadrature function must return void");
