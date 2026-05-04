@@ -413,7 +413,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
          std::cout << "dfem: ";
          pretty_print(ztvec);
-         pretty_print(zztvec);
 
          Vector Y0(ytvecmfem);
          Y0 -= Z[0];
@@ -422,6 +421,18 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          real_t norm_g = norm_l;
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
+
+         std::cout << "dfem z2: ";
+         pretty_print(Z[1]);
+
+         Vector Y1(ytvecmfem);
+         Y1 -= Z[1];
+
+         norm_l = Y1.Normlinf();
+         norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
