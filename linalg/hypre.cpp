@@ -6556,7 +6556,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 }
 
 void
-HypreLOBPCG::SetOperator(Operator & A)
+HypreLOBPCG::SetOperator(const Operator & A)
 {
    HYPRE_BigInt locSize = A.Width();
 
@@ -6603,7 +6603,7 @@ HypreLOBPCG::SetOperator(Operator & A)
 }
 
 void
-HypreLOBPCG::SetMassMatrix(Operator & M)
+HypreLOBPCG::SetMassMatrix(const Operator & M)
 {
    matvec_fn.MatvecCreate  = this->OperatorMatvecCreate;
    matvec_fn.Matvec        = this->OperatorMatvec;
@@ -6624,7 +6624,7 @@ HypreLOBPCG::GetEigenvalues(Array<real_t> & eigs) const
    }
 }
 
-const HypreParVector &
+const Vector &
 HypreLOBPCG::GetEigenvector(unsigned int i) const
 {
    return multi_vec->GetVector(i);
@@ -6867,6 +6867,24 @@ HypreAME::SetPreconditioner(HypreSolver & precond)
 }
 
 void
+HypreAME::SetOperators(const Operator & opA, const Operator & opB)
+{
+   const HypreParMatrix * A = dynamic_cast<const HypreParMatrix *>(&opA);
+   if (A == NULL)
+   {
+      mfem_error("HypreAME::SetOperator : first operator not HypreParMatrix!");
+   }
+   SetOperator(*A);
+
+   const HypreParMatrix * B = dynamic_cast<const HypreParMatrix *>(&opB);
+   if (B == NULL)
+   {
+      mfem_error("HypreAME::SetOperator : second operator not HypreParMatrix!");
+   }
+   SetMassMatrix(*B);
+}
+
+void
 HypreAME::SetOperator(const HypreParMatrix & A)
 {
    if ( !setT )
@@ -6924,7 +6942,7 @@ HypreAME::createDummyVectors() const
    }
 }
 
-const HypreParVector &
+const Vector &
 HypreAME::GetEigenvector(unsigned int i) const
 {
    if ( eigenvectors == NULL )
@@ -6935,7 +6953,7 @@ HypreAME::GetEigenvector(unsigned int i) const
    return *eigenvectors[i];
 }
 
-HypreParVector **
+Vector **
 HypreAME::StealEigenvectors()
 {
    if ( eigenvectors == NULL )
@@ -6944,7 +6962,7 @@ HypreAME::StealEigenvectors()
    }
 
    // Set the local pointers to NULL so that they won't be deleted later
-   HypreParVector ** vecs = eigenvectors;
+   Vector ** vecs = (Vector**)eigenvectors;
    eigenvectors = NULL;
    multi_vec = NULL;
 

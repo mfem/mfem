@@ -18,6 +18,7 @@
 
 #include "../general/globals.hpp"
 #include "sparsemat.hpp"
+#include "eigensolvers.hpp"
 #include "hypre_parcsr.hpp"
 #include <mpi.h>
 
@@ -2146,7 +2147,7 @@ public:
     A. Knyazev, M. Argentati, I. Lashuk, and E. Ovtchinnikov, SISC, 29(5),
     2224-2239, 2007.
 */
-class HypreLOBPCG
+class HypreLOBPCG : public SymGenEigensolver
 {
 private:
    MPI_Comm comm;
@@ -2236,38 +2237,43 @@ public:
    HypreLOBPCG(MPI_Comm comm);
    ~HypreLOBPCG();
 
-   void SetTol(real_t tol);
+   void SetTol(real_t tol) override;
    // not implemented in HYPRE
    // real_t GetTol() const;
    void SetRelTol(real_t rel_tol);
    // not implemented in HYPRE
    // real_t GetRelTol() const;
-   void SetMaxIter(int max_iter);
+   void SetMaxIter(int max_iter) override;
    // not implemented in HYPRE
    // int GetMaxIter() const;
-   void SetPrintLevel(int logging);
-   void SetNumModes(int num_eigs) { nev = num_eigs; }
+   void SetPrintLevel(int logging) override;
+   void SetNumModes(int num_eigs) override { nev = num_eigs; }
    void SetPrecondUsageMode(int pcg_mode);
    void SetRandomSeed(int s) { seed = s; }
    void SetInitialVectors(int num_vecs, HypreParVector ** vecs);
 
    // The following four methods support general operators
    void SetPreconditioner(Solver & precond);
-   void SetOperator(Operator & A);
-   void SetMassMatrix(Operator & M);
+   void SetOperators(const Operator & A, const Operator & B) override
+   { SetOperator(A); SetMassMatrix(B); }
+   void SetOperator(const Operator & A);
+   void SetMassMatrix(const Operator & M);
    void SetSubSpaceProjector(Operator & proj) { subSpaceProj = &proj; }
 
    /// Solve the eigenproblem
-   void Solve();
+   void Solve() override;
+
+   int GetNumConverged() const override { return nev; }
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<real_t> & eigenvalues) const;
+   void GetEigenvalues(Array<real_t> & eigenvalues) const override;
 
    /// Extract a single eigenvector
-   const HypreParVector & GetEigenvector(unsigned int i) const;
+   const Vector & GetEigenvector(unsigned int i) const override;
 
    /// Transfer ownership of the converged eigenvectors
-   HypreParVector ** StealEigenvectors() { return multi_vec->StealVectors(); }
+   Vector ** StealEigenvectors() override
+   { return (Vector**)multi_vec->StealVectors(); }
 };
 
 /** AME eigenvalue solver in hypre
@@ -2292,7 +2298,7 @@ public:
     mass matrix but it seems unlikely that this would be useful so it is not the
     default behavior.
 */
-class HypreAME
+class HypreAME : public SymGenEigensolver
 {
 private:
    int myid;
@@ -2321,28 +2327,31 @@ public:
    HypreAME(MPI_Comm comm);
    ~HypreAME();
 
-   void SetTol(real_t tol);
+   void SetTol(real_t tol) override;
    void SetRelTol(real_t rel_tol);
-   void SetMaxIter(int max_iter);
-   void SetPrintLevel(int logging);
-   void SetNumModes(int num_eigs);
+   void SetMaxIter(int max_iter) override;
+   void SetPrintLevel(int logging) override;
+   void SetNumModes(int num_eigs) override;
 
    // The following four methods support operators of type HypreParMatrix.
    void SetPreconditioner(HypreSolver & precond);
+   void SetOperators(const Operator & opA, const Operator & opB) override;
    void SetOperator(const HypreParMatrix & A);
    void SetMassMatrix(const HypreParMatrix & M);
 
    /// Solve the eigenproblem
-   void Solve();
+   void Solve() override;
+
+   int GetNumConverged() const override { return nev; }
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<real_t> & eigenvalues) const;
+   void GetEigenvalues(Array<real_t> & eigenvalues) const override;
 
    /// Extract a single eigenvector
-   const HypreParVector & GetEigenvector(unsigned int i) const;
+   const Vector & GetEigenvector(unsigned int i) const override;
 
    /// Transfer ownership of the converged eigenvectors
-   HypreParVector ** StealEigenvectors();
+   Vector ** StealEigenvectors() override;
 };
 
 }
