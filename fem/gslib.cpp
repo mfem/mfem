@@ -1465,9 +1465,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          const int ie = hash_offset[hi + 1];
          for (; i != ie; ++i)
          {
-            const int pp = hash_offset[i];
+            const unsigned int pp = hash_offset[i];
             /* don't send back to where it just came from */
-            if (static_cast<unsigned>(pp) == p->proc)
+            if (pp == p->proc)
             {
                continue;
             }
@@ -1981,8 +1981,8 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    }
 
    // tolerance for point to be marked as on element edge/face
-   const int id = gsl_comm->id,
-             np = gsl_comm->np;
+   const unsigned int id = gsl_comm->id,
+                      np = gsl_comm->np;
    gsl_proc.HostWrite();
    for (int i=0; i<points_cnt; i++)
    {
@@ -2132,8 +2132,8 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          const int ie = hash_offset[hi + 1];
          for (; i!=ie; ++i)
          {
-            const int pp = hash_offset[i];
-            if (pp==p->proc)
+            const unsigned int pp = hash_offset[i];
+            if (pp == p->proc)
             {
                continue;   /* don't send back to source proc */
             }
@@ -2532,7 +2532,7 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
          sarray_transfer(struct evalOutPt_t, &outpt, proc, 1, cr);
 
          opt = (evalOutPt_t *)outpt.ptr;
-         for (int index = 0; index < outpt.n; index++)
+         for (size_t index = 0; index < outpt.n; index++)
          {
             int idx = field_out_ordering == Ordering::byNODES ?
                       opt->index + i*points_cnt :
@@ -3957,8 +3957,8 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
 Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
-   int save_rank = 0;
-   int myid = gsl_comm->id;
+   const unsigned int save_rank = 0;
+   const unsigned int myid = gsl_comm->id;
    Vector bbvert;
    if (type == 0)
    {
@@ -3980,7 +3980,7 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
 
    int nverts = nve*ne_glob;
    Mesh *meshbb = NULL;
-   if (gsl_comm->id == save_rank)
+   if (myid == save_rank)
    {
       meshbb = new Mesh(spacedim, nverts, ne_glob, 0, spacedim);
    }
@@ -3998,7 +3998,7 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
    {
       for (int p = 0; p < gsl_comm->np; p++)
       {
-         if (p != save_rank)
+         if (static_cast<unsigned int>(p) != save_rank)
          {
 #ifdef MFEM_USE_MPI
             MPI_Recv(&nrecv, 1, MPI_INT, p, 444, gsl_comm->c, &status);

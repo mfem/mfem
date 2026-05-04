@@ -240,7 +240,7 @@ get_edge(const double *elx[3], const double *wtend, int ei,
 
    const int jj = jidx%pN;
    const int dd = jidx/pN;
-   if (side_init != (1u << ei))
+   if (static_cast<unsigned>(side_init) != (1u << ei))
    {
       const int elx_stride[2] = {1,pN};
 #define ELX(d,j,k) elx[d][j*elx_stride[de] + k*elx_stride[dn]]

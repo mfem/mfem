@@ -13,6 +13,8 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Extend FindPointsGSLIB to support surface meshes.
+
 - Replaced legacy simplex quadrature rules with symmetric positive-weight
   rules for triangles (orders 0-25) and tetrahedra (orders 0-20). These
   rules guarantee all-positive weights and interior quadrature points,
