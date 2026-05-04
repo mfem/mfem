@@ -68,7 +68,8 @@ void mfem_error(const char *msg = NULL);
 __attribute__((enzyme_inactive))
 #endif
 void mfem_warning(const char *msg = NULL);
-}
+
+} // namespace mfem
 
 #ifndef _MFEM_FUNC_NAME
 #ifndef _MSC_VER

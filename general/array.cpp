@@ -23,7 +23,7 @@ namespace mfem
 template <class T>
 void Array<T>::Print(std::ostream &os, int width) const
 {
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       os << data[i];
       if ( !((i+1) % width) || i+1 == size )
@@ -44,7 +44,7 @@ void Array<T>::Save(std::ostream &os, int fmt) const
    {
       os << size << '\n';
    }
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       os << operator[](i) << '\n';
    }
@@ -55,11 +55,11 @@ void Array<T>::Load(std::istream &in, int fmt)
 {
    if (fmt == 0)
    {
-      int new_size;
+      bigint new_size;
       in >> new_size;
       SetSize(new_size);
    }
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       in >> operator[](i);
    }
@@ -71,7 +71,7 @@ T Array<T>::Max() const
    MFEM_ASSERT(size > 0, "Array is empty with size " << size);
 
    T max = operator[](0);
-   for (int i = 1; i < size; i++)
+   for (bigint i = 1; i < size; i++)
    {
       if (max < operator[](i))
       {
@@ -88,7 +88,7 @@ T Array<T>::Min() const
    MFEM_ASSERT(size > 0, "Array is empty with size " << size);
 
    T min = operator[](0);
-   for (int i = 1; i < size; i++)
+   for (bigint i = 1; i < size; i++)
    {
       if (operator[](i) < min)
       {
@@ -104,7 +104,7 @@ template <class T>
 void Array<T>::PartialSum()
 {
    T sum = static_cast<T>(0);
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       sum+=operator[](i);
       operator[](i) = sum;
@@ -116,9 +116,8 @@ void Array<T>::Abs()
 {
    static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
    const bool useDevice = UseDevice();
-   const int N = size;
    auto y = ReadWrite(useDevice);
-   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_switch(useDevice, size, [=] MFEM_HOST_DEVICE (bigint i)
    {
       y[i] = std::abs(y[i]);
    });
@@ -129,7 +128,7 @@ template <class T>
 T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       sum+=operator[](i);
    }
@@ -141,7 +140,7 @@ template <class T>
 int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
-   for (int i = 1; i < size; i++)
+   for (bigint i = 1; i < size; i++)
    {
       val=operator[](i);
       if (val < val_prev)
@@ -159,7 +158,7 @@ bool Array<T>::IsConstant() const
 {
    if (size < 2) { return true; }
    const T v0 = data[0];
-   for (int i = 1; i < size; i++)
+   for (bigint i = 1; i < size; i++)
    {
       if (data[i] != v0)
       {
