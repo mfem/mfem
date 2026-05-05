@@ -70,6 +70,102 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][3],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][3])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               const auto x = sm0[dz][dy][dx][0];
+               u = std::fma(B[dx][qx], x, u);
+            }
+            sm1[dz][dy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][3],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][3])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u = std::fma(sm1[dz][dy][qx][1], B[dy][qy], u);
+            }
+            sm0[dz][qy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][3],
+                                   regs3d_t<DIM,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u);
+            }
+            reg[qz][qy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][3],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][3],
+                                    regs3d_t<DIM,MQ1> &reg)
+{
+   EvalX(d1d, q1d, B, sm0, sm1); // Grad X
+   EvalY(d1d, q1d, B, sm1, sm0); // Grad Y
+   EvalZ(d1d, q1d, B, sm0, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient, 1/3
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
@@ -177,6 +273,115 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
    GradY(d1d, q1d, B, G, sm1, sm0); // Grad Y
    GradZ(d1d, q1d, B, G, sm0, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              regs3d_t<1,MQ1> &reg,
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            sm1[qz][qy][qx][0] = reg[qz][qy][qx][0];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(sm1[qz][qy][qx][0], B[dx][qx], u);
+            }
+            sm0[qz][qy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u = std::fma(sm0[qz][qy][dx][0], B[dy][qy], u);
+            }
+            sm1[qz][dy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dZ(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              regs3d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < q1d; ++qz)
+            {
+               u = std::fma(sm1[qz][dy][dx][0], B[dz][qz], u);
+            }
+            reg[dz][dy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs3d_t<DIM,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   EvalTranspose3dX(d1d, q1d, B, reg, sm1, sm0); // Eval^T X
+   EvalTranspose3dY(d1d, q1d, B, sm0, sm1); // Eval^T Y
+   EvalTranspose3dZ(d1d, q1d, B, sm1, reg); // Eval^T Z
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -307,7 +512,28 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// 3D Scalar Gradient Transposed, 3/3
+/// 3D Scalar Eval Write
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
+                                         const int c, const int e,
+                                         regs3d_t<1,MQ1> &reg,
+                                         const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            const real_t u = reg[dz][dy][dx][0];
+            YE(dx, dy, dz, c, e) += u;
+         }
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Write
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
                                          const int c, const int e,

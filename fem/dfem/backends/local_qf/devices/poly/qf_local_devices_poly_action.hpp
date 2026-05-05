@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <utility>
@@ -27,6 +28,15 @@ namespace mfem::future
 {
 
 ///////////////////////////////////////////////////////////////////////////////
+template<typename T>
+struct Unused
+{
+   MFEM_HOST_DEVICE T& operator[](int) { return T{}; }
+};
+template<size_t N, typename T>
+using reg_array_t = std::conditional_t<N == 0, Unused<T>, std::array<T, N>>;
+
+///////////////////////////////////////////////////////////////////////////////
 namespace LocalQFDevicesPolyImpl
 {
 
@@ -42,46 +52,47 @@ class Action
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   ////////////////////////////////////////////////////////
-   template<typename Tuple, size_t... I>
-   static constexpr size_t count_gradient_impl(std::index_sequence<I...>)
+   // Count & Make Map //////////////////////////////////////////////
+   template<typename Tuple, template<typename> class Trait>
+   static constexpr size_t count_if()
    {
-      return
-         (0 + ... + (is_gradient_fop<std::tuple_element_t<I, Tuple>>::value ? 1 : 0));
+      constexpr size_t N = std::tuple_size_v<Tuple>;
+      size_t count = 0;
+      for_constexpr<N>([&](auto i)
+      {
+         using T = std::tuple_element_t<i.value, Tuple>;
+         if constexpr (Trait<T>::value) { ++count; }
+      });
+      return count;
    }
-   template<typename Tuple>
-   static constexpr size_t count_if_gradient()
-   {
-      return count_gradient_impl<Tuple>
-             (std::make_index_sequence<std::tuple_size_v<Tuple>> {});
-   }
-   template <typename Tuple, template <typename> class Trait>
-   static constexpr auto make_register_map()
+
+   template<typename Tuple, template<typename> class Trait>
+   static constexpr auto make_map()
    {
       constexpr size_t N = std::tuple_size_v<Tuple>;
       std::array<int, N> map{};
       int next = 0;
-      for_constexpr<N>([&](auto ic)
+      for_constexpr<N>([&](auto i)
       {
-         constexpr int i = ic.value;
-         using T = std::tuple_element_t<i, Tuple>;
-         if constexpr (Trait<T>::value)
-         {
-            map[i] = next++;
-         }
-         else
-         {
-            map[i] = -1;
-         }
+         using T = std::tuple_element_t<i.value, Tuple>;
+         map[i.value] = Trait<T>::value ? next++ : -1;
       });
       return map;
    }
-   static constexpr size_t num_gradient_inputs = count_if_gradient<inputs_t>();
-   static constexpr size_t num_gradient_outputs = count_if_gradient<outputs_t>();
-   static constexpr auto input_gradient_map  =
-      make_register_map<inputs_t, is_gradient_fop>();
-   static constexpr auto output_gradient_map =
-      make_register_map<outputs_t, is_gradient_fop>();
+
+   // Value Count ///////////////////////////////////////////////////
+   static constexpr auto n_val_inputs = count_if<inputs_t, is_value_fop>();
+   static constexpr auto n_val_outputs = count_if<outputs_t, is_value_fop>();
+   static constexpr auto n_val = std::max(n_val_inputs, n_val_outputs);
+   static constexpr auto input_val_map = make_map<inputs_t, is_value_fop>();
+   static constexpr auto output_val_map = make_map<outputs_t, is_value_fop>();
+
+   // Gradient Count ////////////////////////////////////////////////
+   static constexpr auto n_del_inputs = count_if<inputs_t, is_gradient_fop>();
+   static constexpr auto n_del_outputs = count_if<outputs_t, is_gradient_fop>();
+   static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
+   static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
+   static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
 
    const IntegratorContext ctx;
    const qfunc_t qfunc;
@@ -254,6 +265,34 @@ public:
 
 public:
    ////////////////////////////////////////////////////////
+   template<int MQ1>
+   MFEM_HOST_DEVICE inline static
+   void RegEval3d(const int e, const int d1d, const int q1d,
+                  const real_t *B, real_t (&sB)[MQ1][MQ1],
+                  const DeviceTensor<3+1+1, const real_t> &XE,
+                  real_t (&sm)[2][MQ1][MQ1][MQ1][3],
+                  low::regs3d_t<1, MQ1> &reg0)
+   {
+      low::LoadMatrix(d1d, q1d, B, sB);
+      low::LoadDofs3d(e, d1d, XE, sm[0]);
+      low::Eval3d(d1d, q1d, sB, sm[0], sm[1], reg0);
+   }
+
+   ////////////////////////////////////////////////////////
+   template<int MQ1>
+   MFEM_HOST_DEVICE inline static
+   void RegEval3dT(const int e, const int d1d, const int q1d,
+                   const real_t *B, real_t (&sB)[MQ1][MQ1],
+                   const DeviceTensor<3+1+1, real_t> &YE,
+                   real_t (&sm)[2][MQ1][MQ1][MQ1][3],
+                   low::regs3d_t<1, MQ1> &reg0)
+   {
+      low::LoadMatrix(d1d, q1d, B, sB);
+      low::EvalTranspose3d(d1d, q1d, sB, reg0, sm[1], sm[0]);
+      low::WriteDofs3d(d1d, 0, e, reg0, YE);
+   }
+
+   ////////////////////////////////////////////////////////
    template<int DIM, int MQ1>
    MFEM_HOST_DEVICE inline static
    void RegGrad3d(const int e, const int d1d, const int q1d,
@@ -326,17 +365,15 @@ public:
       const int dim = ctx.mesh.Dimension();
       MFEM_ASSERT(DIM == dim, "Dimension mismatch");
 
+      // INPUTS: XE
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
-
       for_constexpr<n_inputs>([&](auto ic)
       {
          constexpr int i = ic.value;
          using FOP = std::tuple_element_t<i, inputs_t>;
          const auto idx = input_idx[i];
-         const int d1d = input_d1d[i];
-         const int q1d = input_q1d[i];
+         const int d1d = input_d1d[i], q1d = input_q1d[i];
          const int vdim = input_vdim[i];
-
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
             MFEM_ASSERT(xe[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
@@ -357,17 +394,15 @@ public:
          }
       });
 
+      // OUTPUTS: YE
       std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE {};
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr int i = ic.value;
          using FOP = std::tuple_element_t<i, inputs_t>;
          const size_t idx = output_idx[i];
-         const int d1d = output_d1d[i];
-         const int q1d = output_q1d[i];
+         const int d1d = output_d1d[i], q1d = output_q1d[i];
          const int vdim = output_vdim[i];
-
-         db1("#{} OUTPUT idx:{} qpt,dim,dof:[{},{},{}]", i, idx, q1d, dim, d1d);
          if constexpr (is_gradient_fop<FOP>::value)
          {
             MFEM_VERIFY(ye[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
@@ -386,7 +421,6 @@ public:
 
 
       NVTX_INI("forall");
-
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_attr = ctx.attr.Read();
       const auto d_elem_attr = ctx.elem_attr->Read();
@@ -400,18 +434,8 @@ public:
          MFEM_SHARED real_t sm[2][MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-         auto gradient_registers = [&]()
-         {
-            if constexpr (num_gradient_inputs > 0)
-            {
-               return std::array<low::regs3d_t<DIM, MQ1>, num_gradient_inputs> {};
-            }
-            else
-            {
-               struct NoRegisters {};
-               return NoRegisters {};
-            }
-         }();
+         [[maybe_unused]] reg_array_t<n_val, low::regs3d_t<  1, MQ1>> val_reg;
+         [[maybe_unused]] reg_array_t<n_del, low::regs3d_t<DIM, MQ1>> del_reg;
 
          for_constexpr<n_inputs>([&](auto ic)
          {
@@ -419,19 +443,23 @@ public:
             const int d1d = input_d1d[i], q1d = input_q1d[i];
 
             using FOP = std::tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
+            if constexpr (n_val > 0 && is_value_fop<FOP>::value)
             {
-               static_assert(false, "Unsupported");
+               constexpr int idx = input_val_map[i];
+               RegEval3d(e, d1d, q1d,
+                         input_B[i], sB,
+                         in_XE[i], sm, val_reg[idx]);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr int reg_idx = input_gradient_map[i];
-               RegGrad3d(e, d1d, q1d, input_B[i], sB, input_G[i], sG, in_XE[i], sm,
-                         gradient_registers[reg_idx]);
+               constexpr int idx = input_del_map[i];
+               RegGrad3d(e, d1d, q1d,
+                         input_B[i], sB, input_G[i], sG,
+                         in_XE[i], sm, del_reg[idx]);
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
-
+               /* nothing to do, will be streamed in */
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
@@ -449,8 +477,8 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
+                  // Arguments parsing for input fields
                   args_tuple_t args = {};
-
                   for_constexpr<n_inputs>([&](auto ic)
                   {
                      constexpr int i = ic.value;
@@ -461,9 +489,9 @@ public:
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        constexpr int reg_idx = input_gradient_map[i];
+                        constexpr int reg_idx = input_del_map[i];
                         std::get<i>(args) =
-                           as_tensor<real_t, 3>(&gradient_registers[reg_idx][qz][qy][qx][0]);
+                           as_tensor<real_t, 3>(&del_reg[reg_idx][qz][qy][qx][0]);
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
@@ -477,21 +505,42 @@ public:
                      {
                         static_assert(false, "Unsupported");
                      }
-
                   });
 
+                  // Apply the quadrature function
                   std::apply(qfunc, args);
-                  auto r = std::get<2>(args);
 
-                  if constexpr (decltype(r)::ndim == 1)
+                  // Arguments parsing for input fields
+                  for_constexpr<n_outputs>([&](auto ic)
                   {
-                     as_tensor<real_t, 3>(&gradient_registers[0][qz][qy][qx][0]) = r;
-                  }
-                  else if constexpr (decltype(r)::ndim == 0)
-                  {
-                     gradient_registers[0][qz][qy][qx][0] = r;
-                  }
-                  else { static_assert(false); }
+                     constexpr int i = ic.value;
+                     // output arguments are after the input arguments
+                     // weights ?
+                     const auto out = std::get<n_inputs + i>(args);
+
+                     using FOP = std::tuple_element_t<i, outputs_t>;
+                     if constexpr (is_value_fop<FOP>::value)
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                     else if constexpr (is_gradient_fop<FOP>::value)
+                     {
+                        constexpr int idx = output_del_map[i];
+                        as_tensor<real_t, DIM>(&del_reg[idx][qz][qy][qx][0]) = out;
+                     }
+                     else if constexpr (is_identity_fop<FOP>::value)
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                     else if constexpr (is_weight_fop<FOP>::value)
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                  });
                }
             }
          }
@@ -506,13 +555,19 @@ public:
             using FOP = std::tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               static_assert(false, "Unsupported");
+               constexpr int reg_idx = output_del_map[i];
+               RegEval3dT(e, d1d, q1d,
+                          output_B[i], sB,
+                          out_YE[i], sm,
+                          val_reg[reg_idx]);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr int reg_idx = output_gradient_map[i];
-               RegGrad3dT(e, d1d, q1d, output_B[i], sB, output_G[i], sG, out_YE[i], sm,
-                          gradient_registers[reg_idx]);
+               constexpr int reg_idx = output_del_map[i];
+               RegGrad3dT(e, d1d, q1d,
+                          output_B[i], sB, output_G[i], sG,
+                          out_YE[i], sm,
+                          del_reg[reg_idx]);
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
