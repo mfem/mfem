@@ -106,9 +106,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
-   int initialized = 0;
-   MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(NULL, NULL); }
+   if (!Mpi::IsInitialized()) { Mpi::Init(); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
@@ -2624,9 +2622,7 @@ GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
-   int initialized;
-   MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(NULL, NULL); }
+   if (!Mpi::IsInitialized()) { Mpi::Init(); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
