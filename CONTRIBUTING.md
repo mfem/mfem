@@ -24,6 +24,14 @@ must be made under this license.
 Note also that MFEM has a [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 in the MFEM community, you agree to abide by its rules.
 
+## AI Policy
+- Use of AI code generation in MFEM is allowed but must be disclosed, e.g. by
+  selecting the `AI-assisted` label on the PR.
+- By submitting a PR, the author acknowledges that they have reviewed and
+  understand the changes they are proposing.
+- PR authors are still responsible for correctness, licensing, and attribution
+  of all changes.
+
 If you plan on contributing to MFEM, consider reviewing the
 [issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
 already exists for your desired feature or the bug you ran into. Use a pull
