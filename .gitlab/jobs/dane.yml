@@ -85,3 +85,8 @@ opt_par_gcc_10_pumi:
   extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
+
+opt_par_gcc_10_gslib:
+  extends: .mfem_job_on_dane
+  variables:
+    SPEC: "%gcc@10.3.1 +gslib"
