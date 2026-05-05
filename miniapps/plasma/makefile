@@ -28,6 +28,12 @@ endif
 
 PLASMA_SUBDIRS = pic
 
+SUBDIRS_ALL = $(addsuffix /all,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST = $(addsuffix /test,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST_NOCLEAN = $(addsuffix /test-noclean,$(PLASMA_SUBDIRS))
+SUBDIRS_CLEAN = $(addsuffix /clean,$(PLASMA_SUBDIRS))
+SUBDIRS_TPRINT = $(addsuffix /test-print,$(PLASMA_SUBDIRS))
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
@@ -37,31 +43,24 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
-
-COMMON_O=
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS) subdirs
+all: $(MINIAPPS) $(SUBDIRS_ALL) 
 
-.PHONY: subdirs $(PLASMA_SUBDIRS)
-subdirs: $(PLASMA_SUBDIRS)
-$(PLASMA_SUBDIRS): lib-common
-	$(MAKE) -C $(BLD)$(@)
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
+   $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) $(SUBDIRS_CLEAN):
+	$(MAKE) -C $(@D) $(@F)
+$(SUBDIRS_TPRINT):
+	@$(MAKE) -C $(@D) $(@F)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(COMMON_LIB) \
-        $(MFEM_LIBS)
-
-# Rules for compiling miniapp dependencies
-$(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -69,6 +68,9 @@ lib-common:
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
+test: $(SUBDIRS_TEST)
+test-noclean: $(SUBDIRS_TEST_NOCLEAN)
+test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
@@ -79,14 +81,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
-.PHONY: $(ALL_CLEAN_SUBDIRS)
-$(ALL_CLEAN_SUBDIRS):
-	$(MAKE) -C $(BLD)$(@D) $(@F)
+clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
-clean: clean-build clean-exec
-
-clean-build: $(addsuffix /clean,$(PLASMA_SUBDIRS))
+clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
