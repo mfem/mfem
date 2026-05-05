@@ -473,7 +473,7 @@ public:
 
       if constexpr (std::is_same_v<y_t, MultiVector>)
       {
-         MFEM_ASSERT(static_cast<int>(outfds.size()) == y.NumBlocks(),
+         MFEM_ASSERT(static_cast<int>(global_outfds.size()) == y.NumBlocks(),
                      "output MultiVector block count must match the number of "
                      "output FieldDescriptors passed to the DifferentiableOperator. "
                      "The number of FieldOperators in the qfunc output tuple does "
