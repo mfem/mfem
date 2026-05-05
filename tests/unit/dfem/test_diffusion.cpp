@@ -180,28 +180,38 @@ void diffusion(const char *filename, int p)
          setupPAData.Mult(X, Y);
       }
 
-      // DifferentiableOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
-      // typename Diffusion<DIM>::PAApply pa_apply_qf;
-      // dop_pa.AddDomainIntegrator(pa_apply_qf,
-      //                            tuple{ Gradient<U>{}, Identity<QData>{} },
-      //                            tuple{ Gradient<U>{} },
-      //                            *ir, all_domain_attr);
-      // dop_pa.SetParameters({ &qdata });
+      DifferentiableOperator applyPAData(
+      {
+         {U, &pfes}, {QData, &qd}
+      },
+      {
+         {U, &pfes}
+      }, pmesh);
+      typename Diffusion<DIM>::PAApply pa_apply_qf;
+      applyPAData.AddDomainIntegrator<LocalQFBackend>(
+         pa_apply_qf,
+         tuple{ Gradient<U>{}, Identity<QData>{} },
+         tuple{ Gradient<U>{} },
+         *ir, all_domain_attr);
 
-      // pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      // dop_pa.Mult(xtvec, ztvec);
+      {
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, qd};
+         MultiVector Z{ztvec};
+         applyPAData.Mult(X, Z);
+      }
 
-      // blf_fa.Mult(x, y);
-      // pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      // ytvec -= ztvec;
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      ytvec -= ztvec;
 
-      // real_t norm_global = 0.0;
-      // real_t norm_local = ytvec.Normlinf();
-      // MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-      //               pmesh.GetComm());
+      real_t norm_global = 0.0;
+      real_t norm_local = ytvec.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
 
-      // REQUIRE(norm_global == MFEM_Approx(0.0));
-      // MPI_Barrier(MPI_COMM_WORLD);
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
    }
 
    SECTION("action linearized")

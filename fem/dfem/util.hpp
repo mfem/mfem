@@ -980,15 +980,17 @@ std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
 /// @param f the field descriptor.
 /// @returns the prolongation operator for the field descriptor.
 inline
-const Operator *get_prolongation(const FieldDescriptor &f)
+std::shared_ptr<const Operator> get_prolongation(const FieldDescriptor &f)
 {
-   return std::visit([](auto&& arg) -> const Operator*
+   return std::visit([](auto&& arg) -> std::shared_ptr<const Operator>
    {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return arg->GetProlongationMatrix();
+         // Non-owning shared_ptr with no-op deleter
+         return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
+         const Operator*) {});
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
@@ -996,7 +998,9 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetProlongationMatrix();
+         // Non-owning shared_ptr with no-op deleter
+         return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
+         const Operator*) {});
       }
       else
       {
@@ -1013,24 +1017,32 @@ const Operator *get_prolongation(const FieldDescriptor &f)
 /// @returns the element restriction operator for the field descriptor in
 /// specified ordering.
 inline
-const Operator *get_element_restriction(const FieldDescriptor &f,
-                                        ElementDofOrdering o)
+std::shared_ptr<const Operator> get_element_restriction(
+   const FieldDescriptor &f,
+   ElementDofOrdering o)
 {
-   return std::visit([&o](auto&& arg) -> const Operator*
+   return std::visit([&o](auto&& arg) -> std::shared_ptr<const Operator>
    {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *>
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return arg->GetElementRestriction(o);
+         // Non-owning shared_ptr with no-op deleter
+         return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
+         const Operator*) {});
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
-         return nullptr;
+         // For QuadratureFunction, create an identity operator
+         // Data is already at quadrature points, so restriction is identity
+         const int size = arg->Size();
+         return std::make_shared<IdentityOperator>(size);
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetElementRestriction(o);
+         // Non-owning shared_ptr with no-op deleter
+         return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
+         const Operator*) {});
       }
       else
       {
@@ -1050,18 +1062,20 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
 /// @returns the face restriction operator for the field descriptor in
 /// specified ordering.
 inline
-const Operator *get_face_restriction(const FieldDescriptor &f,
-                                     ElementDofOrdering o,
-                                     FaceType ft,
-                                     L2FaceValues m)
+std::shared_ptr<const Operator> get_face_restriction(const FieldDescriptor &f,
+                                                     ElementDofOrdering o,
+                                                     FaceType ft,
+                                                     L2FaceValues m)
 {
-   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
+   return std::visit([&o, &ft, &m](auto&& arg) -> std::shared_ptr<const Operator>
    {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return arg->GetFaceRestriction(o, ft, m);
+         // Non-owning shared_ptr with no-op deleter
+         return std::shared_ptr<const Operator>(arg->GetFaceRestriction(o, ft,
+         m), [](const Operator*) {});
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
@@ -1090,8 +1104,8 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
 /// specified ordering.
 template <typename entity_t>
 inline
-const Operator *get_restriction(const FieldDescriptor &f,
-                                const ElementDofOrdering &o)
+std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
+                                                const ElementDofOrdering &o)
 {
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
@@ -1130,8 +1144,8 @@ get_restriction_transpose(
    }
    else
    {
-      const Operator *R = get_restriction<entity_t>(f, o);
-      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
+      auto R = get_restriction<entity_t>(f, o);
+      std::function<void(const Vector&, Vector&)> RT = [R](const Vector &x, Vector &y)
       {
          R->AddMultTranspose(x, y);
       };
@@ -1513,8 +1527,8 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       };
       return PT;
    }
-   const Operator *P = get_prolongation(f);
-   auto PT = [=](const Vector &r_local, Vector &y)
+   auto P = get_prolongation(f);
+   auto PT = [P](const Vector &r_local, Vector &y)
    {
       P->MultTranspose(r_local, y);
    };
@@ -2603,6 +2617,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqs,
    const std::array<size_t, N> &field_map,
+   const std::vector<FieldDescriptor> &fds,
+   const IntegrationRule &ir,
    std::index_sequence<Is...>)
 {
    auto f = [&](auto fop, std::size_t idx)
@@ -2613,6 +2629,19 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 
          int value_dim = 1;
          int grad_dim = 1;
+
+         if (dtq == nullptr)
+         {
+            // For QuadratureFunction with Identity, use the vector dimension
+            // Data is point-wise at qpts: [nqpt][vdim]
+            const auto &fd = fds[field_map[idx]];
+            if (std::holds_alternative<const QuadratureFunction *>(fd.data))
+            {
+               const auto *qf = std::get<const QuadratureFunction *>(fd.data);
+               value_dim = qf->GetVDim();
+            }
+            return std::tuple{dtq, value_dim, grad_dim};
+         }
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
              (!is_identity_fop<decltype(fop)>::value))
@@ -2648,10 +2677,28 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
                          is_sum_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
+
+         const auto &fd = fds[field_map[idx]];
+         int mesh_dimension = -1;
+         if (std::holds_alternative<const QuadratureFunction *>(fd.data))
+         {
+            const auto *qf = std::get<const QuadratureFunction *>(fd.data);
+            mesh_dimension = qf->GetSpace()->GetMesh()->Dimension();
+         }
+         else
+         {
+            MFEM_ABORT("identity/sum only implemented for QuadratureFunction");
+         }
+
+         const int q1d = (int)floor(std::pow(ir.GetNPoints(),
+                                             1.0 / mesh_dimension) + 0.5);
+         const int nqpt = q1d;
+         const int ndof = nqpt;
+
          return DofToQuadMap
          {
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
+            DeviceTensor<3, const real_t>(nullptr, nqpt, grad_dim, ndof),
             -1
          };
       }
@@ -2678,6 +2725,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 /// @param fops field operators
 /// @param dtqmaps DofToQuad maps
 /// @param to_field_map mapping from input indices to field indices
+/// @param fds field descriptors
+/// @param ir integration rule
 /// @tparam entity_t type of the entity
 /// @return array of DofToQuad maps
 template <
@@ -2687,11 +2736,14 @@ template <
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqmaps,
-   const std::array<size_t, num_fields> &to_field_map)
+   const std::array<size_t, num_fields> &to_field_map,
+   const std::vector<FieldDescriptor> &fds,
+   const IntegrationRule &ir)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,
+             fds, ir,
              std::make_index_sequence<num_fields> {});
 }
 

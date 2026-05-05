@@ -89,9 +89,11 @@ struct DerivativeAction
          dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
       }
       input_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field);
+         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field,
+                                          ctx.unionfds, ctx.ir);
       output_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field);
+         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field,
+                                          ctx.unionfds, ctx.ir);
 
       out_qp_size.fill(0);
       for_constexpr<noutputs>([&](auto o)
@@ -157,7 +159,7 @@ struct DerivativeAction
       {
          const size_t outfd = output_to_outfd[o];
          const auto &fd = ctx.outfds[outfd];
-         const Operator *R = get_restriction<Entity::Element>(fd, dof_ordering);
+         auto R = get_restriction<Entity::Element>(fd, dof_ordering);
          MFEM_ASSERT(R != nullptr,
                      "LocalQFBackend: missing element restriction for output");
          const int elem_sz = num_entities ? (R->Height() / num_entities) : 0;
