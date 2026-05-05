@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#undef MFEM_ADD_SPECIALIZATIONS
+#define MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 

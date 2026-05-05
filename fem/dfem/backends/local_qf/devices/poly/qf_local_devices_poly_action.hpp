@@ -22,8 +22,6 @@
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 
-// #include NVTX_DBG_FMT
-
 namespace mfem::future
 {
 
@@ -80,24 +78,24 @@ class Action
       return map;
    }
 
-   // Value Count ///////////////////////////////////////////////////
+   // Value Count & Map /////////////////////////////////////////////
    static constexpr auto n_val_inputs = count_if<inputs_t, is_value_fop>();
    static constexpr auto n_val_outputs = count_if<outputs_t, is_value_fop>();
    static constexpr auto n_val = std::max(n_val_inputs, n_val_outputs);
    static constexpr auto input_val_map = make_map<inputs_t, is_value_fop>();
    static constexpr auto output_val_map = make_map<outputs_t, is_value_fop>();
 
-   // Gradient Count ////////////////////////////////////////////////
+   // Gradient Count & Map //////////////////////////////////////////
    static constexpr auto n_del_inputs = count_if<inputs_t, is_gradient_fop>();
    static constexpr auto n_del_outputs = count_if<outputs_t, is_gradient_fop>();
    static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
    static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
    static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
 
-   const IntegratorContext ctx;
    const qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
+   const IntegratorContext ctx;
    const std::vector<const DofToQuad*> dtqs;
    // inputs: dtq, B, G, vdim, d1d, q1d
    const std::array<size_t, n_inputs> input_idx;
@@ -190,14 +188,14 @@ public:
    ////////////////////////////////////////////////////////
    Action() = delete;
 
-   Action(const IntegratorContext ctx,
+   Action(IntegratorContext ctx,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs) :
-      ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs),
+      ctx(ctx),
       dtqs(make_dtqs()),
       // inputs: dtq, B, G, vdim, d1d, q1d
       input_idx(create_io_to_field_map(inputs)),
@@ -328,17 +326,15 @@ public:
    template<int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
-                               // inputs: B, G, vdim, d1d, q1d
+                               // inputs: idx, B, G, vdim, d1d, q1d
                                const std::array<size_t, n_inputs> &input_idx,
-                               //  const std::array<DofToQuadMap, n_inputs> &input_dtq,
                                const std::array<const real_t*, n_inputs> &input_B,
                                const std::array<const real_t*, n_inputs> &input_G,
                                const std::array<int, n_inputs> &input_vdim,
                                const std::array<int, n_inputs> &input_d1d,
                                const std::array<int, n_inputs> &input_q1d,
-                               // outputs: B, G, vdim, d1d, q1d
+                               // outputs: idx, B, G, vdim, d1d, q1d
                                const std::array<size_t, n_outputs> &output_idx,
-                               //  const std::array<DofToQuadMap, n_outputs> &output_dtq,
                                const std::array<const real_t*, n_outputs> &output_B,
                                const std::array<const real_t*, n_outputs> &output_G,
                                const std::array<int, n_outputs> &output_vdim,
@@ -360,10 +356,9 @@ public:
       for (auto v : ye) { *v = 0.0; }
 
       constexpr int DIM = 3;
+      MFEM_ASSERT(DIM == ctx.mesh.Dimension(), "Dimension mismatch");
 
       const int ne = ctx.n_entities;
-      const int dim = ctx.mesh.Dimension();
-      MFEM_ASSERT(DIM == dim, "Dimension mismatch");
 
       // INPUTS: XE
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
@@ -421,8 +416,8 @@ public:
 
 
       NVTX_INI("forall");
-      const bool has_attr = ctx.attr.Size() > 0;
       const auto d_attr = ctx.attr.Read();
+      const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
       dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
@@ -441,9 +436,8 @@ public:
          {
             constexpr int i = ic.value;
             const int d1d = input_d1d[i], q1d = input_q1d[i];
-
             using FOP = std::tuple_element_t<i, inputs_t>;
-            if constexpr (n_val > 0 && is_value_fop<FOP>::value)
+            if constexpr (is_value_fop<FOP>::value)
             {
                constexpr int idx = input_val_map[i];
                RegEval3d(e, d1d, q1d,
@@ -489,9 +483,8 @@ public:
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        constexpr int reg_idx = input_del_map[i];
-                        std::get<i>(args) =
-                           as_tensor<real_t, 3>(&del_reg[reg_idx][qz][qy][qx][0]);
+                        constexpr int idx = input_del_map[i];
+                        std::get<i>(args) = as_tensor<real_t, 3>(&del_reg[idx][qz][qy][qx][0]);
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
