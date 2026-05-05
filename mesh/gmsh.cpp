@@ -1170,17 +1170,14 @@ class GmshReader
             for (int i = 0; i < n_periodic_entities; i++)
             {
                Skip<int>(input, 3, ASCII); // Skip dimension, tag, and master tag
+               ChompNewline(input);
                // Next section might be "Affine"; if so, skip.
-               auto pos = input.tellg();
-               if (ReadBinaryOrASCII<string>(input, ASCII) == "Affine")
+               if (input.peek() == 'A')
                {
+                  MFEM_VERIFY(ReadBinaryOrASCII<string>(input, ASCII) == "Affine",
+                              "Cannot find Affine transformation");
                   string line;
                   getline(input, line);
-               }
-               else
-               {
-                  input.clear();
-                  input.seekg(pos);
                }
                const int n_nodes = ReadBinaryOrASCII<int>(input, ASCII);
                for (int j = 0; j < n_nodes; ++j)
@@ -1243,9 +1240,10 @@ public:
                const int nv = e->GetNVertices();
                const int *v = e->GetVertices();
                ho_el_nodes[mesh.Dim][ie].resize(nv);
+               const vector<int> &map = GetNodeMap(e->GetGeometryType(), 1);
                for (int i = 0; i < nv; ++i)
                {
-                  ho_el_nodes[mesh.Dim][ie][i] = v[i];
+                  ho_el_nodes[mesh.Dim][ie][i] = v[map[i]];
                }
             }
          }
