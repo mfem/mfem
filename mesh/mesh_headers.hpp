@@ -33,6 +33,7 @@
 #include "nurbs.hpp"
 #include "wedge.hpp"
 #include "pyramid.hpp"
+#include "bb_grid_map.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
