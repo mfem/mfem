@@ -71,6 +71,7 @@ option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
+option(MFEM_USE_GLVIS "Enable GLVis" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
@@ -95,6 +96,7 @@ option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" 
 option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
 option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
 option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
+option(MFEM_FETCH_GLVIS "Enable fetching of GLVis" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
@@ -276,6 +278,8 @@ set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
     "Additional packages required by Tribol")
 
 set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
+
+set(GLVIS_DIR "${MFEM_DIR}/../glvis" CACHE PATH "Path to GLVis")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

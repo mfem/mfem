@@ -213,4 +213,7 @@
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 
+// Enable GLVis.
+// #define MFEM_USE_GLVIS
+
 #endif // MFEM_CONFIG_HEADER

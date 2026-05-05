@@ -187,6 +187,7 @@ MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
+MFEM_USE_GLVIS         = NO
 
 # Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
 ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
@@ -639,6 +640,9 @@ ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
 endif
 ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
 ENZYME_LIB =
+
+# GLVis configuration
+include $(GLVIS_MK)
 
 # If YES, enable some informational messages
 VERBOSE = NO
