@@ -369,8 +369,10 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F,
+                              const IntegrationRule *ir = nullptr)
+      : DeltaLFIntegrator(F, ir), QF(F)
+   {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -382,8 +384,7 @@ public:
 
    bool SupportsDevice() const override { return true; }
 
-   void AssembleDevice(const FiniteElementSpace &fes,
-                       const Array<int> &markers,
+   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
                        Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
