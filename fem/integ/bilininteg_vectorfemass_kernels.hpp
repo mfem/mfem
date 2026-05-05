@@ -31,7 +31,19 @@ namespace internal
 {
 namespace hcurlmass
 {
-constexpr int NBZ3D(int MDQ) { return std::min(128 / MDQ, 64); }
+constexpr int NBZ3D(int MDQ)
+{
+   if (MDQ == 0)
+   {
+      return 1;
+   };
+   int tmp = std::min((128 + MDQ * MDQ - 1) / (MDQ * MDQ), 64);
+   int smem_req = sizeof(real_t) *
+                  (3 * ((MDQ - 1) * MDQ * MDQ + 2 * MDQ * MDQ * MDQ) * tmp +
+                   MDQ * (MDQ - 1) + MDQ * (MDQ - 1));
+   // assume GPU has at least 48k shared memory
+   return std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req);
+}
 } // namespace hcurlmass
 } // namespace internal
 

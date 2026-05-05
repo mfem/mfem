@@ -403,8 +403,9 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&sOrder, "-so", "--spatial-order",
-                  "Finite element order (polynomial degree).");
+   args.AddOption(
+      &sOrder, "-so", "--spatial-order",
+      "Finite element order (polynomial degree). Must be positive.");
    args.AddOption(&tOrder, "-to", "--temporal-order",
                   "Time integration order.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
