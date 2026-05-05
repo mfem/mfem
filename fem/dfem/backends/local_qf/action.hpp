@@ -41,14 +41,6 @@ struct Action
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
 
-      // Fused local action relies on element restrictions; QF (QP data) fields
-      // would require a different memory path.
-      for (const auto &fd : ctx.unionfds)
-      {
-         MFEM_ASSERT(!std::holds_alternative<const QuadratureFunction *>(fd.data),
-                     "LocalQFBackend fused action does not support QuadratureFunction fields");
-      }
-
       // Maps from qfunc inputs/outputs -> union field indices.
       input_to_field =
          create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->inputs);
@@ -68,7 +60,8 @@ struct Action
       use_sum_factorization =
          (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
 
-      dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      dof_ordering = use_sum_factorization ? ElementDofOrdering::LEXICOGRAPHIC
+                     : ElementDofOrdering::NATIVE;
       const DofToQuad::Mode dtq_mode =
          use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
 
@@ -86,7 +79,9 @@ struct Action
       }
       else
       {
-         thread_blocks.x = num_qp;
+         // The FULL (non-tensor) mapping routines are not thread-parallel and
+         // must run without intra-element write races.
+         thread_blocks.x = 1;
          thread_blocks.y = 1;
          thread_blocks.z = 1;
       }
@@ -167,8 +162,6 @@ struct Action
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
-
-      for (auto v : ye) { *v = 0.0; }
 
       // Q -> Q
       using qf_signature = typename get_function_signature<qfunc_t>::type;

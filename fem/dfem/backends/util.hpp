@@ -489,21 +489,6 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
 
       if constexpr (active)
       {
-         std::cout << "Input[" << CurI << "]: ACTIVE (enzyme_dup)\n"
-                   << "  primal ptr type:  "
-                   << get_type_name<decltype(&std::get<CurI>(inputs))>() << "\n"
-                   << "  shadow ptr type:  "
-                   << get_type_name<decltype(&std::get<CurI>(shadows))>() << "\n";
-      }
-      else
-      {
-         std::cout << "Input[" << CurI << "]: INACTIVE (enzyme_const)\n"
-                   << "  primal ptr type:  "
-                   << get_type_name<decltype(&std::get<CurI>(inputs))>() << "\n";
-      }
-
-      if constexpr (active)
-      {
          process_inputs<wrapper_fn, qf_return_t, CurI + 1, NI, ActivityMap...>(
             inputs, shadows, primals, derivs,
             acc...,
@@ -547,13 +532,6 @@ inline void enzyme_fwddiff(
 
    constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t{});
    static_assert(activity_map.size() == ninputs, "activity map size mismatch");
-
-   std::cout << "activity_map: ";
-   for (const auto &v : activity_map)
-   {
-      std::cout << v << " ";
-   }
-   std::cout << "\n";
 
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<

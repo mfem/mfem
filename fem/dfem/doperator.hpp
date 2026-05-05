@@ -132,6 +132,7 @@ public:
       prolongation(direction, x, direction_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
@@ -199,6 +200,7 @@ public:
       // Prepare result in element space (in INPUT space)
       std::vector<Vector *> result_e(infds.size());
       prepare_residual<Entity::Element>(infds, result_e);
+      for (auto *v : result_e) { *v = 0.0; }
 
       // Apply transpose derivative actions
       // These compute J^T * direction_l_concat and store in result_e
@@ -394,6 +396,7 @@ public:
       prolongation(infds, x, infields_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
+      for (auto *v : residual_e) { *v = 0.0; }
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          action_callbacks[i](infields_e, residual_e);

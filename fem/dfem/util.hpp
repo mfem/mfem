@@ -1955,11 +1955,29 @@ get_shmem_info(
    std::array<int, num_fields> field_sizes;
    for (std::size_t i = 0; i < num_fields; i++)
    {
-      field_sizes[i] =
-         num_entities
-         ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
-            / num_entities)
-         : 0;
+      if (std::holds_alternative<const QuadratureFunction *>(fields[i].data))
+      {
+         const auto qf = std::get<const QuadratureFunction *>(fields[i].data);
+         if (num_entities == 0)
+         {
+            field_sizes[i] = 0;
+         }
+         else
+         {
+            MFEM_ASSERT(qf != nullptr, "null QuadratureFunction in FieldDescriptor");
+            MFEM_ASSERT(qf->Size() % num_entities == 0,
+                        "QuadratureFunction size not divisible by num_entities");
+            field_sizes[i] = qf->Size() / num_entities;
+         }
+      }
+      else
+      {
+         field_sizes[i] =
+            num_entities
+            ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
+               / num_entities)
+            : 0;
+      }
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
@@ -1968,12 +1986,29 @@ get_shmem_info(
    int direction_size = 0;
    if (derivative_action_field_idx != -1)
    {
-      direction_size =
-         num_entities ? (get_restriction<entity_t>(
-                            fields[derivative_action_field_idx], dof_ordering)
-                         ->Height()
-                         / num_entities)
-         : 0;
+      const auto &fd = fields[derivative_action_field_idx];
+      if (std::holds_alternative<const QuadratureFunction *>(fd.data))
+      {
+         const auto qf = std::get<const QuadratureFunction *>(fd.data);
+         if (num_entities == 0)
+         {
+            direction_size = 0;
+         }
+         else
+         {
+            MFEM_ASSERT(qf != nullptr, "null QuadratureFunction direction field");
+            MFEM_ASSERT(qf->Size() % num_entities == 0,
+                        "QuadratureFunction direction size not divisible by num_entities");
+            direction_size = qf->Size() / num_entities;
+         }
+      }
+      else
+      {
+         direction_size =
+            num_entities ? (get_restriction<entity_t>(fd, dof_ordering)->Height()
+                            / num_entities)
+            : 0;
+      }
       total_size += direction_size;
    }
 
