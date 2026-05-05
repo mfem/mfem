@@ -10,22 +10,21 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/gslib/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+MFEM_INSTALL_DIR ?= ../../../mfem
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/pic/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+SEQ_MINIAPPS =
+PAR_MINIAPPS =
+
 ifeq ($(MFEM_USE_GSLIB),YES)
-   SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
-   PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist
-else
-   SEQ_MINIAPPS =
-   PAR_MINIAPPS =
+   PAR_MINIAPPS += electrostatic-pic
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -34,67 +33,44 @@ else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+.SUFFIXES:
+.SUFFIXES: .o .cpp .mk
+.PHONY: all lib-common clean clean-build clean-exec
+.PRECIOUS: %.o
+
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
-.SUFFIXES:
-.SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
-
-# Remove built-in rule
+# Remove built-in rules
 %: %.cpp
-
-# Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+%.o: %.cpp
 
 all: $(MINIAPPS)
+
+# Rules for building the miniapps
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
-# For out-of-source builds, link the data files from the source tree:
-ifneq ($(SRC),)
-DATA_FILES = triple-pt-1.mesh triple-pt-2.mesh triple-pt-1.gf triple-pt-2.gf
-$(DATA_FILES): %: $(SRC)%
-	ln -sf $(<) .
-field-diff field-interp: | $(DATA_FILES)
-.PHONY: copy-data
-copy-data: | $(DATA_FILES)
-# For out-of-source builds, the test and sample runs for 'field-interp' need
-# data from the meshing miniapps directory:
-field-interp: | meshing-data
-.PHONY: meshing-data
-meshing-data:
-	$(MAKE) -C ../meshing copy-data
-endif
-
-ifeq ($(MFEM_USE_GSLIB),NO)
-$(MINIAPPS):
-	$(error MFEM is not configured with GSLIB)
-endif
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-ifeq ($(MFEM_USE_MPI),YES)
-   RUN_MPI_SER = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 1
-else
-   RUN_MPI_SER =
-endif
-TEST_NAME := GSLIB miniapp
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<, $(RUN_MPI_SER), $(TEST_NAME))
-
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
+
+# Testing: Specific execution options
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+electrostatic-pic-test-par: electrostatic-pic
+	@$(call mfem-test,$<, $(RUN_MPI), PIC miniapp,\
+		-rdi 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16\
+		-O 1 -q 0.01181640625 -m 0.01181640625 -oci 1000 -dt 0.1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -107,4 +83,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f interpolated.gf
+	@rm -rf electrostatic-pic_* *.csv energy.csv
