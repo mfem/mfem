@@ -1240,9 +1240,10 @@ public:
                const int nv = e->GetNVertices();
                const int *v = e->GetVertices();
                ho_el_nodes[mesh.Dim][ie].resize(nv);
+               const vector<int> &map = GetNodeMap(e->GetGeometryType(), 1);
                for (int i = 0; i < nv; ++i)
                {
-                  ho_el_nodes[mesh.Dim][ie][i] = v[i];
+                  ho_el_nodes[mesh.Dim][ie][i] = v[map[i]];
                }
             }
          }
