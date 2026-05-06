@@ -529,6 +529,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       void Mult(const Vector &x, Vector &y) const override
       {
+         NVTX_MARK_FUNCTION;
          MultiVector M{const_cast<Vector&>(x), arg1}, Y{y};
          dop->Mult(M, Y);
       }
@@ -580,12 +581,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto ofs = std::vector<FieldDescriptor> {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MFApply_global_qf_2_3<DIM> mf_apply_global_qf;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_global_qf,
                                                       std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
@@ -602,12 +603,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i0 = std::vector<FieldDescriptor> { {Ξ, &mfes}};
          const auto o0 = std::vector<FieldDescriptor> { {Q, &qfct}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
+         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          PASetup_global_qf_4_5<DIM> pa_setup_gqf;
          dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
                                                std::tuple{Gradient<Ξ>{}, Weight{}},
                                                std::tuple{Identity<Q>{}},
                                                *ir, ess_bdr);
-         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
 
@@ -615,12 +616,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          PAApply_global_qf_4_5<DIM> pa_apply_gqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
                                                       std::tuple{Gradient<U>{}, Identity<Q>{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, qfct);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
@@ -636,12 +637,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MFApply_local_with_outputs_qf_6<DIM> mf_apply_lqf;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
                                                       std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
@@ -696,12 +697,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
          if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          PAApply_local_with_outputs_qf_8<DIM> pa_apply_lqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_lqf,
                                                       std::tuple{Gradient<U>{}, Identity<Q>{}},
                                                       std::tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          assert(qfct * qfct > 0.0);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, qfct);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);

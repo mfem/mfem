@@ -132,8 +132,6 @@ private: // helper functions
       for (const auto &field: ctx.unionfds)
       {
          auto dtq = GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode);
-         assert(dtq);
-         dbg("ndof:{} nqpt:{}", dtq->ndof, dtq->nqpt);
          dtq_vec.emplace_back(dtq);
       }
       return dtq_vec;
@@ -329,19 +327,19 @@ public:
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
                                // inputs: idx, B, G, vdim, d1d, q1d
-                               const std::array<size_t, n_inputs> &input_idx,
-                               const std::array<const real_t*, n_inputs> &input_B,
-                               const std::array<const real_t*, n_inputs> &input_G,
-                               const std::array<int, n_inputs> &input_vdim,
-                               const std::array<int, n_inputs> &input_d1d,
-                               const std::array<int, n_inputs> &input_q1d,
+                               const std::array<size_t, n_inputs> &in_idx,
+                               const std::array<const real_t*, n_inputs> in_B,
+                               const std::array<const real_t*, n_inputs> in_G,
+                               const std::array<int, n_inputs> &in_vdim,
+                               const std::array<int, n_inputs> &in_d1d,
+                               const std::array<int, n_inputs> &in_q1d,
                                // outputs: idx, B, G, vdim, d1d, q1d
-                               const std::array<size_t, n_outputs> &output_idx,
-                               const std::array<const real_t*, n_outputs> &output_B,
-                               const std::array<const real_t*, n_outputs> &output_G,
-                               const std::array<int, n_outputs> &output_vdim,
-                               const std::array<int, n_outputs> &output_d1d,
-                               const std::array<int, n_outputs> &output_q1d,
+                               const std::array<size_t, n_outputs> &out_idx,
+                               const std::array<const real_t*, n_outputs> out_B,
+                               const std::array<const real_t*, n_outputs> out_G,
+                               const std::array<int, n_outputs> &out_vdim,
+                               const std::array<int, n_outputs> &out_d1d,
+                               const std::array<int, n_outputs> &out_q1d,
                                const ThreadBlocks &thread_blocks,
                                const std::vector<Vector *> &xe,
                                std::vector<Vector *> &ye,
@@ -368,9 +366,8 @@ public:
       {
          constexpr int i = ic.value;
          using FOP = std::tuple_element_t<i, inputs_t>;
-         const auto idx = input_idx[i];
-         const int d1d = input_d1d[i], q1d = input_q1d[i];
-         const int vdim = input_vdim[i];
+         const size_t idx = in_idx[i];
+         const int d1d = in_d1d[i], q1d = in_q1d[i], vdim = in_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
             MFEM_ASSERT(xe[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
@@ -397,9 +394,8 @@ public:
       {
          constexpr int i = ic.value;
          using FOP = std::tuple_element_t<i, inputs_t>;
-         const size_t idx = output_idx[i];
-         const int d1d = output_d1d[i], q1d = output_q1d[i];
-         const int vdim = output_vdim[i];
+         const size_t idx = out_idx[i];
+         const int d1d = out_d1d[i], q1d = out_q1d[i], vdim = out_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value)
          {
             MFEM_VERIFY(ye[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
@@ -415,7 +411,6 @@ public:
             static_assert(false, "Unsupported FieldOperator");
          }
       });
-
 
       NVTX_INI("forall");
       const auto d_attr = ctx.attr.Read();
@@ -434,28 +429,30 @@ public:
          [[maybe_unused]] reg_array_t<n_val, low::regs3d_t<  1, MQ1>> val_reg;
          [[maybe_unused]] reg_array_t<n_del, low::regs3d_t<DIM, MQ1>> del_reg;
 
+         // -----------------------------------------------
+         // Interpolate inputs
+         // -----------------------------------------------
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr int i = ic.value;
-            const int d1d = input_d1d[i], q1d = input_q1d[i];
+            const int d1d = in_d1d[i], q1d = in_q1d[i];
+            const real_t *B = in_B[i], *G = in_G[i];
+            const auto &XE = in_XE[i];
+
             using FOP = std::tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
                constexpr int idx = input_val_map[i];
-               RegEval3d(e, d1d, q1d,
-                         input_B[i], sB,
-                         in_XE[i], sm, val_reg[idx]);
+               RegEval3d(e, d1d, q1d, B, sB, XE, sm, val_reg[idx]);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr int idx = input_del_map[i];
-               RegGrad3d(e, d1d, q1d,
-                         input_B[i], sB, input_G[i], sG,
-                         in_XE[i], sm, del_reg[idx]);
+               RegGrad3d(e, d1d, q1d, B, sB, G, sG, XE, sm, del_reg[idx]);
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
-               /* nothing to do, will be streamed in */
+               // nothing to do, will be streamed in
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
@@ -467,6 +464,9 @@ public:
             }
          });
 
+         // -----------------------------------------------
+         // Evaluate the quadrature function
+         // -----------------------------------------------
          MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
@@ -490,6 +490,7 @@ public:
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
+                        // use size_on_qp
                         std::get<i>(args) = as_tensor<real_t, 3, 3>(&in_XE[i](0, qx, qy, qz, e));
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
@@ -541,28 +542,26 @@ public:
          }
          MFEM_SYNC_THREAD;
 
-         // Integrate
+         // -----------------------------------------------
+         // Integrate outputs
+         // -----------------------------------------------
          for_constexpr<n_outputs>([&](auto ic)
          {
             constexpr int i = ic.value;
-            const int d1d = output_d1d[i], q1d = output_q1d[i];
+            const int d1d = out_d1d[i], q1d = out_q1d[i];
+            const auto B = out_B[i], G = out_G[i];
+            const auto &YE = out_YE[i];
 
             using FOP = std::tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               constexpr int reg_idx = output_del_map[i];
-               RegEval3dT(e, d1d, q1d,
-                          output_B[i], sB,
-                          out_YE[i], sm,
-                          val_reg[reg_idx]);
+               constexpr int idx = output_val_map[i];
+               RegEval3dT(e, d1d, q1d, B, sB, YE, sm, val_reg[idx]);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr int reg_idx = output_del_map[i];
-               RegGrad3dT(e, d1d, q1d,
-                          output_B[i], sB, output_G[i], sG,
-                          out_YE[i], sm,
-                          del_reg[reg_idx]);
+               constexpr int idx = output_del_map[i];
+               RegGrad3dT(e, d1d, q1d, B, sB, G, sG, YE, sm, del_reg[idx]);
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {

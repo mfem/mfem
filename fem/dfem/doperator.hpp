@@ -482,19 +482,45 @@ public:
                      "not determine the number of output blocks.");
       }
 
-      prolongation(global_infds, x, global_infields_l);
-      restriction<Entity::Element>(global_infds, global_infields_l,
-                                   global_infields_e);
-      prepare_residual<Entity::Element>(global_outfds, global_residual_e);
-      for (auto *v : global_residual_e) { *v = 0.0; }
+      const bool is_lvector = mult_level == MultLevel::LVECTOR;
+
+      {
+         NVTX_MARK("P");
+         prolongation(global_infds, x, global_infields_l, is_lvector);
+      }
+
+      {
+         NVTX_MARK("R");
+         restriction<Entity::Element>(global_infds, global_infields_l,
+                                      global_infields_e);
+      }
+
+      {
+         NVTX_MARK("prepare_residual");
+         prepare_residual<Entity::Element>(global_outfds, global_residual_e);
+         for (auto *v : global_residual_e)
+         {
+            NVTX_MARK("clear residual");
+            *v = 0.0;
+         }
+      }
+
       for (size_t i = 0; i < global_action_callbacks.size(); i++)
       {
          NVTX_MARK("action callback #{}", i);
          global_action_callbacks[i](global_infields_e, global_residual_e);
       }
-      restriction_transpose<Entity::Element>(global_outfds, global_residual_e,
-                                             global_residual_l);
-      prolongation_transpose(global_outfds, global_residual_l, y);
+
+      {
+         NVTX_MARK("R^T");
+         restriction_transpose<Entity::Element>(global_outfds, global_residual_e,
+                                                global_residual_l);
+      }
+
+      {
+         NVTX_MARK("P^T");
+         prolongation_transpose(global_outfds, global_residual_l, y, is_lvector);
+      }
    }
 
    ////////////////////////////////////////////////////////////////////////////

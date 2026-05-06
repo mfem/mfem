@@ -1079,22 +1079,27 @@ std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
 inline
 std::shared_ptr<const Operator> get_prolongation(const FieldDescriptor &f)
 {
+   NVTX_MARK_FUNCTION;
    return std::visit([](auto&& arg) -> std::shared_ptr<const Operator>
    {
+      NVTX_MARK_FUNCTION;
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
+         NVTX_MARK("FiniteElementSpace");
          // Non-owning shared_ptr with no-op deleter
          return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
          const Operator*) {});
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
+         NVTX_MARK("QuadratureFunction");
          return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
+         NVTX_MARK("ParameterSpace");
          // Non-owning shared_ptr with no-op deleter
          return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
          const Operator*) {});
@@ -1341,7 +1346,8 @@ void local_prolongation(const std::vector<FieldDescriptor> fields,
 
 inline void prolongation(const std::vector<FieldDescriptor> fields,
                          const BlockVector &x,
-                         std::vector<Vector *> &x_l)
+                         std::vector<Vector *> &x_l,
+                         const bool is_lvector = false)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
@@ -1351,7 +1357,7 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
-      if (P == nullptr)
+      if (P == nullptr || is_lvector)
       {
          NVTX_MARK("P(id)");
          *x_l[i] = x.GetBlock(i);
@@ -1374,32 +1380,37 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
 
 inline void prolongation(const std::vector<FieldDescriptor> fields,
                          const MultiVector &x,
-                         std::vector<Vector *> &x_l)
+                         std::vector<Vector *> &x_l,
+                         const bool is_lvector = false)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
    {
+      if (is_lvector)
+      {
+         x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
+         continue;
+      }
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
-      if (P == nullptr)
+      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()))
       {
-         NVTX_MARK("!P #{} size:{}", i, x[i].Size());
+         NVTX_MARK("Identity");
          x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
       }
       else
       {
-         const auto prolongation = get_prolongation(fields[i]);
-         MFEM_ASSERT(prolongation->Width() == x[i].Size(),
+         MFEM_ASSERT(P->Width() == x[i].Size(),
                      "prolongation not applicable to given input data size " <<
-                     prolongation->Width() << " vs " << x[i].Size());
-         MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
+                     P->Width() << " vs " << x[i].Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
-                     prolongation->Height() << " vs " << x_l[i]->Size());
+                     P->Height() << " vs " << x_l[i]->Size());
          NVTX_MARK("P(x_l[{}])",i);
-         prolongation->Mult(x[i], *x_l[i]);
+         P->Mult(x[i], *x_l[i]);
       }
    }
 }
@@ -1408,7 +1419,8 @@ inline
 void prolongation_transpose(
    const std::vector<FieldDescriptor> fields,
    const std::vector<Vector *> &x_l,
-   BlockVector &x)
+   BlockVector &x,
+   const bool is_lvector = false)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
@@ -1418,7 +1430,7 @@ void prolongation_transpose(
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
-      if (P == nullptr)
+      if (P == nullptr || is_lvector)
       {
          NVTX_MARK("P^T(id)");
          x.GetBlock(i) = *x_l[i];
@@ -1441,20 +1453,27 @@ inline
 void prolongation_transpose(
    const std::vector<FieldDescriptor> fields,
    const std::vector<Vector *> &x_l,
-   MultiVector &x)
+   MultiVector &x,
+   const bool is_lvector = false)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
                "error " << x_l.size() << " vs " << x.NumBlocks());
    for (size_t i = 0; i < x_l.size(); i++)
    {
+      if (is_lvector)
+      {
+         x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         continue;
+      }
+
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
-      if (P == nullptr)
+      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr)
       {
-         NVTX_MARK("P^T(id)");
-         x[i] = *x_l[i];
+         NVTX("Identity");
+         x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
       }
       else
       {
@@ -1465,7 +1484,7 @@ void prolongation_transpose(
                      "prolongation not applicable to given output data size " <<
                      P->Width() << " vs " << x[i].Size());
          NVTX_MARK("P^T(x_l)");
-         P->MultTranspose(*x_l[i], x[i]); // D2D copy 🔥🔥🔥
+         P->MultTranspose(*x_l[i], x[i]);
       }
    }
 }
@@ -1507,6 +1526,11 @@ void restriction(
       if (R == nullptr)
       {
          NVTX("!R #{} s:{} x_l:{}", i, s, x_l[i]->Size());
+         x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+      }
+      else if (dynamic_cast<const IdentityOperator*>(R.get()))
+      {
+         NVTX("Identity");
          x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
       }
       else
@@ -1699,7 +1723,15 @@ void restriction(const std::vector<FieldDescriptor> u,
                   "restriction not applicable to given data size");
       const int height = R->Height();
       fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
+      if (dynamic_cast<const IdentityOperator*>(R.get()))
+      {
+         NVTX("Identity");
+         fields_e[i + offset].NewMemoryAndSize(u_l[i].GetMemory(), u_l[i].Size(), false);
+      }
+      else
+      {
+         R->Mult(u_l[i], fields_e[i + offset]);
+      }
    }
 }
 
