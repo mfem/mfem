@@ -2145,7 +2145,7 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
-                     ALF, ALFmF0, ALFG, ALFH;
+              ALF, ALFmF0, ALFG, ALFH;
       mutable bool AL_grads_assembled;
       real_t al_delta;
       const DofToQuad *maps;
