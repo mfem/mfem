@@ -94,37 +94,59 @@ void vectordivergence(const char *filename, int p)
          v = tr(dudx) * det(J) * w;
       };
 
+      const auto derivatives = std::integer_sequence<size_t, V> {};
       dop_mf.AddDomainIntegrator<LocalQFBackend>(
          mf_vector_divergence_qf,
-         tuple{ Gradient<V>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ Value<P>{} },
-         *ir, all_domain_attr);
+         tuple{Gradient<V>{}, Gradient<Coords>{}, Weight{}},
+         tuple{Value<P>{}},
+         *ir, all_domain_attr, derivatives);
 
+      SECTION("Action")
       {
          Vector nodestv;
          nodes->GetTrueDofs(nodestv);
          MultiVector X{Xv, nodestv};
          MultiVector Z{Zs};
          dop_mf.Mult(X, Z);
+
+         mblf_fa.Mult(xv, ys);
+         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+
+         Ys -= Zs;
+         real_t norm_global = 0.0;
+         real_t norm_local = Ys.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
       }
 
-      mblf_fa.Mult(xv, ys);
-      psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+      SECTION("Derivative Action")
+      {
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{Xv, nodestv};
+         MultiVector Z{Zs};
+         auto dRdV = dop_mf.GetDerivative(V, X);
+         dRdV->Mult(X[0], Z);
 
-      Ys -= Zs;
-      real_t norm_global = 0.0;
-      real_t norm_local = Ys.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         mblf_fa.Mult(xv, ys);
+         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+
+         Ys -= Zs;
+         real_t norm_global = 0.0;
+         real_t norm_local = Ys.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 }
 
 TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][XXX]")
 {
    const bool all_tests = launch_all_non_regression_tests;
-
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
 
    SECTION("2D p=" + std::to_string(p))

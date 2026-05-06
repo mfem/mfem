@@ -198,6 +198,11 @@ struct DerivativeApply
       const auto &dir_fd = ctx.unionfds[direction_field_idx];
       restriction<Entity::Element>(dir_fd, *direction_l, direction_e, dof_ordering);
 
+      // Verify that direction_e has the expected size
+      MFEM_ASSERT(direction_e.Size() == shmem_info.direction_size * num_entities,
+                  "direction_e size mismatch: " << direction_e.Size()
+                  << " != " << shmem_info.direction_size << " * " << num_entities);
+
       const auto wrapped_direction_e =
          DeviceTensor<2>(direction_e.ReadWrite(), shmem_info.direction_size,
                          num_entities);
@@ -263,7 +268,8 @@ struct DerivativeApply
          }
       });
 
-      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
+      // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int trial_vdim_local = trial_vdim;
       auto cache_tensor = DeviceTensor<3, const real_t>(qp_cache.Read(),

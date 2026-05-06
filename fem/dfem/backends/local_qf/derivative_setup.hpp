@@ -159,12 +159,14 @@ struct DerivativeSetup
       const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
                                                     out_qp_size.end(), 0);
 
-      // Calculate total trial op dim for dependent inputs
+      // Calculate total trial op dim and trial vdim for dependent inputs
       int total_trial_op_dim = 0;
+      int trial_vdim = 0;
       for_constexpr<ninputs>([&](auto i)
       {
          if (input_is_dependent[i])
          {
+            trial_vdim = get<i>(this->inputs).vdim;
             const int input_vdim = get<i>(this->inputs).vdim;
             const int input_op_dim = input_size_on_qp[i] / input_vdim;
             total_trial_op_dim += input_op_dim;
@@ -172,7 +174,8 @@ struct DerivativeSetup
       });
 
       // Cache size includes both test and trial dimensions
-      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
+      // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
       const int total_cache_size = num_entities * num_qp * residual_size_on_qp;
       qp_cache.SetSize(total_cache_size);
       qp_cache.UseDevice(true);
@@ -456,9 +459,12 @@ struct DerivativeSetup
       });
 
       // Wrap qp_cache: [test_vdim * test_op_dim * trial_vdim * trial_op_dim, num_qp, num_entities]
-      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
+      // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
       auto cache_tensor = DeviceTensor<3>(qp_cache.ReadWrite(), residual_size_on_qp,
                                           num_qp_local, num_entities_local);
+
+      const int direction_field_idx_local = direction_field_idx;
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {
@@ -466,7 +472,7 @@ struct DerivativeSetup
 
          auto packed =
          unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                      output_dtq_maps_local, wrapped_fields_e, wrapped_fields_e[0],
+                      output_dtq_maps_local, wrapped_fields_e, wrapped_fields_e[direction_field_idx_local],
                       num_qp_local, e);
          auto input_dtq_shmem = get<0>(packed);
          auto output_dtq_shmem = get<1>(packed);

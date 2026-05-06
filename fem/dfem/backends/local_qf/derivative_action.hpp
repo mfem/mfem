@@ -375,6 +375,11 @@ struct DerivativeAction
       const auto &dir_fd = ctx.unionfds[direction_field_idx];
       restriction<Entity::Element>(dir_fd, *direction_l, direction_e, dof_ordering);
 
+      // Verify that direction_e has the expected size
+      MFEM_ASSERT(direction_e.Size() == shmem_info.direction_size * num_entities,
+                  "direction_e size mismatch: " << direction_e.Size()
+                  << " != " << shmem_info.direction_size << " * " << num_entities);
+
       const auto wrapped_direction_e =
          DeviceTensor<2>(direction_e.ReadWrite(), shmem_info.direction_size,
                          num_entities);
