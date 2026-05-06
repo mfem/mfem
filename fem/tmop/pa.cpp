@@ -396,19 +396,18 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
       PA.maps_nodes = &fe_n->GetDofToQuad(lex_nodes, DofToQuad::TENSOR);
    }
 
-   // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD)
+   // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD).
    const FiniteElement &fe = *alfes->GetTypicalFE();
    PA.ALF.SetSize(PA.ne * fe.GetDof(), Device::GetMemoryType());
    PA.ALF.UseDevice(true);
    const Operator *alf_R = alfes->GetElementRestriction(ordering);
    alf_R->Mult(*adapt_lim_gf, PA.ALF);
-
-   // adapt_lim_gf0 -> PA.ALF0 (E-vector, same pattern as LD)
-   const FiniteElementSpace *alf0es = adapt_lim_gf0->FESpace();
-   PA.ALF0.SetSize(PA.ne * fe.GetDof(), Device::GetMemoryType());
-   PA.ALF0.UseDevice(true);
-   const Operator *alf0_R = alf0es->GetElementRestriction(ordering);
-   alf0_R->Mult(*adapt_lim_gf0, PA.ALF0);
+   // adapt_lim_gf - adapt_lim_gf0 -> PA.ALFmF0
+   PA.ALFmF0.SetSize(PA.ne * fe.GetDof(), Device::GetMemoryType());
+   PA.ALFmF0.UseDevice(true);
+   alf_R->Mult(*adapt_lim_gf0, PA.ALFmF0);
+   PA.ALFmF0 *= -1.0;
+   PA.ALFmF0 += PA.ALF;
 
    // adapt_lim_delta_max -> PA.al_delta.
    PA.al_delta = adapt_lim_delta_max;

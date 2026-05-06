@@ -223,9 +223,6 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   // F - F0.
-   Vector ALFmF0_vec(PA.ALF);
-   ALFmF0_vec -= PA.ALF0;
 
    const bool const_coeff = PA.ALC.Size() == 1;
    const auto ALC = const_coeff
@@ -234,7 +231,7 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto ALFmF0 = Reshape(ALFmF0_vec.Read(), d, d, d, NE);
+   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
    const auto ALF_grad = Reshape(PA.ALFG.Read(), 3, q, q, q, NE);
    auto Y = Reshape(y.ReadWrite(), d, d, d, 3, NE);
 

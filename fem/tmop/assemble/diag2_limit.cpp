@@ -182,10 +182,6 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   // F - F0.
-   Vector ALFmF0_vec(PA.ALF);
-   ALFmF0_vec -= PA.ALF0;
-
    const bool const_coeff = PA.ALC.Size() == 1;
    const auto ALC = const_coeff
                     ? Reshape(PA.ALC.Read(), 1, 1, 1)
@@ -194,7 +190,7 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto *B = PA.maps->B.Read();
-   const auto ALFmF0 = Reshape(ALFmF0_vec.Read(), d, d, NE);
+   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, NE);
    const auto ALF_grad = Reshape(PA.ALFG.Read(), 2, q, q, NE);
    const auto ALF_hess = Reshape(PA.ALFH.Read(), 2, 2, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, 2, NE);

@@ -2114,10 +2114,10 @@ protected:
    //     Updated when the mesh nodes change.
    // ALC:  Q-Vector for spatial weight used for the adaptive limiting term.
    //       Updated when the mesh nodes change.
-   // ALF:  E-Vector constructed using adaptive limiting GF.
-   //       Remapped when the mesh nodes change.
-   // ALF0: E-Vector constructed using the initial adaptive limiting GF.
-   //       Does not change during the TMOP iteration.
+   // ALF: E-Vector constructed using adaptive limiting GF zeta.
+   //      The zeta is remapped when the mesh nodes change.
+   // ALFmF0: E-Vector constructed using adaptive limiting GF zeta.
+   //         It stores difference zeta-zeta0, as all computations use this.
    // ALFG: Q-Vector for gradient of ALF at quadrature points.
    //       Updated by every call to PANonlinearFormExtension::GetGradient().
    // ALFH: Q-Vector for Hessian of ALF at quadrature points.
@@ -2145,7 +2145,7 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
-              ALF, ALF0, ALFG, ALFH;
+                     ALF, ALFmF0, ALFG, ALFH;
       mutable bool AL_grads_assembled;
       real_t al_delta;
       const DofToQuad *maps;
