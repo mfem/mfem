@@ -157,7 +157,7 @@ struct DerivativeSetup
       // Calculate total cache size: num_entities * num_qp * (test * trial dimensions)
       // Cache stores full Jacobian: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, num_qp, num_entities]
       const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                     out_qp_size.end(), 0);
+                                                    out_qp_size.end(), 0);
 
       // Calculate total trial op dim for dependent inputs
       int total_trial_op_dim = 0;
@@ -436,10 +436,11 @@ struct DerivativeSetup
       const auto qfunc_local = qfunc;
       const auto inputs_local = inputs;
       const auto input_is_dependent_local = input_is_dependent;
+      const auto input_size_on_qp_local = input_size_on_qp;
 
       // Calculate full Jacobian cache size
       const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                     out_qp_size.end(), 0);
+                                                    out_qp_size.end(), 0);
       int total_trial_op_dim = 0;
       int trial_vdim = 0;
       for_constexpr<ninputs>([&](auto i)
@@ -459,47 +460,48 @@ struct DerivativeSetup
       auto cache_tensor = DeviceTensor<3>(qp_cache.ReadWrite(), residual_size_on_qp,
                                           num_qp_local, num_entities_local);
 
-      // Loop structure matches the reference implementation:
-      // Outer loop: trial_vdim (j)
-      // Middle loop: inputs (s)
-      // Inner loop: trial_op_dim per input (m)
-      for (int j = 0; j < trial_vdim; j++)
+      forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {
-         int m_offset = 0;
-         for_constexpr<ninputs>([&](auto s)
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+
+         auto packed =
+         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
+                      output_dtq_maps_local, wrapped_fields_e, wrapped_fields_e[0],
+                      num_qp_local, e);
+         auto input_dtq_shmem = get<0>(packed);
+         auto output_dtq_shmem = get<1>(packed);
+         auto fields_shmem = get<2>(packed);
+         auto direction_shmem = get<3>(packed); // unused
+         auto input_shmem = get<4>(packed);
+         auto shadow_shmem = get<5>(packed);
+         auto residual_shmem = get<6>(packed);
+         auto scratch_shmem = get<7>(packed);
+
+         // Map fields to quadrature data once per element
+         map_fields_to_quadrature_data(
+            input_shmem, fields_shmem, input_dtq_shmem, input_to_field_local,
+            inputs_local, ir_weights, scratch_shmem, dimension_local,
+            use_sum_factorization_local);
+
+         // Loop over trial_vdim (j)
+         for (int j = 0; j < trial_vdim; j++)
          {
-            if (!input_is_dependent_local[s]) { return; }
-
-            const int input_vdim = get<s>(inputs_local).vdim;
-            const int trial_op_dim = input_size_on_qp[s] / input_vdim;
-
-            for (int m = 0; m < trial_op_dim; m++)
+            int m_offset = 0;
+            // Loop over inputs (s) - compile-time loop
+            for_constexpr<ninputs>([&](auto s)
             {
-               forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
+               if (!input_is_dependent_local[s]) { return; }
+
+               const int input_vdim = get<s>(inputs_local).vdim;
+               const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+
+               // Loop over trial_op_dim (m)
+               for (int m = 0; m < trial_op_dim; m++)
                {
-                  if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-                  auto packed =
-                  unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                               output_dtq_maps_local, wrapped_fields_e, wrapped_fields_e[0],
-                               num_qp_local, e);
-                  auto input_dtq_shmem = get<0>(packed);
-                  auto output_dtq_shmem = get<1>(packed);
-                  auto fields_shmem = get<2>(packed);
-                  auto direction_shmem = get<3>(packed); // unused
-                  auto input_shmem = get<4>(packed);
-                  auto shadow_shmem = get<5>(packed);
-                  auto residual_shmem = get<6>(packed);
-                  auto scratch_shmem = get<7>(packed);
-
-                  map_fields_to_quadrature_data(
-                     input_shmem, fields_shmem, input_dtq_shmem, input_to_field_local,
-                     inputs_local, ir_weights, scratch_shmem, dimension_local,
-                     use_sum_factorization_local);
-
                   // Set shadow to unit vector: d_qp(j, m, q) = 1.0
                   set_zero(shadow_shmem);
-                  auto d_qp = Reshape(&shadow_shmem[s](0, 0), input_vdim, trial_op_dim, num_qp_local);
+                  auto d_qp = Reshape(&shadow_shmem[s](0, 0), input_vdim, trial_op_dim,
+                                      num_qp_local);
 
                   MFEM_FOREACH_THREAD(q, x, num_qp_local)
                   {
@@ -518,7 +520,8 @@ struct DerivativeSetup
                      const int test_vdim = out_vdim_local[o];
                      const int test_op_dim = out_op_dim_local[o];
 
-                     auto output_shmem = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp_local);
+                     auto output_shmem = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim,
+                                                 num_qp_local);
 
                      MFEM_FOREACH_THREAD(q, x, num_qp_local)
                      {
@@ -539,12 +542,12 @@ struct DerivativeSetup
                      }
                      MFEM_SYNC_THREAD;
                   });
-               }, num_entities, thread_blocks, shmem_info.total_size,
-               shmem_cache.ReadWrite());
-            }
-            m_offset += trial_op_dim;
-         });
-      }
+               }
+               m_offset += trial_op_dim;
+            });
+         }
+      }, num_entities, thread_blocks, shmem_info.total_size,
+      shmem_cache.ReadWrite());
    }
 
    template <typename qf_param_ts>
