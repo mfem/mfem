@@ -118,8 +118,7 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
                                 const ConstDeviceMatrix &W,
                                 const real_t *b,
                                 const DeviceTensor<4, const real_t> &ALF_grad,
-                                const ConstDeviceCube &ALF,
-                                const ConstDeviceCube &ALF0,
+                                const ConstDeviceCube &ALFmF0,
                                 DeviceTensor<4> &Y,
                                 const int d1d,
                                 const int q1d)
@@ -139,13 +138,9 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
 
       // Evaluate ALF and ALF0 at the quad points.
       kernels::internal::s_regs2d_t<MQ1> alf_dof, alf_quad;
-      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_dof);
+      kernels::internal::LoadDofs2d(e, D1D, ALFmF0, alf_dof);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB,
                                 alf_dof, alf_quad);
-      kernels::internal::s_regs2d_t<MQ1> alf0_dof, alf0_quad;
-      kernels::internal::LoadDofs2d(e, D1D, ALF0, alf0_dof);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB,
-                                alf0_dof, alf0_quad);
 
       kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -158,7 +153,7 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
 
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
             const real_t factor = weight * coeff * normal_inv_delta_sq *
-                                  (alf_quad(qy, qx) - alf0_quad(qy, qx));
+                                  alf_quad(qy, qx);
 
             r00(0, qy, qx) = factor * ALF_grad(0, qx, qy, e);
             r00(1, qy, qx) = factor * ALF_grad(1, qx, qy, e);
@@ -216,6 +211,10 @@ void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
+   // F - F0.
+   Vector ALFmF0_vec(PA.ALF);
+   ALFmF0_vec -= PA.ALF0;
+
    const bool const_coeff = PA.ALC.Size() == 1;
    const auto ALC = const_coeff
                     ? Reshape(PA.ALC.Read(), 1, 1, 1)
@@ -223,13 +222,12 @@ void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
-   const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
+   const auto ALFmF0 = Reshape(ALFmF0_vec.Read(), d, d, NE);
    const auto ALF_grad = Reshape(PA.ALFG.Read(), 2, q, q, NE);
    auto Y = Reshape(y.ReadWrite(), d, d, 2, NE);
 
    TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                         B, ALF_grad, ALF, ALF0, Y, d, q);
+                         B, ALF_grad, ALFmF0, Y, d, q);
 }
 
 } // namespace mfem

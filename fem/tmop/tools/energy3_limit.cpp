@@ -116,8 +116,7 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
                                const DeviceTensor<6, const real_t> &J,
                                const ConstDeviceCube &W,
                                const real_t *b,
-                               const DeviceTensor<4, const real_t> &ALF,
-                               const DeviceTensor<4, const real_t> &ALF0,
+                               const DeviceTensor<4, const real_t> &ALFmF0,
                                DeviceTensor<4> &E,
                                const int d1d,
                                const int q1d)
@@ -135,10 +134,8 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
 
       // Load ALF and ALF0 (scalar pattern).
       kernels::internal::s_regs3d_t<MQ1> rtmp, ralf, ralf0;
-      kernels::internal::LoadDofs3d(e, D1D, ALF, rtmp);
+      kernels::internal::LoadDofs3d(e, D1D, ALFmF0, rtmp);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, rtmp, ralf);
-      kernels::internal::LoadDofs3d(e, D1D, ALF0, rtmp);
-      kernels::internal::Eval3d(D1D, Q1D, smem, sB, rtmp, ralf0);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -150,9 +147,7 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
 
-               const real_t gf_val = ralf(qz, qy, qx);
-               const real_t gf0_val = ralf0(qz, qy, qx);
-               const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
+               const real_t diff = ralf(qz, qy, qx) / adapt_lim_delta_max;
 
                const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
                E(qx, qy, qz, e) = weight * coeff * lim_normal * diff * diff;
@@ -209,6 +204,10 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
+   // F - F0.
+   Vector ALFmF0_vec(PA.ALF);
+   ALFmF0_vec -= PA.ALF0;
+
    const bool const_coeff = PA.ALC.Size() == 1;
    const auto ALC = const_coeff
                     ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
@@ -216,12 +215,11 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto ALF = Reshape(PA.ALF.Read(), d, d, d, NE);
-   const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, d, NE);
+   const auto ALFmF0 = Reshape(ALFmF0_vec.Read(), d, d, d, NE);
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
    TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                             ALF, ALF0, E, d, q);
+                             ALFmF0, E, d, q);
 
    return PA.E * PA.O;
 }
