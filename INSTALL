@@ -726,8 +726,11 @@ The specific libraries and their options are:
 
 - CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS requires 
   CUDA 12.x toolkit and the cuDSS libraries. The supported communication backend
-  is OpenMPI 4.x (default), and OpenMPI 4.x or a later version must be pre-build.
+  is OpenMPI 4.x (default), and OpenMPI 4.x or a later version must be pre-built.
+  The source files in the cuDSS tarball provide guidance for developing custom 
+  MPI implementations.
   URL: https://developer.nvidia.com/cudss
+       https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss
   Options: CUDSS_OPT, CUDSS_INCLUDE_LIB.
   Versions: cuDSS >= 0.6.0.
 
