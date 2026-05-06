@@ -154,9 +154,25 @@ struct DerivativeSetup
          dummy_fields[uf] = 0.0;
       }
 
-      // Calculate total cache size: num_entities * num_qp * residual_size_on_qp
-      const int residual_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                      out_qp_size.end(), 0);
+      // Calculate total cache size: num_entities * num_qp * (test * trial dimensions)
+      // Cache stores full Jacobian: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, num_qp, num_entities]
+      const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
+                                                     out_qp_size.end(), 0);
+
+      // Calculate total trial op dim for dependent inputs
+      int total_trial_op_dim = 0;
+      for_constexpr<ninputs>([&](auto i)
+      {
+         if (input_is_dependent[i])
+         {
+            const int input_vdim = get<i>(this->inputs).vdim;
+            const int input_op_dim = input_size_on_qp[i] / input_vdim;
+            total_trial_op_dim += input_op_dim;
+         }
+      });
+
+      // Cache size includes both test and trial dimensions
+      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
       const int total_cache_size = num_entities * num_qp * residual_size_on_qp;
       qp_cache.SetSize(total_cache_size);
       qp_cache.UseDevice(true);
@@ -387,13 +403,7 @@ struct DerivativeSetup
       static_assert(tuple_size<qf_param_ts>::value == ninputs + noutputs,
                     "qfunc parameter count must match inputs+outputs");
 
-      // Perform restriction on direction field
-      const auto &dir_fd = ctx.unionfds[direction_field_idx];
-      restriction<Entity::Element>(dir_fd, direction_l, direction_e, dof_ordering);
-
-      const auto wrapped_direction_e =
-         DeviceTensor<2>(direction_e.ReadWrite(), shmem_info.direction_size,
-                         num_entities);
+      // Don't need direction_l for full Jacobian computation (unused)
 
       std::array<DeviceTensor<2>, nfields> wrapped_fields_e;
       for (size_t uf = 0; uf < nfields; uf++)
@@ -416,6 +426,8 @@ struct DerivativeSetup
       const auto output_dtq_maps_local = output_dtq_maps;
       const auto input_to_field_local = input_to_field;
       const auto out_qp_size_local = out_qp_size;
+      const auto out_vdim_local = out_vdim;
+      const auto out_op_dim_local = out_op_dim;
       const int dimension_local = dimension;
       const int num_entities_local = num_entities;
       const int num_qp_local = num_qp;
@@ -425,46 +437,254 @@ struct DerivativeSetup
       const auto inputs_local = inputs;
       const auto input_is_dependent_local = input_is_dependent;
 
-      const int residual_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                      out_qp_size.end(), 0);
+      // Calculate full Jacobian cache size
+      const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
+                                                     out_qp_size.end(), 0);
+      int total_trial_op_dim = 0;
+      int trial_vdim = 0;
+      for_constexpr<ninputs>([&](auto i)
+      {
+         if (input_is_dependent_local[i])
+         {
+            trial_vdim = get<i>(inputs_local).vdim;
+            const int input_vdim = get<i>(inputs_local).vdim;
+            const int input_size = input_size_on_qp[i];
+            const int input_op_dim = input_size / input_vdim;
+            total_trial_op_dim += input_op_dim;
+         }
+      });
 
-      // Wrap qp_cache as a 3D tensor: [residual_size_on_qp, num_qp, num_entities]
+      // Wrap qp_cache: [test_vdim * test_op_dim * trial_vdim * trial_op_dim, num_qp, num_entities]
+      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
       auto cache_tensor = DeviceTensor<3>(qp_cache.ReadWrite(), residual_size_on_qp,
                                           num_qp_local, num_entities_local);
 
-      forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
+      // Loop structure matches the reference implementation:
+      // Outer loop: trial_vdim (j)
+      // Middle loop: inputs (s)
+      // Inner loop: trial_op_dim per input (m)
+      for (int j = 0; j < trial_vdim; j++)
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         int m_offset = 0;
+         for_constexpr<ninputs>([&](auto s)
+         {
+            if (!input_is_dependent_local[s]) { return; }
 
-         auto packed =
-         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                      output_dtq_maps_local, wrapped_fields_e, wrapped_direction_e,
-                      num_qp_local, e);
-         auto input_dtq_shmem = get<0>(packed);
-         auto output_dtq_shmem = get<1>(packed);
-         auto fields_shmem = get<2>(packed);
-         auto direction_shmem = get<3>(packed);
-         auto input_shmem = get<4>(packed);
-         auto shadow_shmem = get<5>(packed);
-         auto residual_shmem = get<6>(packed);
-         auto scratch_shmem = get<7>(packed);
+            const int input_vdim = get<s>(inputs_local).vdim;
+            const int trial_op_dim = input_size_on_qp[s] / input_vdim;
 
-         map_fields_to_quadrature_data(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field_local,
-            inputs_local, ir_weights, scratch_shmem, dimension_local,
-            use_sum_factorization_local);
+            for (int m = 0; m < trial_op_dim; m++)
+            {
+               forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
+               {
+                  if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         set_zero(shadow_shmem);
-         map_direction_to_quadrature_data_conditional(
-            shadow_shmem, direction_shmem, input_dtq_maps_local, inputs_local,
-            ir_weights, scratch_shmem, input_is_dependent_local, dimension_local,
-            use_sum_factorization_local);
+                  auto packed =
+                  unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
+                               output_dtq_maps_local, wrapped_fields_e, wrapped_fields_e[0],
+                               num_qp_local, e);
+                  auto input_dtq_shmem = get<0>(packed);
+                  auto output_dtq_shmem = get<1>(packed);
+                  auto fields_shmem = get<2>(packed);
+                  auto direction_shmem = get<3>(packed); // unused
+                  auto input_shmem = get<4>(packed);
+                  auto shadow_shmem = get<5>(packed);
+                  auto residual_shmem = get<6>(packed);
+                  auto scratch_shmem = get<7>(packed);
 
-         call_qfunction_fwddiff_and_cache<qf_param_ts>(
-            qfunc_local, input_shmem, shadow_shmem, residual_shmem, cache_tensor,
-            e, num_qp_local, q1d_local, dimension_local, use_sum_factorization_local);
-      }, num_entities, thread_blocks, shmem_info.total_size,
-      shmem_cache.ReadWrite());
+                  map_fields_to_quadrature_data(
+                     input_shmem, fields_shmem, input_dtq_shmem, input_to_field_local,
+                     inputs_local, ir_weights, scratch_shmem, dimension_local,
+                     use_sum_factorization_local);
+
+                  // Set shadow to unit vector: d_qp(j, m, q) = 1.0
+                  set_zero(shadow_shmem);
+                  auto d_qp = Reshape(&shadow_shmem[s](0, 0), input_vdim, trial_op_dim, num_qp_local);
+
+                  MFEM_FOREACH_THREAD(q, x, num_qp_local)
+                  {
+                     d_qp(j, m, q) = 1.0;
+                  }
+                  MFEM_SYNC_THREAD;
+
+                  // Compute derivative
+                  call_qfunction_fwddiff<qf_param_ts>(
+                     qfunc_local, input_shmem, shadow_shmem, residual_shmem,
+                     num_qp_local, q1d_local, dimension_local, use_sum_factorization_local);
+
+                  // Store in cache: qpdc(i, k, j, m + m_offset, q)
+                  for_constexpr<noutputs>([&](auto o)
+                  {
+                     const int test_vdim = out_vdim_local[o];
+                     const int test_op_dim = out_op_dim_local[o];
+
+                     auto output_shmem = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp_local);
+
+                     MFEM_FOREACH_THREAD(q, x, num_qp_local)
+                     {
+                        for (int i = 0; i < test_vdim; i++)
+                        {
+                           for (int k = 0; k < test_op_dim; k++)
+                           {
+                              // qpdc(i, k, j, m + m_offset, q)
+                              const int cache_idx =
+                                 i * test_op_dim * trial_vdim * total_trial_op_dim +
+                                 k * trial_vdim * total_trial_op_dim +
+                                 j * total_trial_op_dim +
+                                 (m + m_offset);
+
+                              cache_tensor(cache_idx, q, e) = output_shmem(i, k, q);
+                           }
+                        }
+                     }
+                     MFEM_SYNC_THREAD;
+                  });
+               }, num_entities, thread_blocks, shmem_info.total_size,
+               shmem_cache.ReadWrite());
+            }
+            m_offset += trial_op_dim;
+         });
+      }
+   }
+
+   template <typename qf_param_ts>
+   MFEM_HOST_DEVICE static void call_qfunction_fwddiff(
+      const qfunc_t &qfunc,
+      const std::array<DeviceTensor<2>, ninputs> &input_shmem,
+      const std::array<DeviceTensor<2>, ninputs> &shadow_shmem,
+      DeviceTensor<2> &residual_shmem,
+      const int &num_qp,
+      const int &q1d,
+      const int &dimension,
+      const bool &use_sum_factorization)
+   {
+      if (use_sum_factorization)
+      {
+         if (dimension == 1)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+            {
+               auto primal_args = decay_tuple<qf_param_ts> {};
+               auto shadow_args = decay_tuple<qf_param_ts> {};
+
+               for_constexpr<ninputs>([&](auto i)
+               {
+                  process_qf_arg(input_shmem[i], get<i>(primal_args), q);
+               });
+
+               for_constexpr<ninputs>([&](auto i)
+               {
+                  process_qf_arg(shadow_shmem[i], get<i>(shadow_args), q);
+               });
+
+               call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
+
+               for_constexpr<noutputs>([&](auto o)
+               {
+                  constexpr std::size_t arg_idx = ninputs + o;
+                  auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                  process_qf_result(out_q, get<arg_idx>(shadow_args));
+               });
+            }
+         }
+         else if (dimension == 2)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+               {
+                  const int q = qx + q1d * qy;
+                  auto primal_args = decay_tuple<qf_param_ts> {};
+                  auto shadow_args = decay_tuple<qf_param_ts> {};
+                  for_constexpr<ninputs>([&](auto i)
+                  {
+                     process_qf_arg(input_shmem[i], get<i>(primal_args), q);
+                  });
+
+                  for_constexpr<ninputs>([&](auto i)
+                  {
+                     process_qf_arg(shadow_shmem[i], get<i>(shadow_args), q);
+                  });
+
+                  call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
+
+                  for_constexpr<noutputs>([&](auto o)
+                  {
+                     constexpr std::size_t arg_idx = ninputs + o;
+                     auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                     process_qf_result(out_q, get<arg_idx>(shadow_args));
+                  });
+               }
+            }
+         }
+         else if (dimension == 3)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+                  {
+                     const int q = qx + q1d * (qy + q1d * qz);
+                     auto primal_args = decay_tuple<qf_param_ts> {};
+                     auto shadow_args = decay_tuple<qf_param_ts> {};
+
+                     for_constexpr<ninputs>([&](auto i)
+                     {
+                        process_qf_arg(input_shmem[i], get<i>(primal_args), q);
+                     });
+
+                     for_constexpr<ninputs>([&](auto i)
+                     {
+                        process_qf_arg(shadow_shmem[i], get<i>(shadow_args), q);
+                     });
+
+                     call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
+
+                     for_constexpr<noutputs>([&](auto o)
+                     {
+                        constexpr std::size_t arg_idx = ninputs + o;
+                        auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                        process_qf_result(out_q, get<arg_idx>(shadow_args));
+                     });
+                  }
+               }
+            }
+         }
+         else
+         {
+            MFEM_ABORT_KERNEL("unsupported dimension");
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+         {
+            auto primal_args = decay_tuple<qf_param_ts> {};
+            auto shadow_args = decay_tuple<qf_param_ts> {};
+
+            for_constexpr<ninputs>([&](auto i)
+            {
+               process_qf_arg(input_shmem[i], get<i>(primal_args), q);
+            });
+
+            for_constexpr<ninputs>([&](auto i)
+            {
+               process_qf_arg(shadow_shmem[i], get<i>(shadow_args), q);
+            });
+
+            call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
+
+            for_constexpr<noutputs>([&](auto o)
+            {
+               constexpr std::size_t arg_idx = ninputs + o;
+               auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+               process_qf_result(out_q, get<arg_idx>(shadow_args));
+            });
+         }
+         MFEM_SYNC_THREAD;
+      }
    }
 
    IntegratorContext ctx;

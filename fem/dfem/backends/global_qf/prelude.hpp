@@ -68,6 +68,22 @@ struct GlobalQFBackend
       return [](const std::vector<Vector *> &, const Vector *, std::vector<Vector *> &) {};
    }
 
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeAssemble(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      // Dummy: GlobalQFBackend doesn't support sparse matrix assembly yet
+      return [](std::vector<Vector> &, SparseMatrix *&) {};
+   }
+
 };
 
 }

@@ -82,13 +82,19 @@ public:
       const FieldDescriptor &direction,
       const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
-      const std::vector<FieldDescriptor> &outfds) :
+      const std::vector<FieldDescriptor> &outfds,
+      const std::vector<assemble_derivative_sparsematrix_callback_t>
+         &assemble_sparsematrix_callbacks = {},
+      const std::vector<assemble_derivative_hypreparmatrix_callback_t>
+         &assemble_hypreparmatrix_callbacks = {}) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       derivative_actions_transpose(derivative_actions_transpose),
       direction(direction),
       infds(infds),
-      outfds(outfds)
+      outfds(outfds),
+      assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
+      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -740,6 +746,11 @@ void DifferentiableOperator::AddIntegrator(
       // Create apply callback that uses the cache (reference is stored in derivative_qp_caches[i])
       derivative_apply_callbacks[i].push_back(
          backend_t::template MakeDerivativeApply<i>(
+            ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+      // Create assemble callback for sparse matrix assembly
+      assemble_derivative_sparsematrix_callbacks[i].push_back(
+         backend_t::template MakeDerivativeAssemble<i>(
             ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
       // Keep the old action callback for backwards compatibility

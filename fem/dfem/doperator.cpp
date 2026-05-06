@@ -79,6 +79,29 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    const size_t dfidx = FindIdx(derivative_id, infds);
 
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it_transpose->second;
+   }
+
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse = assemble_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_derivative_sparsematrix_callbacks.end())
+   {
+      assemble_sparse_cbs = it_sparse->second;
+   }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
+
    // If setup callbacks are available, run them to populate the cache
    if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
    {
@@ -103,14 +126,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
          setup_callback(infields_e, direction_l);
       }
 
-      // Use apply callbacks that use the cached derivatives
-      std::vector<derivative_action_t> transpose_callbacks;
-      auto it = daction_transpose_callbacks.find(derivative_id);
-      if (it != daction_transpose_callbacks.end())
-      {
-         transpose_callbacks = it->second;
-      }
-
       return std::make_shared<DerivativeOperator>(
                 height,
                 GetTrueVSize(infds[dfidx]),
@@ -119,18 +134,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds[dfidx],
                 x,
                 infds,
-                outfds);
+                outfds,
+                assemble_sparse_cbs,
+                assemble_hypre_cbs);
    }
    else
    {
       // Fallback to old behavior (direct action callbacks)
-      std::vector<derivative_action_t> transpose_callbacks;
-      auto it = daction_transpose_callbacks.find(derivative_id);
-      if (it != daction_transpose_callbacks.end())
-      {
-         transpose_callbacks = it->second;
-      }
-
       return std::make_shared<DerivativeOperator>(
                 height,
                 GetTrueVSize(infds[dfidx]),
@@ -139,7 +149,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds[dfidx],
                 x,
                 infds,
-                outfds);
+                outfds,
+                assemble_sparse_cbs,
+                assemble_hypre_cbs);
    }
 }
 
@@ -151,6 +163,29 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it_transpose->second;
+   }
+
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse = assemble_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_derivative_sparsematrix_callbacks.end())
+   {
+      assemble_sparse_cbs = it_sparse->second;
+   }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
 
    // If setup callbacks are available, run them to populate the cache
    if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
@@ -171,14 +206,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
          setup_callback(infields_e, direction_l);
       }
 
-      // Use apply callbacks that use the cached derivatives
-      std::vector<derivative_action_t> transpose_callbacks;
-      auto it = daction_transpose_callbacks.find(derivative_id);
-      if (it != daction_transpose_callbacks.end())
-      {
-         transpose_callbacks = it->second;
-      }
-
       return std::make_shared<DerivativeOperator>(
                 height,
                 GetTrueVSize(infds[dfidx]),
@@ -187,18 +214,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds[dfidx],
                 x,
                 infds,
-                outfds);
+                outfds,
+                assemble_sparse_cbs,
+                assemble_hypre_cbs);
    }
    else
    {
       // Fallback to old behavior
-      std::vector<derivative_action_t> transpose_callbacks;
-      auto it = daction_transpose_callbacks.find(derivative_id);
-      if (it != daction_transpose_callbacks.end())
-      {
-         transpose_callbacks = it->second;
-      }
-
       return std::make_shared<DerivativeOperator>(
                 height,
                 GetTrueVSize(infds[dfidx]),
@@ -207,7 +229,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds[dfidx],
                 x,
                 infds,
-                outfds);
+                outfds,
+                assemble_sparse_cbs,
+                assemble_hypre_cbs);
    }
 }
 

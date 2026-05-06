@@ -225,20 +225,24 @@ void diffusion(const char *filename, int p)
          tuple{Gradient<U>{}},
          *ir, all_domain_attr, derivatives);
 
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-
       pfes.GetRestrictionMatrix()->Mult(x, xtvec);
       Vector nodestv;
       nodes->GetTrueDofs(nodestv);
       MultiVector X{xtvec, nodestv};
       MultiVector Z{ztvec};
-      dop_mf.Mult(X, Z);
-
       auto ddop = dop_mf.GetDerivative(U, X);
+
+      // Randomize again s.t. the PA setup like cache can't
+      // trivially succeed by caching one direction only.
+      xtvec.Randomize(567);
+      x.SetFromTrueDofs(xtvec);
+
       Vector dztvec(ztvec.Size());
       MultiVector DZ{dztvec};
       ddop->Mult(X[0], DZ);
+
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
       ytvec -= dztvec;
 
@@ -304,24 +308,31 @@ void diffusion(const char *filename, int p)
    //    MPI_Barrier(MPI_COMM_WORLD);
    // }
 
-   // SECTION("spmat")
-   // {
-   //    DifferentiableOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-   //    typename Diffusion<DIM>::MFApply mf_apply_qf;
-   //    auto derivatives = std::integer_sequence<size_t, U> {};
-   //    dop_mf.AddDomainIntegrator(mf_apply_qf,
-   //                               tuple{ Gradient<U>{}, Identity<Rho>{},
-   //                                      Gradient<Coords>{}, Weight{} },
-   //                               tuple{ Gradient<U>{} }, *ir,
-   //                               all_domain_attr, derivatives);
-   //    dop_mf.SetParameters({ &rho_coeff_cv, nodes });
-   //    auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
+   SECTION("SparseMatrix")
+   {
+      DifferentiableOperator dop_mf(in, out, pmesh);
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         mf_apply_qf,
+         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+         tuple{Gradient<U>{}},
+         *ir, all_domain_attr, derivatives);
 
-   //    SparseMatrix *A = nullptr;
-   //    dRdU->Assemble(A);
-   //    TestSameMatrices(*A, blf_fa.SpMat());
-   //    delete A;
-   // }
+      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+      Vector nodestv;
+      nodes->GetTrueDofs(nodestv);
+      MultiVector X{xtvec, nodestv};
+      auto dRdU = dop_mf.GetDerivative(U, X);
+
+      SparseMatrix *A = nullptr;
+      dRdU->Assemble(A);
+
+      TestSameMatrices(*A, blf_fa.SpMat());
+      delete A;
+
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU][XXX]")

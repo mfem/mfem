@@ -109,7 +109,7 @@ struct DerivativeApply
       input_size_on_qp =
          get_input_size_on_qp(this->inputs, std::make_index_sequence<ninputs> {});
 
-      // Direction field index (not used in apply, but kept for consistency)
+      // Direction field index
       direction_field_idx = -1;
       for (size_t uf = 0; uf < nfields; uf++)
       {
@@ -119,6 +119,15 @@ struct DerivativeApply
             break;
          }
       }
+      MFEM_ASSERT(direction_field_idx != -1,
+                  "LocalQFBackend: derivative direction field not found in unionfds");
+
+      // Determine which inputs are dependent on the derivative direction
+      auto dependency_map = make_dependency_map(inputs);
+      auto it = dependency_map.find(derivative_id);
+      MFEM_ASSERT(it != dependency_map.end(),
+                  "Derivative ID not found in dependency map");
+      input_is_dependent = it->second;
 
       // Reuse same shared memory structure as DerivativeAction
       shmem_info = get_shmem_info<Entity::Element, nfields, ninputs, noutputs>(
@@ -127,6 +136,26 @@ struct DerivativeApply
                       std::accumulate(out_qp_size.begin(), out_qp_size.end(), 0),
                       dof_ordering, direction_field_idx);
       shmem_cache.SetSize(shmem_info.total_size);
+
+      union_to_infd.fill(SIZE_MAX);
+      for (size_t uf = 0; uf < nfields; uf++)
+      {
+         const auto id = ctx.unionfds[uf].id;
+         for (size_t i = 0; i < ctx.infds.size(); i++)
+         {
+            if (ctx.infds[i].id == id) { union_to_infd[uf] = i; break; }
+         }
+      }
+
+      dummy_fields.resize(nfields);
+      for (size_t uf = 0; uf < nfields; uf++)
+      {
+         if (union_to_infd[uf] != SIZE_MAX) { continue; }
+         const int elem_sz = shmem_info.field_sizes[uf];
+         dummy_fields[uf].SetSize(elem_sz * num_entities);
+         dummy_fields[uf].UseDevice(true);
+         dummy_fields[uf] = 0.0;
+      }
 
       out_num_dof.fill(0);
       for_constexpr<noutputs>([&](auto o)
@@ -152,8 +181,37 @@ struct DerivativeApply
    {
       if (ctx.attr.Size() == 0) { return; }
 
-      // We don't need wrapped_fields_e or wrapped_direction_e for apply
-      // Just need output pointers
+      // Restrict direction to element space
+      // Find which input corresponds to the derivative direction
+      int direction_input_idx = -1;
+      for_constexpr<ninputs>([&](auto i)
+      {
+         // The direction corresponds to the dependent input
+         // For now, assume first dependent input
+         if (direction_input_idx < 0)
+         {
+            direction_input_idx = i;
+         }
+      });
+
+      // Restrict direction to element space
+      const auto &dir_fd = ctx.unionfds[direction_field_idx];
+      restriction<Entity::Element>(dir_fd, *direction_l, direction_e, dof_ordering);
+
+      const auto wrapped_direction_e =
+         DeviceTensor<2>(direction_e.ReadWrite(), shmem_info.direction_size,
+                         num_entities);
+
+      std::array<DeviceTensor<2>, nfields> wrapped_fields_e;
+      for (size_t uf = 0; uf < nfields; uf++)
+      {
+         Vector *src = nullptr;
+         if (union_to_infd[uf] != SIZE_MAX) { src = xe[union_to_infd[uf]]; }
+         else { src = const_cast<Vector *>(&dummy_fields[uf]); }
+
+         wrapped_fields_e[uf] =
+            DeviceTensor<2>(src->ReadWrite(), shmem_info.field_sizes[uf], num_entities);
+      }
 
       std::array<real_t*, noutputs> ye_ptrs{};
       for_constexpr<noutputs>([&](auto o)
@@ -165,8 +223,10 @@ struct DerivativeApply
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_attr = ctx.attr.Read();
       const auto d_elem_attr = ctx.elem_attr->Read();
+      const auto ir_weights = Reshape(ctx.ir.GetWeights().Read(), num_qp);
 
       const auto shmem_info_local = shmem_info;
+      const auto input_dtq_maps_local = input_dtq_maps;
       const auto output_dtq_maps_local = output_dtq_maps;
       const auto out_qp_size_local = out_qp_size;
       const auto out_vdim_local = out_vdim;
@@ -178,52 +238,109 @@ struct DerivativeApply
       const int q1d_local = q1d;
       const bool use_sum_factorization_local = use_sum_factorization;
       const auto outputs_local = outputs;
+      const auto inputs_local = inputs;
+      const auto input_is_dependent_local = input_is_dependent;
+      const auto input_size_on_qp_local = input_size_on_qp;
 
-      const int residual_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                       out_qp_size.end(), 0);
+      // Calculate cache dimensions
+      const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
+                                                     out_qp_size.end(), 0);
+      int total_trial_op_dim = 0;
+      int trial_vdim = 1;
+      for_constexpr<ninputs>([&](auto i)
+      {
+         if (get<i>(inputs).GetFieldId() == derivative_id)
+         {
+            trial_vdim = get<i>(inputs).vdim;
+         }
+         // Accumulate trial_op_dim for all dependent inputs
+         if (input_is_dependent[i])
+         {
+            const int input_vdim = get<i>(inputs).vdim;
+            const int input_size = input_size_on_qp[i];
+            const int input_op_dim = input_size / input_vdim;
+            total_trial_op_dim += input_op_dim;
+         }
+      });
 
-      // Wrap qp_cache as a 3D tensor: [residual_size_on_qp, num_qp, num_entities]
-      auto cache_tensor = DeviceTensor<3>(const_cast<real_t*>(qp_cache.Read()),
-                                          residual_size_on_qp, num_qp_local,
-                                          num_entities_local);
+      const int residual_size_on_qp = output_size_on_qp * total_trial_op_dim;
+      const int total_trial_op_dim_local = total_trial_op_dim;
+      const int trial_vdim_local = trial_vdim;
+      auto cache_tensor = DeviceTensor<3, const real_t>(qp_cache.Read(),
+                                                        residual_size_on_qp,
+                                                        num_qp_local, num_entities_local);
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         // Unpack shared memory - we only need output_dtq, residual, and scratch
-         real_t *shmem_ptr = reinterpret_cast<real_t *>(shmem);
+         // Unpack shared memory using same pattern as derivative_action
+         auto packed =
+         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
+                      output_dtq_maps_local, wrapped_fields_e, wrapped_direction_e,
+                      num_qp_local, e);
+         auto input_dtq_shmem = get<0>(packed);
+         auto output_dtq_shmem = get<1>(packed);
+         auto fields_shmem = get<2>(packed);
+         auto direction_shmem = get<3>(packed);
+         auto input_shmem = get<4>(packed);
+         auto shadow_shmem = get<5>(packed);
+         auto residual_shmem = get<6>(packed);
+         auto scratch_shmem = get<7>(packed);
 
-         // Skip input_dtq, output_dtq, fields, direction, input, shadow
-         // Go straight to residual and scratch
-         const int residual_offset = shmem_info_local.offsets[SharedMemory::Index::OUTPUT];
-         auto residual_shmem = DeviceTensor<2>(shmem_ptr + residual_offset,
-                                               residual_size_on_qp, num_qp_local);
+         // Map direction to quadrature space (shadow_shmem will hold the direction)
+         set_zero(shadow_shmem);
+         map_direction_to_quadrature_data_conditional(
+            shadow_shmem, direction_shmem, input_dtq_maps_local, inputs_local,
+            ir_weights, scratch_shmem, input_is_dependent_local, dimension_local,
+            use_sum_factorization_local);
 
-         const int scratch_offset = shmem_info_local.offsets[SharedMemory::Index::TEMP];
-         std::array<DeviceTensor<1>, 6> scratch_shmem;
-         int temp_offset = scratch_offset;
-         for (int i = 0; i < 6; i++)
-         {
-            scratch_shmem[i] = DeviceTensor<1>(shmem_ptr + temp_offset,
-                                               shmem_info_local.temp_sizes[i]);
-            temp_offset += shmem_info_local.temp_sizes[i];
-         }
+         // Contract cached Jacobian with direction
+         // result(i,k,q) = sum_j sum_m J(i,k,j,m,q) * direction(j,m,q)
+         // Reshape cache as 5D: [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
+         const int test_vdim = out_vdim_local[0];
+         const int test_op_dim = out_op_dim_local[0];
 
-         // Load output DTQ maps
-         std::array<DofToQuadMap, noutputs> local_output_dtq_maps = output_dtq_maps_local;
-
-         // Load cached derivatives from qp_cache into residual_shmem
          MFEM_FOREACH_THREAD(q, x, num_qp_local)
          {
-            for (int k = 0; k < residual_size_on_qp; k++)
+            for (int i = 0; i < test_vdim; i++)
             {
-               residual_shmem(k, q) = cache_tensor(k, q, e);
+               for (int k = 0; k < test_op_dim; k++)
+               {
+                  real_t sum = 0.0;
+                  for (int j = 0; j < trial_vdim_local; j++)
+                  {
+                     // Loop over dependent inputs to access direction components
+                     int m_offset = 0;
+                     for_constexpr<ninputs>([&](auto s)
+                     {
+                        if (!input_is_dependent_local[s]) { return; }
+                        const int input_vdim = get<s>(inputs_local).vdim;
+                        const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           // Access cache: qpdc(i, k, j, m + m_offset, q)
+                           const int cache_idx =
+                              i * test_op_dim * trial_vdim_local * total_trial_op_dim_local +
+                              k * trial_vdim_local * total_trial_op_dim_local +
+                              j * total_trial_op_dim_local + (m + m_offset);
+
+                           // Access direction from shadow_shmem[s]
+                           const real_t dir_val = shadow_shmem[s](j * trial_op_dim + m, q);
+
+                           sum += cache_tensor(cache_idx, q, e) * dir_val;
+                        }
+                        m_offset += trial_op_dim;
+                     });
+                  }
+                  residual_shmem(i * test_op_dim + k, q) = sum;
+               }
             }
          }
          MFEM_SYNC_THREAD;
 
-         // Map quadrature data to fields for each output
+         // Map result to DOF space
          for_constexpr<noutputs>([&](auto o)
          {
             const int vdim = out_vdim_local[o];
@@ -237,7 +354,7 @@ struct DerivativeApply
             auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
 
             map_quadrature_data_to_fields(
-               y, fhat, get<o>(outputs_local), local_output_dtq_maps[o],
+               y, fhat, get<o>(outputs_local), output_dtq_maps_local[o],
                scratch_shmem, dimension_local, use_sum_factorization_local);
          });
       }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());
@@ -276,6 +393,13 @@ struct DerivativeApply
 
    SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;
    mutable Vector shmem_cache;
+
+   std::array<size_t, nfields> union_to_infd;
+   mutable std::vector<Vector> dummy_fields;
+
+   mutable Vector direction_e;
+
+   std::array<bool, ninputs> input_is_dependent;
 };
 
 } // namespace LocalQFImpl
