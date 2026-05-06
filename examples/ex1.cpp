@@ -224,17 +224,29 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
+#ifdef MFEM_USE_CUDSS
+      if (Device::Allows(Backend::CUDA_MASK))
+      {
+         // Use cuDSS to solve the system.
+         CuDSSSolver cudss_solver;
+         cudss_solver.SetOperator(*A);
+         cudss_solver.Mult(B, X);
+      }
+      else
 #endif
+      {
+#ifndef MFEM_USE_SUITESPARSE
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
+      }
    }
    else
    {
@@ -273,7 +285,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
