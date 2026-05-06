@@ -2233,7 +2233,11 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
+   //
    // Auxiliary PA methods
+   //
+
+   // PA quadrature data computation - metric term / limiting / adapt limiting.
    void AssembleGradPA_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
@@ -2241,6 +2245,7 @@ protected:
    void AssembleGradPA_AdaptLim_2D(const Vector&) const;
    void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
+   // PA energy computation - metric term / limiting / adaptive limiting.
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
    void GetLocalStateEnergyPA_3D(const Vector &x, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
@@ -2254,6 +2259,7 @@ protected:
                                            real_t &met_energy,
                                            real_t &lim_energy) const;
 
+   // PA gradient computation - metric term / limiting / adaptive limiting.
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
@@ -2261,6 +2267,7 @@ protected:
    void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
    void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
 
+   // PA Hessian AddMult - metric term / limiting / adaptive limiting.
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
@@ -2268,6 +2275,7 @@ protected:
    void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
    void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
 
+   // PA diagonal assemblies - metric term / limiting / adaptive limiting.
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
@@ -2275,8 +2283,11 @@ protected:
    void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
    void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
 
+   // Setup of PA data structures related to the limiting term.
    void AssemblePA_Limiting();
+   // Setup of PA data structures related to the adaptive limiting term.
    void AssemblePA_AdaptLim();
+   // Compute reference->target Jacobians for all quad points.
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
