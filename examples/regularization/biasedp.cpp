@@ -205,11 +205,11 @@ public:
       real_t N = 1e2, real_t _sign = 1.0)
       : RegLogCoefficientBase(u1, u2, gap, n, N), sign(_sign) {}
 
-   static real_t RegLogPrime(const real_t a, const real_t M);
+   static real_t RegLog(const real_t a, const real_t M);
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      return sign * RegLogPrime(EvalArg(T, ip), N);
+      return sign * RegLog(EvalArg(T, ip), N);
    }
 };
 
@@ -230,11 +230,11 @@ public:
       Coefficient *gap, VectorCoefficient *n, real_t N = 1e2)
       : RegLogCoefficientBase(u1, u2, gap, n, N) { }
 
-   static real_t RegLogDoublePrime(const real_t a, const real_t M);
+   static real_t RegLogPrime(const real_t a, const real_t M);
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      return RegLogDoublePrime(EvalArg(T, ip), N);
+      return RegLogPrime(EvalArg(T, ip), N);
    }
 };
 
@@ -847,16 +847,18 @@ void NVectorCoefficient::Eval(Vector &N, ElementTransformation &T,
    diff_unit = diff;
    diff_unit /= diff.Norml2();
 
-   // Get normal n¹ at x
-   Vector normal1(dim);
-   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
-   CalcOrtho(T.Jacobian(), normal1);
-   normal1 /= normal1.Norml2();
-
-   T.SetIntPoint(&ip);
    Vector w;
-   if (!nt) { w = normal1; }
-   else { nt->Eval(w, T, ip); }
+   if (!nt)
+   {
+      // Get normal n¹ at x
+      T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
+      CalcOrtho(T.Jacobian(), w);
+      w /= w.Norml2();
+   }
+   else
+   {
+      nt->Eval(w, T, ip);
+   }
 
    const real_t val = diff * w;
    if (val > 0)
@@ -887,7 +889,7 @@ real_t GapFunctionCoefficient::Eval(ElementTransformation &T,
    return diff * n_val;
 }
 
-real_t RegLogCoefficient::RegLogPrime(const real_t a, const real_t M)
+real_t RegLogCoefficient::RegLog(const real_t a, const real_t M)
 {
    if (a > M)
    {
@@ -903,8 +905,8 @@ real_t RegLogCoefficient::RegLogPrime(const real_t a, const real_t M)
    }
 }
 
-real_t RegLogPrimeCoefficient::RegLogDoublePrime(const real_t a,
-                                                 const real_t M)
+real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a,
+                                           const real_t M)
 {
    if (a > M)
    {
