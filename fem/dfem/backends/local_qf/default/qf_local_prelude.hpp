@@ -2,6 +2,7 @@
 
 #include "../../../integrator_ctx.hpp"
 #include "qf_local_action.hpp"
+#include "derivative_action.hpp"
 
 namespace mfem::future
 {
@@ -16,7 +17,7 @@ struct LocalQFDefaultBackend
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeAction(
+   static auto MakeAction(
       const IntegratorContext &ctx,
       qfunc_t qfunc,
       inputs_t inputs,
@@ -25,18 +26,21 @@ struct LocalQFDefaultBackend
       return LocalQFImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
+
    template<
       int derivative_id,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeDerivativeAction(
+   static auto MakeDerivativeAction(
       const IntegratorContext &,
       qfunc_t,
       inputs_t,
       outputs_t )
    {
-      MFEM_ABORT("LocalQFBackend does not support derivative actions.");
+      return LocalQFImpl::DerivativeAction<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
+                                                          outputs);
    }
 };
 

@@ -309,9 +309,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
       }
 
-      std::cout << "mfem: ";
-      pretty_print(ytvecmfem);
-
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
       const std::vector<FieldDescriptor> din
       {
@@ -342,9 +339,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
          dop.Mult(X, Z);
 
-         std::cout << "dfem: ";
-         pretty_print(Z[0]);
-
          Vector Y0(ytvecmfem);
          Y0 -= Z[0];
 
@@ -361,9 +355,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          Y0 = ytvecmfem;
          Y0 -= Z[0];
 
-         std::cout << "∂dfem: ";
-         pretty_print(Z[0]);
-
          norm_l = Y0.Normlinf();
          norm_g = norm_l;
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
@@ -373,8 +364,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
 
 #if 0 // local w/ outputs
       {
-         std::cout << "\n\n\n LOCAL TEST\n\n\n";
-
          static constexpr int W = 0;
 
          ParBilinearForm blf(&fes);
@@ -383,9 +372,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          blf.Assemble();
          blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
-
-         std::cout << "mfem: ";
-         pretty_print(ytvecmfem);
 
          const std::vector<FieldDescriptor> in
          {
@@ -419,9 +405,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
 
          dop.Mult(X, Z);
 
-         std::cout << "dfem: ";
-         pretty_print(ztvec);
-
          Vector Y0(ytvecmfem);
          Y0 -= Z[0];
 
@@ -429,9 +412,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          real_t norm_g = norm_l;
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
-
-         std::cout << "dfem z2: ";
-         pretty_print(Z[1]);
 
          Vector Y1(ytvecmfem);
          Y1 -= Z[1];

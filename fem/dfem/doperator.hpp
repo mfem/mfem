@@ -142,6 +142,7 @@ public:
       prolongation(direction, x, direction_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
@@ -210,6 +211,7 @@ public:
       // Prepare result in element space (in INPUT space)
       std::vector<Vector *> result_e(infds.size());
       prepare_residual<Entity::Element>(infds, result_e);
+      for (auto *v : result_e) { *v = 0.0; }
 
       // Apply transpose derivative actions
       // These compute J^T * direction_l_concat and store in result_e
@@ -484,6 +486,7 @@ public:
       restriction<Entity::Element>(global_infds, global_infields_l,
                                    global_infields_e);
       prepare_residual<Entity::Element>(global_outfds, global_residual_e);
+      for (auto *v : global_residual_e) { *v = 0.0; }
       for (size_t i = 0; i < global_action_callbacks.size(); i++)
       {
          NVTX_MARK("action callback #{}", i);
@@ -953,7 +956,9 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       }
       const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
       dbg("q1d:{}", q1d);
-      auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
+      auto input_dtq_maps =
+         create_dtq_maps<Entity::Element>(inputs, dtq, input_to_field,
+                                          local_fields, integration_rule);
       const auto d1d = input_dtq_maps[0].B.GetShape()[2];
       // dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
 

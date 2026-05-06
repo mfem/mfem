@@ -49,15 +49,6 @@ struct Action
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
 
-      // Fused local action relies on element restrictions; QF (QP data) fields
-      // would require a different memory path.
-      for (const auto &fd : ctx.unionfds)
-      {
-         MFEM_CONTRACT_VAR(fd);
-         MFEM_ASSERT(!std::holds_alternative<const QuadratureFunction *>(fd.data),
-                     "LocalQFBackend fused action does not support QuadratureFunction fields");
-      }
-
       // Maps from qfunc inputs/outputs -> union field indices.
       input_to_field =
          create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->inputs);
@@ -77,7 +68,8 @@ struct Action
       use_sum_factorization =
          (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
 
-      dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      dof_ordering = use_sum_factorization ? ElementDofOrdering::LEXICOGRAPHIC
+                     : ElementDofOrdering::NATIVE;
       const DofToQuad::Mode dtq_mode =
          use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
 
@@ -95,7 +87,9 @@ struct Action
       }
       else
       {
-         thread_blocks.x = num_qp;
+         // The FULL (non-tensor) mapping routines are not thread-parallel and
+         // must run without intra-element write races.
+         thread_blocks.x = 1;
          thread_blocks.y = 1;
          thread_blocks.z = 1;
       }
@@ -107,9 +101,11 @@ struct Action
          dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
       }
       input_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field);
+         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field,
+                                          ctx.unionfds, ctx.ir);
       output_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field);
+         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field,
+                                          ctx.unionfds, ctx.ir);
 
       // Output sizes on quadrature points (per output).
       out_qp_size.fill(0);
@@ -159,7 +155,7 @@ struct Action
       {
          const size_t outfd = output_to_outfd[o];
          const auto &fd = ctx.outfds[outfd];
-         const Operator *R = get_restriction<Entity::Element>(fd, dof_ordering);
+         auto R = get_restriction<Entity::Element>(fd, dof_ordering);
          MFEM_ASSERT(R != nullptr,
                      "LocalQFBackend: missing element restriction for output");
          const int elem_sz = num_entities ? (R->Height() / num_entities) : 0;
@@ -175,8 +171,6 @@ struct Action
                    std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
-
-      for (auto v : ye) { *v = 0.0; }
 
       // Q -> Q
       using qf_signature = typename get_function_signature<qfunc_t>::type;
