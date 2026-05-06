@@ -368,8 +368,6 @@ struct BakeOff
    const int elem_size, total_size, d1d, q1d;
    QuadratureSpace qspace;
    QuadratureFunction qfct;
-   UniformParameterSpace upspace;
-   ParameterFunction uppf;
 
    double mdofs{};
 
@@ -400,9 +398,7 @@ struct BakeOff
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
-      qfct(qspace, DIM*DIM),
-      upspace(pmesh, *ir, DIM*DIM),
-      uppf(upspace)
+      qfct(qspace, DIM*DIM)
    {
       NVTX_MARK_FUNCTION;
       smesh.Clear();
@@ -550,11 +546,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::mdofs;
    using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
-   using BakeOff<VDIM, GLL>::qspace;
-   using BakeOff<VDIM, GLL>::qfct;
-   using BakeOff<VDIM, GLL>::upspace;
-   using BakeOff<VDIM, GLL>::uppf;
    using BakeOff<VDIM, GLL>::dofs;
+   using BakeOff<VDIM, GLL>::qfct;
 
    Diffusion(int version, int order, int side):
       BakeOff<VDIM, GLL>(order, side),
@@ -562,7 +555,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &upspace},
+      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qfct},
       u_sol{u_fd},
       q_param {q_fd},
       B(pfes.GetVSize()),
@@ -698,8 +691,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             bf.Assemble();
          }
          dbg("[PA ∂fem] Local Poly Apply");
-         // const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
-         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &upspace}};
+         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qfct}};
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);

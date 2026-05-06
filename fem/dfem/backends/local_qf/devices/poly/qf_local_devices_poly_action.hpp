@@ -199,7 +199,8 @@ public:
       dtqs(make_dtqs()),
       // inputs: dtq, B, G, vdim, d1d, q1d
       input_idx(create_io_to_field_map(inputs)),
-      input_dtq(create_dtq_maps<Entity::Element>(inputs, dtqs, input_idx)),
+      input_dtq(create_dtq_maps<Entity::Element>(inputs, dtqs, input_idx,
+                                                 ctx.unionfds, ctx.ir)),
       input_B(get_B(input_dtq)),
       input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)),
@@ -207,7 +208,8 @@ public:
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, B, G, vdim, d1d, q1d
       output_idx(create_io_to_field_map(outputs)),
-      output_dtq(create_dtq_maps<Entity::Element>(outputs, dtqs, output_idx)),
+      output_dtq(create_dtq_maps<Entity::Element>(outputs, dtqs, output_idx,
+                                                  ctx.unionfds, ctx.ir)),
       output_B(get_B(output_dtq)),
       output_G(get_G(output_dtq)),
       output_d1d(get_D1D(output_dtq)),

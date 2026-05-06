@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../util.hpp"
+#include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../../integrate.hpp"
 #include "../../interpolate.hpp"
@@ -13,7 +13,7 @@
 namespace mfem::future
 {
 
-namespace LocalQFImpl
+namespace LocalQFDefaultImpl
 {
 
 template<
@@ -51,7 +51,7 @@ struct DerivativeAction
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
       dimension = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
+      num_entities = ctx.n_entities;
       num_qp = ctx.ir.GetNPoints();
 
       const Element::Type etype =
@@ -344,6 +344,9 @@ struct DerivativeAction
          enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
          &get<Is>(tangent_args)...);
 #else
+      MFEM_CONTRACT_VAR(qfunc);
+      MFEM_CONTRACT_VAR(primal_args);
+      MFEM_CONTRACT_VAR(tangent_args);
       MFEM_ABORT("Enzyme not available");
 #endif
    }
@@ -420,7 +423,7 @@ struct DerivativeAction
       const auto outputs_local = outputs;
       const auto input_is_dependent_local = input_is_dependent;
 
-      const int residual_size_on_qp = out_qp_size[0];
+      // const int residual_size_on_qp = out_qp_size[0];
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {

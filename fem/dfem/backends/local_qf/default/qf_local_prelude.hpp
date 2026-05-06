@@ -2,7 +2,7 @@
 
 #include "../../../integrator_ctx.hpp"
 #include "qf_local_action.hpp"
-#include "derivative_action.hpp"
+#include "../derivative_action.hpp"
 
 namespace mfem::future
 {
@@ -33,12 +33,12 @@ struct LocalQFDefaultBackend
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeAction(
-      const IntegratorContext &,
-      qfunc_t,
-      inputs_t,
-      outputs_t )
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs)
    {
-      return LocalQFImpl::DerivativeAction<
+      return LocalQFDefaultImpl::DerivativeAction<
              derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
                                                           outputs);
    }
