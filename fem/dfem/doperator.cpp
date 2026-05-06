@@ -79,23 +79,68 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    const size_t dfidx = FindIdx(derivative_id, infds);
 
-   // Get transpose callbacks if available, otherwise pass empty vector
-   std::vector<derivative_action_t> transpose_callbacks;
-   auto it = daction_transpose_callbacks.find(derivative_id);
-   if (it != daction_transpose_callbacks.end())
+   // If setup callbacks are available, run them to populate the cache
+   if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
    {
-      transpose_callbacks = it->second;
-   }
+      // Get the direction field from x
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+                  "x needs to be a BlockVector");
+      const auto &bx = static_cast<const BlockVector &>(x);
 
-   return std::make_shared<DerivativeOperator>(
-             height,
-             GetTrueVSize(infds[dfidx]),
-             derivative_action_callbacks[derivative_id],
-             transpose_callbacks,
-             infds[dfidx],
-             x,
-             infds,
-             outfds);
+      // Prolong to L-space
+      prolongation(infds, bx, infields_l);
+
+      // Get the direction field (the field corresponding to derivative_id)
+      Vector direction_l(GetVSize(infds[dfidx]));
+      prolongation(infds[dfidx], bx.GetBlock(dfidx), direction_l);
+
+      // Restrict to element space
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+
+      // Run all setup callbacks to populate the cache
+      for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
+      {
+         setup_callback(infields_e, direction_l);
+      }
+
+      // Use apply callbacks that use the cached derivatives
+      std::vector<derivative_action_t> transpose_callbacks;
+      auto it = daction_transpose_callbacks.find(derivative_id);
+      if (it != daction_transpose_callbacks.end())
+      {
+         transpose_callbacks = it->second;
+      }
+
+      return std::make_shared<DerivativeOperator>(
+                height,
+                GetTrueVSize(infds[dfidx]),
+                derivative_apply_callbacks[derivative_id],
+                transpose_callbacks,
+                infds[dfidx],
+                x,
+                infds,
+                outfds);
+   }
+   else
+   {
+      // Fallback to old behavior (direct action callbacks)
+      std::vector<derivative_action_t> transpose_callbacks;
+      auto it = daction_transpose_callbacks.find(derivative_id);
+      if (it != daction_transpose_callbacks.end())
+      {
+         transpose_callbacks = it->second;
+      }
+
+      return std::make_shared<DerivativeOperator>(
+                height,
+                GetTrueVSize(infds[dfidx]),
+                derivative_action_callbacks[derivative_id],
+                transpose_callbacks,
+                infds[dfidx],
+                x,
+                infds,
+                outfds);
+   }
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -107,23 +152,63 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 
    const size_t dfidx = FindIdx(derivative_id, infds);
 
-   // Get transpose callbacks if available, otherwise pass empty vector
-   std::vector<derivative_action_t> transpose_callbacks;
-   auto it = daction_transpose_callbacks.find(derivative_id);
-   if (it != daction_transpose_callbacks.end())
+   // If setup callbacks are available, run them to populate the cache
+   if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
    {
-      transpose_callbacks = it->second;
-   }
+      // Prolong to L-space
+      prolongation(infds, x, infields_l);
 
-   return std::make_shared<DerivativeOperator>(
-             height,
-             GetTrueVSize(infds[dfidx]),
-             derivative_action_callbacks[derivative_id],
-             transpose_callbacks,
-             infds[dfidx],
-             x,
-             infds,
-             outfds);
+      // Get the direction field
+      Vector direction_l(GetVSize(infds[dfidx]));
+      prolongation(infds[dfidx], x[dfidx], direction_l);
+
+      // Restrict to element space
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+
+      // Run all setup callbacks to populate the cache
+      for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
+      {
+         setup_callback(infields_e, direction_l);
+      }
+
+      // Use apply callbacks that use the cached derivatives
+      std::vector<derivative_action_t> transpose_callbacks;
+      auto it = daction_transpose_callbacks.find(derivative_id);
+      if (it != daction_transpose_callbacks.end())
+      {
+         transpose_callbacks = it->second;
+      }
+
+      return std::make_shared<DerivativeOperator>(
+                height,
+                GetTrueVSize(infds[dfidx]),
+                derivative_apply_callbacks[derivative_id],
+                transpose_callbacks,
+                infds[dfidx],
+                x,
+                infds,
+                outfds);
+   }
+   else
+   {
+      // Fallback to old behavior
+      std::vector<derivative_action_t> transpose_callbacks;
+      auto it = daction_transpose_callbacks.find(derivative_id);
+      if (it != daction_transpose_callbacks.end())
+      {
+         transpose_callbacks = it->second;
+      }
+
+      return std::make_shared<DerivativeOperator>(
+                height,
+                GetTrueVSize(infds[dfidx]),
+                derivative_action_callbacks[derivative_id],
+                transpose_callbacks,
+                infds[dfidx],
+                x,
+                infds,
+                outfds);
+   }
 }
 
 #endif // MFEM_USE_MPI

@@ -3,6 +3,8 @@
 #include "../../integrator_ctx.hpp"
 #include "action.hpp"
 #include "derivative_action.hpp"
+#include "derivative_setup.hpp"
+#include "derivative_apply.hpp"
 
 namespace mfem::future
 {
@@ -22,7 +24,6 @@ struct LocalQFBackend
       return LocalQFImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
-
    template<
       int derivative_id,
       typename qfunc_t,
@@ -37,6 +38,40 @@ struct LocalQFBackend
       return LocalQFImpl::DerivativeAction<
              derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
                                                           outputs);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   static auto MakeDerivativeSetup(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      Vector &qp_cache)
+   {
+      return LocalQFImpl::DerivativeSetup<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
+                                                          outputs, qp_cache);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   static auto MakeDerivativeApply(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      return LocalQFImpl::DerivativeApply<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
+                                                          outputs, qp_cache);
    }
 };
 

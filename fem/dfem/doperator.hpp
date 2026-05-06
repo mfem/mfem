@@ -30,7 +30,7 @@ using action_t =
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
-   std::function<void(std::vector<Vector> &, const Vector &)>;
+   std::function<void(const std::vector<Vector *> &, const Vector &)>;
 
 /// @brief Type alias for a function that computes the action of a derivative
 using derivative_action_t =
@@ -517,6 +517,8 @@ private:
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
    std::map<size_t,
+       std::vector<derivative_action_t>> derivative_apply_callbacks;
+   std::map<size_t,
        std::vector<derivative_action_t>> daction_transpose_callbacks;
    std::map<size_t,
        std::vector<assemble_derivative_sparsematrix_callback_t>>
@@ -724,6 +726,23 @@ void DifferentiableOperator::AddIntegrator(
    for_constexpr([&](auto i)
    {
 #ifdef MFEM_USE_ENZYME
+      // Initialize the cache for this derivative if not already done
+      if (derivative_qp_caches.find(i) == derivative_qp_caches.end())
+      {
+         derivative_qp_caches[i] = Vector();
+      }
+
+      // Create setup callback that populates the cache
+      derivative_setup_callbacks[i].push_back(
+         backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
+                                                    derivative_qp_caches[i]));
+
+      // Create apply callback that uses the cache (reference is stored in derivative_qp_caches[i])
+      derivative_apply_callbacks[i].push_back(
+         backend_t::template MakeDerivativeApply<i>(
+            ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+      // Keep the old action callback for backwards compatibility
       derivative_action_callbacks[i].push_back(
          backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
