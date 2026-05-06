@@ -12,6 +12,8 @@ namespace mfem::future
 
 struct LocalQFBackend
 {
+   static constexpr bool has_cached_derivative = true;
+
    template<
       typename qfunc_t,
       typename inputs_t,

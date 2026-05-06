@@ -249,7 +249,7 @@ struct DerivativeApply
 
       // Calculate cache dimensions
       const int output_size_on_qp = std::accumulate(out_qp_size.begin(),
-                                                     out_qp_size.end(), 0);
+                                                    out_qp_size.end(), 0);
       int total_trial_op_dim = 0;
       int trial_vdim = 1;
       for_constexpr<ninputs>([&](auto i)
@@ -269,7 +269,8 @@ struct DerivativeApply
       });
 
       // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
-      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim *
+                                      total_trial_op_dim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int trial_vdim_local = trial_vdim;
       auto cache_tensor = DeviceTensor<3, const real_t>(qp_cache.Read(),
@@ -333,7 +334,8 @@ struct DerivativeApply
                               j * total_trial_op_dim_local + (m + m_offset);
 
                            // Access direction from shadow_shmem[s]
-                           const real_t dir_val = shadow_shmem[s](j * trial_op_dim + m, q);
+                           // Gradient is stored column-major: flat index = vdim_component + vdim*spatial_dim
+                           const real_t dir_val = shadow_shmem[s](j + input_vdim * m, q);
 
                            sum += cache_tensor(cache_idx, q, e) * dir_val;
                         }

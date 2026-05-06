@@ -738,20 +738,23 @@ void DifferentiableOperator::AddIntegrator(
          derivative_qp_caches[i] = Vector();
       }
 
-      // Create setup callback that populates the cache
-      derivative_setup_callbacks[i].push_back(
-         backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
-                                                    derivative_qp_caches[i]));
+      if constexpr (backend_t::has_cached_derivative)
+      {
+         // Create setup callback that populates the cache
+         derivative_setup_callbacks[i].push_back(
+            backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
+                                                       derivative_qp_caches[i]));
 
-      // Create apply callback that uses the cache (reference is stored in derivative_qp_caches[i])
-      derivative_apply_callbacks[i].push_back(
-         backend_t::template MakeDerivativeApply<i>(
-            ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         // Create apply callback that uses the cache
+         derivative_apply_callbacks[i].push_back(
+            backend_t::template MakeDerivativeApply<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
-      // Create assemble callback for sparse matrix assembly
-      assemble_derivative_sparsematrix_callbacks[i].push_back(
-         backend_t::template MakeDerivativeAssemble<i>(
-            ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         // Create assemble callback for sparse matrix assembly
+         assemble_derivative_sparsematrix_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAssemble<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+      }
 
       // Keep the old action callback for backwards compatibility
       derivative_action_callbacks[i].push_back(

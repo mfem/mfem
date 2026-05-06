@@ -8,6 +8,8 @@ namespace mfem::future
 
 struct GlobalQFBackend
 {
+   static constexpr bool has_cached_derivative = false;
+
    template<
       typename qfunc_t,
       typename inputs_t,
