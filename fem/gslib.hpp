@@ -280,7 +280,11 @@ public:
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value.
-                              The output ordering is determined from field_in.*/
+                              The output ordering is determined from field_in.
+
+       @note: field_out is moved to device if field_in is on device. Otherwise,
+              field_out memory allocation is not changed.
+   */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
    /// Interpolation of field values, with output ordering specification.
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out,
