@@ -342,12 +342,10 @@ void diffusion(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU][XXX]")
+TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
-
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   // const auto p = 1;
 
    SECTION("2d")
    {

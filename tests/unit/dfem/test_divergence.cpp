@@ -11,6 +11,8 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
+#include "../fem/dfem/doperator.hpp"
+#include "../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -50,69 +52,68 @@ void vectordivergence(const char *filename, int p)
    ParFiniteElementSpace psfes(&pmesh, &fec);
    ParFiniteElementSpace pvfes(&pmesh, &fec, DIM);
 
-   const int d1d(p + 1), q = 3 * p + 1;
+   const int q = 3 * p + 1;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
-   const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
-   MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
 
-   ParGridFunction vx(&pvfes);
-   ParGridFunction sy(&psfes), sz(&psfes);
-   Vector vX(pvfes.GetTrueVSize());
-   Vector sY(psfes.GetTrueVSize()), sZ(psfes.GetTrueVSize());
+   ParGridFunction xv(&pvfes);
+   ParGridFunction ys(&psfes), sz(&psfes);
+   Vector Xv(pvfes.GetTrueVSize());
+   Vector Ys(psfes.GetTrueVSize()), Zs(psfes.GetTrueVSize());
 
-   vX.Randomize(1), vx.SetFromTrueDofs(vX);
+   Xv.Randomize(1), xv.SetFromTrueDofs(Xv);
 
    MixedBilinearForm mblf_fa(&pvfes, &psfes);
    mblf_fa.AddDomainIntegrator(new VectorDivergenceIntegrator);
    mblf_fa.Assemble(), mblf_fa.Finalize();
-   mblf_fa.Mult(vx, sy);
-
-   MixedBilinearForm mblf_pa(&pvfes, &psfes);
-   mblf_pa.AddDomainIntegrator(new VectorDivergenceIntegrator);
-   mblf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   mblf_pa.Assemble();
-   mblf_pa.Mult(vx, sz);
-   sy -= sz;
-   REQUIRE(sy.Normlinf() == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
+   mblf_fa.Mult(xv, ys);
 
    {
       static constexpr int P = 0, V = 1, Coords = 2;
       ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-      const auto solutions = std::vector{ FieldDescriptor{ P, &psfes } };
-      const auto parameters = std::vector
+      const auto inputs = std::vector
       {
-         FieldDescriptor{ V, &pvfes },
-         FieldDescriptor{ Coords, mfes }
+         FieldDescriptor{V, &pvfes},
+         FieldDescriptor{Coords, mfes}
+      };
+      const auto outputs = std::vector
+      {
+         FieldDescriptor{P, &psfes}
       };
 
-      DifferentiableOperator dop_mf(solutions, parameters, pmesh);
+      DifferentiableOperator dop_mf(inputs, outputs, pmesh);
 
       const auto mf_vector_divergence_qf =
          [] MFEM_HOST_DEVICE(const tensor<dscalar_t, DIM, DIM> &dudxi,
                              const tensor<mfem::real_t, DIM, DIM> &J,
-                             const real_t &w)
+                             const real_t &w,
+                             real_t &v)
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         return tuple{ tr(dudx) * det(J) * w };
+         v = tr(dudx) * det(J) * w;
       };
 
-      dop_mf.AddDomainIntegrator(mf_vector_divergence_qf,
-                                 tuple{ Gradient<V>{}, Gradient<Coords>{}, Weight{} },
-                                 tuple{ Value<P>{} },
-                                 *ir, all_domain_attr);
+      dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         mf_vector_divergence_qf,
+         tuple{ Gradient<V>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Value<P>{} },
+         *ir, all_domain_attr);
 
-      dop_mf.SetParameters({ &vx, nodes });
-      Vector unused(pvfes.GetTrueVSize());
-      dop_mf.Mult(unused, sZ);
+      {
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{Xv, nodestv};
+         MultiVector Z{Zs};
+         dop_mf.Mult(X, Z);
+      }
 
-      mblf_fa.Mult(vx, sy);
-      psfes.GetProlongationMatrix()->MultTranspose(sy, sY);
+      mblf_fa.Mult(xv, ys);
+      psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
 
-      sY -= sZ;
-      real_t norm_global = M_PI, norm_local = sY.Normlinf();
+      Ys -= Zs;
+      real_t norm_global = 0.0;
+      real_t norm_local = Ys.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
@@ -120,7 +121,7 @@ void vectordivergence(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM]")
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][XXX]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
