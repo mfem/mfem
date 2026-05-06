@@ -61,6 +61,10 @@ if (MFEM_USE_MPI)
       LIBRARIES mfem-common)
       add_dependencies(gridfunction-bounds copy_miniapps_tools_data)
 
+    add_mfem_miniapp(random-gridfunction-bounds
+      MAIN random-gridfunction-bounds.cpp
+      LIBRARIES mfem)
+
     add_mfem_miniapp(plor-transfer
       MAIN plor-transfer.cpp LIBRARIES mfem)
 

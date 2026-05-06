@@ -5252,6 +5252,30 @@ void GridFunction::GetElementBounds(const PLBound &plb,
                                     Vector &lower, Vector &upper,
                                     const int vdim) const
 {
+   if (UseDevice() && Device::Allows(Backend::DEVICE_MASK) &&
+       plb.GetBasisType() != BasisType::Positive &&
+       UsesTensorBasis(*fes))
+   {
+      const FiniteElement &fe = *fes->GetTypicalFE();
+      const int rdim = fe.GetDim();
+      const int fes_dim = fes->GetVDim();
+      const int nel = fes->GetNE();
+      const int nd = fe.GetDof();
+
+      Vector e_vec(nd*fes_dim*nel, Device::GetDeviceMemoryType());
+      e_vec.UseDevice(true);
+      const ElementRestrictionOperator *elem_restr =
+         fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      MFEM_VERIFY(elem_restr != nullptr,
+                  "Element restriction is required for device bounds.");
+      elem_restr->Mult(*this, e_vec);
+
+      plb.GetElementBoundsKernel(rdim, fes_dim, e_vec, lower, upper, vdim);
+      lower.HostRead();
+      upper.HostRead();
+      return;
+   }
+
    int nel  = fes->GetNE();
    int fes_dim  = fes->GetVDim();
    lower.SetSize(nel*(vdim > 0 ? 1 :fes_dim));

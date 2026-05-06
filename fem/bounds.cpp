@@ -41,6 +41,8 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    tol = tol_i;
    lbound.SetSize(ncp, nb);
    ubound.SetSize(ncp, nb);
+   lbound_t.SetSize(nb, ncp);
+   ubound_t.SetSize(nb, ncp);
    nodes.SetSize(nb);
    weights.SetSize(nb);
    control_points.SetSize(ncp);
@@ -145,6 +147,8 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
                lbound(j,i) = std::max(lbound(j,i),0_r);
             }
          }
+         lbound_t(i,j) = lbound(j,i);
+         ubound_t(i,j) = ubound(j,i);
       }
    }
 

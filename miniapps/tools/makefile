@@ -23,7 +23,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	tmop-check-metric tmop-metric-magnitude compare-dc
 
-PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds
+PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds \
+	random-gridfunction-bounds
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -79,7 +80,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
 	plor-transfer tmop-check-metric tmop-metric-magnitude gridfunction-bounds \
-	compare-dc
+	random-gridfunction-bounds compare-dc
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
