@@ -148,9 +148,9 @@ int main(int argc, char *argv[])
    //    we use the positive basis, which supports device execution.
    const auto *fec =[&]() -> FiniteElementCollection*
    {
+      const auto geom = mesh.GetTypicalElementGeometry();
       const bool pa_simplex = pa && (!mesh.IsMixedMesh()) &&
-      (mesh.GetTypicalElementGeometry() == Geometry::TRIANGLE ||
-       mesh.GetTypicalElementGeometry() == Geometry::TETRAHEDRON);
+      (geom == Geometry::TRIANGLE || geom == Geometry::TETRAHEDRON);
       auto btype = pa_simplex ? BasisType::Positive : BasisType::GaussLobatto;
 
       if (order > 0)
