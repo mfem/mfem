@@ -32,9 +32,9 @@ namespace internal
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F2 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTriangle(const int NE,
@@ -272,16 +272,16 @@ template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPADiffusionApplyTriangle(const int NE,
                                          const bool symmetric,
                                          const Array<int> &lex_map_,
-                                         [[maybe_unused]] const Array<int> &/*forward_map2d_*/,
-                                         [[maybe_unused]] const Array<int> &/*inverse_map2d_*/,
-                                         [[maybe_unused]] const Array<int> &/*forward_map3d_*/,
-                                         [[maybe_unused]] const Array<int> &/*inverse_map3d_*/,
+                                         const Array<int> &/*forward_map2d_*/,
+                                         const Array<int> &/*inverse_map2d_*/,
+                                         const Array<int> &/*forward_map3d_*/,
+                                         const Array<int> &/*inverse_map3d_*/,
                                          const Array<real_t> &ga1_,
                                          const Array<real_t> &ga2_,
-                                         [[maybe_unused]] const Array<real_t> &/*ga3_*/,
+                                         const Array<real_t> &/*ga3_*/,
                                          const Array<real_t> &ga1t_,
                                          const Array<real_t> &ga2t_,
-                                         [[maybe_unused]] const Array<real_t> &/*ga3t_*/,
+                                         const Array<real_t> &/*ga3t_*/,
                                          const Vector &d_,
                                          const Vector &x_,
                                          Vector &y_,
@@ -335,9 +335,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       auto lex_map = (int (*)[MD1])(s_lex);
 
       // load in input vector and basis data
-      MFEM_FOREACH_THREAD(a1,y,D1D)
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D)
       {
-         MFEM_FOREACH_THREAD(a2,x,D1D-a1)
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1)
          {
             const int idx = map(a2,a1);
             lex_map[a1][a2] = idx;
@@ -345,9 +345,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a1,y,D1D-1)
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
       {
-         MFEM_FOREACH_THREAD(i1,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i1,x,Q1D)
          {
             Ga1[i1][a1] = ga1(a1,i1);
             for (int a2 = 0; a2 < D1D-a1-1; a2++)
@@ -358,9 +358,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
       // DQ corresponds to C1 in AAD algorithm
-      MFEM_FOREACH_THREAD(i2,y,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(a1,x,D1D-1)
+         MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D-1)
          {
             real_t uu = 0.0, vv = 0.0;
             for (int a2 = 0; a2 < D1D-a1-1; ++a2)
@@ -392,9 +392,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
       // QQ corresponds to C2 in AAD algorithm
-      MFEM_FOREACH_THREAD(i1,y,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(i2,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i2,x,Q1D)
          {
             real_t u = 0.0, v = 0.0;
             for (int a1 = 0; a1 < D1D-1; a1++)
@@ -408,9 +408,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(i1,y,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(i2,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i2,x,Q1D)
          {
             const real_t O11 = D(i1, i2, 0, e);
             const real_t O21 = D(i1, i2, 1, e);
@@ -424,9 +424,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a1,y,D1D-1)
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
       {
-         MFEM_FOREACH_THREAD(i1,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i1,x,Q1D)
          {
             Ga1t[a1][i1] = ga1t(i1,a1);
             for (int a2 = 0; a2 < D1D-a1-1; a2++)
@@ -437,9 +437,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
       // DQ corresponds to F1 in AAD algorithm
-      MFEM_FOREACH_THREAD(i2,y,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2,y,Q1D)
       {
-         MFEM_FOREACH_THREAD(a1,x,D1D-1)
+         MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D-1)
          {
             real_t u = 0.0, v = 0.0;
             for (int i1 = 0; i1 < Q1D; i1++)
@@ -453,9 +453,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
       // compute F2 from AAD algorithm and add contributions to RHS
-      MFEM_FOREACH_THREAD(a1,y,D1D-1)
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
       {
-         MFEM_FOREACH_THREAD(a2,x,D1D-a1-1)
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
          {
             real_t u = 0.0, v = 0.0;
             for (int i2 = 0; i2 < Q1D; i2++)
@@ -486,9 +486,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F3 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTetrahedron(const int NE,
@@ -496,11 +496,11 @@ inline void PADiffusionApplyTetrahedron(const int NE,
                                         const Array<int> &lex_map_,
                                         const Array<int> &forward_map2d_,
                                         const Array<int> &inverse_map2d_,
-                                        [[maybe_unused]] const Array<int> &/*forward_map3d_*/,
+                                        const Array<int> &/*forward_map3d_*/,
                                         const Array<int> &inverse_map3d_,
                                         const Array<real_t> &ga1_,
                                         const Array<real_t> &ga2_,
-                                        [[maybe_unused]] const Array<real_t> &/*ga3_*/,
+                                        const Array<real_t> &/*ga3_*/,
                                         const Array<real_t> &ga1t_,
                                         const Array<real_t> &ga2t_,
                                         const Array<real_t> &ga3t_,
@@ -820,7 +820,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*(T_Q1D*T_Q1D)>(NE, Q1D, Q1D*Q1D,
+                                        [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -867,7 +868,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       MFEM_SHARED int s2D_inv[BASIS_DIM2D_DIFF*2];
       auto inverse_map2d = (int (*)[2]) s2D_inv;
 
-      MFEM_FOREACH_THREAD(i3a1,y,Q1D*D1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3a1,y,Q1D*D1D)
       {
          const int i3 = (int) i3a1 / D1D;
          const int a1 = i3a1 % D1D;
@@ -875,7 +876,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             Ga1[i3][a1] = ga1(a1,i3);
          }
-         MFEM_FOREACH_THREAD(a2,x,D1D-a1)
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1)
          {
             if (a1 < D1D-1 && a2 < D1D-a1-1)
             {
@@ -901,11 +902,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF)
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
          const int a2 = inverse_map2d[a_2d][1];
-         MFEM_FOREACH_THREAD(i3,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
          {
             real_t uu = 0.0, vv = 0.0, ww = 0.0;
             MFEM_UNROLL(MD1)
@@ -939,13 +940,13 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a1i2,y,Q1D*(D1D-1))
+      MFEM_FOREACH_THREAD_DIRECT(a1i2,y,Q1D*(D1D-1))
       {
          // const int i2 = (int) a1i2 / (D1D-1);
          // const int a1 = a1i2 % (D1D-1);
          const int a1 = (int) a1i2 / Q1D;
          const int i2 = a1i2 % Q1D;
-         MFEM_FOREACH_THREAD(i3,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
             MFEM_UNROLL(MD1)
@@ -962,11 +963,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(i1i2,y,Q1D*Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1i2,y,Q1D*Q1D)
       {
          const int i2 = i1i2 % Q1D;
          const int i1 = (int) i1i2 / Q1D;
-         MFEM_FOREACH_THREAD(i3,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
             MFEM_UNROLL(MD1)
@@ -994,12 +995,12 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a1i1,y,Q1D*(D1D-1)) // load in Ba1
+      MFEM_FOREACH_THREAD_DIRECT(a1i1,y,Q1D*(D1D-1)) // load in Ba1
       {
          const int i1 = a1i1 % Q1D;
          const int a1 = (int) a1i1 / Q1D;
          Ga1t[a1][i1] = ga1t(i1,a1);
-         MFEM_FOREACH_THREAD(a2,x,D1D-a1-1)
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
          {
             const int a_2d = forward_map2d[a1][a2];
             Ga2t[a_2d][i1] = ga2t(i1,a_2d);
@@ -1012,11 +1013,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(i2i3,y,Q1D*Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2i3,y,Q1D*Q1D)
       {
          const int i3 = i2i3 % Q1D;
          const int i2 = (int) i2i3 / Q1D;
-         MFEM_FOREACH_THREAD(a1,x,D1D-1)
+         MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D-1)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
             MFEM_UNROLL(MQ1)
@@ -1032,10 +1033,10 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF)
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
-         MFEM_FOREACH_THREAD(i3,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
             MFEM_UNROLL(MQ1)
@@ -1051,11 +1052,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF)
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
          const int a2 = inverse_map2d[a_2d][1];
-         MFEM_FOREACH_THREAD(a3,x,D1D-a1-a2-1)
+         MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2-1)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
             const int a = forward_map3d[a1][a2][a3];

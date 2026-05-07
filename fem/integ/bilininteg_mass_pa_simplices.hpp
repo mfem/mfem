@@ -735,7 +735,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
    MFEM_SHARED int s2D_inv[BASIS_DIM2D_*2];
    auto inverse_map2d = (int (*)[2]) s2D_inv;
 
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D)
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D)
    {
       inverse_map2d[a_2d][0] = inverse_map2d__(0,a_2d);
       inverse_map2d[a_2d][1] = inverse_map2d__(1,a_2d);
@@ -743,7 +743,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       const int a2 = inverse_map2d[a_2d][1];
       const int a_2d_ = forward_map2d__(a2, a1);
       forward_map2d[a1][a2] = a_2d_;
-      MFEM_FOREACH_THREAD(i3,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
       {
          MFEM_UNROLL(MD1)
          for (int a3 = 0; a3 < D1D-a1-a2; ++a3)
@@ -756,11 +756,11 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D)
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D)
    {
       const int a1 = inverse_map2d[a_2d][0];
       const int a2 = inverse_map2d[a_2d][1];
-      MFEM_FOREACH_THREAD(i3,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
       {
          real_t u = 0.0;
          MFEM_UNROLL(MD1)
@@ -773,19 +773,19 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D) // load in Ba2
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D) // load in Ba2
    {
-      MFEM_FOREACH_THREAD(i2,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2,x,Q1D)
       {
          Ba2[i2][a_2d] = ba2(a_2d,i2);
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a1i2,y,Q1D*D1D)
+   MFEM_FOREACH_THREAD_DIRECT(a1i2,y,Q1D*D1D)
    {
       const int i2 = a1i2 % Q1D;
       const int a1 = (int) a1i2 / Q1D;
-      MFEM_FOREACH_THREAD(i3,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
       {
          real_t u = 0.0;
          MFEM_UNROLL(MD1)
@@ -798,18 +798,18 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a1i1,y,Q1D*D1D) // load in Ba1
+   MFEM_FOREACH_THREAD_DIRECT(a1i1,y,Q1D*D1D) // load in Ba1
    {
       const int i1 = a1i1 % Q1D;
       const int a1 = (int) a1i1 / Q1D;
       Ba1[i1][a1] = ba1(a1,i1);
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(i2i3,y,Q1D*Q1D)
+   MFEM_FOREACH_THREAD_DIRECT(i2i3,y,Q1D*Q1D)
    {
       const int i3 = i2i3 % Q1D;
       const int i2 = (int) i2i3 / Q1D;
-      MFEM_FOREACH_THREAD(i1,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1,x,Q1D)
       {
          real_t u = 0.0;
          MFEM_UNROLL(MD1)
@@ -821,18 +821,18 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a1i1,y,Q1D*D1D) // load in Ba1
+   MFEM_FOREACH_THREAD_DIRECT(a1i1,y,Q1D*D1D) // load in Ba1
    {
       const int i1 = a1i1 % Q1D;
       const int a1 = (int) a1i1 / Q1D;
       Ba1t[a1][i1] = ba1t(i1,a1);
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(i2i3,y,Q1D*Q1D)
+   MFEM_FOREACH_THREAD_DIRECT(i2i3,y,Q1D*Q1D)
    {
       const int i3 = i2i3 % Q1D;
       const int i2 = (int) i2i3 / Q1D;
-      MFEM_FOREACH_THREAD(a1,x,D1D)
+      MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D)
       {
          real_t u = 0.0;
          MFEM_UNROLL(MQ1)
@@ -844,18 +844,18 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D) // load in Ba2
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D) // load in Ba2
    {
-      MFEM_FOREACH_THREAD(i2,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2,x,Q1D)
       {
          Ba2t[a_2d][i2] = ba2t(i2,a_2d);
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D)
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D)
    {
       const int a1 = inverse_map2d[a_2d][0];
-      MFEM_FOREACH_THREAD(i3,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
       {
          real_t u = 0.0;
          MFEM_UNROLL(MQ1)
@@ -867,11 +867,11 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D) // load in Ba3t
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D) // load in Ba3t
    {
       const int a1 = inverse_map2d[a_2d][0];
       const int a2 = inverse_map2d[a_2d][1];
-      MFEM_FOREACH_THREAD(i3,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
       {
          // MFEM_UNROLL(MD1)
          for (int a3 = 0; a3 < D1D-a1-a2; ++a3)
@@ -882,11 +882,11 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D)
+   MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D)
    {
       const int a1 = inverse_map2d[a_2d][0];
       const int a2 = inverse_map2d[a_2d][1];
-      MFEM_FOREACH_THREAD(a3,x,D1D-a1-a2)
+      MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2)
       {
          real_t u = 0.0;
          const int a = forward_map3d[a1][a2][a3];
@@ -955,8 +955,8 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D,
-                                      Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*(T_Q1D*T_Q1D)>(NE, Q1D, Q1D*Q1D,
+                                        [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>
       (e, NE, BASIS_DIM, BASIS_DIM2D,
