@@ -554,7 +554,8 @@ public:
 
    bool Empty() const { return h_ptr == nullptr; }
 
-   void New(size_t size, bool temporary = false);
+   void New(size_t size);
+   void New(size_t size, bool temporary);
 
    void New(size_t size, MemoryType loc, bool temporary = false);
 
@@ -750,10 +751,62 @@ public:
    bool IsTemporary() const { return flags & TEMPORARY; }
 };
 
+template <class T> void Memory<T>::New(size_t size)
+{
+   auto &inst = MemoryManager::instance();
+   if (segment)
+   {
+      inst.erase(segment);
+      segment = 0;
+      offset_ = 0;
+   }
+   h_mt = inst.GetHostMemoryType();
+   if (h_mt == MemoryType::HOST)
+   {
+      h_ptr = new T[size];
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
+   else
+   {
+      h_ptr =
+         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, false));
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
+   flags = OWNS_HOST;
+   size_ = size;
+}
+
 template <class T> void Memory<T>::New(size_t size, bool temporary)
 {
    auto &inst = MemoryManager::instance();
-   New_(size, inst.GetHostMemoryType(), MemoryType::DEFAULT, temporary, true);
+   if (segment)
+   {
+      inst.erase(segment);
+      segment = 0;
+      offset_ = 0;
+   }
+   h_mt = inst.GetHostMemoryType();
+   if (h_mt == MemoryType::HOST && !temporary)
+   {
+      h_ptr = new T[size];
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << temporary);
+   }
+   else
+   {
+      h_ptr =
+         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, temporary));
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << temporary);
+   }
+   flags = OWNS_HOST;
+   if (temporary)
+   {
+      flags = static_cast<Flags>(flags | TEMPORARY);
+   }
+   size_ = size;
 }
 
 template <class T>
@@ -791,6 +844,7 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    {
       inst.erase(segment);
       segment = 0;
+      offset_ = 0;
    }
    h_mt = hloc;
    if (hloc == MemoryType::HOST && !temporary)
@@ -828,36 +882,35 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
    size_ = size;
-   offset_ = 0;
 }
 
 template <class T> void Memory<T>::Delete()
 {
-   auto &inst = MemoryManager::instance();
-   if ((flags & OWNS_DEVICE) && segment)
+   if (segment)
    {
-      auto& seg = inst.storage.get_segment(segment);
-      MFEM_ASSERT(offset_ == 0, "should not have any offset");
-      MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
-                  "should hot refer to a subsection");
-      if (seg.lowers[0] != seg.lowers[1])
+      auto &inst = MemoryManager::instance();
+      if ((flags & OWNS_DEVICE))
       {
-         MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
-                                   "dealloc " << (int)seg.mtypes[1] << ", "
-                                   << seg.is_temporary());
-         inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
-                      seg.is_temporary());
+         auto &seg = inst.storage.get_segment(segment);
+         MFEM_ASSERT(offset_ == 0, "should not have any offset");
+         MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
+                     "should hot refer to a subsection");
+         if (seg.lowers[0] != seg.lowers[1])
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(
+               1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
+               "dealloc " << (int)seg.mtypes[1] << ", " << seg.is_temporary());
+            inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
+                         seg.is_temporary());
+         }
+         seg.lowers[1] = nullptr;
       }
-      seg.lowers[1] = nullptr;
-   }
-   if (h_ptr && (flags & OWNS_HOST))
-   {
-      MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
-
-      bool temporary = IsTemporary();
-      if (segment)
+      if (h_ptr && (flags & OWNS_HOST))
       {
-         auto& seg = inst.storage.get_segment(segment);
+         MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
+
+         bool temporary = IsTemporary();
+         auto &seg = inst.storage.get_segment(segment);
          if (seg.lowers[0] == nullptr)
          {
             // de-allocated by inst.Destroy()
@@ -871,25 +924,50 @@ template <class T> void Memory<T>::Delete()
          MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
                      "should hot refer to a subsection");
          seg.lowers[0] = nullptr;
+         if (!temporary && h_mt == MemoryType::HOST)
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt << ", "
+                                      << temporary);
+            delete[] h_ptr;
+         }
+         else
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt << ", "
+                                      << temporary);
+            inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
+                         h_mt, temporary);
+         }
       }
-      if (!temporary && h_mt == MemoryType::HOST)
-      {
-         MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                   "dealloc " << (int)h_mt << ", "
-                                   << temporary);
-         delete[] h_ptr;
-      }
-      else
-      {
-         MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                   "dealloc " << (int)h_mt << ", "
-                                   << temporary);
-         inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T), h_mt,
-                      temporary);
-      }
+      Reset(h_mt);
    }
-
-   Reset(h_mt);
+   else
+   {
+      if (flags & OWNS_HOST)
+      {
+         bool temporary = IsTemporary();
+         if (h_mt == MemoryType::HOST && !temporary)
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt << ", "
+                                      << temporary);
+            delete[] h_ptr;
+         }
+         else
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt << ", "
+                                      << temporary);
+            auto& inst = MemoryManager::instance();
+            inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
+                         h_mt, temporary);
+         }
+         h_ptr = nullptr;
+      }
+      // segment and offset_ should already be zero
+      size_ = 0;
+   }
 }
 
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
@@ -899,17 +977,19 @@ template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
    {
       inst.erase(segment);
       segment = 0;
+      offset_ = 0;
    }
    h_ptr = ptr;
    size_ = size;
-   offset_ = 0;
    flags = own ? OWNS_HOST : NONE;
    h_mt = inst.GetHostMemoryType();
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
    if (own)
    {
       MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
                             "wrap own " << (int)h_mt << ", " << false);
    }
+#endif
 }
 
 template <class T>
@@ -1154,10 +1234,10 @@ template <class T> void Memory<T>::Reset(MemoryType host_mt)
    {
       inst.erase(segment);
       segment = 0;
+      offset_ = 0;
    }
    h_ptr = nullptr;
    size_ = 0;
-   offset_ = 0;
    flags = NONE;
    h_mt = host_mt;
 }
