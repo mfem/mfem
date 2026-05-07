@@ -21,6 +21,7 @@
 #ifdef MFEM_USE_BENCHMARK
 
 #include <cassert>
+#include <functional>
 #include <string>
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
@@ -29,7 +30,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Custom benchmark arguments generator
-static void CustomArguments(bmi::Benchmark *b) noexcept
+static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
@@ -86,17 +87,22 @@ static void AddKernelSpecializations()
 }
 
 // Bake-off base class
-template <int BFI, int VDIM, bool GLL>
+template <int BFI, int VDIM, bool GLL, bool SIMPLICES>
 struct BakeOff
 {
-   inline static constexpr int DIM = 3;
+   static constexpr int DIM = 3;
+   static constexpr bool visualization = false;
+
+   static constexpr bool Simplices = SIMPLICES;
+
    const int p, c, q, n, nx, ny, nz;
+
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fes;
    const Geometry::Type geom_type;
    IntegrationRules irs;
-   const IntegrationRule *ir;
+   const IntegrationRule *ir, *ir_rhs;
    ConstantCoefficient one;
    Vector uvec;
    VectorConstantCoefficient unit_vec;
@@ -107,17 +113,24 @@ struct BakeOff
    BilinearFormIntegrator *bfi;
 
    BakeOff(int p, int side):
-      p(p), c(side), q(2 * p + (GLL ? -1 : 3)),
+      p(p), c(SIMPLICES ? side / 2 : side),
+      q(2 * p + (GLL ? (SIMPLICES && BFI != 7) ? 0 : -1 : 3)),
       n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
       nz(n),
-      mesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
-      fec(p, DIM, BasisType::GaussLobatto),
+      mesh(Mesh::MakeCartesian3D(nx, ny, nz,
+                                 SIMPLICES
+                                 ? Element::TETRAHEDRON
+                                 : Element::HEXAHEDRON)),
+      fec(p, DIM, SIMPLICES ? BasisType::Positive : BasisType::GaussLobatto),
       fes(&mesh, &fec, VDIM, VDIM == 3 ? Ordering::byVDIM : Ordering::byNODES),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      ir(&irs.Get(geom_type, q)),
+      ir(SIMPLICES
+         ? &StroudIntRules.Get(geom_type, q, false)
+         : &irs.Get(geom_type, q)),
+      ir_rhs(&IntRules.Get(geom_type, 2*p)),
       one(1.0),
       uvec(DIM),
       unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
@@ -135,7 +148,7 @@ struct BakeOff
       {
          bfi = new VectorMassIntegrator(one, ir);
       }
-      else if constexpr (BFI == 3 || BFI == 5)
+      else if constexpr (BFI == 3 || BFI == 5 || BFI == 7)
       {
          bfi = new DiffusionIntegrator(one, ir);
       }
@@ -158,8 +171,8 @@ struct BakeOff
 };
 
 // Bake-off Problems (BPs)
-template <int BFI, int VDIM, bool GLL>
-struct BP : public BakeOff<BFI, VDIM, GLL>
+template <int BFI, int VDIM, bool GLL, bool SIMPLICES>
+struct BP : public BakeOff<BFI, VDIM, GLL, SIMPLICES>
 {
    const int max_it = 32, print_lvl = -1;
 
@@ -170,9 +183,9 @@ struct BP : public BakeOff<BFI, VDIM, GLL>
    Vector B, X;
    CGSolver cg;
 
-   using base = BakeOff<BFI, VDIM, GLL>;
+   using base = BakeOff<BFI, VDIM, GLL, SIMPLICES>;
    using base::a;
-   using base::ir;
+   using base::ir_rhs;
    using base::one;
    using base::mesh;
    using base::fes;
@@ -191,11 +204,11 @@ struct BP : public BakeOff<BFI, VDIM, GLL>
 
       if constexpr (VDIM == 1)
       {
-         b.AddDomainIntegrator(new DomainLFIntegrator(one));
+         b.AddDomainIntegrator(new DomainLFIntegrator(one, ir_rhs));
       }
       else
       {
-         b.AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec));
+         b.AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec, ir_rhs));
       }
       b.UseFastAssembly(true);
       b.Assemble();
@@ -213,6 +226,12 @@ struct BP : public BakeOff<BFI, VDIM, GLL>
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge!");
+         if constexpr (base::visualization)
+         {
+            a.RecoverFEMSolution(X, b, x);
+            socketstream glvis("localhost", 19916);
+            glvis << "solution\n" << mesh << x << std::flush;
+         }
       }
       cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
@@ -231,12 +250,12 @@ struct BP : public BakeOff<BFI, VDIM, GLL>
 };
 
 // Bake-off Kernels (BKs)
-template <int BFI, int VDIM, bool GLL>
-struct BK : public BakeOff<BFI, VDIM, GLL>
+template <int BFI, int VDIM, bool GLL, bool SIMPLICES>
+struct BK : public BakeOff<BFI, VDIM, GLL, SIMPLICES>
 {
    Vector xe, ye;
 
-   using base = BakeOff<BFI, VDIM, GLL>;
+   using base = BakeOff<BFI, VDIM, GLL, SIMPLICES>;
    using base::ir;
    using base::one;
    using base::bfi;
@@ -282,47 +301,56 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["Dofs"] = bm::Counter(run.dofs);
    state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Order"] = bm::Counter(state.range(0));
+   state.counters["Simplices"] = bm::Counter(run.Simplices);
 }
 
-#define REGISTER(PK, BFI, VDIM, GLL) \
-   BENCHMARK_TEMPLATE(Benchmark, PK<BFI, VDIM, GLL>) \
-   ->Name(#PK #BFI)->Apply(CustomArguments)->Unit(bm::kMillisecond)
+#define MAKE_NAME_false(PK, BFI) #PK #BFI
+#define MAKE_NAME_true(PK, BFI)  #PK #BFI "tet"
+#define MAKE_NAME(PK, BFI, SIMPLICES) MAKE_NAME_ ## SIMPLICES (PK, BFI)
+
+#define REGISTER(PK, BFI, VDIM, GLL, SIMPLICES) \
+   BENCHMARK_TEMPLATE(Benchmark, PK<BFI, VDIM, GLL, SIMPLICES>) \
+   ->Name(MAKE_NAME(PK, BFI, SIMPLICES))->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
 // BP1: scalar PCG with mass matrix, q=p+2
-REGISTER(BP, 1, 1, false);
+REGISTER(BP, 1, 1, false, false);   // hex
+REGISTER(BP, 1, 1, false, true);    // tet
 
 // BP2: vector PCG with mass matrix, q=p+2
-REGISTER(BP, 2, 3, false);
+REGISTER(BP, 2, 3, false, false);
 
 // BP3: scalar PCG with stiffness matrix, q=p+2
-REGISTER(BP, 3, 1, false);
+REGISTER(BP, 3, 1, false, false);   // hex
+REGISTER(BP, 3, 1, false, true);    // tet
 
 // BP4: vector PCG with stiffness matrix, q=p+2
-REGISTER(BP, 4, 3, false);
+REGISTER(BP, 4, 3, false, false);
 
 // BP5: scalar PCG with stiffness matrix, q=p+1
-REGISTER(BP, 5, 1, true);
+REGISTER(BP, 5, 1, true, false);   // hex
+REGISTER(BP, 5, 1, true, true);    // tet
+REGISTER(BP, 7, 1, true, true);    // tet
 
 // BP6: vector PCG with stiffness matrix, q=p+1
-REGISTER(BP, 6, 3, true);
+REGISTER(BP, 6, 3, true, false);
 
 // BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
-REGISTER(BK, 1, 1, false);
+REGISTER(BK, 1, 1, false, false);
 
 // BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-REGISTER(BK, 2, 3, false);
+REGISTER(BK, 2, 3, false, false);
 
 // BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-REGISTER(BK, 3, 1, false);
+REGISTER(BK, 3, 1, false, false);
 
 // BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-REGISTER(BK, 4, 3, false);
+REGISTER(BK, 4, 3, false, false);
 
 // BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-REGISTER(BK, 5, 1, true);
+REGISTER(BK, 5, 1, true, false);
 
 // BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-REGISTER(BK, 6, 3, true);
+REGISTER(BK, 6, 3, true, false);
 
 /**
  * @brief CEED Bake-off Problems main entry point

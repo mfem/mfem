@@ -15,6 +15,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -68,6 +69,24 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
+      if (fespace->UsesRaggedTensorBasis())
+      {
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+         return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                           rmaps->lex_map,
+                                           rmaps->forward_map2d_diff,
+                                           rmaps->inverse_map2d_diff,
+                                           rmaps->forward_map3d_diff,
+                                           rmaps->inverse_map3d_diff,
+                                           rmaps->Ga1,
+                                           rmaps->Ga2,
+                                           rmaps->Ga3,
+                                           rmaps->Ga1t,
+                                           rmaps->Ga2t,
+                                           rmaps->Ga3t,
+                                           Dv, x, y, dofs1D, quad1D);
+      }
+
       ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
                           Gt, Dv, x, y, dofs1D, quad1D);
    }
@@ -94,7 +113,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const bool stroud = fes.UsesRaggedTensorBasis();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -118,14 +138,25 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   if (stroud)
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(InverseDuffyTrans(*ir, dim), DofToQuad::RAGGED_TENSOR);
+      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   }
+   else
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
 
    if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (VQ) { coeff.Project(*VQ); }

@@ -50,6 +50,10 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
+// Device simplices sample runs:
+//               ex1 -pa -d gpu -m ../data/inline-tet.mesh
+//               ex1 -pa -d gpu -m ../data/inline-tri.mesh
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -140,24 +144,30 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   bool delete_fec;
-   if (order > 0)
+   //    If the mesh is simplicial and partial assembly is requested,
+   //    we use the positive basis, which supports device execution.
+   const auto *fec =[&]() -> FiniteElementCollection*
    {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (mesh.GetNodes())
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
-   }
+      const auto geom = mesh.GetTypicalElementGeometry();
+      const bool pa_simplex = pa && (!mesh.IsMixedMesh()) &&
+      (geom == Geometry::TRIANGLE || geom == Geometry::TETRAHEDRON);
+      auto btype = pa_simplex ? BasisType::Positive : BasisType::GaussLobatto;
+
+      if (order > 0)
+      {
+         return new H1_FECollection(order, dim, btype);
+      }
+      else if (mesh.GetNodes())
+      {
+         auto *fec = mesh.GetNodes()->OwnFEC();
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         return fec;
+      }
+      else
+      {
+         return new H1_FECollection(order = 1, dim, btype);
+      }
+   }();
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
@@ -280,10 +290,6 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
-
+   if (order > 0) { delete fec; }
    return 0;
 }
