@@ -59,7 +59,7 @@ private:
              bool req)
          : type(ENUM_OPTION), var_ptr(var_ptr_), short_name(short_name_),
            long_name(long_name_), description(description_),
-           options(std::move(options_)), required(req)
+           required(req), options(std::move(options_))
       {}
    };
 
