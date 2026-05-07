@@ -942,8 +942,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD_DIRECT(a1i2,y,Q1D*(D1D-1))
       {
-         // const int i2 = (int) a1i2 / (D1D-1);
-         // const int a1 = a1i2 % (D1D-1);
          const int a1 = (int) a1i2 / Q1D;
          const int i2 = a1i2 % Q1D;
          MFEM_FOREACH_THREAD_DIRECT(i3,x,Q1D)
