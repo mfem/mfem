@@ -330,7 +330,7 @@ struct DerivativeAction
    MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
       const qfunc_t &qfunc,
       args_t &primal_args,
-      args_t &tangent_args,
+      args_t &shadow_args,
       std::integer_sequence<int, Is...>)
    {
 #ifdef MFEM_USE_ENZYME
@@ -342,7 +342,7 @@ struct DerivativeAction
          (void (*)(const qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
          enzyme_const, &qfunc,
          enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-         &get<Is>(tangent_args)...);
+         &get<Is>(shadow_args)...);
 #else
       MFEM_ABORT("Enzyme not available");
 #endif
@@ -352,10 +352,10 @@ struct DerivativeAction
    MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
       const qfunc_t &qfunc,
       args_t &primal_args,
-      args_t &tangent_args)
+      args_t &shadow_args)
    {
       constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
-      call_enzyme_fwddiff_impl(qfunc, primal_args, tangent_args,
+      call_enzyme_fwddiff_impl(qfunc, primal_args, shadow_args,
                                std::make_integer_sequence<int, nargs> {});
    }
 

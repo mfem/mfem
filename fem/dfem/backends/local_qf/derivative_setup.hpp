@@ -175,7 +175,8 @@ struct DerivativeSetup
 
       // Cache size includes both test and trial dimensions
       // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
-      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim *
+                                      total_trial_op_dim;
       const int total_cache_size = num_entities * num_qp * residual_size_on_qp;
       qp_cache.SetSize(total_cache_size);
       qp_cache.UseDevice(true);
@@ -366,7 +367,7 @@ struct DerivativeSetup
    MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
       const qfunc_t &qfunc,
       args_t &primal_args,
-      args_t &tangent_args,
+      args_t &shadow_args,
       std::integer_sequence<int, Is...>)
    {
 #ifdef MFEM_USE_ENZYME
@@ -378,7 +379,7 @@ struct DerivativeSetup
          (void (*)(const qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
          enzyme_const, &qfunc,
          enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-         &get<Is>(tangent_args)...);
+         &get<Is>(shadow_args)...);
 #else
       MFEM_ABORT("Enzyme not available");
 #endif
@@ -388,10 +389,10 @@ struct DerivativeSetup
    MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
       const qfunc_t &qfunc,
       args_t &primal_args,
-      args_t &tangent_args)
+      args_t &shadow_args)
    {
       constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
-      call_enzyme_fwddiff_impl(qfunc, primal_args, tangent_args,
+      call_enzyme_fwddiff_impl(qfunc, primal_args, shadow_args,
                                std::make_integer_sequence<int, nargs> {});
    }
 
@@ -460,7 +461,8 @@ struct DerivativeSetup
 
       // Wrap qp_cache: [test_vdim * test_op_dim * trial_vdim * trial_op_dim, num_qp, num_entities]
       // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
-      const int residual_size_on_qp = output_size_on_qp * trial_vdim * total_trial_op_dim;
+      const int residual_size_on_qp = output_size_on_qp * trial_vdim *
+                                      total_trial_op_dim;
       auto cache_tensor = DeviceTensor<3>(qp_cache.ReadWrite(), residual_size_on_qp,
                                           num_qp_local, num_entities_local);
 
