@@ -178,7 +178,7 @@ void OptionsParser::Parse()
          return;
       }
 
-      for (int j = 0; true; j++)
+      for (size_t j = 0; true; j++)
       {
          if (j >= options.size())
          {
@@ -361,7 +361,7 @@ void OptionsParser::PrintOptions(ostream &os) const
    static const char *indent = "   ";
 
    os << "Options used:\n";
-   for (int j = 0; j < options.size(); j++)
+   for (size_t j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 

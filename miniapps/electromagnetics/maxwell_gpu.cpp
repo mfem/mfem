@@ -1307,10 +1307,10 @@ SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt)
 
    for (int i=1; i<=5; i++)
    {
-      int a = (int)ceil(log10(dsteps/pow(5.0,i)));
-      int nstepsi = (int)pow(5,i)*max(1,(int)pow(10,a));
+      int a = (int)ceil(log10(dsteps / pow(5.0, i)));
+      int nstepsi = (int)pow(5, i) * std::max<int>(1, (int)pow(10, a));
 
-      nsteps = min(nsteps,nstepsi);
+      nsteps = std::min(nsteps, nstepsi);
    }
 
    dt = tmax / nsteps;
