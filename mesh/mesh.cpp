@@ -11332,6 +11332,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
+   mfem::Swap(attribute_sets.attr_sets, other.attribute_sets.attr_sets);
+   mfem::Swap(bdr_attribute_sets.attr_sets, other.bdr_attribute_sets.attr_sets);
 
    mfem::Swap(geom_factors, other.geom_factors);
    mfem::Swap(face_geom_factors, other.face_geom_factors);
