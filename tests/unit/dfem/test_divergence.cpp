@@ -141,6 +141,39 @@ void vectordivergence(const char *filename, int p)
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+
+      SECTION("Derivative Transpose Action")
+      {
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+
+         // Build cache with full primal state
+         MultiVector state{Xv, nodestv};
+         auto dRdV = dop_mf.GetDerivative(V, state);
+
+         // Direction in output (test) T-space: use Ys computed from mblf_fa.
+         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+         MultiVector direction{Ys};
+
+         // Result in derivative (trial) T-space.
+         Vector result_v(pvfes.GetTrueVSize());
+         result_v = 0.0;
+         MultiVector result{result_v};
+         dRdV->MultTranspose(direction, result);
+
+         // Reference: mblf_fa.MultTranspose(ys, xv) -> restrict to T-dofs.
+         mblf_fa.MultTranspose(ys, xv);
+         Vector ref_v(pvfes.GetTrueVSize());
+         pvfes.GetProlongationMatrix()->MultTranspose(xv, ref_v);
+
+         result_v -= ref_v;
+         real_t norm_global = 0.0;
+         real_t norm_local = result_v.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 }
 

@@ -6,6 +6,7 @@
 #include "derivative_setup.hpp"
 #include "derivative_apply.hpp"
 #include "derivative_assemble.hpp"
+#include "derivative_apply_transpose.hpp"
 
 namespace mfem::future
 {
@@ -73,6 +74,23 @@ struct LocalQFBackend
       const Vector &qp_cache)
    {
       return LocalQFImpl::DerivativeApply<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
+                                                          outputs, qp_cache);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   static auto MakeDerivativeApplyTranspose(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      return LocalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
                                                           outputs, qp_cache);
    }
