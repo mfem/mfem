@@ -49,6 +49,14 @@ public:
 /// Data type sparse matrix
 class SparseMatrix : public AbstractSparseMatrix
 {
+public:
+   /** @brief Use the GPU vendor sparse library (cusparse/hipsparse), if
+       available, for sparse matrix operations. True by default. */
+   /** Performance is expected to be worse when set to false on the GPU, only
+       use false for debugging. This has no effect on CPUs.
+       */
+   static bool use_gpu_vendor_sparse_if_available;
+
 protected:
    /// @name Arrays used by the CSR storage format.
    /** */
