@@ -16,7 +16,7 @@
 
 namespace mfem
 {
-
+/// \cond DO_NOT_DOCUMENT
 VectorFEMassIntegrator::ApplyKernelType
 VectorFEMassIntegrator::ApplyPAKernels::Fallback(
    FiniteElement::DerivType TrialType, FiniteElement::DerivType TestType,
@@ -67,10 +67,22 @@ VectorFEMassIntegrator::ApplyPAKernels::Fallback(
    }
    MFEM_ABORT("Unknown kernel.");
 }
+/// \endcond DO_NOT_DOCUMENT
 
 VectorFEMassIntegrator::Kernels::Kernels()
 {
    // h(curl), h(curl)
+   // P = Q (3D)
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 2, 2, 2>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 3, 3, 3>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 4, 4, 4>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 5, 5, 5>();
+
+   // P = Q + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 2, 2, 3>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
@@ -80,6 +92,7 @@ VectorFEMassIntegrator::Kernels::Kernels()
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 5, 5, 6>();
    // h(div), h(div)
+   // P = Q (2D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 2, 2, 2>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
@@ -89,6 +102,7 @@ VectorFEMassIntegrator::Kernels::Kernels()
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 5, 5, 5>();
 
+   // P = Q + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 3, 2, 2, 3>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,

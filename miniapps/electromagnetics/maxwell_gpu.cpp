@@ -1236,6 +1236,7 @@ void CurrentIntegratorKernel(const int ne, const int d, const int q,
    });
 }
 
+/// \cond DO_NOT_DOCUMENT
 template <int T_D1D, int T_Q1D>
 CurrentIntegrator::AssembleKernelType
 CurrentIntegrator::AssembleKernels::Kernel()
@@ -1248,6 +1249,7 @@ CurrentIntegrator::AssembleKernels::Fallback(int d1d, int q1d)
 {
    return CurrentIntegratorKernel<0, 0>;
 }
+/// \endcond DO_NOT_DOCUMENT
 
 /// assumes fes is an H(curl) space
 void CurrentIntegrator::AssembleDevice(const FiniteElementSpace &fes,
