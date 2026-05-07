@@ -32,9 +32,9 @@ namespace internal
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F2 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
@@ -52,11 +52,11 @@ void PAMassApplyTriangle_Element(const int e,
                                  const int d1d = 0,
                                  const int q1d = 0)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
+   const int D1D = d1d, Q1D = q1d;
    constexpr int max_D1D = DofQuadLimits::MAX_D1D_SIMPLEX;
    constexpr int max_Q1D = DofQuadLimits::MAX_Q1D_SIMPLEX;
 
+   const auto lex_map = DeviceTensor<2,const int>(lex_map_, D1D, D1D);
    const auto Ba1 = ConstDeviceMatrix(ba1_, D1D, Q1D);
    const auto Ba2 = ConstDeviceCube(ba2_, D1D, D1D, Q1D);
    const auto Ba1t = ConstDeviceMatrix(ba1t_, Q1D, D1D);
@@ -104,7 +104,7 @@ void PAMassApplyTriangle_Element(const int e,
          const int a1i2 = a1 + D1D*i2;
          for (int a2 = 0; a2 < D1D-a1; a2++)
          {
-            const int idx = lex_map_[a2 + D1D*a1];
+            const int idx = lex_map(a2, a1);
             C1[a1i2] += X(idx, e) * Ba2(a2, a1, i2);
          }
       }
@@ -157,7 +157,7 @@ void PAMassApplyTriangle_Element(const int e,
    }
    // dofs to quad operation, step 2: convert second multiindex to second
    // quadrature index. The contribution to the local RHS is
-   //       Y_{\alpha} = F2_{\alpha}.
+   //    Y_{\alpha} = F2_{\alpha}.
    for (int a1 = 0; a1 < D1D; a1++)
    {
       for (int i2 = 0; i2 < Q1D; i2++)
@@ -165,7 +165,7 @@ void PAMassApplyTriangle_Element(const int e,
          const int a1i2 = i2 + Q1D*a1;
          for (int a2 = 0; a2 < D1D-a1; a2++)
          {
-            const int idx = lex_map_[a2 + D1D*a1];
+            const int idx = lex_map(a2, a1);
             Y(idx,e) += C1[a1i2] * Ba2t(i2, a1, a2);
          }
       }
@@ -241,7 +241,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    constexpr int BASIS_DIM = MD1 * (MD1+1) / 2;
 
-   const auto lex_map__ = DeviceTensor<2,const int>(lex_map_, D1D, D1D);
+   const auto map = DeviceTensor<2,const int>(lex_map_, D1D, D1D);
    const auto ba1 = ConstDeviceMatrix(ba1_, D1D, Q1D);
    const auto ba2 = ConstDeviceCube(ba2_, D1D, D1D, Q1D);
    const auto ba1t = ConstDeviceMatrix(ba1t_, Q1D, D1D);
@@ -256,8 +256,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
    auto Ba1t = (real_t (*)[MQ1]) (B+0);
    auto Ba2t = (real_t (*)[MD1][MQ1]) (B+1);
    MFEM_SHARED real_t Xz[BASIS_DIM];
-   MFEM_SHARED real_t sm0[MDQ*MDQ];
-   MFEM_SHARED real_t sm1[MDQ*MDQ];
+   MFEM_SHARED real_t sm0[MDQ*MDQ], sm1[MDQ*MDQ];
    auto X = (real_t (*)) (Xz);
    auto DQ = (real_t (*)[MD1]) (sm1);
    auto QQ = (real_t (*)[MQ1]) (sm0);
@@ -266,19 +265,19 @@ void SmemPAMassApplyTriangle_Element(const int e,
    auto lex_map = (int (*)[MD1])(s_lex);
 
    // load in input vector and basis data
-   MFEM_FOREACH_THREAD(a1,y,D1D)
+   MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D)
    {
-      MFEM_FOREACH_THREAD(a2,x,D1D-a1)
+      MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1)
       {
-         const int idx = lex_map__(a2,a1);
+         const int idx = map(a2,a1);
          lex_map[a1][a2] = idx;
          X[idx] = x(idx,e);
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a1,y,D1D)
+   MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D)
    {
-      MFEM_FOREACH_THREAD(i1,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1,x,Q1D)
       {
          Ba1[i1][a1] = ba1(a1,i1);
          for (int a2 = 0; a2 < D1D-a1; ++a2)
@@ -290,9 +289,9 @@ void SmemPAMassApplyTriangle_Element(const int e,
    MFEM_SYNC_THREAD;
    // quad to dofs operation, step 1: convert first quadrature index to first
    // multiindex. DQ corresponds to C1 in the AAD algorithm.
-   MFEM_FOREACH_THREAD(i2,y,Q1D)
+   MFEM_FOREACH_THREAD_DIRECT(i2,y,Q1D)
    {
-      MFEM_FOREACH_THREAD(a1,x,D1D)
+      MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D)
       {
          real_t u = 0.0;
          for (int a2 = 0; a2 < D1D-a1; ++a2)
@@ -310,9 +309,9 @@ void SmemPAMassApplyTriangle_Element(const int e,
    // all of the Stroud quadrature nodes. E.g. if (t1,t2) is a Stroud node, then
    //    C2[i,j] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p-1}(\Phi(t1,t2)),
    // where \Phi is the Duffy transform.
-   MFEM_FOREACH_THREAD(i1,y,Q1D)
+   MFEM_FOREACH_THREAD_DIRECT(i1,y,Q1D)
    {
-      MFEM_FOREACH_THREAD(i2,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i2,x,Q1D)
       {
          real_t u = 0.0;
          for (int a1 = 0; a1 < D1D; ++a1)
@@ -323,9 +322,9 @@ void SmemPAMassApplyTriangle_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(a1,y,D1D)
+   MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D)
    {
-      MFEM_FOREACH_THREAD(i1,x,Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(i1,x,Q1D)
       {
          Ba1t[a1][i1] = ba1t(i1,a1);
          for (int a2 = 0; a2 < D1D-a1; ++a2)
@@ -334,12 +333,13 @@ void SmemPAMassApplyTriangle_Element(const int e,
          }
       }
    }
+   MFEM_SYNC_THREAD;
    // dofs to quad operation, step 1: convert first multiindex to first quadrature
    // index. DQ corresponds to F1 in the AAD algorithm, with F0 corresponding to
    // C2 * D.
-   MFEM_FOREACH_THREAD(i2,y,Q1D)
+   MFEM_FOREACH_THREAD_DIRECT(i2,y,Q1D)
    {
-      MFEM_FOREACH_THREAD(a1,x,D1D)
+      MFEM_FOREACH_THREAD_DIRECT(a1,x,D1D)
       {
          real_t u = 0.0;
          for (int i1 = 0; i1 < Q1D; ++i1)
@@ -351,12 +351,11 @@ void SmemPAMassApplyTriangle_Element(const int e,
    }
    MFEM_SYNC_THREAD;
    // dofs to quad operation, step 2: convert second multiindex to second
-   // quadrature index. u corresponds to F2 in the AAD algorithm. The contribution
-   // to the local RHS is
-   //       Y_{\alpha} = F2_{\alpha}.
-   MFEM_FOREACH_THREAD(a1,y,D1D)
+   // quadrature index. u corresponds to F2 in the AAD algorithm.
+   // The contribution to the local RHS is: Y_{\alpha} = F2_{\alpha}.
+   MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D)
    {
-      MFEM_FOREACH_THREAD(a2,x,D1D-a1)
+      MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1)
       {
          real_t u = 0.0;
          for (int i2 = 0; i2 < Q1D; ++i2)
@@ -406,17 +405,15 @@ inline void SmemPAMassApplyTriangle(const int NE,
    MFEM_VERIFY(Q1D <= max_q1d, "");
 
    const auto lex_map = lex_map_.Read();
-   const auto Ba1 = ba1_.Read();
-   const auto Ba2 = ba2_.Read();
-   const auto Ba1t = ba1t_.Read();
-   const auto Ba2t = ba2t_.Read();
+   const auto Ba1 = ba1_.Read(), Ba2 = ba2_.Read();
+   const auto Ba1t = ba1t_.Read(), Ba2t = ba2t_.Read();
    const auto D = d_.Read();
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D>
+      internal::SmemPAMassApplyTriangle_Element<T_D1D, T_Q1D>
       (e, NE, lex_map, Ba1, Ba2, Ba1t, Ba2t, D, X, Y, d1d, q1d);
    });
 }
@@ -428,9 +425,9 @@ inline void SmemPAMassApplyTriangle(const int NE,
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F3 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
@@ -676,7 +673,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
                                         const int *forward_map2d_,
                                         const int *inverse_map2d_,
                                         const int *forward_map3d_,
-                                        //  const int *inverse_map3d_,
+                                        // const int *inverse_map3d_,
                                         const real_t *ba1_,
                                         const real_t *ba2_,
                                         const real_t *ba3_,
@@ -958,7 +955,8 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D,
+                                      Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>
       (e, NE, BASIS_DIM, BASIS_DIM2D,
