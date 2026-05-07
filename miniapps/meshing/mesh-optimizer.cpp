@@ -73,7 +73,8 @@
 //   * mesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
 //
 //   Adaptive limiting:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//     mesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0
+//     mesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 2.0 -pa
 //   Adaptive limiting through the L-BFGS solver:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //
@@ -876,8 +877,6 @@ int main(int argc, char *argv[])
    AdaptivityEvaluator *adapt_lim_eval = NULL;
    if (adapt_lim_const > 0.0)
    {
-      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
-
       FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
       adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
 
@@ -893,12 +892,12 @@ int main(int argc, char *argv[])
       else { MFEM_ABORT("Bad interpolation option."); }
 
       tmop_integ->EnableAdaptiveLimiting(adapt_lim_gf0, adapt_lim_coeff,
-                                         *adapt_lim_eval);
+                                         *adapt_lim_eval, 1.0);
       if (visualization)
       {
          socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0, "Zeta 0",
-                                300, 600, 300, 300);
+         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0,
+                                "Zeta 0 - initial mesh", 300, 600, 300, 300);
       }
    }
 
@@ -1223,8 +1222,8 @@ int main(int argc, char *argv[])
    if (adapt_lim_const > 0.0 && visualization)
    {
       socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0, "Xi 0",
-                             600, 600, 300, 300);
+      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0,
+                             "Zeta 0 - final mesh", 600, 600, 300, 300);
    }
 
    // Visualize the mesh displacement.

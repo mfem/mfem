@@ -108,6 +108,64 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
    });
 }
 
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
+void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
+                                const real_t adapt_lim_delta_max,
+                                const bool const_coeff,
+                                const DeviceTensor<3, const real_t> &ALC,
+                                const int NE,
+                                const DeviceTensor<5, const real_t> &J,
+                                const ConstDeviceMatrix &W,
+                                const real_t *b,
+                                const DeviceTensor<4, const real_t> &ALF_grad,
+                                const ConstDeviceCube &ALFmF0,
+                                DeviceTensor<4> &Y,
+                                const int d1d,
+                                const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const real_t normal_inv_delta_sq =
+      2.0 * lim_normal / (adapt_lim_delta_max * adapt_lim_delta_max);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1];
+
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+
+      // Evaluate ALF and ALF0 at the quad points.
+      kernels::internal::s_regs2d_t<MQ1> alf_dof, alf_quad;
+      kernels::internal::LoadDofs2d(e, D1D, ALFmF0, alf_dof);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB,
+                                alf_dof, alf_quad);
+
+      kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            const real_t *Jtr = &J(0, 0, qx, qy, e);
+            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t weight = W(qx, qy) * detJtr;
+
+            const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
+            const real_t factor = weight * coeff * normal_inv_delta_sq *
+                                  alf_quad(qy, qx);
+
+            r00(0, qy, qx) = factor * ALF_grad(0, qx, qy, e);
+            r00(1, qy, qx) = factor * ALF_grad(1, qx, qy, e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r00, r01);
+      kernels::internal::WriteDofs2d(e, D1D, r01, Y);
+   });
+}
+
 MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels);
 
@@ -138,6 +196,34 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 
    TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W, b, bld, XL, X,
                             Y, exp_lim, d, q);
+}
+
+MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim, TMOP_AddMultPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim);
+
+void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
+                                            Vector &y) const
+{
+   const real_t ln = lim_normal;
+   const real_t delta_max = PA.al_delta;
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const bool const_coeff = PA.ALC.Size() == 1;
+   const auto ALC = const_coeff
+                    ? Reshape(PA.ALC.Read(), 1, 1, 1)
+                    : Reshape(PA.ALC.Read(), q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
+   const auto *B = PA.maps->B.Read();
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
+   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, NE);
+   const auto ALF_grad = Reshape(PA.ALFG.Read(), 2, q, q, NE);
+   auto Y = Reshape(y.ReadWrite(), d, d, 2, NE);
+
+   TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
+                         B, ALF_grad, ALFmF0, Y, d, q);
 }
 
 } // namespace mfem

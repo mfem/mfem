@@ -113,6 +113,178 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
+// Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
+void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
+                                     const real_t *B_nodes,
+                                     const real_t *G_nodes,
+                                     const real_t *B,
+                                     const DeviceTensor<4, const real_t> &X,
+                                     const ConstDeviceCube &ALF,
+                                     DeviceTensor<4> &ALF_grad,
+                                     DeviceTensor<5> &ALF_hess,
+                                     const int d1d,
+                                     const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // MD1 x MD1 or MQ1 x MQ1 shared memory block.
+      MFEM_SHARED union { real_t d[MD1][MD1]; real_t q[MQ1][MQ1]; } smem;
+      MFEM_SHARED real_t sB_nodes[MD1][MD1], sG_nodes[MD1][MD1];
+      MFEM_SHARED real_t sB_q[MD1][MQ1];
+
+      kernels::internal::s_regs2d_t<MD1> grad_c;
+      kernels::internal::v_regs2d_t<2, MD1> hess_c;
+
+      // Maps nodes - nodes.
+      kernels::internal::LoadMatrix(D1D, D1D, B_nodes, sB_nodes);
+      kernels::internal::LoadMatrix(D1D, D1D, G_nodes, sG_nodes);
+      // Map nodes - quads.
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
+
+      // Compute the physical Jacobian at DOF nodes.
+      kernels::internal::vd_regs2d_t<2, 2, MD1> r_X, r_J;
+      kernels::internal::LoadDofs2d(e, D1D, X, r_X);
+      kernels::internal::Grad2d(D1D, D1D, smem.d, sB_nodes, sG_nodes, r_X, r_J);
+
+      // Compute the reference derivatives of ALF at DOF nodes.
+      kernels::internal::s_regs2d_t<MD1> alf_n, dalf_dx_n, dalf_dy_n;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_n);
+      kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem.d,
+                                                sG_nodes, sB_nodes,
+                                                alf_n, dalf_dx_n);
+      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_n);
+      kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem.d,
+                                                sB_nodes, sG_nodes,
+                                                alf_n, dalf_dy_n);
+
+      // Interpolation workspaces.
+      kernels::internal::s_regs2d_t<MQ1> r0, r1;
+
+      // Precompute the inverse of the physical Jacobian.
+      kernels::internal::vd_regs2d_t<2, 2, MD1> Jpr_inv;
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            const real_t Jpr[4] =
+            {
+               r_J[0][0][dy][dx], r_J[1][0][dy][dx],
+               r_J[0][1][dy][dx], r_J[1][1][dy][dx]
+            };
+            real_t Jpri[4];
+            kernels::CalcInverse<2>(Jpr, Jpri);
+            Jpr_inv(0, 0, dx, dy) = Jpri[0];
+            Jpr_inv(1, 0, dx, dy) = Jpri[1];
+            Jpr_inv(0, 1, dx, dy) = Jpri[2];
+            Jpr_inv(1, 1, dx, dy) = Jpri[3];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Compute/interpolate gradient and Hessian one vector component at a time.
+      for (int c = 0; c < 2; c++)
+      {
+         kernels::internal::s_regs2d_t<MD1> rgrad_nodes, ddalf_dx_n, ddalf_dy_n;
+
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               grad_c[dy][dx] =
+                  Jpr_inv(0, c, dx, dy) * dalf_dx_n[dy][dx] +
+                  Jpr_inv(1, c, dx, dy) * dalf_dy_n[dy][dx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // Compute ALF_grad with intermediate workspaces
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               r0[dy][dx] = grad_c[dy][dx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::Eval2d<MQ1>(D1D, Q1D, smem.q, sB_q, r0, r1);
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               ALF_grad(c, qx, qy, e) = r1[qy][qx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // Compute ddalf_dx_n.
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               rgrad_nodes[dy][dx] = grad_c[dy][dx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem.d,
+                                                   sG_nodes, sB_nodes,
+                                                   rgrad_nodes, ddalf_dx_n);
+         // Compute ddalf_dy_n.
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               rgrad_nodes[dy][dx] = grad_c[dy][dx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem.d,
+                                                   sB_nodes, sG_nodes,
+                                                   rgrad_nodes, ddalf_dy_n);
+         // Compute hess_c with ddalf_[dx, dy]_n.
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               const real_t ddalf_dx = ddalf_dx_n[dy][dx];
+               const real_t ddalf_dy = ddalf_dy_n[dy][dx];
+               const real_t ddx = Jpr_inv(0, 0, dy, dx) * ddalf_dx +
+                                  Jpr_inv(1, 0, dy, dx) * ddalf_dy;
+               const real_t ddy = Jpr_inv(0, 1, dy, dx) * ddalf_dx +
+                                  Jpr_inv(1, 1, dy, dx) * ddalf_dy;
+               hess_c[0][dy][dx] = ddx;
+               hess_c[1][dy][dx] = ddy;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         for (int j = 0; j < 2; j++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+               {
+                  r0[dy][dx] = hess_c[j][dy][dx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+            kernels::internal::Eval2d<MQ1>(D1D, Q1D, smem.q, sB_q, r0, r1);
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  ALF_hess(c, j, qx, qy, e) = r1[qy][qx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef2D);
 
@@ -140,6 +312,31 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE,
                                J, W, b, bld, XL, X, H0, exp_lim, d, q);
+}
+
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim2D,
+                       TMOP_AssembleGradPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradAdaptLim2D);
+
+void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
+{
+   if (PA.AL_grads_assembled) { return; }
+
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto *B_nodes = PA.maps_nodes->B.Read(),
+               *G_nodes = PA.maps_nodes->G.Read();
+   const auto *B = PA.maps->B.Read();
+   const auto X = Reshape(x.Read(), d, d, 2, NE);
+   const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
+   auto ALF_grad = Reshape(PA.ALFG.Write(), 2, q, q, NE);
+   auto ALF_hess = Reshape(PA.ALFH.Write(), 2, 2, q, q, NE);
+
+   TMOPAssembleGradAdaptLim2D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
+                                   ALF_grad, ALF_hess, d, q);
+   PA.AL_grads_assembled = true;
 }
 
 } // namespace mfem
