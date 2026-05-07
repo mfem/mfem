@@ -500,7 +500,7 @@ template<class B, class R> struct reduction_kernel
          }
       }
       // binary tree reduction
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -567,7 +567,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetMemoryType();
+      auto mt = workspace.GetMemory().GetHostMemoryType();
       if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
       {
          mt = MemoryType::HOST_PINNED;
@@ -590,6 +590,78 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
    {
       body(i, res);
    }
+}
+
+/**
+ @brief Performs a 1D reduction on the range [0,N).
+ @a res initial value and where the result will be written.
+ @a body reduction function body.
+ @a reducer helper for joining two reduced values.
+ @a use_dev true to perform the reduction on the device, if possible.
+ @tparam T value_type to operate on
+ */
+template <class T, class B, class R>
+void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
+{
+   if (N == 0)
+   {
+      return;
+   }
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+#if defined(MFEM_USE_CUDA_OR_HIP)
+   if (use_dev &&
+       mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+                            Backend::RAJA_HIP))
+   {
+      using red_type = internal::reduction_kernel<typename std::decay<B>::type,
+            typename std::decay<R>::type>;
+      // max block size is 256, but can be smaller
+      int block_size = std::min<int>(red_type::max_blocksize(),
+                                     1ll << red_type::block_log2(N));
+
+      int num_mp = Device::NumMultiprocessors(Device::GetId());
+#if defined(MFEM_USE_CUDA)
+      // good value of mp_sat found experimentally on Lassen
+      constexpr int mp_sat = 8;
+#elif defined(MFEM_USE_HIP)
+      // good value of mp_sat found experimentally on Tuolumne
+      constexpr int mp_sat = 4;
+#else
+      num_mp = 1;
+      constexpr int mp_sat = 1;
+#endif
+      // determine how many items each thread should sum during the serial
+      // portion
+      int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
+      int items_per_thread =
+         (N + block_size * nblocks - 1) / (block_size * nblocks);
+
+      red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
+      // allocate res to fit block_size entries
+      auto mt = MemoryManager::instance().GetHostPinnedMemoryType();
+      Array<T> workspace(nblocks, mt, mt, true);
+      auto work = workspace.HostWrite();
+      red.work = work;
+      forall_2D(nblocks, block_size, 1, std::move(red));
+      // wait for results
+      MFEM_DEVICE_SYNC;
+      for (int i = 0; i < nblocks; ++i)
+      {
+         reducer.Join(res, work[i]);
+      }
+      return;
+   }
+#endif
+
+   for (int i = 0; i < N; ++i)
+   {
+      body(i, res);
+   }
+#else
+   static Array<T> workspace;
+   reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
+#endif
+
 }
 
 } // namespace mfem

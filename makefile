@@ -445,7 +445,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
+DIRS = general general/internal linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
@@ -814,7 +814,7 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp' '^general/internal/mem_op_debug\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
