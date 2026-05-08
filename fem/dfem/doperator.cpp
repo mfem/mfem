@@ -122,17 +122,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       // Prolong to L-space
       prolongation(infds, bx, infields_l);
 
-      // Get the direction field (the field corresponding to derivative_id)
-      Vector direction_l(GetVSize(infds[dfidx]));
-      prolongation(infds[dfidx], bx.GetBlock(dfidx), direction_l);
-
       // Restrict to element space
       restriction<Entity::Element>(infds, infields_l, infields_e);
 
       // Run all setup callbacks to populate the cache
       for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
       {
-         setup_callback(infields_e, direction_l);
+         setup_callback(infields_e);
       }
 
       return std::make_shared<DerivativeOperator>(
@@ -223,7 +219,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       // Run all setup callbacks to populate the cache
       for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
       {
-         setup_callback(infields_e, direction_l);
+         setup_callback(infields_e);
       }
 
       return std::make_shared<DerivativeOperator>(

@@ -396,9 +396,7 @@ struct DerivativeSetup
                                std::make_integer_sequence<int, nargs> {});
    }
 
-   void operator()(
-      const std::vector<Vector *> &xe,
-      const Vector &direction_l) const
+   void operator()(const std::vector<Vector *> &xe) const
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -406,8 +404,6 @@ struct DerivativeSetup
       using qf_param_ts = typename qf_signature::parameter_ts;
       static_assert(tuple_size<qf_param_ts>::value == ninputs + noutputs,
                     "qfunc parameter count must match inputs+outputs");
-
-      // Don't need direction_l for full Jacobian computation (unused)
 
       std::array<DeviceTensor<2>, nfields> wrapped_fields_e;
       for (size_t uf = 0; uf < nfields; uf++)

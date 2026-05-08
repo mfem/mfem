@@ -25,7 +25,7 @@ template<
 struct DerivativeAssemble
 {
    static constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
@@ -108,9 +108,9 @@ struct DerivativeAssemble
 
       // Get test and trial spaces
       test_fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx.unionfds[test_field_idx].data);
+                    &ctx.unionfds[test_field_idx].data);
       trial_fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx.unionfds[trial_field_idx].data);
+                     &ctx.unionfds[trial_field_idx].data);
 
       MFEM_ASSERT(test_fes != nullptr && *test_fes != nullptr,
                   "LocalQFBackend: test space is not a ParFiniteElementSpace");
@@ -144,16 +144,19 @@ struct DerivativeAssemble
          // Accumulate trial_op_dim for all dependent inputs
          if (input_is_dependent[i])
          {
-            total_trial_op_dim += get<i>(this->inputs).size_on_qp / get<i>(this->inputs).vdim;
+            total_trial_op_dim += get<i>(this->inputs).size_on_qp / get<i>
+                                  (this->inputs).vdim;
          }
       });
 
       MFEM_ASSERT(trial_vdim > 0, "LocalQFBackend: could not determine trial vdim");
-      MFEM_ASSERT(total_trial_op_dim > 0, "LocalQFBackend: no dependent inputs found");
+      MFEM_ASSERT(total_trial_op_dim > 0,
+                  "LocalQFBackend: no dependent inputs found");
 
       num_trial_dof = (*trial_fes)->GetFE(0)->GetDof();
       num_trial_dof_1d = (dimension > 0) ?
-                         static_cast<int>(std::floor(std::pow(num_trial_dof, 1.0 / dimension) + 0.5)) : 0;
+                         static_cast<int>(std::floor(std::pow(num_trial_dof,
+                                                              1.0 / dimension) + 0.5)) : 0;
 
       // Setup DofToQuad maps
       dtqs.reserve(ctx.unionfds.size());
@@ -203,7 +206,8 @@ struct DerivativeAssemble
       {
          if (input_is_dependent[i])
          {
-            inputs_trial_op_dim[i] = get<i>(this->inputs).size_on_qp / get<i>(this->inputs).vdim;
+            inputs_trial_op_dim[i] = get<i>(this->inputs).size_on_qp / get<i>
+                                     (this->inputs).vdim;
          }
          else
          {
@@ -212,9 +216,7 @@ struct DerivativeAssemble
       });
    }
 
-   void operator()(
-      std::vector<Vector> &fields_e,
-      SparseMatrix *&A) const
+   void operator()(SparseMatrix *&A) const
    {
       if (ctx.attr.Size() == 0) { return; }
 
