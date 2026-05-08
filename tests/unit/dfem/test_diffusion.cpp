@@ -340,6 +340,40 @@ void diffusion(const char *filename, int p)
 
       MPI_Barrier(MPI_COMM_WORLD);
    }
+
+   SECTION("Assemble Diagonal")
+   {
+      DifferentiableOperator dop_mf(in, out, pmesh);
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         mf_apply_qf,
+         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+         tuple{Gradient<U>{}},
+         *ir, all_domain_attr, derivatives);
+
+      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+      Vector nodestv;
+      nodes->GetTrueDofs(nodestv);
+      MultiVector X{xtvec, nodestv};
+      auto dRdU = dop_mf.GetDerivative(U, X);
+
+      Vector dfem_diagonal(pfes.GetTrueVSize());
+      dRdU->AssembleDiagonal(dfem_diagonal);
+
+      Vector mfem_diagonal(pfes.GetTrueVSize());
+      blf_fa.AssembleDiagonal(mfem_diagonal);
+
+      dfem_diagonal -= mfem_diagonal;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = dfem_diagonal.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")

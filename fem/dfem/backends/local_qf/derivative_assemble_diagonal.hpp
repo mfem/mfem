@@ -36,6 +36,8 @@ struct DerivativeAssembleDiagonal
       const auto B = dtq.B;
       const auto G = dtq.G;
 
+      // This is the reverse mapping from the 1D index dof
+      // to the 2D (ix, iy) indices on the dofs.
       const int ix = dof % td1d;
       const int iy = dof / td1d;
 
@@ -68,6 +70,8 @@ struct DerivativeAssembleDiagonal
       const auto B = dtq.B;
       const auto G = dtq.G;
 
+      // This is the reverse mapping from the 1D index dof
+      // to the 3D (ix, iy, iz) indices on the dofs.
       const int ix = dof % td1d;
       const int iy = (dof / td1d) % td1d;
       const int iz = dof / (td1d * td1d);
@@ -217,9 +221,9 @@ struct DerivativeAssembleDiagonal
       for_constexpr<ninputs>([&](auto i)
       {
          inputs_trial_op_dim[i] = input_is_dependent[i]
-                                   ? get<i>(this->inputs).size_on_qp /
-                                   get<i>(this->inputs).vdim
-                                   : 0;
+                                  ? get<i>(this->inputs).size_on_qp /
+                                  get<i>(this->inputs).vdim
+                                  : 0;
       });
 
       if (!is_square) { return; }
@@ -231,8 +235,24 @@ struct DerivativeAssembleDiagonal
          dofmap_h = dm;
       }
 
-      Ye_mem.SetSize(num_test_dof * test_vdim * num_entities);
-      Ye_mem.UseDevice(true);
+      elem_vdofs.SetSize(num_test_dof * test_vdim * num_entities);
+      auto elem_vdofs_h = Reshape(elem_vdofs.HostWrite(),
+                                  num_test_dof * test_vdim, num_entities);
+      for (int e = 0; e < num_entities; e++)
+      {
+         Array<int> vdofs;
+         (*test_fes)->GetElementVDofs(e, vdofs);
+
+         for (int vd = 0; vd < test_vdim; vd++)
+         {
+            for (int i = 0; i < num_test_dof; i++)
+            {
+               const int native_i = (dofmap_h.Size() > 0) ? dofmap_h[i] : i;
+               elem_vdofs_h(i + vd * num_test_dof, e) =
+                  vdofs[native_i + vd * num_test_dof];
+            }
+         }
+      }
    }
 
    void operator()(
@@ -244,15 +264,10 @@ struct DerivativeAssembleDiagonal
 
       if (!(use_sum_factorization && (dimension == 2 || dimension == 3)))
       {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ABORT("DerivativeAssembleDiagonal optimized path is implemented "
-                    "for tensor-product 2D/3D elements only");
-#endif
+         MFEM_ABORT_KERNEL("DerivativeAssembleDiagonal optimized path is implemented "
+                           "for tensor-product 2D/3D elements only");
          return;
       }
-
-      // Phase 1: compute per-element local diagonal on device.
-      Ye_mem = 0.0;
 
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_attr = ctx.attr.Read();
@@ -262,7 +277,8 @@ struct DerivativeAssembleDiagonal
                              qp_cache.Read(), residual_size_on_qp, num_qp, num_entities);
 
       const int num_dofs_per_elem = num_test_dof * test_vdim;
-      auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, num_entities);
+      auto diag = diag_l.ReadWrite();
+      auto elem_vdofs_d = Reshape(elem_vdofs.Read(), num_dofs_per_elem, num_entities);
 
       const auto output_dtq_map_local = output_dtq_maps[0];
       const auto input_dtq_maps_local = input_dtq_maps;
@@ -283,121 +299,92 @@ struct DerivativeAssembleDiagonal
 
       using test_fop_t = std::decay_t<decltype(output_local)>;
 
-      mfem::forall(num_dofs_per_elem * num_entities,
-                   [=] MFEM_HOST_DEVICE (int idx) mutable
+      mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e) mutable
       {
-         const int e = idx / num_dofs_per_elem;
-         const int local = idx % num_dofs_per_elem;
-
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-         const int dof = local % num_test_dof_local;
-         const int vd  = local / num_test_dof_local;
 
          auto qpdc = Reshape(&cache_tensor(0, 0, e),
                              test_vdim_local, test_op_dim_local,
                              trial_vdim_local, total_trial_op_dim_local,
                              num_qp_local);
 
-         real_t val = 0.0;
-         for (int q = 0; q < num_qp_local; q++)
+         for (int vd = 0; vd < test_vdim_local; vd++)
          {
-            const int qx = q % q1d_local;
-            const int qy = (dimension_local == 2)
-                           ? q / q1d_local
-                           : (q / q1d_local) % q1d_local;
-            const int qz = q / (q1d_local * q1d_local);
-
-            for (int k = 0; k < test_op_dim_local; k++)
+            for (int dof = 0; dof < num_test_dof_local; dof++)
             {
-               real_t psi = 0.0;
-               if (dimension_local == 2)
+               real_t val = 0.0;
+               for (int q = 0; q < num_qp_local; q++)
                {
-                  psi = EvalFactor2D<test_fop_t>(output_dtq_map_local,
-                                                  dof, num_test_dof_1d_local,
-                                                  k, qx, qy);
-               }
-               else
-               {
-                  psi = EvalFactor3D<test_fop_t>(output_dtq_map_local,
-                                                  dof, num_test_dof_1d_local,
-                                                  k, qx, qy, qz);
-               }
+                  // This is the reverse mapping from the 1D index q
+                  // to the 3D (qx, qy, qz) indices on the quadrature points.
+                  const int qx = q % q1d_local;
+                  const int qy = (dimension_local == 2)
+                  ? q / q1d_local
+                  : (q / q1d_local) % q1d_local;
+                  const int qz = q / (q1d_local * q1d_local);
 
-               if (psi == 0.0) { continue; }
-
-               real_t trial_contraction = 0.0;
-               int m_offset = 0;
-               [[maybe_unused]] const auto &inputs_ref = inputs_local;
-               for_constexpr<ninputs>([&](auto s)
-               {
-                  using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
-
-                  const int trial_op_dim = itod[static_cast<int>(s)];
-                  if (trial_op_dim == 0) { return; }
-
-                  const auto &dtq = input_dtq_maps_local[s];
-                  for (int m = 0; m < trial_op_dim; m++)
+                  for (int k = 0; k < test_op_dim_local; k++)
                   {
-                     real_t phi = 0.0;
+                     real_t psi = 0.0;
                      if (dimension_local == 2)
                      {
-                        phi = EvalFactor2D<fop_t>(dtq, dof,
-                                                   num_trial_dof_1d_local,
-                                                   m, qx, qy);
+                        psi = EvalFactor2D<test_fop_t>(output_dtq_map_local,
+                                                       dof, num_test_dof_1d_local,
+                                                       k, qx, qy);
                      }
                      else
                      {
-                        phi = EvalFactor3D<fop_t>(dtq, dof,
-                                                   num_trial_dof_1d_local,
-                                                   m, qx, qy, qz);
+                        psi = EvalFactor3D<test_fop_t>(output_dtq_map_local,
+                                                       dof, num_test_dof_1d_local,
+                                                       k, qx, qy, qz);
                      }
 
-                     if (phi != 0.0)
+                     if (psi == 0.0) { continue; }
+
+                     real_t trial_contraction = 0.0;
+                     int m_offset = 0;
+                     [[maybe_unused]] const auto &inputs_ref = inputs_local;
+                     for_constexpr<ninputs>([&](auto s)
                      {
-                        trial_contraction += qpdc(vd, k, vd, m_offset + m, q) * phi;
-                     }
+                        using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
+
+                        const int trial_op_dim = itod[static_cast<int>(s)];
+                        if (trial_op_dim == 0) { return; }
+
+                        const auto &dtq = input_dtq_maps_local[s];
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           real_t phi = 0.0;
+                           if (dimension_local == 2)
+                           {
+                              phi = EvalFactor2D<fop_t>(dtq, dof,
+                                                        num_trial_dof_1d_local,
+                                                        m, qx, qy);
+                           }
+                           else
+                           {
+                              phi = EvalFactor3D<fop_t>(dtq, dof,
+                                                        num_trial_dof_1d_local,
+                                                        m, qx, qy, qz);
+                           }
+                           trial_contraction += qpdc(vd, k, vd, m_offset + m, q) * phi;
+                        }
+
+                        m_offset += trial_op_dim;
+                     });
+
+                     val += psi * trial_contraction;
                   }
+               }
 
-                  m_offset += trial_op_dim;
-               });
-
-               val += psi * trial_contraction;
-            }
-         }
-
-         Ye(local, e) = val;
-      });
-
-      // Phase 2: scatter element-local diagonal to global (host-side).
-      // GetElementVDofs is host-only; no atomic adds needed since the loop is sequential.
-      const auto Ye_host = Reshape(Ye_mem.HostRead(), num_dofs_per_elem, num_entities);
-      auto d_diag = diag_l.HostReadWrite();
-
-      const auto d_attr_h = ctx.attr.HostRead();
-      const auto d_elem_attr_h = ctx.elem_attr->HostRead();
-
-      for (int e = 0; e < num_entities; e++)
-      {
-         if (has_attr && !d_attr_h[d_elem_attr_h[e] - 1]) { continue; }
-
-         Array<int> vdofs;
-         (*test_fes)->GetElementVDofs(e, vdofs);
-
-         for (int vd = 0; vd < test_vdim; vd++)
-         {
-            for (int i = 0; i < num_test_dof; i++)
-            {
-               // i is the LEXICOGRAPHIC local DOF index (used in Ye and EvalFactor).
-               // Map to the native-ordered global DOF via dofmap_h.
-               const int native_i = (dofmap_h.Size() > 0) ? dofmap_h[i] : i;
-               const int gdof = vdofs[native_i + vd * num_test_dof];
+               const int local = dof + vd * num_test_dof_local;
+               const int gdof = elem_vdofs_d(local, e);
                const int abs_gdof = (gdof >= 0) ? gdof : (-1 - gdof);
-               const int sign = (gdof >= 0) ? 1 : -1;
-               d_diag[abs_gdof] += static_cast<real_t>(sign) * Ye_host(i + vd * num_test_dof, e);
+               const real_t sign = (gdof >= 0) ? 1.0 : -1.0;
+               AtomicAdd(diag[abs_gdof], sign * val);
             }
          }
-      }
+      });
    }
 
    IntegratorContext ctx;
@@ -442,7 +429,7 @@ struct DerivativeAssembleDiagonal
    std::array<int, ninputs> inputs_trial_op_dim {};
 
    Array<int> dofmap_h;
-   mutable Vector Ye_mem;
+   Array<int> elem_vdofs;
 
    int residual_size_on_qp = 0;
 };
