@@ -204,9 +204,12 @@ public:
       const std::array<std::size_t,tensor_rank()> &js) const
    {
       std::size_t static_offset = 0;
-      for (std::size_t d = 0; d < tensor_dims; d++)
+      if constexpr (tensor_dims > 0)
       {
-         static_offset += js[d]*strides[ndims+d];
+         for (std::size_t d = 0; d < tensor_dims; d++)
+         {
+            static_offset += js[d]*strides[ndims+d];
+         }
       }
       return static_offset;
    }

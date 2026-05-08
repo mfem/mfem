@@ -99,8 +99,14 @@ inline void set_layout_default(ndarray_t &a)
    constexpr std::size_t nd = ndarray_t::rank();
    constexpr std::size_t td = ndarray_t::tensor_rank();
    std::array<std::size_t, nd + td> perm{};
-   for (std::size_t i = 0; i < td; i++) { perm[i] = nd + i; }
-   for (std::size_t i = 0; i < nd; i++) { perm[td + i] = i; }
+   if constexpr (td > 0)
+   {
+      for (std::size_t i = 0; i < td; i++) { perm[i] = nd + i; }
+   }
+   if constexpr (nd > 0)
+   {
+      for (std::size_t i = 0; i < nd; i++) { perm[td + i] = i; }
+   }
    a.set_layout(perm);
 }
 

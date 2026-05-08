@@ -191,6 +191,7 @@ public:
 #endif // MFEM_ADD_SPECIALIZATIONS
    }
 
+   using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
       dbg();
