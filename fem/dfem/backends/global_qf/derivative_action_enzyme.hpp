@@ -2,9 +2,8 @@
 
 #include <utility>
 
-// #include "fem/quadinterpolator.hpp"
-#include "../../../integrator_ctx.hpp"
-#include "../../util_qf.hpp"
+#include "../../integrator_ctx.hpp"
+#include "../util.hpp"
 
 namespace mfem::future
 {

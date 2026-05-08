@@ -14,8 +14,8 @@
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/default/qf_local_prelude.hpp"
-#include "../fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
+#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../fem/dfem/backends/global_qf/prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -139,14 +139,14 @@ struct mass_diffusion_qdata_qf
       tensor_array<const real_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
       tensor_array<const real_t> &w,
-      tensor_array<real_t, DIM> &out,
+      tensor_array<real_t, DIM> &out1,
       size_t NQ) const
    {
       for (size_t q = 0; q < NQ; q++)
       {
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
-         out(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
+         out1(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
       }
    }
 };
@@ -167,7 +167,7 @@ struct massqflocal
    }
 };
 
-TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
+TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -296,10 +296,12 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
       qdata = 123.0;
       Vector yqdata(qdata.Size());
 
-      MultiVector X{xtvec, nodestvec, qdata, dpf};
-      MultiVector Z{ytvec, yqdata};
+      static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
       {
+         MultiVector X{xtvec, nodestvec, qdata, dpf};
+         MultiVector Z{ytvec, yqdata};
+
          ParBilinearForm blf(&fes);
          blf.AddDomainIntegrator(new MassIntegrator(ir));
          blf.AddDomainIntegrator(new DiffusionIntegrator(ir));
@@ -307,25 +309,22 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          blf.Assemble();
          blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
-      }
 
-      static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
-      const std::vector<FieldDescriptor> din
-      {
-         {U, &fes},
-         {COORDINATES, nodes->ParFESpace()},
-         {S, &qdata},
-         {L, &dps}
-      };
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+            {S, &qdata},
+            {L, &dps}
+         };
 
-      const std::vector<FieldDescriptor> dout
-      {
-         {V, &fes},
-         {S, &qdata}
-      };
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+            {S, &qdata}
+         };
 
-      {
-         DifferentiableOperator dop(din, dout, pmesh);
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
@@ -362,7 +361,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
-#if 0 // local w/ outputs
       {
          static constexpr int W = 0;
 
@@ -373,19 +371,19 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
 
-         const std::vector<FieldDescriptor> in
+         const std::vector<FieldDescriptor> in_fds
          {
             {U, &fes},
             {COORDINATES, nodes->ParFESpace()},
          };
 
-         const std::vector<FieldDescriptor> out
+         const std::vector<FieldDescriptor> out_fds
          {
             {V, &fes},
             {W, &fes},
          };
 
-         DifferentiableOperator dop(in, out, pmesh);
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          auto mass_qfunclocal = massqflocal{};
          dop.AddDomainIntegrator<LocalQFBackend>(
@@ -423,7 +421,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
 
          MPI_Barrier(MPI_COMM_WORLD);
       }
-#endif
    }
 }
 

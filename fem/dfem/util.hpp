@@ -113,7 +113,7 @@ template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
-      std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<arg_t>>>;
+      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
 }
@@ -136,7 +136,7 @@ make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 }
 
 template <typename... input_ts, std::size_t... Is>
-auto make_dependency_map_impl(std::tuple<input_ts...> inputs,
+auto make_dependency_map_impl(tuple<input_ts...> inputs,
                               std::index_sequence<Is...>)
 {
    constexpr std::size_t N = sizeof...(input_ts);
@@ -164,7 +164,7 @@ auto make_dependency_map_impl(std::tuple<input_ts...> inputs,
 // @returns an unordered_map where the keys are the field IDs and the values
 // are arrays of booleans indicating which inputs depend on each field ID.
 template <typename... input_ts>
-auto make_dependency_map(std::tuple<input_ts...> inputs)
+auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
@@ -433,8 +433,8 @@ void pretty_print_mpi(const mfem::Vector& v)
 
 
 template <typename ... Ts>
-constexpr auto decay_types(std::tuple<Ts...> const &)
--> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(tuple<Ts...> const &)
+-> tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -445,7 +445,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = std::tuple<input_ts...>;
+   using parameter_ts = tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -1929,12 +1929,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<size_t, std::tuple_size_v<field_operator_ts> >
+std::array<size_t, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
-   std::array<size_t, std::tuple_size_v<field_operator_ts>> map;
+   std::array<size_t, tuple_size<field_operator_ts>::value> map;
 
    auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
@@ -1978,7 +1978,7 @@ create_descriptors_to_fields_map(
       }
    };
 
-   for_constexpr<std::tuple_size_v<field_operator_ts>>([&](auto idx)
+   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
    {
       f(get<idx>(fops), map[idx]);
    });
@@ -2775,7 +2775,7 @@ int accumulate_sizes_on_qp(
 template <
    typename entity_t,
    typename field_operator_ts,
-   std::size_t N = std::tuple_size_v<field_operator_ts>,
+   std::size_t N = tuple_size<field_operator_ts>::value,
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,

@@ -13,7 +13,7 @@
 namespace mfem::future
 {
 
-namespace LocalQFDefaultImpl
+namespace LocalQFImpl
 {
 
 template<

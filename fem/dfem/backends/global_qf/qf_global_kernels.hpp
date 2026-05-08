@@ -23,7 +23,7 @@
 #include "linalg/tensor_arrays.hpp"
 #include "linalg/vector.hpp"
 
-namespace mfem::future::device
+namespace mfem::future::kernels
 {
 
 // FieldBasis /////////////////////////////////////////////////////////////////
@@ -371,19 +371,19 @@ std::array<FieldBasis, nfops> get_bases(fops_t &fops,
          QuadratureInterpolator::VALUES;
       if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = device::GetFieldBasis(fd, ir, dummy_mode);
+         bases[i] = kernels::GetFieldBasis(fd, ir, dummy_mode);
       }
       else if constexpr (is_weight_fop<fop_t>::value)
       {
-         bases[i] = device::FieldBasisFromWeight(ir);
+         bases[i] = kernels::FieldBasisFromWeight(ir);
       }
       else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = device::GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
+         bases[i] = kernels::GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
       }
       else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         bases[i] = device::GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = kernels::GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
       else { static_assert(false, "internal error"); }
    });
@@ -672,14 +672,13 @@ public:
    }
 };
 
-} // namespace mfem::future::device
+} // namespace mfem::future::kernels
 
 namespace mfem::future
 {
 
-struct GlobalQFDevicesBackend
+struct GlobalQFKernelsBackend
 {
-   constexpr static bool is_poly = true;
    constexpr static bool is_local = false;
    constexpr static bool is_default = false;
 
@@ -690,7 +689,7 @@ struct GlobalQFDevicesBackend
                           outputs_t outputs)
    {
       NVTX_MARK_FUNCTION;
-      return device::Action(ctx, qfunc, inputs, outputs);
+      return kernels::Action(ctx, qfunc, inputs, outputs);
    }
 };
 

@@ -717,10 +717,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 {
    NVTX_MARK_FUNCTION;
 
-   constexpr bool POLY_QF = backend_t::is_poly, MONO_QF = !POLY_QF;
    constexpr bool LOCAL_QF = backend_t::is_local, GLOBAL_QF = !LOCAL_QF;
-   constexpr bool DEFAULT_QF = backend_t::is_default, DEVICE_QF = !DEFAULT_QF;
-   dbg("{} ", POLY_QF ? "POLY_QF" : "MONO_QF");
    dbg("{} ", LOCAL_QF ? "LOCAL_QF" : "GLOBAL_QF");
    dbg("{} ", DEFAULT_QF ? "DEFAULT_QF" : "DEVICE_QF");
 
@@ -740,7 +737,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
+   if constexpr (GLOBAL_QF || LOCAL_QF)
    {
       constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
       dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
@@ -751,27 +748,6 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "quadrature function must return void");
    }
 
-   // there is only one mono devices QF for now
-   if constexpr (MONO_QF && DEVICE_QF)
-   {
-      if constexpr (num_outputs > 1)
-      {
-         static_assert(dfem::always_false<qfunc_t>,
-                       "more than one output per quadrature functions is not supported right now");
-      }
-      if constexpr (std::is_same_v<qf_output_t, void>)
-      {
-         static_assert(dfem::always_false<qfunc_t>,
-                       "quadrature function has no return value");
-      }
-      constexpr size_t num_qfinputs = std::tuple_size_v<qf_param_ts>;
-      static_assert(num_qfinputs == num_inputs,
-                    "quadrature function inputs and descriptor inputs have to match");
-      constexpr size_t num_qf_outputs = std::tuple_size_v<qf_output_t>;
-      static_assert(num_qf_outputs == num_outputs,
-                    "quadrature function outputs and descriptor outputs have to match");
-   }
-
    const auto inout_tuple = std::tuple_cat(inputs, outputs);
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
@@ -779,31 +755,18 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       count_unique_field_ids(filtered_inout_tuple);
    dbg("num_fields: {}", num_fields);
 
-   if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
+   if constexpr (GLOBAL_QF || LOCAL_QF)
    {
       MFEM_VERIFY(num_fields == unionfds.size(),
                   "Total number of fields in the Q-function doesn't match "
                   "the union of FieldDescriptors.");
-   }
-   else
-   {
-      dbg("Checking num_fields");
-      // constexpr auto inout_tuple =
-      // merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
-      // constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-      // static constexpr size_t num_fields =
-      // count_unique_field_ids(filtered_inout_tuple);
-      MFEM_ASSERT(num_fields == local_solutions.size() + local_parameters.size(),
-                  "Total number of fields doesn't match sum of solutions and parameters."
-                  " This indicates that some fields are not used in the integrator,"
-                  " which currently is not supported.");
    }
 
    dbg("Making dependency map");
    auto dependency_map = make_dependency_map(inputs);
    // pretty_print(dependency_map);
 
-   constexpr bool USE_GLOBALS = (GLOBAL_QF || (LOCAL_QF && POLY_QF));
+   constexpr bool USE_GLOBALS = (GLOBAL_QF || LOCAL_QF);
    const auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(USE_GLOBALS
                                                  ? infds
@@ -931,149 +894,6 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "but MFEM_USE_ENZYME is not defined.");
 #endif
       }, derivative_ids);
-   }
-   ////////////////////////////////////////////////////////
-   else if constexpr (LOCAL_QF && DEVICE_QF)
-   {
-      dbg("LOCAL && DEVICE backend");
-      static_assert(MONO_QF, "Only mono QF is supported for local device backend");
-      ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
-      DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
-      if (use_sum_factorization)
-      {
-         element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-         doftoquad_mode = DofToQuad::Mode::TENSOR;
-      }
-
-      auto [output_rt,
-            output_e_sz] = get_restriction_transpose<entity_t>
-                           (local_fields[test_space_field_idx],
-                            element_dof_ordering, output_fop);
-      auto &output_e_size = output_e_sz;
-      dbg("output_e_size: {}", output_e_size);
-
-      output_restriction_transpose = output_rt;
-      local_residual_e.SetSize(output_e_size);
-
-      // The explicit captures are necessary to avoid dependency on
-      // the specific instance of this class (this pointer).
-      local_restriction_callback =
-         [=,
-          solutions = this->local_solutions,
-          parameters = this->local_parameters]
-         (std::vector<Vector> &sol,
-          const std::vector<Vector> &par,
-          std::vector<Vector> &f)
-      {
-         restriction<entity_t>(solutions, sol, f,
-                               element_dof_ordering);
-         restriction<entity_t>(parameters, par, f,
-                               element_dof_ordering,
-                               solutions.size());
-      };
-
-      int dimension;
-      if constexpr (std::is_same_v<entity_t, Entity::Element>)
-      {
-         dimension = mesh.Dimension();
-      }
-      else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-      {
-         dimension = mesh.Dimension() - 1;
-      }
-
-      const int num_qp = integration_rule.GetNPoints();
-
-      // width/height of the local operator
-      if constexpr (is_sum_fop<decltype(output_fop)>::value)
-      {
-         local_residual_l.SetSize(1);
-         height = 1;
-      }
-      else
-      {
-         const int residual_lsize = GetVSize(local_fields[test_space_field_idx]);
-         local_residual_l.SetSize(residual_lsize);
-         height = GetTrueVSize(local_fields[test_space_field_idx]);
-      }
-      // TODO: Is this a hack?
-      width = GetTrueVSize(local_fields[0]);
-      dbg("width:{} height:{}", width, height);
-
-      // create DofToQuad maps
-      std::vector<const DofToQuad*> dtq;
-      for (const auto &field : local_fields)
-      {
-         dbg("DTQ GetDofToQuad ");
-         dtq.emplace_back(GetDofToQuad<entity_t>(
-                             field,
-                             integration_rule,
-                             doftoquad_mode));
-      }
-      const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-      dbg("q1d:{}", q1d);
-      auto input_dtq_maps =
-         create_dtq_maps<Entity::Element>(inputs, dtq, input_to_field,
-                                          local_fields, integration_rule);
-      const auto d1d = input_dtq_maps[0].B.GetShape()[2];
-      // dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
-
-      const auto input_size_on_qp =
-         get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
-
-      ThreadBlocks thread_blocks;
-      if (dimension == 3)
-      {
-         if (use_sum_factorization)
-         {
-            thread_blocks.x = q1d;
-            thread_blocks.y = q1d;
-            thread_blocks.z = q1d;
-         }
-      }
-      else if (dimension == 2)
-      {
-         if (use_sum_factorization)
-         {
-            thread_blocks.x = q1d;
-            thread_blocks.y = q1d;
-            thread_blocks.z = 1;
-         }
-      }
-      else if (dimension == 1)
-      {
-         thread_blocks.x = q1d;
-         thread_blocks.y = 1;
-         thread_blocks.z = 1;
-      }
-
-      db1("Use NEW kernels");
-      dbg("ThreadBlocks: x:{} y:{} z:{}",
-          thread_blocks.x, thread_blocks.y, thread_blocks.z);
-
-      assert(use_kernel_specializations);
-      IntegratorContext global_ctx
-      {
-         mesh, elem_attributes, attributes, num_entities,
-         infds, outfds, unionfds, integration_rule,
-         in_qlayouts, out_qlayouts, use_kernel_specializations
-      };
-      IntegratorContextLocal local_ctx
-      {
-         d1d, q1d,
-         &attributes,
-         input_dtq_maps[0],
-         thread_blocks,
-         elem_attributes,
-         // ptrs
-         &this->local_restriction_callback,
-         &this->local_fields_e,
-         &this->local_residual_e,
-         &this->output_restriction_transpose
-      };
-
-      local_action_callbacks.push_back(
-         backend_t::MakeAction(global_ctx, local_ctx, qfunc, inputs, outputs));
    }
    else
    {

@@ -2,14 +2,13 @@
 
 #include "fem/dfem/integrator_ctx.hpp"
 
-#include "qf_local_devices_poly_action.hpp"
+#include "qf_local_kernels_action.hpp"
 
 namespace mfem::future
 {
 
-struct LocalQFDevicesPolyBackend
+struct LocalQFKernelsBackend
 {
-   constexpr static bool is_poly = true;
    constexpr static bool is_local = true;
    constexpr static bool is_default = false;
 
@@ -35,7 +34,7 @@ struct LocalQFDevicesPolyBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFDevicesPolyImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQFKernelsImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    /**

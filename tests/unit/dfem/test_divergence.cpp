@@ -67,6 +67,7 @@ void vectordivergence(const char *filename, int p)
    mblf_fa.Assemble(), mblf_fa.Finalize();
    mblf_fa.Mult(xv, ys);
 
+#ifdef MFEM_USE_ENZYME
    {
       static constexpr int P = 0, V = 1, Coords = 2;
       ParFiniteElementSpace *mfes = nodes->ParFESpace();
@@ -175,6 +176,7 @@ void vectordivergence(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
+#endif // MFEM_USE_ENZYME
 }
 
 TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM]")

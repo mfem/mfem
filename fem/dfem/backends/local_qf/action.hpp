@@ -13,12 +13,12 @@
 #include <cmath>
 #include <utility>
 
-#include "../../util_qf.hpp"
+#include "../util.hpp"
 
-#include "../../../integrator_ctx.hpp"
-#include "../../../integrate.hpp"
-#include "../../../interpolate.hpp"
-#include "../../../qfunction_transform.hpp"
+#include "../../integrator_ctx.hpp"
+#include "../../integrate.hpp"
+#include "../../interpolate.hpp"
+#include "../../qfunction_transform.hpp"
 
 namespace mfem::future
 {

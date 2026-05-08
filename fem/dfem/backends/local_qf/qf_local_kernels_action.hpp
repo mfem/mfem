@@ -15,8 +15,8 @@
 #include <cstddef>
 #include <utility>
 
-#include "fem/dfem/integrator_ctx.hpp"
-#include "../qf_local_devices.hpp" // for as_tensor
+#include "../../integrator_ctx.hpp"
+#include "../util.hpp" // for as_tensor
 
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
@@ -35,7 +35,7 @@ template<size_t N, typename T>
 using reg_array_t = std::conditional_t<N == 0, Unused<T>, std::array<T, N>>;
 
 ///////////////////////////////////////////////////////////////////////////////
-namespace LocalQFDevicesPolyImpl
+namespace LocalQFKernelsImpl
 {
 
 template<
@@ -589,8 +589,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
+LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
 (/* instantiated with Q1D */) { return action_callback<Q1D>; }
 
 template<typename qfunc_t,
@@ -598,8 +598,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFDevicesPolyImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
+LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS

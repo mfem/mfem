@@ -94,7 +94,8 @@ void diffusion(const char *filename, int p)
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p;
+   // const int NE = pfes.GetNE(), d1d(p + 1)
+   const int q = 2 * p;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
@@ -110,17 +111,17 @@ void diffusion(const char *filename, int p)
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   static constexpr int U = 0, Coords = 1, Rho = 2;
-   const auto in = std::vector
+   static constexpr int U = 0, Coords = 1;//, Rho = 2;
+   const auto in_fds = std::vector
    {
       FieldDescriptor{ U, &pfes },
       FieldDescriptor{ Coords, mfes }
    };
-   const auto out = std::vector{ FieldDescriptor{ U, &pfes } };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
    SECTION("action")
    {
-      DifferentiableOperator dop_mf(in, out, pmesh);
+      DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       dop_mf.AddDomainIntegrator<LocalQFBackend>(
          mf_apply_qf,
@@ -216,7 +217,7 @@ void diffusion(const char *filename, int p)
 
    SECTION("action linearized")
    {
-      DifferentiableOperator dop_mf(in, out, pmesh);
+      DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator<LocalQFBackend>(
@@ -317,7 +318,7 @@ void diffusion(const char *filename, int p)
 
    SECTION("SparseMatrix")
    {
-      DifferentiableOperator dop_mf(in, out, pmesh);
+      DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator<LocalQFBackend>(

@@ -1,21 +1,19 @@
 #pragma once
 
-#include "../../../integrator_ctx.hpp"
-#include "qf_local_action.hpp"
-#include "../derivative_action.hpp"
-#include "../derivative_setup.hpp"
-#include "../derivative_apply.hpp"
-#include "../derivative_assemble.hpp"
-#include "../derivative_apply_transpose.hpp"
+#include "../../integrator_ctx.hpp"
+#include "action.hpp"
+#include "derivative_action.hpp"
+#include "derivative_setup.hpp"
+#include "derivative_apply.hpp"
+#include "derivative_assemble.hpp"
+#include "derivative_apply_transpose.hpp"
 
 namespace mfem::future
 {
 
-struct LocalQFDefaultBackend
+struct LocalQFBackend
 {
    static constexpr bool has_cached_derivative = true;
-
-   constexpr static bool is_poly = true;
    constexpr static bool is_local = true;
    constexpr static bool is_default = true;
 
@@ -43,7 +41,7 @@ struct LocalQFDefaultBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFDefaultImpl::DerivativeAction<
+      return LocalQFImpl::DerivativeAction<
              derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
                                                           outputs);
    }

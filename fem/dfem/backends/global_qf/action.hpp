@@ -2,10 +2,8 @@
 
 #include <utility>
 
-#include "../../util_qf.hpp"
-#include "../../../integrator_ctx.hpp"
-
-// #include NVTX_DBG_FMT
+#include "../util.hpp"
+#include "../../integrator_ctx.hpp"
 
 namespace mfem::future
 {
