@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../integrator_ctx.hpp"
+#include "../../../kernel_dispatch.hpp"
 
 #include <array>
 
@@ -25,67 +26,20 @@ struct DerivativeAssembleDiagonal
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
    template <typename fop_t>
-   MFEM_HOST_DEVICE static inline real_t EvalFactor2D(
+   MFEM_HOST_DEVICE static inline real_t EvalFactor1D(
       const DofToQuadMap &dtq,
-      const int dof,
-      const int td1d,
       const int k,
-      const int qx,
-      const int qy)
+      const int axis,
+      const int q,
+      const int d)
    {
-      const auto B = dtq.B;
-      const auto G = dtq.G;
-
-      // This is the reverse mapping from the 1D index dof
-      // to the 2D (ix, iy) indices on the dofs.
-      const int ix = dof % td1d;
-      const int iy = dof / td1d;
-
       if constexpr (is_value_fop<fop_t>::value)
       {
-         return (k == 0) ? B(qx, 0, ix) * B(qy, 0, iy) : 0.0;
+         return (k == 0) ? dtq.B(q, 0, d) : 0.0;
       }
       else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         if (k == 0) { return G(qx, 0, ix) * B(qy, 0, iy); }
-         if (k == 1) { return B(qx, 0, ix) * G(qy, 0, iy); }
-         return 0.0;
-      }
-      else
-      {
-         return 0.0;
-      }
-   }
-
-   template <typename fop_t>
-   MFEM_HOST_DEVICE static inline real_t EvalFactor3D(
-      const DofToQuadMap &dtq,
-      const int dof,
-      const int td1d,
-      const int k,
-      const int qx,
-      const int qy,
-      const int qz)
-   {
-      const auto B = dtq.B;
-      const auto G = dtq.G;
-
-      // This is the reverse mapping from the 1D index dof
-      // to the 3D (ix, iy, iz) indices on the dofs.
-      const int ix = dof % td1d;
-      const int iy = (dof / td1d) % td1d;
-      const int iz = dof / (td1d * td1d);
-
-      if constexpr (is_value_fop<fop_t>::value)
-      {
-         return (k == 0) ? B(qx, 0, ix) * B(qy, 0, iy) * B(qz, 0, iz) : 0.0;
-      }
-      else if constexpr (is_gradient_fop<fop_t>::value)
-      {
-         if (k == 0) { return G(qx, 0, ix) * B(qy, 0, iy) * B(qz, 0, iz); }
-         if (k == 1) { return B(qx, 0, ix) * G(qy, 0, iy) * B(qz, 0, iz); }
-         if (k == 2) { return B(qx, 0, ix) * B(qy, 0, iy) * G(qz, 0, iz); }
-         return 0.0;
+         return (k == axis) ? dtq.G(q, 0, d) : dtq.B(q, 0, d);
       }
       else
       {
@@ -228,36 +182,11 @@ struct DerivativeAssembleDiagonal
 
       if (!is_square) { return; }
 
-      if (use_sum_factorization)
-      {
-         const auto &dm =
-            dynamic_cast<const TensorBasisElement &>(*(*test_fes)->GetFE(0)).GetDofMap();
-         dofmap_h = dm;
-      }
-
-      elem_vdofs.SetSize(num_test_dof * test_vdim * num_entities);
-      auto elem_vdofs_h = Reshape(elem_vdofs.HostWrite(),
-                                  num_test_dof * test_vdim, num_entities);
-      for (int e = 0; e < num_entities; e++)
-      {
-         Array<int> vdofs;
-         (*test_fes)->GetElementVDofs(e, vdofs);
-
-         for (int vd = 0; vd < test_vdim; vd++)
-         {
-            for (int i = 0; i < num_test_dof; i++)
-            {
-               const int native_i = (dofmap_h.Size() > 0) ? dofmap_h[i] : i;
-               elem_vdofs_h(i + vd * num_test_dof, e) =
-                  vdofs[native_i + vd * num_test_dof];
-            }
-         }
-      }
+      Ye_mem.SetSize(num_test_dof * test_vdim * num_entities);
+      Ye_mem.UseDevice(true);
    }
 
-   void operator()(
-      std::vector<Vector> &/*fields_e*/,
-      Vector &diag_l) const
+   void operator()(Vector &diag_e) const
    {
       if (!is_square) { return; }
       if (ctx.attr.Size() == 0) { return; }
@@ -268,6 +197,10 @@ struct DerivativeAssembleDiagonal
                            "for tensor-product 2D/3D elements only");
          return;
       }
+      MFEM_VERIFY(num_test_dof_1d == num_trial_dof_1d,
+                  "DerivativeAssembleDiagonal requires matching tensor dofs");
+      MFEM_VERIFY(num_test_dof_1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+      MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_attr = ctx.attr.Read();
@@ -277,8 +210,7 @@ struct DerivativeAssembleDiagonal
                              qp_cache.Read(), residual_size_on_qp, num_qp, num_entities);
 
       const int num_dofs_per_elem = num_test_dof * test_vdim;
-      auto diag = diag_l.ReadWrite();
-      auto elem_vdofs_d = Reshape(elem_vdofs.Read(), num_dofs_per_elem, num_entities);
+      auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, num_entities);
 
       const auto output_dtq_map_local = output_dtq_maps[0];
       const auto input_dtq_maps_local = input_dtq_maps;
@@ -301,6 +233,8 @@ struct DerivativeAssembleDiagonal
 
       mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e) mutable
       {
+         constexpr int MD1 = DofQuadLimits::MAX_D1D;
+         constexpr int MQ1 = DofQuadLimits::MAX_Q1D;
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          auto qpdc = Reshape(&cache_tensor(0, 0, e),
@@ -308,83 +242,178 @@ struct DerivativeAssembleDiagonal
                              trial_vdim_local, total_trial_op_dim_local,
                              num_qp_local);
 
-         for (int vd = 0; vd < test_vdim_local; vd++)
+         if (dimension_local == 2)
          {
-            for (int dof = 0; dof < num_test_dof_local; dof++)
+            real_t QD[MQ1][MD1];
+            for (int vd = 0; vd < test_vdim_local; vd++)
             {
-               real_t val = 0.0;
-               for (int q = 0; q < num_qp_local; q++)
+               auto Y = Reshape(&Ye(vd * num_test_dof_local, e),
+                                num_test_dof_1d_local, num_test_dof_1d_local);
+               for (int dy = 0; dy < num_test_dof_1d_local; dy++)
                {
-                  // This is the reverse mapping from the 1D index q
-                  // to the 3D (qx, qy, qz) indices on the quadrature points.
-                  const int qx = q % q1d_local;
-                  const int qy = (dimension_local == 2)
-                  ? q / q1d_local
-                  : (q / q1d_local) % q1d_local;
-                  const int qz = q / (q1d_local * q1d_local);
-
-                  for (int k = 0; k < test_op_dim_local; k++)
+                  for (int dx = 0; dx < num_test_dof_1d_local; dx++)
                   {
-                     real_t psi = 0.0;
-                     if (dimension_local == 2)
-                     {
-                        psi = EvalFactor2D<test_fop_t>(output_dtq_map_local,
-                                                       dof, num_test_dof_1d_local,
-                                                       k, qx, qy);
-                     }
-                     else
-                     {
-                        psi = EvalFactor3D<test_fop_t>(output_dtq_map_local,
-                                                       dof, num_test_dof_1d_local,
-                                                       k, qx, qy, qz);
-                     }
-
-                     if (psi == 0.0) { continue; }
-
-                     real_t trial_contraction = 0.0;
-                     int m_offset = 0;
-                     [[maybe_unused]] const auto &inputs_ref = inputs_local;
-                     for_constexpr<ninputs>([&](auto s)
-                     {
-                        using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
-
-                        const int trial_op_dim = itod[static_cast<int>(s)];
-                        if (trial_op_dim == 0) { return; }
-
-                        const auto &dtq = input_dtq_maps_local[s];
-                        for (int m = 0; m < trial_op_dim; m++)
-                        {
-                           real_t phi = 0.0;
-                           if (dimension_local == 2)
-                           {
-                              phi = EvalFactor2D<fop_t>(dtq, dof,
-                                                        num_trial_dof_1d_local,
-                                                        m, qx, qy);
-                           }
-                           else
-                           {
-                              phi = EvalFactor3D<fop_t>(dtq, dof,
-                                                        num_trial_dof_1d_local,
-                                                        m, qx, qy, qz);
-                           }
-                           trial_contraction += qpdc(vd, k, vd, m_offset + m, q) * phi;
-                        }
-
-                        m_offset += trial_op_dim;
-                     });
-
-                     val += psi * trial_contraction;
+                     Y(dx,dy) = 0.0;
                   }
                }
+               for (int k = 0; k < test_op_dim_local; k++)
+               {
+                  int m_offset = 0;
+                  [[maybe_unused]] const auto &inputs_ref = inputs_local;
+                  for_constexpr<ninputs>([&](auto s)
+                  {
+                     using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
+                     const int trial_op_dim = itod[static_cast<int>(s)];
+                     if (trial_op_dim == 0) { return; }
 
-               const int local = dof + vd * num_test_dof_local;
-               const int gdof = elem_vdofs_d(local, e);
-               const int abs_gdof = (gdof >= 0) ? gdof : (-1 - gdof);
-               const real_t sign = (gdof >= 0) ? 1.0 : -1.0;
-               AtomicAdd(diag[abs_gdof], sign * val);
+                     for (int m = 0; m < trial_op_dim; m++)
+                     {
+                        for (int qx = 0; qx < q1d_local; qx++)
+                        {
+                           for (int dy = 0; dy < num_test_dof_1d_local; dy++)
+                           {
+                              QD[qx][dy] = 0.0;
+                              for (int qy = 0; qy < q1d_local; qy++)
+                              {
+                                 const int q = qx + qy * q1d_local;
+                                 const real_t Ly =
+                                    EvalFactor1D<test_fop_t>(output_dtq_map_local,
+                                                             k, 1, qy, dy);
+                                 const real_t Ry =
+                                    EvalFactor1D<fop_t>(input_dtq_maps_local[s],
+                                                        m, 1, qy, dy);
+                                 QD[qx][dy] += Ly * Ry *
+                                               qpdc(vd, k, vd, m_offset + m, q);
+                              }
+                           }
+                        }
+                        for (int dy = 0; dy < num_test_dof_1d_local; dy++)
+                        {
+                           for (int dx = 0; dx < num_test_dof_1d_local; dx++)
+                           {
+                              real_t accum = 0.0;
+                              for (int qx = 0; qx < q1d_local; qx++)
+                              {
+                                 const real_t Lx =
+                                    EvalFactor1D<test_fop_t>(output_dtq_map_local,
+                                                             k, 0, qx, dx);
+                                 const real_t Rx =
+                                    EvalFactor1D<fop_t>(input_dtq_maps_local[s],
+                                                        m, 0, qx, dx);
+                                 accum += Lx * Rx * QD[qx][dy];
+                              }
+                              Y(dx,dy) += accum;
+                           }
+                        }
+                     }
+                     m_offset += trial_op_dim;
+                  });
+               }
+            }
+         }
+         else
+         {
+            real_t QQD[MQ1][MQ1][MD1];
+            real_t QDD[MQ1][MD1][MD1];
+            for (int vd = 0; vd < test_vdim_local; vd++)
+            {
+               auto Y = Reshape(&Ye(vd * num_test_dof_local, e),
+                                num_test_dof_1d_local, num_test_dof_1d_local,
+                                num_test_dof_1d_local);
+               for (int dz = 0; dz < num_test_dof_1d_local; dz++)
+               {
+                  for (int dy = 0; dy < num_test_dof_1d_local; dy++)
+                  {
+                     for (int dx = 0; dx < num_test_dof_1d_local; dx++)
+                     {
+                        Y(dx,dy,dz) = 0.0;
+                     }
+                  }
+               }
+               for (int k = 0; k < test_op_dim_local; k++)
+               {
+                  int m_offset = 0;
+                  [[maybe_unused]] const auto &inputs_ref = inputs_local;
+                  for_constexpr<ninputs>([&](auto s)
+                  {
+                     using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
+                     const int trial_op_dim = itod[static_cast<int>(s)];
+                     if (trial_op_dim == 0) { return; }
+
+                     for (int m = 0; m < trial_op_dim; m++)
+                     {
+                        for (int qx = 0; qx < q1d_local; qx++)
+                        {
+                           for (int qy = 0; qy < q1d_local; qy++)
+                           {
+                              for (int dz = 0; dz < num_test_dof_1d_local; dz++)
+                              {
+                                 QQD[qx][qy][dz] = 0.0;
+                                 for (int qz = 0; qz < q1d_local; qz++)
+                                 {
+                                    const int q = qx + (qy + qz * q1d_local) * q1d_local;
+                                    const real_t Lz =
+                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
+                                                                k, 2, qz, dz);
+                                    const real_t Rz =
+                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
+                                                           m, 2, qz, dz);
+                                    QQD[qx][qy][dz] += Lz * Rz *
+                                                       qpdc(vd, k, vd, m_offset + m, q);
+                                 }
+                              }
+                           }
+                        }
+                        for (int qx = 0; qx < q1d_local; qx++)
+                        {
+                           for (int dz = 0; dz < num_test_dof_1d_local; dz++)
+                           {
+                              for (int dy = 0; dy < num_test_dof_1d_local; dy++)
+                              {
+                                 QDD[qx][dy][dz] = 0.0;
+                                 for (int qy = 0; qy < q1d_local; qy++)
+                                 {
+                                    const real_t Ly =
+                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
+                                                                k, 1, qy, dy);
+                                    const real_t Ry =
+                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
+                                                           m, 1, qy, dy);
+                                    QDD[qx][dy][dz] += Ly * Ry * QQD[qx][qy][dz];
+                                 }
+                              }
+                           }
+                        }
+                        for (int dz = 0; dz < num_test_dof_1d_local; dz++)
+                        {
+                           for (int dy = 0; dy < num_test_dof_1d_local; dy++)
+                           {
+                              for (int dx = 0; dx < num_test_dof_1d_local; dx++)
+                              {
+                                 real_t accum = 0.0;
+                                 for (int qx = 0; qx < q1d_local; qx++)
+                                 {
+                                    const real_t Lx =
+                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
+                                                                k, 0, qx, dx);
+                                    const real_t Rx =
+                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
+                                                           m, 0, qx, dx);
+                                    accum += Lx * Rx * QDD[qx][dy][dz];
+                                 }
+                                 Y(dx,dy,dz) += accum;
+                              }
+                           }
+                        }
+                     }
+                     m_offset += trial_op_dim;
+                  });
+               }
             }
          }
       });
+
+      diag_e += Ye_mem;
    }
 
    IntegratorContext ctx;
@@ -428,8 +457,7 @@ struct DerivativeAssembleDiagonal
    std::array<bool, ninputs> input_is_dependent;
    std::array<int, ninputs> inputs_trial_op_dim {};
 
-   Array<int> dofmap_h;
-   Array<int> elem_vdofs;
+   mutable Vector Ye_mem;
 
    int residual_size_on_qp = 0;
 };

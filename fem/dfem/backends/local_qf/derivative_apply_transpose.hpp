@@ -14,10 +14,6 @@ namespace mfem::future
 namespace LocalQFImpl
 {
 
-// Applies J^T using the cached Jacobian from DerivativeSetup.
-// Inputs/outputs play swapped roles compared to DerivativeApply:
-//   direction_l : concatenated OUTPUT L-space direction (test space)
-//   ye          : element-space result in INPUT space (trial/derivative field)
 template<
    int derivative_id,
    typename qfunc_t,
@@ -154,10 +150,10 @@ struct DerivativeApplyTranspose
       //   [dir_at_qp region] [result_at_qp region] [scratch]
       const int output_size_on_qp =
          std::accumulate(out_qp_size.begin(), out_qp_size.end(), 0);
-      dir_at_qp_offset    = 0;
+      dir_at_qp_offset = 0;
       result_at_qp_offset = output_size_on_qp * num_qp;
-      scratch_offset      = result_at_qp_offset
-                            + trial_vdim * total_trial_op_dim * num_qp;
+      scratch_offset =
+         result_at_qp_offset + trial_vdim * total_trial_op_dim * num_qp;
 
       // Conservative scratch: 6 * q1d^3 (matches get_shmem_info).
       const int scratch_per_buf = (q1d > 0) ? q1d * q1d * q1d : 1;
@@ -182,13 +178,11 @@ struct DerivativeApplyTranspose
                   "DerivativeApplyTranspose: derivative field not found in infds");
 
       // Number of DOFs per element for the derivative input field.
-      {
-         const auto &fd = ctx.infds[deriv_infd_idx];
-         auto R = get_restriction<Entity::Element>(fd, dof_ordering);
-         MFEM_ASSERT(R != nullptr,
-                     "LocalQFBackend: missing element restriction for deriv input");
-         deriv_in_elem_sz = num_entities ? (R->Height() / num_entities) : 0;
-      }
+      const auto &fd = ctx.infds[deriv_infd_idx];
+      auto R = get_restriction<Entity::Element>(fd, dof_ordering);
+      MFEM_ASSERT(R != nullptr,
+                  "LocalQFBackend: missing element restriction for deriv input");
+      deriv_in_elem_sz = num_entities ? (R->Height() / num_entities) : 0;
    }
 
    void operator()(
@@ -198,30 +192,26 @@ struct DerivativeApplyTranspose
    {
       if (ctx.attr.Size() == 0) { return; }
 
-      // --- Restrict OUTPUT direction from L-space to element space ---
-      // direction_l is the concatenation of L-space vectors for each outfd.
+      int l_offset = 0;
+      int e_offset = 0;
+      for_constexpr<noutputs>([&](auto o)
       {
-         int l_offset = 0;
-         int e_offset = 0;
-         for_constexpr<noutputs>([&](auto o)
-         {
-            const size_t outfd_idx = output_to_outfd[o];
-            const auto &fd = ctx.outfds[outfd_idx];
-            const int l_size = GetVSize(fd);
+         const size_t outfd_idx = output_to_outfd[o];
+         const auto &fd = ctx.outfds[outfd_idx];
+         const int l_size = GetVSize(fd);
 
-            Vector dir_o_l(const_cast<real_t *>(direction_l->GetData()) + l_offset,
-                           l_size);
+         Vector dir_o_l(const_cast<real_t *>(direction_l->GetData()) + l_offset,
+                        l_size);
 
-            // Temporary element-space slice for output o.
-            const int e_size = out_elem_dof_size[o] * num_entities;
-            Vector dir_o_e(dir_out_e.GetData() + e_offset, e_size);
+         // Temporary element-space slice for output o.
+         const int e_size = out_elem_dof_size[o] * num_entities;
+         Vector dir_o_e(dir_out_e.GetData() + e_offset, e_size);
 
-            restriction<Entity::Element>(fd, dir_o_l, dir_o_e, dof_ordering);
+         restriction<Entity::Element>(fd, dir_o_l, dir_o_e, dof_ordering);
 
-            l_offset += l_size;
-            e_offset += e_size;
-         });
-      }
+         l_offset += l_size;
+         e_offset += e_size;
+      });
 
       // Wrap output direction element data as [elem_dof, entity].
       // Offsets into dir_out_e for each output field.
@@ -307,8 +297,6 @@ struct DerivativeApplyTranspose
                                                 scratch_buf_size);
          }
 
-         // --- Step 1: Map OUTPUT direction element DOFs → QPs ---
-         // Concatenate per-output dir_at_qp slices.
          int qp_offset = 0;
          for_constexpr<noutputs>([&](auto o)
          {
@@ -344,9 +332,9 @@ struct DerivativeApplyTranspose
          });
          MFEM_SYNC_THREAD;
 
-         // --- Step 2: Contract J^T ---
-         // Forward: result(i,k,q) = sum_{j,m} J(i,k,j,m,q) * dir(j,m,q)
-         // Transpose: result(j,m,q) = sum_{i,k} J(i,k,j,m,q) * dir(i,k,q)
+         // contract J^T
+         // forward: result(i,k,q) = sum_{j,m} J(i,k,j,m,q) * dir(j,m,q)
+         // transpose: result(j,m,q) = sum_{i,k} J(i,k,j,m,q) * dir(i,k,q)
          MFEM_FOREACH_THREAD(q, x, num_qp_local)
          {
             for (int j = 0; j < trial_vdim_local; j++)
@@ -390,7 +378,6 @@ struct DerivativeApplyTranspose
          }
          MFEM_SYNC_THREAD;
 
-         // --- Step 3: Map result QPs → INPUT derivative element DOFs ---
          auto ye_deriv = DeviceTensor<2, real_t>(
                             ye_deriv_ptr, deriv_in_elem_sz_local, num_entities_local);
          auto result_dof = Reshape(&ye_deriv(0, e), deriv_in_elem_sz_local / trial_vdim_local,
@@ -416,26 +403,26 @@ struct DerivativeApplyTranspose
    }
 
    IntegratorContext ctx;
-   qfunc_t   qfunc;
-   inputs_t  inputs;
+   qfunc_t qfunc;
+   inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;
 
    std::array<size_t, noutputs> output_to_outfd;
-   std::array<size_t, ninputs>  input_to_field;
+   std::array<size_t, ninputs> input_to_field;
    std::array<size_t, noutputs> output_to_field;
 
-   int  dimension    = 0;
+   int  dimension = 0;
    int  num_entities = 0;
-   int  num_qp       = 0;
-   int  q1d          = 0;
+   int  num_qp = 0;
+   int  q1d = 0;
    bool use_sum_factorization = false;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    ThreadBlocks thread_blocks;
 
-   std::vector<const DofToQuad*>      dtqs;
-   std::array<DofToQuadMap, ninputs>  input_dtq_maps;
+   std::vector<const DofToQuad*> dtqs;
+   std::array<DofToQuadMap, ninputs> input_dtq_maps;
    std::array<DofToQuadMap, noutputs> output_dtq_maps;
 
    std::array<int, noutputs> out_qp_size;
@@ -447,17 +434,17 @@ struct DerivativeApplyTranspose
    std::vector<int> input_size_on_qp;
    std::array<bool, ninputs> input_is_dependent;
 
-   int    trial_vdim         = 1;
-   int    total_trial_op_dim = 0;
-   size_t deriv_input_idx    = SIZE_MAX;
-   size_t deriv_infd_idx     = SIZE_MAX;
-   int    deriv_in_elem_sz   = 0;
+   int trial_vdim = 1;
+   int total_trial_op_dim = 0;
+   size_t deriv_input_idx = SIZE_MAX;
+   size_t deriv_infd_idx = SIZE_MAX;
+   int deriv_in_elem_sz   = 0;
 
-   // Shared memory layout offsets (in reals).
-   int dir_at_qp_offset    = 0;
+   // Shared memory layout offsets (in real_t).
+   int dir_at_qp_offset = 0;
    int result_at_qp_offset = 0;
-   int scratch_offset      = 0;
-   int shmem_per_elem      = 0;
+   int scratch_offset = 0;
+   int shmem_per_elem = 0;
 
    mutable Vector shmem_cache;
    mutable Vector dir_out_e;

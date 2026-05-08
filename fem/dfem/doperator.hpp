@@ -30,7 +30,7 @@ using action_t =
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
-   std::function<void(const std::vector<Vector *> &, const Vector &)>;
+   std::function<void(const std::vector<Vector *> &)>;
 
 /// @brief Type alias for a function that computes the action of a derivative
 using derivative_action_t =
@@ -39,17 +39,16 @@ using derivative_action_t =
 /// @brief Type alias for a function that assembles the SparseMatrix of a
 /// derivative operator
 using assemble_derivative_sparsematrix_callback_t =
-   std::function<void(std::vector<Vector> &, SparseMatrix *&)>;
+   std::function<void(SparseMatrix *&)>;
 
 /// @brief Type alias for a function that assembles the HypreParMatrix of a
 /// derivative operator
 using assemble_derivative_hypreparmatrix_callback_t =
-   std::function<void(std::vector<Vector> &, HypreParMatrix *&)>;
+   std::function<void(HypreParMatrix *&)>;
 
 /// @brief Type alias for a function that assembles the diagonal of a derivative
-/// operator into an L-vector
-using assemble_diagonal_callback_t =
-   std::function<void(std::vector<Vector> &, Vector &)>;
+/// operator into an E-vector
+using assemble_diagonal_callback_t = std::function<void(Vector &)>;
 
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
@@ -251,7 +250,7 @@ public:
 
       for (const auto &f : assemble_derivative_sparsematrix_callbacks)
       {
-         f(fields_e, A);
+         f(A);
       }
    }
 
@@ -266,7 +265,7 @@ public:
 
       for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
-         f(fields_e, A);
+         f(A);
       }
    }
 
@@ -277,21 +276,24 @@ public:
    {
       MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
                   "derivative can't assemble diagonal");
+      MFEM_ASSERT(outfds.size() == 1,
+                  "AssembleDiagonal currently requires a single output field");
 
       const auto *test_pf =
          std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
       MFEM_ASSERT(test_pf && *test_pf,
                   "AssembleDiagonal: test field must be a ParFiniteElementSpace");
 
-      Vector diag_l((*test_pf)->GetVSize());
-      diag_l = 0.0;
+      prepare_residual<Entity::Element>(outfds, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
 
       for (const auto &f : assemble_diagonal_callbacks)
       {
-         f(fields_e, diag_l);
+         f(*daction_e[0]);
       }
 
-      (*test_pf)->GetProlongationMatrix()->MultTranspose(diag_l, diag);
+      restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
+      prolongation_transpose(outfds[0], *daction_l[0], diag);
    }
 
 private:
