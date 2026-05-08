@@ -35,10 +35,11 @@ int main(int argc, char *argv[])
    {
       LinearForm b(&scaler_fespace);
       real_t mu = 4.0 * M_PI * 1e-7;
+      real_t beta = mu;
       if (!mixed_bilinear_form)
       {
          cout << "Using linear form" << endl;
-         PRGridFunctionCoefficient scaled_p_r_coef(&p, mu);
+         PRGridFunctionCoefficient scaled_p_r_coef(&p, beta);
          b.AddDomainIntegrator(new DomainLFIntegrator(scaled_p_r_coef));
          b.Assemble();
       }
