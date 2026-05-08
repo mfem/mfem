@@ -384,7 +384,6 @@ public:
    void SetQLayouts(std::initializer_list<QLayoutEntry> in,
                     std::initializer_list<QLayoutEntry> out)
    {
-      NVTX_MARK_FUNCTION;
       if (action_callbacks.size() > 0)
       {
          MFEM_ABORT("trying to set the quadrature point layouts for an operator "
@@ -411,7 +410,6 @@ public:
    /// the MultLevel.
    void Mult(const Vector &x, Vector &y) const override;
 
-   // MultiVector
    template <typename x_t, typename y_t>
    void Mult(const x_t &x, y_t &y) const
    {
@@ -438,12 +436,10 @@ public:
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (auto *v : residual_e) { *v = 0.0; }
-
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          action_callbacks[i](infields_e, residual_e);
       }
-
       restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
       prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
@@ -715,40 +711,6 @@ void DifferentiableOperator::AddIntegrator(
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), outfds);
-
-   bool use_sum_factorization = false;
-   Element::Type entity_element_type;
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      entity_element_type =
-         Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
-
-      if ((entity_element_type == Element::QUADRILATERAL ||
-           entity_element_type == Element::HEXAHEDRON) &&
-          use_tensor_product_structure == true)
-      {
-         use_sum_factorization = true;
-      }
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      entity_element_type =
-         Element::TypeFromGeometry(mesh.GetTypicalFaceGeometry());
-
-      if ((entity_element_type == Element::SEGMENT ||
-           entity_element_type == Element::QUADRILATERAL) &&
-          use_tensor_product_structure == true)
-      {
-         use_sum_factorization = true;
-      }
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      MFEM_ABORT("BoundaryElement to be re-implemented!");
-   }
-   else { static_assert(false, "unsupported entity type"); }
-   dbg("use_sum_factorization: {}", use_sum_factorization);
-   (void) use_sum_factorization;
 
    const int num_entities = GetNumEntities<entity_t>(mesh);
 

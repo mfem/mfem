@@ -649,8 +649,7 @@ void create_qlayouts(const fops_t &fops,
    });
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1>` */
+// Zero-copy view of a contiguous block as a tensor<T, n1>
 template<typename T, int n1> inline
 MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)
 {
@@ -663,7 +662,7 @@ MFEM_HOST_DEVICE tensor<T, n1>& as_tensor(T* ptr)
    return *std::launder(reinterpret_cast<tensor<T, n1>*>(ptr));
 }
 
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2>` */
+// Zero-copy view of a contiguous block as a tensor<T, n1, n2>
 template<typename T, int n1, int n2> inline
 MFEM_HOST_DEVICE const tensor<T, n1, n2>& as_tensor(const T* ptr)
 {
@@ -676,7 +675,7 @@ MFEM_HOST_DEVICE tensor<T, n1, n2>& as_tensor(T* ptr)
    return *std::launder(reinterpret_cast<tensor<T, n1, n2>*>(ptr));
 }
 
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3>` */
+// Zero-copy view of a contiguous block as a tensor<T, n1, n2, n3>
 template<typename T, int n1, int n2, int n3> inline
 MFEM_HOST_DEVICE const tensor<T, n1, n2, n3>& as_tensor(const T* ptr)
 {
@@ -689,7 +688,7 @@ MFEM_HOST_DEVICE tensor<T, n1, n2, n3>& as_tensor(T* ptr)
    return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3>*>(ptr));
 }
 
-/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3, n4>` */
+// Zero-copy view of a contiguous block as a tensor<T, n1, n2, n3, n4>
 template<typename T, int n1, int n2, int n3, int n4> inline
 MFEM_HOST_DEVICE const tensor<T, n1, n2, n3, n4>& as_tensor(const T* ptr)
 {
