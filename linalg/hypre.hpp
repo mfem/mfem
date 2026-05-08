@@ -279,6 +279,16 @@ public:
                   int offset, HYPRE_BigInt *col);
    /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Creates a deep copy of @a y using the requested hypre precision.
+
+       When MFEM is built with `real_t == double` and hypre is configured with
+       `--enable-mixed-precision`, this constructor can be used both to create
+       a single-precision hypre vector from a double-precision HypreParVector
+       and to create a double-precision hypre vector from a single-precision
+       HypreParVector. */
+   HypreParVector(const HypreParVector &y, HYPRE_Precision precision);
+#endif
    /// Move constructor for HypreParVector. "Steals" data from its argument.
    HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
@@ -291,6 +301,11 @@ public:
    /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
    /// - meaning that it will be the same size and have the same partitioning.
    HypreParVector CreateCompatibleVector() const;
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Constructs a compatible HypreParVector using the requested hypre
+       runtime precision. */
+   HypreParVector CreateCompatibleVector(HYPRE_Precision precision) const;
+#endif
 
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
@@ -311,6 +326,48 @@ public:
 
    /// Returns the global number of rows
    inline HYPRE_BigInt GlobalSize() const { return x->global_size; }
+
+#ifdef HYPRE_MIXED_PRECISION
+   /// Return the precision currently used by the wrapped hypre vector data.
+   HYPRE_Precision GetHyprePrecision() const
+   { return hypre_ParVectorPrecision(x); }
+#endif
+
+   /** @brief Return an untyped pointer to the local hypre vector data.
+
+       In mixed-precision builds, the pointer should be interpreted according
+       to GetHyprePrecision(): HYPRE_REAL_SINGLE corresponds to hypre_float *
+       and HYPRE_REAL_DOUBLE corresponds to hypre_double *. */
+   void *GetHypreData();
+
+   /** @brief Return a const untyped pointer to the local hypre vector data.
+
+       In mixed-precision builds, the pointer should be interpreted according
+       to GetHyprePrecision(): HYPRE_REAL_SINGLE corresponds to const
+       hypre_float * and HYPRE_REAL_DOUBLE corresponds to const hypre_double *. */
+   const void *GetHypreData() const;
+
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Return the local hypre vector data as hypre_float *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_SINGLE. */
+   hypre_float *GetHypreFloatData();
+
+   /** @brief Return the local hypre vector data as const hypre_float *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_SINGLE. */
+   const hypre_float *GetHypreFloatData() const;
+
+   /** @brief Return the local hypre vector data as hypre_double *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_DOUBLE. */
+   hypre_double *GetHypreDoubleData();
+
+   /** @brief Return the local hypre vector data as const hypre_double *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_DOUBLE. */
+   const hypre_double *GetHypreDoubleData() const;
+#endif
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const { return x; }
@@ -602,6 +659,19 @@ public:
        structure and data from @a P. */
    HypreParMatrix(const HypreParMatrix &P);
 
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Mixed-precision copy constructor for a ParCSR matrix.
+
+       Creates a deep copy of @a P using the requested hypre precision. In
+       particular, when MFEM is built with `real_t == double`, calling
+       `HypreParMatrix(P, HYPRE_REAL_SINGLE)` creates a hypre_ParCSRMatrix whose
+       numerical data is stored by hypre as single precision (`hypre_float`).
+
+       The constructor requires hypre to be configured with
+       `--enable-mixed-precision`. */
+   HypreParMatrix(const HypreParMatrix &P, HYPRE_Precision precision);
+#endif
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 
@@ -616,6 +686,12 @@ public:
 #endif
    /// Changes the ownership of the matrix
    hypre_ParCSRMatrix* StealData();
+
+#ifdef HYPRE_MIXED_PRECISION
+   /// Return the precision currently used by the wrapped hypre matrix data.
+   HYPRE_Precision GetHyprePrecision() const
+   { return hypre_ParCSRMatrixPrecision(A); }
+#endif
 
    /// Explicitly set the three ownership flags, see docs for diagOwner etc.
    void SetOwnerFlags(signed char diag, signed char offd, signed char colmap);
