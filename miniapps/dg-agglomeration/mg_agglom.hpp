@@ -34,6 +34,13 @@ public:
    TruncatedMultigrid(const AgglomerationMultigrid &other);
 };
 
+class SmoothedAggregationGMG : public Multigrid
+{
+   public:
+   SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels);
+
+
+};
 } // namespace mfem
 
 #endif

@@ -10,10 +10,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// implement with gauss siedel
-// or implement with block jacobi with l1 scaling 
-
-
 
 #include "mg_agglom.hpp"
 #include "partition.hpp"
@@ -174,7 +170,8 @@ SparseMatrix *CreateNodalProlongation(
    const int n = E.size();
    const int p = fes.GetOrder(0);
    int d = (dim == 2) ? (p+1)*(p+2)/2 : (p+1)*(p+2)*(p+3)/6;
-   int nc = d*E[n-2].size();
+   int ncc = d*E[n-2].size();
+   int nc = ncc*vdim;
    int nr = nnodes;
    std::cout << "nodal prolongation rows: " << nr << std::endl;
    std::cout << "nodal prolongation columns: " << nc << std::endl;
@@ -210,7 +207,10 @@ SparseMatrix *CreateNodalProlongation(
          }
          for (int k = 0; k < d; k++)
          {
-            P -> Set(dof_idx, d*c + k, shape_vec(k));
+            for(int vd=0; vd < vdim; vd++)
+            {
+               P -> Set(fes.DofToVDof(dof_idx, vd), (ncc*vd) + d*c + k, shape_vec(k));
+            }
          }
       }
    }
@@ -222,13 +222,16 @@ SparseMatrix *CreateInclusionProlongation(
    int l, const std::vector<std::vector<int>> &E, const std::vector<std::vector<int>> &E2, FiniteElementSpace &fes)
 {
    Mesh &mesh = *fes.GetMesh();
+   int vdim = fes.GetVDim();
    int dim = mesh.Dimension();
    FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
    const int p = fes.GetOrder(0);
    int d = (dim == 2) ? (p+1)*(p+2)/2 : (p+1)*(p+2)*(p+3)/6;
    GridFunction nodes(&nodal_fes);
-   int nc = (l == 0) ? d : d*E[l-1].size();
-   int nr = d*E[l].size();
+   int ncc = (l == 0) ? d: d*E[l-1].size();
+   int nc = vdim*ncc;
+   int nrr = d*E[l].size();
+   int nr = vdim*nrr;
    std::cout << "inclusion prolongation rows: " << nr << std::endl;
    std::cout << "inclusion prolongation columns: " << nc << std::endl;
    SparseMatrix *P = new SparseMatrix(nr, nc);
@@ -259,7 +262,10 @@ SparseMatrix *CreateInclusionProlongation(
             rfe.CalcShape(ip2, shape_vec);
             for (int k = 0; k < d; k++)
             {
-               P -> Set(d*e + i, d*c + k, shape_vec(k));
+               for (int vd = 0; vd < vdim; vd++)
+               {
+                  P -> Set((nrr*vd) + d*e + i, (ncc*vd) + d*c + k, shape_vec(k));
+               }
             } 
          }
       }
@@ -284,7 +290,10 @@ SparseMatrix *CreateInclusionProlongation(
             rfe.CalcShape(ip2, shape_vec);
             for (int k = 0; k < d; k++)
             {
-               P -> Set(d*e + i, d*c + k, shape_vec(k));
+               for (int vd = 0; vd < vdim; vd++)
+               {
+                  P -> Set((nrr*vd) + d*e + i, (ncc*vd) + d*c + k, shape_vec(k));
+               }
             } 
          }
       }
@@ -404,7 +413,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    // Create the smoothers remember block size is num degrees of freedom per element
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
    smoothers[0] = new UMFPackSolver(Ac);
-   int block_size = 1;
+   int block_size = 3;
    for (int l=1; l < num_levels; l++)
    {
       if (smoother_choice == 0)
@@ -417,9 +426,11 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       }
       else if (smoother_choice == 2)
       {
+         real_t alpha = 3.0;
+         ScaledOperator scaledop(operators[l], alpha);
          // note - need to set alpha value
          //sm_operators[l] = &(*(mfem::Mult(*Pt, *AP))*=alpha);
-         smoothers[l] = new BlockILU(*operators[l], block_size);
+         smoothers[l] = new BlockILU(scaledop, block_size);
       }
       else
       {
@@ -428,7 +439,175 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    }
 }
 
+BlockGS AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
+{
+   // SparseMatrix &A = static_cast<SparseMatrix&>(op);
+   Vector PinvAx = x_random;
+   BlockGS PA_inv(op, blocksize);
+   for(int i = 0; i < 3; i++)
+   {
+      Vector Ax(PinvAx.Size());
+      A.Mult(PinvAx, Ax);
+      PA_inv.Mult(Ax, PinvAx);
+      PinvAx /= PinvAx.Norml2();
+   }
+   real_t rho = PinvAx.Norml2();
+   real_t w = 4/3/rho;
+   real_t w_recip = 1/w;
+   BlockGS A_tilde(op, blocksize, w_recip);
+   real_t tol = 1 + 0.03;
+   int num_B_cols = B.Width();
+   int num_B_rows = B.Height();
+   for(int j = 0; j < num_B_cols; j++)
+   {
+      Vector b(num_B_rows);
+      B.GetColumn(j, b);
+      Vector b_prev(num_B_rows);
+      b_prev.Set(10.0, b);
+      Vector Ab_prev;
+      A.Mult(b, Ab_prev);
+      while(b_prev.Norml2() / b.Norml2() > tol)
+      {
+         // Vector v(num_B_rows);
+         A_tilde.Mult(Ab_prev, b);
+         b -= b_prev;
+         b_prev = b;
+         // b = v + b_prev;
+         A.Mult(b, Ab_prev);
+      }
+      for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
+   }
+   return A_tilde;
+}
 
+SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels)
+{
+   Mesh &mesh = *fes.GetMesh();
+   int vdim = fes.GetVDim();
+   int ne = mesh.GetNE();
+   int dim = mesh.Dimension();
+   int n_cut = (dim == 2) ? 2*2 - 1 : 2*2*2 - 2;
+   FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
+   GridFunction nodes(&nodal_fes);
+   mesh.GetNodes(nodes);
+   int nnodes = nodes.Size()/dim*vdim;
+
+   // Create the mesh hierarchy
+   auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
+
+   // Construct matrix B1
+   DenseMatrix B0(nnodes, 16); // make number of columns a median
+   std::random_device rd;
+   std::mt19937 gen(rd()); 
+   std::normal_distribution<double> dist(0.0, 1.0);
+   for (int i = 0; i < B0.Height(); i++)
+   {
+      for (int j = 0; j < B0.Width(); j++)
+      {
+         B0(i,j) = dist(gen);
+      }
+   }
+
+   // Populate the arrays: operators, smoothers, ownedOperators, ownedSmoothers
+   // from the MultigridBase class. (All smoothers are owned, all operators
+   // except the finest are owned).
+   operators.SetSize(num_levels);
+   smoothers.SetSize(num_levels);
+   ownedOperators.SetSize(num_levels);
+   ownedSmoothers.SetSize(num_levels);
+   prolongations.SetSize(num_levels-1);
+   ownedProlongations.SetSize(num_levels-1);
+   //Set the ownership
+   for (int l = 0; l < num_levels-1; ++l)
+   {
+      ownedOperators[l] = true;
+      ownedSmoothers[l] = true;
+      ownedProlongations[l] = true;
+   }
+   ownedOperators[num_levels-1] = false;
+   ownedSmoothers[num_levels-1] = true;
+   // Populate the arrays: prolongations, ownedProlongations from the Multigrid
+   // class. All prolongations are owned.
+   // Create the prolongations using 'E' using the SparseMatrix class
+   operators[num_levels - 1] = &Af;
+   DenseMatrix B = B0;
+   for (int k = num_levels - 2; k >= 0; --k)
+   {
+      // Estimate Spactra Norm 
+      // generate random vector x
+      SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[k + 1]);
+      Vector x_random(A_prev.Height());
+      for (int i = 0; i < x_random.Size(); i++){x_random(i) = dist(gen);}
+      x_random /= x_random.Norml2();
+      BlockGS A_tilde = AdaptiveSmoother(*operators[k + 1], A_prev, 4, x_random, B);
+
+      //Get the Block Offsets
+      Array<int> row_offsets(E[k+1].size()+1);
+      Array<int> col_offsets(E[k+1].size()+1);
+      row_offsets = 0;
+      col_offsets = 0;
+      for (int j = 0; j < E[k+1].size(); j++)
+      {
+         int z = E[k][j];
+         row_offsets[z+1] += n_cut;
+         col_offsets[z+1] += 1;
+      }
+      Array<int> part_sizes_dof = row_offsets;
+      Array<int> part_sizes_el = col_offsets;
+      row_offsets.PartialSum();
+      // col_offsets /= n_cut;
+      col_offsets.PartialSum(); 
+
+      BlockMatrix P(row_offsets, col_offsets);
+
+      // Get submatrix from B
+      for (int i = 0; i < E[k].size(); i++)
+      {
+         DenseMatrix B_sub(part_sizes_dof[i], B.Width());
+         for (int j = 0; j < E[k+1].size(); j++)
+         {
+            if (E[k][j] == i)
+            {
+               int row_idx = j;
+               for (int nn = 0; nn < n_cut; nn++)
+               {
+                  for(int c = 0; c <  B.Width(); c++)
+                  {
+                     B_sub(j+nn, c) = B(row_idx + nn, c);
+                  }
+               }
+            }
+         }
+         DenseMatrixSVD Bsvd(B_sub, 'A', 'A'); 
+         DenseMatrix U = Bsvd.LeftSingularvectors(); 
+         SparseMatrix U_sub(part_sizes_dof[i], part_sizes_el[i]);
+         for(int ri = 0; ri < part_sizes_dof[i]; ri++)
+         {
+            for (int ci = 0; ci < part_sizes_el[i]; ci++)
+            {
+               U_sub.Set(ri, ci,  U(ri, ci));
+            }
+         }
+         U_sub.Finalize();
+         P.SetBlock(i, i, &U_sub);
+      }
+      prolongations[k] = &P;
+      SparseMatrix *mono_P = P.CreateMonolithic();
+      unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *mono_P));
+      unique_ptr<SparseMatrix> Pt(Transpose(*mono_P));
+      operators[k] = mfem::Mult(*Pt, *AP);
+      if (k == 0)
+      {
+         SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
+         smoothers[0] = new UMFPackSolver(Ac);
+      }
+      else
+      {
+         smoothers[k] = &A_tilde;
+      }
+      B = *mfem::Mult(*Pt, B);
+   }
+}
 } // namespace mfem
 
 

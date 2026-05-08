@@ -2999,12 +2999,14 @@ void Blockl1Jacobi::MultTranspose(const Vector &b, Vector &x) const
    }
 }
 
-BlockGS::BlockGS(const Operator &op, int block_size_)
+BlockGS::BlockGS(const Operator &op, int block_size_, real_t damping_)
    : Solver(0),
-     block_size(block_size_)
+     block_size(block_size_),
+     damping(damping_)
 {
    SetOperator(op);
 }
+
 
 void BlockGS::SetOperator(const Operator &op)
 {
@@ -3122,10 +3124,10 @@ void BlockGS::Mult(const Vector &b, Vector &x) const
          const DenseMatrix &U_ij = AB(k);
          U_ij.AddMult_a(-1.0, xj, xi);
       }
-      // x_i = D_ii^{-1} x_i
       LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
+   x *= damping;
 }
 
 void BlockGS::MultTranspose(const Vector &b, Vector &x) const
@@ -3153,7 +3155,11 @@ void BlockGS::MultTranspose(const Vector &b, Vector &x) const
       LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
+   x *= damping;
 }
+
+
+
 
 BlockILU::BlockILU(int block_size_,
                    Reordering reordering_,

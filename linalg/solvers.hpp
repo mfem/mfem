@@ -1011,7 +1011,7 @@ public:
    /** Find L^{-1} for the matrix @a op.
     *  @a op should be a SparseMatrix.
     */
-   BlockGS(const Operator &op, int block_size_ = 1);
+   BlockGS(const Operator &op, int block_size_ = 1, real_t damping_ = 1.0);
 
    void SetOperator(const Operator &op);
 
@@ -1027,15 +1027,18 @@ private:
 
    const int block_size;
 
+   const real_t damping;
+
    /// Temporary vector used in the Mult() function.
    mutable Vector y;
 
-   // Block CSR storage
+   // Block CSR storage  
    Array<int> IB, ID, JB;
    DenseTensor AB;
    mutable DenseTensor DB;
    mutable Array<int> ipiv;
 };
+
 
 class Blockl1Jacobi : public Solver
 {

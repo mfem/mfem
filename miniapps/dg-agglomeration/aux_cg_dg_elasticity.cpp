@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/beam-tri.mesh";
    int order = 1;
    bool static_cond = false;
-   bool visualization = 0;
+   bool visualization = true;
    real_t kappa_0 = 10.0;
    int ref_levels = 4;
 
@@ -317,8 +317,8 @@ int main(int argc, char *argv[])
    // Array<int> ess_tdof_list;
    // fespace->GetBoundaryTrueDofs(ess_tdof_list);
    Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1;
+   ess_bdr = 1;
+   // ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
-      f.Set(i, new ConstantCoefficient(0.0));
+      f.Set(i, new ConstantCoefficient(1.0));
    }
    {
       Vector pull_force(mesh->bdr_attributes.Max());
@@ -341,7 +341,14 @@ int main(int argc, char *argv[])
       f.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
+   Vector g_vec(dim);
+   g_vec = 1.0;
+   VectorConstantCoefficient g(g_vec); 
+   
+
+
    LinearForm b(fespace);
+   b.AddDomainIntegrator(new VectorDomainLFIntegrator(g));
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    cout << "r.h.s. ... " << flush;
    b.Assemble();
@@ -357,12 +364,12 @@ int main(int argc, char *argv[])
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu.
    Vector lambda(mesh->attributes.Max());
-   lambda = 1.0;
-   lambda(0) = lambda(1)*50;
+   lambda = 1e5;
+   lambda(0) = lambda(1);
    PWConstCoefficient lambda_func(lambda);
    Vector mu(mesh->attributes.Max());
    mu = 1.0;
-   mu(0) = mu(1)*50;
+   mu(0) = mu(1);
    PWConstCoefficient mu_func(mu);
 
    BilinearForm *a = new BilinearForm(fespace);
@@ -389,10 +396,10 @@ int main(int argc, char *argv[])
    std::cout << "num cols dg = " << A_dg.NumCols() << std::endl;
    OswaldOperator R_op(*dg_fes, *fespace, ess_tdof_list);
    SparseMatrix R_mat = R_op.Assemble();
-   UMFPackSolver A_dg_inv(A_dg);
-   //AgglomerationMultigrid mg(fespace, A, ncoarse, num_levels, smoother, paraview_vis);
-   AuxiliarySolver prec(A_dg_inv, R_mat, ess_tdof_list, nullptr);
-   // CompositeAuxiliaryAgglomerationSolver prec(*fespace, A_cg, *dg_fes, A_dg, ess_tdof_list, 4, 2, 0);
+   // UMFPackSolver A_dg_inv(A_dg);
+   // AgglomerationMultigrid prec(fespace, A_dg, 4, 2, 0, false);
+   //AuxiliarySolver prec(A_dg_inv, R_mat, ess_tdof_list, nullptr);
+   CompositeAuxiliaryAgglomerationSolver prec(*fespace, A_cg, *dg_fes, A_dg, ess_tdof_list, 4, ref_levels-1, 0);
 
       // 8. Form the linear system A X = B. This includes eliminating boundary
    //    conditions, applying AMR constraints, and other transformations.
@@ -472,3 +479,9 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+
+// try with lame parameters = 1 and all dirichlet bcs - behavior should be very similar to poisson 
+// if different - there is a bug
+// agglom only same material?
+// do bigger blocks in block gs

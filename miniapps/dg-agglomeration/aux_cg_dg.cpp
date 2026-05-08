@@ -222,12 +222,16 @@ int main(int argc, char *argv[])
    int order = 1;
    int ref = 2;
    real_t kappa_0 = 1.0;
+   int cf = 4;
+   int smoother = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree.");
    args.AddOption(&ref, "-r", "--refine", "Number of refinements.");
    args.AddOption(&kappa_0, "-k", "--kappa", "Penalty factor.");
+   args.AddOption(&cf, "-cf", "--coarse_factor", "Coarsening Factor.");
+   args.AddOption(&smoother, "-s", "--smoother", "Smoother Choice.");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
@@ -282,7 +286,7 @@ int main(int argc, char *argv[])
    SparseMatrix &A_cg= a.SpMat();
    SparseMatrix &A_dg= a_aux.SpMat();
    OswaldOperator R_op(dg_fes, h1_fes, ess_dofs);
-   CompositeAuxiliaryAgglomerationSolver prec(h1_fes, A_cg, dg_fes, A_dg, ess_dofs, 4, 2, 0);
+   CompositeAuxiliaryAgglomerationSolver prec(h1_fes, A_cg, dg_fes, A_dg, ess_dofs, cf, ref-1, smoother);
 
    // 8. Form the linear system A X = B. This includes eliminating boundary
    //    conditions, applying AMR constraints, and other transformations.
