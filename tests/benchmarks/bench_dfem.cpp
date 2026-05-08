@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#define MFEM_ADD_SPECIALIZATIONS
+#undef MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 
@@ -33,7 +33,7 @@ using global_kernels_backend = mfem::future::GlobalQFKernelsBackend;
 #include "fem/dfem/backends/local_qf/prelude.hpp"
 using local_default_backend = mfem::future::LocalQFBackend;
 
-#include "fem/dfem/backends/local_qf/qf_local_kernels_backend.hpp"
+#include "fem/dfem/backends/local_qf/qf_local_kernels.hpp"
 using local_kernels_backend = mfem::future::LocalQFKernelsBackend;
 
 #include "fem/dfem/tuple.hpp"
@@ -78,6 +78,7 @@ void info()
    // local QF default/kernels versions
    mfem::out << "version 6: 🟠 MF local default" << std::endl;
    mfem::out << "version 7: 🟢 PA local kernels" << std::endl;
+   mfem::out << "version 8: 🟠 MF local kernels" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -86,7 +87,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7 };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7/*, 8*/ };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -463,7 +464,7 @@ struct PAApply_global_qf_4_5
 
 /// LOCAL Q-Functions /////////////////////////////////////////////////////////
 template<int DIM>
-struct MFApply_local_with_outputs_qf_6
+struct MFApply_local_qf
 {
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<real_t, DIM> &Gu,
@@ -637,7 +638,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(ifs, ofs, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         MFApply_local_with_outputs_qf_6<DIM> mf_apply_lqf;
+         MFApply_local_qf<DIM> mf_apply_lqf;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
                                                       tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       tuple{Gradient<U>{}},
@@ -706,15 +707,33 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("\x1b[33m PA ∂FEM global kernels");
          dPAGlobalOperatorSetup_4_5(global_kernels_backend{});
       }
-      else if (version == 6) // 🟠 MF local default poly
+      else if (version == 6) // 🟠 MF local default
       {
          dbg("\x1b[33m MF ∂FEM local default");
          dMFLocalDefaultOperatorSetup_6(local_default_backend{});
       }
-      else if (version == 7) // 🟢 PA local devices poly
+      else if (version == 7) // 🟢 PA local devices
       {
          dbg("\x1b[33m PA ∂FEM local kernels");
          dMFLocalDevicesPolyOperatorSetup_7(local_kernels_backend{});
+      }
+      else if (version == 8) // 🟠 MF local kernels
+      {
+         dbg("\x1b[33m MF ∂FEM local kernels");
+         using backend_t = local_kernels_backend;
+         const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Ξ, &mfes}};
+         const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dop = std::make_unique<DifferentiableOperator>(ifs, ofs, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         MFApply_local_qf<DIM> mf_apply_lqf;
+         dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
+                                                      tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                                      tuple{Gradient<U>{}},
+                                                      *ir, ess_bdr);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
       }
       else { MFEM_ABORT("Invalid version"); }
 

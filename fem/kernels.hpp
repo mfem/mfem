@@ -72,6 +72,12 @@ using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 
+template <int VDIM, int N>
+using regs3d_v_t = mfem::future::tensor<real_t, N, N, N, VDIM>;
+
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
+
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
 constexpr int NextMultipleOf(int n)

@@ -13,9 +13,11 @@
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
-#include "../linalg/test_same_matrices.hpp"
 
-#include <utility>
+#define DFEM_USE_KERNELS_QFUNCTIONS
+#ifdef DFEM_USE_KERNELS_QFUNCTIONS
+#include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -94,7 +96,6 @@ void diffusion(const char *filename, int p)
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   // const int NE = pfes.GetNE(), d1d(p + 1)
    const int q = 2 * p;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
 
@@ -119,7 +120,7 @@ void diffusion(const char *filename, int p)
    };
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   SECTION("action")
+   SECTION("Local Action")
    {
       DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
@@ -128,6 +129,16 @@ void diffusion(const char *filename, int p)
          tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
          tuple{Gradient<U>{}},
          *ir, all_domain_attr);
+#ifdef DFEM_USE_KERNELS_QFUNCTIONS
+      if constexpr (DIM == 3)
+      {
+         dop_mf.AddDomainIntegrator<LocalQFKernelsBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr);
+      }
+#endif
 
       Vector nodestv;
       nodes->GetTrueDofs(nodestv);

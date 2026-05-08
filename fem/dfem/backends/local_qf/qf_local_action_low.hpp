@@ -16,7 +16,7 @@
 #include <utility>
 
 #include "../../integrator_ctx.hpp"
-#include "../util.hpp" // for as_tensor
+#include "../util.hpp"
 
 #define DFEM_USE_OWN_TUPLE
 #ifndef DFEM_USE_OWN_TUPLE
@@ -28,35 +28,14 @@ using mfem::future::tuple_size;
 using mfem::future::tuple_element;
 #endif
 
-template<typename T>
-struct is_std_tuple : std::false_type {};
-
-template<typename... Ts>
-struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
-
-template<typename T>
-inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
-
-
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 
-template <typename...> struct dump;
-
 namespace mfem::future
 {
 
-///////////////////////////////////////////////////////////////////////////////
-struct Unused
-{
-   MFEM_HOST_DEVICE int operator[](int) { return int{}; }
-};
-template<size_t N, typename T>
-using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N>>;
-
-///////////////////////////////////////////////////////////////////////////////
-namespace LocalQFKernelsImpl
+namespace LocalQFLowOrderKernelsImpl
 {
 
 template<
@@ -147,11 +126,6 @@ class Action
    static constexpr auto n_val = std::max(n_val_inputs, n_val_outputs);
    static constexpr auto input_val_map = make_map<inputs_t, is_value_fop>();
    static constexpr auto output_val_map = make_map<outputs_t, is_value_fop>();
-   // show_types<
-   // std::integral_constant<size_t, n_val_inputs>,
-   //     std::integral_constant<size_t, n_val_outputs>,
-   //     std::integral_constant<size_t, n_val>
-   // > dump_nvals{};
 
    // Gradient Count & Map //////////////////////////////////////////
    static constexpr auto n_del_inputs = count_if<inputs_t, is_gradient_fop>();
@@ -159,11 +133,6 @@ class Action
    static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
    static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
    static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
-   // show_types<
-   // std::integral_constant<size_t, n_del_inputs>,
-   //     std::integral_constant<size_t, n_del_outputs>,
-   //     std::integral_constant<size_t, n_del>
-   // > dump_ndels{};
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -469,7 +438,7 @@ public:
          }
          else if constexpr (is_weight_fop<FOP>::value)
          {
-            static_assert(false, "Unsupported");
+            in_XE[i] = Reshape(xe[idx]->Read(), q1d, q1d, q1d, 1, ne);
          }
          else
          {
@@ -533,8 +502,6 @@ public:
             static_assert(n_val > 0 || n_del > 0 ||
                           is_weight_fop<FOP>::value ||
                           is_identity_fop<FOP>::value, "No fields or identity fields");
-            // if constexpr (i == 0) show_types<FOP> dump {}; // Gradient<0>
-            // if constexpr (i == 1) show_types<FOP> dump {}; // Identity<2>
 
             if constexpr (is_value_fop<FOP>::value)
             {
@@ -558,7 +525,7 @@ public:
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
-               static_assert(false, "Unsupported");
+               // nothing to do, will be streamed in
             }
             else
             {
@@ -601,7 +568,7 @@ public:
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
-                        static_assert(false, "Unsupported");
+                        get<i>(args) = in_XE[i](qx, qy, qz, 0, e);
                      }
                      else
                      {
@@ -610,7 +577,6 @@ public:
                   });
 
                   // Apply the quadrature function
-                  // std::apply(qfunc, args);
                   call_qfunc_no_move(qfunc, args);
 
                   // Arguments parsing for input fields
@@ -707,8 +673,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
 (/* instantiated with Q1D */) { return action_callback<Q1D>; }
 
 template<typename qfunc_t,
@@ -716,8 +682,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS

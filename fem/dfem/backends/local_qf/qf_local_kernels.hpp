@@ -2,7 +2,8 @@
 
 #include "fem/dfem/integrator_ctx.hpp"
 
-#include "qf_local_kernels_action.hpp"
+#include "qf_local_action_low.hpp"
+#include "qf_local_action_high.hpp"
 
 namespace mfem::future
 {
@@ -34,7 +35,8 @@ struct LocalQFKernelsBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      // return LocalQFLowOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQHighOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    /**

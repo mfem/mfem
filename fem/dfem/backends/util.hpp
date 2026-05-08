@@ -649,6 +649,7 @@ void create_qlayouts(const fops_t &fops,
    });
 }
 
+///////////////////////////////////////////////////////////////////////////////
 // Zero-copy view of a contiguous block as a tensor<T, n1>
 template<typename T, int n1> inline
 MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)
@@ -700,5 +701,23 @@ MFEM_HOST_DEVICE tensor<T, n1, n2, n3, n4>& as_tensor(T* ptr)
 {
    return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3, n4>*>(ptr));
 }
+
+///////////////////////////////////////////////////////////////////////////////
+template<typename T>
+struct is_std_tuple : std::false_type {};
+
+template<typename... Ts>
+struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
+
+///////////////////////////////////////////////////////////////////////////////
+struct Unused
+{
+   MFEM_HOST_DEVICE int operator[](int) { return int{}; }
+};
+template<size_t N, typename T>
+using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N>>;
 
 } // namespace mfem::future
