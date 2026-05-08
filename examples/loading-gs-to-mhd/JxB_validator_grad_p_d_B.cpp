@@ -56,18 +56,18 @@ int main(int argc, char *argv[])
 
    // paraview
    {
-      ParaViewDataCollection paraview_dc("grad_p_B", new_mesh);
+      ParaViewDataCollection paraview_dc("grad_p_d_B", new_mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(1);
       paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("grad_p_B", &grad_p);
+      paraview_dc.RegisterField("grad_p_d_B", &grad_p);
       paraview_dc.Save();
    }
 
-   ofstream sol_ofs("output/grad_p_B.gf");
+   ofstream sol_ofs("output/grad_p_d_B.gf");
    sol_ofs.precision(8);
    grad_p.Save(sol_ofs);
 
