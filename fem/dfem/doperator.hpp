@@ -30,7 +30,7 @@ using local_action_t =
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
-   std::function<void(std::vector<Vector> &, const Vector &)>;
+   std::function<void(const std::vector<Vector *> &, const Vector &)>;
 
 /// @brief Type alias for a function that computes the action of a derivative
 using derivative_action_t =
@@ -81,20 +81,25 @@ public:
    /// calls this constructor when using
    /// DifferentiableOperator::GetDerivative().
    template <typename vector_t>
-   DerivativeOperator(const int &height,
-                      const int &width,
-                      const std::vector<derivative_action_t> &derivative_actions,
-                      const std::vector<derivative_action_t> &derivative_actions_transpose,
-                      const FieldDescriptor &direction,
-                      const vector_t &x,
-                      const std::vector<FieldDescriptor> &infds,
-                      const std::vector<FieldDescriptor> &outfds) :
+   DerivativeOperator(
+      const int &height,
+      const int &width,
+      const std::vector<derivative_action_t> &derivative_actions,
+      const std::vector<derivative_action_t> &derivative_actions_transpose,
+      const FieldDescriptor &direction,
+      const vector_t &x,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds,
+      const std::vector<assemble_derivative_sparsematrix_callback_t>
+      &assemble_sparsematrix_callbacks = {},
+      const std::vector<assemble_derivative_hypreparmatrix_callback_t>
+      &assemble_hypreparmatrix_callbacks = {}) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
       outfds(outfds),
-      direction(direction),
-      derivative_actions_transpose(derivative_actions_transpose)
+      assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
+      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -104,6 +109,19 @@ public:
       {
          infields_l[i] = new Vector(GetVSize(infds[i]));
       }
+
+      // Pre-allocate transpose workspace.
+      int total_out_l_size = 0;
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         total_out_l_size += GetVSize(outfds[i]);
+      }
+      transpose_direction_l.SetSize(total_out_l_size);
+
+      // Null-initialised: restriction_transpose / prepare_residual allocate on
+      // first use and resize on subsequent calls.
+      transpose_result_l.resize(infds.size(), nullptr);
+      transpose_result_e.resize(infds.size(), nullptr);
 
       if constexpr (std::is_same_v<vector_t, Vector>)
       {
@@ -165,88 +183,64 @@ public:
    /// direction_t on T-dofs in the input space (the "direction" field).
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&direction_t),
+                  "direction_t needs to be a BlockVector");
+      const auto &bdir = static_cast<const BlockVector &>(direction_t);
+      MultTranspose(bdir, result_t);
+   }
+
+   template <typename direction_t, typename result_t>
+   void MultTranspose(const direction_t &direction_mv, result_t &result_mv) const
+   {
       MFEM_ASSERT(!derivative_actions_transpose.empty(),
                   "derivative can't be used in transpose mode");
 
-      // direction_t is in the OUTPUT T-space (all output fields concatenated)
-      // We need to split it into individual output fields and prolong each to L-space
-
-      // First, split direction_t into components for each output field
-      std::vector<Vector *> direction_t_fields(outfds.size());
-      int offset = 0;
-      for (size_t i = 0; i < outfds.size(); i++)
+      // Prolong each output field from T-space to L-space into the
+      // pre-allocated concat buffer.
       {
-         int field_size = GetTrueVSize(outfds[i]);
-         // Create a view into direction_t data (doesn't own the data)
-         direction_t_fields[i] = new Vector(
-            const_cast<real_t*>(direction_t.GetData()) + offset, field_size);
-         offset += field_size;
-      }
-
-      // Prolong each output field from T-space to L-space
-      std::vector<Vector *> direction_l_fields(outfds.size());
-      int total_l_size = 0;
-      for (size_t i = 0; i < outfds.size(); i++)
-      {
-         direction_l_fields[i] = new Vector(GetVSize(outfds[i]));
-         prolongation(outfds[i], *direction_t_fields[i], *direction_l_fields[i]);
-         total_l_size += direction_l_fields[i]->Size();
-      }
-
-      // Concatenate all output L-space directions into a single vector
-      Vector direction_l_concat(total_l_size);
-      offset = 0;
-      for (size_t i = 0; i < outfds.size(); i++)
-      {
-         for (int j = 0; j < direction_l_fields[i]->Size(); j++)
+         int offset = 0;
+         for (size_t i = 0; i < outfds.size(); i++)
          {
-            direction_l_concat[offset + j] = (*direction_l_fields[i])[j];
+            const int l_size = GetVSize(outfds[i]);
+            Vector dir_l_i(transpose_direction_l.GetData() + offset, l_size);
+            if constexpr (std::is_same_v<direction_t, MultiVector>)
+            {
+               prolongation(outfds[i], direction_mv[i], dir_l_i);
+            }
+            else
+            {
+               const auto &bdir = static_cast<const BlockVector &>(direction_mv);
+               prolongation(outfds[i], bdir.GetBlock(i), dir_l_i);
+            }
+            offset += l_size;
          }
-         offset += direction_l_fields[i]->Size();
       }
 
-      // Restrict primal inputs to element space
       restriction<Entity::Element>(infds, infields_l, infields_e);
 
-      // Prepare result in element space (in INPUT space)
-      std::vector<Vector *> result_e(infds.size());
-      prepare_residual<Entity::Element>(infds, result_e);
-      for (auto *v : result_e) { *v = 0.0; }
+      prepare_residual<Entity::Element>(infds, transpose_result_e);
+      for (auto *v : transpose_result_e) { *v = 0.0; }
 
-      // Apply transpose derivative actions
-      // These compute J^T * direction_l_concat and store in result_e
       for (const auto &f : derivative_actions_transpose)
       {
-         f(infields_e, &direction_l_concat, result_e);
+         f(infields_e, &transpose_direction_l, transpose_result_e);
       }
 
-      // Restrict transpose: element -> L-space (in INPUT space)
-      std::vector<Vector *> result_l(infds.size());
-      for (size_t i = 0; i < infds.size(); i++)
-      {
-         result_l[i] = new Vector(GetVSize(infds[i]));
-         *result_l[i] = 0.0;
-      }
-      restriction_transpose<Entity::Element>(infds, result_e, result_l);
+      restriction_transpose<Entity::Element>(infds, transpose_result_e,
+                                             transpose_result_l);
 
-      // Prolongation transpose: L-space -> T-space
-      // Only for the active direction field
-      result_t = 0.0;
-      prolongation_transpose(direction, *result_l[FindIdx(direction.id, infds)],
-                             result_t);
-
-      // Cleanup
-      for (size_t i = 0; i < infds.size(); i++)
+      const size_t deriv_idx = FindIdx(direction.id, infds);
+      if constexpr (std::is_same_v<result_t, MultiVector>)
       {
-         delete result_l[i];
+         prolongation_transpose(direction, *transpose_result_l[deriv_idx],
+                                result_mv[0]);
       }
-      for (size_t i = 0; i < outfds.size(); i++)
+      else
       {
-         // direction_t_fields[i] is a view, don't own data, just delete the wrapper
-         delete direction_t_fields[i];
-         delete direction_l_fields[i];
+         prolongation_transpose(direction, *transpose_result_l[deriv_idx],
+                                result_mv);
       }
-   };
+   }
 
    ////////////////////////////////////////////////////////////////////////////
    /// @brief Assemble the derivative operator into a SparseMatrix.
@@ -309,6 +303,11 @@ private:
    mutable std::vector<Vector> fields_e;
 
    mutable Vector direction_l;
+
+   // Pre-allocated workspace for MultTranspose (avoids per-call heap traffic).
+   mutable Vector transpose_direction_l;
+   mutable std::vector<Vector *> transpose_result_l;
+   mutable std::vector<Vector *> transpose_result_e;
 
    /// Callbacks that assemble derivatives into a SparseMatrix.
    std::vector<assemble_derivative_sparsematrix_callback_t>
@@ -627,6 +626,8 @@ private:
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
    std::map<size_t,
+       std::vector<derivative_action_t>> derivative_apply_callbacks;
+   std::map<size_t,
        std::vector<derivative_action_t>> daction_transpose_callbacks;
    std::map<size_t,
        std::vector<assemble_derivative_sparsematrix_callback_t>>
@@ -893,9 +894,38 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       for_constexpr([&]([[maybe_unused]] auto i)
       {
 #ifdef MFEM_USE_ENZYME
-         MFEM_ABORT("No MakeDerivativeActions implemented yet");
-         // derivative_action_callbacks[i].push_back(
-         //    backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
+         // Initialize the cache for this derivative if not already done
+         if (derivative_qp_caches.find(i) == derivative_qp_caches.end())
+         {
+            derivative_qp_caches[i] = Vector();
+         }
+
+         if constexpr (backend_t::has_cached_derivative)
+         {
+            // Create setup callback that populates the cache
+            derivative_setup_callbacks[i].push_back(
+               backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
+                                                          derivative_qp_caches[i]));
+
+            // Create apply callback that uses the cache
+            derivative_apply_callbacks[i].push_back(
+               backend_t::template MakeDerivativeApply<i>(
+                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+            // Create assemble callback for sparse matrix assembly
+            assemble_derivative_sparsematrix_callbacks[i].push_back(
+               backend_t::template MakeDerivativeAssemble<i>(
+                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+            // Create transpose apply callback (J^T) using the same cache
+            daction_transpose_callbacks[i].push_back(
+               backend_t::template MakeDerivativeApplyTranspose<i>(
+                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         }
+
+         // Keep the old action callback for backwards compatibility
+         derivative_action_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
          MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
                     "but MFEM_USE_ENZYME is not defined.");
