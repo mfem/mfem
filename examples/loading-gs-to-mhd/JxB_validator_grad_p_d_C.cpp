@@ -8,19 +8,19 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "mesh/2d_mesh.mesh";
+   const char *mesh_file = "mesh/new_2d_mesh_iter.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   ifstream temp_log("input/new_grad_p_cg.gf");
+   ifstream temp_log("input/new_grad_p_iter_cg.gf");
    GridFunction grad_p(&mesh, temp_log);
 
    cout << "Mesh loaded" << endl;
 
-   const char *new_mesh_file = "mesh/2d_mesh.mesh";
+   const char *new_mesh_file = "mesh/new_2d_mesh_iter.mesh";
    Mesh *new_mesh = new Mesh(new_mesh_file, 1, 1);
 
    H1_FECollection scaler_fec(1, dim);
