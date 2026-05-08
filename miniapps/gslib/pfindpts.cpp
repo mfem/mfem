@@ -101,7 +101,6 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    int randomization     = 0;
    int npt               = 100; //points per proc
-   int visport           = 19916;
    bool surface          = false;
 
    // Parse command-line options.
@@ -143,7 +142,6 @@ int main (int argc, char *argv[])
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
                   "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
@@ -175,14 +173,6 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
              sdim = mesh->SpaceDimension();
-
-   if (mesh->GetNumGeometries(dim) != 1 ||
-       (mesh->GetElementType(0)!=Element::SEGMENT &&
-        mesh->GetElementType(0)!=Element::QUADRILATERAL &&
-        mesh->GetElementType(0) != Element::HEXAHEDRON))
-   {
-      randomization = 0;
-   }
 
    if (myid == 0)
    {
@@ -285,13 +275,13 @@ int main (int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sout;
-      sout.open(vishost, visport);
+      sout.open(vishost, 19916);
       if (!sout)
       {
          if (myid == 0)
          {
             cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
+                 << vishost << ':' << 19916 << endl;
          }
       }
       else
