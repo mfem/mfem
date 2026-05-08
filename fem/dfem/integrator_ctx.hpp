@@ -25,4 +25,4 @@ struct IntegratorContext
    const bool use_kernel_specializations = false;
 };
 
-} // namespace mfem::future
+}

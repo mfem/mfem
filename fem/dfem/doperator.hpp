@@ -18,6 +18,8 @@
 #include "util.hpp"
 #include "integrator_ctx.hpp"
 
+#include "backends/global_qf/prelude.hpp"
+
 namespace mfem::future
 {
 
@@ -53,7 +55,6 @@ using assemble_diagonal_callback_t =
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
 
-///////////////////////////////////////////////////////////////////////////////
 /// Class representing the derivative (Jacobian) operator of a
 /// DifferentiableOperator.
 ///
@@ -97,6 +98,8 @@ public:
       derivative_actions(derivative_actions),
       infds(infds),
       outfds(outfds),
+      direction(direction),
+      derivative_actions_transpose(derivative_actions_transpose),
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
       assemble_diagonal_callbacks(assemble_diagonal_cbs)
@@ -136,7 +139,6 @@ public:
       }
    }
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
    /// @param direction_t The direction vector in which to compute the
@@ -145,18 +147,15 @@ public:
    /// direction_t on T-dofs.
    void Mult(const Vector &x, Vector &y) const override
    {
-      NVTX_MARK_FUNCTION;
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
                   "y needs to be a BlockVector");
       auto &by = static_cast<BlockVector &>(y);
       Mult(x, by);
    };
 
-   ////////////////////////////////////////////////////////////////////////////
    template <typename vector_t>
    void Mult(const Vector &x, vector_t &y) const
    {
-      NVTX_MARK_FUNCTION;
       prolongation(direction, x, direction_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
@@ -169,7 +168,6 @@ public:
       prolongation_transpose(outfds, daction_l, y);
    }
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Compute the transpose of the derivative operator on a given
    /// vector.
    ///
@@ -242,7 +240,6 @@ public:
       }
    }
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Assemble the derivative operator into a SparseMatrix.
    ///
    /// @param A The SparseMatrix to assemble the derivative operator into. Can
@@ -258,7 +255,6 @@ public:
       }
    }
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Assemble the derivative operator into a HypreParMatrix.
    ///
    /// @param A The HypreParMatrix to assemble the derivative operator into. Can
@@ -345,7 +341,6 @@ private:
    std::vector<assemble_diagonal_callback_t> assemble_diagonal_callbacks;
 };
 
-///////////////////////////////////////////////////////////////////////////////
 /// Class representing a differentiable operator which acts on solution and
 /// parameter fields to compute residuals.
 ///
@@ -366,8 +361,7 @@ private:
 class DifferentiableOperator : public Operator
 {
 public:
-   ////////////////////////////////////////////////////////////////////////////
-   /// Constructor for the POLY DifferentiableOperator class.
+   /// Constructor for the DifferentiableOperator class.
    ///
    /// @param infds The input fields the operator will act on.
    /// @param outfds The output fields the operator will produce.
@@ -376,7 +370,6 @@ public:
                           const std::vector<FieldDescriptor> &outfds,
                           const ParMesh &mesh);
 
-   ////////////////////////////////////////////////////////////////////////////
    /// MultLevel enum to indicate if the T->L Operators are used in the
    /// Mult method.
    enum MultLevel
@@ -385,13 +378,6 @@ public:
       LVECTOR
    };
 
-   ////////////////////////////////////////////////////////////////////////////
-   /// @brief Set the MultLevel mode for the DifferentiableOperator.
-   /// The default is TVECTOR, which means that the Operator will use
-   /// T->L before Mult and L->T Operators after.
-   void SetMultLevel(MultLevel level);
-
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Disable the use of tensor product structure.
    ///
    /// This function disables the use of tensor product structure for the
@@ -402,7 +388,6 @@ public:
    /// methods.
    void DisableTensorProductStructure(bool disable = true);
 
-   ////////////////////////////////////////////////////////////////////////////
    void SetQLayouts(std::initializer_list<QLayoutEntry> in,
                     std::initializer_list<QLayoutEntry> out)
    {
@@ -418,7 +403,11 @@ public:
       ExtractQLayouts(out, out_qlayouts);
    }
 
-   ////////////////////////////////////////////////////////////////////////////
+   /// @brief Set the MultLevel mode for the DifferentiableOperator.
+   /// The default is TVECTOR, which means that the Operator will use
+   /// T->L before Mult and L->T Operators after.
+   void SetMultLevel(MultLevel level);
+
    /// @brief Compute the action of the operator on a given vector.
    ///
    /// @param solutions_in The solution vector in which to compute the action.
@@ -429,12 +418,10 @@ public:
    /// the MultLevel.
    void Mult(const Vector &x, Vector &y) const override;
 
-   ////////////////////////////////////////////////////////////////////////////
    // MultiVector
    template <typename x_t, typename y_t>
    void Mult(const x_t &x, y_t &y) const
    {
-      NVTX_MARK_FUNCTION;
       // TODO: Do we want those extensive checks here?
       static_assert(
          (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector>) ||
@@ -454,49 +441,23 @@ public:
 
       const bool is_lvector = mult_level == MultLevel::LVECTOR;
 
-      {
-         NVTX_MARK("P");
-         prolongation(infds, x, infields_l, is_lvector);
-      }
-
-      {
-         NVTX_MARK("R");
-         restriction<Entity::Element>(infds, infields_l,
-                                      infields_e);
-      }
-
-      {
-         NVTX_MARK("prepare_residual");
-         prepare_residual<Entity::Element>(outfds, residual_e);
-         for (auto *v : residual_e)
-         {
-            NVTX_MARK("clear residual");
-            *v = 0.0;
-         }
-      }
+      prolongation(infds, x, infields_l, is_lvector);
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+      prepare_residual<Entity::Element>(outfds, residual_e);
+      for (auto *v : residual_e) { *v = 0.0; }
 
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
-         NVTX_MARK("action callback #{}", i);
          action_callbacks[i](infields_e, residual_e);
       }
 
-      {
-         NVTX_MARK("R^T");
-         restriction_transpose<Entity::Element>(outfds, residual_e,
-                                                residual_l);
-      }
-
-      {
-         NVTX_MARK("P^T");
-         prolongation_transpose(outfds, residual_l, y, is_lvector);
-      }
+      restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
+      prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
-   template <typename backend_t, // = GlobalQFBackend,
+   template <typename backend_t = GlobalQFBackend,
              typename entity_t,
              typename qfunc_t,
              typename input_t,
@@ -509,7 +470,6 @@ public:
                       const Array<int> &attributes,
                       derivative_ids_t derivative_ids);
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Add a domain integrator to the operator.
    ///
    /// @param qfunc The quadrature function to be added.
@@ -534,7 +494,6 @@ public:
                             const Array<int> &domain_attributes,
                             derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Add a boundary integrator to the operator.
    ///
    /// @param qfunc The quadrature function to be added.
@@ -558,7 +517,6 @@ public:
                               const Array<int> &boundary_attributes,
                               derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
-   ////////////////////////////////////////////////////////////////////////////
    /// @brief Get the derivative operator for a given derivative ID.
    ///
    /// This function returns a shared pointer to a DerivativeOperator that
@@ -609,12 +567,16 @@ private:
        std::vector<assemble_diagonal_callback_t>>
        assemble_diagonal_callbacks;
 
-   const bool use_global_qf = true;
-   std::vector<FieldDescriptor> infds, outfds, unionfds;
-   mutable std::vector<Vector *> infields_l, infields_e;
-   mutable std::vector<Vector *> residual_l, residual_e;
+   std::vector<FieldDescriptor> infds;
+   std::vector<FieldDescriptor> outfds;
+   std::vector<FieldDescriptor> unionfds;
 
-   std::function<void(Vector &, Vector &)> local_prolongation_transpose;
+   mutable std::vector<Vector *> infields_l;
+   mutable std::vector<Vector *> infields_e;
+
+   mutable std::vector<Vector *> residual_l;
+   mutable std::vector<Vector *> residual_e;
+
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
@@ -625,40 +587,41 @@ private:
    bool use_tensor_product_structure = true;
    bool use_kernel_specializations = false;
 
-   std::size_t test_space_field_idx = SIZE_MAX;
+   size_t test_space_field_idx = SIZE_MAX;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-template <typename backend_t,
-          typename qfunc_t,
-          typename input_t,
-          typename output_t,
-          typename derivative_ids_t>
-void DifferentiableOperator::AddDomainIntegrator(qfunc_t &qfunc,
-                                                 input_t inputs,
-                                                 output_t outputs,
-                                                 const IntegrationRule &integration_rule,
-                                                 const Array<int> &domain_attributes,
-                                                 derivative_ids_t derivative_ids)
+template <
+   typename backend_t,
+   typename qfunc_t,
+   typename input_t,
+   typename output_t,
+   typename derivative_ids_t>
+void DifferentiableOperator::AddDomainIntegrator(
+   qfunc_t &qfunc,
+   input_t inputs,
+   output_t outputs,
+   const IntegrationRule &integration_rule,
+   const Array<int> &domain_attributes,
+   derivative_ids_t derivative_ids)
 {
    NVTX_MARK_FUNCTION;
    AddIntegrator<backend_t, Entity::Element>(
       qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-template <typename qfunc_t,
-          typename input_t,
-          typename output_t,
-          typename derivative_ids_t>
-void DifferentiableOperator::AddBoundaryIntegrator(qfunc_t &qfunc,
-                                                   input_t inputs,
-                                                   output_t outputs,
-                                                   const IntegrationRule &integration_rule,
-                                                   const Array<int> &boundary_attributes,
-                                                   derivative_ids_t derivative_ids)
+template <
+   typename qfunc_t,
+   typename input_t,
+   typename output_t,
+   typename derivative_ids_t>
+void DifferentiableOperator::AddBoundaryIntegrator(
+   qfunc_t &qfunc,
+   input_t inputs,
+   output_t outputs,
+   const IntegrationRule &integration_rule,
+   const Array<int> &boundary_attributes,
+   derivative_ids_t derivative_ids)
 {
-   NVTX_MARK_FUNCTION;
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
@@ -667,26 +630,21 @@ void DifferentiableOperator::AddBoundaryIntegrator(qfunc_t &qfunc,
       qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-template <typename backend_t,
-          typename entity_t,
-          typename qfunc_t,
-          typename inputs_t,
-          typename outputs_t,
-          typename derivative_ids_t>
-void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
-                                           inputs_t inputs,
-                                           outputs_t outputs,
-                                           const IntegrationRule &integration_rule,
-                                           const Array<int> &attributes,
-                                           derivative_ids_t derivative_ids)
+template <
+   typename backend_t,
+   typename entity_t,
+   typename qfunc_t,
+   typename input_t,
+   typename output_t,
+   typename derivative_ids_t>
+void DifferentiableOperator::AddIntegrator(
+   qfunc_t &qfunc,
+   input_t inputs,
+   output_t outputs,
+   const IntegrationRule &integration_rule,
+   const Array<int> &attributes,
+   derivative_ids_t derivative_ids)
 {
-   NVTX_MARK_FUNCTION;
-
-   constexpr bool LOCAL_QF = backend_t::is_local, GLOBAL_QF = !LOCAL_QF;
-   dbg("{} ", LOCAL_QF ? "LOCAL_QF" : "GLOBAL_QF");
-   dbg("{} ", DEFAULT_QF ? "DEFAULT_QF" : "DEVICE_QF");
-
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
    {
@@ -694,40 +652,33 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "entity type not supported in AddIntegrator");
    }
 
-   static constexpr size_t num_inputs = tuple_size<decltype(inputs)>::value;
-   static constexpr size_t num_outputs = tuple_size<decltype(outputs)>::value;
-   dbg("num_inputs: {}, num_outputs: {}", num_inputs, num_outputs);
+   static constexpr size_t num_inputs = tuple_size<input_t>::value;
+   static constexpr size_t num_outputs = tuple_size<output_t>::value;
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (GLOBAL_QF || LOCAL_QF)
-   {
-      constexpr size_t num_qfparams = future::tuple_size<qf_param_ts>::value;
-      dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
-      static_assert(num_qfparams == num_inputs + num_outputs,
-                    "quadrature function must take "
-                    "num_inputs + num_outputs parameters");
-      static_assert(std::is_same_v<qf_output_t, void>,
-                    "quadrature function must return void");
-   }
+   constexpr size_t num_qfparams = future::tuple_size<qf_param_ts>::value;
+   dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
+   static_assert(num_qfparams == num_inputs + num_outputs,
+                 "quadrature function must take "
+                 "num_inputs + num_outputs parameters");
+   static_assert(std::is_same_v<qf_output_t, void>,
+                 "quadrature function must return void");
 
    const auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs_t{}, outputs_t{});
+      merge_mfem_tuples_as_empty_std_tuple(input_t{}, output_t{});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
    dbg("num_fields: {}", num_fields);
 
-   if constexpr (GLOBAL_QF || LOCAL_QF)
-   {
-      MFEM_VERIFY(num_fields == unionfds.size(),
-                  "Total number of fields in the Q-function doesn't match "
-                  "the union of FieldDescriptors.");
-   }
+   MFEM_VERIFY(num_fields == unionfds.size(),
+               "Total number of fields in the Q-function doesn't match "
+               "the union of FieldDescriptors.");
 
    dbg("Making dependency map");
    auto dependency_map = make_dependency_map(inputs);
@@ -743,6 +694,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    {
       inputs_vdim[i] = get<i>(inputs).vdim;
    });
+
    const Array<int> *elem_attributes = nullptr;
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
@@ -792,27 +744,23 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
-   ////////////////////////////////////////////////////////
-
    residual_e.resize(outfds.size());
    residual_l.resize(outfds.size());
 
    // TODO: Is this a hack?
-   dbg("width: {}, GetTrueVSize(global_infds[0]): {}", width,
-       GetTrueVSize(global_infds[0]));
    width = GetTrueVSize(infds[0]);
 
    IntegratorContext ctx
    {
       mesh, elem_attributes, attributes, num_entities,
       infds, outfds, unionfds, integration_rule,
-      in_qlayouts, out_qlayouts, use_kernel_specializations
+      in_qlayouts, out_qlayouts,
+      use_kernel_specializations
    };
 
-   action_callbacks.push_back(
-      backend_t::MakeAction(ctx, qfunc, inputs, outputs));
+   action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   for_constexpr([&]([[maybe_unused]] auto i)
+   for_constexpr([&](auto i)
    {
 #ifdef MFEM_USE_ENZYME
       // Initialize the cache for this derivative if not already done

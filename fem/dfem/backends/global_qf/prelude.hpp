@@ -8,8 +8,6 @@ namespace mfem::future
 
 struct GlobalQFBackend
 {
-   constexpr static bool is_local = false;
-   constexpr static bool is_default = true;
    static constexpr bool has_cached_derivative = false;
 
    template<

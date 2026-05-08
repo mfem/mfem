@@ -240,7 +240,7 @@ struct DerivativeApply
       const int dimension_local = dimension;
       const int num_entities_local = num_entities;
       const int num_qp_local = num_qp;
-      // const int q1d_local = q1d;
+      const int q1d_local = q1d;
       const bool use_sum_factorization_local = use_sum_factorization;
       const auto outputs_local = outputs;
       const auto inputs_local = inputs;

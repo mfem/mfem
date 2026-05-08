@@ -21,12 +21,11 @@ using namespace mfem::future;
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
-   const ParMesh &mesh):
+   const ParMesh &mesh) :
    mesh(mesh),
    infds(infds),
    outfds(outfds)
 {
-   NVTX_MARK_FUNCTION;
    unionfds.clear();
    unionfds.insert(unionfds.end(), infds.begin(), infds.end());
    unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
@@ -50,7 +49,6 @@ void DifferentiableOperator::SetMultLevel(MultLevel level)
 
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
-   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(!action_callbacks.empty(),
                "no integrators have been set");
 
@@ -77,7 +75,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
-   assert(use_global_qf);
    const size_t dfidx = FindIdx(derivative_id, infds);
 
    // Get transpose callbacks
@@ -128,8 +125,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       prolongation(infds[dfidx], bx.GetBlock(dfidx), direction_l);
 
       // Restrict to element space
-      restriction<Entity::Element>(infds, infields_l,
-                                   infields_e);
+      restriction<Entity::Element>(infds, infields_l, infields_e);
 
       // Run all setup callbacks to populate the cache
       for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
@@ -175,7 +171,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
 
-   assert(use_global_qf);
    const size_t dfidx = FindIdx(derivative_id, infds);
 
    // Get transpose callbacks

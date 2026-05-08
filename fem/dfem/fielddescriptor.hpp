@@ -60,4 +60,4 @@ struct FieldDescriptor
    }
 };
 
-} // namespace mfem::future
+}

@@ -69,7 +69,6 @@ struct Action
       const std::vector<Vector *> &xe,
       std::vector<Vector *> &ye) const
    {
-      NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
 
       // E -> Q
@@ -108,6 +107,6 @@ struct Action
    mutable BlockVector xq, yq;
 };
 
-} // namespace GlobalQFImpl
+}
 
-} // namespace mfem::future
+}

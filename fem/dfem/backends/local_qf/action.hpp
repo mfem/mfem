@@ -19,8 +19,8 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-   std::size_t ninputs = tuple_size<inputs_t>::value,
-   std::size_t noutputs = tuple_size<outputs_t>::value>
+   size_t ninputs = tuple_size<inputs_t>::value,
+   size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
    static constexpr auto inout_tuple =
@@ -65,7 +65,7 @@ struct Action
       const DofToQuad::Mode dtq_mode =
          use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
 
-      const auto dim_r = static_cast<real_t>(dimension);
+      const real_t dim_r = static_cast<real_t>(dimension);
       q1d = (dimension > 0)
             ? static_cast<int>(std::floor(std::pow(num_qp, 1.0 / dim_r) + 0.5))
             : 0;
@@ -435,8 +435,9 @@ struct Action
 
    std::array<size_t, nfields> union_to_infd;
    mutable std::vector<Vector> dummy_fields;
+
 };
 
-} // namespace LocalQFImpl
+}
 
-} // namespace mfem::future
+}

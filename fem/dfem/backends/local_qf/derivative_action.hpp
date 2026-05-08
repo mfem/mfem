@@ -344,9 +344,6 @@ struct DerivativeAction
          enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
          &get<Is>(shadow_args)...);
 #else
-      MFEM_CONTRACT_VAR(qfunc);
-      MFEM_CONTRACT_VAR(primal_args);
-      MFEM_CONTRACT_VAR(shadow_args);
       MFEM_ABORT("Enzyme not available");
 #endif
    }
@@ -428,7 +425,7 @@ struct DerivativeAction
       const auto outputs_local = outputs;
       const auto input_is_dependent_local = input_is_dependent;
 
-      // const int residual_size_on_qp = out_qp_size[0];
+      const int residual_size_on_qp = out_qp_size[0];
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {

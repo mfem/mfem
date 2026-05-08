@@ -125,10 +125,6 @@ public:
       return lsize;
    }
 
-   // const Operator* GetB() const final { return nullptr; }
-
-   // const Operator* GetBt() const final { return nullptr; }
-
 private:
    /// T-vector size
    int tsize;

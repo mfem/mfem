@@ -1,8 +1,7 @@
 #pragma once
-
+#include "../fem/quadinterpolator.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
-
 #include <utility>
 
 namespace mfem::future
@@ -84,7 +83,7 @@ struct DerivativeActionEnzyme
 
    void operator()(
       const std::vector<Vector *> &xe,
-      [[maybe_unused]] const Vector *de,
+      const Vector *de,
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
@@ -127,6 +126,6 @@ struct DerivativeActionEnzyme
    mutable BlockVector xq, shadow_xq, yq;
 };
 
-} // namespace GlobalQFImpl
+}
 
-} // namespace mfem::future
+}

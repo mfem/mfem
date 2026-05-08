@@ -223,7 +223,6 @@ inline void interpolate(
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
-   db1();
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }
