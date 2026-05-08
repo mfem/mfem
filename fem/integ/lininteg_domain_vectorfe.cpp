@@ -77,7 +77,7 @@ VectorFEDomainLFIntegrator::AssembleKernels::Fallback(
    {
       if (DIM == 3)
       {
-         // TODO
+         return HcurlDLFAssemble3D<0, 0>;
       }
    }
    MFEM_ABORT("");
