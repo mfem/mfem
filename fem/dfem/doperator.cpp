@@ -22,6 +22,7 @@ DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh) :
+   Operator(),
    mesh(mesh),
    infds(infds),
    outfds(outfds)
@@ -75,6 +76,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
+
    const size_t dfidx = FindIdx(derivative_id, infds);
 
    // Get transpose callbacks

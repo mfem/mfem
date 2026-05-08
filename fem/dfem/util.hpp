@@ -26,7 +26,6 @@
 #include "../../general/communication.hpp"
 
 #ifdef MFEM_USE_MPI
-
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
@@ -648,10 +647,7 @@ void forall(func_t f,
 #if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
-      db1("num_bytes:{}", num_bytes);
-      db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      // ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
       if (num_bytes > 0)
       {
          forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
@@ -698,9 +694,6 @@ void forall(func_t f,
    {
 #if defined(MFEM_USE_CUDA_OR_HIP)
       int num_bytes = num_shmem * sizeof(decltype(shmem));
-      db1("num_bytes:{}", num_bytes);
-      db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
-      db1("MAX_THREADS_PER_BLOCK:{}", MAX_THREADS_PER_BLOCK);
       dim3 block_size(blocks.x, blocks.y, blocks.z);
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {
@@ -729,7 +722,6 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
-      db1("CPU_MASK");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
@@ -1313,27 +1305,29 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param fields the array of field descriptors.
 /// @param x the input vector in tdofs.
 /// @param fields_l the array of output vectors in vdofs.
-inline
-void local_prolongation(const std::vector<FieldDescriptor> fields,
-                        const Vector &x,
-                        std::vector<Vector> &fields_l)
-{
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
-   }
-}
+// inline
+// void prolongation(const std::vector<FieldDescriptor> fields,
+//                   const Vector &x,
+//                   std::vector<Vector> &fields_l)
+// {
+//    int data_offset = 0;
+//    for (std::size_t i = 0; i < fields.size(); i++)
+//    {
+//       const auto P = get_prolongation(fields[i]);
+//       const int width = P->Width();
+//       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
+//       fields_l[i].SetSize(P->Height());
+//       P->Mult(x_i, fields_l[i]);
+//       data_offset += width;
+//    }
+// }
 
-inline void prolongation(const std::vector<FieldDescriptor> fields,
-                         const BlockVector &x,
-                         std::vector<Vector *> &x_l,
-                         const bool is_lvector = false)
+inline
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const BlockVector &x,
+   std::vector<Vector *> &x_l,
+   const bool is_lvector = false)
 {
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
@@ -1360,10 +1354,12 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
    }
 }
 
-inline void prolongation(const std::vector<FieldDescriptor> fields,
-                         const MultiVector &x,
-                         std::vector<Vector *> &x_l,
-                         const bool is_lvector = false)
+inline
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const MultiVector &x,
+   std::vector<Vector *> &x_l,
+   const bool is_lvector = false)
 {
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());

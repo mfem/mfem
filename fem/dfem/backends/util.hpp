@@ -2,9 +2,7 @@
 
 #include "../fem/quadinterpolator.hpp"
 #include "../util.hpp"
-
 #include "general/enzyme.hpp"
-#include "../../../linalg/tensor_arrays.hpp"
 
 namespace mfem::future
 {
@@ -100,7 +98,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
             std::memcpy(xq.HostReadWrite() + e*nqp, wref, nqp*sizeof(real_t));
          }
       },
-      [](const Vector &, Vector &) { }
+      [](const Vector &, Vector &) {}
    };
 }
 
@@ -186,7 +184,7 @@ inline void check_consistency(
       const auto input = get<i>(fops);
       using input_t = std::decay_t<decltype(input)>;
 
-      [[maybe_unused]] const auto fd = fields[fop_to_fd[i]];
+      const auto fd = fields[fop_to_fd[i]];
 
       if constexpr (is_identity_fop<input_t>::value)
       {
@@ -449,7 +447,7 @@ namespace enzyme_detail
 
 template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
-do_enzyme_call([[maybe_unused]] AccArgs... acc)
+do_enzyme_call(AccArgs... acc)
 {
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
 }

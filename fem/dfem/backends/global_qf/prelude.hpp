@@ -67,8 +67,7 @@ struct GlobalQFBackend
       const Vector &qp_cache)
    {
       // Dummy: GlobalQFBackend doesn't support cached apply yet
-      return [](const std::vector<Vector *> &, const Vector *,
-      std::vector<Vector *> &) {};
+      return [](const std::vector<Vector *> &, const Vector *, std::vector<Vector *> &) {};
    }
 
    template<

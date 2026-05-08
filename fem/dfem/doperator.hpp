@@ -13,7 +13,8 @@
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "linalg/multivector.hpp"
+#include "../fespace.hpp"
+#include "../linalg/multivector.hpp"
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
@@ -72,7 +73,6 @@ using restriction_callback_t =
 class DerivativeOperator : public Operator
 {
 public:
-   ////////////////////////////////////////////////////////////////////////////
    /// Constructor for the DerivativeOperator class.
    ///
    /// This is usually not called directly from a user. A DifferentiableOperator
@@ -366,9 +366,10 @@ public:
    /// @param infds The input fields the operator will act on.
    /// @param outfds The output fields the operator will produce.
    /// @param mesh The mesh on which the operator is defined.
-   DifferentiableOperator(const std::vector<FieldDescriptor> &infds,
-                          const std::vector<FieldDescriptor> &outfds,
-                          const ParMesh &mesh);
+   DifferentiableOperator(
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds,
+      const ParMesh &mesh);
 
    /// MultLevel enum to indicate if the T->L Operators are used in the
    /// Mult method.
@@ -377,16 +378,6 @@ public:
       TVECTOR,
       LVECTOR
    };
-
-   /// @brief Disable the use of tensor product structure.
-   ///
-   /// This function disables the use of tensor product structure for the
-   /// operator. Usually, DifferentiableOperator creates callbacks based on
-   /// heuristics that achieve good performance for each element type. Some
-   /// functionality is not implemented for these performant algorithms but only
-   /// for generic assembly. Therefore the user can decide to use fallback
-   /// methods.
-   void DisableTensorProductStructure(bool disable = true);
 
    void SetQLayouts(std::initializer_list<QLayoutEntry> in,
                     std::initializer_list<QLayoutEntry> out)
@@ -457,18 +448,20 @@ public:
 
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
-   template <typename backend_t = GlobalQFBackend,
-             typename entity_t,
-             typename qfunc_t,
-             typename input_t,
-             typename output_t,
-             typename derivative_ids_t>
-   void AddIntegrator(qfunc_t &qfunc,
-                      input_t inputs,
-                      output_t outputs,
-                      const IntegrationRule &integration_rule,
-                      const Array<int> &attributes,
-                      derivative_ids_t derivative_ids);
+   template <
+      typename backend_t = GlobalQFBackend,
+      typename entity_t,
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t>
+   void AddIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &attributes,
+      derivative_ids_t derivative_ids);
 
    /// @brief Add a domain integrator to the operator.
    ///
@@ -482,17 +475,19 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
-   template <typename backend_t, // = GlobalQFBackend,
-             typename qfunc_t,
-             typename input_t,
-             typename output_t,
-             typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
-   void AddDomainIntegrator(qfunc_t &qfunc,
-                            input_t inputs,
-                            output_t outputs,
-                            const IntegrationRule &integration_rule,
-                            const Array<int> &domain_attributes,
-                            derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+   template <
+      typename backend_t = GlobalQFBackend,
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+   void AddDomainIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &domain_attributes,
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
    /// @brief Add a boundary integrator to the operator.
    ///
@@ -506,16 +501,28 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
-   template <typename qfunc_t,
-             typename input_t,
-             typename output_t,
-             typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
-   void AddBoundaryIntegrator(qfunc_t &qfunc,
-                              input_t inputs,
-                              output_t outputs,
-                              const IntegrationRule &integration_rule,
-                              const Array<int> &boundary_attributes,
-                              derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+   template <
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+   void AddBoundaryIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &boundary_attributes,
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+
+   /// @brief Disable the use of tensor product structure.
+   ///
+   /// This function disables the use of tensor product structure for the
+   /// operator. Usually, DifferentiableOperator creates callbacks based on
+   /// heuristics that achieve good performance for each element type. Some
+   /// functionality is not implemented for these performant algorithms but only
+   /// for generic assembly. Therefore the user can decide to use fallback
+   /// methods.
+   void DisableTensorProductStructure(bool disable = true);
 
    /// @brief Get the derivative operator for a given derivative ID.
    ///
@@ -549,7 +556,6 @@ private:
    std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
 
    std::vector<action_t> action_callbacks;
-
    std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
@@ -577,6 +583,7 @@ private:
    mutable std::vector<Vector *> residual_l;
    mutable std::vector<Vector *> residual_e;
 
+   // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
@@ -604,7 +611,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
-   NVTX_MARK_FUNCTION;
    AddIntegrator<backend_t, Entity::Element>(
       qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
 }
@@ -660,33 +666,33 @@ void DifferentiableOperator::AddIntegrator(
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   constexpr size_t num_qfparams = future::tuple_size<qf_param_ts>::value;
-   dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
+   constexpr size_t num_qfparams = tuple_size<qf_param_ts>::value;
    static_assert(num_qfparams == num_inputs + num_outputs,
                  "quadrature function must take "
                  "num_inputs + num_outputs parameters");
+
    static_assert(std::is_same_v<qf_output_t, void>,
                  "quadrature function must return void");
 
-   const auto inout_tuple =
+   constexpr auto inout_tuple =
       merge_mfem_tuples_as_empty_std_tuple(input_t{}, output_t{});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
-   dbg("num_fields: {}", num_fields);
 
    MFEM_VERIFY(num_fields == unionfds.size(),
                "Total number of fields in the Q-function doesn't match "
                "the union of FieldDescriptors.");
 
-   dbg("Making dependency map");
    auto dependency_map = make_dependency_map(inputs);
+
    // pretty_print(dependency_map);
 
-   // const auto input_to_field =
-   create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   create_descriptors_to_fields_map<entity_t>(outfds, outputs);
+   auto input_to_field =
+      create_descriptors_to_fields_map<entity_t>(infds, inputs);
+   auto output_to_field =
+      create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
@@ -808,5 +814,5 @@ void DifferentiableOperator::AddIntegrator(
 }
 
 } // namespace mfem::future
+#endif
 
-#endif // MFEM_DFEM_DOPERATOR_HPP

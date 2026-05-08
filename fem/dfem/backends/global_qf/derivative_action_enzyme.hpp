@@ -1,4 +1,5 @@
 #pragma once
+
 #include "../fem/quadinterpolator.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
@@ -127,5 +128,4 @@ struct DerivativeActionEnzyme
 };
 
 }
-
 }
