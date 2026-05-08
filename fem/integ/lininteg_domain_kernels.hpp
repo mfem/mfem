@@ -578,7 +578,7 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
 
    constexpr int vdim = 3;
    const auto F = coeff.Read();
-   const auto M = Reshape(markers.Read(), ne);
+   const auto M = markers.Read();
    const auto BO = Reshape(testBO.Read(), q, d-1);
    const auto BC = Reshape(testBC.Read(), q, d);
    const auto J = Reshape(jac.Read(), q, q, q, vdim, vdim, ne);
@@ -589,7 +589,7 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE(int e)
    {
-      if (markers[e] == 0)
+      if (M[e] == 0)
       {
          // ignore
          return;
