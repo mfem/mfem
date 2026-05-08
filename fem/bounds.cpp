@@ -46,6 +46,9 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    nodes.SetSize(nb);
    weights.SetSize(nb);
    control_points.SetSize(ncp);
+   xhat.SetSize(nb);
+   what.SetSize(nb);
+   cphat.SetSize(ncp);
 
    auto scalenodes = [](const Vector &in, const real_t a, const real_t b) -> Vector
    {
@@ -92,6 +95,10 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       MFEM_ABORT("Unsupported interval points. Use [0,1].\n");
    }
    control_points = scalenodes(control_points, 0.0, 1.0); // rescale to [0,1]
+   for (int i = 0; i < ncp; i++)
+   {
+      cphat(i) = 2.0*control_points(i) - 1.0;
+   }
 
    Poly_1D::Basis &basis1d(poly1d.GetBasis(nb-1, b_type));
 
@@ -179,6 +186,11 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
          weights(i) = irule.IntPoint(i).weight;
          nodes(i) = irule.IntPoint(i).x;
       }
+   }
+   for (int i = 0; i < nb; i++)
+   {
+      xhat(i) = 2.0*nodes(i) - 1.0;
+      what(i) = 2.0*weights(i);
    }
 
    if (b_type == 2)

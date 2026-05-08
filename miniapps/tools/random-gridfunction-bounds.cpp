@@ -10,10 +10,10 @@
 // CONTRIBUTING.md for details.
 //
 //    ---------------------------------------------------------------------
-//     Compute bounds of a random 1D grid function on a generated mesh
+//     Compute bounds of a random grid function on a generated tensor mesh
 //    ---------------------------------------------------------------------
 //
-// This miniapp generates a 1D segment mesh with nx elements, builds a random
+// This miniapp generates a 1D segment mesh or 2D quad mesh, builds a random
 // discontinuous grid function, computes element-wise piecewise linear bounds,
 // and visualizes the input field together with the lower and upper bounds.
 //
@@ -24,6 +24,9 @@
 //   mpirun -np 4 random-gridfunction-bounds -nx 64 -o 6 -ref 3 -d hip
 
 #include "mfem.hpp"
+
+#include <algorithm>
+#include <type_traits>
 
 using namespace mfem;
 using namespace std;
@@ -36,51 +39,173 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   int dim = 2;
    int nx = 16;
    int order = 4;
+   int num_comp = 2;
    int ref = 2;
+   int niter = 1000;
    int seed = 12345;
+   bool kernel_only = true;
    bool visualization = false;
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
+   args.AddOption(&dim, "-dim", "--dimension",
+                  "Dimension of the generated tensor-product mesh (1 or 2).");
    args.AddOption(&nx, "-nx", "--num-elements",
-                  "Number of 1D mesh elements.");
+                  "Number of elements in each mesh direction.");
    args.AddOption(&order, "-o", "--order",
                   "Polynomial degree of the random discontinuous field.");
+   args.AddOption(&num_comp, "-nc", "--num-components",
+                  "Number of vector components in the ParFiniteElementSpace.");
    args.AddOption(&ref, "-ref", "--piecewise-linear-ref-factor",
                   "Scaling factor for the resolution of the piecewise linear "
                   "bounds. If less than 2, the resolution is picked "
                   "automatically.");
+   args.AddOption(&niter, "-ni", "--num-iters",
+                  "Number of times to evaluate the bounds.");
    args.AddOption(&seed, "-rs", "--random-seed",
                   "Random seed used to initialize the field.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&kernel_only, "-ko", "--kernel-only",
+                  "-no-ko", "--no-kernel-only",
+                  "Run only PLBound::GetElementBoundsKernel on a prebuilt "
+                  "element E-vector.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
+   MFEM_VERIFY(dim == 1 || dim == 2, "dim must be 1 or 2.");
    MFEM_VERIFY(nx > 0, "nx must be positive.");
    MFEM_VERIFY(order >= 0, "order must be non-negative.");
+   MFEM_VERIFY(num_comp > 0, "num_comp must be positive.");
+   MFEM_VERIFY(niter > 0, "niter must be positive.");
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   Mesh mesh = Mesh::MakeCartesian1D(nx, 1.0);
+   Mesh mesh = (dim == 1) ?
+               Mesh::MakeCartesian1D(nx, 1.0) :
+               Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true,
+                                     1.0, 1.0);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
-   const int dim = pmesh.Dimension();
-   L2_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(&pmesh, &fec);
+   const int mesh_dim = pmesh.Dimension();
+   L2_FECollection fec(order, mesh_dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&pmesh, &fec, num_comp, Ordering::byNODES);
    ParGridFunction input(&fes);
    input.Randomize(seed + Mpi::WorldRank());
+   input.UseDevice(true);
 
-   L2_FECollection fec_pc(0, dim);
-   ParFiniteElementSpace fes_pc(&pmesh, &fec_pc, 1, Ordering::byNODES);
+   L2_FECollection fec_pc(0, mesh_dim);
+   ParFiniteElementSpace fes_pc(&pmesh, &fec_pc, num_comp, Ordering::byNODES);
    ParGridFunction lowerb(&fes_pc), upperb(&fes_pc);
+   Vector lower_vec, upper_vec;
 
-   PLBound plb = input.GetElementBounds(lowerb, upperb, ref);
+   PLBound plb(&fes, ref*(fes.GetMaxElementOrder() + 1));
+   if (kernel_only)
+   {
+      const FiniteElement &fe = *fes.GetTypicalFE();
+      const int rdim = fe.GetDim();
+      const int nd = fe.GetDof();
+      const int fes_dim = fes.GetVDim();
+      Vector e_vec(nd*fes_dim*fes.GetNE(), Device::GetDeviceMemoryType());
+      e_vec.UseDevice(true);
+
+      const ElementRestrictionOperator *elem_restr =
+         fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      MFEM_VERIFY(elem_restr != nullptr,
+                  "Element restriction is required for kernel-only mode.");
+      elem_restr->Mult(input, e_vec);
+
+      for (int i = 0; i < niter; i++)
+      {
+         plb.GetElementBoundsKernel(rdim, fes_dim, e_vec, lower_vec, upper_vec);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < niter; i++)
+      {
+         input.GetElementBounds(plb, lower_vec, upper_vec);
+      }
+   }
+
+   const real_t *lower_data = lower_vec.HostRead();
+   const real_t *upper_data = upper_vec.HostRead();
+
+   // Build a host reference from the lexicographic E-vector and the scalar
+   // PLBound::GetNDBounds path to avoid re-entering the device dispatch.
+   const bool use_dev = input.UseDevice();
+   PLBound plb_host(&fes, ref*(fes.GetMaxElementOrder() + 1));
+   Vector lower_ref, upper_ref;
+   const FiniteElement &fe = *fes.GetTypicalFE();
+   const int rdim = fe.GetDim();
+   const int nd = fe.GetDof();
+   const int nel = fes.GetNE();
+   const int fes_dim = fes.GetVDim();
+   Vector e_vec_ref(nd*fes_dim*nel);
+   lower_ref.SetSize(nel*fes_dim);
+   upper_ref.SetSize(nel*fes_dim);
+   const ElementRestrictionOperator *elem_restr =
+      fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   MFEM_VERIFY(elem_restr != nullptr,
+               "Element restriction is required for host reference.");
+   input.UseDevice(false);
+   input.HostRead();
+   elem_restr->Mult(input, e_vec_ref);
+   input.UseDevice(use_dev);
+   const real_t *e_ref_data = e_vec_ref.HostRead();
+
+   for (int d = 0; d < fes_dim; d++)
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         Vector coeff(nd);
+         for (int i = 0; i < nd; i++)
+         {
+            coeff(i) = e_ref_data[i + nd*(d + fes_dim*e)];
+         }
+         Vector lower_c, upper_c;
+         plb_host.GetNDBounds(rdim, coeff, lower_c, upper_c);
+         lower_ref(e + d*nel) = lower_c.Min();
+         upper_ref(e + d*nel) = upper_c.Max();
+      }
+   }
+   const real_t *lower_ref_data = lower_ref.HostRead();
+   const real_t *upper_ref_data = upper_ref.HostRead();
+
+   MFEM_VERIFY(lower_vec.Size() == lower_ref.Size() &&
+               upper_vec.Size() == upper_ref.Size(),
+               "Reference element-bound vectors have inconsistent sizes.");
+
+   real_t lower_diff = 0.0;
+   real_t upper_diff = 0.0;
+   for (int i = 0; i < lower_vec.Size(); i++)
+   {
+      lower_diff = std::max(lower_diff,
+                            std::abs(lower_data[i] - lower_ref_data[i]));
+   }
+   for (int i = 0; i < upper_vec.Size(); i++)
+   {
+      upper_diff = std::max(upper_diff,
+                            std::abs(upper_data[i] - upper_ref_data[i]));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &lower_diff, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, pmesh.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &upper_diff, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, pmesh.GetComm());
+
+   const real_t verify_tol = std::is_same<real_t, float>::value ?
+                             real_t(1.0e-5) : real_t(1.0e-12);
+   MFEM_VERIFY(lower_diff <= verify_tol && upper_diff <= verify_tol,
+               "Device element bounds do not match host reference.");
+
+   lowerb = lower_vec;
+   upperb = upper_vec;
 
    real_t lower_min = lowerb.Min();
    real_t upper_max = upperb.Max();
@@ -91,9 +216,15 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << "nx: " << nx << '\n'
+      cout << "dim: " << mesh_dim << '\n'
+           << "nx: " << nx << '\n'
            << "order: " << order << '\n'
+           << "num components: " << num_comp << '\n'
            << "PL bound control-point factor: " << ref << '\n'
+           << "iterations: " << niter << '\n'
+           << "kernel-only mode: " << (kernel_only ? "yes" : "no") << '\n'
+           << "host/device lower max diff: " << lower_diff << '\n'
+           << "host/device upper max diff: " << upper_diff << '\n'
            << "global lower bound minimum: " << lower_min << '\n'
            << "global upper bound maximum: " << upper_max << endl;
    }

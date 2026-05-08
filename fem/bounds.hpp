@@ -61,6 +61,7 @@ private:
    bool proj = true; // Use linear projection to compute bounds.
    real_t tol = 0.0; // offset bounds to avoid round-off errors
    Vector nodes, weights, control_points;
+   Vector xhat, what, cphat;
    DenseMatrix lbound, ubound; // ncp x nb matrices with bounds of all bases
    DenseMatrix lbound_t, ubound_t; // nb x ncp transposes for device kernel
    // Some auxillary storage for computing the bounds with Bernstein
@@ -115,7 +116,10 @@ public:
     *  @details This projection increases the computational cost but results in
     *  tighter bounds.
     */
-   void SetProjectionFlagForBounding(bool proj_) { proj = proj_; }
+   void SetProjectionFlagForBounding(bool proj_)
+   {
+      proj = proj_;
+   }
 
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
     *  nodal coefficients in @a coeff in 1D/2D/3D.
@@ -207,78 +211,438 @@ struct PLBoundDeviceData
    int nb;
    int ncp;
    bool proj;
-   const real_t *nodes;
-   const real_t *weights;
-   const real_t *control_points;
-   const real_t *lbound_t;
-   const real_t *ubound_t;
+   const real_t *xhat;
+   const real_t *what;
+   const real_t *cphat;
+   const real_t *lbound;
+   const real_t *ubound;
+};
 
-   MFEM_HOST_DEVICE inline real_t Min2(const real_t a, const real_t b) const
-   {
-      return (a < b) ? a : b;
-   }
+template<int T_NB = 0>
+inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
+                                     const int fes_vdim,
+                                     const int ne,
+                                     const Vector &e_vec,
+                                     Vector &lower,
+                                     Vector &upper,
+                                     const int comp0,
+                                     const int ncomp)
+{
+   constexpr int GENERIC_MAX_ND = 32;
+   constexpr int MAX_ND = T_NB ? T_NB : GENERIC_MAX_ND;
+   constexpr int BLOCK_X = 2*MAX_ND;
 
-   MFEM_HOST_DEVICE inline real_t Max2(const real_t a, const real_t b) const
-   {
-      return (a > b) ? a : b;
-   }
+   const int nd = T_NB ? T_NB : data.nb;
+   MFEM_VERIFY(nd <= MAX_ND,
+               "Device element bounds kernel supports up to 32 "
+               "1D degrees of freedom.");
 
-   MFEM_HOST_DEVICE inline void GetFinalBounds1D(const real_t *coeff,
-                                                 real_t &lower,
-                                                 real_t &upper) const
+   const auto E = Reshape(e_vec.Read(), nd, fes_vdim, ne);
+   auto L = Reshape(lower.Write(), ne, ncomp);
+   auto U = Reshape(upper.Write(), ne, ncomp);
+
+   mfem::forall_2D<BLOCK_X>(ne*ncomp, BLOCK_X, 1,
+                            [=] MFEM_HOST_DEVICE (int ec)
    {
-      real_t a0 = 0.0;
-      real_t a1 = 0.0;
-      if (proj)
+      const int e = ec % ne;
+      const int c = ec / ne;
+      const int vc = comp0 + c;
+      const real_t *coeff = &E(0, vc, e);
+      const int tid = MFEM_THREAD_ID(x);
+
+      MFEM_SHARED real_t sproj[MAX_ND];
+      MFEM_SHARED real_t ssum0[MAX_ND];
+      MFEM_SHARED real_t ssum1[MAX_ND];
+      MFEM_SHARED real_t smin[BLOCK_X];
+      MFEM_SHARED real_t smax[BLOCK_X];
+      MFEM_SHARED real_t sa0;
+      MFEM_SHARED real_t sa1;
+
+      MFEM_FOREACH_THREAD(i, x, nd)
       {
-         for (int i = 0; i < nb; i++)
+         if (data.proj)
          {
-            const real_t x = 2.0*nodes[i] - 1.0;
-            const real_t w = 2.0*weights[i];
-            a0 += 0.5*coeff[i]*w;
-            a1 += 1.5*coeff[i]*w*x;
-         }
-      }
-
-      lower = 0.0;
-      upper = 0.0;
-      for (int j = 0; j < ncp; j++)
-      {
-         real_t lo = 0.0;
-         real_t hi = 0.0;
-         if (proj)
-         {
-            const real_t xcp = 2.0*control_points[j] - 1.0;
-            lo = a0 + a1*xcp;
-            hi = lo;
-         }
-
-         for (int i = 0; i < nb; i++)
-         {
-            real_t c = coeff[i];
-            if (proj)
-            {
-               const real_t x = 2.0*nodes[i] - 1.0;
-               c -= a0 + a1*x;
-            }
-            const real_t lv = lbound_t[i + j*nb]*c;
-            const real_t uv = ubound_t[i + j*nb]*c;
-            lo += Min2(lv, uv);
-            hi += Max2(lv, uv);
-         }
-         if (j == 0)
-         {
-            lower = lo;
-            upper = hi;
+            const real_t x = data.xhat[i];
+            const real_t w = data.what[i];
+            ssum0[i] = 0.5*coeff[i]*w;
+            ssum1[i] = 1.5*coeff[i]*w*x;
          }
          else
          {
-            lower = Min2(lower, lo);
-            upper = Max2(upper, hi);
+            ssum0[i] = 0.0;
+            ssum1[i] = 0.0;
          }
       }
-   }
-};
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(ii, x, 1)
+      {
+         sa0 = 0.0;
+         sa1 = 0.0;
+         for (int i = 0; i < nd; i++)
+         {
+            sa0 += ssum0[i];
+            sa1 += ssum1[i];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(i, x, nd)
+      {
+         if (data.proj)
+         {
+            const real_t x = data.xhat[i];
+            sproj[i] = coeff[i] - sa0 - sa1*x;
+         }
+         else
+         {
+            sproj[i] = coeff[i];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      real_t lower_local = HUGE_VAL;
+      real_t upper_local = -HUGE_VAL;
+      MFEM_FOREACH_THREAD(j, x, data.ncp)
+      {
+         real_t lo = 0.0;
+         real_t hi = 0.0;
+         if (data.proj)
+         {
+            const real_t xcp = data.cphat[j];
+            lo = sa0 + sa1*xcp;
+            hi = lo;
+         }
+
+         for (int i = 0; i < nd; i++)
+         {
+            const real_t val = sproj[i];
+            const real_t lv = data.lbound[j + i*data.ncp]*val;
+            const real_t uv = data.ubound[j + i*data.ncp]*val;
+            lo += lv < uv ? lv : uv;
+            hi += lv > uv ? lv : uv;
+         }
+         lower_local = lower_local < lo ? lower_local : lo;
+         upper_local = upper_local > hi ? upper_local : hi;
+      }
+
+      smin[tid] = lower_local;
+      smax[tid] = upper_local;
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(ii, x, 1)
+      {
+         real_t lower_ec = smin[0];
+         real_t upper_ec = smax[0];
+         const int nthreads = MFEM_THREAD_SIZE(x);
+         const int nactive = data.ncp < nthreads ? data.ncp : nthreads;
+         for (int t = 1; t < nactive; t++)
+         {
+            lower_ec = lower_ec < smin[t] ? lower_ec : smin[t];
+            upper_ec = upper_ec > smax[t] ? upper_ec : smax[t];
+         }
+         L(e, c) = lower_ec;
+         U(e, c) = upper_ec;
+      }
+   });
+}
+
+template<int T_NB = 0, int T_NCP = 0>
+inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
+                                     const int fes_vdim,
+                                     const int ne,
+                                     const Vector &e_vec,
+                                     Vector &lower,
+                                     Vector &upper,
+                                     const int comp0,
+                                     const int ncomp)
+{
+   constexpr int DEFAULT_MAX_NB = 8;
+   constexpr int DEFAULT_MAX_CP = 3*DEFAULT_MAX_NB;
+   constexpr int MAX_NB = T_NB ? T_NB : DEFAULT_MAX_NB;
+   constexpr int MAX_CP = T_NCP ? T_NCP : DEFAULT_MAX_CP;
+   constexpr int MAX_THREADS = MAX_CP*MAX_CP;
+
+   const int nb = data.nb;
+   const int ncp = data.ncp;
+   const int nd = nb*nb;
+   MFEM_VERIFY(nb <= MAX_NB,
+               "Device 2D element bounds kernel exceeds its compile-time "
+               "1D degree bound.");
+   MFEM_VERIFY(ncp <= MAX_CP,
+               "Device 2D element bounds kernel exceeds its compile-time "
+               "control-point bound.");
+   MFEM_VERIFY(ncp*ncp <= MAX_THREADS,
+               "Device 2D element bounds kernel exceeds its compile-time "
+               "thread-block bound.");
+
+   const auto E = Reshape(e_vec.Read(), nd, fes_vdim, ne);
+   auto L = Reshape(lower.Write(), ne, ncomp);
+   auto U = Reshape(upper.Write(), ne, ncomp);
+
+   mfem::forall_2D<MAX_THREADS>(ne*ncomp, ncp, ncp,
+                                [=] MFEM_HOST_DEVICE (int ec)
+   {
+      const int e = ec % ne;
+      const int c = ec / ne;
+      const int vc = comp0 + c;
+      const real_t *coeff = &E(0, vc, e);
+      const int tx = MFEM_THREAD_ID(x);
+      const int ty = MFEM_THREAD_ID(y);
+
+      MFEM_SHARED real_t sproj[MAX_NB*MAX_NB];
+      MFEM_SHARED real_t srow_min[MAX_NB*MAX_CP];
+      MFEM_SHARED real_t srow_max[MAX_NB*MAX_CP];
+      MFEM_SHARED real_t srow_a0[MAX_NB];
+      MFEM_SHARED real_t srow_a1[MAX_NB];
+      MFEM_SHARED real_t sa0[MAX_CP];
+      MFEM_SHARED real_t sa1[MAX_CP];
+      MFEM_SHARED real_t smin[MAX_THREADS];
+      MFEM_SHARED real_t smax[MAX_THREADS];
+
+      // Stage 1a: for each nodal row, form the per-node contributions to the
+      // row-wise linear fit used by the first 1D bounding solve.
+      MFEM_FOREACH_THREAD(jrow, y, nb)
+      {
+         const real_t *row_coeff = coeff + jrow*nb;
+         const int row_ncp_off = jrow*MAX_CP;
+         MFEM_FOREACH_THREAD(i, x, nb)
+         {
+            if (data.proj)
+            {
+               const real_t x = data.xhat[i];
+               const real_t w = data.what[i];
+               srow_min[row_ncp_off + i] = 0.5*row_coeff[i]*w;
+               srow_max[row_ncp_off + i] = 1.5*row_coeff[i]*w*x;
+            }
+            else
+            {
+               srow_min[row_ncp_off + i] = 0.0;
+               srow_max[row_ncp_off + i] = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 1b: reduce the row-wise projection coefficients a0/a1.
+      if (data.proj)
+      {
+         MFEM_FOREACH_THREAD(jrow, y, nb)
+         {
+            const int row_ncp_off = jrow*MAX_CP;
+            real_t a0 = 0.0;
+            real_t a1 = 0.0;
+            MFEM_FOREACH_THREAD(ii, x, 1)
+            {
+               for (int i = 0; i < nb; i++)
+               {
+                  a0 += srow_min[row_ncp_off + i];
+                  a1 += srow_max[row_ncp_off + i];
+               }
+               srow_a0[jrow] = a0;
+               srow_a1[jrow] = a1;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      // Stage 1c: subtract the row-wise linear fit once and cache the
+      // projected row coefficients for reuse across all x-control points.
+      MFEM_FOREACH_THREAD(jrow, y, nb)
+      {
+         const real_t *row_coeff = coeff + jrow*nb;
+         MFEM_FOREACH_THREAD(i, x, nb)
+         {
+            if (data.proj)
+            {
+               const real_t x = data.xhat[i];
+               sproj[jrow*MAX_NB + i] = row_coeff[i]
+                                        - srow_a0[jrow] - srow_a1[jrow]*x;
+            }
+            else
+            {
+               sproj[jrow*MAX_NB + i] = row_coeff[i];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 1d: solve the first 1D bounding problem along each nodal row and
+      // store bounds at every x-direction control point.
+      MFEM_FOREACH_THREAD(icp, x, ncp)
+      {
+         MFEM_FOREACH_THREAD(jrow, y, nb)
+         {
+            const int row_cp_off = jrow*ncp;
+            real_t lo = 0.0;
+            real_t hi = 0.0;
+            if (data.proj)
+            {
+               const real_t xcp = data.cphat[icp];
+               lo = srow_a0[jrow] + srow_a1[jrow]*xcp;
+               hi = lo;
+            }
+            for (int i = 0; i < nb; i++)
+            {
+               const real_t val = sproj[jrow*MAX_NB + i];
+               const real_t lv = data.lbound[icp + i*data.ncp]*val;
+               const real_t uv = data.ubound[icp + i*data.ncp]*val;
+               lo += lv < uv ? lv : uv;
+               hi += lv > uv ? lv : uv;
+            }
+            srow_min[row_cp_off + icp] = lo;
+            srow_max[row_cp_off + icp] = hi;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 2a: from the row bounds, form the per-row contributions to the
+      // second 1D projection solve in the y-direction.
+      MFEM_FOREACH_THREAD(icp, x, ncp)
+      {
+         MFEM_FOREACH_THREAD(jrow, y, nb)
+         {
+            const int row_cp_off = jrow*ncp;
+            if (data.proj)
+            {
+               const real_t x = data.xhat[jrow];
+               const real_t w = data.what[jrow];
+               const real_t t = 0.5*(srow_min[row_cp_off + icp] +
+                                     srow_max[row_cp_off + icp]);
+               smin[row_cp_off + icp] = 0.5*t*w;
+               smax[row_cp_off + icp] = 1.5*t*w*x;
+            }
+            else
+            {
+               smin[row_cp_off + icp] = 0.0;
+               smax[row_cp_off + icp] = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 2b: reduce the y-direction projection coefficients for each
+      // x-control-point column.
+      MFEM_FOREACH_THREAD(jj, y, 1)
+      {
+         MFEM_FOREACH_THREAD(icp, x, ncp)
+         {
+            real_t a0 = 0.0;
+            real_t a1 = 0.0;
+            for (int jrow = 0; jrow < nb; jrow++)
+            {
+               a0 += smin[jrow*ncp + icp];
+               a1 += smax[jrow*ncp + icp];
+            }
+            sa0[icp] = a0;
+            sa1[icp] = a1;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 2c: subtract the y-direction linear fit from the intermediate
+      // row bounds so the final tensor-product bound uses the perturbation.
+      if (data.proj)
+      {
+         MFEM_FOREACH_THREAD(icp, x, ncp)
+         {
+            MFEM_FOREACH_THREAD(jrow, y, nb)
+            {
+               const int row_cp_off = jrow*ncp;
+               const real_t x = data.xhat[jrow];
+               const real_t t = sa0[icp] + sa1[icp]*x;
+               srow_min[row_cp_off + icp] -= t;
+               srow_max[row_cp_off + icp] -= t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Stage 3: each thread now owns one 2D control point (icp, kcp) and
+      // accumulates its final lower/upper bound from the row-bound data.
+      MFEM_FOREACH_THREAD(icp, x, ncp)
+      {
+         MFEM_FOREACH_THREAD(kcp, y, ncp)
+         {
+            real_t lo = 0.0;
+            real_t hi = 0.0;
+            if (data.proj)
+            {
+               const real_t xcp = data.cphat[kcp];
+               lo = sa0[icp] + sa1[icp]*xcp;
+               hi = lo;
+            }
+            for (int jrow = 0; jrow < nb; jrow++)
+            {
+               const real_t w0 = srow_min[jrow*ncp + icp];
+               const real_t w1 = srow_max[jrow*ncp + icp];
+               const real_t lb = data.lbound[kcp + jrow*data.ncp];
+               const real_t ub = data.ubound[kcp + jrow*data.ncp];
+               const real_t v0 = lb*w0;
+               const real_t v1 = ub*w0;
+               const real_t v2 = lb*w1;
+               const real_t v3 = ub*w1;
+               real_t vlo = v0 < v1 ? v0 : v1;
+               real_t vhi = v0 > v1 ? v0 : v1;
+               vlo = vlo < v2 ? vlo : v2;
+               vlo = vlo < v3 ? vlo : v3;
+               vhi = vhi > v2 ? vhi : v2;
+               vhi = vhi > v3 ? vhi : v3;
+               lo += vlo;
+               hi += vhi;
+            }
+            const int slot = kcp*ncp + icp;
+            smin[slot] = lo;
+            smax[slot] = hi;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      const int lane = ty*ncp + tx;
+      const int nactive = ncp*ncp;
+      const int nthreads = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
+
+      // Reduce all 2D control-point bounds to one lower/upper pair per
+      // (element, component).
+      if (nthreads == 1)
+      {
+         if (tx == 0 && ty == 0)
+         {
+            real_t lower_ec = smin[0];
+            real_t upper_ec = smax[0];
+            for (int t = 1; t < nactive; t++)
+            {
+               lower_ec = lower_ec < smin[t] ? lower_ec : smin[t];
+               upper_ec = upper_ec > smax[t] ? upper_ec : smax[t];
+            }
+            L(e, c) = lower_ec;
+            U(e, c) = upper_ec;
+         }
+      }
+      else
+      {
+         for (int stride = (nactive + 1)/2; stride > 0;
+              stride = (stride + 1)/2)
+         {
+            if (lane < stride && lane + stride < nactive)
+            {
+               smin[lane] = smin[lane] < smin[lane + stride] ?
+                            smin[lane] : smin[lane + stride];
+               smax[lane] = smax[lane] > smax[lane + stride] ?
+                            smax[lane] : smax[lane + stride];
+            }
+            MFEM_SYNC_THREAD;
+            if (stride == 1) { break; }
+         }
+
+         if (lane == 0)
+         {
+            L(e, c) = smin[0];
+            U(e, c) = smax[0];
+         }
+      }
+   });
+}
 
 } // namespace internal
 
@@ -287,149 +651,146 @@ inline void PLBound::GetElementBoundsKernel(const int rdim, const int fes_vdim,
                                             Vector &lower, Vector &upper,
                                             const int vdim) const
 {
-   constexpr int BOUNDS_MAX_ND = 32;
-
    MFEM_VERIFY(b_type != BasisType::Positive,
                "Bernstein device bounds are not implemented.");
-   if (rdim == 2 || rdim == 3)
+   if (rdim == 3)
    {
-      MFEM_ABORT("Device element bounds kernel currently only supports 1D.");
+      MFEM_ABORT("Device element bounds kernel currently only supports 1D/2D.");
    }
-   MFEM_VERIFY(rdim == 1, "Invalid element dimension.");
+   MFEM_VERIFY(rdim == 1 || rdim == 2, "Invalid element dimension.");
    MFEM_VERIFY(vdim >= -1 && vdim <= fes_vdim, "Invalid vector component.");
-   const int nd = nb;
+   const int nd = static_cast<int>(std::pow(nb, rdim));
    const int ne = e_vec.Size()/(nd*fes_vdim);
    const int ncomp = (vdim > 0) ? 1 : fes_vdim;
-   MFEM_VERIFY(nd <= BOUNDS_MAX_ND,
-               "Device element bounds kernel supports up to 32 "
-               "1D degrees of freedom.");
 
    lower.SetSize(ne*ncomp, e_vec);
    upper.SetSize(ne*ncomp, e_vec);
    lower.UseDevice(true);
    upper.UseDevice(true);
 
+   const real_t *dxhat = xhat.Read();
+   const real_t *dwhat = what.Read();
+   const real_t *dcphat = cphat.Read();
+   const real_t *dlbound = lbound.Read();
+   const real_t *dubound = ubound.Read();
+
    internal::PLBoundDeviceData data
    {
       nb,
       ncp,
       proj,
-      nodes.Read(),
-      weights.Read(),
-      control_points.Read(),
-      lbound_t.Read(),
-      ubound_t.Read()
+      dxhat,
+      dwhat,
+      dcphat,
+      dlbound,
+      dubound
    };
 
-   const auto E = Reshape(e_vec.Read(), nd, fes_vdim, ne);
-   auto L = Reshape(lower.Write(), ne, ncomp);
-   auto U = Reshape(upper.Write(), ne, ncomp);
    const int comp0 = (vdim > 0) ? (vdim - 1) : 0;
 
-   mfem::forall_2D<BOUNDS_MAX_ND>(ne*ncomp, nd, 1,
-                                  [=] MFEM_HOST_DEVICE (int ec)
+   if (rdim == 1)
    {
-      const int e = ec % ne;
-      const int c = ec / ne;
-      const int vc = comp0 + c;
-      const real_t *coeff = &E(0, vc, e);
-      const int tid = MFEM_THREAD_ID(x);
-
-      MFEM_SHARED real_t s0[BOUNDS_MAX_ND];
-      MFEM_SHARED real_t s1[BOUNDS_MAX_ND];
-      MFEM_SHARED real_t slo[BOUNDS_MAX_ND];
-      MFEM_SHARED real_t shi[BOUNDS_MAX_ND];
-      MFEM_SHARED real_t sa0;
-      MFEM_SHARED real_t sa1;
-
-      MFEM_FOREACH_THREAD(i, x, nd)
+      switch (nb)
       {
-         if (data.proj)
-         {
-            const real_t x = 2.0*data.nodes[i] - 1.0;
-            const real_t w = 2.0*data.weights[i];
-            s0[i] = 0.5*coeff[i]*w;
-            s1[i] = 1.5*coeff[i]*w*x;
-         }
-         else
-         {
-            s0[i] = 0.0;
-            s1[i] = 0.0;
-         }
+         case 2: return internal::GetElementBoundsKernel1D<2>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 3: return internal::GetElementBoundsKernel1D<3>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 4: return internal::GetElementBoundsKernel1D<4>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 5: return internal::GetElementBoundsKernel1D<5>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 6: return internal::GetElementBoundsKernel1D<6>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 7: return internal::GetElementBoundsKernel1D<7>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 8: return internal::GetElementBoundsKernel1D<8>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 9: return internal::GetElementBoundsKernel1D<9>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
+         case 10: return internal::GetElementBoundsKernel1D<10>(data, fes_vdim, ne,
+                                                                   e_vec, lower, upper,
+                                                                   comp0, ncomp);
+         default: return internal::GetElementBoundsKernel1D<>(data, fes_vdim, ne,
+                                                                 e_vec, lower, upper,
+                                                                 comp0, ncomp);
       }
-      MFEM_SYNC_THREAD;
-
-      if (tid == 0)
-      {
-         sa0 = 0.0;
-         sa1 = 0.0;
-         for (int i = 0; i < nd; i++)
+   }
+#define MFEM_PLBOUND_2D_DISPATCH(NB, NCP) \
+   return internal::GetElementBoundsKernel2D<NB, NCP>(data, fes_vdim, ne, \
+                                                      e_vec, lower, upper, \
+                                                      comp0, ncomp)
+   switch (nb)
+   {
+      case 2:
+         switch (ncp)
          {
-            sa0 += s0[i];
-            sa1 += s1[i];
+            case 4: MFEM_PLBOUND_2D_DISPATCH(2, 4);
+            case 6: MFEM_PLBOUND_2D_DISPATCH(2, 6);
+            case 8: MFEM_PLBOUND_2D_DISPATCH(2, 8);
          }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Reuse s0 to cache the projected coefficients for this block.
-      MFEM_FOREACH_THREAD(i, x, nd)
-      {
-         if (data.proj)
+         break;
+      case 3:
+         switch (ncp)
          {
-            const real_t x = 2.0*data.nodes[i] - 1.0;
-            s0[i] = coeff[i] - sa0 - sa1*x;
+            case 6: MFEM_PLBOUND_2D_DISPATCH(3, 6);
+            case 9: MFEM_PLBOUND_2D_DISPATCH(3, 9);
+            case 12: MFEM_PLBOUND_2D_DISPATCH(3, 12);
          }
-         else
+         break;
+      case 4:
+         switch (ncp)
          {
-            s0[i] = coeff[i];
+            case 8: MFEM_PLBOUND_2D_DISPATCH(4, 8);
+            case 12: MFEM_PLBOUND_2D_DISPATCH(4, 12);
+            case 16: MFEM_PLBOUND_2D_DISPATCH(4, 16);
          }
-      }
-      MFEM_SYNC_THREAD;
-
-      real_t lower_ec = HUGE_VAL;
-      real_t upper_ec = -HUGE_VAL;
-
-      for (int j = 0; j < data.ncp; j++)
-      {
-         MFEM_FOREACH_THREAD(i, x, nd)
+         break;
+      case 5:
+         switch (ncp)
          {
-            const real_t val = s0[i];
-            const real_t lv = data.lbound_t[i + j*data.nb]*val;
-            const real_t uv = data.ubound_t[i + j*data.nb]*val;
-            slo[i] = lv < uv ? lv : uv;
-            shi[i] = lv > uv ? lv : uv;
+            case 10: MFEM_PLBOUND_2D_DISPATCH(5, 10);
+            case 15: MFEM_PLBOUND_2D_DISPATCH(5, 15);
+            case 20: MFEM_PLBOUND_2D_DISPATCH(5, 20);
          }
-         MFEM_SYNC_THREAD;
-
-         if (tid == 0)
+         break;
+      case 6:
+         switch (ncp)
          {
-            real_t lo = 0.0;
-            real_t hi = 0.0;
-            if (data.proj)
-            {
-               const real_t xcp = 2.0*data.control_points[j] - 1.0;
-               lo = sa0 + sa1*xcp;
-               hi = lo;
-            }
-
-            for (int i = 0; i < nd; i++)
-            {
-               lo += slo[i];
-               hi += shi[i];
-            }
-
-            lower_ec = lower_ec < lo ? lower_ec : lo;
-            upper_ec = upper_ec > hi ? upper_ec : hi;
+            case 12: MFEM_PLBOUND_2D_DISPATCH(6, 12);
+            case 18: MFEM_PLBOUND_2D_DISPATCH(6, 18);
+            case 24: MFEM_PLBOUND_2D_DISPATCH(6, 24);
          }
-         MFEM_SYNC_THREAD;
-      }
-
-      if (tid == 0)
-      {
-         L(e, c) = lower_ec;
-         U(e, c) = upper_ec;
-      }
-   });
+         break;
+      case 7:
+         switch (ncp)
+         {
+            case 14: MFEM_PLBOUND_2D_DISPATCH(7, 14);
+            case 21: MFEM_PLBOUND_2D_DISPATCH(7, 21);
+            case 28: MFEM_PLBOUND_2D_DISPATCH(7, 28);
+         }
+         break;
+      case 8:
+         switch (ncp)
+         {
+            case 16: MFEM_PLBOUND_2D_DISPATCH(8, 16);
+            case 24: MFEM_PLBOUND_2D_DISPATCH(8, 24);
+            case 32: MFEM_PLBOUND_2D_DISPATCH(8, 32);
+         }
+         break;
+   }
+#undef MFEM_PLBOUND_2D_DISPATCH
+   return internal::GetElementBoundsKernel2D<>(data, fes_vdim, ne,
+                                               e_vec, lower, upper,
+                                               comp0, ncomp);
 }
 
 } // namespace mfem
