@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <tuple>
-
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../fem/dfem/doperator.hpp"
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../fem/dfem/backends/global_qf/prelude.hpp"
 #include "linalg/tensor_arrays.hpp"
+#include "fem/dfem/tuple.hpp"
+using mfem::future::tuple;
 
 #ifdef MFEM_USE_MPI
 

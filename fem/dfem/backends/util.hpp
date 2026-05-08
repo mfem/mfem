@@ -1,11 +1,6 @@
 #pragma once
 
-
-#include <tuple>
-
-#include "linalg/tensor.hpp"
-
-#include "../../quadinterpolator.hpp"
+#include "../fem/quadinterpolator.hpp"
 #include "../util.hpp"
 
 #include "general/enzyme.hpp"
@@ -360,9 +355,9 @@ struct supports_tensor_array_qfunc
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   static constexpr int ninputs = std::tuple_size<inputs_t>::value;
-   static constexpr int noutputs = std::tuple_size<outputs_t>::value;
-   static constexpr int nparams = std::tuple_size<qf_param_ts>::value;
+   static constexpr int ninputs = tuple_size<inputs_t>::value;
+   static constexpr int noutputs = tuple_size<outputs_t>::value;
+   static constexpr int nparams = tuple_size<qf_param_ts>::value;
 
    template <std::size_t... Is>
    static constexpr bool InputsOk(std::index_sequence<Is...>)
@@ -375,7 +370,7 @@ struct supports_tensor_array_qfunc
    static constexpr bool OutputsOk(std::index_sequence<Is...>)
    {
       return (is_tensor_array_mut<std::remove_cv_t<std::remove_reference_t<
-              typename std::tuple_element<ninputs + Is, qf_param_ts>::type>>>::value && ...);
+              typename tuple_element<ninputs + Is, qf_param_ts>::type>>>::value && ...);
    }
 
    static constexpr bool value =
@@ -402,12 +397,12 @@ inline void call_qfunc(
 
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    typename std::tuple_element<Is, qf_param_ts>::type>>>(
+                    typename tuple_element<Is, qf_param_ts>::type>>>(
                        xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    auto outputs = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                     typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                         yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
    std::apply([&](auto&&... args)
@@ -427,7 +422,7 @@ template <std::size_t derivative_id, std::size_t I, typename Tuple, std::size_t.
 constexpr std::array<bool, sizeof...(Is)>
 make_activity_array(std::index_sequence<Is...>)
 {
-   return { (std::decay_t< std::tuple_element_t<Is, Tuple>>::GetFieldId() == derivative_id)... };
+   return { (std::decay_t<typename tuple_element<Is, Tuple>::type>::GetFieldId() == derivative_id)... };
 }
 
 template <std::size_t derivative_id, typename inputs_t, std::size_t... Is>
@@ -446,7 +441,7 @@ template <std::size_t derivative_id, typename inputs_t>
 constexpr auto make_activity_map(inputs_t)
 {
    return make_activity_map_impl<derivative_id, inputs_t>(
-             std::make_index_sequence<std::tuple_size_v<inputs_t>> {});
+             std::make_index_sequence<tuple_size<inputs_t>::value> {});
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -552,12 +547,12 @@ inline void enzyme_fwddiff(
 
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    typename std::tuple_element<Is, qf_param_ts>::type>>>(
+                    typename tuple_element<Is, qf_param_ts>::type>>>(
                        xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    auto shadows = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     typename std::tuple_element<Is, qf_param_ts>::type>>>(
+                     typename tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    std::array<Vector, noutputs> primal_storage;
@@ -565,12 +560,12 @@ inline void enzyme_fwddiff(
 
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                         typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                             primal_storage[Os].ReadWrite(), &out_layouts[Os], gnqp)...);
 
    auto derivs_out = std::make_tuple(
                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                        typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                        typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                            yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
    using wrapper_fn_t = qf_return_t (*)(
@@ -610,7 +605,7 @@ inline void enzyme_fwddiff(
 } // namespace detail
 
 // Create quadrature function fop to fields map
-template <typename fops_t, size_t N = std::tuple_size_v<fops_t>, size_t M>
+template <typename fops_t, size_t N = tuple_size<fops_t>::value, size_t M>
 void create_fop_to_fd(const fops_t &fops,
                       const std::vector<FieldDescriptor> &fields,
                       std::array<size_t, M> &fop_to_fd)

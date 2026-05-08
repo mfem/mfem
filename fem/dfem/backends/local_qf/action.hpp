@@ -1,24 +1,13 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
 #pragma once
 
-#include <cmath>
-#include <utility>
-
 #include "../util.hpp"
-
 #include "../../integrator_ctx.hpp"
 #include "../../integrate.hpp"
 #include "../../interpolate.hpp"
 #include "../../qfunction_transform.hpp"
+
+#include <cmath>
+#include <utility>
 
 namespace mfem::future
 {
@@ -26,21 +15,24 @@ namespace mfem::future
 namespace LocalQFImpl
 {
 
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t ninputs = std::tuple_size_v<inputs_t>,
-         std::size_t noutputs = std::tuple_size_v<outputs_t>>
+template<
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t ninputs = tuple_size<inputs_t>::value,
+   std::size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
-   static constexpr auto inout_tuple =  std::tuple_cat(inputs_t {}, outputs_t {});
+   static constexpr auto inout_tuple =
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   Action(IntegratorContext ctx,
-          qfunc_t qfunc,
-          inputs_t inputs,
-          outputs_t outputs):
+   Action(
+      IntegratorContext ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs) :
       ctx(ctx),
       qfunc(std::move(qfunc)),
       inputs(inputs),
@@ -59,7 +51,7 @@ struct Action
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
       dimension = ctx.mesh.Dimension();
-      num_entities = ctx.n_entities;
+      num_entities = ctx.nentities;
       num_qp = ctx.ir.GetNPoints();
       gnqp = num_qp * num_entities;
 
@@ -167,8 +159,9 @@ struct Action
       });
    }
 
-   void operator()(const std::vector<Vector *> &xe,
-                   std::vector<Vector *> &ye) const
+   void operator()(
+      const std::vector<Vector *> &xe,
+      std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -293,7 +286,7 @@ struct Action
    MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
                                                    args_t &args)
    {
-      constexpr int nargs = static_cast<int>(std::tuple_size_v<args_t>);
+      constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
       call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
    }
 

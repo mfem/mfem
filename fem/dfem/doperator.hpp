@@ -25,9 +25,6 @@ namespace mfem::future
 using action_t =
    std::function<void(const std::vector<Vector *> &, std::vector<Vector *> &)>;
 
-using local_action_t =
-   std::function<void(std::vector<Vector> &, const std::vector<Vector> &, Vector &)>;
-
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
    std::function<void(const std::vector<Vector *> &, const Vector &)>;
@@ -50,11 +47,6 @@ using assemble_derivative_hypreparmatrix_callback_t =
 /// the solution and parameters
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
-
-using local_restriction_callback_t =
-   std::function<void(std::vector<Vector> &,
-                      const std::vector<Vector> &,
-                      std::vector<Vector> &)>;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class representing the derivative (Jacobian) operator of a
@@ -336,37 +328,16 @@ private:
 /// GetDerivative().
 ///
 /// @see DerivativeOperator
-class DifferentiableOperator: public Operator
+class DifferentiableOperator : public Operator
 {
 public:
-   ////////////////////////////////////////////////////////////////////////////
-   /// Constructor only used for the LOCAL/MONO DifferentiableOperator class.
-   ///
-   /// @param solutions The solution fields that the operator will act on.
-   /// @param parameters The parameter fields that define coefficients.
-   /// @param mesh The mesh on which the operator is defined.
-   DifferentiableOperator(const std::vector<FieldDescriptor> &solutions,
-                          const std::vector<FieldDescriptor> &parameters,
-                          const ParMesh &mesh);
-
-   ////////////////////////////////////////////////////////////////////////////
-   /// @brief Set the parameters for the LOCAL operator.
-   ///
-   /// This has to be called before using Mult() or MultTranspose().
-   ///
-   /// @param p The parameters to be set. This should be a vector of pointers to
-   /// the parameter vectors. The vectors have to be L-vectors (e.g.
-   /// GridFunctions).
-   void SetParameters(std::vector<Vector *> p) const;
-
    ////////////////////////////////////////////////////////////////////////////
    /// Constructor for the POLY DifferentiableOperator class.
    ///
    /// @param infds The input fields the operator will act on.
    /// @param outfds The output fields the operator will produce.
    /// @param mesh The mesh on which the operator is defined.
-   DifferentiableOperator(const int height, const int width,
-                          const std::vector<FieldDescriptor> &infds,
+   DifferentiableOperator(const std::vector<FieldDescriptor> &infds,
                           const std::vector<FieldDescriptor> &outfds,
                           const ParMesh &mesh);
 
@@ -401,7 +372,7 @@ public:
                     std::initializer_list<QLayoutEntry> out)
    {
       NVTX_MARK_FUNCTION;
-      if (global_action_callbacks.size() > 0)
+      if (action_callbacks.size() > 0)
       {
          MFEM_ABORT("trying to set the quadrature point layouts for an operator "
                     "that already has layouts set");
@@ -410,41 +381,6 @@ public:
       out_qlayouts.clear();
       ExtractQLayouts(in, in_qlayouts);
       ExtractQLayouts(out, out_qlayouts);
-   }
-
-   ////////////////////////////////////////////////////////////////////////////
-   /// @brief Compute the action of the operator on a given vector.
-   ///
-   /// @param solutions_in The solution vector in which to compute the action.
-   /// This has to be a T-dof vector if MultLevel is set to TVECTOR, or L-dof
-   /// Vector if MultLevel is set to LVECTOR.
-   /// @param result_in Result vector of the action of the operator on
-   /// solutions. The result is a T-dof vector or L-dof vector depending on
-   /// the MultLevel.
-   void LocalMult(const Vector &solutions_in, Vector &result_in) const
-   {
-      NVTX_MARK_FUNCTION;
-      MFEM_ASSERT(!local_action_callbacks.empty(), "no integrators have been set");
-
-      if (mult_level == MultLevel::LVECTOR)
-      {
-         get_lvectors(local_solutions, solutions_in, local_solutions_l);
-         result_in = 0.0;
-         for (auto &action : local_action_callbacks)
-         {
-            action(local_solutions_l, local_parameters_l, result_in);
-         }
-      }
-      else
-      {
-         local_prolongation(local_solutions, solutions_in, local_solutions_l);
-         local_residual_l = 0.0;
-         for (auto &action : local_action_callbacks)
-         {
-            action(local_solutions_l, local_parameters_l, local_residual_l);
-         }
-         local_prolongation_transpose(local_residual_l, result_in);
-      }
    }
 
    ////////////////////////////////////////////////////////////////////////////
@@ -504,10 +440,10 @@ public:
          }
       }
 
-      for (size_t i = 0; i < global_action_callbacks.size(); i++)
+      for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          NVTX_MARK("action callback #{}", i);
-         global_action_callbacks[i](infields_e, residual_e);
+         action_callbacks[i](infields_e, residual_e);
       }
 
       {
@@ -619,8 +555,7 @@ private:
    std::unordered_map<std::type_index, std::vector<int>> in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
 
-   std::vector<action_t> global_action_callbacks;
-   std::vector<local_action_t> local_action_callbacks;
+   std::vector<action_t> action_callbacks;
 
    std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
    std::map<size_t,
@@ -637,20 +572,13 @@ private:
        assemble_derivative_hypreparmatrix_callbacks;
 
    const bool use_global_qf = true;
-   // local data
-   std::vector<FieldDescriptor> local_solutions, local_parameters, local_fields;
-   mutable std::vector<Vector> local_solutions_l, local_parameters_l;
-   mutable Vector local_residual_l, local_residual_e;
-   mutable std::vector<Vector> local_fields_e;
-   // global data
    std::vector<FieldDescriptor> infds, outfds, unionfds;
    mutable std::vector<Vector *> infields_l, infields_e;
    mutable std::vector<Vector *> residual_l, residual_e;
 
    std::function<void(Vector &, Vector &)> local_prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
-   restriction_callback_t global_restriction_callback;
-   local_restriction_callback_t local_restriction_callback;
+   restriction_callback_t restriction_callback;
 
    std::map<size_t, Vector> derivative_qp_caches;
 
@@ -728,8 +656,8 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "entity type not supported in AddIntegrator");
    }
 
-   static constexpr size_t num_inputs = std::tuple_size_v<decltype(inputs)>;
-   static constexpr size_t num_outputs = std::tuple_size_v<decltype(outputs)>;
+   static constexpr size_t num_inputs = tuple_size<decltype(inputs)>::value;
+   static constexpr size_t num_outputs = tuple_size<decltype(outputs)>::value;
    dbg("num_inputs: {}, num_outputs: {}", num_inputs, num_outputs);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
@@ -739,7 +667,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    // Consistency checks
    if constexpr (GLOBAL_QF || LOCAL_QF)
    {
-      constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
+      constexpr size_t num_qfparams = future::tuple_size<qf_param_ts>::value;
       dbg("num_qfparams: {} = {} + {}", num_qfparams, num_inputs, num_outputs);
       static_assert(num_qfparams == num_inputs + num_outputs,
                     "quadrature function must take "
@@ -766,16 +694,9 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    auto dependency_map = make_dependency_map(inputs);
    // pretty_print(dependency_map);
 
-   constexpr bool USE_GLOBALS = (GLOBAL_QF || LOCAL_QF);
    const auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(USE_GLOBALS
-                                                 ? infds
-                                                 : local_fields,
-                                                 inputs);
-   create_descriptors_to_fields_map<entity_t>(USE_GLOBALS
-                                              ? outfds
-                                              : local_fields,
-                                              outputs);
+      create_descriptors_to_fields_map<entity_t>(infds);
+   create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
@@ -794,9 +715,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    }
 
    const auto output_fop = get<0>(outputs);
-   test_space_field_idx =
-      FindIdx(output_fop.GetFieldId(),
-              USE_GLOBALS ? outfds : local_fields);
+   test_space_field_idx = FindIdx(output_fop.GetFieldId(), outfds);
 
    bool use_sum_factorization = false;
    Element::Type entity_element_type;
@@ -834,71 +753,65 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
    ////////////////////////////////////////////////////////
-   if constexpr (USE_GLOBALS)
+
+   residual_e.resize(outfds.size());
+   residual_l.resize(outfds.size());
+
+   // TODO: Is this a hack?
+   dbg("width: {}, GetTrueVSize(global_infds[0]): {}", width,
+       GetTrueVSize(global_infds[0]));
+   width = GetTrueVSize(infds[0]);
+
+   IntegratorContext ctx
    {
-      residual_e.resize(outfds.size());
-      residual_l.resize(outfds.size());
+      mesh, elem_attributes, attributes, num_entities,
+      infds, outfds, unionfds, integration_rule,
+      in_qlayouts, out_qlayouts, use_kernel_specializations
+   };
 
-      // TODO: Is this a hack?
-      dbg("width: {}, GetTrueVSize(global_infds[0]): {}", width,
-          GetTrueVSize(global_infds[0]));
-      width = GetTrueVSize(infds[0]);
+   action_callbacks.push_back(
+      backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-      IntegratorContext ctx
-      {
-         mesh, elem_attributes, attributes, num_entities,
-         infds, outfds, unionfds, integration_rule,
-         in_qlayouts, out_qlayouts, use_kernel_specializations
-      };
-
-      global_action_callbacks.push_back(
-         backend_t::MakeAction(ctx, qfunc, inputs, outputs));
-
-      for_constexpr([&]([[maybe_unused]] auto i)
-      {
+   for_constexpr([&]([[maybe_unused]] auto i)
+   {
 #ifdef MFEM_USE_ENZYME
-         // Initialize the cache for this derivative if not already done
-         if (derivative_qp_caches.find(i) == derivative_qp_caches.end())
-         {
-            derivative_qp_caches[i] = Vector();
-         }
+      // Initialize the cache for this derivative if not already done
+      if (derivative_qp_caches.find(i) == derivative_qp_caches.end())
+      {
+         derivative_qp_caches[i] = Vector();
+      }
 
-         if constexpr (backend_t::has_cached_derivative)
-         {
-            // Create setup callback that populates the cache
-            derivative_setup_callbacks[i].push_back(
-               backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
-                                                          derivative_qp_caches[i]));
+      if constexpr (backend_t::has_cached_derivative)
+      {
+         // Create setup callback that populates the cache
+         derivative_setup_callbacks[i].push_back(
+            backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
+                                                       derivative_qp_caches[i]));
 
-            // Create apply callback that uses the cache
-            derivative_apply_callbacks[i].push_back(
-               backend_t::template MakeDerivativeApply<i>(
-                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         // Create apply callback that uses the cache
+         derivative_apply_callbacks[i].push_back(
+            backend_t::template MakeDerivativeApply<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
-            // Create assemble callback for sparse matrix assembly
-            assemble_derivative_sparsematrix_callbacks[i].push_back(
-               backend_t::template MakeDerivativeAssemble<i>(
-                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         // Create assemble callback for sparse matrix assembly
+         assemble_derivative_sparsematrix_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAssemble<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
-            // Create transpose apply callback (J^T) using the same cache
-            daction_transpose_callbacks[i].push_back(
-               backend_t::template MakeDerivativeApplyTranspose<i>(
-                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
-         }
+         // Create transpose apply callback (J^T) using the same cache
+         daction_transpose_callbacks[i].push_back(
+            backend_t::template MakeDerivativeApplyTranspose<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+      }
 
-         // Keep the old action callback for backwards compatibility
-         derivative_action_callbacks[i].push_back(
-            backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
+      // Keep the old action callback for backwards compatibility
+      derivative_action_callbacks[i].push_back(
+         backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
-         MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
-                    "but MFEM_USE_ENZYME is not defined.");
+      MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
+                 "but MFEM_USE_ENZYME is not defined.");
 #endif
-      }, derivative_ids);
-   }
-   else
-   {
-      static_assert(false,"Not implemented!");
-   }
+   }, derivative_ids);
 }
 
 } // namespace mfem::future

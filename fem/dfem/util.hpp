@@ -2616,7 +2616,7 @@ auto unpack_shmem(
    MFEM_SYNC_THREAD;
 
    // nvcc needs make_tuple to be fully qualified
-   return std::make_tuple(
+   return mfem::future::make_tuple(
              input_dtq_shmem, output_dtq_shmem, fields_shmem,
              direction_shmem, input_shmem, shadow_shmem,
              residual_shmem, scratch_mem);

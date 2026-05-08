@@ -4,9 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "linalg/vector.hpp"
+#include "general/array.hpp"
 #include "fielddescriptor.hpp"
-#include "util.hpp"
 
 namespace mfem::future
 {
@@ -16,7 +15,7 @@ struct IntegratorContext
    const ParMesh &mesh;
    const Array<int> *elem_attr;
    Array<int> attr;
-   const int n_entities;
+   const int nentities;
    const std::vector<FieldDescriptor> &infds;
    const std::vector<FieldDescriptor> &outfds;
    const std::vector<FieldDescriptor> &unionfds;
@@ -24,22 +23,6 @@ struct IntegratorContext
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
    const bool use_kernel_specializations = false;
-};
-
-struct IntegratorContextLocal
-{
-   const int d1d = 0, q1d = 0;
-   const Array<int> *attributes = nullptr;
-   const DofToQuadMap input_dtq_maps = {};
-   const ThreadBlocks thread_blocks = {};
-   const Array<int> *elem_attributes = nullptr;
-   // ptrs
-   std::function<void(std::vector<Vector> &,
-                      const std::vector<Vector> &,
-                      std::vector<Vector> &)> *local_restriction_callback = nullptr;
-   std::vector<Vector> *local_fields_e = nullptr;
-   Vector *local_residual_e = nullptr;
-   std::function<void(Vector &, Vector &)> *output_restriction_transpose = nullptr;
 };
 
 } // namespace mfem::future

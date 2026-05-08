@@ -18,15 +18,11 @@
 using namespace mfem;
 using namespace mfem::future;
 
-// Used for the GLOBAL or LOCAL/POLY operators
 DifferentiableOperator::DifferentiableOperator(
-   const int height, const int width,
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh):
-   Operator(height, width),
    mesh(mesh),
-   use_global_qf(true),
    infds(infds),
    outfds(outfds)
 {
@@ -47,67 +43,16 @@ DifferentiableOperator::DifferentiableOperator(
    infields_e.resize(infds.size());
 }
 
-// Used only for the LOCAL/MONO operator
-DifferentiableOperator::DifferentiableOperator(
-   const std::vector<FieldDescriptor> &solutions,
-   const std::vector<FieldDescriptor> &parameters,
-   const ParMesh &mesh) :
-   mesh(mesh),
-   use_global_qf(false),
-   local_solutions(solutions),
-   local_parameters(parameters)
-{
-   NVTX_MARK_FUNCTION;
-   local_fields.resize(solutions.size() + parameters.size());
-   dbg("local_fields:{}", local_fields.size());
-
-   local_fields_e.resize(local_fields.size());
-   local_solutions_l.resize(solutions.size());
-   local_parameters_l.resize(parameters.size());
-
-   for (size_t i = 0; i < solutions.size(); i++)
-   {
-      local_fields[i] = solutions[i];
-   }
-
-   for (size_t i = 0; i < parameters.size(); i++)
-   {
-      local_fields[i + solutions.size()] = parameters[i];
-   }
-}
-
-// Used only for the LOCAL/MONO operator
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
-{
-   NVTX_MARK_FUNCTION;
-   MFEM_ASSERT(local_parameters.size() == p.size(),
-               "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < local_parameters.size(); i++)
-   {
-      p[i]->Read();
-      local_parameters_l[i] = *p[i];
-   }
-}
-
 void DifferentiableOperator::SetMultLevel(MultLevel level)
 {
    mult_level = level;
 }
 
-void DifferentiableOperator::DisableTensorProductStructure(bool disable)
-{
-   use_tensor_product_structure = !disable;
-}
-
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
    NVTX_MARK_FUNCTION;
-   if (!use_global_qf)
-   {
-      return LocalMult(x, y);
-   }
-   MFEM_ASSERT(!global_action_callbacks.empty(),
-               "no global integrators have been set");
+   MFEM_ASSERT(!action_callbacks.empty(),
+               "no integrators have been set");
 
    MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
                "x needs to be a BlockVector");
@@ -119,6 +64,11 @@ void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
    auto &by = static_cast<BlockVector &>(y);
 
    Mult(bx, by);
+}
+
+void DifferentiableOperator::DisableTensorProductStructure(bool disable)
+{
+   use_tensor_product_structure = !disable;
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(

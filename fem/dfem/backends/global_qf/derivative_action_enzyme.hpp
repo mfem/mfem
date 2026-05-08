@@ -1,9 +1,9 @@
 #pragma once
 
-#include <utility>
-
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
+
+#include <utility>
 
 namespace mfem::future
 {
@@ -16,8 +16,8 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-   size_t ninputs = std::tuple_size_v<inputs_t>,
-   size_t noutputs = std::tuple_size_v<outputs_t>>
+   size_t ninputs = tuple_size<inputs_t>::value,
+   size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeActionEnzyme
 {
    DerivativeActionEnzyme(
@@ -43,14 +43,14 @@ struct DerivativeActionEnzyme
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.n_entities;
+      gnqp = nqp * ctx.nentities;
 
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
          const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.n_entities;
+         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
       xq.Update(xq_offsets);
@@ -60,7 +60,7 @@ struct DerivativeActionEnzyme
       constexpr_for<0, noutputs>([&](auto i)
       {
          const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.n_entities;
+         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
@@ -82,9 +82,10 @@ struct DerivativeActionEnzyme
       shadow_xq.Update(shadow_xq_offsets);
    }
 
-   void operator()(const std::vector<Vector *> &xe,
-                   [[maybe_unused]]const Vector *de,
-                   std::vector<Vector *> &ye) const
+   void operator()(
+      const std::vector<Vector *> &xe,
+      [[maybe_unused]] const Vector *de,
+      std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
