@@ -217,6 +217,7 @@ void diffusion(const char *filename, int p)
 
    SECTION("action linearized")
    {
+#ifdef MFEM_USE_ENZYME
       DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
@@ -254,6 +255,7 @@ void diffusion(const char *filename, int p)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
    }
 
    SECTION("action vector")
@@ -318,6 +320,7 @@ void diffusion(const char *filename, int p)
 
    SECTION("SparseMatrix")
    {
+#ifdef MFEM_USE_ENZYME
       DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
@@ -338,8 +341,8 @@ void diffusion(const char *filename, int p)
 
       TestSameMatrices(*A, blf_fa.SpMat());
       delete A;
-
       MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
    }
 }
 

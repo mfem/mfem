@@ -169,7 +169,7 @@ struct Action
       using qf_signature = typename get_function_signature<qfunc_t>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
 
-      static_assert(std::tuple_size_v<qf_param_ts> == ninputs + noutputs,
+      static_assert(tuple_size<qf_param_ts>::value == ninputs + noutputs,
                     "qfunc parameter count must match inputs+outputs");
 
       // Wrap union field data (element-restricted vectors) as [elem_dof, entity].

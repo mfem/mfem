@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include <tuple>
+// #include <tuple>
 #include <utility>
 
 #include "fem/dfem/fieldoperator.hpp"
@@ -22,6 +22,9 @@
 #include "linalg/dtensor.hpp"
 #include "linalg/tensor_arrays.hpp"
 #include "linalg/vector.hpp"
+
+#include "fem/dfem/backends/util.hpp"
+#include "fem/dfem/tuple.hpp"
 
 namespace mfem::future::kernels
 {
@@ -196,35 +199,35 @@ struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>>:
 /*  */ std::bool_constant<!std::is_const_v<scalar_t>> {};
 
 // supports_tensor_array_qfunc ////////////////////////////////////////////////
-template <typename qfunc_t, typename inputs_t, typename outputs_t>
-struct supports_tensor_array_qfunc
-{
-   using qf_signature = typename get_function_signature<qfunc_t>::type;
-   using qf_param_ts = typename qf_signature::parameter_ts;
+// template <typename qfunc_t, typename inputs_t, typename outputs_t>
+// struct supports_tensor_array_qfunc
+// {
+//    using qf_signature = typename get_function_signature<qfunc_t>::type;
+//    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   static constexpr int ninputs = std::tuple_size_v<inputs_t>;
-   static constexpr int noutputs = std::tuple_size_v<outputs_t>;
-   static constexpr int nparams = std::tuple_size_v<qf_param_ts>;
+//    static constexpr int ninputs = tuple_size<inputs_t>::value;
+//    static constexpr int noutputs = tuple_size<outputs_t>::value;
+//    static constexpr int nparams = tuple_size<qf_param_ts>::value;
 
-   template <std::size_t... Is>
-   static constexpr bool InputsOk(std::index_sequence<Is...>)
-   {
-      return (is_tensor_array<std::remove_cv_t<std::remove_reference_t<
-              std::tuple_element_t<Is, qf_param_ts>>>>::value && ...);
-   }
+//    template <std::size_t... Is>
+//    static constexpr bool InputsOk(std::index_sequence<Is...>)
+//    {
+//       return (is_tensor_array<std::remove_cv_t<std::remove_reference_t<
+//               std::tuple_element_t<Is, qf_param_ts>>>>::value && ...);
+//    }
 
-   template <std::size_t... Is>
-   static constexpr bool OutputsOk(std::index_sequence<Is...>)
-   {
-      return (is_tensor_array_mut<std::remove_cv_t<std::remove_reference_t<
-              std::tuple_element_t<ninputs + Is, qf_param_ts>>>>::value && ...);
-   }
+//    template <std::size_t... Is>
+//    static constexpr bool OutputsOk(std::index_sequence<Is...>)
+//    {
+//       return (is_tensor_array_mut<std::remove_cv_t<std::remove_reference_t<
+//               std::tuple_element_t<ninputs + Is, qf_param_ts>>>>::value && ...);
+//    }
 
-   static constexpr bool value =
-      (nparams == ninputs + noutputs) &&
-      InputsOk(std::make_index_sequence<ninputs> {}) &&
-      OutputsOk(std::make_index_sequence<noutputs> {});
-};
+//    static constexpr bool value =
+//       (nparams == ninputs + noutputs) &&
+//       InputsOk(std::make_index_sequence<ninputs> {}) &&
+//       OutputsOk(std::make_index_sequence<noutputs> {});
+// };
 
 // FieldBasisFromWeight ///////////////////////////////////////////////////////
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
@@ -362,7 +365,7 @@ std::array<FieldBasis, nfops> get_bases(fops_t &fops,
    std::array<FieldBasis, nfops> bases;
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto fop = std::get<i>(fops);
+      const auto fop = get<i>(fops);
       using fop_t = std::decay_t<decltype(fop)>;
 
       const auto fd = fds[fop_to_fd[i]];
@@ -399,7 +402,7 @@ bool check_types(fops_t &fops,
    NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto input = std::get<i.value>(fops);
+      const auto input = get<i.value>(fops);
       using input_t = std::decay_t<decltype(input)>;
 
       [[maybe_unused]] const auto fd = fields[fop_to_fd[i]];
@@ -434,7 +437,7 @@ bool check_types(fops_t &fops,
 
 // create_fop_to_fd ///////////////////////////////////////////////////////////
 // Create quadrature function fop to fields map
-template <size_t M, typename fops_t, size_t N = std::tuple_size_v<fops_t>>
+template <size_t M, typename fops_t, size_t N = tuple_size<fops_t>::value>
 std::array<size_t, M> fop_to_fd(const fops_t &fops,
                                 const std::vector<FieldDescriptor> &fields)
 {
@@ -442,7 +445,7 @@ std::array<size_t, M> fop_to_fd(const fops_t &fops,
    std::array<size_t, M> fop_to_fd;
    constexpr_for<0, N>([&](auto i)
    {
-      const auto fop = std::get<i>(fops);
+      const auto fop = get<i>(fops);
       fop_to_fd[i] = std::numeric_limits<size_t>::max();
       for (size_t j = 0; j < fields.size(); j++)
       {
@@ -540,11 +543,12 @@ inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
 }
 
 // ACTION /////////////////////////////////////////////////////////////////////
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         size_t N = std::tuple_size_v<inputs_t>,
-         size_t M = std::tuple_size_v<outputs_t>>
+template<
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   size_t N = tuple_size<inputs_t>::value,
+   size_t M = tuple_size<outputs_t>::value>
 class Action
 {
    IntegratorContext ctx;
@@ -589,7 +593,7 @@ public:
       {
          using in_t = std::decay_t<decltype(inputs)>;
          using fop_t = std::remove_cv_t<std::remove_reference_t<
-                       std::tuple_element_t<decltype(i)::value, in_t>>>;
+                       tuple_element<decltype(i)::value, in_t>>>;
          const auto it = ctx.in_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.in_qlayouts.end()) { input_qlayouts[i] = it->second; }
          else
@@ -603,7 +607,7 @@ public:
       {
          using out_t = std::decay_t<decltype(outputs)>;
          using fop_t = std::remove_cv_t<std::remove_reference_t<
-                       std::tuple_element_t<decltype(i)::value, out_t>>>;
+                       tuple_element<decltype(i)::value, out_t>>>;
          const auto it = ctx.out_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.out_qlayouts.end())
          {
@@ -623,7 +627,7 @@ public:
       xq_offsets[0] = 0;
       constexpr_for<0, N>([&](auto i)
       {
-         const auto input = std::get<i>(inputs);
+         const auto input = get<i>(inputs);
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
@@ -636,7 +640,7 @@ public:
       yq_offsets[0] = 0;
       constexpr_for<0, M>([&](auto i)
       {
-         const auto output = std::get<i>(outputs);
+         const auto output = get<i>(outputs);
          yq_offsets[i.value + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
@@ -657,7 +661,7 @@ public:
       interpolate(input_to_infd, input_bases, xe, xq);
       // Q -> Q
       static_assert(
-         supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
+         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
       call_qfunc(qfunc,
                  xq,

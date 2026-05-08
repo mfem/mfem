@@ -298,6 +298,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
+#ifdef MFEM_USE_ENZYME
       {
          MultiVector X{xtvec, nodestvec, qdata, dpf};
          MultiVector Z{ytvec, yqdata};
@@ -331,8 +332,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          auto derivatives = std::integer_sequence<size_t, U> {};
          auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
          dop.template AddDomainIntegrator<GlobalQFBackend>(mass_diffusion_qfunc,
-                                                           std::tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-                                                           std::tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+                                                           tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
+                                                           tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                                                            *ir, all_domain_attr, derivatives);
 
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
@@ -360,6 +361,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+#endif // MFEM_USE_ENZYME
 
       {
          static constexpr int W = 0;
@@ -388,8 +390,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          auto mass_qfunclocal = massqflocal{};
          dop.AddDomainIntegrator<LocalQFBackend>(
             mass_qfunclocal,
-            std::tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
-            std::tuple{Value<V>{}, Value<W>{}},
+            tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}, Value<W>{}},
             *ir, all_domain_attr);
 
          Vector nodestv;

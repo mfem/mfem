@@ -363,7 +363,7 @@ struct supports_tensor_array_qfunc
    static constexpr bool InputsOk(std::index_sequence<Is...>)
    {
       return (is_tensor_array<std::remove_cv_t<std::remove_reference_t<
-              typename std::tuple_element<Is, qf_param_ts>::type>>>::value && ...);
+              typename tuple_element<Is, qf_param_ts>::type>>>::value && ...);
    }
 
    template <std::size_t... Is>

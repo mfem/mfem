@@ -633,12 +633,12 @@ void DifferentiableOperator::AddBoundaryIntegrator(qfunc_t &qfunc,
 template <typename backend_t,
           typename entity_t,
           typename qfunc_t,
-          typename input_t,
-          typename output_t,
+          typename inputs_t,
+          typename outputs_t,
           typename derivative_ids_t>
 void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
-                                           input_t inputs,
-                                           output_t outputs,
+                                           inputs_t inputs,
+                                           outputs_t outputs,
                                            const IntegrationRule &integration_rule,
                                            const Array<int> &attributes,
                                            derivative_ids_t derivative_ids)
@@ -676,7 +676,8 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
                     "quadrature function must return void");
    }
 
-   const auto inout_tuple = std::tuple_cat(inputs, outputs);
+   const auto inout_tuple =
+      merge_mfem_tuples_as_empty_std_tuple(inputs_t{}, outputs_t{});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
    static constexpr size_t num_fields =
@@ -694,8 +695,8 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    auto dependency_map = make_dependency_map(inputs);
    // pretty_print(dependency_map);
 
-   const auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(infds);
+   // const auto input_to_field =
+   create_descriptors_to_fields_map<entity_t>(infds, inputs);
    create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
@@ -749,6 +750,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    }
    else { static_assert(false, "unsupported entity type"); }
    dbg("use_sum_factorization: {}", use_sum_factorization);
+   (void) use_sum_factorization;
 
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
