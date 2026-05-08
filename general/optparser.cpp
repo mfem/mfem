@@ -261,7 +261,7 @@ void OptionsParser::Parse()
    }
 
    // check for missing required options
-   for (int i = 0; i < options.size(); i++)
+   for (size_t i = 0; i < options.size(); i++)
       if (options[i].required &&
           (option_check[i] == 0 ||
            (options[i].type == ENABLE && option_check[++i] == 0)))
@@ -444,7 +444,7 @@ void OptionsParser::PrintHelp(ostream &os) const
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
       << "Print this help message and exit.\n" << line_sep;
-   for (int j = 0; j < options.size(); j++)
+   for (size_t j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 
