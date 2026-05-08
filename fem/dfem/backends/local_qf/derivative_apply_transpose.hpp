@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../util.hpp"
+#include "../util_qf.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../../integrate.hpp"
 #include "../../interpolate.hpp"
@@ -28,7 +28,7 @@ template<
 struct DerivativeApplyTranspose
 {
    static constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
@@ -55,7 +55,7 @@ struct DerivativeApplyTranspose
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
       dimension    = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
+      num_entities = ctx.n_entities;
       num_qp       = ctx.ir.GetNPoints();
 
       const Element::Type etype =
@@ -296,8 +296,8 @@ struct DerivativeApplyTranspose
          auto dir_at_qp = DeviceTensor<2>(shmem_r + dir_at_qp_offset_local,
                                           output_size_on_qp, num_qp_local);
          auto result_at_qp = DeviceTensor<2>(shmem_r + result_at_qp_offset_local,
-                                              trial_vdim_local * total_trial_op_dim_local,
-                                              num_qp_local);
+                                             trial_vdim_local * total_trial_op_dim_local,
+                                             num_qp_local);
          const int scratch_buf_size = (q1d_local > 0) ? q1d_local * q1d_local * q1d_local : 1;
          std::array<DeviceTensor<1>, 6> scratch_shmem;
          for (int sb = 0; sb < 6; sb++)
@@ -313,9 +313,9 @@ struct DerivativeApplyTranspose
          for_constexpr<noutputs>([&](auto o)
          {
             auto dir_o_e = DeviceTensor<1>(
-                              &wrapped_dir_out_e[o](0, e), out_elem_dof_size_local[o]);
+               &wrapped_dir_out_e[o](0, e), out_elem_dof_size_local[o]);
             auto dir_qp_o = DeviceTensor<2>(shmem_r + dir_at_qp_offset_local + qp_offset,
-                                             out_qp_size_local[o], num_qp_local);
+                                            out_qp_size_local[o], num_qp_local);
 
             if (use_sum_factorization_local)
             {

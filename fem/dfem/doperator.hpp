@@ -474,7 +474,7 @@ public:
 
       if constexpr (std::is_same_v<y_t, MultiVector>)
       {
-         MFEM_ASSERT(static_cast<int>(global_outfds.size()) == y.NumBlocks(),
+         MFEM_ASSERT(static_cast<int>(outfds.size()) == y.NumBlocks(),
                      "output MultiVector block count must match the number of "
                      "output FieldDescriptors passed to the DifferentiableOperator. "
                      "The number of FieldOperators in the qfunc output tuple does "
@@ -485,19 +485,19 @@ public:
 
       {
          NVTX_MARK("P");
-         prolongation(global_infds, x, global_infields_l, is_lvector);
+         prolongation(infds, x, infields_l, is_lvector);
       }
 
       {
          NVTX_MARK("R");
-         restriction<Entity::Element>(global_infds, global_infields_l,
-                                      global_infields_e);
+         restriction<Entity::Element>(infds, infields_l,
+                                      infields_e);
       }
 
       {
          NVTX_MARK("prepare_residual");
-         prepare_residual<Entity::Element>(global_outfds, global_residual_e);
-         for (auto *v : global_residual_e)
+         prepare_residual<Entity::Element>(outfds, residual_e);
+         for (auto *v : residual_e)
          {
             NVTX_MARK("clear residual");
             *v = 0.0;
@@ -507,18 +507,18 @@ public:
       for (size_t i = 0; i < global_action_callbacks.size(); i++)
       {
          NVTX_MARK("action callback #{}", i);
-         global_action_callbacks[i](global_infields_e, global_residual_e);
+         global_action_callbacks[i](infields_e, residual_e);
       }
 
       {
          NVTX_MARK("R^T");
-         restriction_transpose<Entity::Element>(global_outfds, global_residual_e,
-                                                global_residual_l);
+         restriction_transpose<Entity::Element>(outfds, residual_e,
+                                                residual_l);
       }
 
       {
          NVTX_MARK("P^T");
-         prolongation_transpose(global_outfds, global_residual_l, y, is_lvector);
+         prolongation_transpose(outfds, residual_l, y, is_lvector);
       }
    }
 
@@ -643,9 +643,9 @@ private:
    mutable Vector local_residual_l, local_residual_e;
    mutable std::vector<Vector> local_fields_e;
    // global data
-   std::vector<FieldDescriptor> global_infds, global_outfds, global_unionfds;
-   mutable std::vector<Vector *> global_infields_l, global_infields_e;
-   mutable std::vector<Vector *> global_residual_l, global_residual_e;
+   std::vector<FieldDescriptor> infds, outfds, unionfds;
+   mutable std::vector<Vector *> infields_l, infields_e;
+   mutable std::vector<Vector *> residual_l, residual_e;
 
    std::function<void(Vector &, Vector &)> local_prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
@@ -781,7 +781,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
 
    if constexpr (GLOBAL_QF || (LOCAL_QF && POLY_QF))
    {
-      MFEM_VERIFY(num_fields == global_unionfds.size(),
+      MFEM_VERIFY(num_fields == unionfds.size(),
                   "Total number of fields in the Q-function doesn't match "
                   "the union of FieldDescriptors.");
    }
@@ -806,11 +806,11 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    constexpr bool USE_GLOBALS = (GLOBAL_QF || (LOCAL_QF && POLY_QF));
    const auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(USE_GLOBALS
-                                                 ? global_infds
+                                                 ? infds
                                                  : local_fields,
                                                  inputs);
    create_descriptors_to_fields_map<entity_t>(USE_GLOBALS
-                                              ? global_outfds
+                                              ? outfds
                                               : local_fields,
                                               outputs);
 
@@ -833,7 +833,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    const auto output_fop = get<0>(outputs);
    test_space_field_idx =
       FindIdx(output_fop.GetFieldId(),
-              USE_GLOBALS ? global_outfds : local_fields);
+              USE_GLOBALS ? outfds : local_fields);
 
    bool use_sum_factorization = false;
    Element::Type entity_element_type;
@@ -873,18 +873,18 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
    ////////////////////////////////////////////////////////
    if constexpr (USE_GLOBALS)
    {
-      global_residual_e.resize(global_outfds.size());
-      global_residual_l.resize(global_outfds.size());
+      residual_e.resize(outfds.size());
+      residual_l.resize(outfds.size());
 
       // TODO: Is this a hack?
       dbg("width: {}, GetTrueVSize(global_infds[0]): {}", width,
           GetTrueVSize(global_infds[0]));
-      width = GetTrueVSize(global_infds[0]);
+      width = GetTrueVSize(infds[0]);
 
       IntegratorContext ctx
       {
          mesh, elem_attributes, attributes, num_entities,
-         global_infds, global_outfds, global_unionfds, integration_rule,
+         infds, outfds, unionfds, integration_rule,
          in_qlayouts, out_qlayouts, use_kernel_specializations
       };
 
@@ -1055,7 +1055,7 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
       IntegratorContext global_ctx
       {
          mesh, elem_attributes, attributes, num_entities,
-         global_infds, global_outfds, global_unionfds, integration_rule,
+         infds, outfds, unionfds, integration_rule,
          in_qlayouts, out_qlayouts, use_kernel_specializations
       };
       IntegratorContextLocal local_ctx

@@ -346,7 +346,7 @@ struct DerivativeAction
 #else
       MFEM_CONTRACT_VAR(qfunc);
       MFEM_CONTRACT_VAR(primal_args);
-      MFEM_CONTRACT_VAR(tangent_args);
+      MFEM_CONTRACT_VAR(shadow_args);
       MFEM_ABORT("Enzyme not available");
 #endif
    }

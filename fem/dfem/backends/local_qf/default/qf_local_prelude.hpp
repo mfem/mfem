@@ -3,10 +3,10 @@
 #include "../../../integrator_ctx.hpp"
 #include "qf_local_action.hpp"
 #include "../derivative_action.hpp"
-#include "derivative_setup.hpp"
-#include "derivative_apply.hpp"
-#include "derivative_assemble.hpp"
-#include "derivative_apply_transpose.hpp"
+#include "../derivative_setup.hpp"
+#include "../derivative_apply.hpp"
+#include "../derivative_assemble.hpp"
+#include "../derivative_apply_transpose.hpp"
 
 namespace mfem::future
 {

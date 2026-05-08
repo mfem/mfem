@@ -27,24 +27,24 @@ DifferentiableOperator::DifferentiableOperator(
    Operator(height, width),
    mesh(mesh),
    use_global_qf(true),
-   global_infds(infds),
-   global_outfds(outfds)
+   infds(infds),
+   outfds(outfds)
 {
    NVTX_MARK_FUNCTION;
-   global_unionfds.clear();
-   global_unionfds.insert(global_unionfds.end(), infds.begin(), infds.end());
-   global_unionfds.insert(global_unionfds.end(), outfds.begin(), outfds.end());
-   std::sort(global_unionfds.begin(), global_unionfds.end());
-   auto last = std::unique(global_unionfds.begin(), global_unionfds.end());
-   global_unionfds.erase(last, global_unionfds.end());
+   unionfds.clear();
+   unionfds.insert(unionfds.end(), infds.begin(), infds.end());
+   unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
+   std::sort(unionfds.begin(), unionfds.end());
+   auto last = std::unique(unionfds.begin(), unionfds.end());
+   unionfds.erase(last, unionfds.end());
 
-   global_infields_l.resize(infds.size());
+   infields_l.resize(infds.size());
    for (size_t i = 0; i < infds.size(); i++)
    {
-      global_infields_l[i] = new Vector(GetVSize(infds[i]));
+      infields_l[i] = new Vector(GetVSize(infds[i]));
    }
 
-   global_infields_e.resize(infds.size());
+   infields_e.resize(infds.size());
 }
 
 // Used only for the LOCAL/MONO operator
@@ -128,7 +128,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                derivative_action_callbacks.end(),
                "no derivative action has been found for ID " << derivative_id);
    assert(use_global_qf);
-   const size_t dfidx = FindIdx(derivative_id, global_infds);
+   const size_t dfidx = FindIdx(derivative_id, infds);
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -171,7 +171,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       prolongation(infds[dfidx], bx.GetBlock(dfidx), direction_l);
 
       // Restrict to element space
-      restriction<Entity::Element>(infds, infields_l, infields_e);
+      restriction<Entity::Element>(infds, infields_l,
+                                   infields_e);
 
       // Run all setup callbacks to populate the cache
       for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
@@ -216,7 +217,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    assert(use_global_qf);
-   const size_t dfidx = FindIdx(derivative_id, global_infds);
+   const size_t dfidx = FindIdx(derivative_id, infds);
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -279,13 +280,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       // Fallback to old behavior
       return std::make_shared<DerivativeOperator>(
                 height,
-                GetTrueVSize(global_infds[dfidx]),
+                GetTrueVSize(infds[dfidx]),
                 derivative_action_callbacks[derivative_id],
                 transpose_callbacks,
-                global_infds[dfidx],
+                infds[dfidx],
                 x,
-                global_infds,
-                global_outfds,
+                infds,
+                outfds,
                 assemble_sparse_cbs,
                 assemble_hypre_cbs);
    }

@@ -25,7 +25,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
 
 #include "fem/dfem/backends/global_qf/default/qf_global_prelude.hpp"
-using global_default_backend = mfem::future::GlobalQFDefaultBackend;
+using global_default_backend = mfem::future::GlobalQFBackend;
 
 #include "fem/dfem/backends/global_qf/devices/qf_global_devices.hpp"
 using global_devices_backend = mfem::future::GlobalQFDevicesBackend;

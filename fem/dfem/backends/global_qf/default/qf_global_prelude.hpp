@@ -1,13 +1,16 @@
 #pragma once
 
-#include "action.hpp"
-#include "derivative_action_enzyme.hpp"
+#include "qf_global_action.hpp"
+#include "qf_global_derivative_action_enzyme.hpp"
 
 namespace mfem::future
 {
 
 struct GlobalQFBackend
 {
+   constexpr static bool is_poly = true;
+   constexpr static bool is_local = false;
+   constexpr static bool is_default = false;
    static constexpr bool has_cached_derivative = false;
 
    template<

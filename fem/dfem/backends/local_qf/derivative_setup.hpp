@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../util.hpp"
+#include "../util_qf.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../../interpolate.hpp"
 #include "../../qfunction_transform.hpp"
@@ -51,7 +51,7 @@ struct DerivativeSetup
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
       dimension = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
+      num_entities = ctx.n_entities;
       num_qp = ctx.ir.GetNPoints();
 
       const Element::Type etype =
