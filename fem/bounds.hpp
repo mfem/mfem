@@ -210,7 +210,6 @@ struct PLBoundDeviceData
 {
    int nb;
    int ncp;
-   bool proj;
    const real_t *xhat;
    const real_t *what;
    const real_t *cphat;
@@ -218,7 +217,7 @@ struct PLBoundDeviceData
    const real_t *ubound;
 };
 
-template<int T_NB = 0>
+template<int T_NB = 0, bool T_PROJ = true>
 inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
                                      const int fes_vdim,
                                      const int ne,
@@ -260,7 +259,7 @@ inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
 
       MFEM_FOREACH_THREAD(i, x, nd)
       {
-         if (data.proj)
+         if constexpr (T_PROJ)
          {
             const real_t x = data.xhat[i];
             const real_t w = data.what[i];
@@ -289,7 +288,7 @@ inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
 
       MFEM_FOREACH_THREAD(i, x, nd)
       {
-         if (data.proj)
+         if constexpr (T_PROJ)
          {
             const real_t x = data.xhat[i];
             sproj[i] = coeff[i] - sa0 - sa1*x;
@@ -307,7 +306,7 @@ inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
       {
          real_t lo = 0.0;
          real_t hi = 0.0;
-         if (data.proj)
+         if constexpr (T_PROJ)
          {
             const real_t xcp = data.cphat[j];
             lo = sa0 + sa1*xcp;
@@ -347,7 +346,7 @@ inline void GetElementBoundsKernel1D(const PLBoundDeviceData &data,
    });
 }
 
-template<int T_NB = 0, int T_NCP = 0>
+template<int T_NB = 0, int T_NCP = 0, bool T_PROJ = true>
 inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
                                      const int fes_vdim,
                                      const int ne,
@@ -408,7 +407,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
          const int row_ncp_off = jrow*MAX_CP;
          MFEM_FOREACH_THREAD(i, x, nb)
          {
-            if (data.proj)
+            if constexpr (T_PROJ)
             {
                const real_t x = data.xhat[i];
                const real_t w = data.what[i];
@@ -425,7 +424,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
       MFEM_SYNC_THREAD;
 
       // Stage 1b: reduce the row-wise projection coefficients a0/a1.
-      if (data.proj)
+      if constexpr (T_PROJ)
       {
          MFEM_FOREACH_THREAD(jrow, y, nb)
          {
@@ -453,7 +452,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
          const real_t *row_coeff = coeff + jrow*nb;
          MFEM_FOREACH_THREAD(i, x, nb)
          {
-            if (data.proj)
+            if constexpr (T_PROJ)
             {
                const real_t x = data.xhat[i];
                sproj[jrow*MAX_NB + i] = row_coeff[i]
@@ -476,7 +475,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
             const int row_cp_off = jrow*ncp;
             real_t lo = 0.0;
             real_t hi = 0.0;
-            if (data.proj)
+            if constexpr (T_PROJ)
             {
                const real_t xcp = data.cphat[icp];
                lo = srow_a0[jrow] + srow_a1[jrow]*xcp;
@@ -503,7 +502,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
          MFEM_FOREACH_THREAD(jrow, y, nb)
          {
             const int row_cp_off = jrow*ncp;
-            if (data.proj)
+            if constexpr (T_PROJ)
             {
                const real_t x = data.xhat[jrow];
                const real_t w = data.what[jrow];
@@ -542,7 +541,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
 
       // Stage 2c: subtract the y-direction linear fit from the intermediate
       // row bounds so the final tensor-product bound uses the perturbation.
-      if (data.proj)
+      if constexpr (T_PROJ)
       {
          MFEM_FOREACH_THREAD(icp, x, ncp)
          {
@@ -566,7 +565,7 @@ inline void GetElementBoundsKernel2D(const PLBoundDeviceData &data,
          {
             real_t lo = 0.0;
             real_t hi = 0.0;
-            if (data.proj)
+            if constexpr (T_PROJ)
             {
                const real_t xcp = data.cphat[kcp];
                lo = sa0[icp] + sa1[icp]*xcp;
@@ -668,6 +667,12 @@ inline void PLBound::GetElementBoundsKernel(const int rdim, const int fes_vdim,
    lower.UseDevice(true);
    upper.UseDevice(true);
 
+   if (!proj)
+   {
+      MFEM_ABORT("Device element bounds kernel currently requires projection "
+                 "enabled.");
+   }
+
    const real_t *dxhat = xhat.Read();
    const real_t *dwhat = what.Read();
    const real_t *dcphat = cphat.Read();
@@ -678,7 +683,6 @@ inline void PLBound::GetElementBoundsKernel(const int rdim, const int fes_vdim,
    {
       nb,
       ncp,
-      proj,
       dxhat,
       dwhat,
       dcphat,
@@ -692,42 +696,42 @@ inline void PLBound::GetElementBoundsKernel(const int rdim, const int fes_vdim,
    {
       switch (nb)
       {
-         case 2: return internal::GetElementBoundsKernel1D<2>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 3: return internal::GetElementBoundsKernel1D<3>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 4: return internal::GetElementBoundsKernel1D<4>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 5: return internal::GetElementBoundsKernel1D<5>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 6: return internal::GetElementBoundsKernel1D<6>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 7: return internal::GetElementBoundsKernel1D<7>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 8: return internal::GetElementBoundsKernel1D<8>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 9: return internal::GetElementBoundsKernel1D<9>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
-         case 10: return internal::GetElementBoundsKernel1D<10>(data, fes_vdim, ne,
-                                                                   e_vec, lower, upper,
-                                                                   comp0, ncomp);
-         default: return internal::GetElementBoundsKernel1D<>(data, fes_vdim, ne,
-                                                                 e_vec, lower, upper,
-                                                                 comp0, ncomp);
+         case 2: return internal::GetElementBoundsKernel1D<2, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 3: return internal::GetElementBoundsKernel1D<3, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 4: return internal::GetElementBoundsKernel1D<4, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 5: return internal::GetElementBoundsKernel1D<5, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 6: return internal::GetElementBoundsKernel1D<6, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 7: return internal::GetElementBoundsKernel1D<7, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 8: return internal::GetElementBoundsKernel1D<8, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 9: return internal::GetElementBoundsKernel1D<9, true>(data, fes_vdim, ne,
+                                                                     e_vec, lower, upper,
+                                                                     comp0, ncomp);
+         case 10: return internal::GetElementBoundsKernel1D<10, true>(data, fes_vdim, ne,
+                                                                       e_vec, lower, upper,
+                                                                       comp0, ncomp);
+         default: return internal::GetElementBoundsKernel1D<0, true>(data, fes_vdim, ne,
+                                                                      e_vec, lower, upper,
+                                                                      comp0, ncomp);
       }
    }
 #define MFEM_PLBOUND_2D_DISPATCH(NB, NCP) \
-   return internal::GetElementBoundsKernel2D<NB, NCP>(data, fes_vdim, ne, \
-                                                      e_vec, lower, upper, \
-                                                      comp0, ncomp)
+   return internal::GetElementBoundsKernel2D<NB, NCP, true>(data, fes_vdim, ne, \
+                                                            e_vec, lower, upper, \
+                                                            comp0, ncomp)
    switch (nb)
    {
       case 2:
@@ -788,9 +792,9 @@ inline void PLBound::GetElementBoundsKernel(const int rdim, const int fes_vdim,
          break;
    }
 #undef MFEM_PLBOUND_2D_DISPATCH
-   return internal::GetElementBoundsKernel2D<>(data, fes_vdim, ne,
-                                               e_vec, lower, upper,
-                                               comp0, ncomp);
+   return internal::GetElementBoundsKernel2D<0, 0, true>(data, fes_vdim, ne,
+                                                         e_vec, lower, upper,
+                                                         comp0, ncomp);
 }
 
 } // namespace mfem
