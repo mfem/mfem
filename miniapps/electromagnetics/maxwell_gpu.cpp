@@ -79,6 +79,14 @@
 #include <iostream>
 #include <chrono>
 
+// work-around for Windows builds:
+// KernelDispatch uses MFEM_EXPORT, need to get rid of this for
+// CurrentIntegrator's kernels.
+#ifdef MFEM_EXPORT
+#undef MFEM_EXPORT
+#define MFEM_EXPORT
+#endif
+
 using namespace mfem;
 
 // Prints the program's logo to the given output stream
