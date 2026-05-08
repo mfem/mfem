@@ -318,21 +318,22 @@ static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
                "Problem size too large.");
    MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
                "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 2 * (d - 1) * d * ne, "");
 
-   static constexpr int vdim = 2;
+   constexpr int vdim = 2;
    const auto F = coeff.Read();
-   const auto M = Reshape(markers.Read(), ne);
+   const auto M = markers.Read();
    const auto BO = Reshape(testBO.Read(), q, d-1);
    const auto BC = Reshape(testBC.Read(), q, d);
    const auto J = Reshape(jac.Read(), q, q, vdim, vdim, ne);
    const auto W = Reshape(weights.Read(), q, q);
    const bool cst = coeff.Size() == vdim;
    const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
-   auto Y = Reshape(y.Write(), 2*(d-1)*d, ne);
+   auto Y = y.ReadWrite();
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
-      if (M(e) == 0) { return; } // ignore
+      if (M[e] == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
@@ -344,9 +345,9 @@ static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
 
       // Bo and Bc into shared memory
       const DeviceMatrix Bot(sBot, d-1, q);
-      kernels::internal::LoadBt<D,Q>(d-1, q, BO, sBot);
+      kernels::internal::LoadB<D,Q>(d-1, q, BO, sBot);
       const DeviceMatrix Bct(sBct, d, q);
-      kernels::internal::LoadBt<D,Q>(d, q, BC, sBct);
+      kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
 
       const DeviceCube QQ(sQQ, q, q, vdim);
       const DeviceCube QD(sQD, q, d, vdim);
@@ -420,21 +421,22 @@ static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
                "Problem size too large.");
    MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
                "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 3 * (d - 1) * (d - 1) * d * ne, "y wrong length");
 
-   static constexpr int vdim = 3;
+   constexpr int vdim = 3;
    const auto F = coeff.Read();
-   const auto M = Reshape(markers.Read(), ne);
+   const auto M = markers.Read();
    const auto BO = Reshape(testBO.Read(), q, d-1);
    const auto BC = Reshape(testBC.Read(), q, d);
    const auto J = Reshape(jac.Read(), q, q, q, vdim, vdim, ne);
    const auto W = Reshape(weights.Read(), q, q, q);
    const bool cst = coeff.Size() == vdim;
    const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
-   auto Y = Reshape(y.Write(), 3*(d-1)*(d-1)*d, ne);
+   auto Y = y.ReadWrite();
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
-      if (M(e) == 0) { return; } // ignore
+      if (M[e] == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
@@ -574,7 +576,7 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
                "Problem size too large.");
    MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
                "Problem size too large.");
-   MFEM_VERIFY(d <= q, "");
+   MFEM_VERIFY(y.Size() == 3 * (d - 1) * d * d * ne, "y wrong length");
 
    constexpr int vdim = 3;
    const auto F = coeff.Read();
@@ -585,7 +587,7 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
    const auto W = Reshape(weights.Read(), q, q, q);
    const bool cst = coeff.Size() == vdim;
    const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
-   auto Y = Reshape(y.Write(), 3*(d-1)*(d-1)*d, ne);
+   auto Y = y.ReadWrite();
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -599,18 +601,12 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
 
-      // D-1 could be zero, dummy have space for one
-      MFEM_SHARED real_t sBot[D > 1 ? Q * (D - 1) : 1];
+      MFEM_SHARED real_t sBot[Q * D];
       MFEM_SHARED real_t sBct[Q * D];
 
       // Bo and Bc into shared memory
       const DeviceMatrix Bot(sBot, d - 1, q);
-      // nvcc can't first-capture in an if constexpr
-      auto Bo = BO;
-      if constexpr (D > 1)
-      {
-         kernels::internal::LoadB<D - 1, Q>(d - 1, q, Bo, sBot);
-      }
+      kernels::internal::LoadB<D, Q>(d - 1, q, BO, sBot);
       const DeviceMatrix Bct(sBct, d, q);
       kernels::internal::LoadB<D, Q>(d, q, BC, sBct);
 
@@ -634,8 +630,8 @@ static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
                {
                   real_t curr[3];
                   curr[0] = cst ? cst_val_0 : C(0, x, y, z, e);
-                  curr[1] = cst ? cst_val_1 : C(0, x, y, z, e);
-                  curr[2] = cst ? cst_val_2 : C(0, x, y, z, e);
+                  curr[1] = cst ? cst_val_1 : C(1, x, y, z, e);
+                  curr[2] = cst ? cst_val_2 : C(2, x, y, z, e);
 
                   const real_t J11 = J(x, y, z, 0, 0, e);
                   const real_t J21 = J(x, y, z, 1, 0, e);
