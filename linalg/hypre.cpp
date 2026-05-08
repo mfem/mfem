@@ -153,15 +153,77 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
            MemoryClassContainsType(mc, src_d_mt));
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+static inline HYPRE_Precision MFEMHypreRealPrecision()
+{
+#ifdef MFEM_USE_SINGLE
+   return HYPRE_REAL_SINGLE;
+#else
+   return HYPRE_REAL_DOUBLE;
+#endif
+}
+
+static inline bool IsSupportedHypreParVectorPrecision(HYPRE_Precision precision)
+{
+   return precision == HYPRE_REAL_SINGLE || precision == HYPRE_REAL_DOUBLE;
+}
+
+static inline bool HypreParVectorUsesMFEMReal(const hypre_ParVector *v)
+{
+   return hypre_ParVectorPrecision(v) == MFEMHypreRealPrecision();
+}
+
+static inline bool HypreSeqVectorUsesMFEMReal(const hypre_Vector *v)
+{
+   return hypre_VectorPrecision(v) == MFEMHypreRealPrecision();
+}
+
+static inline void VerifyHypreParVectorUsesMFEMReal(const hypre_ParVector *v)
+{
+   MFEM_VERIFY(HypreParVectorUsesMFEMReal(v),
+               "this HypreParVector stores hypre data with a precision "
+               "different from mfem::real_t");
+}
+
+static hypre_ParVector *CreateHypreParVectorWithPrecision(
+   MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *col,
+   HYPRE_Precision precision)
+{
+   MFEM_VERIFY(IsSupportedHypreParVectorPrecision(precision),
+               "unsupported hypre ParVector precision");
+
+   HYPRE_ParVector hvec = NULL;
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorCreate_pre(precision, comm, glob_size, col, &hvec);
+   MFEM_VERIFY(ierr == 0 && hvec != NULL,
+               "error in HYPRE_ParVectorCreate_pre");
+
+   return (hypre_ParVector *) hvec;
+}
+
+static inline void InitializeHypreParVectorWithPrecision(hypre_ParVector *v)
+{
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorInitialize_pre(hypre_ParVectorPrecision(v),
+                                    (HYPRE_ParVector) v);
+   MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInitialize_pre");
+}
+#endif
 
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#if !defined(HYPRE_USING_GPU)
-   SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
-#else
    size = internal::to_int(hypre_VectorSize(x_loc));
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreSeqVectorUsesMFEMReal(x_loc))
+   {
+      data.Reset();
+      return;
+   }
+#endif
+#if !defined(HYPRE_USING_GPU)
+   SetDataAndSize(hypre_VectorData(x_loc), size);
+#else
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
                     ? MemoryType::HOST : GetHypreMemoryType());
    if (hypre_VectorData(x_loc) != NULL)
@@ -178,8 +240,14 @@ inline void HypreParVector::_SetDataAndSize_()
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
                                HYPRE_BigInt *col) : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(comm, glob_size, col,
+                                         MFEMHypreRealPrecision());
+   InitializeHypreParVectorWithPrecision(x);
+#else
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
+#endif
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -195,7 +263,12 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
                                bool is_device_ptr)
    : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(comm, glob_size, col,
+                                         MFEMHypreRealPrecision());
+#else
    x = hypre_ParVectorCreate(comm,glob_size,col);
+#endif
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_SeqVectorSetDataOwner(x_loc,0);
@@ -212,7 +285,11 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
    // If hypre_ParVectorLocalVector(x) and &tmp are non-NULL,
    // hypre_ParVectorInitialize(x) does not allocate memory!
+#ifdef HYPRE_MIXED_PRECISION
+   InitializeHypreParVectorWithPrecision(x);
+#else
    hypre_ParVectorInitialize(x);
+#endif
    // Set the internal data array to the one passed in
    hypre_VectorData(x_loc) = data_;
    _SetDataAndSize_();
@@ -237,6 +314,23 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+HypreParVector::HypreParVector(const HypreParVector &y)
+   : HypreParVector(y, y.GetHyprePrecision())
+{
+}
+
+HypreParVector::HypreParVector(const HypreParVector &y,
+                               HYPRE_Precision precision)
+   : HypreParVector(y.CreateCompatibleVector(precision))
+{
+   if (HypreParVectorUsesMFEMReal(y.x)) { y.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+
+   const HYPRE_Int ierr = hypre_ParVectorCopy_mp(y.x, x);
+   MFEM_VERIFY(ierr == 0, "error in hypre_ParVectorCopy_mp");
+}
+#else
 // Call the move constructor on the "compatible" temp vector
 HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
@@ -245,6 +339,7 @@ HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
    hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
                        hypre_ParVectorLocalVector(x));
 }
+#endif
 
 HypreParVector::HypreParVector(HypreParVector &&y)
 {
@@ -255,6 +350,24 @@ HypreParVector::HypreParVector(HypreParVector &&y)
 HypreParVector::HypreParVector(const HypreParMatrix &A,
                                int transpose) : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   hypre_ParCSRMatrix *Ah = const_cast<HypreParMatrix&>(A);
+   if (!transpose)
+   {
+      x = CreateHypreParVectorWithPrecision(hypre_ParCSRMatrixComm(Ah),
+                                            hypre_ParCSRMatrixGlobalNumCols(Ah),
+                                            hypre_ParCSRMatrixColStarts(Ah),
+                                            hypre_ParCSRMatrixPrecision(Ah));
+   }
+   else
+   {
+      x = CreateHypreParVectorWithPrecision(hypre_ParCSRMatrixComm(Ah),
+                                            hypre_ParCSRMatrixGlobalNumRows(Ah),
+                                            hypre_ParCSRMatrixRowStarts(Ah),
+                                            hypre_ParCSRMatrixPrecision(Ah));
+   }
+   InitializeHypreParVectorWithPrecision(x);
+#else
    if (!transpose)
    {
       x = hypre_ParVectorInDomainOf(const_cast<HypreParMatrix&>(A));
@@ -263,6 +376,7 @@ HypreParVector::HypreParVector(const HypreParMatrix &A,
    {
       x = hypre_ParVectorInRangeOf(const_cast<HypreParMatrix&>(A));
    }
+#endif
    _SetDataAndSize_();
    own_ParVector = 1;
 }
@@ -276,9 +390,17 @@ HypreParVector::HypreParVector(HYPRE_ParVector y) : Vector()
 
 HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(pfes->GetComm(),
+                                         pfes->GlobalTrueVSize(),
+                                         pfes->GetTrueDofOffsets(),
+                                         MFEMHypreRealPrecision());
+   InitializeHypreParVectorWithPrecision(x);
+#else
    x = hypre_ParVectorCreate(pfes->GetComm(), pfes->GlobalTrueVSize(),
                              pfes->GetTrueDofOffsets());
    hypre_ParVectorInitialize(x);
+#endif
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -291,6 +413,9 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
 
 HypreParVector HypreParVector::CreateCompatibleVector() const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   return CreateCompatibleVector(GetHyprePrecision());
+#else
    HypreParVector result;
    result.x = hypre_ParVectorCreate(x -> comm, x -> global_size,
                                     x -> partitioning);
@@ -304,11 +429,41 @@ HypreParVector HypreParVector::CreateCompatibleVector() const
    result.own_ParVector = 1;
 
    return result;
+#endif
 }
+
+#ifdef HYPRE_MIXED_PRECISION
+HypreParVector HypreParVector::CreateCompatibleVector(
+   HYPRE_Precision precision) const
+{
+   MFEM_VERIFY(x != NULL, "source HypreParVector is empty");
+
+   HypreParVector result;
+   result.x = CreateHypreParVectorWithPrecision(x->comm, x->global_size,
+                                                x->partitioning, precision);
+   InitializeHypreParVectorWithPrecision(result.x);
+#if MFEM_HYPRE_VERSION <= 22200
+   hypre_ParVectorSetPartitioningOwner(result.x,0);
+#endif
+   hypre_ParVectorSetDataOwner(result.x,1);
+   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
+   result._SetDataAndSize_();
+   result.own_ParVector = 1;
+
+   return result;
+}
+#endif
 
 void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 {
-   if (own_ParVector) { hypre_ParVectorDestroy(x); }
+   if (own_ParVector)
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
+      hypre_ParVectorDestroy(x);
+#endif
+   }
    Destroy();
    x = y;
    _SetDataAndSize_();
@@ -317,6 +472,9 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 
 Vector * HypreParVector::GlobalVector() const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    MFEM_VERIFY(size > 0,
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
@@ -330,6 +488,16 @@ Vector * HypreParVector::GlobalVector() const
 
 HypreParVector& HypreParVector::operator=(real_t d)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x))
+   {
+      const HYPRE_Int ierr =
+         HYPRE_ParVectorSetConstantValues_pre(GetHyprePrecision(),
+                                              (HYPRE_ParVector) x, d);
+      MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorSetConstantValues_pre");
+      return *this;
+   }
+#endif
    Vector::operator=(d);
    return *this;
 }
@@ -340,6 +508,20 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    if (size != y.Size())
    {
       mfem_error("HypreParVector::operator=");
+   }
+#endif
+
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x) ||
+       !HypreParVectorUsesMFEMReal(y.x) ||
+       GetHyprePrecision() != y.GetHyprePrecision())
+   {
+      if (HypreParVectorUsesMFEMReal(y.x)) { y.HypreRead(); }
+      if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+
+      const HYPRE_Int ierr = hypre_ParVectorCopy_mp(y.x, x);
+      MFEM_VERIFY(ierr == 0, "error in hypre_ParVectorCopy_mp");
+      return *this;
    }
 #endif
 
@@ -362,13 +544,72 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 
 void HypreParVector::SetData(real_t *data_)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    Vector::SetData(data_);
 }
 
+void *HypreParVector::GetHypreData()
+{
+   return hypre_VectorData(hypre_ParVectorLocalVector(x));
+}
+
+const void *HypreParVector::GetHypreData() const
+{
+   return hypre_VectorData(hypre_ParVectorLocalVector(x));
+}
+
+#ifdef HYPRE_MIXED_PRECISION
+hypre_float *HypreParVector::GetHypreFloatData()
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_SINGLE,
+               "HypreParVector data is not single precision");
+   return reinterpret_cast<hypre_float*>(GetHypreData());
+}
+
+const hypre_float *HypreParVector::GetHypreFloatData() const
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_SINGLE,
+               "HypreParVector data is not single precision");
+   return reinterpret_cast<const hypre_float*>(GetHypreData());
+}
+
+hypre_double *HypreParVector::GetHypreDoubleData()
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_DOUBLE,
+               "HypreParVector data is not double precision");
+   return reinterpret_cast<hypre_double*>(GetHypreData());
+}
+
+const hypre_double *HypreParVector::GetHypreDoubleData() const
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_DOUBLE,
+               "HypreParVector data is not double precision");
+   return reinterpret_cast<const hypre_double*>(GetHypreData());
+}
+#endif
+
 void HypreParVector::HypreRead() const
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x))
+   {
+      switch (GetHyprePrecision())
+      {
+         case HYPRE_REAL_SINGLE:
+            (void) GetHypreFloatData();
+            return;
+         case HYPRE_REAL_DOUBLE:
+            (void) GetHypreDoubleData();
+            return;
+         default:
+            MFEM_ABORT("unsupported hypre ParVector precision");
+      }
+   }
+#endif
    hypre_VectorData(x_loc) =
       const_cast<real_t*>(data.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
@@ -378,6 +619,9 @@ void HypreParVector::HypreRead() const
 
 void HypreParVector::HypreReadWrite()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -387,6 +631,9 @@ void HypreParVector::HypreReadWrite()
 
 void HypreParVector::HypreWrite()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -396,6 +643,9 @@ void HypreParVector::HypreWrite()
 
 void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -411,6 +661,9 @@ void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -425,6 +678,9 @@ void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   VerifyHypreParVectorUsesMFEMReal(x);
+#endif
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -439,22 +695,49 @@ void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+   return HYPRE_ParVectorSetRandomValues_pre(GetHyprePrecision(),
+                                             (HYPRE_ParVector) x, seed);
+#else
    return hypre_ParVectorSetRandomValues(x,seed);
+#endif
 }
 
 void HypreParVector::Print(const std::string &fname) const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (HypreParVectorUsesMFEMReal(x)) { HypreRead(); }
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorPrint_pre(GetHyprePrecision(), (HYPRE_ParVector) x,
+                               fname.c_str());
+   MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorPrint_pre");
+#else
    hypre_ParVectorPrint(x, fname.c_str());
+#endif
 }
 
 void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
       hypre_ParVectorDestroy(x);
+#endif
    }
    data.Delete();
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParVector hvec = NULL;
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorRead_pre(MFEMHypreRealPrecision(), comm, fname.c_str(),
+                              &hvec);
+   MFEM_VERIFY(ierr == 0 && hvec != NULL, "error in HYPRE_ParVectorRead_pre");
+   x = (hypre_ParVector *) hvec;
+#else
    x = hypre_ParVectorRead(comm, fname.c_str());
+#endif
    own_ParVector = true;
    _SetDataAndSize_();
 }
@@ -463,19 +746,60 @@ HypreParVector::~HypreParVector()
 {
    if (own_ParVector)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
       hypre_ParVectorDestroy(x);
+#endif
    }
 }
 
 
 real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   const HYPRE_Precision precision = x->GetHyprePrecision();
+   MFEM_VERIFY(precision == y->GetHyprePrecision(),
+               "mixed-precision HypreParVector inner product requires "
+               "matching vector precisions");
+
+   hypre_ParVector *xh = *x;
+   hypre_ParVector *yh = *y;
+   if (HypreParVectorUsesMFEMReal(xh)) { x->HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(yh)) { y->HypreRead(); }
+
+   switch (precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float result = 0.0f;
+         const HYPRE_Int ierr =
+            HYPRE_ParVectorInnerProd_pre(precision, (HYPRE_ParVector) xh,
+                                         (HYPRE_ParVector) yh, &result);
+         MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInnerProd_pre");
+         return (real_t) result;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double result = 0.0;
+         const HYPRE_Int ierr =
+            HYPRE_ParVectorInnerProd_pre(precision, (HYPRE_ParVector) xh,
+                                         (HYPRE_ParVector) yh, &result);
+         MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInnerProd_pre");
+         return (real_t) result;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre ParVector precision");
+         return 0.0;
+   }
+#else
    return hypre_ParVectorInnerProd(*x, *y);
+#endif
 }
 
 real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
-   return hypre_ParVectorInnerProd(x, y);
+   return InnerProduct(&x, &y);
 }
 
 
@@ -586,9 +910,15 @@ void HypreParMatrix::Init()
    mem_diag.I.Reset();
    mem_diag.J.Reset();
    mem_diag.data.Reset();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.Reset();
+#endif
    mem_offd.I.Reset();
    mem_offd.J.Reset();
    mem_offd.data.Reset();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.Reset();
+#endif
 }
 
 #if MFEM_HYPRE_VERSION >= 21800
@@ -619,6 +949,13 @@ GetHypreParMatrixMemoryLocation(MemoryClass mc)
 }
 #endif // MFEM_HYPRE_VERSION >= 21800
 
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+static inline bool HypreCSRMatrixUsesFloatData(const hypre_CSRMatrix *mat)
+{
+   return hypre_CSRMatrixPrecision(mat) == HYPRE_REAL_SINGLE;
+}
+#endif
+
 void HypreParMatrix::Read(MemoryClass mc) const
 {
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
@@ -628,10 +965,22 @@ void HypreParMatrix::Read(MemoryClass mc) const
    const int offd_nnz = internal::to_int(offd->num_nonzeros);
    diag->i = const_cast<HYPRE_Int*>(mem_diag.I.Read(mc, num_rows+1));
    diag->j = const_cast<HYPRE_Int*>(mem_diag.J.Read(mc, diag_nnz));
-   diag->data = const_cast<real_t*>(mem_diag.data.Read(mc, diag_nnz));
    offd->i = const_cast<HYPRE_Int*>(mem_offd.I.Read(mc, num_rows+1));
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
-   offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   if (HypreCSRMatrixUsesFloatData(diag))
+   {
+      diag->data = reinterpret_cast<HYPRE_Complex*>(
+                      const_cast<hypre_float*>(mem_diag.data_f.Read(mc, diag_nnz)));
+      offd->data = reinterpret_cast<HYPRE_Complex*>(
+                      const_cast<hypre_float*>(mem_offd.data_f.Read(mc, offd_nnz)));
+   }
+   else
+#endif
+   {
+      diag->data = const_cast<real_t*>(mem_diag.data.Read(mc, diag_nnz));
+      offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
+   }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
@@ -648,10 +997,22 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    const int offd_nnz = internal::to_int(offd->num_nonzeros);
    diag->i = mem_diag.I.ReadWrite(mc, num_rows+1);
    diag->j = mem_diag.J.ReadWrite(mc, diag_nnz);
-   diag->data = mem_diag.data.ReadWrite(mc, diag_nnz);
    offd->i = mem_offd.I.ReadWrite(mc, num_rows+1);
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
-   offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   if (HypreCSRMatrixUsesFloatData(diag))
+   {
+      diag->data = reinterpret_cast<HYPRE_Complex*>(
+                      mem_diag.data_f.ReadWrite(mc, diag_nnz));
+      offd->data = reinterpret_cast<HYPRE_Complex*>(
+                      mem_offd.data_f.ReadWrite(mc, offd_nnz));
+   }
+   else
+#endif
+   {
+      diag->data = mem_diag.data.ReadWrite(mc, diag_nnz);
+      offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
+   }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
@@ -667,13 +1028,33 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
    {
       diag->i = mem_diag.I.Write(mc, mem_diag.I.Capacity());
       diag->j = mem_diag.J.Write(mc, mem_diag.J.Capacity());
-      diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (HypreCSRMatrixUsesFloatData(diag))
+      {
+         diag->data = reinterpret_cast<HYPRE_Complex*>(
+                         mem_diag.data_f.Write(mc, mem_diag.data_f.Capacity()));
+      }
+      else
+#endif
+      {
+         diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
+      }
    }
    if (set_offd)
    {
       offd->i = mem_offd.I.Write(mc, mem_offd.I.Capacity());
       offd->j = mem_offd.J.Write(mc, mem_offd.J.Capacity());
-      offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (HypreCSRMatrixUsesFloatData(offd))
+      {
+         offd->data = reinterpret_cast<HYPRE_Complex*>(
+                         mem_offd.data_f.Write(mc, mem_offd.data_f.Capacity()));
+      }
+      else
+#endif
+      {
+         offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+      }
    }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
@@ -873,7 +1254,18 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
    const int nnz = internal::to_int(h_mat->num_nonzeros);
    mem.I.Wrap(h_mat->i, nr1, h_mat_mt, own_ija);
    mem.J.Wrap(h_mat->j, nnz, h_mat_mt, own_ija);
-   mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   const bool single_precision_data = HypreCSRMatrixUsesFloatData(h_mat);
+   if (single_precision_data)
+   {
+      mem.data_f.Wrap(reinterpret_cast<hypre_float*>(h_mat->data),
+                      nnz, h_mat_mt, own_ija);
+   }
+   else
+#endif
+   {
+      mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+   }
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    if (!CanShallowCopy(mem.I, hypre_mc))
    {
@@ -885,9 +1277,20 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mem.J.New(nnz, hypre_mt);
       h_mem.J.CopyFrom(mem.J, nnz);
       mem.J.Delete();
-      h_mem.data.New(nnz, hypre_mt);
-      h_mem.data.CopyFrom(mem.data, nnz);
-      mem.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (single_precision_data)
+      {
+         h_mem.data_f.New(nnz, hypre_mt);
+         h_mem.data_f.CopyFrom(mem.data_f, nnz);
+         mem.data_f.Delete();
+      }
+      else
+#endif
+      {
+         h_mem.data.New(nnz, hypre_mt);
+         h_mem.data.CopyFrom(mem.data, nnz);
+         mem.data.Delete();
+      }
       mem = h_mem;
       if (!own_ija)
       {
@@ -918,7 +1321,17 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       }
       h_mat->i = mem.I.ReadWrite(hypre_mc, nr1);
       h_mat->j = mem.J.ReadWrite(hypre_mc, nnz);
-      h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (single_precision_data)
+      {
+         h_mat->data = reinterpret_cast<HYPRE_Complex*>(
+                          mem.data_f.ReadWrite(hypre_mc, nnz));
+      }
+      else
+#endif
+      {
+         h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
+      }
       h_mat->owns_data = 0;
 #if MFEM_HYPRE_VERSION >= 21800
       h_mat->memory_location = mfem::GetHypreMemoryLocation();
@@ -1476,6 +1889,45 @@ HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
    offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+HypreParMatrix::HypreParMatrix(const HypreParMatrix &P,
+                               HYPRE_Precision precision)
+{
+   hypre_ParCSRMatrix *Ph = static_cast<hypre_ParCSRMatrix *>(P);
+
+   Init();
+
+   MFEM_VERIFY(Ph != NULL, "source HypreParMatrix is empty");
+   MFEM_VERIFY(precision == HYPRE_REAL_SINGLE ||
+               precision == HYPRE_REAL_DOUBLE,
+               "unsupported target precision");
+
+#ifndef MFEM_USE_DOUBLE
+   MFEM_VERIFY(precision == HYPRE_OBJECT_PRECISION,
+               "mixed-precision HypreParMatrix copy is implemented for "
+               "MFEM real_t == double");
+#endif
+
+   P.HypreRead();
+
+   A = hypre_ParCSRMatrixClone_mp(Ph, precision);
+   MFEM_VERIFY(A != NULL, "error in hypre_ParCSRMatrixClone_mp");
+
+   height = GetNumRows();
+   width = GetNumCols();
+
+   CopyRowStarts();
+   CopyColStarts();
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
+
+   diagOwner = HypreCsrToMem(A->diag, GetHypreMemoryType(), false, mem_diag);
+   offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
+}
+#endif
+
 void HypreParMatrix::MakeRef(const HypreParMatrix &master)
 {
    Destroy();
@@ -1488,10 +1940,18 @@ void HypreParMatrix::MakeRef(const HypreParMatrix &master)
    mem_diag.J.MakeAlias(master.mem_diag.J, 0, master.mem_diag.J.Capacity());
    mem_diag.data.MakeAlias(master.mem_diag.data, 0,
                            master.mem_diag.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.MakeAlias(master.mem_diag.data_f, 0,
+                             master.mem_diag.data_f.Capacity());
+#endif
    mem_offd.I.MakeAlias(master.mem_offd.I, 0, master.mem_offd.I.Capacity());
    mem_offd.J.MakeAlias(master.mem_offd.J, 0, master.mem_offd.J.Capacity());
    mem_offd.data.MakeAlias(master.mem_offd.data, 0,
                            master.mem_offd.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.MakeAlias(master.mem_offd.data_f, 0,
+                             master.mem_offd.data_f.Capacity());
+#endif
 }
 
 hypre_ParCSRMatrix* HypreParMatrix::StealData()
@@ -1528,6 +1988,10 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
    mem_diag.data.SetHostPtrOwner((diag >= 0) && (diag & 2));
    mem_diag.data.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.SetHostPtrOwner((diag >= 0) && (diag & 2));
+   mem_diag.data_f.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+#endif
 
    offdOwner = offd;
    mem_offd.I.SetHostPtrOwner((offd >= 0) && (offd & 1));
@@ -1538,6 +2002,10 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
    mem_offd.data.SetHostPtrOwner((offd >= 0) && (offd & 2));
    mem_offd.data.SetDevicePtrOwner((offd >= 0) && (offd & 2));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.SetHostPtrOwner((offd >= 0) && (offd & 2));
+   mem_offd.data_f.SetDevicePtrOwner((offd >= 0) && (offd & 2));
+#endif
    colMapOwner = colmap;
 }
 
@@ -1660,6 +2128,11 @@ static void MakeWrapper(const hypre_CSRMatrix *mat,
                         const MemoryIJData &mem,
                         SparseMatrix &wrapper)
 {
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   MFEM_VERIFY(!HypreCSRMatrixUsesFloatData(mat),
+               "cannot expose single-precision hypre CSR data as an MFEM "
+               "SparseMatrix with real_t == double");
+#endif
    const int nrows = internal::to_int(hypre_CSRMatrixNumRows(mat));
    const int ncols = internal::to_int(hypre_CSRMatrixNumCols(mat));
    const int nnz = internal::to_int(mat->num_nonzeros);
@@ -1873,9 +2346,30 @@ void HypreParMatrix::ResetTranspose() const
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                real_t a, real_t b) const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   const HYPRE_Precision precision = x.GetHyprePrecision();
+   MFEM_VERIFY(precision == y.GetHyprePrecision(),
+               "mixed-precision HypreParMatrix::Mult requires matching "
+               "x and y vector precisions");
+   MFEM_VERIFY(precision == GetHyprePrecision(),
+               "mixed-precision HypreParMatrix::Mult requires matching "
+               "matrix and vector precisions");
+
+   if (HypreParVectorUsesMFEMReal(x)) { x.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(y))
+   {
+      (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
+   }
+
+   return HYPRE_ParCSRMatrixMatvec_pre(precision, a, (HYPRE_ParCSRMatrix) A,
+                                       (HYPRE_ParVector)(hypre_ParVector *) x,
+                                       b,
+                                       (HYPRE_ParVector)(hypre_ParVector *) y);
+#else
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
+#endif
 }
 
 void HypreParMatrix::Mult(real_t a, const Vector &x, real_t b, Vector &y) const
@@ -2889,6 +3383,9 @@ void HypreParMatrix::Destroy()
    mem_diag.I.Delete();
    mem_diag.J.Delete();
    mem_diag.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.Delete();
+#endif
    if (diagOwner >= 0)
    {
       hypre_CSRMatrixI(A->diag) = NULL;
@@ -2898,6 +3395,9 @@ void HypreParMatrix::Destroy()
    mem_offd.I.Delete();
    mem_offd.J.Delete();
    mem_offd.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.Delete();
+#endif
    if (offdOwner >= 0)
    {
       hypre_CSRMatrixI(A->offd) = NULL;
