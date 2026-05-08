@@ -96,14 +96,23 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
-   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(
+                      derivative_id);
    if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
    {
       assemble_hypre_cbs = it_hypre->second;
    }
 
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
    // If setup callbacks are available, run them to populate the cache
-   if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
+   if (derivative_setup_callbacks.find(derivative_id) !=
+       derivative_setup_callbacks.end())
    {
       // Get the direction field from x
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
@@ -136,7 +145,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
    else
    {
@@ -151,7 +161,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
 }
 
@@ -181,14 +192,23 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
-   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(
+                      derivative_id);
    if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
    {
       assemble_hypre_cbs = it_hypre->second;
    }
 
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
    // If setup callbacks are available, run them to populate the cache
-   if (derivative_setup_callbacks.find(derivative_id) != derivative_setup_callbacks.end())
+   if (derivative_setup_callbacks.find(derivative_id) !=
+       derivative_setup_callbacks.end())
    {
       // Prolong to L-space
       prolongation(infds, x, infields_l);
@@ -216,7 +236,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
    else
    {
@@ -231,7 +252,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
 }
 
