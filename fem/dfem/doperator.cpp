@@ -104,6 +104,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_hypre_cbs = it_hypre->second;
    }
 
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
    // If setup callbacks are available, run them to populate the cache
    if (derivative_setup_callbacks.find(derivative_id) !=
        derivative_setup_callbacks.end())
@@ -140,7 +147,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
    else
    {
@@ -155,7 +163,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
 }
 
@@ -193,6 +202,13 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_hypre_cbs = it_hypre->second;
    }
 
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
    // If setup callbacks are available, run them to populate the cache
    if (derivative_setup_callbacks.find(derivative_id) !=
        derivative_setup_callbacks.end())
@@ -223,7 +239,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
    else
    {
@@ -238,7 +255,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                 infds,
                 outfds,
                 assemble_sparse_cbs,
-                assemble_hypre_cbs);
+                assemble_hypre_cbs,
+                assemble_diag_cbs);
    }
 }
 

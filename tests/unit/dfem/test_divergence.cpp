@@ -37,7 +37,7 @@ void vectordivergence(const char *filename, int p)
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
 
    pmesh.EnsureNodes();
-   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   [[maybe_unused]] auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
    p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
 
@@ -53,7 +53,8 @@ void vectordivergence(const char *filename, int p)
    ParFiniteElementSpace pvfes(&pmesh, &fec, DIM);
 
    const int q = 3 * p + 1;
-   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
+   [[maybe_unused]] const auto *ir =
+      &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
 
    ParGridFunction xv(&pvfes);
    ParGridFunction ys(&psfes), sz(&psfes);

@@ -43,6 +43,11 @@ using assemble_derivative_sparsematrix_callback_t =
 using assemble_derivative_hypreparmatrix_callback_t =
    std::function<void(std::vector<Vector> &, HypreParMatrix *&)>;
 
+/// @brief Type alias for a function that assembles the diagonal of a derivative
+/// operator into an L-vector
+using assemble_diagonal_callback_t =
+   std::function<void(std::vector<Vector> &, Vector &)>;
+
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
 using restriction_callback_t =
@@ -85,13 +90,16 @@ public:
       const std::vector<assemble_derivative_sparsematrix_callback_t>
       &assemble_sparsematrix_callbacks = {},
       const std::vector<assemble_derivative_hypreparmatrix_callback_t>
-      &assemble_hypreparmatrix_callbacks = {}) :
+      &assemble_hypreparmatrix_callbacks = {},
+      const std::vector<assemble_diagonal_callback_t>
+      &assemble_diagonal_cbs = {}) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
       outfds(outfds),
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
-      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks)
+      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
+      assemble_diagonal_callbacks(assemble_diagonal_cbs)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -266,6 +274,30 @@ public:
       }
    }
 
+   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   ///
+   /// @param diag The vector to receive the diagonal (must be T-dof sized).
+   void AssembleDiagonal(Vector &diag) const override
+   {
+      MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
+                  "derivative can't assemble diagonal");
+
+      const auto *test_pf =
+         std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
+      MFEM_ASSERT(test_pf && *test_pf,
+                  "AssembleDiagonal: test field must be a ParFiniteElementSpace");
+
+      Vector diag_l((*test_pf)->GetVSize());
+      diag_l = 0.0;
+
+      for (const auto &f : assemble_diagonal_callbacks)
+      {
+         f(fields_e, diag_l);
+      }
+
+      (*test_pf)->GetProlongationMatrix()->MultTranspose(diag_l, diag);
+   }
+
 private:
    /// Derivative action callbacks. Depending on the requested derivatives in
    /// DifferentiableOperator the callbacks represent certain combinations of
@@ -308,6 +340,9 @@ private:
    /// Callbacks that assemble derivatives into a HypreParMatrix.
    std::vector<assemble_derivative_hypreparmatrix_callback_t>
    assemble_derivative_hypreparmatrix_callbacks;
+
+   /// Callbacks that assemble the diagonal of derivatives into an L-vector.
+   std::vector<assemble_diagonal_callback_t> assemble_diagonal_callbacks;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -570,6 +605,9 @@ private:
    std::map<size_t,
        std::vector<assemble_derivative_hypreparmatrix_callback_t>>
        assemble_derivative_hypreparmatrix_callbacks;
+   std::map<size_t,
+       std::vector<assemble_diagonal_callback_t>>
+       assemble_diagonal_callbacks;
 
    const bool use_global_qf = true;
    std::vector<FieldDescriptor> infds, outfds, unionfds;
@@ -798,6 +836,11 @@ void DifferentiableOperator::AddIntegrator(qfunc_t &qfunc,
          // Create assemble callback for sparse matrix assembly
          assemble_derivative_sparsematrix_callbacks[i].push_back(
             backend_t::template MakeDerivativeAssemble<i>(
+               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+         // Create assemble callback for diagonal assembly
+         assemble_diagonal_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAssembleDiagonal<i>(
                ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
          // Create transpose apply callback (J^T) using the same cache
