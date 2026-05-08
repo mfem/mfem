@@ -133,6 +133,76 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    xpn *= 1.0/beta[0];
 }
 
+void NavierParticles::ParticleStep3D(const real_t &dt, int p)
+{
+   Vector w_n_ext(3);  w_n_ext = 0.0;
+
+   int order_idx = Order()[p] - 1;
+   const Array<real_t> &beta = beta_k[order_idx];
+   const Array<real_t> &alpha = alpha_k[order_idx];
+
+   const real_t &kappa = Kappa()[p];
+   const real_t &zeta = Zeta()[p];
+   const real_t &gamma = Gamma()[p];
+
+   // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old
+   // particle loc)
+   // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
+   for (int j = 1; j <= 3; j++)
+   {
+      w_n_ext(0) += alpha[j-1]*W(j)(p, 0);
+      w_n_ext(1) += alpha[j-1]*W(j)(p, 1);
+      w_n_ext(2) += alpha[j-1]*W(j)(p, 2);
+   }
+
+   // Assemble the 3D matrix B with implicit terms
+   DenseMatrix B({{ beta[0]+dt*kappa  ,  zeta*dt*w_n_ext(2), -zeta*dt*w_n_ext(1)},
+                  {-zeta*dt*w_n_ext(2),  beta[0]+dt*kappa  ,  zeta*dt*w_n_ext(0)},
+                  { zeta*dt*w_n_ext(1), -zeta*dt*w_n_ext(0),  beta[0]+dt*kappa  }});
+
+   // Assemble the RHS with BDF and EXT terms
+   r = 0.0;
+   for (int j = 1; j <= 3; j++)
+   {
+      U(j).GetValuesRef(p, up);
+      V(j).GetValuesRef(p, vp);
+
+      // Add particle velocity component
+      add(r, -beta[j], vp, r);
+
+      // Create C
+      C = up;
+      C *= kappa;
+      add(C, -gamma, Vector({0.0, 0.0, 1.0}), C);
+      add(C, zeta, Vector({ up[1]*w_n_ext[2] - up[2]*w_n_ext[1],
+                            up[2]*w_n_ext[0] - up[0]*w_n_ext[2],
+                            up[0]*w_n_ext[1] - up[1]*w_n_ext[0]}), C);
+
+      // Add C
+      add(r, dt*alpha[j-1], C, r);
+   }
+
+   // Solve for particle velocity
+   DenseMatrixInverse B_inv(B);
+   V(0).GetValuesRef(p, vp);
+   B_inv.Mult(r, vp);
+
+   // Compute updated particle position
+   X(0).GetValuesRef(p, xpn);
+   xpn = 0.0;
+   for (int j = 1; j <= 3; j++)
+   {
+      X(j).GetValuesRef(p, xp);
+      add(xpn, -beta[j], xp, xpn);
+   }
+   V(0).GetValuesRef(p, vp);
+   add(xpn, dt, vp, xpn);
+   xpn *= 1.0/beta[0];
+
+   //vp.Print();
+   //xpn.Print();
+}
+
 void NavierParticles::Get2DNormal(const Vector &p1, const Vector &p2,
                                   bool inv_normal, Vector &normal)
 {
@@ -312,7 +382,79 @@ void NavierParticles::ApplyBCs()
             Apply2DRecirculationBC(bc);
          }
       },bc_v);
+   }
+}
 
+void NavierParticles::ApplyBCs3D(const ParGridFunction &T_gf, const ParGridFunction &Tgrad_gf)
+{
+   finder.FindPoints(X());
+   finder.Interpolate(T_gf, T(), T().GetOrdering());
+   finder.Interpolate(Tgrad_gf, nablaT(), nablaT().GetOrdering());
+
+   for (int i = 0; i < fluid_particles.GetNParticles(); i++)
+   {
+      const real_t &distance = T()[i];
+      nablaT().GetValuesRef(i, surfNormal);
+      mfem::Vector SurNorm(3); SurNorm= surfNormal;
+      SurNorm /= SurNorm.Norml2();
+      V(0).GetValuesRef(i, vp);
+      Vector p_xn(3);
+      X().GetValuesRef(i, p_xn);
+      Array<int> inactive_idxs(1);
+
+      if(p_xn[2] <= -0.38)
+      {
+         Status()[i] = 1.0;
+
+         inactive_idxs[0] = i;
+         fluid_particles.RemoveParticles(inactive_idxs);
+      }
+
+      if(p_xn[2] >= 0.041)
+      {
+         Status()[i] = 2.0;
+
+         inactive_idxs[0] = i;
+         fluid_particles.RemoveParticles(inactive_idxs);
+      }
+
+      if(distance <= 3e-5)
+      {
+         //get normal of surface
+         Vector normal({ vp[1]*SurNorm[2] - vp[2]*SurNorm[1],
+                         vp[2]*SurNorm[0] - vp[0]*SurNorm[2],
+                         vp[0]*SurNorm[1] - vp[1]*SurNorm[0]});
+
+         normal /= normal.Norml2();
+
+         Vector tangential({ normal[1]*SurNorm[2] - normal[2]*SurNorm[1],
+                             normal[2]*SurNorm[0] - normal[0]*SurNorm[2],
+                             normal[0]*SurNorm[1] - normal[1]*SurNorm[0]});
+
+         tangential /= tangential.Norml2();
+
+         DenseMatrix B({{ SurNorm[0], tangential[0], normal[0]},
+                        { SurNorm[1], tangential[1], normal[1]},
+                        { SurNorm[2], tangential[2], normal[2]}});
+
+         Vector vpCoordWall(3);
+         Vector vpPostWall(3);
+
+         DenseMatrixInverse B_inv(B);
+         B_inv.Mult(vp, vpCoordWall);
+
+         vpPostWall = vpCoordWall;
+         vpPostWall[0] = -vpCoordWall[0];
+
+         //vpCoordWall.Print();
+         //vpPostWall.Print();
+
+         B.Mult(vpPostWall, vp);
+         //vp.Print();
+
+         // Set order to 0, to avoid re-computing x history as well
+         Order()[i] = 0;
+      }
    }
 }
 
@@ -321,7 +463,6 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
      inactive_fluid_particles(comm, 0, m.SpaceDimension()),
      finder(comm)
 {
-
    for (int o = 0; o < 3; o++)
    {
       beta_k[o].SetSize(4);
@@ -338,6 +479,9 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    fp_idx.field.kappa = fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
    fp_idx.field.zeta = fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
    fp_idx.field.gamma = fluid_particles.AddNamedField(1, "gamma");
+   fp_idx.field.dist = fluid_particles.AddNamedField(1, "dist");
+   fp_idx.field.grad_dist = fluid_particles.AddNamedField(dim, "nabla_dist");
+   fp_idx.field.status = fluid_particles.AddNamedField(1, "status");
 
    inactive_fluid_particles.AddField(1);
    inactive_fluid_particles.AddField(1);
@@ -367,7 +511,7 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
 }
 
 void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
-                           const ParGridFunction &w_gf)
+                           const ParGridFunction &w_gf, const ParGridFunction &T_gf, const ParGridFunction &gradT_gf)
 {
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = N_HIST-1; i > 0; i--)
@@ -384,6 +528,8 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
 
    SetTimeIntegrationCoefficients();
 
+   bool reflect = false;       //FIXME
+
    if (fluid_particles.GetDim() == 2)
    {
       for (int i = 0; i < fluid_particles.GetNParticles(); i++)
@@ -399,11 +545,87 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
    }
    else
    {
-      MFEM_ABORT("3D particles not yet implemented.");
+      for (int i = 0; i < fluid_particles.GetNParticles(); i++)
+      {
+         // Increment particle order
+         int &order = Order()[i];
+         if (order < 3)
+         {
+            order++;
+         }
+         ParticleStep3D(dt, i);
+      }
+
+      double scaling = 1.0;
+      int counter = 0;
+
+
+      while(true)
+      {
+         finder.FindPoints(X());
+         const Array<unsigned int> lost_idxs = finder.GetPointsNotFoundIndices();
+
+         if( lost_idxs.Size() == 0 || counter == 5)
+         {
+            if(counter == 5)
+            {
+              std::cout<<"LINE SEARCH NOT CONVERGED"<<std::endl;
+            }
+            break;
+         }
+         
+         for (int j = 0; j < lost_idxs.Size(); j++)
+         {
+            unsigned int index = lost_idxs[j];
+
+            Vector p_xn(3), p_xnm1(3),p_xdiff(3) ;
+            X().GetValuesRef(index, p_xn);
+            X(1).GetValuesRef(index, p_xnm1);
+
+            p_xdiff = p_xn;
+            p_xdiff -= p_xnm1;
+
+            p_xdiff /=2.0;
+
+            p_xn = p_xnm1;
+            p_xn += p_xdiff;
+         }
+
+         // Set order to 0 (so that it becomes 1 on next iteration)
+         //Order()[index] = 0;
+
+
+         // for (int j = 0; j < lost_idxs.Size(); j++)
+         // {
+         //    unsigned int index = lost_idxs[j];
+
+         //    //Order()[index] = 0;
+
+         //    Vector p_xn(3), p_xnm1(3) ;
+         //    X().GetValuesRef(index, p_xn);
+         //    X(1).GetValuesRef(index, p_xnm1);
+         //    // p_xn.Print();
+         //    p_xnm1.Print();
+         //    p_xn = p_xnm1;
+
+         //    ParticleStep3D(dt / scaling, index);
+
+         //    finder.FindPoints(X());
+         //    finder.Interpolate(T_gf, T(), T().GetOrdering());
+         //    const real_t &distance = T()[index];
+
+         //    std::cout<<"distance: "<<distance <<std::endl;
+
+         // }
+
+         counter++;
+      }
    }
 
    // Apply any BCs
-   ApplyBCs();
+   ApplyBCs3D(T_gf, gradT_gf);
+
+   //ApplyBCs();
 
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf);

@@ -17,9 +17,13 @@ if (MFEM_USE_MPI)
 
   if(MFEM_USE_GSLIB)
     list(APPEND NAVIER_COMMON_SOURCES
-      navier_particles.cpp)
+      navier_particles.cpp
+      navier_tools.cpp
+      ascii.cpp)
     list(APPEND NAVIER_COMMON_HEADERS
-      navier_particles.hpp)
+      navier_particles.hpp
+      navier_tools.hpp
+      ascii.hpp)
   endif()
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
@@ -71,11 +75,17 @@ if (MFEM_USE_MPI)
     COMMENT "Copying navier miniapps data files ...")
   add_custom_target(copy_miniapps_navier_data DEPENDS data_is_copied)
 
-  add_mfem_miniapp(navier_bifurcation
-    MAIN navier_bifurcation.cpp
+#  add_mfem_miniapp(navier_bifurcation
+#    MAIN navier_bifurcation.cpp
+#    ${NAVIER_COMMON_FILES}
+#    LIBRARIES mfem-common)
+#add_dependencies(navier_bifurcation copy_miniapps_navier_data)
+
+  add_mfem_miniapp(cyclone_particle
+    MAIN cyclone_particle.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem-common)
-add_dependencies(navier_bifurcation copy_miniapps_navier_data)
+add_dependencies(cyclone_particle copy_miniapps_navier_data)
 
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht

@@ -77,7 +77,7 @@ protected:
    {
       struct FieldIndices
       {
-         int kappa, zeta, gamma;
+         int kappa, zeta, gamma, dist, grad_dist, status;
          int u[N_HIST];
          int v[N_HIST];
          int w[N_HIST];
@@ -120,6 +120,9 @@ protected:
 
    /// 2D particle step for particle at index \p p
    void ParticleStep2D(const real_t &dt, int p);
+
+   /// 3D particle step for particle at index \p p
+   void ParticleStep3D(const real_t &dt, int p);
 
    /** @brief Given two 2D points, get the unit normal to the line
     *  connecting them.
@@ -166,6 +169,8 @@ protected:
    /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
+   void ApplyBCs3D(const ParGridFunction &T_gf, const ParGridFunction &Tgrad_gf);
+
    /** @brief Move any particles that have left the domain to the
     *  inactive ParticleSet.
     *
@@ -179,7 +184,7 @@ protected:
    void DeactivateLostParticles(bool findpts);
 
    // Temporary vectors for particle computation
-   mutable Vector up, vp, xpn, xp;
+   mutable Vector up, vp, xpn, xp, surfNormal;
    mutable Vector r, C;
 
 public:
@@ -197,7 +202,7 @@ public:
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
     */
    void Step(const real_t dt, const ParGridFunction &u_gf,
-             const ParGridFunction &w_gf);
+             const ParGridFunction &w_gf, const ParGridFunction &T_gf, const ParGridFunction &gradT_gf);
 
    /** @brief Interpolate fluid velocity and vorticity onto current particles'
     *  location.
@@ -212,6 +217,11 @@ public:
 
    /// Get reference to the inactive ParticleSet.
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
+
+   ParticleVector& Status()
+   {
+      return fluid_particles.Field(fp_idx.field.status);
+   }
 
    /// Get reference to the κ ParticleVector.
    ParticleVector& Kappa()
@@ -229,6 +239,16 @@ public:
    ParticleVector& Gamma()
    {
       return fluid_particles.Field(fp_idx.field.gamma);
+   }
+
+   ParticleVector& T()
+   {
+      return fluid_particles.Field(fp_idx.field.dist);
+   }
+
+   ParticleVector& nablaT()
+   {
+      return fluid_particles.Field(fp_idx.field.grad_dist);
    }
 
    /** @brief Get reference to the fluid velocity-interpolated ParticleVector at
