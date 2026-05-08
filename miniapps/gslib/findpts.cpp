@@ -194,7 +194,7 @@ int main (int argc, char *argv[])
    }
 
    cout << "--- Generating points for:\n"
-         << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
+        << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
    if (sdim >= 2)
    {
       cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
@@ -225,7 +225,8 @@ int main (int argc, char *argv[])
             refs.Append(pRefinement(e,1));
          }
       }
-      std::cout << refs.Size() << " elements will be p-refined for the mesh." << std::endl;
+      std::cout << refs.Size() << " elements will be p-refined for the mesh." <<
+                std::endl;
       fespace.PRefineAndUpdate(refs);
       Nodes.Update();
    }
