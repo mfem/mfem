@@ -298,6 +298,7 @@ public:
       dbg("input_del_map:{}", input_del_map);
       dbg("output_del_map:{}", output_del_map);
 
+      ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
       // Slot `i` is q-function arg i: inputs use `input_vdim[i]`, outputs use
       // `output_vdim[i - n_inputs]` (same ordering as `call_qfunc_no_move`).
@@ -472,7 +473,9 @@ public:
 
       const int ne = ctx.nentities;
 
+      // -----------------------------------------------
       // INPUTS: XE
+      // -----------------------------------------------
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
       for_constexpr<n_inputs>([&](auto ic)
       {
@@ -501,7 +504,9 @@ public:
          }
       });
 
+      // -----------------------------------------------
       // OUTPUTS: YE
+      // -----------------------------------------------
       std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE {};
       for_constexpr<n_outputs>([&](auto ic)
       {
@@ -540,11 +545,14 @@ public:
          MFEM_SHARED real_t sm[2][MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-         [[maybe_unused]] reg_array_t<n_val, low::regs3d_t<  1, MQ1>> val_reg;
-         [[maybe_unused]] reg_array_t<n_del, low::regs3d_t<DIM, MQ1>> del_reg;
+         // -----------------------------------------------
+         // Inputs and outputs registers
+         // -----------------------------------------------
+         [[maybe_unused]] reg_array_t<n_val, 0, low::regs3d_t<  1, MQ1>> val_reg;
+         [[maybe_unused]] reg_array_t<n_del, 0, low::regs3d_t<DIM, MQ1>> del_reg;
 
          // -----------------------------------------------
-         // Interpolate inputs
+         // Load inputs
          // -----------------------------------------------
          for_constexpr<n_inputs>([&](auto ic)
          {
@@ -597,7 +605,9 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
+                  // --------------------------------------
                   // Arguments parsing for input fields
+                  // --------------------------------------
                   args_tuple_t args = {};
                   for_constexpr<n_inputs>([&](auto ic)
                   {
@@ -639,10 +649,14 @@ public:
                      }
                   });
 
+                  // --------------------------------------
                   // Apply the quadrature function
+                  // --------------------------------------
                   call_qfunc_no_move(qfunc, args);
 
-                  // Arguments parsing for input fields
+                  // --------------------------------------
+                  // Arguments parsing for output fields
+                  // --------------------------------------
                   for_constexpr<n_outputs>([&](auto ic)
                   {
                      constexpr int i = ic.value;

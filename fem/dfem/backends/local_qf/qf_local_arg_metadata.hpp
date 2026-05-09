@@ -1,17 +1,15 @@
 #pragma once
 
-/// Compile-time quadrature argument metadata for local q-functions: tensor extents
-/// are taken from `get_function_signature<qfunc_t>` (same source as
-/// `call_local_qfunction` in action.hpp). Optional helpers relate FieldOperator kinds
-/// to flat sizes (matching `GetSizeOnQP` in fem/dfem/util.hpp). No dependency on
-/// SharedMemoryInfo or device buffers.
+// Compile-time quadrature argument metadata for local q-functions
 
-#include "../util.hpp"
+#include "../../util.hpp"
 #include "linalg/tensor.hpp"
 
 #include <array>
 #include <cstddef>
 #include <type_traits>
+
+#include NVTX_DBG_FMT
 
 namespace mfem::future
 {
@@ -91,8 +89,7 @@ constexpr int fop_expected_flat_size_on_qp(int mesh_dim, int vdim)
    }
    else
    {
-      static_assert(dfem::always_false<FOP>,
-                    "fop_expected_flat_size_on_qp: unsupported FieldOperator");
+      static_assert(false, "Unsupported FieldOperator");
       return 0;
    }
 }
@@ -130,8 +127,7 @@ struct qp_static_shape_after_fop
       }
       else
       {
-         static_assert(dfem::always_false<FOP>,
-                       "qp_static_shape_after_fop: unsupported FieldOperator");
+         static_assert(false, "Unsupported FieldOperator");
          return 0;
       }
    }
@@ -255,6 +251,56 @@ struct LocalQFArgMetadata
    template <std::size_t I, int mesh_dim, int AssumeVDIM = 1>
    using qp_static_shape_after_fop_at =
       qp_static_shape_after_fop<typename fop_at<I>::type, mesh_dim, AssumeVDIM>;
+
+   template<int DIM>
+   static void dump(const std::array<int, ninputs> input_vdim,
+                    const std::array<int, noutputs> output_vdim)
+   {
+
+      // Slot `i` is q-function arg i: inputs use `input_vdim[i]`, outputs use
+      // `output_vdim[i - n_inputs]` (same ordering as `call_qfunc_no_move`).
+      for_constexpr<n_params>([&](auto ic)
+      {
+         constexpr std::size_t i = ic.value;
+         constexpr auto extents = qf_param_extents<i>();
+         constexpr auto flat = qf_param_flat_size<i>();
+         constexpr bool is_input = fop_at<i>::is_input;
+         // not constexpr
+         const int vdim_for_slot = is_input ? input_vdim[i] : output_vdim[i - ninputs];
+         const bool matches = fop_matches_signature_flat_size<i>(DIM, vdim_for_slot);
+         dbg("\x1b[{}m[Q{}] extents:{} flat:{} vdim:{} is_input:{} matches:{}",
+             is_input ? 32 : 31, i, extents, flat, vdim_for_slot, is_input, matches);
+         assert(matches);
+         // Q type and
+         using FOP = typename fop_at<i>::type;
+         dbg("[Q{}] fop: {}", i, get_type_name<FOP>());
+         // Q identities depends on non-constexpr vdim
+         if constexpr (!is_identity_fop<FOP>::value)
+         {
+            if (vdim_for_slot == 3)
+            {
+               using Qi = qp_static_shape_after_fop_at<i, DIM, 3>;
+               dbg("[Q{}] rank:{} flat:{}", i, Qi::rank(), Qi::flat());
+               dbg("[Q{}] extents_max2:{}", i, Qi::extents_max2());
+            }
+            else
+            {
+               using Qi = qp_static_shape_after_fop_at<i, DIM>;
+               dbg("[Q{}] rank:{} flat:{}", i, Qi::rank(), Qi::flat());
+               dbg("[Q{}] extents_max2:{}", i, Qi::extents_max2());
+            }
+         }
+         using arg_i = typename
+                       LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>::template
+                       qf_decay_param_t<i>;
+         dbg("[Q{}] arg: {}", i, get_type_name<arg_i>());
+         using raw_i = typename
+                       tuple_element<i,
+                       typename get_function_signature<qfunc_t>::type::parameter_ts>::type;
+         dbg("[Q{}] raw: {}", i, get_type_name<raw_i>());
+      });
+   }
+
 };
 
 } // namespace mfem::future

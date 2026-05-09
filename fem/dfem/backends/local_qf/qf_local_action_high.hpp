@@ -28,7 +28,6 @@ using mfem::future::tuple_size;
 using mfem::future::tuple_element;
 #endif
 
-#include NVTX_DBG_FMT
 #include "qf_local_arg_metadata.hpp"
 
 #include "fem/kernels.hpp"
@@ -156,6 +155,158 @@ class Action
    static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
 
    using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
+
+   /// Q-args that are **`tensor<…, DIM, DIM>`** at QP (Jacobian-type), from signature.
+#ifdef DFEM_USE_OWN_TUPLE
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#else
+
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#endif
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -292,50 +443,27 @@ public:
       dbg("input_d1d:{}", input_d1d);
       dbg("input_q1d:{}", input_q1d);
       dbg("input_vdim:{}", input_vdim);
-      dbg("n_id:{} n_wt:{} n_val:{} n_del:{}", n_id, n_wt, n_val, n_del);
+
+      dbg("n_id:{} n_wt:{} n_val:{} n_del:{} n_mat:{}", n_id, n_wt, n_val, n_del,
+          n_mat);
       dbg("input_id_map:{}", input_id_map);
       dbg("output_id_map:{}", output_id_map);
+
       dbg("input_wt_map:{}", input_wt_map);
       dbg("output_wt_map:{}", output_wt_map);
+
       dbg("input_val_map:{}", input_val_map);
       dbg("output_val_map:{}", output_val_map);
+
       dbg("input_del_map:{}", input_del_map);
       dbg("output_del_map:{}", output_del_map);
 
+      dbg("input_mat_map:{}", input_mat_map);
+      dbg("output_mat_map:{}", output_mat_map);
 
-      // Slot `i` is q-function arg i: inputs use `input_vdim[i]`, outputs use
-      // `output_vdim[i - n_inputs]` (same ordering as `call_qfunc_no_move`).
-      for_constexpr<ArgMetadata::n_params>([&](auto ic)
-      {
-         constexpr std::size_t i = ic.value;
-         constexpr auto extents = ArgMetadata::template qf_param_extents<i>();
-         constexpr auto flat = ArgMetadata::template qf_param_flat_size<i>();
-         constexpr bool is_input = ArgMetadata::template fop_at<i>::is_input;
-         const int vdim_for_slot = is_input ? input_vdim[i] : output_vdim[i - n_inputs];
-         const bool matches =
-            ArgMetadata::template fop_matches_signature_flat_size<i>(dim, vdim_for_slot);
-         dbg("\x1b[33m[Q{}] extents:{} flat:{} vdim:{} is_input:{} matches:{}",
-             i, extents, flat, vdim_for_slot, is_input, matches);
-         assert(matches);
+      ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-         using Qi = typename ArgMetadata::template qp_static_shape_after_fop_at<i, DIM>;
-         dbg("[Q{}] rank:{} flat:{}", i, Qi::rank(), Qi::flat());
-         dbg("[Q{}] extents_max2:{}", i, Qi::extents_max2());
-
-         using FOP = typename ArgMetadata::template fop_at<i>::type;
-         dbg("[Q{}] fop: {}", i, get_type_name<FOP>());
-
-         using arg_i = typename
-                       LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>::template
-                       qf_decay_param_t<i>;
-         dbg("[Q{}] arg: {}", i, get_type_name<arg_i>());
-
-         using raw_i = typename
-                       tuple_element<i,
-                       typename get_function_signature<qfunc_t>::type::parameter_ts>::type;
-         dbg("[Q{}] raw: {}", i, get_type_name<raw_i>());
-      });
-      if (!ctx.use_kernel_specializations) { assert(false); return; }
+      if (!ctx.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
       ActionCallbackKernels::template Specialization<4>::Add(); // 2
@@ -428,7 +556,9 @@ public:
 
       const int ne = ctx.nentities;
 
+      // -----------------------------------------------
       // INPUTS: XE
+      // -----------------------------------------------
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
       for_constexpr<n_inputs>([&](auto ic)
       {
@@ -436,21 +566,22 @@ public:
          // using FOP = std::tuple_element_t<i, inputs_t>;
          using FOP = typename tuple_element<i, inputs_t>::type;
          const size_t idx = in_idx[i];
-         const int d1d = in_d1d[i], q1d = in_q1d[i], vdim = in_vdim[i];
+         const int di = in_d1d[i], qi = in_q1d[i], vdim = in_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), d1d, d1d, d1d, vdim, ne);
+            MFEM_ASSERT(xe[idx]->Size() == di*di*di*vdim*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[idx]->Read(), di, di, di, vdim, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == vdim*q1d*q1d*q1d*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), vdim, q1d, q1d, q1d, ne);
+            MFEM_ASSERT(xe[idx]->Size() == vdim*qi*qi*qi*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[idx]->Read(), vdim, qi, qi, qi, ne);
          }
          else if constexpr (is_weight_fop<FOP>::value)
          {
-            static_assert(false, "❌");
-            // in_XE[i] = Reshape(xe[idx]->Read(), q1d, q1d, q1d, 1, ne);
+            MFEM_CONTRACT_VAR(idx);
+            MFEM_VERIFY(ctx.ir.GetNPoints() == q1d*q1d*q1d, "tensor-product IR expected");
+            in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, q1d, 1, 1);
          }
          else
          {
@@ -458,7 +589,9 @@ public:
          }
       });
 
+      // -----------------------------------------------
       // OUTPUTS: YE
+      // -----------------------------------------------
       std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE {};
       for_constexpr<n_outputs>([&](auto ic)
       {
@@ -498,15 +631,15 @@ public:
          MFEM_SHARED real_t sM[MQ1][MQ1];
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-         // [[maybe_unused]] ker::v_regs3d_t<1, MQ1> val_tmp;
-         // [[maybe_unused]] reg_array_t<n_val, ker::v_regs3d_t<1, MQ1>> val_reg;
-
-         [[maybe_unused]] ker::vd_regs3d_t<1, 3, MQ1> del_tmp;
-         [[maybe_unused]] reg_array_t<n_del, ker::vd_regs3d_t<1, 3, MQ1>> del_reg;
-         // [[maybe_unused]] reg_array_t<1+n_del, ker::vd_regs3d_t<3, 3, MQ1>> mat_reg;
+         // -----------------------------------------------
+         // Inputs and outputs registers
+         // -----------------------------------------------
+         [[maybe_unused]] reg_array_t<n_val, 1, ker::v_regs3d_t<1, MQ1>> val_reg;
+         [[maybe_unused]] reg_array_t<n_del, 1, ker::vd_regs3d_t<1, 3, MQ1>> del_reg;
+         [[maybe_unused]] reg_array_t<n_mat, 1, ker::vd_regs3d_t<3, 3, MQ1>> mat_reg;
 
          // -----------------------------------------------
-         // Interpolate inputs
+         // Load inputs
          // -----------------------------------------------
          for_constexpr<n_inputs>([&](auto ic)
          {
@@ -529,19 +662,33 @@ public:
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               if constexpr (n_del > 0)
+               ker::LoadMatrix(d1d, q1d, B, sB);
+               ker::LoadMatrix(d1d, q1d, G, sG);
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
+               if constexpr (ext_sz == 1)
                {
-                  // [Q0] extents:[3] flat:3 vdim:1 is_input:true matches:true
-                  // [Q0] rank:1 flat:3
-                  // [Q0] extents_max2:[3, 0]
-                  // [Q0] fop: mfem::future::Gradient<0>
-                  // [Q0] arg: mfem::future::tensor<double, 3>
-                  // [Q0] raw: const mfem::future::tensor<double, 3> &
-                  ker::LoadMatrix(d1d, q1d, B, sB);
-                  ker::LoadMatrix(d1d, q1d, G, sG);
-                  constexpr int idx = input_del_map[i];
-                  ker::LoadDofs3d(e, d1d, XE, del_tmp);
-                  ker::Grad3d(d1d, q1d, sM, sB, sG, del_tmp, del_reg[idx]);
+                  if constexpr (n_del > 0)
+                  {
+                     constexpr int idx = 1 + input_del_map[i];
+                     ker::LoadDofs3d(e, d1d, XE, del_reg[0]);
+                     ker::Grad3d(d1d, q1d, sM, sB, sG, del_reg[0], del_reg[idx]);
+                     db1("input Grad3d del_reg");
+                  }
+               }
+               else if constexpr (ext_sz == 2)
+               {
+                  // Jacobian-type **tensor<DIM,DIM>** at QP: load & grad into **mat_reg**.
+                  if constexpr (n_mat > 0)
+                  {
+                     constexpr int idx = 1 + input_mat_map[i];
+                     ker::LoadDofs3d(e, d1d, XE, mat_reg[0]);
+                     ker::Grad3d(d1d, q1d, sM, sB, sG, mat_reg[0], mat_reg[idx]);
+                     db1("input Grad3d mat_reg");
+                  }
+               }
+               else
+               {
+                  static_assert(ext_sz <= 2, "Unsupported gradient tensor rank");
                }
             }
             else if constexpr (is_identity_fop<FOP>::value)
@@ -550,7 +697,8 @@ public:
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
-               static_assert(false, "❌");
+               // static_assert(false, "❌");
+               // nothing to do, will be streamed in
             }
             else
             {
@@ -567,8 +715,10 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
+                  // --------------------------------------
                   // Arguments parsing for input fields
-                  args_tuple_t args = {};
+                  // --------------------------------------
+                  args_tuple_t args;
 
                   for_constexpr<n_inputs>([&](auto ic)
                   {
@@ -581,20 +731,38 @@ public:
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        if constexpr (n_del > 0)
+                        constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
+                        if constexpr (ext_sz == 1)
                         {
-                           // static_assert(false, "❌");
-                           constexpr int idx = input_del_map[i];
-                           // static_type<decltype(get<i>(args))> {};
-                           const ker::vd_regs3d_t<1, 3, MQ1> &r = del_reg[idx];
-                           const real_t J[3] =
+                           if constexpr (n_del > 0)
                            {
-                              r(0, 0, qz, qy, qx),
-                              r(0, 1, qz, qy, qx),
-                              r(0, 2, qz, qy, qx)
-                           };
-                           get<i>(args) = as_tensor<real_t, 3>(J);
+                              constexpr int idx = 1 + input_del_map[i];
+                              const ker::vd_regs3d_t<1, DIM, MQ1> &r = del_reg[idx];
+                              const real_t J[DIM] =
+                              {
+                                 r(0, 0, qz, qy, qx),
+                                 r(0, 1, qz, qy, qx),
+                                 r(0, 2, qz, qy, qx)
+                              };
+                              get<i>(args) = as_tensor<real_t, DIM>(&J[0]);
+                           }
                         }
+                        else if constexpr (ext_sz == 2)
+                        {
+                           if constexpr (n_mat > 0)
+                           {
+                              constexpr int idx = 1 + input_mat_map[i];
+                              const ker::vd_regs3d_t<DIM, DIM, MQ1> &r = mat_reg[idx];
+                              const real_t J[DIM*DIM] =
+                              {
+                                 r(0, 0, qz, qy, qx), r(1, 0, qz, qy, qx), r(2, 0, qz, qy, qx),
+                                 r(0, 1, qz, qy, qx), r(1, 1, qz, qy, qx), r(2, 1, qz, qy, qx),
+                                 r(0, 2, qz, qy, qx), r(1, 2, qz, qy, qx), r(2, 2, qz, qy, qx)
+                              };
+                              get<i>(args) = as_tensor<real_t, DIM, DIM>(J);
+                           }
+                        }
+                        else { MFEM_ABORT_KERNEL("unsupported gradient extents"); }
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
@@ -603,8 +771,8 @@ public:
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
-                        static_assert(false, "❌");
-                        // get<i>(args) = in_XE[i](qx, qy, qz, 0, e);
+                        // Weights replicated in **in_XE** with singleton **entity** slice.
+                        get<i>(args) = in_XE[i](qx, qy, qz, 0, 0);
                      }
                      else
                      {
@@ -612,10 +780,14 @@ public:
                      }
                   });
 
+                  // --------------------------------------
                   // Apply the quadrature function
+                  // --------------------------------------
                   call_qfunc_no_move(qfunc, args);
 
-                  // Arguments parsing for input fields
+                  // --------------------------------------
+                  // Arguments parsing for output fields
+                  // --------------------------------------
                   for_constexpr<n_outputs>([&](auto ic)
                   {
                      constexpr int i = ic.value;
@@ -631,13 +803,33 @@ public:
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        if constexpr (n_del > 0)
+                        constexpr std::size_t qi = n_inputs + static_cast<std::size_t>(i);
+                        constexpr auto ext_sz = ArgMetadata::template qf_param_extents<qi>().size();
+                        if constexpr (ext_sz == 1)
                         {
-                           // constexpr int idx = output_del_map[i];
-                           // as_tensor<real_t, DIM>(&del_tmp[0][0][qz][qy][qx]) = out;
-                           del_tmp[0][0][qz][qy][qx] = out[0];
-                           del_tmp[0][1][qz][qy][qx] = out[1];
-                           del_tmp[0][2][qz][qy][qx] = out[2];
+                           if constexpr (n_del > 0)
+                           {
+                              db1("output del_reg");
+                              constexpr int idx = 1 + output_del_map[i];
+                              del_reg[idx][0][0][qz][qy][qx] = out[0];
+                              del_reg[idx][0][1][qz][qy][qx] = out[1];
+                              del_reg[idx][0][2][qz][qy][qx] = out[2];
+                           }
+                        }
+                        else if constexpr (ext_sz == 2)
+                        {
+                           static_assert(false, "❌");
+                           // if constexpr (n_mat > 0)
+                           // {
+                           //    constexpr int idx = 1 + output_mat_map[i];
+                           //    for (int r = 0; r < DIM; ++r)
+                           //    {
+                           //       for (int c = 0; c < DIM; ++c)
+                           //       {
+                           //          mat_reg[idx][r][c][qz][qy][qx] = out(r, c);
+                           //       }
+                           //    }
+                           // }
                         }
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
@@ -648,10 +840,7 @@ public:
                      {
                         static_assert(false, "Unsupported");
                      }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
+                     else { static_assert(false, "Unsupported"); }
                   });
                }
             }
@@ -679,15 +868,32 @@ public:
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               if constexpr (n_del > 0)
+               constexpr std::size_t qi = n_inputs + static_cast<std::size_t>(i);
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<qi>().size();
+               if constexpr (ext_sz == 1)
                {
-                  constexpr int idx = output_del_map[i];
-                  ker::GradTranspose3d(d1d, q1d, sM, sB, sG, del_tmp, del_reg[idx]);
-                  ker::WriteDofs3d(e, d1d, del_reg[idx], YE);
+                  if constexpr (n_del > 0)
+                  {
+                     db1("GradTranspose3d del_reg");
+                     constexpr int idx = 1 + output_del_map[i];
+                     ker::GradTranspose3d(d1d, q1d, sM, sB, sG, del_reg[idx], del_reg[0]);
+                     ker::WriteDofs3d(e, d1d, del_reg[0], YE);
+                  }
+               }
+               else if constexpr (ext_sz == 2)
+               {
+                  static_assert(false, "❌");
+                  // if constexpr (n_mat > 0)
+                  // {
+                  //    constexpr int idx = 1 + output_mat_map[i];
+                  //    ker::GradTranspose3d(d1d, q1d, sM, sB, sG, mat_reg[idx], mat_reg[0]);
+                  //    ker::WriteDofs3d(e, d1d, mat_reg[0], YE);
+                  // }
                }
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
+               static_assert(false, "❌");
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {

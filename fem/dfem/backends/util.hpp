@@ -717,8 +717,8 @@ struct Unused
 {
    MFEM_HOST_DEVICE int operator[](int) { return int{}; }
 };
-template<size_t N, typename T>
-using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N>>;
+template<size_t N, size_t M, typename T>
+using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N + M>>;
 
 ///////////////////////////////////////////////////////////////////////////////
 template <typename...> struct static_type;

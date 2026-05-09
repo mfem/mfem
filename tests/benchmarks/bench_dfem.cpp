@@ -82,7 +82,7 @@ void info()
    mfem::out << "version 6: 🟠 MF local default" << std::endl;
    mfem::out << "version 7: 🟢 PA local kernels low" << std::endl;
    mfem::out << "version 8: 🟢 PA local kernels high" << std::endl;
-   // mfem::out << "version 8: 🟠 MF local kernels" << std::endl;
+   mfem::out << "version 9: 🟠 MF local kernels high" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -91,7 +91,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -331,7 +331,7 @@ template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   db1("D1D:{} Q1D:{}", D1D, Q1D);
+   db1("\x1b[33mD1D:{} Q1D:{}", D1D, Q1D);
    return StiffnessMult<D1D, Q1D>;
 }
 
@@ -471,10 +471,10 @@ template<int DIM>
 struct MFApply_local_qf
 {
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<real_t, DIM> &Gu,
-                   const tensor<real_t, DIM, DIM> &J,
-                   const real_t &w,
-                   tensor<real_t, DIM> &res) const
+   void operator()(const tensor<real_t, DIM> &Gu,     // ∇u
+                   const tensor<real_t, DIM, DIM> &J, // ∇Ξ
+                   const real_t &w,                   // w
+                   tensor<real_t, DIM> &res) const    // ∇v
    {
       const auto invJ = inv(J);
       res = ((Gu * invJ)) * transpose(invJ) * det(J) * w;
@@ -579,7 +579,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.Assemble();
 
       // MF ∂FEM Global setup ///////////////////////////////////////
-      const auto dMFGlobalOperatorSetup_2_3 = [&] (auto backend)
+      const auto dMFGlobalOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
          const auto ifs = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
@@ -598,7 +598,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       };
 
       // PA ∂FEM Global setup ///////////////////////////////////////
-      const auto dPAGlobalOperatorSetup_4_5 = [&] (auto backend)
+      const auto dPAGlobalOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
          // static_assert(backend_t::is_poly, "Backend must be poly");
@@ -633,7 +633,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       };
 
       // MF ∂FEM Local default backend setup ////////////////////////////////////////
-      const auto dMFLocalDefaultOperatorSetup_6 = [&] (auto backend)
+      const auto dMFLocalDefaultOperatorSetup = [&] (auto backend)
       {
          dbg("[MF ∂fem] Local default");
          using backend_t = decltype(backend);
@@ -653,7 +653,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       };
 
       // PA ∂FEM Local devices poly backend setup ////////////////////////////////////////
-      const auto dMFLocalDevicesPolyOperatorSetup_7 =
+      const auto dMFLocalDevicesOperatorSetup =
          [&] (auto backend,
               bool use_kernel_specializations = true)
       {
@@ -694,48 +694,48 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // 🟠 MF global default
       {
          dbg("\x1b[33m MF ∂FEM global default");
-         dMFGlobalOperatorSetup_2_3(global_default_backend{});
+         dMFGlobalOperatorSetup(global_default_backend{});
       }
       else if (version == 3) // 🟠 MF global kernels
       {
          dbg("\x1b[33m MF ∂FEM global kernels");
-         dMFGlobalOperatorSetup_2_3(global_kernels_backend{});
+         dMFGlobalOperatorSetup(global_kernels_backend{});
       }
       else if (version == 4) // 🟢 PA global default
       {
          dbg("\x1b[33m PA ∂FEM global default");
-         dPAGlobalOperatorSetup_4_5(global_default_backend{});
+         dPAGlobalOperatorSetup(global_default_backend{});
       }
       else if (version == 5) // 🟢 PA global kernels
       {
          dbg("\x1b[33m PA ∂FEM global kernels");
-         dPAGlobalOperatorSetup_4_5(global_kernels_backend{});
+         dPAGlobalOperatorSetup(global_kernels_backend{});
       }
       else if (version == 6) // 🟠 MF local default
       {
          dbg("\x1b[33m MF ∂FEM local default");
-         dMFLocalDefaultOperatorSetup_6(local_default_backend{});
+         dMFLocalDefaultOperatorSetup(local_default_backend{});
       }
       else if (version == 7) // 🟢 PA local devices
       {
          dbg("\x1b[33m PA ∂FEM local kernels low");
-         dMFLocalDevicesPolyOperatorSetup_7(local_kernels_low_order_backend{});
+         dMFLocalDevicesOperatorSetup(local_kernels_low_order_backend{});
       }
       else if (version == 8) // 🟢 PA local kernels high
       {
          dbg("\x1b[33m PA ∂FEM local kernels high");
-         dMFLocalDevicesPolyOperatorSetup_7(local_kernels_high_order_backend{});
+         dMFLocalDevicesOperatorSetup(local_kernels_high_order_backend{});
       }
-      /*else if (version == 8) // 🟠 MF local kernels
+      else if (version == 9) // 🟠 MF local kernels
       {
          dbg("\x1b[33m MF ∂FEM local kernels");
-         using backend_t = local_kernels_backend;
          const auto ifs = std::vector<FieldDescriptor> { {U, &pfes}, {Ξ, &mfes}};
          const auto ofs = std::vector<FieldDescriptor> { {U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(ifs, ofs, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MFApply_local_qf<DIM> mf_apply_lqf;
+         using backend_t = local_kernels_high_order_backend;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_lqf,
                                                       tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       tuple{Gradient<U>{}},
@@ -743,7 +743,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-      }*/
+      }
       else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);
