@@ -11,6 +11,8 @@
 Version 4.9.1 (development)
 ===========================
 
+- Policy for AI-assisted contribution added to CONTRIBUTING.md
+
 Discretization improvements
 ---------------------------
 - Extend FindPointsGSLIB to support surface meshes.
