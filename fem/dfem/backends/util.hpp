@@ -4,6 +4,19 @@
 #include "../util.hpp"
 #include "general/enzyme.hpp"
 
+#define DFEM_USE_OWN_TUPLE
+#ifndef DFEM_USE_OWN_TUPLE
+#include <tuple>
+#else
+#include "fem/dfem/tuple.hpp"
+using mfem::future::tuple;
+using mfem::future::tuple_size;
+using mfem::future::tuple_element;
+using mfem::future::tuple_element_t;
+#endif
+
+#include "local_qf/qf_local_arg_metadata.hpp"
+
 namespace mfem::future
 {
 
@@ -650,6 +663,30 @@ void create_qlayouts(const fops_t &fops,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+template <int M, int N, int P, int Q>
+inline MFEM_HOST_DEVICE auto
+recast_as(real_t (&base)[P*Q])
+-> real_t(&)[M*N]
+{
+   return *reinterpret_cast<real_t(*)[M*N]>(&base);
+}
+
+// template <int M, int N>
+// inline MFEM_HOST_DEVICE auto
+// subregs_const_ref(const regs_t<real_t, M, M> *offset)
+// -> const regs_t<real_t, M, M> (&)[N]
+// {
+//    return *reinterpret_cast<const regs_t<real_t, M, M>(*)[N]>(offset);
+// }
+
+// template <int M, int N>
+// inline MFEM_HOST_DEVICE auto subregs_ref(regs_t<real_t, M, M> *offset)
+// -> regs_t<real_t, M, M> (&)[N]
+// {
+//    return *reinterpret_cast<regs_t<real_t, M, M>(*)[N]>(offset);
+// }
+
+///////////////////////////////////////////////////////////////////////////////
 // Zero-copy view of a contiguous block as a tensor<T, n1>
 template<typename T, int n1> inline
 MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)
@@ -722,5 +759,338 @@ using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N + M>>;
 
 ///////////////////////////////////////////////////////////////////////////////
 template <typename...> struct static_type;
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Count & Make Map //////////////////////////////////////////////
+#ifdef DFEM_USE_OWN_TUPLE
+template<typename Tuple, template<typename> class Trait>
+static constexpr size_t count_if()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   size_t count = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = typename tuple_element<i.value, Tuple>::type;
+      if constexpr (Trait<T>::value) { ++count; }
+   });
+   return count;
+}
+
+template<typename Tuple, template<typename> class Trait>
+static constexpr auto make_map()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   std::array<int, N> map{};
+   int next = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = typename tuple_element<i.value, Tuple>::type;
+      map[i.value] = Trait<T>::value ? next++ : -1;
+   });
+   return map;
+}
+#else
+template<typename Tuple, template<typename> class Trait>
+static constexpr size_t count_if()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   size_t count = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = tuple_element<i.value, Tuple>;
+      if constexpr (Trait<T>::value) { ++count; }
+   });
+   return count;
+}
+
+template<typename Tuple, template<typename> class Trait>
+static constexpr auto make_map()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   std::array<int, N> map{};
+   int next = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = tuple_element<i.value, Tuple>;
+      map[i.value] = Trait<T>::value ? next++ : -1;
+   });
+   return map;
+}
+#endif
+
+// map from field operator types to FieldDescriptor indices.
+template<typename C, typename T>
+const auto create_io_to_field_map(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
+}
+
+template<typename C>
+const auto make_dtqs(C& ctx)
+{
+   std::vector<const DofToQuad*> dtq_vec;
+   dtq_vec.reserve(ctx.unionfds.size());
+   constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
+   for (const auto &field: ctx.unionfds)
+   {
+      auto dtq = GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode);
+      dtq_vec.emplace_back(dtq);
+   }
+   return dtq_vec;
+}
+
+template<typename Tuple>
+constexpr auto get_vdim(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.vdim...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_B(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.B...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_G(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.G...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_D1D(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.B.GetShape()[2]...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_Q1D(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.B.GetShape()[0]...};
+   }, fields);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t n_inputs = tuple_size<inputs_t>::value,
+   std::size_t n_outputs = tuple_size<outputs_t>::value>
+struct ActionMetaData_t
+{
+   // Identity Count & Map
+   static constexpr auto n_id_inputs = count_if<inputs_t, is_identity_fop>();
+   static constexpr auto n_id_outputs = count_if<outputs_t, is_identity_fop>();
+   static constexpr auto n_id = std::max(n_id_inputs, n_id_outputs);
+   static constexpr auto input_id_map = make_map<inputs_t, is_identity_fop>();
+   static constexpr auto output_id_map = make_map<outputs_t, is_identity_fop>();
+
+   // Weight Count & Map
+   static constexpr auto n_wt_inputs = count_if<inputs_t, is_weight_fop>();
+   static constexpr auto n_wt_outputs = count_if<outputs_t, is_weight_fop>();
+   static constexpr auto n_wt = std::max(n_wt_inputs, n_wt_outputs);
+   static constexpr auto input_wt_map = make_map<inputs_t, is_weight_fop>();
+   static constexpr auto output_wt_map = make_map<outputs_t, is_weight_fop>();
+
+   // Value Count & Map
+   static constexpr auto n_val_inputs = count_if<inputs_t, is_value_fop>();
+   static constexpr auto n_val_outputs = count_if<outputs_t, is_value_fop>();
+   static constexpr auto n_val = std::max(n_val_inputs, n_val_outputs);
+   static constexpr auto input_val_map = make_map<inputs_t, is_value_fop>();
+   static constexpr auto output_val_map = make_map<outputs_t, is_value_fop>();
+
+   // Gradient Count & Map //////////////////////////////////////////
+   static constexpr auto n_del_inputs = count_if<inputs_t, is_gradient_fop>();
+   static constexpr auto n_del_outputs = count_if<outputs_t, is_gradient_fop>();
+   static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
+   static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
+   static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
+
+   using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
+   /// Q-args that are **`tensor<…, DIM, DIM>`** at QP (Jacobian-type), from signature.
+#ifdef DFEM_USE_OWN_TUPLE
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#else
+
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#endif
+};
+
+///////////////////////////////////////////////////////////////////////////////
+template <typename func_t, typename args_t, int... Is>
+MFEM_HOST_DEVICE static void call_qfunc_no_move_impl(
+   const func_t &func, args_t &args, std::integer_sequence<int, Is...>)
+{
+   (void)func(get<Is>(args)...);
+}
+
+template <typename func_t, typename args_t>
+MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
+                                                args_t &args)
+{
+   constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
+   call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
+}
 
 } // namespace mfem::future
