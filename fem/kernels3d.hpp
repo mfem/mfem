@@ -71,6 +71,24 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
    MFEM_SYNC_THREAD;
 }
 
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+         {
+            sm0[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Eval, 1/3
 template<int DIM, int MQ1>
@@ -275,6 +293,54 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
    GradY(d1d, q1d, B, G, sm1, sm0); // Grad Y
    GradZ(d1d, q1d, B, G, sm0, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Vector Gradient, 3/3 only
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradZ(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            reg[qz][qy][qx][c][0] = u[0];
+            reg[qz][qy][qx][c][1] = u[1];
+            reg[qz][qy][qx][c][2] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D vector gradient
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGrad3d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
+   GradY(d1d, q1d, B, G, sm1, sm0); // Grad Y
+   VectorGradZ(d1d, q1d, c, B, G, sm0, reg); // Grad Z
 }
 
 ///////////////////////////////////////////////////////////////////////////////

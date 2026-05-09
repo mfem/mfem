@@ -117,7 +117,7 @@ public:
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
       nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
+      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, 1}) /* Z tied to 1 */
    {
 
       NVTX_MARK_FUNCTION;
@@ -224,8 +224,7 @@ public:
       for_constexpr<n_inputs>([&](auto ic)
       {
          constexpr int i = ic.value;
-         // using FOP = std::tuple_element_t<i, inputs_t>;
-         using FOP = typename tuple_element<i, inputs_t>::type;
+         using FOP = tuple_element_t<i, inputs_t>;
          const size_t idx = in_idx[i];
          const int di = in_d1d[i], qi = in_q1d[i], vdim = in_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)

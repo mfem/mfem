@@ -103,7 +103,7 @@ public:
       input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, B, G, vdim, d1d, q1d
-      output_idx(create_io_to_field_map(outputs)),
+      output_idx(create_io_to_field_map(ctx, outputs)),
       output_dtq(create_dtq_maps<Element>(outputs, dtqs, output_idx,
                                           ctx.unionfds, ctx.ir)),
       output_B(get_B(output_dtq)),
@@ -125,11 +125,15 @@ public:
       dbg("input_vdim:{}", input_vdim);
       dbg("n_id:{} n_wt:{} n_val:{} n_del:{} n_mat:{}",
           md::n_id, md::n_wt, md::n_val, md::n_del, md::n_mat);
+      // input maps
+      dbg("input_idx:{}", input_idx);
       dbg("input_id_map:{}", md::input_id_map);
       dbg("input_wt_map:{}", md::input_wt_map);
       dbg("input_val_map:{}", md::input_val_map);
       dbg("input_del_map:{}", md::input_del_map);
       dbg("input_mat_map:{}", md::input_mat_map);
+      // output maps
+      dbg("output_idx:{}", output_idx);
       dbg("output_id_map:{}", md::output_id_map);
       dbg("output_wt_map:{}", md::output_wt_map);
       dbg("output_val_map:{}", md::output_val_map);
@@ -137,7 +141,7 @@ public:
       dbg("output_mat_map:{}", md::output_mat_map);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-      if (!ctx.use_kernel_specializations) { assert(false); return; }
+      if (!ctx.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
       ActionCallbackKernels::template Specialization<4>::Add(); // 2
@@ -177,66 +181,6 @@ public:
    }
 
 public:
-   ////////////////////////////////////////////////////////
-   template<int MQ1>
-   MFEM_HOST_DEVICE inline static
-   void RegEval3d(const int e, const int d1d, const int q1d,
-                  const real_t *B, real_t (&sB)[MQ1][MQ1],
-                  const DeviceTensor<3+1+1, const real_t> &XE,
-                  real_t (&sm)[2][MQ1][MQ1][MQ1][3],
-                  low::regs3d_t<1, MQ1> &reg0)
-   {
-      low::LoadMatrix(d1d, q1d, B, sB);
-      low::LoadDofs3d(e, d1d, XE, sm[0]);
-      low::Eval3d(d1d, q1d, sB, sm[0], sm[1], reg0);
-   }
-
-   ////////////////////////////////////////////////////////
-   template<int MQ1>
-   MFEM_HOST_DEVICE inline static
-   void RegEval3dT(const int e, const int d1d, const int q1d,
-                   const real_t *B, real_t (&sB)[MQ1][MQ1],
-                   const DeviceTensor<3+1+1, real_t> &YE,
-                   real_t (&sm)[2][MQ1][MQ1][MQ1][3],
-                   low::regs3d_t<1, MQ1> &reg0)
-   {
-      low::LoadMatrix(d1d, q1d, B, sB);
-      low::EvalTranspose3d(d1d, q1d, sB, reg0, sm[1], sm[0]);
-      low::WriteDofs3d(d1d, 0, e, reg0, YE);
-   }
-
-   ////////////////////////////////////////////////////////
-   template<int DIM, int MQ1>
-   MFEM_HOST_DEVICE inline static
-   void RegGrad3d(const int e, const int d1d, const int q1d,
-                  const real_t *B, real_t (&sB)[MQ1][MQ1],
-                  const real_t *G, real_t (&sG)[MQ1][MQ1],
-                  const DeviceTensor<DIM+1+1, const real_t> &XE,
-                  real_t (&sm)[2][MQ1][MQ1][MQ1][3],
-                  low::regs3d_t<DIM, MQ1> &reg0)
-   {
-      low::LoadMatrix(d1d, q1d, B, sB);
-      low::LoadMatrix(d1d, q1d, G, sG);
-      low::LoadDofs3d(e, d1d, XE, sm[0]);
-      low::Grad3d(d1d, q1d, sB, sG, sm[0], sm[1], reg0);
-   }
-
-   ////////////////////////////////////////////////////////
-   template<int DIM, int MQ1>
-   MFEM_HOST_DEVICE inline static
-   void RegGrad3dT(const int e, const int d1d, const int q1d,
-                   const real_t *B, real_t (&sB)[MQ1][MQ1],
-                   const real_t *G, real_t (&sG)[MQ1][MQ1],
-                   const DeviceTensor<DIM+1+1, real_t> &YE,
-                   real_t (&sm)[2][MQ1][MQ1][MQ1][3],
-                   low::regs3d_t<DIM, MQ1> &reg0)
-   {
-      low::LoadMatrix(d1d, q1d, B, sB);
-      low::LoadMatrix(d1d, q1d, G, sG);
-      low::GradTranspose3d(d1d, q1d, sB, sG, reg0, sm[1], sm[0]);
-      low::WriteDofs3d(d1d, 0, e, reg0, YE);
-   }
-
    ////////////////////////////////////////////////////////
    template<int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
@@ -281,23 +225,24 @@ public:
       for_constexpr<n_inputs>([&](auto ic)
       {
          constexpr int i = ic.value;
-         // using FOP = std::tuple_element_t<i, inputs_t>;
-         using FOP = typename tuple_element<i, inputs_t>::type;
+         using FOP = tuple_element_t<i, inputs_t>;
          const size_t idx = in_idx[i];
-         const int d1d = in_d1d[i], q1d = in_q1d[i], vdim = in_vdim[i];
+         const int di = in_d1d[i], qi = in_q1d[i], vdim = in_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), d1d, d1d, d1d, vdim, ne);
+            MFEM_ASSERT(xe[idx]->Size() == di*di*di*vdim*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[idx]->Read(), di, di, di, vdim, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == vdim*q1d*q1d*q1d*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), vdim, q1d, q1d, q1d, ne);
+            MFEM_ASSERT(xe[idx]->Size() == vdim*qi*qi*qi*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[idx]->Read(), vdim, qi, qi, qi, ne);
          }
          else if constexpr (is_weight_fop<FOP>::value)
          {
-            in_XE[i] = Reshape(xe[idx]->Read(), q1d, q1d, q1d, 1, ne);
+            MFEM_CONTRACT_VAR(idx);
+            MFEM_VERIFY(ctx.ir.GetNPoints() == q1d*q1d*q1d, "tensor-product IR expected");
+            in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, q1d, 1, 1);
          }
          else
          {
@@ -312,19 +257,22 @@ public:
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr int i = ic.value;
-         // using FOP = tuple_element<i, outputs_t>;
-         using FOP = typename tuple_element<i, outputs_t>::type;
+         db1("output #{}", i);
+         using FOP = tuple_element_t<i, outputs_t>;
          const size_t idx = out_idx[i];
-         const int d1d = out_d1d[i], q1d = out_q1d[i], vdim = out_vdim[i];
+         const int di = out_d1d[i], qi = out_q1d[i], vdim = out_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value)
          {
-            MFEM_VERIFY(ye[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[idx]->ReadWrite(), d1d, d1d, d1d, vdim, ne);
+            MFEM_VERIFY(ye[idx]->Size() == di*di*di*vdim*ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[idx]->ReadWrite(), di, di, di, vdim, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, q1d, q1d, q1d, ne);
-            MFEM_VERIFY(ye[idx]->Size() == q1d*q1d*q1d*vdim*ne, "Size mismatch");
+            assert(ye[idx]);
+            dbg("qi:{} q1d:{}", qi, q1d);
+            dbg("ye[idx]->Size():{}", ye[idx]->Size());
+            MFEM_VERIFY(ye[idx]->Size() == DIM*vdim*qi*qi*qi*ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, qi, qi, qi, ne);
          }
          else
          {
@@ -332,6 +280,7 @@ public:
          }
       });
 
+      NVTX_INI("forall");
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
@@ -374,15 +323,38 @@ public:
                if constexpr (n_val > 0)
                {
                   constexpr int idx = md::input_val_map[i];
-                  RegEval3d(e, d1d, q1d, B, sB, XE, sm, val_reg[idx]);
+                  low::LoadMatrix(d1d, q1d, B, sB);
+                  low::LoadDofs3d(e, d1d, XE, sm[0]);
+                  low::Eval3d(d1d, q1d, sB, sm[0], sm[1], val_reg[idx]);
                }
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               if constexpr (n_del > 0)
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
+               if constexpr (ext_sz == 1)
                {
-                  constexpr int idx = md::input_del_map[i];
-                  RegGrad3d(e, d1d, q1d, B, sB, G, sG, XE, sm, del_reg[idx]);
+                  if constexpr (n_del > 0)
+                  {
+                     constexpr int idx = md::input_del_map[i];
+                     low::LoadMatrix(d1d, q1d, B, sB);
+                     low::LoadMatrix(d1d, q1d, G, sG);
+                     low::LoadDofs3d(e, d1d, XE, sm[0]);
+                     low::Grad3d(d1d, q1d, sB, sG, sm[0], sm[1], del_reg[idx]);
+                  }
+               }
+               else if constexpr (ext_sz == 2)
+               {
+                  if constexpr (n_mat > 0)
+                  {
+                     constexpr int idx = md::input_mat_map[i];
+                     low::LoadMatrix(d1d, q1d, B, sB);
+                     low::LoadMatrix(d1d, q1d, G, sG);
+                     for (int c = 0; c < DIM; c++)
+                     {
+                        low::LoadDofs3d(e, d1d, c, XE, sm[0]);
+                        low::VectorGrad3d(d1d, q1d, c, sB, sG, sm[0], sm[1], mat_reg[idx]);
+                     }
+                  }
                }
             }
             else if constexpr (is_identity_fop<FOP>::value)
@@ -470,7 +442,6 @@ public:
                   for_constexpr<n_outputs>([&](auto ic)
                   {
                      constexpr int i = ic.value;
-                     // output arguments are after the input arguments
                      const auto out = get<n_inputs + i>(args);
 
                      using FOP = tuple_element_t<i, outputs_t>;
@@ -486,6 +457,7 @@ public:
                         {
                            if constexpr (n_del > 0)
                            {
+                              // static_assert(false);
                               constexpr int idx = md::output_del_map[i];
                               as_tensor<real_t, DIM>(&del_reg[idx][qz][qy][qx][0]) = out;
                            }
@@ -494,8 +466,9 @@ public:
                         {
                            if constexpr (n_mat > 0)
                            {
-                              constexpr int idx = md::output_mat_map[i];
-                              as_tensor<real_t, 3, 3>(&mat_reg[idx][qz][qy][qx][0][0]) = out;
+                              static_assert(false, "❌");
+                              // constexpr int idx = md::output_mat_map[i];
+                              // as_tensor<real_t, 3, 3>(&mat_reg[idx][qz][qy][qx][0][0]) = out;
                            }
                         }
                         else
@@ -505,7 +478,18 @@ public:
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
-                        static_assert(false, "Unsupported");
+                        // static_type<decltype(out)> {};
+                        // static_assert(false, "Unsupported");
+                        MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+                        {
+                           MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+                           {
+                              MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+                              {
+                                 as_tensor<real_t, DIM, DIM>(&out_YE[i](0,qz,qy,qx,e)) = out;
+                              }
+                           }
+                        }
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
@@ -534,7 +518,9 @@ public:
                if constexpr (n_val > 0)
                {
                   constexpr int idx = md::output_val_map[i];
-                  RegEval3dT(e, d1d, q1d, B, sB, YE, sm, val_reg[idx]);
+                  low::LoadMatrix(d1d, q1d, B, sB);
+                  low::EvalTranspose3d(d1d, q1d, sB, val_reg[idx], sm[1], sm[0]);
+                  low::WriteDofs3d(d1d, 0, e, val_reg[idx], YE);
                }
             }
             else if constexpr (is_gradient_fop<FOP>::value)
@@ -545,21 +531,25 @@ public:
                {
                   if constexpr (n_del > 0)
                   {
+                     // static_assert(false);
                      constexpr int idx = md::output_del_map[i];
-                     RegGrad3dT(e, d1d, q1d, B, sB, G, sG, YE, sm, del_reg[idx]);
+                     low::LoadMatrix(d1d, q1d, B, sB);
+                     low::LoadMatrix(d1d, q1d, G, sG);
+                     low::GradTranspose3d(d1d, q1d, sB, sG, del_reg[idx], sm[1], sm[0]);
+                     low::WriteDofs3d(d1d, 0, e, del_reg[idx], YE);
                   }
                }
                else if constexpr (ext_sz == 2)
                {
                   if constexpr (n_mat > 0)
                   {
-                     constexpr int idx = md::output_mat_map[i];
-                     RegGrad3dT(e, d1d, q1d, B, sB, G, sG, YE, sm, mat_reg[idx]);
+                     static_assert(false);
                   }
                }
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
+               // nothing to do
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
@@ -571,6 +561,7 @@ public:
             }
          });
       }, ne, thread_blocks, 0, nullptr);
+      NVTX_END("forall");
    }
    using ActionKernelType = decltype(&Action::action_callback<>);
    MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));

@@ -696,6 +696,7 @@ struct MFApply_local_qf
 template<int DIM>
 struct PASetup_local_qf
 {
+   MFEM_HOST_DEVICE inline
    void operator()(const tensor<real_t, DIM, DIM> &J,
                    const tensor<real_t> &weight,
                    tensor<real_t, DIM, DIM> &D) const
@@ -813,27 +814,31 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       };
 
       // PA ∂FEM setup //////////////////////////////////////////////
-      const auto dPASetup = [&] (auto backend)
+      const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
       {
          using backend_t = decltype(backend);
+         using setup_qf_t = decltype(setup_qf);
+         using apply_qf_t = decltype(apply_qf);
+         dbg("Setup");
          const auto ifd0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
          const auto ofd0 = std::vector<FieldDescriptor> {{Q, &qfct}};
          DifferentiableOperator dSetup(ifd0, ofd0, pmesh);
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         PASetup_global_qf<DIM> pa_setup_gqf;
-         dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
+         setup_qf_t pa_setup_qf;
+         dSetup.AddDomainIntegrator<backend_t>(pa_setup_qf,
                                                tuple{Gradient<Ξ>{}, Weight{}},
                                                tuple{Identity<Q>{}},
                                                *ir, ess_bdr);
          MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
 
+         dbg("Apply");
          const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qfct}};
          const auto ofd1 = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd1, ofd1, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         PAApply_global_qf<DIM> pa_apply_gqf;
-         dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
+         apply_qf_t pa_apply_qf;
+         dop->template AddDomainIntegrator<backend_t>(pa_apply_qf,
                                                       tuple{Gradient<U>{}, Identity<Q>{}},
                                                       tuple{Gradient<U>{}},
                                                       *ir, ess_bdr);
@@ -862,11 +867,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 5) // 🟢 PA global default
       {
-         dPASetup(global_default_backend{});
+         dPASetup(global_default_backend{},
+                  PASetup_global_qf<DIM> {}, PAApply_global_qf<DIM> {});
       }
       else if (version == 6) // 🟢 PA global kernels
       {
-         dPASetup(global_kernels_backend{});
+         dPASetup(global_kernels_backend{},
+                  PASetup_global_qf<DIM> {}, PAApply_global_qf<DIM> {});
       }
       /// Local versions //////////////////////////////////////////////////////
       else if (version == 7) // 🟠 MF local default
@@ -875,7 +882,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 8) // 🟠 MF local kernels LO
       {
-         // dMFSetup(local_kernels_low_order_backend{}, MFApply_local_qf<DIM> {});
+         dMFSetup(local_kernels_low_order_backend{}, MFApply_local_qf<DIM> {});
       }
       else if (version == 9) // 🟠 MF local kernels HO
       {
@@ -883,15 +890,19 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 10) // 🟢 PA local default
       {
-         // dPASetup(local_default_backend{});
+         dPASetup(local_default_backend{},
+                  PASetup_local_qf<DIM> {}, PAApply_local_qf<DIM> {});
       }
       else if (version == 11) // 🟢 PA local kernels LO
       {
-         // dPASetup(local_kernels_low_order_backend{});
+         dPASetup(local_kernels_low_order_backend{},
+                  PASetup_local_qf<DIM> {}, PAApply_local_qf<DIM> {});
       }
       else if (version == 12) // 🟢 PA local kernels HO
       {
-         // dPASetup(local_kernels_high_order_backend{});
+         MFEM_ABORT("Not implemented");
+         // dPASetup(local_kernels_high_order_backend{},
+         //          PASetup_local_qf<DIM> {}, PAApply_local_qf<DIM> {});
       }
       else { MFEM_ABORT("Invalid version"); }
 
