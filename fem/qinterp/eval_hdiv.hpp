@@ -136,8 +136,8 @@ inline void EvalHDiv2D(const int NE,
                {
                   qq += QD(qx,dy,vd) * By(dy,qy);
                }
-               if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
-                            QuadratureInterpolator::PHYSICAL_MAGNITUDES))
+               if ((FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                             QuadratureInterpolator::PHYSICAL_MAGNITUDES)) != 0)
                {
                   QQ(qx,qy,vd) = qq;
                }
