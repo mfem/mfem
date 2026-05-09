@@ -717,7 +717,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("\x1b[33m PA ∂FEM local kernels");
          dMFLocalDevicesPolyOperatorSetup_7(local_kernels_backend{});
       }
-      else if (version == 8) // 🟠 MF local kernels
+      /*else if (version == 8) // 🟠 MF local kernels
       {
          dbg("\x1b[33m MF ∂FEM local kernels");
          using backend_t = local_kernels_backend;
@@ -734,7 +734,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-      }
+      }*/
       else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);

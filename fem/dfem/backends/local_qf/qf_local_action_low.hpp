@@ -28,6 +28,9 @@ using mfem::future::tuple_size;
 using mfem::future::tuple_element;
 #endif
 
+#include NVTX_DBG_FMT
+#include "qf_local_arg_metadata.hpp"
+
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
@@ -120,6 +123,21 @@ class Action
       return map;
    }
 #endif
+
+   // Identity Count & Map //////////////////////////////////////////
+   static constexpr auto n_id_inputs = count_if<inputs_t, is_identity_fop>();
+   static constexpr auto n_id_outputs = count_if<outputs_t, is_identity_fop>();
+   static constexpr auto n_id = std::max(n_id_inputs, n_id_outputs);
+   static constexpr auto input_id_map = make_map<inputs_t, is_identity_fop>();
+   static constexpr auto output_id_map = make_map<outputs_t, is_identity_fop>();
+
+   // Weight Count & Map //////////////////////////////////////////
+   static constexpr auto n_wt_inputs = count_if<inputs_t, is_weight_fop>();
+   static constexpr auto n_wt_outputs = count_if<outputs_t, is_weight_fop>();
+   static constexpr auto n_wt = std::max(n_wt_inputs, n_wt_outputs);
+   static constexpr auto input_wt_map = make_map<inputs_t, is_weight_fop>();
+   static constexpr auto output_wt_map = make_map<outputs_t, is_weight_fop>();
+
    // Value Count & Map /////////////////////////////////////////////
    static constexpr auto n_val_inputs = count_if<inputs_t, is_value_fop>();
    static constexpr auto n_val_outputs = count_if<outputs_t, is_value_fop>();
@@ -133,6 +151,13 @@ class Action
    static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
    static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
    static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
+
+   using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
+   static_assert(ArgMetadata::n_params == n_inputs + n_outputs);
+   // static constexpr auto q0_extents = ArgMetadata::template qf_param_extents<0>();
+   // static constexpr auto q1_extents = ArgMetadata::template qf_param_extents<1>();
+   // static constexpr auto q2_extents = ArgMetadata::template qf_param_extents<2>();
+   // static_type<decltype(q0_extents)> dump_q0_extents{};
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -263,6 +288,36 @@ public:
    {
       NVTX_MARK_FUNCTION;
       dbg("nfields:{} nqpt:{}", nfields, nqpt);
+      dbg("input_d1d:{}", input_d1d);
+      dbg("input_q1d:{}", input_q1d);
+      dbg("input_vdim:{}", input_vdim);
+      dbg("n_id:{} n_wt:{} n_val:{} n_del:{}", n_id, n_wt, n_val, n_del);
+      dbg("input_id_map:{}", input_id_map);
+      dbg("output_id_map:{}", output_id_map);
+      dbg("input_wt_map:{}", input_wt_map);
+      dbg("output_wt_map:{}", output_wt_map);
+      dbg("input_val_map:{}", input_val_map);
+      dbg("output_val_map:{}", output_val_map);
+      dbg("input_del_map:{}", input_del_map);
+      dbg("output_del_map:{}", output_del_map);
+
+      // Slot `i` is q-function arg i: inputs use `input_vdim[i]`, outputs use
+      // `output_vdim[i - n_inputs]` (same ordering as `call_qfunc_no_move`).
+      for_constexpr<ArgMetadata::n_params>([&](auto ic)
+      {
+         constexpr std::size_t i = ic.value;
+         constexpr auto extents = ArgMetadata::template qf_param_extents<i>();
+         constexpr auto flat = ArgMetadata::template qf_param_flat_size<i>();
+         const int vdim_for_slot =
+            ArgMetadata::template fop_at<i>::is_input
+            ? input_vdim[i]
+            : output_vdim[i - n_inputs];
+         const bool matches =
+            ArgMetadata::template fop_matches_signature_flat_size<i>(dim, vdim_for_slot);
+         dbg("qf_param_extents<{}>:{} flat:{} vdim:{} matches:{}", i, extents, flat,
+             vdim_for_slot, matches);
+      });
+
       if (!ctx.use_kernel_specializations) { assert(false); return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1

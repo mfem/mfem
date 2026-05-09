@@ -720,4 +720,7 @@ struct Unused
 template<size_t N, typename T>
 using reg_array_t = std::conditional_t<N == 0, Unused, std::array<T, N>>;
 
+///////////////////////////////////////////////////////////////////////////////
+template <typename...> struct static_type;
+
 } // namespace mfem::future

@@ -10,9 +10,6 @@ namespace mfem::future
 
 struct LocalQFKernelsBackend
 {
-   constexpr static bool is_local = true;
-   constexpr static bool is_default = false;
-
    /**
     * @brief Make an action for a local device backend.
     *
@@ -35,8 +32,8 @@ struct LocalQFKernelsBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      // return LocalQFLowOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
-      return LocalQHighOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      return LocalQFLowOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      // return LocalQHighOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
    /**
