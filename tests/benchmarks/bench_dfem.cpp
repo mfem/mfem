@@ -900,9 +900,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 12) // 🟢 PA local kernels HO
       {
-         MFEM_ABORT("Not implemented");
-         // dPASetup(local_kernels_high_order_backend{},
-         //          PASetup_local_qf<DIM> {}, PAApply_local_qf<DIM> {});
+         dPASetup(local_kernels_high_order_backend{},
+                  PASetup_local_qf<DIM> {}, PAApply_local_qf<DIM> {});
       }
       else { MFEM_ABORT("Invalid version"); }
 

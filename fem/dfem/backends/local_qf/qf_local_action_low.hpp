@@ -64,15 +64,15 @@ class Action
    const outputs_t outputs;
    const IntegratorContext ctx;
    const std::vector<const DofToQuad*> dtqs;
-   // inputs: dtq, B, G, vdim, d1d, q1d
-   const std::array<size_t, n_inputs> input_idx;
+   // inputs: dtq, B, G, vdim, d1d, q1d — dtq uses unionfds map; input_idx indexes `xe` via infds
    const std::array<DofToQuadMap, n_inputs> input_dtq;
+   const std::array<size_t, n_inputs> input_idx;
    const std::array<const real_t*, n_inputs> input_B, input_G;
    const std::array<int, n_inputs> input_d1d, input_q1d;
    const std::array<int, n_inputs> input_vdim;
-   // outputs: dtq, B, G, vdim, d1d, q1d
-   const std::array<size_t, n_outputs> output_idx;
+   // outputs — dtq uses unionfds map; output_idx indexes `ye` via outfds
    const std::array<DofToQuadMap, n_outputs> output_dtq;
+   const std::array<size_t, n_outputs> output_idx;
    const std::array<const real_t*, n_outputs> output_B, output_G;
    const std::array<int, n_outputs> output_d1d, output_q1d;
    const std::array<int, n_outputs> output_vdim;
@@ -93,19 +93,23 @@ public:
       outputs(outputs),
       ctx(ctx),
       dtqs(make_dtqs(ctx)),
-      // inputs: dtq, B, G, vdim, d1d, q1d
-      input_idx(create_io_to_field_map(ctx, inputs)),
-      input_dtq(create_dtq_maps<Element>(inputs, dtqs, input_idx,
-                                         ctx.unionfds, ctx.ir)),
+      // inputs: dtq, B, G, vdim, d1d, q1d — union map for dtq; infds map indexes `xe`
+      input_dtq(create_dtq_maps<Entity::Element>(
+                   inputs, dtqs,
+                   create_union_field_map_for_dtq(ctx, inputs),
+                   ctx.unionfds, ctx.ir)),
+      input_idx(create_input_vector_map(ctx, inputs)),
       input_B(get_B(input_dtq)),
       input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)),
       input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
-      // outputs: dtq, B, G, vdim, d1d, q1d
-      output_idx(create_io_to_field_map(ctx, outputs)),
-      output_dtq(create_dtq_maps<Element>(outputs, dtqs, output_idx,
-                                          ctx.unionfds, ctx.ir)),
+      // outputs: dtq — union map for dtq; outfds map indexes `ye`
+      output_dtq(create_dtq_maps<Entity::Element>(
+                    outputs, dtqs,
+                    create_union_field_map_for_dtq(ctx, outputs),
+                    ctx.unionfds, ctx.ir)),
+      output_idx(create_output_vector_map(ctx, outputs)),
       output_B(get_B(output_dtq)),
       output_G(get_G(output_dtq)),
       output_d1d(get_D1D(output_dtq)),
@@ -271,7 +275,7 @@ public:
             assert(ye[idx]);
             dbg("qi:{} q1d:{}", qi, q1d);
             dbg("ye[idx]->Size():{}", ye[idx]->Size());
-            MFEM_VERIFY(ye[idx]->Size() == DIM*vdim*qi*qi*qi*ne, "Size mismatch");
+            MFEM_VERIFY(ye[idx]->Size() == vdim*qi*qi*qi*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, qi, qi, qi, ne);
          }
          else

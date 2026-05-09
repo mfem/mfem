@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../fem/quadinterpolator.hpp"
+#include "../integrator_ctx.hpp"
 #include "../util.hpp"
 #include "general/enzyme.hpp"
 
@@ -819,12 +820,28 @@ static constexpr auto make_map()
 }
 #endif
 
-// map from field operator types to FieldDescriptor indices.
+/// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
 template<typename C, typename T>
-const auto create_io_to_field_map(C& ctx, T& io)
+const auto create_union_field_map_for_dtq(C& ctx, T& io)
 {
    using FE = Entity::Element;
    return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
+}
+
+/// **`xe[i]`** slot per input FOP — indices into **`ctx.infds`** (`SIZE_MAX` for Weight).
+template<typename C, typename T>
+const auto create_input_vector_map(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.infds, io);
+}
+
+/// **`ye[i]`** slot per output FOP — indices into **`ctx.outfds`**.
+template<typename C, typename T>
+const auto create_output_vector_map(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.outfds, io);
 }
 
 template<typename C>
