@@ -272,9 +272,6 @@ public:
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            assert(ye[idx]);
-            dbg("qi:{} q1d:{}", qi, q1d);
-            dbg("ye[idx]->Size():{}", ye[idx]->Size());
             MFEM_VERIFY(ye[idx]->Size() == vdim*qi*qi*qi*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, qi, qi, qi, ne);
          }
@@ -395,7 +392,7 @@ public:
                      using FOP = tuple_element_t<i, inputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
                      {
-                        static_assert(false, "❌");
+                        static_assert(false);
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
@@ -418,7 +415,7 @@ public:
                         }
                         else
                         {
-                           static_assert(false, "❌");
+                           static_assert(false);
                         }
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
@@ -451,7 +448,7 @@ public:
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
                      {
-                        static_assert(false, "❌");
+                        static_assert(false);
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
@@ -470,20 +467,18 @@ public:
                         {
                            if constexpr (n_mat > 0)
                            {
-                              static_assert(false, "❌");
+                              static_assert(false);
                               // constexpr int idx = md::output_mat_map[i];
                               // as_tensor<real_t, 3, 3>(&mat_reg[idx][qz][qy][qx][0][0]) = out;
                            }
                         }
                         else
                         {
-                           static_assert(false, "❌");
+                           static_assert(false);
                         }
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
-                        // static_type<decltype(out)> {};
-                        // static_assert(false, "Unsupported");
                         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
                         {
                            MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
@@ -557,11 +552,11 @@ public:
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
-               static_assert(false, "❌");
+               static_assert(false);
             }
             else
             {
-               static_assert(false, "❌");
+               static_assert(false);
             }
          });
       }, ne, thread_blocks, 0, nullptr);

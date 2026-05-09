@@ -271,9 +271,8 @@ public:
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            static_assert(false, "❌");
+            MFEM_VERIFY(ye[idx]->Size() == vdim*q1d*q1d*q1d*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, q1d, q1d, q1d, ne);
-            MFEM_VERIFY(ye[idx]->Size() == q1d*q1d*q1d*vdim*ne, "Size mismatch");
          }
          else
          {
@@ -323,7 +322,7 @@ public:
             {
                if constexpr (n_val > 0)
                {
-                  static_assert(false, "❌");
+                  static_assert(false);
                }
             }
             else if constexpr (is_gradient_fop<FOP>::value)
@@ -361,7 +360,6 @@ public:
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
-               // static_assert(false, "❌");
                // nothing to do, will be streamed in
             }
             else
@@ -390,7 +388,7 @@ public:
                      using FOP = tuple_element_t<i, inputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
                      {
-                        static_assert(false, "❌");
+                        static_assert(false);
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
@@ -459,7 +457,7 @@ public:
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
                      {
-                        static_assert(false, "❌");
+                        static_assert(false);
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
@@ -478,7 +476,7 @@ public:
                         }
                         else if constexpr (ext_sz == 2)
                         {
-                           static_assert(false, "❌");
+                           static_assert(false);
                            // if constexpr (n_mat > 0)
                            // {
                            //    constexpr int idx = 1 + output_mat_map[i];
@@ -494,7 +492,16 @@ public:
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
-                        static_assert(false, "Unsupported");
+                        MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+                        {
+                           MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+                           {
+                              MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+                              {
+                                 as_tensor<real_t, DIM, DIM>(&out_YE[i](0,qz,qy,qx,e)) = out;
+                              }
+                           }
+                        }
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
@@ -522,7 +529,7 @@ public:
             {
                if constexpr (n_val > 0)
                {
-                  static_assert(false, "❌");
+                  static_assert(false);
                }
             }
             else if constexpr (is_gradient_fop<FOP>::value)
@@ -543,7 +550,7 @@ public:
                }
                else if constexpr (ext_sz == 2)
                {
-                  static_assert(false, "❌");
+                  static_assert(false);
                   // if constexpr (n_mat > 0)
                   // {
                   //    constexpr int idx = 1 + output_mat_map[i];
@@ -554,15 +561,15 @@ public:
             }
             else if constexpr (is_identity_fop<FOP>::value)
             {
-               static_assert(false, "❌");
+               // nothing to do
             }
             else if constexpr (is_weight_fop<FOP>::value)
             {
-               static_assert(false, "Unsupported");
+               static_assert(false);
             }
             else
             {
-               static_assert(false, "Unsupported");
+               static_assert(false);
             }
          });
       }, ne, thread_blocks, 0, nullptr);
