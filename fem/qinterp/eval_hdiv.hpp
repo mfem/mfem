@@ -178,7 +178,7 @@ inline void EvalHDiv2D(const int NE,
                   const real_t detJ = kernels::Det<DIM>(J_loc);
                   kernels::Mult(DIM, DIM, J_loc, u_ref, u_phys);
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
-                  if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
+                  if ((FLAGS & QuadratureInterpolator::PHYSICAL_VALUES) != 0)
                   {
                      MFEM_UNROLL(DIM)
                      for (int sd = 0; sd < DIM; sd++)
@@ -373,8 +373,9 @@ inline void EvalHDiv3D(const int NE,
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
-                               QuadratureInterpolator::PHYSICAL_MAGNITUDES))
+                  if ((FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                                QuadratureInterpolator::PHYSICAL_MAGNITUDES)) !=
+                      0)
                   {
                      QQQ(qx,qy,qz,vd) = u[qz];
                   }
