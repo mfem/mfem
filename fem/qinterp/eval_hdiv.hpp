@@ -153,8 +153,8 @@ inline void EvalHDiv2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
-                   QuadratureInterpolator::PHYSICAL_MAGNITUDES))
+      if ((FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                    QuadratureInterpolator::PHYSICAL_MAGNITUDES)) != 0)
       {
          if (tidz == 0)
          {
@@ -193,7 +193,8 @@ inline void EvalHDiv2D(const int NE,
                         }
                      }
                   }
-                  else if (FLAGS & QuadratureInterpolator::PHYSICAL_MAGNITUDES)
+                  else if ((FLAGS &
+                            QuadratureInterpolator::PHYSICAL_MAGNITUDES) != 0)
                   {
                      y(qx,qy,0,e) = kernels::Norml2(DIM, u_phys);
                   }
@@ -390,8 +391,8 @@ inline void EvalHDiv3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
-                   QuadratureInterpolator::PHYSICAL_MAGNITUDES))
+      if ((FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                    QuadratureInterpolator::PHYSICAL_MAGNITUDES)) != 0)
       {
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
@@ -415,7 +416,7 @@ inline void EvalHDiv3D(const int NE,
                   const real_t detJ = kernels::Det<DIM>(J_loc);
                   kernels::Mult(DIM, DIM, J_loc, u_ref, u_phys);
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
-                  if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
+                  if ((FLAGS & QuadratureInterpolator::PHYSICAL_VALUES) != 0)
                   {
                      MFEM_UNROLL(DIM)
                      for (int sd = 0; sd < DIM; sd++)
@@ -430,7 +431,8 @@ inline void EvalHDiv3D(const int NE,
                         }
                      }
                   }
-                  else if (FLAGS & QuadratureInterpolator::PHYSICAL_MAGNITUDES)
+                  else if ((FLAGS &
+                            QuadratureInterpolator::PHYSICAL_MAGNITUDES) != 0)
                   {
                      y(qx,qy,qz,0,e) = kernels::Norml2(DIM, u_phys);
                   }
