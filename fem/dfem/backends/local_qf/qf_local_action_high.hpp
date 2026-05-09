@@ -433,9 +433,7 @@ public:
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
       nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks({nqpt,                // x
-                    dim >= 2 ? nqpt : 1,  // y
-                    1})                   // z = 1, not used
+      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
    {
 
       NVTX_MARK_FUNCTION;
@@ -596,8 +594,8 @@ public:
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr int i = ic.value;
-         // using FOP = tuple_element<i, inputs_t>;
-         using FOP = typename tuple_element<i, inputs_t>::type;
+         // using FOP = tuple_element<i, outputs_t>;
+         using FOP = typename tuple_element<i, outputs_t>::type;
          const size_t idx = out_idx[i];
          const int d1d = out_d1d[i], q1d = out_q1d[i], vdim = out_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value)
@@ -753,11 +751,12 @@ public:
                            {
                               constexpr int idx = 1 + input_mat_map[i];
                               const ker::vd_regs3d_t<DIM, DIM, MQ1> &r = mat_reg[idx];
+                              // `tensor<DIM,DIM>` is row-major: J[i][j] = ∂x_i/∂ξ_j = r(i,j,...).
                               const real_t J[DIM*DIM] =
                               {
-                                 r(0, 0, qz, qy, qx), r(1, 0, qz, qy, qx), r(2, 0, qz, qy, qx),
-                                 r(0, 1, qz, qy, qx), r(1, 1, qz, qy, qx), r(2, 1, qz, qy, qx),
-                                 r(0, 2, qz, qy, qx), r(1, 2, qz, qy, qx), r(2, 2, qz, qy, qx)
+                                 r(0, 0, qz, qy, qx), r(0, 1, qz, qy, qx), r(0, 2, qz, qy, qx),
+                                 r(1, 0, qz, qy, qx), r(1, 1, qz, qy, qx), r(1, 2, qz, qy, qx),
+                                 r(2, 0, qz, qy, qx), r(2, 1, qz, qy, qx), r(2, 2, qz, qy, qx)
                               };
                               get<i>(args) = as_tensor<real_t, DIM, DIM>(J);
                            }

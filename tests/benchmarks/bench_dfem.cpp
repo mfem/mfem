@@ -71,18 +71,19 @@ using future::Identity;
 void info()
 {
    mfem::out << "\x1b[33m";
-   mfem::out << "version 0: 🟢 PA std" << std::endl;
-   mfem::out << "version 1: 🟢 PA new" << std::endl;
+   mfem::out << "version  0: 🟢 PA std" << std::endl;
+   mfem::out << "version  1: 🟢 PA new" << std::endl;
    // global QF default/kernels versions
-   mfem::out << "version 2: 🟠 MF global default" << std::endl;
-   mfem::out << "version 3: 🟠 MF global kernels" << std::endl;
-   mfem::out << "version 4: 🟢 PA global default" << std::endl;
-   mfem::out << "version 5: 🟢 PA global kernels" << std::endl;
+   mfem::out << "version  2: 🟠 MF global default" << std::endl;
+   mfem::out << "version  3: 🟠 MF global kernels" << std::endl;
+   mfem::out << "version  4: 🟢 PA global default" << std::endl;
+   mfem::out << "version  5: 🟢 PA global kernels" << std::endl;
    // local QF default/kernels versions
-   mfem::out << "version 6: 🟠 MF local default" << std::endl;
-   mfem::out << "version 7: 🟢 PA local kernels low" << std::endl;
-   mfem::out << "version 8: 🟢 PA local kernels high" << std::endl;
-   mfem::out << "version 9: 🟠 MF local kernels high" << std::endl;
+   mfem::out << "version  6: 🟠 MF local default" << std::endl;
+   mfem::out << "version  7: 🟢 PA local kernels low" << std::endl;
+   mfem::out << "version  8: 🟢 PA local kernels high" << std::endl;
+   mfem::out << "version  9: 🟠 MF local kernels high" << std::endl;
+   mfem::out << "version 10: 🟠 MF new" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -91,7 +92,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -172,8 +173,186 @@ static void AddKernelSpecializations()
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
 
-/// StiffnessIntegrator ///////////////////////////////////////////////////////
-struct StiffnessIntegrator : public BilinearFormIntegrator
+/// MF StiffnessIntegrator ///////////////////////////////////////////////////////
+struct MFStiffnessIntegrator : public BilinearFormIntegrator
+{
+   const FiniteElementSpace *fes;
+   Vector NE;
+   int ne, p, d1d, q, q1d, d1n;
+   Geometry::Type geom_type;
+   const IntegrationRule *ir;
+   const DofToQuad *maps;
+   const real_t *B, *G;
+
+public:
+   MFStiffnessIntegrator()
+   {
+#ifdef MFEM_ADD_SPECIALIZATIONS
+      MFStiffnessIntegrator::Specialization<2, 3>::Add();
+      MFStiffnessIntegrator::Specialization<3, 4>::Add();
+      MFStiffnessIntegrator::Specialization<4, 5>::Add();
+      MFStiffnessIntegrator::Specialization<5, 6>::Add();
+      MFStiffnessIntegrator::Specialization<6, 7>::Add();
+      MFStiffnessIntegrator::Specialization<7, 8>::Add();
+      MFStiffnessIntegrator::Specialization<9, 10>::Add();
+#endif // MFEM_ADD_SPECIALIZATIONS
+   }
+
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fespace) override
+   {
+      fes = &fespace;
+      auto *mesh = fes->GetMesh();
+      ne = mesh->GetNE();
+      p = fes->GetFE(0)->GetOrder();
+      d1d = p + 1;
+      q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
+      geom_type = mesh->GetElementBaseGeometry(0);
+      ir = &IntRules.Get(geom_type, q);
+      q1d = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      maps = &fes->GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      B = maps->B.Read(), G = maps->G.Read();
+
+      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
+      const auto nfes = nodes->FESpace();
+      assert(nfes->GetVDim() == 3);
+      constexpr auto LEX = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *nRop = nfes->GetElementRestriction(LEX);
+      auto nR = dynamic_cast<const ElementRestriction*>(nRop);
+      NE.SetSize(nR->Height());
+      d1n = nfes->GetFE(0)->GetOrder() + 1;
+      dbg("NE.Size:{}", NE.Size());
+      dbg("ne:{} d1n:{} d1n*d1n*d1n*3:{}", ne, d1n, d1n*d1n*d1n*3);
+      nR->Mult(*nodes, NE);
+      MFEM_VERIFY(NE.Size() == ne * d1n * d1n * d1n * 3, "Invalid NE size");
+   }
+
+   template <int T_D1D = 0, int T_Q1D = 0, int T_D1N = 0>
+   static void MFStiffnessMult(const int ne,
+                               const real_t *nodes_e,
+                               const IntegrationRule *ir,
+                               const real_t *b, const real_t *g,
+                               const real_t *xe, real_t *ye,
+                               const int d1d, const int q1d, const int d1n)
+   {
+      dbg();
+      constexpr int DIM = 3;
+
+      const auto w_r = ir->GetWeights().Read();
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int D1N = T_D1N ? T_D1N : d1n;
+
+      const auto XE = Reshape(xe, D1D, D1D, D1D, 1, ne);
+      const auto NE = Reshape(nodes_e, D1N, D1N, D1N, 3, ne);
+      auto YE = Reshape(ye, D1D, D1D, D1D, 1, ne);
+
+      mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D,
+                                   [=] MFEM_HOST_DEVICE(int e)
+      {
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+         ker::vd_regs3d_t<1, DIM, MQ1> r0, r1;
+         ker::vd_regs3d_t<3, DIM, MQ1> g0, g1;
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
+
+         ker::LoadDofs3d(e, D1D, XE, r0);
+         ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1); // r1 = grad(XE) = ∇u
+
+         ker::LoadDofs3d(e, D1N, NE, g0);
+         ker::Grad3d(D1N, Q1D, smem, sB, sG, g0, g1); // g1 = grad(NE) = ∇Ξ
+
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const real_t Ju[3] =
+                  {
+                     r1[0][0][qz][qy][qx],
+                     r1[0][1][qz][qy][qx],
+                     r1[0][2][qz][qy][qx]
+                  };
+
+                  const real_t Jn[9] =
+                  {
+                     g1(0, 0, qz, qy, qx), g1(1, 0, qz, qy, qx), g1(2, 0, qz, qy, qx),
+                     g1(0, 1, qz, qy, qx), g1(1, 1, qz, qy, qx), g1(2, 1, qz, qy, qx),
+                     g1(0, 2, qz, qy, qx), g1(1, 2, qz, qy, qx), g1(2, 2, qz, qy, qx)
+                  };
+
+                  real_t invJn[9];
+                  kernels::CalcInverse<3>(Jn, invJn);
+
+                  const real_t w = W(qx, qy, qz), detJ = kernels::Det<3>(Jn);
+                  const real_t wd = w * detJ;
+                  const real_t WD[9] =
+                  {
+                     wd, 0.0, 0.0,
+                     0.0, wd, 0.0,
+                     0.0, 0.0, wd
+                  };
+
+                  real_t A[9], Q[9], Jv[3];
+                  kernels::MultABt(3, 3, 3, WD, invJn, A);
+                  kernels::Mult(3, 3, 3, A, invJn, Q);
+                  kernels::Mult(3, 3, Q, Ju, Jv);
+
+                  r0[0][0][qz][qy][qx] = Jv[0];
+                  r0[0][1][qz][qy][qx] = Jv[1];
+                  r0[0][2][qz][qy][qx] = Jv[2];
+               }
+            }
+         }
+         ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         ker::WriteDofs3d(e, D1D, r1, YE);
+      });
+   }
+
+   using MFStiffnessKernelType = decltype(&MFStiffnessMult<>);
+   MFEM_REGISTER_KERNELS(MFStiffnessKernels, MFStiffnessKernelType, (int, int,
+                                                                     int));
+
+   void AddMultPA(const Vector &xe, Vector &ye) const override
+   {
+      MFStiffnessKernels::Run(d1d, q1d, d1n,
+                              ne, NE.Read(), ir, B, G,
+                              xe.Read(), ye.ReadWrite(),
+                              d1d, q1d, d1n);
+   }
+};
+
+template <int D1D, int Q1D, int D1N>
+MFStiffnessIntegrator::MFStiffnessKernelType
+MFStiffnessIntegrator::MFStiffnessKernels::Kernel()
+{
+   db1("\x1b[33mD1D:{} Q1D:{} D1N:{}", D1D, Q1D, D1N);
+   return MFStiffnessMult<D1D, Q1D, D1N>;
+}
+
+MFStiffnessIntegrator::MFStiffnessKernelType
+MFStiffnessIntegrator::MFStiffnessKernels::Fallback(int d1, int q1, int n1)
+{
+   db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
+#ifdef MFEM_ADD_SPECIALIZATIONS
+   MFEM_ABORT("No kernel for d1d=" << d1 << " q=" << q1 << " d1n=" << n1);
+   return nullptr;
+#else
+   return MFStiffnessMult;
+#endif
+}
+
+/// PA StiffnessIntegrator ///////////////////////////////////////////////////////
+struct PAStiffnessIntegrator : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes;
    const real_t *B, *G, *DX;
@@ -182,7 +361,7 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
    Vector &qdata;
 
 public:
-   StiffnessIntegrator(Vector &qdata): qdata(qdata)
+   PAStiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
 #ifdef MFEM_ADD_SPECIALIZATIONS
       StiffnessKernels::Specialization<2, 3>::Add();
@@ -328,15 +507,15 @@ public:
 };
 
 template <int D1D, int Q1D>
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Kernel()
+PAStiffnessIntegrator::StiffnessKernelType
+PAStiffnessIntegrator::StiffnessKernels::Kernel()
 {
    db1("\x1b[33mD1D:{} Q1D:{}", D1D, Q1D);
    return StiffnessMult<D1D, Q1D>;
 }
 
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
+PAStiffnessIntegrator::StiffnessKernelType
+PAStiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    db1("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -420,7 +599,7 @@ struct BakeOff
 
 /// GLOBAL Q-Functions ////////////////////////////////////////////////////////
 template<int DIM>
-struct MFApply_global_qf_2_3
+struct MFApply_global_qf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &J,
@@ -438,7 +617,7 @@ struct MFApply_global_qf_2_3
 };
 
 template<int DIM>
-struct PASetup_global_qf_4_5
+struct PASetup_global_qf
 {
    void operator()(tensor_array<const real_t, DIM, DIM> &J,
                    tensor_array<const real_t> &weight,
@@ -455,14 +634,17 @@ struct PASetup_global_qf_4_5
 };
 
 template<int DIM>
-struct PAApply_global_qf_4_5
+struct PAApply_global_qf
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
                    tensor_array<real_t, DIM> &Gv) const
    {
       NVTX_MARK_FUNCTION;
-      mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q) { Gv(q) = D(q) * Gu(q); });
+      mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         Gv(q) = D(q) * Gu(q);
+      });
    }
 };
 
@@ -482,18 +664,7 @@ struct MFApply_local_qf
 };
 
 template<int DIM>
-struct PAApply_local_mono_qf_7
-{
-   MFEM_HOST_DEVICE inline
-   auto operator()(const tensor<real_t, DIM> &Gu,
-                   const tensor<real_t, DIM, DIM> &D) const
-   {
-      return std::tuple{D * Gu};
-   };
-};
-
-template<int DIM>
-struct PAApply_local_with_outputs_qf_8
+struct PAApply_local_qf
 {
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<real_t, DIM> &Gu,
@@ -587,7 +758,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(ifs, ofs, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         MFApply_global_qf_2_3<DIM> mf_apply_global_qf;
+         MFApply_global_qf<DIM> mf_apply_global_qf;
          dop->template AddDomainIntegrator<backend_t>(mf_apply_global_qf,
                                                       tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                                       tuple{Gradient<U>{}},
@@ -609,7 +780,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto o0 = std::vector<FieldDescriptor> { {Q, &qfct}};
          DifferentiableOperator dSetup(i0, o0, pmesh);
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         PASetup_global_qf_4_5<DIM> pa_setup_gqf;
+         PASetup_global_qf<DIM> pa_setup_gqf;
          dSetup.AddDomainIntegrator<backend_t>(pa_setup_gqf,
                                                tuple{Gradient<Ξ>{}, Weight{}},
                                                tuple{Identity<Q>{}},
@@ -622,7 +793,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(i1, o1, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         PAApply_global_qf_4_5<DIM> pa_apply_gqf;
+         PAApply_global_qf<DIM> pa_apply_gqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_gqf,
                                                       tuple{Gradient<U>{}, Identity<Q>{}},
                                                       tuple{Gradient<U>{}},
@@ -662,7 +833,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          {
             ParBilinearForm bf(&pfes);
             bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            bf.AddDomainIntegrator(new StiffnessIntegrator(qfct));
+            bf.AddDomainIntegrator(new PAStiffnessIntegrator(qfct));
             bf.Assemble();
          }
          dbg("[PA ∂fem] Local Poly Apply");
@@ -672,7 +843,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop = std::make_unique<DifferentiableOperator>(ifs, ofs, pmesh);
          if (use_kernel_specializations) { dop->UseKernelSpecializations(); }
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         PAApply_local_with_outputs_qf_8<DIM> pa_apply_lqf;
+         PAApply_local_qf<DIM> pa_apply_lqf;
          dop->template AddDomainIntegrator<backend_t>(pa_apply_lqf,
                                                       tuple{Gradient<U>{}, Identity<Q>{}},
                                                       tuple{Gradient<U>{}},
@@ -687,7 +858,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
-         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qfct)); }
+         if (version == 1) { a.AddDomainIntegrator(new PAStiffnessIntegrator(qfct)); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       }
@@ -743,6 +914,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
+      }
+      else if (version == 10)  // 🟠 MF new
+      {
+         a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         a.AddDomainIntegrator(new MFStiffnessIntegrator());
+         a.Assemble();
+         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       }
       else { MFEM_ABORT("Invalid version"); }
 

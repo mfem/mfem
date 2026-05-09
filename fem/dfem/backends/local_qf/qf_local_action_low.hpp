@@ -511,8 +511,8 @@ public:
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr int i = ic.value;
-         // using FOP = tuple_element<i, inputs_t>;
-         using FOP = typename tuple_element<i, inputs_t>::type;
+         // using FOP = tuple_element<i, outputs_t>;
+         using FOP = typename tuple_element<i, outputs_t>::type;
          const size_t idx = out_idx[i];
          const int d1d = out_d1d[i], q1d = out_q1d[i], vdim = out_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value)

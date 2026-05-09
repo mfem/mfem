@@ -687,9 +687,9 @@ void DifferentiableOperator::AddIntegrator(
 
    // pretty_print(dependency_map);
 
-   auto input_to_field =
+   [[maybe_unused]] auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   auto output_to_field =
+   [[maybe_unused]] auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
