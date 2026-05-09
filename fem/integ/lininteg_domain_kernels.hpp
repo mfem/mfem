@@ -786,7 +786,6 @@ VectorFEDomainLFIntegrator::AssembleKernels::Kernel()
    {
       if constexpr (DIM == 3)
       {
-         // TODO
          return HcurlDLFAssemble3D<TEST_D1D, Q1D>;
       }
    }
