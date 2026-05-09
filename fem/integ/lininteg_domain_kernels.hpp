@@ -333,6 +333,7 @@ static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int vdim = 2;
       if (M[e] == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
@@ -436,6 +437,7 @@ static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
 
    mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int vdim = 3;
       if (M[e] == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
