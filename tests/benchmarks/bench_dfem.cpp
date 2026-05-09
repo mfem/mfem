@@ -13,7 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#undef MFEM_ADD_SPECIALIZATIONS
+#define MFEM_ADD_SPECIALIZATIONS
 
 #include <memory>
 
@@ -191,13 +191,13 @@ public:
    MFStiffnessIntegrator()
    {
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      MFStiffnessIntegrator::Specialization<2, 3, 2>::Add();
-      MFStiffnessIntegrator::Specialization<3, 4, 2>::Add();
-      MFStiffnessIntegrator::Specialization<4, 5, 2>::Add();
-      MFStiffnessIntegrator::Specialization<5, 6, 2>::Add();
-      MFStiffnessIntegrator::Specialization<6, 7, 2>::Add();
-      MFStiffnessIntegrator::Specialization<7, 8, 2>::Add();
-      MFStiffnessIntegrator::Specialization<9, 10, 2>::Add();
+      MFStiffnessKernels::Specialization<2, 3, 2>::Add();
+      MFStiffnessKernels::Specialization<3, 4, 2>::Add();
+      MFStiffnessKernels::Specialization<4, 5, 2>::Add();
+      MFStiffnessKernels::Specialization<5, 6, 2>::Add();
+      MFStiffnessKernels::Specialization<6, 7, 2>::Add();
+      MFStiffnessKernels::Specialization<7, 8, 2>::Add();
+      MFStiffnessKernels::Specialization<9, 10, 2>::Add();
 #endif // MFEM_ADD_SPECIALIZATIONS
    }
 

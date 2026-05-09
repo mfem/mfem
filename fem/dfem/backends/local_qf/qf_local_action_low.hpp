@@ -21,6 +21,7 @@
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
+#define MFEM_ADD_SPECIALIZATIONS
 
 namespace mfem::future
 {
@@ -145,69 +146,69 @@ public:
       dbg("output_mat_map:{}", md::output_mat_map);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-      if (!ctx.use_kernel_specializations) { return; }
-#ifdef MFEM_ADD_SPECIALIZATIONS
-      ActionCallbackKernels::template Specialization<3>::Add(); // 1
-      ActionCallbackKernels::template Specialization<4>::Add(); // 2
-      ActionCallbackKernels::template Specialization<5>::Add(); // 3
-      ActionCallbackKernels::template Specialization<6>::Add(); // 4
-      ActionCallbackKernels::template Specialization<7>::Add(); // 5
-      ActionCallbackKernels::template Specialization<8>::Add(); // 6
-#endif
+      // if (!ctx.use_kernel_specializations) { return; }
+      // #ifdef MFEM_ADD_SPECIALIZATIONS
+      ActionCallbackKernelsLO::template Specialization<3>::Add(); // 1
+      ActionCallbackKernelsLO::template Specialization<4>::Add(); // 2
+      ActionCallbackKernelsLO::template Specialization<5>::Add(); // 3
+      ActionCallbackKernelsLO::template Specialization<6>::Add(); // 4
+      ActionCallbackKernelsLO::template Specialization<7>::Add(); // 5
+      ActionCallbackKernelsLO::template Specialization<8>::Add(); // 6
+      // #endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      ActionCallbackKernels::Run(nqpt,
-                                 // arguments
-                                 ctx,
-                                 qfunc,
-                                 // inputs
-                                 input_idx,
-                                 input_B,
-                                 input_G,
-                                 input_vdim,
-                                 input_d1d,
-                                 input_q1d,
-                                 // outputs
-                                 output_idx,
-                                 output_B,
-                                 output_G,
-                                 output_vdim,
-                                 output_d1d,
-                                 output_q1d,
-                                 // others
-                                 thread_blocks,
-                                 xe, ye,
-                                 // fallback arguments
-                                 nqpt);
+      ActionCallbackKernelsLO::Run(nqpt,
+                                   // arguments
+                                   ctx,
+                                   qfunc,
+                                   // inputs
+                                   input_idx,
+                                   input_B,
+                                   input_G,
+                                   input_vdim,
+                                   input_d1d,
+                                   input_q1d,
+                                   // outputs
+                                   output_idx,
+                                   output_B,
+                                   output_G,
+                                   output_vdim,
+                                   output_d1d,
+                                   output_q1d,
+                                   // others
+                                   thread_blocks,
+                                   xe, ye,
+                                   // fallback arguments
+                                   nqpt);
    }
 
 public:
    ////////////////////////////////////////////////////////
    template<int T_Q1D = 0>
-   static void action_callback(const IntegratorContext &ctx,
-                               const qfunc_t &qfunc,
-                               // inputs: idx, B, G, vdim, d1d, q1d
-                               const std::array<size_t, n_inputs> &in_idx,
-                               const std::array<const real_t*, n_inputs> in_B,
-                               const std::array<const real_t*, n_inputs> in_G,
-                               const std::array<int, n_inputs> &in_vdim,
-                               const std::array<int, n_inputs> &in_d1d,
-                               const std::array<int, n_inputs> &in_q1d,
-                               // outputs: idx, B, G, vdim, d1d, q1d
-                               const std::array<size_t, n_outputs> &out_idx,
-                               const std::array<const real_t*, n_outputs> out_B,
-                               const std::array<const real_t*, n_outputs> out_G,
-                               const std::array<int, n_outputs> &out_vdim,
-                               const std::array<int, n_outputs> &out_d1d,
-                               const std::array<int, n_outputs> &out_q1d,
-                               const ThreadBlocks &thread_blocks,
-                               const std::vector<Vector *> &xe,
-                               std::vector<Vector *> &ye,
-                               // fallback arguments
-                               const int q1d)
+   static void action_callback_lo(const IntegratorContext &ctx,
+                                  const qfunc_t &qfunc,
+                                  // inputs: idx, B, G, vdim, d1d, q1d
+                                  const std::array<size_t, n_inputs> &in_idx,
+                                  const std::array<const real_t*, n_inputs> in_B,
+                                  const std::array<const real_t*, n_inputs> in_G,
+                                  const std::array<int, n_inputs> &in_vdim,
+                                  const std::array<int, n_inputs> &in_d1d,
+                                  const std::array<int, n_inputs> &in_q1d,
+                                  // outputs: idx, B, G, vdim, d1d, q1d
+                                  const std::array<size_t, n_outputs> &out_idx,
+                                  const std::array<const real_t*, n_outputs> out_B,
+                                  const std::array<const real_t*, n_outputs> out_G,
+                                  const std::array<int, n_outputs> &out_vdim,
+                                  const std::array<int, n_outputs> &out_d1d,
+                                  const std::array<int, n_outputs> &out_q1d,
+                                  const ThreadBlocks &thread_blocks,
+                                  const std::vector<Vector *> &xe,
+                                  std::vector<Vector *> &ye,
+                                  // fallback arguments
+                                  const int q1d)
    {
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
@@ -562,8 +563,8 @@ public:
       }, ne, thread_blocks, 0, nullptr);
       NVTX_END("forall");
    }
-   using ActionKernelType = decltype(&Action::action_callback<>);
-   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
+   using ActionKernelTypeLO = decltype(&Action::action_callback_lo<>);
+   MFEM_REGISTER_KERNELS(ActionCallbackKernelsLO, ActionKernelTypeLO, (int));
 };
 
 } // namespace LocalQFDevicesPolyImpl
@@ -573,17 +574,17 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
-(/* instantiated with Q1D */) { return action_callback<Q1D>; }
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
+(/* instantiated with Q1D */) { return action_callback_lo<Q1D>; }
 
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -592,7 +593,7 @@ LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_out
 #else
    MFEM_CONTRACT_VAR(q1d);
    db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback;
+   return action_callback_lo;
 #endif
 }
 
