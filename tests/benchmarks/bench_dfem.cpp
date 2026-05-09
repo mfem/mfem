@@ -34,7 +34,10 @@ using global_kernels_backend = mfem::future::GlobalQFKernelsBackend;
 using local_default_backend = mfem::future::LocalQFBackend;
 
 #include "fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using local_kernels_backend = mfem::future::LocalQFKernelsBackend;
+using local_kernels_low_order_backend =
+   mfem::future::LocalQFKernelsBackend<false>;
+using local_kernels_high_order_backend =
+   mfem::future::LocalQFKernelsBackend<true>;
 
 #include "fem/dfem/tuple.hpp"
 using future::tuple;
@@ -77,8 +80,9 @@ void info()
    mfem::out << "version 5: 🟢 PA global kernels" << std::endl;
    // local QF default/kernels versions
    mfem::out << "version 6: 🟠 MF local default" << std::endl;
-   mfem::out << "version 7: 🟢 PA local kernels" << std::endl;
-   mfem::out << "version 8: 🟠 MF local kernels" << std::endl;
+   mfem::out << "version 7: 🟢 PA local kernels low" << std::endl;
+   mfem::out << "version 8: 🟢 PA local kernels high" << std::endl;
+   // mfem::out << "version 8: 🟠 MF local kernels" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -87,7 +91,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7/*, 8*/ };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -105,7 +109,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 8; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 4/*8*/; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -714,8 +718,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 7) // 🟢 PA local devices
       {
-         dbg("\x1b[33m PA ∂FEM local kernels");
-         dMFLocalDevicesPolyOperatorSetup_7(local_kernels_backend{});
+         dbg("\x1b[33m PA ∂FEM local kernels low");
+         dMFLocalDevicesPolyOperatorSetup_7(local_kernels_low_order_backend{});
+      }
+      else if (version == 8) // 🟢 PA local kernels high
+      {
+         dbg("\x1b[33m PA ∂FEM local kernels high");
+         dMFLocalDevicesPolyOperatorSetup_7(local_kernels_high_order_backend{});
       }
       /*else if (version == 8) // 🟠 MF local kernels
       {
@@ -743,7 +752,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       if (dofs < 128 * 1024)
       {
          cg.SetPrintLevel(3/*-1*/);
-         cg.SetMaxIter(2000);
+         cg.SetMaxIter(100/*2000*/);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");

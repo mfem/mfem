@@ -29,6 +29,8 @@ using regs3d_t = regs3d_device_wrapper<DIM, N>;
 #else
 template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
+template <int DIM, int VDIM, int N>
+using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 // using regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
 #endif
 

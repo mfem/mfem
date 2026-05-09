@@ -97,6 +97,73 @@ constexpr int fop_expected_flat_size_on_qp(int mesh_dim, int vdim)
    }
 }
 
+/// Logical tensor **rank** and **leading extents** at a quadrature point *after* the
+/// field operator is applied, for a fixed `AssumeVDIM` (default 1). Flat size matches
+/// `fop_expected_flat_size_on_qp(FOP, mesh_dim, AssumeVDIM)` (same as `GetSizeOnQP`
+/// when `vdim == AssumeVDIM`).
+///
+/// Convention (typical `tensor<real_t, …>` with vdim=1):
+/// - **Weight / Sum**: rank 0, flat 1.
+/// - **Value / Identity** with `AssumeVDIM == 1`: rank 0, flat 1 (scalar-like).
+/// - **Value / Identity** with `AssumeVDIM > 1`: rank 1, extents `{AssumeVDIM}`.
+/// - **Gradient** with `AssumeVDIM == 1`: rank 1, extents `{mesh_dim}` — one axis
+///   beyond a scalar value (spatial derivatives).
+/// - **Gradient** with `AssumeVDIM > 1`: rank 2, extents `{AssumeVDIM, mesh_dim}`.
+///
+/// Only the first `rank()` entries of `extents_max2()` are meaningful; the rest are 0.
+template <typename FOP, int mesh_dim, int AssumeVDIM = 1>
+struct qp_static_shape_after_fop
+{
+   static constexpr int rank()
+   {
+      if constexpr (is_weight_fop<FOP>::value || is_sum_fop<FOP>::value)
+      {
+         return 0;
+      }
+      else if constexpr (is_value_fop<FOP>::value || is_identity_fop<FOP>::value)
+      {
+         return (AssumeVDIM == 1) ? 0 : 1;
+      }
+      else if constexpr (is_gradient_fop<FOP>::value)
+      {
+         return (AssumeVDIM == 1) ? 1 : 2;
+      }
+      else
+      {
+         static_assert(dfem::always_false<FOP>,
+                       "qp_static_shape_after_fop: unsupported FieldOperator");
+         return 0;
+      }
+   }
+
+   static constexpr std::array<int, 2> extents_max2()
+   {
+      if constexpr (is_weight_fop<FOP>::value || is_sum_fop<FOP>::value)
+      {
+         return {0, 0};
+      }
+      else if constexpr (is_value_fop<FOP>::value || is_identity_fop<FOP>::value)
+      {
+         if constexpr (AssumeVDIM == 1) { return {0, 0}; }
+         else { return {AssumeVDIM, 0}; }
+      }
+      else if constexpr (is_gradient_fop<FOP>::value)
+      {
+         if constexpr (AssumeVDIM == 1) { return {mesh_dim, 0}; }
+         else { return {AssumeVDIM, mesh_dim}; }
+      }
+      else
+      {
+         return {0, 0};
+      }
+   }
+
+   static constexpr int flat()
+   {
+      return fop_expected_flat_size_on_qp<FOP>(mesh_dim, AssumeVDIM);
+   }
+};
+
 /// Per-parameter tensor info for slot `I` in the decayed q-function parameter tuple.
 template <typename qfunc_t, std::size_t I>
 struct qf_param_slot
@@ -147,7 +214,7 @@ struct LocalQFArgMetadata
    template <std::size_t I>
    struct fop_at_impl<I, false>
    {
-      static_assert(I >= ninputs, "");
+      static_assert(I >= ninputs);
       using type = typename tuple_element<I - ninputs, outputs_t>::type;
    };
 
@@ -183,6 +250,11 @@ struct LocalQFArgMetadata
              fop_expected_flat_size_on_qp<typename fop_at<I>::type>(
                 mesh_dim, vdim_for_slot);
    }
+
+   /// QP tensor shape for slot `I` after the FOP (`AssumeVDIM` fixed, default 1).
+   template <std::size_t I, int mesh_dim, int AssumeVDIM = 1>
+   using qp_static_shape_after_fop_at =
+      qp_static_shape_after_fop<typename fop_at<I>::type, mesh_dim, AssumeVDIM>;
 };
 
 } // namespace mfem::future

@@ -55,6 +55,8 @@ template<
 #endif
 class Action
 {
+   static constexpr int DIM = 3;
+
    static_assert(!is_std_tuple_v<inputs_t>,
                  "inputs_t should be mfem::future::tuple (not std::tuple)");
 
@@ -153,11 +155,6 @@ class Action
    static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
 
    using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
-   static_assert(ArgMetadata::n_params == n_inputs + n_outputs);
-   // static constexpr auto q0_extents = ArgMetadata::template qf_param_extents<0>();
-   // static constexpr auto q1_extents = ArgMetadata::template qf_param_extents<1>();
-   // static constexpr auto q2_extents = ArgMetadata::template qf_param_extents<2>();
-   // static_type<decltype(q0_extents)> dump_q0_extents{};
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -301,6 +298,7 @@ public:
       dbg("input_del_map:{}", input_del_map);
       dbg("output_del_map:{}", output_del_map);
 
+
       // Slot `i` is q-function arg i: inputs use `input_vdim[i]`, outputs use
       // `output_vdim[i - n_inputs]` (same ordering as `call_qfunc_no_move`).
       for_constexpr<ArgMetadata::n_params>([&](auto ic)
@@ -310,12 +308,15 @@ public:
          constexpr auto flat = ArgMetadata::template qf_param_flat_size<i>();
          const int vdim_for_slot =
             ArgMetadata::template fop_at<i>::is_input
-            ? input_vdim[i]
-            : output_vdim[i - n_inputs];
+         ? input_vdim[i] : output_vdim[i - n_inputs];
          const bool matches =
             ArgMetadata::template fop_matches_signature_flat_size<i>(dim, vdim_for_slot);
          dbg("qf_param_extents<{}>:{} flat:{} vdim:{} matches:{}", i, extents, flat,
              vdim_for_slot, matches);
+         using Si =
+            typename ArgMetadata::template qp_static_shape_after_fop_at<i, DIM>;
+         dbg("[S{}] rank:{} flat:{}", i, Si::rank(), Si::flat());
+         dbg("[S{}] extents_max2:{}", i, Si::extents_max2());
       });
 
       if (!ctx.use_kernel_specializations) { assert(false); return; }
@@ -467,8 +468,7 @@ public:
 
       for (auto v : ye) { *v = 0.0; }
 
-      constexpr int DIM = 3;
-      MFEM_ASSERT(DIM == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_ASSERT(Action::DIM == ctx.mesh.Dimension(), "Dimension mismatch");
 
       const int ne = ctx.nentities;
 
@@ -613,7 +613,15 @@ public:
                         if constexpr (n_del > 0)
                         {
                            constexpr int idx = input_del_map[i];
+                           // if constexpr (ArgMetadata::template qp_static_shape_after_fop_at<i, DIM>::rank()
+                           //   == 1)
+                           // {
                            get<i>(args) = as_tensor<real_t, 3>(&del_reg[idx][qz][qy][qx][0]);
+                           // }
+                           // else
+                           // {
+                           //    get<i>(args) = as_tensor<real_t, 3, 3>(&del_reg[idx][qz][qy][qx][0]);
+                           // }
                         }
                      }
                      else if constexpr (is_identity_fop<FOP>::value)

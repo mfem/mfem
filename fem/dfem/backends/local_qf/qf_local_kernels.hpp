@@ -8,6 +8,7 @@
 namespace mfem::future
 {
 
+template<bool is_high_order = false>
 struct LocalQFKernelsBackend
 {
    /**
@@ -32,8 +33,14 @@ struct LocalQFKernelsBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFLowOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
-      // return LocalQHighOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      if constexpr (is_high_order)
+      {
+         return LocalQHighOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      }
+      else
+      {
+         return LocalQFLowOrderKernelsImpl::Action(ctx, qfunc, inputs, outputs);
+      }
    }
 
    /**
