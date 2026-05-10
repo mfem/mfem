@@ -20,13 +20,11 @@
 
 #include "qf_local_register_types.hpp"
 
-#include "fem/kernels3d.hpp"
-namespace low = mfem::kernels::internal::low;
-
-namespace mfem::future::LocalQFLowOrderKernelsImpl
+namespace mfem::future::LocalQFKernelsImpl
 {
 
 template<
+   typename backend_t,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
@@ -249,10 +247,7 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-
-         MFEM_SHARED real_t sm[2][MQ1][MQ1][MQ1][3];
-         MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : backend_t::MQ1;
 
          // -----------------------------------------------
          // Inputs and outputs argument registers
@@ -272,32 +267,12 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               low::LoadMatrix(d, q, B, sB);
-               low::LoadDofs3d(e, d, XE, sm[0]);
-               low::Eval3d(d, q, sB, sm[0], sm[1], arg_reg);
+               backend_t::LoadValue(e, d, q, B, XE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               low::LoadMatrix(d, q, B, sB);
-               low::LoadMatrix(d, q, G, sG);
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               if constexpr (ext_sz == 1)
-               {
-                  low::LoadDofs3d(e, d, XE, sm[0]);
-                  low::Grad3d(d, q, sB, sG, sm[0], sm[1], arg_reg);
-               }
-               else if constexpr (ext_sz == 2)
-               {
-                  for (int c = 0; c < DIM; c++)
-                  {
-                     low::LoadDofs3d(e, d, c, XE, sm[0]);
-                     low::VectorGrad3d(d, q, c, sB, sG, sm[0], sm[1], arg_reg);
-                  }
-               }
-               else
-               {
-                  static_assert(false, "Unsupported gradient rank");
-               }
+               backend_t::template LoadGradient<DIM, ext_sz>(e, d, q, B, G, XE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -407,21 +382,12 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               low::LoadMatrix(d, q, B, sB);
-               low::EvalTranspose3d(d, q, sB, arg_reg, sm[1], sm[0]);
-               low::WriteDofs3d(d, 0, e, arg_reg, YE);
+               backend_t::template WriteValue<DIM>(e, d, q, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               if constexpr (ext_sz == 1)
-               {
-                  low::LoadMatrix(d, q, B, sB);
-                  low::LoadMatrix(d, q, G, sG);
-                  low::GradTranspose3d(d, q, sB, sG, arg_reg, sm[1], sm[0]);
-                  low::WriteDofs3d(d, 0, e, arg_reg, YE);
-               }
-               else { static_assert(false, "Unsupported gradient rank"); }
+               backend_t::template WriteGradient<DIM, ext_sz>(e, d, q, B, G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
@@ -432,22 +398,24 @@ public:
    MFEM_REGISTER_KERNELS(ActionCallbackKernelsLO, ActionKernelTypeLO, (int));
 };
 
-template<typename qfunc_t,
+template<typename backend_t,
+         typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
 (/* instantiated with Q1D */) { return action_callback_lo<Q1D>; }
 
-template<typename qfunc_t,
+template<typename backend_t,
+         typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -460,5 +428,5 @@ Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels
 #endif
 }
 
-} // namespace mfem::future::LocalQFLowOrderKernelsImpl
+} // namespace mfem::future::LocalQFKernelsImpl
 
