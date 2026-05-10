@@ -491,16 +491,7 @@ public:
                      }
                      else if constexpr (is_identity_fop<FOP>::value)
                      {
-                        MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
-                           {
-                              MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
-                              {
-                                 as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = out;
-                              }
-                           }
-                        }
+                        as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = out;
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
