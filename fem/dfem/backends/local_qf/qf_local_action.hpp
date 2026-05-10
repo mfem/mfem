@@ -298,7 +298,6 @@ public:
          // Evaluate the quadrature function
          // -----------------------------------------------
          MFEM_FOREACH_THREAD(qz,z,q1d)
-         // for (int qz = 0; qz < q1d; qz++)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
             {
@@ -390,18 +389,16 @@ public:
             const auto &YE = out_YE[i];
             auto &arg_reg = get<o>(args_reg);
             using FOP = tuple_element_t<i, outputs_t>;
+            constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
             if constexpr (is_value_fop<FOP>::value)
             {
-               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               backend_t::template WriteValue<DIM, ext_sz, MQ1>(smem, regs, e,
-                                                                d, q, q1d, B,
-                                                                YE, arg_reg);
+               backend_t::template WriteValue<DIM, ext_sz, MQ1>
+               (smem, regs, e, d, q, q1d, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               backend_t::template WriteGradient<DIM, ext_sz, MQ1>(smem, regs, e, d, q, q1d, B,
-                                                                   G, YE, arg_reg);
+               backend_t::template WriteGradient<DIM, ext_sz, MQ1>
+               (smem, regs, e, d, q, q1d, B, G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }

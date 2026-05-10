@@ -11,7 +11,7 @@ namespace mfem::future
 
 struct LocalQFHOBackend
 {
-   static constexpr int MQ1 = 16;
+   static constexpr int MQ1 = 8;
 
    //////////////////////////////////////////////////////////////////
    template <int DIM> static
@@ -35,7 +35,7 @@ struct LocalQFHOBackend
    template<int Q>
    struct Exclusive
    {
-      ker::v_regs3d_t<1, Q> val[2];
+      // ker::v_regs3d_t<1, Q> val[2];
       ker::vd_regs3d_t<1, 3, Q> del[2];
       ker::vd_regs3d_t<3, 3, Q> mat[2];
    };

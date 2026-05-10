@@ -37,7 +37,7 @@ struct LocalQFLOBackend
 
    //////////////////////////////////////////////////////////////////
    template<int MQ1T, typename ArgRegT, typename XE_T>
-   inline MFEM_HOST_DEVICE
+   static inline MFEM_HOST_DEVICE
    void LoadValue(Shared<MQ1T> &s, Exclusive<MQ1T>&,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &arg_reg)

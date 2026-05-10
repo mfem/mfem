@@ -638,7 +638,7 @@ struct DynamicShmemLimits
 {
    int default_max; ///< Hard limit without opting in (on CUDA, typically 48 KB).
    int optin_max;   ///< Maximum that can be obtained via cudaFuncSetAttribute
-                    ///< (on HIP, equals @ref default_max).
+   ///< (on HIP, equals @ref default_max).
 };
 
 /// @brief Returns the device's dynamic shared-memory limits, queried once and
