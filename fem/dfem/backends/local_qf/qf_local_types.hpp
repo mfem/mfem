@@ -3,7 +3,7 @@
 // Typed low-order PA register layouts derived from decayed q-function parameter types.
 
 #include "fem/kernels3d.hpp"
-#include "qf_local_arg_metadata.hpp"
+#include "qf_local_data.hpp"
 
 #include <cstddef>
 #include <type_traits>

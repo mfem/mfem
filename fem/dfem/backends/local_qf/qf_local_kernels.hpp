@@ -2,7 +2,7 @@
 
 #include "fem/dfem/integrator_ctx.hpp"
 
-#include "qf_local_action_impl.hpp"
+#include "qf_local_action.hpp"
 #include "qf_local_action_lo.hpp"
 #include "qf_local_action_ho.hpp"
 

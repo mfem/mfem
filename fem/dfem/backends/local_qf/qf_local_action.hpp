@@ -18,15 +18,13 @@
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 
-#include "qf_local_register_types.hpp"
+#include "qf_local_types.hpp"
 
-#include "fem/kernels.hpp"
-namespace ker = mfem::kernels::internal;
-
-namespace mfem::future::LocalQHighOrderKernelsImpl
+namespace mfem::future::LocalQFKernelsImpl
 {
 
 template<
+   typename backend_t,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
@@ -41,7 +39,6 @@ class Action
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   using md = ActionMetaData_t<qfunc_t, inputs_t, outputs_t>;
    using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
 
    const qfunc_t qfunc;
@@ -105,9 +102,8 @@ public:
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
       nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, 1}) /* Z tied to 1 */
+      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
    {
-
       NVTX_MARK_FUNCTION;
       dbg("nfields:{} nqpt:{}", nfields, nqpt);
       dbg("input_d1d:{}", input_d1d);
@@ -118,68 +114,67 @@ public:
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      ActionCallbackKernelsHO::template Specialization<3>::Add(); // 1
-      ActionCallbackKernelsHO::template Specialization<4>::Add(); // 2
-      ActionCallbackKernelsHO::template Specialization<5>::Add(); // 3
-      ActionCallbackKernelsHO::template Specialization<6>::Add(); // 4
-      ActionCallbackKernelsHO::template Specialization<7>::Add(); // 5
-      ActionCallbackKernelsHO::template Specialization<8>::Add(); // 6
+      ActionCallbackKernelsLO::template Specialization<3>::Add(); // 1
+      ActionCallbackKernelsLO::template Specialization<4>::Add(); // 2
+      ActionCallbackKernelsLO::template Specialization<5>::Add(); // 3
+      ActionCallbackKernelsLO::template Specialization<6>::Add(); // 4
+      ActionCallbackKernelsLO::template Specialization<7>::Add(); // 5
+      ActionCallbackKernelsLO::template Specialization<8>::Add(); // 6
 #endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      ActionCallbackKernelsHO::Run(nqpt,
-                                   // arguments
-                                   ctx,
-                                   qfunc,
-                                   // inputs
-                                   input_idx,
-                                   input_B,
-                                   input_G,
-                                   input_vdim,
-                                   input_d1d,
-                                   input_q1d,
-                                   // outputs
-                                   output_idx,
-                                   output_B,
-                                   output_G,
-                                   output_vdim,
-                                   output_d1d,
-                                   output_q1d,
-                                   // others
-                                   thread_blocks,
-                                   xe, ye,
-                                   // fallback arguments
-                                   nqpt);
+      ActionCallbackKernels::Run(nqpt,
+                                 // arguments
+                                 ctx,
+                                 qfunc,
+                                 // inputs
+                                 input_idx,
+                                 input_B,
+                                 input_G,
+                                 input_vdim,
+                                 input_d1d,
+                                 input_q1d,
+                                 // outputs
+                                 output_idx,
+                                 output_B,
+                                 output_G,
+                                 output_vdim,
+                                 output_d1d,
+                                 output_q1d,
+                                 // others
+                                 thread_blocks,
+                                 xe, ye,
+                                 // fallback arguments
+                                 nqpt);
    }
 
 public:
-
    ////////////////////////////////////////////////////////
    template<int T_Q1D = 0>
-   static void action_callback_ho(const IntegratorContext &ctx,
-                                  const qfunc_t &qfunc,
-                                  // inputs: idx, B, G, vdim, d1d, q1d
-                                  const std::array<size_t, n_inputs> &in_idx,
-                                  const std::array<const real_t*, n_inputs> in_B,
-                                  const std::array<const real_t*, n_inputs> in_G,
-                                  const std::array<int, n_inputs> &in_vdim,
-                                  const std::array<int, n_inputs> &in_d1d,
-                                  const std::array<int, n_inputs> &in_q1d,
-                                  // outputs: idx, B, G, vdim, d1d, q1d
-                                  const std::array<size_t, n_outputs> &out_idx,
-                                  const std::array<const real_t*, n_outputs> out_B,
-                                  const std::array<const real_t*, n_outputs> out_G,
-                                  const std::array<int, n_outputs> &out_vdim,
-                                  const std::array<int, n_outputs> &out_d1d,
-                                  const std::array<int, n_outputs> &out_q1d,
-                                  const ThreadBlocks &thread_blocks,
-                                  const std::vector<Vector *> &xe,
-                                  std::vector<Vector *> &ye,
-                                  // fallback arguments
-                                  const int q1d)
+   static void action_callback(const IntegratorContext &ctx,
+                               const qfunc_t &qfunc,
+                               // inputs: idx, B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_inputs> &in_idx,
+                               const std::array<const real_t*, n_inputs> in_B,
+                               const std::array<const real_t*, n_inputs> in_G,
+                               const std::array<int, n_inputs> &in_vdim,
+                               const std::array<int, n_inputs> &in_d1d,
+                               const std::array<int, n_inputs> &in_q1d,
+                               // outputs: idx, B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_outputs> &out_idx,
+                               const std::array<const real_t*, n_outputs> out_B,
+                               const std::array<const real_t*, n_outputs> out_G,
+                               const std::array<int, n_outputs> &out_vdim,
+                               const std::array<int, n_outputs> &out_d1d,
+                               const std::array<int, n_outputs> &out_q1d,
+                               const ThreadBlocks &thread_blocks,
+                               const std::vector<Vector *> &xe,
+                               std::vector<Vector *> &ye,
+                               // fallback arguments
+                               const int q1d)
    {
       NVTX_MARK_FUNCTION;
 
@@ -190,7 +185,7 @@ public:
       const int ne = ctx.nentities;
 
       // -----------------------------------------------
-      // INPUTS: XE
+      // INPUTS: XE, DIM + 1(VDIM) + 1(number of elements)
       // -----------------------------------------------
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE;
       for_constexpr<n_inputs>([&](auto ic)
@@ -229,18 +224,15 @@ public:
          using FOP = tuple_element_t<i, outputs_t>;
          if constexpr (is_gradient_fop<FOP>::value)
          {
-            MFEM_VERIFY(ye[k]->Size() == d*d*d*v*ne, "Size mismatch");
+            MFEM_ASSERT(ye[k]->Size() == d*d*d*v*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, d, v, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            MFEM_VERIFY(ye[k]->Size() == v*q*q*q*ne, "Size mismatch");
+            MFEM_ASSERT(ye[k]->Size() == v*q*q*q*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, q, ne);
          }
-         else
-         {
-            static_assert(false, "Unsupported FieldOperator");
-         }
+         else { static_assert(false, "Unsupported"); }
       });
 
       const auto d_attr = ctx.attr.Read();
@@ -251,22 +243,15 @@ public:
       using qf_param_ts = typename qf_signature::parameter_ts;
       using args_tuple_t = decay_tuple<qf_param_ts>;
 
-      dfem::forall<T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
+      dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-         constexpr auto n_val = md::n_val, n_del = md::n_del, n_mat = md::n_mat;
-
-         MFEM_SHARED real_t sM[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : backend_t::MQ1;
 
          // -----------------------------------------------
          // Inputs and outputs argument registers
          // -----------------------------------------------
-         [[maybe_unused]] ker::v_regs3d_t<1, MQ1> val_reg[2];
-         [[maybe_unused]] ker::vd_regs3d_t<1, DIM, MQ1> del_reg[2];
-         [[maybe_unused]] ker::vd_regs3d_t<3, DIM, MQ1> mat_reg[2];
          args_reg_t<qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
 
          // -----------------------------------------------
@@ -280,66 +265,14 @@ public:
             const real_t *B = in_B[i], *G = in_G[i];
             auto &arg_reg = get<i>(args_reg);
             using FOP = tuple_element_t<i, inputs_t>;
-
             if constexpr (is_value_fop<FOP>::value)
             {
-               static_assert(false);
+               backend_t::LoadValue(e, d, q, q1d, B, XE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               ker::LoadMatrix(d, q, B, sB);
-               ker::LoadMatrix(d, q, G, sG);
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               if constexpr (ext_sz == 1)
-               {
-                  ker::LoadDofs3d(e, d, XE, del_reg[0]);
-                  ker::Grad3d(d, q, sM, sB, sG, del_reg[0], del_reg[1]);
-                  for (int qz = 0; qz < q1d; qz++)
-                  {
-                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
-                        {
-                           MFEM_UNROLL(DIM)
-                           for (int dd = 0; dd < DIM; ++dd)
-                           {
-                              arg_reg[qz][qy][qx][dd] =
-                                 del_reg[1][0][dd][qz][qy][qx];
-                           }
-                        }
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-               }
-               else if constexpr (ext_sz == 2)
-               {
-                  ker::LoadDofs3d(e, d, XE, mat_reg[0]);
-                  ker::Grad3d(d, q, sM, sB, sG, mat_reg[0], mat_reg[1]);
-                  for (int qz = 0; qz < q1d; qz++)
-                  {
-                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
-                        {
-                           MFEM_UNROLL(DIM)
-                           for (int ii = 0; ii < DIM; ++ii)
-                           {
-                              MFEM_UNROLL(DIM)
-                              for (int jj = 0; jj < DIM; ++jj)
-                              {
-                                 arg_reg[qz][qy][qx][ii][jj] =
-                                    mat_reg[1][ii][jj][qz][qy][qx];
-                              }
-                           }
-                        }
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-               }
-               else
-               {
-                  static_assert(false, "Unsupported gradient rank");
-               }
+               backend_t::template LoadGradient<DIM, ext_sz>(e, d, q, q1d, B, G, XE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -355,7 +288,8 @@ public:
          // -----------------------------------------------
          // Evaluate the quadrature function
          // -----------------------------------------------
-         for (int qz = 0; qz < q1d; qz++)
+         // for (int qz = 0; qz < q1d; qz++)
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
             {
@@ -390,7 +324,7 @@ public:
                   });
 
                   // --------------------------------------
-                  // Apply the quadrature function
+                  // Call the quadrature function
                   // --------------------------------------
                   call_qfunc_no_move(qfunc, qargs);
 
@@ -405,7 +339,7 @@ public:
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
-                        as_tensor<real_t, DIM, DIM>(&YE(0, qz, qy, qx, e)) = qarg;
+                        as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = qarg;
                      }
                      else if constexpr (is_value_fop<FOP>::value)
                      {
@@ -449,61 +383,40 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               static_assert(false);
+               backend_t::template WriteValue<DIM>(e, d, q, q1d, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               if constexpr (ext_sz == 1)
-               {
-                  ker::LoadMatrix(d, q, B, sB);
-                  ker::LoadMatrix(d, q, G, sG);
-                  for (int qz = 0; qz < q1d; qz++)
-                  {
-                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
-                        {
-                           MFEM_UNROLL(DIM)
-                           for (int dd = 0; dd < DIM; ++dd)
-                           {
-                              del_reg[0][0][dd][qz][qy][qx] =
-                                 arg_reg[qz][qy][qx][dd];
-                           }
-                        }
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-                  ker::GradTranspose3d(d, q, sM, sB, sG, del_reg[0], del_reg[1]);
-                  ker::WriteDofs3d(e, d, del_reg[1], YE);
-               }
-               else { static_assert(false, "Unsupported gradient rank"); }
+               backend_t::template WriteGradient<DIM, ext_sz>(e, d, q, q1d, B, G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
          });
       }, ne, thread_blocks, 0, nullptr);
    }
-   using ActionKernelTypeHO = decltype(&Action::action_callback_ho<>);
-   MFEM_REGISTER_KERNELS(ActionCallbackKernelsHO, ActionKernelTypeHO, (int));
+   using ActionKernelType = decltype(&Action::action_callback<>);
+   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
-template<typename qfunc_t,
+template<typename backend_t,
+         typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Kernel
-(/* instantiated with Q1D */) { return action_callback_ho<Q1D>; }
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
+(/* instantiated with Q1D */) { return action_callback<Q1D>; }
 
-template<typename qfunc_t,
+template<typename backend_t,
+         typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Fallback
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -512,8 +425,9 @@ Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels
 #else
    MFEM_CONTRACT_VAR(q1d);
    db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback_ho;
+   return action_callback;
 #endif
 }
 
-} // namespace mfem::future::LocalQHighOrderKernelsImpl
+} // namespace mfem::future::LocalQFKernelsImpl
+
