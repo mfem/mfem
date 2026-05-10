@@ -98,7 +98,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 
    const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
 
-   const auto orders = { 6, 5, 4, 3, 2, 1 };
+   const auto orders = { 8, 7, 6, 5, 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {

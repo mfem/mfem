@@ -114,12 +114,23 @@ public:
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      ActionCallbackKernels::template Specialization<3>::Add(); // 1
-      ActionCallbackKernels::template Specialization<4>::Add(); // 2
-      ActionCallbackKernels::template Specialization<5>::Add(); // 3
-      ActionCallbackKernels::template Specialization<6>::Add(); // 4
-      ActionCallbackKernels::template Specialization<7>::Add(); // 5
-      ActionCallbackKernels::template Specialization<8>::Add(); // 6
+      if constexpr (backend_t::MQ1 >= 8)
+      {
+         ActionCallbackKernels::template Specialization<3>::Add(); // 1
+         ActionCallbackKernels::template Specialization<4>::Add(); // 2
+         ActionCallbackKernels::template Specialization<5>::Add(); // 3
+         ActionCallbackKernels::template Specialization<6>::Add(); // 4
+         ActionCallbackKernels::template Specialization<7>::Add(); // 5
+         ActionCallbackKernels::template Specialization<8>::Add(); // 6
+      }
+      if constexpr (backend_t::MQ1 >= 16)
+      {
+         ActionCallbackKernels::template Specialization<10>::Add(); // 8
+         // quadrature_interpolator::Det3D fails before being able to use PA
+         // ActionCallbackKernels::template Specialization<12>::Add(); // 10
+         // ActionCallbackKernels::template Specialization<14>::Add(); // 12
+         // ActionCallbackKernels::template Specialization<16>::Add(); // 14
+      }
 #endif
    }
 
@@ -327,7 +338,7 @@ public:
                      {
                         qarg = backend_t::template
                                qp_load<tuple_element_t<i, args_tuple_t>, MQ1>
-                               (get<i>(args_reg), qz, qy, qx);
+                        (get<i>(args_reg), qz, qy, qx);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
