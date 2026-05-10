@@ -113,14 +113,14 @@ public:
       dbg("output_idx:{}", output_idx);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-#ifdef MFEM_ADD_SPECIALIZATIONS
-      ActionCallbackKernelsLO::template Specialization<3>::Add(); // 1
-      ActionCallbackKernelsLO::template Specialization<4>::Add(); // 2
-      ActionCallbackKernelsLO::template Specialization<5>::Add(); // 3
-      ActionCallbackKernelsLO::template Specialization<6>::Add(); // 4
-      ActionCallbackKernelsLO::template Specialization<7>::Add(); // 5
-      ActionCallbackKernelsLO::template Specialization<8>::Add(); // 6
-#endif
+      // #ifdef MFEM_ADD_SPECIALIZATIONS
+      ActionCallbackKernels::template Specialization<3>::Add(); // 1
+      ActionCallbackKernels::template Specialization<4>::Add(); // 2
+      ActionCallbackKernels::template Specialization<5>::Add(); // 3
+      ActionCallbackKernels::template Specialization<6>::Add(); // 4
+      ActionCallbackKernels::template Specialization<7>::Add(); // 5
+      ActionCallbackKernels::template Specialization<8>::Add(); // 6
+      // #endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -255,24 +255,30 @@ public:
          args_reg_t<qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
 
          // -----------------------------------------------
+         // Shared memory
+         // -----------------------------------------------
+         MFEM_SHARED typename backend_t::Scratch smem;
+
+         // -----------------------------------------------
          // Load inputs
          // -----------------------------------------------
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
-            const int d = in_d1d[i], q = in_q1d[i];
+            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
             auto &arg_reg = get<i>(args_reg);
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::LoadValue(e, d, q, q1d, B, XE, arg_reg);
+               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               backend_t::template LoadGradient<DIM, ext_sz>(e, d, q, q1d, B, G, XE, arg_reg);
+               backend_t::template LoadGradient<DIM, ext_sz>(smem, e, d, q, Q1D, B, G, XE,
+                                                             arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -383,12 +389,13 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template WriteValue<DIM>(e, d, q, q1d, B, YE, arg_reg);
+               backend_t::template WriteValue<DIM>(smem, e, d, q, q1d, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               backend_t::template WriteGradient<DIM, ext_sz>(e, d, q, q1d, B, G, YE, arg_reg);
+               backend_t::template WriteGradient<DIM, ext_sz>(smem, e, d, q, q1d, B, G, YE,
+                                                              arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
