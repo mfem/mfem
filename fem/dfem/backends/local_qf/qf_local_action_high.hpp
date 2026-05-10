@@ -300,9 +300,12 @@ public:
                      {
                         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                         {
-                           arg_reg[0][qz][qy][qx] = del_reg[1][0][0][qz][qy][qx];
-                           arg_reg[1][qz][qy][qx] = del_reg[1][0][1][qz][qy][qx];
-                           arg_reg[2][qz][qy][qx] = del_reg[1][0][2][qz][qy][qx];
+                           MFEM_UNROLL(DIM)
+                           for (int dd = 0; dd < DIM; ++dd)
+                           {
+                              arg_reg[qz][qy][qx][dd] =
+                                 del_reg[1][0][dd][qz][qy][qx];
+                           }
                         }
                      }
                   }
@@ -318,15 +321,16 @@ public:
                      {
                         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                         {
-                           arg_reg[0][0][qz][qy][qx] = mat_reg[1][0][0][qz][qy][qx];
-                           arg_reg[0][1][qz][qy][qx] = mat_reg[1][0][1][qz][qy][qx];
-                           arg_reg[0][2][qz][qy][qx] = mat_reg[1][0][2][qz][qy][qx];
-                           arg_reg[1][0][qz][qy][qx] = mat_reg[1][1][0][qz][qy][qx];
-                           arg_reg[1][1][qz][qy][qx] = mat_reg[1][1][1][qz][qy][qx];
-                           arg_reg[1][2][qz][qy][qx] = mat_reg[1][1][2][qz][qy][qx];
-                           arg_reg[2][0][qz][qy][qx] = mat_reg[1][2][0][qz][qy][qx];
-                           arg_reg[2][1][qz][qy][qx] = mat_reg[1][2][1][qz][qy][qx];
-                           arg_reg[2][2][qz][qy][qx] = mat_reg[1][2][2][qz][qy][qx];
+                           MFEM_UNROLL(DIM)
+                           for (int ii = 0; ii < DIM; ++ii)
+                           {
+                              MFEM_UNROLL(DIM)
+                              for (int jj = 0; jj < DIM; ++jj)
+                              {
+                                 arg_reg[qz][qy][qx][ii][jj] =
+                                    mat_reg[1][ii][jj][qz][qy][qx];
+                              }
+                           }
                         }
                      }
                   }
@@ -460,9 +464,12 @@ public:
                      {
                         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                         {
-                           del_reg[0][0][0][qz][qy][qx] = arg_reg[0][qz][qy][qx];
-                           del_reg[0][0][1][qz][qy][qx] = arg_reg[1][qz][qy][qx];
-                           del_reg[0][0][2][qz][qy][qx] = arg_reg[2][qz][qy][qx];
+                           MFEM_UNROLL(DIM)
+                           for (int dd = 0; dd < DIM; ++dd)
+                           {
+                              del_reg[0][0][dd][qz][qy][qx] =
+                                 arg_reg[qz][qy][qx][dd];
+                           }
                         }
                      }
                   }
