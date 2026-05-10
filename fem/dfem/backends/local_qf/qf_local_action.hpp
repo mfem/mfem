@@ -253,7 +253,7 @@ public:
          // -----------------------------------------------
          // Inputs and outputs argument registers
          // -----------------------------------------------
-         args_reg_t<qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
+         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
 
          // -----------------------------------------------
          // Shared memory
@@ -325,7 +325,8 @@ public:
                      else if constexpr (is_value_fop<FOP>::value ||
                                         is_gradient_fop<FOP>::value)
                      {
-                        qarg = input_qp_reg_as_arg_at<tuple_element_t<i, args_tuple_t>, MQ1>
+                        qarg = backend_t::template
+                               qp_load<tuple_element_t<i, args_tuple_t>, MQ1>
                                (get<i>(args_reg), qz, qy, qx);
                      }
                      else { static_assert(false, "Unsupported"); }
@@ -359,7 +360,8 @@ public:
                            ArgMetadata::template qf_param_extents<o>().size();
                         if constexpr (ext_sz == 1)
                         {
-                           output_qp_reg_assign_at<tuple_element_t<o, args_tuple_t>, MQ1>(
+                           backend_t::template
+                           qp_store<tuple_element_t<o, args_tuple_t>, MQ1>(
                               get<o>(args_reg), qz, qy, qx, qarg);
                         }
                         else if constexpr (ext_sz == 2)

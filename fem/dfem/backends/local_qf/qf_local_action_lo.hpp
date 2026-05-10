@@ -5,6 +5,8 @@
 #include "fem/kernels3d.hpp"
 namespace low = mfem::kernels::internal::low;
 
+#include "qf_local_types.hpp"
+
 namespace mfem::future
 {
 
@@ -34,6 +36,26 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    template<int Q>
    struct Exclusive { };
+
+   //////////////////////////////////////////////////////////////////
+   // Per-QP register layout
+   template<typename DecayT, int MQ1T>
+   using QPReg = lo_qp_reg_for_decay_t<DecayT, MQ1T>;
+
+   template<typename DecayT, int MQ1T>
+   static MFEM_HOST_DEVICE inline
+   auto qp_load(QPReg<DecayT, MQ1T> &reg, int qz, int qy, int qx)
+   {
+      return lo_input_qp_reg_as_arg_at<DecayT, MQ1T>(reg, qz, qy, qx);
+   }
+
+   template<typename DecayT, int MQ1T>
+   static MFEM_HOST_DEVICE inline
+   void qp_store(QPReg<DecayT, MQ1T> &reg, int qz, int qy, int qx,
+                 const DecayT &out)
+   {
+      output_qp_reg_assign_at<DecayT, MQ1T>(reg, qz, qy, qx, out);
+   }
 
    //////////////////////////////////////////////////////////////////
    template<int MQ1T, typename ArgRegT, typename XE_T>
