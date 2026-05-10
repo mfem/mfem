@@ -19,6 +19,7 @@ struct LocalQFLOBackend
    static auto LoadValue(const int e,
                          const int d,
                          const int q,
+                         [[maybe_unused]] const int q1d,
                          const real_t *B,
                          const XE_T &XE,
                          ArgRegT &arg_reg)
@@ -33,6 +34,7 @@ struct LocalQFLOBackend
    static auto LoadGradient(const int e,
                             const int d,
                             const int q,
+                            [[maybe_unused]] const int q1d,
                             const real_t *B,
                             const real_t *G,
                             const XE_T &XE,
@@ -64,6 +66,7 @@ struct LocalQFLOBackend
    static auto WriteValue(const int e,
                           const int d,
                           const int q,
+                          [[maybe_unused]] const int q1d,
                           const real_t *B,
                           const YE_T &YE,
                           ArgRegT &arg_reg)
@@ -78,6 +81,7 @@ struct LocalQFLOBackend
    static auto WriteGradient(const int e,
                              const int d,
                              const int q,
+                             [[maybe_unused]] const int q1d,
                              const real_t *B,
                              const real_t *G,
                              YE_T &YE,
@@ -94,9 +98,11 @@ struct LocalQFLOBackend
    }
 };
 
-constexpr int MQ1 = LocalQFLOBackend::MQ1;
-MFEM_SHARED real_t LocalQFLOBackend::sm[2][MQ1][MQ1][MQ1][3];
-MFEM_SHARED real_t LocalQFLOBackend::sB[MQ1][MQ1];
-MFEM_SHARED real_t LocalQFLOBackend::sG[MQ1][MQ1];
+MFEM_SHARED real_t
+LocalQFLOBackend::sm[2][LocalQFLOBackend::MQ1][LocalQFLOBackend::MQ1][LocalQFLOBackend::MQ1][3];
+MFEM_SHARED real_t
+LocalQFLOBackend::sB[LocalQFLOBackend::MQ1][LocalQFLOBackend::MQ1];
+MFEM_SHARED real_t
+LocalQFLOBackend::sG[LocalQFLOBackend::MQ1][LocalQFLOBackend::MQ1];
 
 } // namespace mfem::future

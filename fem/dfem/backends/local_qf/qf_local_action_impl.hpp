@@ -126,55 +126,55 @@ public:
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      ActionCallbackKernelsLO::Run(nqpt,
-                                   // arguments
-                                   ctx,
-                                   qfunc,
-                                   // inputs
-                                   input_idx,
-                                   input_B,
-                                   input_G,
-                                   input_vdim,
-                                   input_d1d,
-                                   input_q1d,
-                                   // outputs
-                                   output_idx,
-                                   output_B,
-                                   output_G,
-                                   output_vdim,
-                                   output_d1d,
-                                   output_q1d,
-                                   // others
-                                   thread_blocks,
-                                   xe, ye,
-                                   // fallback arguments
-                                   nqpt);
+      ActionCallbackKernels::Run(nqpt,
+                                 // arguments
+                                 ctx,
+                                 qfunc,
+                                 // inputs
+                                 input_idx,
+                                 input_B,
+                                 input_G,
+                                 input_vdim,
+                                 input_d1d,
+                                 input_q1d,
+                                 // outputs
+                                 output_idx,
+                                 output_B,
+                                 output_G,
+                                 output_vdim,
+                                 output_d1d,
+                                 output_q1d,
+                                 // others
+                                 thread_blocks,
+                                 xe, ye,
+                                 // fallback arguments
+                                 nqpt);
    }
 
 public:
    ////////////////////////////////////////////////////////
    template<int T_Q1D = 0>
-   static void action_callback_lo(const IntegratorContext &ctx,
-                                  const qfunc_t &qfunc,
-                                  // inputs: idx, B, G, vdim, d1d, q1d
-                                  const std::array<size_t, n_inputs> &in_idx,
-                                  const std::array<const real_t*, n_inputs> in_B,
-                                  const std::array<const real_t*, n_inputs> in_G,
-                                  const std::array<int, n_inputs> &in_vdim,
-                                  const std::array<int, n_inputs> &in_d1d,
-                                  const std::array<int, n_inputs> &in_q1d,
-                                  // outputs: idx, B, G, vdim, d1d, q1d
-                                  const std::array<size_t, n_outputs> &out_idx,
-                                  const std::array<const real_t*, n_outputs> out_B,
-                                  const std::array<const real_t*, n_outputs> out_G,
-                                  const std::array<int, n_outputs> &out_vdim,
-                                  const std::array<int, n_outputs> &out_d1d,
-                                  const std::array<int, n_outputs> &out_q1d,
-                                  const ThreadBlocks &thread_blocks,
-                                  const std::vector<Vector *> &xe,
-                                  std::vector<Vector *> &ye,
-                                  // fallback arguments
-                                  const int q1d)
+   static void action_callback(const IntegratorContext &ctx,
+                               const qfunc_t &qfunc,
+                               // inputs: idx, B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_inputs> &in_idx,
+                               const std::array<const real_t*, n_inputs> in_B,
+                               const std::array<const real_t*, n_inputs> in_G,
+                               const std::array<int, n_inputs> &in_vdim,
+                               const std::array<int, n_inputs> &in_d1d,
+                               const std::array<int, n_inputs> &in_q1d,
+                               // outputs: idx, B, G, vdim, d1d, q1d
+                               const std::array<size_t, n_outputs> &out_idx,
+                               const std::array<const real_t*, n_outputs> out_B,
+                               const std::array<const real_t*, n_outputs> out_G,
+                               const std::array<int, n_outputs> &out_vdim,
+                               const std::array<int, n_outputs> &out_d1d,
+                               const std::array<int, n_outputs> &out_q1d,
+                               const ThreadBlocks &thread_blocks,
+                               const std::vector<Vector *> &xe,
+                               std::vector<Vector *> &ye,
+                               // fallback arguments
+                               const int q1d)
    {
       NVTX_MARK_FUNCTION;
 
@@ -267,12 +267,12 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::LoadValue(e, d, q, B, XE, arg_reg);
+               backend_t::LoadValue(e, d, q, q1d, B, XE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               backend_t::template LoadGradient<DIM, ext_sz>(e, d, q, B, G, XE, arg_reg);
+               backend_t::template LoadGradient<DIM, ext_sz>(e, d, q, q1d, B, G, XE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -288,6 +288,7 @@ public:
          // -----------------------------------------------
          // Evaluate the quadrature function
          // -----------------------------------------------
+         // for (int qz = 0; qz < q1d; qz++)
          MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
@@ -382,20 +383,20 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template WriteValue<DIM>(e, d, q, B, YE, arg_reg);
+               backend_t::template WriteValue<DIM>(e, d, q, q1d, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               backend_t::template WriteGradient<DIM, ext_sz>(e, d, q, B, G, YE, arg_reg);
+               backend_t::template WriteGradient<DIM, ext_sz>(e, d, q, q1d, B, G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
          });
       }, ne, thread_blocks, 0, nullptr);
    }
-   using ActionKernelTypeLO = decltype(&Action::action_callback_lo<>);
-   MFEM_REGISTER_KERNELS(ActionCallbackKernelsLO, ActionKernelTypeLO, (int));
+   using ActionKernelType = decltype(&Action::action_callback<>);
+   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
 template<typename backend_t,
@@ -404,9 +405,9 @@ template<typename backend_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
-(/* instantiated with Q1D */) { return action_callback_lo<Q1D>; }
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
+(/* instantiated with Q1D */) { return action_callback<Q1D>; }
 
 template<typename backend_t,
          typename qfunc_t,
@@ -414,8 +415,8 @@ template<typename backend_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -424,7 +425,7 @@ Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCall
 #else
    MFEM_CONTRACT_VAR(q1d);
    db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback_lo;
+   return action_callback;
 #endif
 }
 
