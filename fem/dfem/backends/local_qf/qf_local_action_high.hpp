@@ -143,7 +143,6 @@ public:
       dbg("output_mat_map:{}", md::output_mat_map);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-      // if (!ctx.use_kernel_specializations) { return; }
 #ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernelsHO::template Specialization<3>::Add(); // 1
       ActionCallbackKernelsHO::template Specialization<4>::Add(); // 2

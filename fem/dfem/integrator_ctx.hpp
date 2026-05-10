@@ -22,7 +22,6 @@ struct IntegratorContext
    const IntegrationRule &ir;
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
-   const bool use_kernel_specializations = false;
 };
 
 }

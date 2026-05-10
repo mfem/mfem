@@ -147,7 +147,7 @@ struct build_args_reg_tuple_impl
 };
 
 template <typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
-using args_reg_tuple_t =
+using args_reg_t =
    typename build_args_reg_tuple_impl<qfunc_t, inputs_t, outputs_t, MQ1, 0,
    tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 

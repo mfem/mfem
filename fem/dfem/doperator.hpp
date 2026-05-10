@@ -543,8 +543,6 @@ public:
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const MultiVector &x);
 
-   void UseKernelSpecializations() { use_kernel_specializations = true; }
-
 private:
    const ParMesh &mesh;
 
@@ -590,7 +588,6 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
-   bool use_kernel_specializations = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -724,8 +721,7 @@ void DifferentiableOperator::AddIntegrator(
    {
       mesh, elem_attributes, attributes, num_entities,
       infds, outfds, unionfds, integration_rule,
-      in_qlayouts, out_qlayouts,
-      use_kernel_specializations
+      in_qlayouts, out_qlayouts
    };
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
