@@ -34,12 +34,12 @@ struct LocalQFKernelsBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      // if constexpr (is_high_order)
-      // {
-      //    return LocalQFKernelsImpl::Action<LocalQFHOBackend, qfunc_t, inputs_t, outputs_t>
-      //           (ctx, qfunc, inputs, outputs);
-      // }
-      // else
+      if constexpr (is_high_order)
+      {
+         return LocalQFKernelsImpl::Action<LocalQFHOBackend, qfunc_t, inputs_t, outputs_t>
+                (ctx, qfunc, inputs, outputs);
+      }
+      else
       {
          return LocalQFKernelsImpl::Action<LocalQFLOBackend, qfunc_t, inputs_t, outputs_t>
                 (ctx, qfunc, inputs, outputs);

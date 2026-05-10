@@ -102,7 +102,7 @@ public:
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
       nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks({nqpt, (dim >= 2) ? nqpt : 1, (dim >= 3) ? nqpt : 1})
+      thread_blocks(backend_t::template thread_blocks<DIM>(nqpt))
    {
       NVTX_MARK_FUNCTION;
       dbg("nfields:{} nqpt:{}", nfields, nqpt);
@@ -113,14 +113,14 @@ public:
       dbg("output_idx:{}", output_idx);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
-      // #ifdef MFEM_ADD_SPECIALIZATIONS
+#ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernels::template Specialization<3>::Add(); // 1
       ActionCallbackKernels::template Specialization<4>::Add(); // 2
       ActionCallbackKernels::template Specialization<5>::Add(); // 3
       ActionCallbackKernels::template Specialization<6>::Add(); // 4
       ActionCallbackKernels::template Specialization<7>::Add(); // 5
       ActionCallbackKernels::template Specialization<8>::Add(); // 6
-      // #endif
+#endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -243,7 +243,8 @@ public:
       using qf_param_ts = typename qf_signature::parameter_ts;
       using args_tuple_t = decay_tuple<qf_param_ts>;
 
-      dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
+      constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
+      dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -257,7 +258,8 @@ public:
          // -----------------------------------------------
          // Shared memory
          // -----------------------------------------------
-         MFEM_SHARED typename backend_t::Scratch smem;
+         MFEM_SHARED typename backend_t::template Shared<MQ1> smem;
+         typename backend_t::template Exclusive<MQ1> regs;
 
          // -----------------------------------------------
          // Load inputs
@@ -272,13 +274,14 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, arg_reg);
+               backend_t::template LoadValue<MQ1>(smem, regs, e, d, q, Q1D, B, XE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               backend_t::template LoadGradient<DIM, ext_sz>(smem, e, d, q, Q1D, B, G, XE,
-                                                             arg_reg);
+               backend_t::template LoadGradient<DIM, ext_sz, MQ1>(smem, regs,
+                                                                  e, d, q, Q1D, B, G,
+                                                                  XE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -294,8 +297,8 @@ public:
          // -----------------------------------------------
          // Evaluate the quadrature function
          // -----------------------------------------------
+         MFEM_FOREACH_THREAD(qz,z,q1d)
          // for (int qz = 0; qz < q1d; qz++)
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
             {
@@ -389,13 +392,16 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template WriteValue<DIM>(smem, e, d, q, q1d, B, YE, arg_reg);
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
+               backend_t::template WriteValue<DIM, ext_sz, MQ1>(smem, regs, e,
+                                                                d, q, q1d, B,
+                                                                YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
-               backend_t::template WriteGradient<DIM, ext_sz>(smem, e, d, q, q1d, B, G, YE,
-                                                              arg_reg);
+               backend_t::template WriteGradient<DIM, ext_sz, MQ1>(smem, regs, e, d, q, q1d, B,
+                                                                   G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
