@@ -10,7 +10,7 @@
 #include <type_traits>
 
 #ifdef NVTX_DBG_FMT
-#include NVTX_DBG_FMT
+#include NVTX_DBG_FMT // IWYU pragma: keep
 #endif // NVTX_DBG_FMT
 
 namespace mfem::future
@@ -28,6 +28,7 @@ constexpr int product_int_pack()
 
 } // namespace detail
 
+///////////////////////////////////////////////////////////////////////////////
 /// Static extents for one decayed q-function parameter type (`tensor<…>`, `real_t`, …).
 template <typename T>
 struct qf_param_tensor_extents
@@ -65,6 +66,7 @@ struct qf_param_tensor_extents<real_t>
    static constexpr std::array<int, 0> extents {};
 };
 
+///////////////////////////////////////////////////////////////////////////////
 /// Flat size implied by a FieldOperator at a quadrature point
 template <typename FOP>
 constexpr int fop_expected_flat_size_on_qp(int mesh_dim, int vdim)
@@ -96,6 +98,7 @@ constexpr int fop_expected_flat_size_on_qp(int mesh_dim, int vdim)
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
 /// Logical tensor **rank** and **leading extents** at a quadrature point *after* the
 /// field operator is applied, for a fixed `AssumeVDIM` (default 1). Flat size matches
 /// `fop_expected_flat_size_on_qp(FOP, mesh_dim, AssumeVDIM)` (same as `GetSizeOnQP`
@@ -162,6 +165,7 @@ struct qp_static_shape_after_fop
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////
 /// Per-parameter tensor info for slot `I` in the decayed q-function parameter tuple.
 template <typename qfunc_t, std::size_t I>
 struct qf_param_slot
@@ -180,6 +184,7 @@ public:
    static constexpr auto extents = extents_trait::extents;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 /// Bundles q-function signature params with `inputs_t` / `outputs_t` (FieldOperator
 /// tuple types). Mirrors `LocalQFImpl::Action` template parameters.
 template <
@@ -302,7 +307,337 @@ struct LocalQFArgMetadata
          dbg("[Q{}] raw: {}", i, get_type_name<raw_i>());
       });
    }
+};
 
+// Count & Make Map ///////////////////////////////////////////////////////////
+#ifdef DFEM_USE_OWN_TUPLE
+template<typename Tuple, template<typename> class Trait>
+static constexpr size_t count_if()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   size_t count = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = typename tuple_element<i.value, Tuple>::type;
+      if constexpr (Trait<T>::value) { ++count; }
+   });
+   return count;
+}
+
+template<typename Tuple, template<typename> class Trait>
+static constexpr auto make_map()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   std::array<int, N> map{};
+   int next = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = typename tuple_element<i.value, Tuple>::type;
+      map[i.value] = Trait<T>::value ? next++ : -1;
+   });
+   return map;
+}
+#else
+template<typename Tuple, template<typename> class Trait>
+static constexpr size_t count_if()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   size_t count = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = tuple_element<i.value, Tuple>;
+      if constexpr (Trait<T>::value) { ++count; }
+   });
+   return count;
+}
+
+template<typename Tuple, template<typename> class Trait>
+static constexpr auto make_map()
+{
+   constexpr size_t N = tuple_size<Tuple>::value;
+   std::array<int, N> map{};
+   int next = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      using T = tuple_element<i.value, Tuple>;
+      map[i.value] = Trait<T>::value ? next++ : -1;
+   });
+   return map;
+}
+#endif
+
+/// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
+template<typename C, typename T>
+const auto create_union_field_map_for_dtq(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
+}
+
+/// **`xe[i]`** slot per input FOP — indices into **`ctx.infds`** (`SIZE_MAX` for Weight).
+template<typename C, typename T>
+const auto create_input_vector_map(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.infds, io);
+}
+
+/// **`ye[i]`** slot per output FOP — indices into **`ctx.outfds`**.
+template<typename C, typename T>
+const auto create_output_vector_map(C& ctx, T& io)
+{
+   using FE = Entity::Element;
+   return create_descriptors_to_fields_map<FE>(ctx.outfds, io);
+}
+
+template<typename C>
+const auto make_dtqs(C& ctx)
+{
+   std::vector<const DofToQuad*> dtq_vec;
+   dtq_vec.reserve(ctx.unionfds.size());
+   constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
+   for (const auto &field: ctx.unionfds)
+   {
+      auto dtq = GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode);
+      dtq_vec.emplace_back(dtq);
+   }
+   return dtq_vec;
+}
+
+template<typename Tuple>
+constexpr auto get_vdim(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.vdim...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_B(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.B...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_G(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.G...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_D1D(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.B.GetShape()[2]...};
+   }, fields);
+}
+
+template<typename Tuple>
+constexpr auto get_Q1D(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<int, sizeof...(f)> {f.B.GetShape()[0]...};
+   }, fields);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t n_inputs = tuple_size<inputs_t>::value,
+   std::size_t n_outputs = tuple_size<outputs_t>::value>
+struct ActionMetaData_t
+{
+   // Identity Count & Map
+   static constexpr auto n_id_inputs = count_if<inputs_t, is_identity_fop>();
+   static constexpr auto n_id_outputs = count_if<outputs_t, is_identity_fop>();
+   static constexpr auto n_id = std::max(n_id_inputs, n_id_outputs);
+   static constexpr auto input_id_map = make_map<inputs_t, is_identity_fop>();
+   static constexpr auto output_id_map = make_map<outputs_t, is_identity_fop>();
+
+   // Weight Count & Map
+   static constexpr auto n_wt_inputs = count_if<inputs_t, is_weight_fop>();
+   static constexpr auto n_wt_outputs = count_if<outputs_t, is_weight_fop>();
+   static constexpr auto n_wt = std::max(n_wt_inputs, n_wt_outputs);
+   static constexpr auto input_wt_map = make_map<inputs_t, is_weight_fop>();
+   static constexpr auto output_wt_map = make_map<outputs_t, is_weight_fop>();
+
+   // Value Count & Map
+   static constexpr auto n_val_inputs = count_if<inputs_t, is_value_fop>();
+   static constexpr auto n_val_outputs = count_if<outputs_t, is_value_fop>();
+   static constexpr auto n_val = std::max(n_val_inputs, n_val_outputs);
+   static constexpr auto input_val_map = make_map<inputs_t, is_value_fop>();
+   static constexpr auto output_val_map = make_map<outputs_t, is_value_fop>();
+
+   // Gradient Count & Map //////////////////////////////////////////
+   static constexpr auto n_del_inputs = count_if<inputs_t, is_gradient_fop>();
+   static constexpr auto n_del_outputs = count_if<outputs_t, is_gradient_fop>();
+   static constexpr auto n_del = std::max(n_del_inputs, n_del_outputs);
+   static constexpr auto input_del_map = make_map<inputs_t, is_gradient_fop>();
+   static constexpr auto output_del_map = make_map<outputs_t, is_gradient_fop>();
+
+   using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
+   /// Q-args that are **`tensor<…, DIM, DIM>`** at QP (Jacobian-type), from signature.
+#ifdef DFEM_USE_OWN_TUPLE
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = typename tuple_element<i, inputs_t>::type;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = typename tuple_element<o, outputs_t>::type;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#else
+
+   static constexpr std::size_t count_gradient_rank2_slots_inputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<i>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_inputs()
+   {
+      std::array<int, n_inputs> map{};
+      int next = 0;
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr auto i = ic.value;
+         using FOP = std::tuple_element_t<i, inputs_t>;
+         map[i] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<i>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr std::size_t count_gradient_rank2_slots_outputs()
+   {
+      std::size_t count = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         if constexpr (is_gradient_fop<FOP>::value)
+         {
+            if constexpr (ArgMetadata::template qf_param_extents<qi>().size() == 2)
+            {
+               ++count;
+            }
+         }
+      });
+      return count;
+   }
+
+   static constexpr auto make_mat_map_outputs()
+   {
+      std::array<int, n_outputs> map{};
+      int next = 0;
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr auto o = ic.value;
+         using FOP = std::tuple_element_t<o, outputs_t>;
+         constexpr std::size_t qi = n_inputs + o;
+         map[o] = (is_gradient_fop<FOP>::value &&
+                   ArgMetadata::template qf_param_extents<qi>().size() == 2)
+                  ? next++ : -1;
+      });
+      return map;
+   }
+
+   static constexpr auto n_mat_inputs = count_gradient_rank2_slots_inputs();
+   static constexpr auto n_mat_outputs = count_gradient_rank2_slots_outputs();
+   static constexpr auto n_mat = std::max(n_mat_inputs, n_mat_outputs);
+   static constexpr auto input_mat_map = make_mat_map_inputs();
+   static constexpr auto output_mat_map = make_mat_map_outputs();
+#endif
 };
 
 } // namespace mfem::future

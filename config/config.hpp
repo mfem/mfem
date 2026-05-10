@@ -158,7 +158,7 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif // MFEM_USE_MPI not defined
 
 #ifdef NVTX_DBG_HPP
-#include NVTX_DBG_HPP
+#include NVTX_DBG_HPP // IWYU pragma: keep
 #else
 #define db1(...)
 #define dbg(...)

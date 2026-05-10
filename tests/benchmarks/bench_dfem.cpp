@@ -13,7 +13,9 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#ifndef MFEM_DEBUG
 #define MFEM_ADD_SPECIALIZATIONS
+#endif // MFEM_DEBUG
 
 #include <memory>
 
