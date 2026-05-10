@@ -632,6 +632,86 @@ static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
 {
    for (int k = blockIdx.x; k < n; k += gridDim.x) { f(k, nullptr); }
 }
+
+/// @brief Per-block dynamic shared-memory limits in bytes for the active GPU.
+struct DynamicShmemLimits
+{
+   int default_max; ///< Hard limit without opting in (on CUDA, typically 48 KB).
+   int optin_max;   ///< Maximum that can be obtained via cudaFuncSetAttribute
+                    ///< (on HIP, equals @ref default_max).
+};
+
+/// @brief Returns the device's dynamic shared-memory limits, queried once and
+/// cached. On CUDA, default_max comes from cudaDevAttrMaxSharedMemoryPerBlock
+/// and optin_max from cudaDevAttrMaxSharedMemoryPerBlockOptin. On HIP the
+/// distinction does not apply and both fields are set to
+/// hipDeviceAttributeMaxSharedMemoryPerBlock.
+inline const DynamicShmemLimits &dfem_dynamic_shmem_limits()
+{
+   static DynamicShmemLimits cached = { -1, -1 };
+   if (cached.optin_max < 0)
+   {
+      int dev = 0;
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetDevice(&dev));
+      MFEM_GPU_CHECK(cudaDeviceGetAttribute(
+                        &cached.default_max,
+                        cudaDevAttrMaxSharedMemoryPerBlock, dev));
+      MFEM_GPU_CHECK(cudaDeviceGetAttribute(
+                        &cached.optin_max,
+                        cudaDevAttrMaxSharedMemoryPerBlockOptin, dev));
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetDevice(&dev));
+      MFEM_GPU_CHECK(hipDeviceGetAttribute(
+                        &cached.default_max,
+                        hipDeviceAttributeMaxSharedMemoryPerBlock, dev));
+      cached.optin_max = cached.default_max;
+#endif
+   }
+   return cached;
+}
+
+/// @brief Per-block dynamic shared-memory budget in bytes for the active GPU
+/// (the opt-in maximum on CUDA, the regular per-block limit on HIP).
+inline int dfem_max_dynamic_shmem_per_block()
+{
+   return dfem_dynamic_shmem_limits().optin_max;
+}
+
+/// @brief Verify that @a num_bytes of dynamic shared memory can be requested
+/// for @a kernel and, on CUDA, opt the kernel in to that size when it
+/// exceeds the default per-block limit (typically 48 KB). The attribute is
+/// set to @a num_bytes (not the device max) to preserve occupancy. Without
+/// this opt-in, the runtime refuses any launch with @a num_bytes greater
+/// than the default limit; with it, requests up to the device's opt-in
+/// maximum succeed. Requests beyond that maximum trigger a clear
+/// MFEM_VERIFY abort rather than a cryptic launch failure later in
+/// cudaGetLastError / MFEM_DEVICE_SYNC.
+template <typename kernel_t>
+inline void dfem_prepare_dynamic_shmem(kernel_t *kernel, int num_bytes)
+{
+   const DynamicShmemLimits &lim = dfem_dynamic_shmem_limits();
+   MFEM_VERIFY(num_bytes <= lim.optin_max,
+               "Dynamic shared-memory request of " << num_bytes
+               << " bytes exceeds the device's per-block limit of "
+               << lim.optin_max << " bytes. Reduce the kernel's shmem "
+               "footprint (e.g. coarser tiling, smaller order, or split "
+               "the work).");
+#if defined(MFEM_USE_CUDA)
+   // Only opt in when the launch is actually about to exceed the default
+   // (non-opt-in) per-block limit; below that, no attribute change is
+   // needed and we keep the runtime's default occupancy heuristics.
+   if (num_bytes > lim.default_max)
+   {
+      MFEM_GPU_CHECK(cudaFuncSetAttribute(
+                        reinterpret_cast<const void*>(kernel),
+                        cudaFuncAttributeMaxDynamicSharedMemorySize,
+                        num_bytes));
+   }
+#else
+   (void)kernel;
+#endif
+}
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
@@ -650,6 +730,7 @@ void forall(func_t f,
       dim3 block_size(blocks.x, blocks.y, blocks.z);
       if (num_bytes > 0)
       {
+         dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
          forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
       }
       else
@@ -710,7 +791,8 @@ void forall(func_t f,
          }
          else
          {
-            forall_kernel_extern_shmem<<<N, block_size, num_bytes>>>(f, N);
+            dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
+            forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
          }
       }
 #if defined(MFEM_USE_CUDA)

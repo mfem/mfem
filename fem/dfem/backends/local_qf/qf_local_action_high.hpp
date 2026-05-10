@@ -20,7 +20,6 @@
 
 #include "fem/kernels.hpp"
 namespace ker = mfem::kernels::internal;
-#define MFEM_ADD_SPECIALIZATIONS
 
 // #undef NVTX_COLOR
 // #define NVTX_COLOR ::nvtx::kCyan
@@ -145,14 +144,14 @@ public:
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
       // if (!ctx.use_kernel_specializations) { return; }
-      // #ifdef MFEM_ADD_SPECIALIZATIONS
+#ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernelsHO::template Specialization<3>::Add(); // 1
       ActionCallbackKernelsHO::template Specialization<4>::Add(); // 2
       ActionCallbackKernelsHO::template Specialization<5>::Add(); // 3
       ActionCallbackKernelsHO::template Specialization<6>::Add(); // 4
       ActionCallbackKernelsHO::template Specialization<7>::Add(); // 5
       ActionCallbackKernelsHO::template Specialization<8>::Add(); // 6
-      // #endif
+#endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -286,13 +285,12 @@ public:
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      constexpr auto n_val = md::n_val, n_del = md::n_del, n_mat = md::n_mat;
-
       dfem::forall<T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+         constexpr auto n_val = md::n_val, n_del = md::n_del, n_mat = md::n_mat;
 
          MFEM_SHARED real_t sM[MQ1][MQ1];
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -452,8 +450,8 @@ public:
                   for_constexpr<n_outputs>([&](auto ic)
                   {
                      constexpr int i = ic.value;
-                     // output arguments are after the input arguments
                      const auto out = get<n_inputs + i>(args);
+                     const auto &YE = out_YE[i];
 
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
@@ -499,7 +497,7 @@ public:
                            {
                               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                               {
-                                 as_tensor<real_t, DIM, DIM>(&out_YE[i](0,qz,qy,qx,e)) = out;
+                                 as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = out;
                               }
                            }
                         }

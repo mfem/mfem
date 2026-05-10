@@ -179,7 +179,7 @@ Device *device_ptr = nullptr;
 struct MFStiffnessIntegrator : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes;
-   Vector J0, NE;
+   Vector NE;
    int ne, p, d1d, q, q1d, d1n;
    Geometry::Type geom_type;
    const IntegrationRule *ir;
@@ -223,17 +223,10 @@ public:
       const Operator *nRop = nfes->GetElementRestriction(LEX);
       auto nR = dynamic_cast<const ElementRestriction*>(nRop);
       NE.SetSize(nR->Height());
-      const int NQPT = ir->GetNPoints();
-      J0.SetSize(3 * 3 * NQPT * ne, Device::GetDeviceMemoryType());
+
       d1n = nfes->GetFE(0)->GetOrder() + 1;
-      dbg("NE.Size:{}", NE.Size());
-      dbg("ne:{} d1n:{} d1n*d1n*d1n*3:{}", ne, d1n, d1n*d1n*d1n*3);
       nR->Mult(*nodes, (NE.UseDevice(true), NE));
       MFEM_VERIFY(NE.Size() == ne * d1n * d1n * d1n * 3, "Invalid NE size");
-
-      const QuadratureInterpolator *nqi = nfes->GetQuadratureInterpolator(*ir);
-      nqi->SetOutputLayout(QVectorLayout::byVDIM);
-      nqi->Derivatives(NE, J0);
       const auto nfe = nfes->GetTypicalFE();
       const auto &nmaps = nfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
       Bn = nmaps.B.Read(), Gn = nmaps.G.Read();
@@ -245,8 +238,7 @@ public:
                                const IntegrationRule *ir,
                                const real_t *b, const real_t *g,
                                const real_t *bn, const real_t *gn,
-                               const real_t *xe, const real_t *j0,
-                               real_t *ye,
+                               const real_t *xe, real_t *ye,
                                const int d1d, const int q1d, const int d1n)
    {
       db1();
@@ -261,7 +253,6 @@ public:
 
       const auto XE = Reshape(xe, D1D, D1D, D1D, 1, ne);
       const auto NE = Reshape(nodes_e, D1N, D1N, D1N, 3, ne);
-      const auto J = Reshape(j0, 3, 3, q1d, q1d, q1d, ne);
       auto YE = Reshape(ye, D1D, D1D, D1D, 1, ne);
 
       mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D,
@@ -292,50 +283,26 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
-                  const real_t w = W(qx, qy, qz);
-
-                  real_t Jv[3], Ju[3] =
+                  real_t Ju[3] =
                   {
                      r1[0][0][qz][qy][qx],
                      r1[0][1][qz][qy][qx],
                      r1[0][2][qz][qy][qx]
                   };
-
                   const real_t Jn[9] =
                   {
                      g1(0, 0, qz, qy, qx), g1(1, 0, qz, qy, qx), g1(2, 0, qz, qy, qx),
                      g1(0, 1, qz, qy, qx), g1(1, 1, qz, qy, qx), g1(2, 1, qz, qy, qx),
                      g1(0, 2, qz, qy, qx), g1(1, 2, qz, qy, qx), g1(2, 2, qz, qy, qx)
                   };
-                  const real_t detJn = kernels::Det<3>(Jn);
-                  const real_t *J0 = &J(0, 0, qx, qy, qz, e);
-                  const real_t detJ0 = kernels::Det<3>(J0);
-                  assert(AlmostEqual(detJn, detJ0));
 
-                  real_t Jv2[3];
-                  {
-                     const real_t wd = w * detJ0;
-                     const real_t D[9] = { wd, 0.0, 0.0,
-                                           0.0, wd, 0.0,
-                                           0.0, 0.0, wd
-                                         };
-                     real_t Jrt[9], A[9], Q[9];
-                     kernels::CalcInverse<3>(J0, Jrt);
-                     kernels::MultABt(3, 3, 3, D, Jrt, A);
-                     kernels::Mult(3, 3, 3, A, Jrt, Q);
-                     kernels::Mult(3, 3, Q, Ju, Jv2);
-                  }
-
-                  real_t invJn[9];
+                  real_t Jv[3], invJn[9];
                   kernels::CalcInverse<3>(Jn, invJn);
                   kernels::Mult(3, 3, invJn, Ju, Jv);
                   kernels::MultTranspose(3, 3, invJn, Jv, Ju);
 
-                  for (int i = 0; i < 3; i++)
-                  {
-                     assert(AlmostEqual(Jv2[i], w * detJn * Ju[i]));
-                  }
-
+                  const real_t w = W(qx, qy, qz);
+                  const real_t detJn = kernels::Det<3>(Jn);
                   r0[0][0][qz][qy][qx] = w * detJn * Ju[0];
                   r0[0][1][qz][qy][qx] = w * detJn * Ju[1];
                   r0[0][2][qz][qy][qx] = w * detJn * Ju[2];
@@ -357,7 +324,7 @@ public:
       MFStiffnessKernels::Run(d1d, q1d, d1n,
                               ne, NE.Read(),
                               ir, B, G, Bn, Gn,
-                              xe.Read(), J0.Read(), ye.ReadWrite(),
+                              xe.Read(), ye.ReadWrite(),
                               d1d, q1d, d1n);
    }
 };

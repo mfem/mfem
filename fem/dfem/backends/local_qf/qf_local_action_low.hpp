@@ -21,7 +21,6 @@
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
-#define MFEM_ADD_SPECIALIZATIONS
 
 namespace mfem::future
 {
@@ -147,14 +146,14 @@ public:
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
       // if (!ctx.use_kernel_specializations) { return; }
-      // #ifdef MFEM_ADD_SPECIALIZATIONS
+#ifdef MFEM_ADD_SPECIALIZATIONS
       ActionCallbackKernelsLO::template Specialization<3>::Add(); // 1
       ActionCallbackKernelsLO::template Specialization<4>::Add(); // 2
       ActionCallbackKernelsLO::template Specialization<5>::Add(); // 3
       ActionCallbackKernelsLO::template Specialization<6>::Add(); // 4
       ActionCallbackKernelsLO::template Specialization<7>::Add(); // 5
       ActionCallbackKernelsLO::template Specialization<8>::Add(); // 6
-      // #endif
+#endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -287,13 +286,12 @@ public:
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      constexpr auto n_val = md::n_val, n_del = md::n_del, n_mat = md::n_mat;
-
       dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+         constexpr auto n_val = md::n_val, n_del = md::n_del, n_mat = md::n_mat;
 
          MFEM_SHARED real_t sm[2][MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -445,6 +443,7 @@ public:
                   {
                      constexpr int i = ic.value;
                      const auto out = get<n_inputs + i>(args);
+                     const auto &YE = out_YE[i];
 
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_value_fop<FOP>::value)
@@ -486,7 +485,7 @@ public:
                            {
                               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                               {
-                                 as_tensor<real_t, DIM, DIM>(&out_YE[i](0,qz,qy,qx,e)) = out;
+                                 as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = out;
                               }
                            }
                         }

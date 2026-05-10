@@ -245,6 +245,28 @@ struct tensor<T, n0, n1, n2, n3, n4>
    tensor<T, n1, n2, n3, n4> values[n0];
 };
 
+template <typename T, int n1, int n2, int n3, int n4>
+struct tensor<T, 0, n1, n2, n3, n4>
+{
+   using type = T;
+   static constexpr int ndim      = 5;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int, int j, int k) const { return values[j][k]; }
+   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int, int j, int k, int l) { return values[j][k][l]; }
+   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int, int j, int k,
+                                                      int l) const { return values[j][k][l]; }
+   MFEM_HOST_DEVICE T& operator()(int, int j, int k, int l, int m) { return values[j][k][l][m]; }
+   MFEM_HOST_DEVICE const T& operator()(int, int j, int k, int l, int m) const { return values[j][k][l][m]; }
+   tensor<T, n1, n2, n3, n4> values;
+};
+
 /**
  * @brief A sentinel struct for eliding no-op tensor operations
  */

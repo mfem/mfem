@@ -22,16 +22,23 @@ namespace mfem::kernels::internal::low
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 template <int DIM, int N>
-// struct regs3d_device_wrapper: mfem::future::tensor<real_t, DIM, 0, 0, 0> {};
-struct regs3d_device_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
+struct regs3d_device_wrapper:
+   mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
 template <int DIM, int N>
 using regs3d_t = regs3d_device_wrapper<DIM, N>;
+
+template <int VDIM, int DIM, int N>
+struct regs3d_vd_device_wrapper:
+   mfem::future::tensor<real_t, 0, 0, 0, VDIM, DIM> {};
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t = regs3d_vd_device_wrapper<VDIM, DIM, N>;
 #else
+
 template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
+
 template <int DIM, int VDIM, int N>
 using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
-// using regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////

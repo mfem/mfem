@@ -9,7 +9,9 @@
 #include <cstddef>
 #include <type_traits>
 
+#ifdef NVTX_DBG_FMT
 #include NVTX_DBG_FMT
+#endif // NVTX_DBG_FMT
 
 namespace mfem::future
 {
