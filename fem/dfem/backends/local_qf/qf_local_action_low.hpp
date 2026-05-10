@@ -18,15 +18,12 @@
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 
-#include "fem/kernels3d.hpp"
 #include "qf_local_register_types.hpp"
-namespace ker = mfem::kernels::internal;
+
+#include "fem/kernels3d.hpp"
 namespace low = mfem::kernels::internal::low;
 
-namespace mfem::future
-{
-
-namespace LocalQFLowOrderKernelsImpl
+namespace mfem::future::LocalQFLowOrderKernelsImpl
 {
 
 template<
@@ -38,9 +35,6 @@ template<
 class Action
 {
    static constexpr int DIM = 3;
-
-   static_assert(!is_std_tuple_v<inputs_t>,
-                 "inputs_t should be mfem::future::tuple (not std::tuple)");
 
    static constexpr auto inout_tuple =
    merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
@@ -200,8 +194,8 @@ public:
       {
          constexpr size_t i = ic.value;
          const size_t k = in_idx[i];
-         using FOP = tuple_element_t<i, inputs_t>;
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
+         using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
             MFEM_ASSERT(xe[k]->Size() == d*d*d*v*ne, "Size mismatch");
@@ -284,10 +278,9 @@ public:
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr auto ext_sz =
-                  ArgMetadata::template qf_param_extents<i>().size();
                low::LoadMatrix(d, q, B, sB);
                low::LoadMatrix(d, q, G, sG);
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
                if constexpr (ext_sz == 1)
                {
                   low::LoadDofs3d(e, d, XE, sm[0]);
@@ -313,7 +306,7 @@ public:
             }
             else
             {
-               static_assert(false, "Unsupported FieldOperator");
+               static_assert(false, "Unsupported");
             }
          });
 
@@ -329,7 +322,7 @@ public:
                   args_tuple_t qargs;
 
                   // --------------------------------------
-                  // Cast arguments from arg_reg to args
+                  // Casting arguments from arg_reg to qargs
                   // --------------------------------------
                   for_constexpr<n_inputs>([&](auto ic)
                   {
@@ -370,7 +363,7 @@ public:
                      using FOP = tuple_element_t<i, outputs_t>;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
-                        as_tensor<real_t, DIM, DIM>(&YE(0, qz, qy, qx, e)) = qarg;
+                        as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = qarg;
                      }
                      else if constexpr (is_value_fop<FOP>::value)
                      {
@@ -394,10 +387,7 @@ public:
                            static_assert(false, "Unsupported gradient rank");
                         }
                      }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
+                     else { static_assert(false, "Unsupported"); }
                   });
                }
             }
@@ -414,7 +404,6 @@ public:
             const auto B = out_B[i], G = out_G[i];
             const auto &YE = out_YE[i];
             auto &arg_reg = get<o>(args_reg);
-
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
@@ -432,19 +421,10 @@ public:
                   low::GradTranspose3d(d, q, sB, sG, arg_reg, sm[1], sm[0]);
                   low::WriteDofs3d(d, 0, e, arg_reg, YE);
                }
-               else
-               {
-                  static_assert(false, "Unsupported gradient rank");
-               }
+               else { static_assert(false, "Unsupported gradient rank"); }
             }
-            else if constexpr (is_identity_fop<FOP>::value)
-            {
-               // nothing to do
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
+            else { static_assert(false, "Unsupported"); }
          });
       }, ne, thread_blocks, 0, nullptr);
    }
@@ -452,15 +432,13 @@ public:
    MFEM_REGISTER_KERNELS(ActionCallbackKernelsLO, ActionKernelTypeLO, (int));
 };
 
-} // namespace LocalQFDevicesPolyImpl
-
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Kernel
 (/* instantiated with Q1D */) { return action_callback_lo<Q1D>; }
 
 template<typename qfunc_t,
@@ -468,8 +446,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
-LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeLO
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsLO::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -482,4 +460,5 @@ LocalQFLowOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_out
 #endif
 }
 
-} // namespace mfem::future
+} // namespace mfem::future::LocalQFLowOrderKernelsImpl
+

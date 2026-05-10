@@ -18,42 +18,26 @@
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 
+#include "qf_local_register_types.hpp"
+
 #include "fem/kernels.hpp"
 namespace ker = mfem::kernels::internal;
 
-// #undef NVTX_COLOR
-// #define NVTX_COLOR ::nvtx::kCyan
-namespace mfem::future
-{
-
-namespace LocalQHighOrderKernelsImpl
+namespace mfem::future::LocalQHighOrderKernelsImpl
 {
 
 template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-#ifndef DFEM_USE_OWN_TUPLE
-   std::size_t n_inputs = std::tuple_size_v<inputs_t>,
-   std::size_t n_outputs = std::tuple_size_v<outputs_t>>
-#else
-
    std::size_t n_inputs = tuple_size<inputs_t>::value,
    std::size_t n_outputs = tuple_size<outputs_t>::value>
-#endif
 class Action
 {
    static constexpr int DIM = 3;
 
-   static_assert(!is_std_tuple_v<inputs_t>,
-                 "inputs_t should be mfem::future::tuple (not std::tuple)");
-
    static constexpr auto inout_tuple =
-#ifdef DFEM_USE_OWN_TUPLE
    merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
-#else
-   std::tuple_cat<inputs_t {}, outputs_t {}>;
-#endif
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
@@ -129,18 +113,8 @@ public:
       dbg("input_d1d:{}", input_d1d);
       dbg("input_q1d:{}", input_q1d);
       dbg("input_vdim:{}", input_vdim);
-      dbg("n_id:{} n_wt:{} n_val:{} n_del:{} n_mat:{}",
-          md::n_id, md::n_wt, md::n_val, md::n_del, md::n_mat);
-      dbg("input_id_map:{}", md::input_id_map);
-      dbg("input_wt_map:{}", md::input_wt_map);
-      dbg("input_val_map:{}", md::input_val_map);
-      dbg("input_del_map:{}", md::input_del_map);
-      dbg("input_mat_map:{}", md::input_mat_map);
-      dbg("output_id_map:{}", md::output_id_map);
-      dbg("output_wt_map:{}", md::output_wt_map);
-      dbg("output_val_map:{}", md::output_val_map);
-      dbg("output_del_map:{}", md::output_del_map);
-      dbg("output_mat_map:{}", md::output_mat_map);
+      dbg("input_idx:{}", input_idx);
+      dbg("output_idx:{}", output_idx);
       ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -208,70 +182,60 @@ public:
                                   const int q1d)
    {
       NVTX_MARK_FUNCTION;
-      if (ctx.attr.Size() == 0) { return; }
-
-      using qf_signature = typename get_function_signature<qfunc_t>::type;
-      using qf_param_ts = typename qf_signature::parameter_ts;
-      using args_tuple_t = decay_tuple<qf_param_ts>;
-
-      for (auto v : ye) { *v = 0.0; }
 
       MFEM_ASSERT(Action::DIM == ctx.mesh.Dimension(), "Dimension mismatch");
+
+      if (ctx.attr.Size() == 0) { return; }
 
       const int ne = ctx.nentities;
 
       // -----------------------------------------------
       // INPUTS: XE
       // -----------------------------------------------
-      std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE {};
+      std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE;
       for_constexpr<n_inputs>([&](auto ic)
       {
-         constexpr int i = ic.value;
+         constexpr size_t i = ic.value;
+         const size_t k = in_idx[i];
+         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         const size_t idx = in_idx[i];
-         const int di = in_d1d[i], qi = in_q1d[i], vdim = in_vdim[i];
          if constexpr (is_gradient_fop<FOP>::value || is_value_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == di*di*di*vdim*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), di, di, di, vdim, ne);
+            MFEM_ASSERT(xe[k]->Size() == d*d*d*v*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[k]->Read(), d, d, d, v, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            MFEM_ASSERT(xe[idx]->Size() == vdim*qi*qi*qi*ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[idx]->Read(), vdim, qi, qi, qi, ne);
+            MFEM_ASSERT(xe[k]->Size() == v*q*q*q*ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[k]->Read(), v, q, q, q, ne);
          }
          else if constexpr (is_weight_fop<FOP>::value)
          {
-            MFEM_CONTRACT_VAR(idx);
-            MFEM_VERIFY(ctx.ir.GetNPoints() == q1d*q1d*q1d, "tensor-product IR expected");
+            MFEM_ASSERT(ctx.ir.GetNPoints() == q1d*q1d*q1d, "tensor-product IR expected");
             in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, q1d, 1, 1);
          }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
+         else { static_assert(false, "Unsupported"); }
       });
 
       // -----------------------------------------------
-      // OUTPUTS: YE
+      // OUTPUTS: YE, DIM + 1(VDIM) + 1(number of elements)
       // -----------------------------------------------
-      std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE {};
+      std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE;
       for_constexpr<n_outputs>([&](auto ic)
       {
-         constexpr int i = ic.value;
-         // using FOP = tuple_element<i, outputs_t>;
-         using FOP = typename tuple_element<i, outputs_t>::type;
-         const size_t idx = out_idx[i];
-         const int d1d = out_d1d[i], q1d = out_q1d[i], vdim = out_vdim[i];
+         constexpr size_t i = ic.value;
+         const size_t k = out_idx[i];
+         const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
+         using FOP = tuple_element_t<i, outputs_t>;
          if constexpr (is_gradient_fop<FOP>::value)
          {
-            MFEM_VERIFY(ye[idx]->Size() == d1d*d1d*d1d*vdim*ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[idx]->ReadWrite(), d1d, d1d, d1d, vdim, ne);
+            MFEM_VERIFY(ye[k]->Size() == d*d*d*v*ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, d, v, ne);
          }
          else if constexpr (is_identity_fop<FOP>::value)
          {
-            MFEM_VERIFY(ye[idx]->Size() == vdim*q1d*q1d*q1d*ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[idx]->ReadWrite(), vdim, q1d, q1d, q1d, ne);
+            MFEM_VERIFY(ye[k]->Size() == v*q*q*q*ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, q, ne);
          }
          else
          {
@@ -279,10 +243,13 @@ public:
          }
       });
 
-      NVTX_INI("forall");
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
+
+      using qf_signature = typename get_function_signature<qfunc_t>::type;
+      using qf_param_ts = typename qf_signature::parameter_ts;
+      using args_tuple_t = decay_tuple<qf_param_ts>;
 
       dfem::forall<T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
@@ -295,70 +262,85 @@ public:
          MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
          // -----------------------------------------------
-         // Inputs and outputs registers
+         // Inputs and outputs argument registers
          // -----------------------------------------------
-         [[maybe_unused]] reg_array_t<n_val, 1, ker::v_regs3d_t<1, MQ1>> val_reg;
-         [[maybe_unused]] reg_array_t<n_del, 1, ker::vd_regs3d_t<1, 3, MQ1>> del_reg;
-         [[maybe_unused]] reg_array_t<n_mat, 1, ker::vd_regs3d_t<3, 3, MQ1>> mat_reg;
+         [[maybe_unused]] ker::v_regs3d_t<1, MQ1> val_reg[2];
+         [[maybe_unused]] ker::vd_regs3d_t<1, DIM, MQ1> del_reg[2];
+         [[maybe_unused]] ker::vd_regs3d_t<3, DIM, MQ1> mat_reg[2];
+         args_reg_t<qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
 
          // -----------------------------------------------
          // Load inputs
          // -----------------------------------------------
          for_constexpr<n_inputs>([&](auto ic)
          {
-            constexpr int i = ic.value;
-            const int d1d = in_d1d[i], q1d = in_q1d[i];
-            const real_t *B = in_B[i], *G = in_G[i];
+            constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
-
+            const int d = in_d1d[i], q = in_q1d[i];
+            const real_t *B = in_B[i], *G = in_G[i];
+            auto &arg_reg = get<i>(args_reg);
             using FOP = tuple_element_t<i, inputs_t>;
-            static_assert(n_val > 0 || n_del > 0 ||
-                          is_weight_fop<FOP>::value ||
-                          is_identity_fop<FOP>::value, "No fields or identity fields");
 
             if constexpr (is_value_fop<FOP>::value)
             {
-               if constexpr (n_val > 0)
-               {
-                  static_assert(false);
-               }
+               static_assert(false);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               ker::LoadMatrix(d1d, q1d, B, sB);
-               ker::LoadMatrix(d1d, q1d, G, sG);
+               ker::LoadMatrix(d, q, B, sB);
+               ker::LoadMatrix(d, q, G, sG);
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
                if constexpr (ext_sz == 1)
                {
-                  if constexpr (n_del > 0)
+                  ker::LoadDofs3d(e, d, XE, del_reg[0]);
+                  ker::Grad3d(d, q, sM, sB, sG, del_reg[0], del_reg[1]);
+                  for (int qz = 0; qz < q1d; qz++)
                   {
-                     constexpr int idx = 1 + md::input_del_map[i];
-                     ker::LoadDofs3d(e, d1d, XE, del_reg[0]);
-                     ker::Grad3d(d1d, q1d, sM, sB, sG, del_reg[0], del_reg[idx]);
+                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+                     {
+                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+                        {
+                           arg_reg[0][qz][qy][qx] = del_reg[1][0][0][qz][qy][qx];
+                           arg_reg[1][qz][qy][qx] = del_reg[1][0][1][qz][qy][qx];
+                           arg_reg[2][qz][qy][qx] = del_reg[1][0][2][qz][qy][qx];
+                        }
+                     }
                   }
+                  MFEM_SYNC_THREAD;
                }
                else if constexpr (ext_sz == 2)
                {
-                  // Jacobian-type tensor<DIM,DIM> at QP: load & grad into mat_reg
-                  if constexpr (n_mat > 0)
+                  ker::LoadDofs3d(e, d, XE, mat_reg[0]);
+                  ker::Grad3d(d, q, sM, sB, sG, mat_reg[0], mat_reg[1]);
+                  for (int qz = 0; qz < q1d; qz++)
                   {
-                     constexpr int idx = 1 + md::input_mat_map[i];
-                     ker::LoadDofs3d(e, d1d, XE, mat_reg[0]);
-                     ker::Grad3d(d1d, q1d, sM, sB, sG, mat_reg[0], mat_reg[idx]);
+                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+                     {
+                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+                        {
+                           arg_reg[0][0][qz][qy][qx] = mat_reg[1][0][0][qz][qy][qx];
+                           arg_reg[0][1][qz][qy][qx] = mat_reg[1][0][1][qz][qy][qx];
+                           arg_reg[0][2][qz][qy][qx] = mat_reg[1][0][2][qz][qy][qx];
+                           arg_reg[1][0][qz][qy][qx] = mat_reg[1][1][0][qz][qy][qx];
+                           arg_reg[1][1][qz][qy][qx] = mat_reg[1][1][1][qz][qy][qx];
+                           arg_reg[1][2][qz][qy][qx] = mat_reg[1][1][2][qz][qy][qx];
+                           arg_reg[2][0][qz][qy][qx] = mat_reg[1][2][0][qz][qy][qx];
+                           arg_reg[2][1][qz][qy][qx] = mat_reg[1][2][1][qz][qy][qx];
+                           arg_reg[2][2][qz][qy][qx] = mat_reg[1][2][2][qz][qy][qx];
+                        }
+                     }
                   }
+                  MFEM_SYNC_THREAD;
                }
                else
                {
-                  static_assert(ext_sz <= 2, "Unsupported gradient tensor rank");
+                  static_assert(false, "Unsupported gradient rank");
                }
             }
-            else if constexpr (is_identity_fop<FOP>::value)
+            else if constexpr (is_identity_fop<FOP>::value ||
+                               is_weight_fop<FOP>::value)
             {
-               // nothing to do, will be streamed in
-            }
-            else if constexpr (is_weight_fop<FOP>::value)
-            {
-               // nothing to do, will be streamed in
+               // qp values are read directly from in_XE / IR
             }
             else
             {
@@ -375,126 +357,73 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
-                  // --------------------------------------
-                  // Arguments parsing for input fields
-                  // --------------------------------------
-                  args_tuple_t args;
+                  args_tuple_t qargs;
 
+                  // --------------------------------------
+                  // Casting arguments from arg_reg to qargs
+                  // --------------------------------------
                   for_constexpr<n_inputs>([&](auto ic)
                   {
-                     constexpr int i = ic.value;
+                     constexpr size_t i = ic.value;
+                     auto &qarg = get<i>(qargs);
+                     const auto &XE = in_XE[i];
                      using FOP = tuple_element_t<i, inputs_t>;
-                     if constexpr (is_value_fop<FOP>::value)
+                     if constexpr (is_identity_fop<FOP>::value)
                      {
-                        static_assert(false);
-                     }
-                     else if constexpr (is_gradient_fop<FOP>::value)
-                     {
-                        constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-                        if constexpr (ext_sz == 1)
-                        {
-                           if constexpr (n_del > 0)
-                           {
-                              constexpr int idx = 1 + md::input_del_map[i];
-                              const ker::vd_regs3d_t<1, DIM, MQ1> &r = del_reg[idx];
-                              const real_t J[DIM] =
-                              {
-                                 r(0, 0, qz, qy, qx),
-                                 r(0, 1, qz, qy, qx),
-                                 r(0, 2, qz, qy, qx)
-                              };
-                              get<i>(args) = as_tensor<real_t, DIM>(&J[0]);
-                           }
-                        }
-                        else if constexpr (ext_sz == 2)
-                        {
-                           if constexpr (n_mat > 0)
-                           {
-                              constexpr int idx = 1 + md::input_mat_map[i];
-                              const ker::vd_regs3d_t<DIM, DIM, MQ1> &r = mat_reg[idx];
-                              // `tensor<DIM,DIM>` is row-major: J[i][j] = ∂x_i/∂ξ_j = r(i,j,...).
-                              const real_t J[DIM*DIM] =
-                              {
-                                 r(0, 0, qz, qy, qx), r(0, 1, qz, qy, qx), r(0, 2, qz, qy, qx),
-                                 r(1, 0, qz, qy, qx), r(1, 1, qz, qy, qx), r(1, 2, qz, qy, qx),
-                                 r(2, 0, qz, qy, qx), r(2, 1, qz, qy, qx), r(2, 2, qz, qy, qx)
-                              };
-                              get<i>(args) = as_tensor<real_t, DIM, DIM>(J);
-                           }
-                        }
-                        else { MFEM_ABORT_KERNEL("unsupported gradient extents"); }
-                     }
-                     else if constexpr (is_identity_fop<FOP>::value)
-                     {
-                        get<i>(args) = as_tensor<real_t, 3, 3>(&in_XE[i](0, qx, qy, qz, e));
+                        qarg = as_tensor<real_t, DIM, DIM>(&XE(0, qx, qy, qz, e));
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
-                        get<i>(args) = in_XE[i](qx, qy, qz, 0, 0);
+                        qarg = XE(qx, qy, qz, 0, 0);
                      }
-                     else
+                     else if constexpr (is_value_fop<FOP>::value ||
+                                        is_gradient_fop<FOP>::value)
                      {
-                        static_assert(false, "Unsupported");
+                        qarg = input_qp_reg_as_arg_at<tuple_element_t<i, args_tuple_t>, MQ1>
+                               (get<i>(args_reg), qz, qy, qx);
                      }
+                     else { static_assert(false, "Unsupported"); }
                   });
 
                   // --------------------------------------
                   // Apply the quadrature function
                   // --------------------------------------
-                  call_qfunc_no_move(qfunc, args);
+                  call_qfunc_no_move(qfunc, qargs);
 
                   // --------------------------------------
                   // Arguments parsing for output fields
                   // --------------------------------------
                   for_constexpr<n_outputs>([&](auto ic)
                   {
-                     constexpr int i = ic.value;
-                     const auto out = get<n_inputs + i>(args);
+                     constexpr size_t i = ic.value, o = n_inputs + i;
+                     const auto qarg = get<o>(qargs);
                      const auto &YE = out_YE[i];
-
                      using FOP = tuple_element_t<i, outputs_t>;
-                     if constexpr (is_value_fop<FOP>::value)
+                     if constexpr (is_identity_fop<FOP>::value)
+                     {
+                        as_tensor<real_t, DIM, DIM>(&YE(0, qz, qy, qx, e)) = qarg;
+                     }
+                     else if constexpr (is_value_fop<FOP>::value)
                      {
                         static_assert(false);
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        constexpr std::size_t qi = n_inputs + static_cast<std::size_t>(i);
-                        constexpr auto ext_sz = ArgMetadata::template qf_param_extents<qi>().size();
+                        constexpr auto ext_sz =
+                           ArgMetadata::template qf_param_extents<o>().size();
                         if constexpr (ext_sz == 1)
                         {
-                           if constexpr (n_del > 0)
-                           {
-                              db1("output del_reg");
-                              constexpr int idx = 1 + md::output_del_map[i];
-                              del_reg[idx][0][0][qz][qy][qx] = out[0];
-                              del_reg[idx][0][1][qz][qy][qx] = out[1];
-                              del_reg[idx][0][2][qz][qy][qx] = out[2];
-                           }
+                           output_qp_reg_assign_at<tuple_element_t<o, args_tuple_t>, MQ1>(
+                              get<o>(args_reg), qz, qy, qx, qarg);
                         }
                         else if constexpr (ext_sz == 2)
                         {
-                           static_assert(false);
-                           // if constexpr (n_mat > 0)
-                           // {
-                           //    constexpr int idx = 1 + output_mat_map[i];
-                           //    for (int r = 0; r < DIM; ++r)
-                           //    {
-                           //       for (int c = 0; c < DIM; ++c)
-                           //       {
-                           //          mat_reg[idx][r][c][qz][qy][qx] = out(r, c);
-                           //       }
-                           //    }
-                           // }
+                           static_assert(false, "rank-2 gradient output not implemented");
                         }
-                     }
-                     else if constexpr (is_identity_fop<FOP>::value)
-                     {
-                        as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = out;
-                     }
-                     else if constexpr (is_weight_fop<FOP>::value)
-                     {
-                        static_assert(false, "Unsupported");
+                        else
+                        {
+                           static_assert(false, "Unsupported gradient rank");
+                        }
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -508,75 +437,57 @@ public:
          // -----------------------------------------------
          for_constexpr<n_outputs>([&](auto ic)
          {
-            constexpr int i = ic.value;
-            const int d1d = out_d1d[i], q1d = out_q1d[i];
+            constexpr size_t i = ic.value, o = n_inputs + i;
+            const int d = out_d1d[i], q = out_q1d[i];
             const auto B = out_B[i], G = out_G[i];
             const auto &YE = out_YE[i];
-
+            auto &arg_reg = get<o>(args_reg);
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               if constexpr (n_val > 0)
-               {
-                  static_assert(false);
-               }
+               static_assert(false);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               ker::LoadMatrix(d1d, q1d, B, sB);
-               ker::LoadMatrix(d1d, q1d, G, sG);
-               constexpr std::size_t qi = n_inputs + static_cast<std::size_t>(i);
-               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<qi>().size();
+               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
                if constexpr (ext_sz == 1)
                {
-                  if constexpr (n_del > 0)
+                  ker::LoadMatrix(d, q, B, sB);
+                  ker::LoadMatrix(d, q, G, sG);
+                  for (int qz = 0; qz < q1d; qz++)
                   {
-                     db1("GradTranspose3d del_reg");
-                     constexpr int idx = 1 + md::output_del_map[i];
-                     ker::GradTranspose3d(d1d, q1d, sM, sB, sG, del_reg[idx], del_reg[0]);
-                     ker::WriteDofs3d(e, d1d, del_reg[0], YE);
+                     MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+                     {
+                        MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+                        {
+                           del_reg[0][0][0][qz][qy][qx] = arg_reg[0][qz][qy][qx];
+                           del_reg[0][0][1][qz][qy][qx] = arg_reg[1][qz][qy][qx];
+                           del_reg[0][0][2][qz][qy][qx] = arg_reg[2][qz][qy][qx];
+                        }
+                     }
                   }
+                  MFEM_SYNC_THREAD;
+                  ker::GradTranspose3d(d, q, sM, sB, sG, del_reg[0], del_reg[1]);
+                  ker::WriteDofs3d(e, d, del_reg[1], YE);
                }
-               else if constexpr (ext_sz == 2)
-               {
-                  static_assert(false);
-                  // if constexpr (n_mat > 0)
-                  // {
-                  //    constexpr int idx = 1 + output_mat_map[i];
-                  //    ker::GradTranspose3d(d1d, q1d, sM, sB, sG, mat_reg[idx], mat_reg[0]);
-                  //    ker::WriteDofs3d(e, d1d, mat_reg[0], YE);
-                  // }
-               }
+               else { static_assert(false, "Unsupported gradient rank"); }
             }
-            else if constexpr (is_identity_fop<FOP>::value)
-            {
-               // nothing to do
-            }
-            else if constexpr (is_weight_fop<FOP>::value)
-            {
-               static_assert(false);
-            }
-            else
-            {
-               static_assert(false);
-            }
+            else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
+            else { static_assert(false, "Unsupported"); }
          });
       }, ne, thread_blocks, 0, nullptr);
-      NVTX_END("forall");
    }
    using ActionKernelTypeHO = decltype(&Action::action_callback_ho<>);
    MFEM_REGISTER_KERNELS(ActionCallbackKernelsHO, ActionKernelTypeHO, (int));
 };
-
-} // namespace LocalQFDevicesPolyImpl
 
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> template<int Q1D> typename
-LocalQHighOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
-LocalQHighOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Kernel
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Kernel
 (/* instantiated with Q1D */) { return action_callback_ho<Q1D>; }
 
 template<typename qfunc_t,
@@ -584,8 +495,8 @@ template<typename qfunc_t,
          typename outputs_t,
          std::size_t n_inputs,
          std::size_t n_outputs> typename
-LocalQHighOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
-LocalQHighOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Fallback
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelTypeHO
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernelsHO::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -598,4 +509,4 @@ LocalQHighOrderKernelsImpl::Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_out
 #endif
 }
 
-} // namespace mfem::future
+} // namespace mfem::future::LocalQHighOrderKernelsImpl
