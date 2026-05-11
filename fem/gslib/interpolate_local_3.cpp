@@ -52,8 +52,6 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
                                      double *const int_out,
                                      const int npt,
                                      const int ncomp,
-                                     const int nel,
-                                     const int gf_offset,
                                      double *gll1D,
                                      double *lagcoeff,
                                      const int pN = 0)
@@ -84,9 +82,9 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
 
       for (int fld = 0; fld < Nfields; ++fld)
       {
-         // If using GetNodalValues, ordering is NDOFSxNELxVDIM
-         // const int elemOffset = el[i] * p_Np + fld * gf_offset;
-         //if using R->Mult for L -> E-Vec use below.
+         // If using GetNodalValues, ordering is NDOFS x NEL x VDIM and the
+         // offset would be `el[i] * p_Np + fld * gf_offset`.
+         // R->Mult produces element vectors in NDOFS x VDIM x NEL layout.
          const int elemOffset = el[i] * p_Np * Nfields + fld * p_Np;
          MFEM_FOREACH_THREAD(j,x,D1D)
          {
@@ -125,10 +123,9 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
                                         Vector &gsl_ref_l,
                                         Vector &field_out,
                                         int npt, int ncomp,
-                                        int nel, int dof1Dsol)
+                                        int dof1Dsol)
 {
    if (npt == 0) { return; }
-   const int gf_offset = field_in.Size()/ncomp;
    bool use_dev = field_in.UseDevice();
    auto pfin = field_in.Read(use_dev);
    auto pgsle = gsl_elem_dev_l.ReadWrite(use_dev);
@@ -139,19 +136,19 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
    switch (dof1Dsol)
    {
       case 2: return InterpolateLocal3DKernel<2>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 3: return InterpolateLocal3DKernel<3>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 4: return InterpolateLocal3DKernel<4>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       case 5: return InterpolateLocal3DKernel<5>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp, nel, gf_offset,
+                                                    npt, ncomp,
                                                     pgll, plcf);
       default: return InterpolateLocal3DKernel(pfin, pgsle, pgslr, pfout,
-                                                  npt, ncomp, nel, gf_offset,
+                                                  npt, ncomp,
                                                   pgll, plcf, dof1Dsol);
    }
 }
@@ -167,7 +164,7 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
                                         Vector &gsl_ref_l,
                                         Vector &field_out,
                                         int npt, int ncomp,
-                                        int nel, int dof1Dsol) {};
+                                        int dof1Dsol) {};
 #endif
 } // namespace mfem
 

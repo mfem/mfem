@@ -12,6 +12,9 @@
 #ifndef MFEM_GSLIB
 #define MFEM_GSLIB
 
+#include <map>
+#include <vector>
+
 #include "../config/config.hpp"
 #ifdef MFEM_USE_MPI
 #include "pgridfunc.hpp"
@@ -20,6 +23,45 @@
 #endif
 
 #ifdef MFEM_USE_GSLIB
+
+/* gslib license and copyright statement for code adapted from gslib:
+
+Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
+
+The UChicago Argonne, LLC as Operator of Argonne National
+Laboratory holds copyright in the Software. The copyright holder
+reserves all rights except those expressly granted to licensees,
+and U.S. Government license rights.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+notice, this list of conditions and the disclaimer below.
+
+2. Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the disclaimer (as noted below)
+in the documentation and/or other materials provided with the
+distribution.
+
+3. Neither the name of ANL nor the names of its contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+UCHICAGO ARGONNE, LLC, THE U.S. DEPARTMENT OF
+ENERGY OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 namespace gslib
 {
@@ -129,7 +171,10 @@ protected:
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
       mutable Array<unsigned int> lh_offset, gh_offset;
       mutable Vector lh_min, lh_fac, gh_min, gh_fac;
-      double tol;
+      // Tolerance to mark points found on the surface as CODE_INTERNAL
+      // or CODE_BORDER. This is needed because we cannot only use reference
+      // space coordinates to determine if a point is located inside the
+      // element or not.
       mutable double surf_dist_tol;
    } DEV;
 
@@ -223,7 +268,7 @@ protected:
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
-                          int nel, int dof1dsol);
+                          int dof1dsol);
 
    /// Interpolate on device for 2D.
    void InterpolateLocal2(const Vector &field_in,
@@ -231,14 +276,14 @@ protected:
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
-                          int nel, int dof1dsol);
+                          int dof1dsol);
 
    /// Interpolate on device for 1D.
    void InterpolateLocal1(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
                           Vector &field_out,
-                          int npt, int ncomp, int nel, int dof1dsol);
+                          int npt, int ncomp, int dof1dsol);
 
    /// Prepare data for device execution for volume meshes.
    void SetupDevice();
@@ -281,7 +326,7 @@ protected:
                             const double bbox_tol,
                             const uint local_hash_size,
                             const uint global_hash_size,
-                            const Vector *bb_size);
+                            const Vector *aabb_pad);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
    void findptssurf_setup_3(DEV_STRUCT &devs,
@@ -293,14 +338,14 @@ protected:
                             const uint local_hash_size,
                             const uint global_hash_size,
                             const int rD,
-                            const Vector *bb_size);
+                            const Vector *aabb_pad);
 
    /// Shared implementation for SetupSurf overloads.
-   /// If @a bb_size is not null, it is used to post-pad the axis-aligned
+   /// If @a aabb_pad is not null, it is used to post-pad the axis-aligned
    /// bounding boxes after they are constructed with @a bbox_tol.
    void SetupSurf_Base(Mesh &m,
                        const double bbox_tol,
-                       const Vector *bb_size,
+                       const Vector *aabb_pad,
                        const double newt_tol);
 public:
    /// Serial constructor
@@ -353,19 +398,19 @@ public:
    /// Preprocess the surface mesh to compute data for FindPoints. The
    /// axis-aligned bounding boxes are padded in each physical direction by the
    /// specified absolute amount.
-   /// If bb_size.Size() == 1, the specified padding is used for X/Y/Z
+   /// If aabb_pad.Size() == 1, the specified padding is used for X/Y/Z
    ///                         direction in all elements.
-   /// If bb_size.Size() == NElements, the specified padding is used for each
+   /// If aabb_pad.Size() == NElements, the specified padding is used for each
    ///                         element in all directions.
-   /// If bb_size.Size() == SpaceDim, the padding in each direction is used for
+   /// If aabb_pad.Size() == SpaceDim, the padding in each direction is used for
    ///                         all elements.
-   /// If bb_size.Size() == NElements*SpaceDim, the padding in each direction is
+   /// If aabb_pad.Size() == NElements*SpaceDim, the padding in each direction is
    ///                       used for each element. The ordering is
    ///                       (dx1,dy1,dz1, ... dxN,dyN,dzN) where N is the
    ///                       number of elements.
    /// Note that this disables the oriented bounding box check as this
    /// overload is only used to modify the axis-aligned bounding boxes.
-   void SetupSurf(Mesh &m, const Vector &bb_size,
+   void SetupSurf(Mesh &m, const Vector &aabb_pad,
                   const double bb_t = 0.0,
                   const double newt_tol = 1.0e-12);
 
@@ -481,7 +526,7 @@ public:
     *
     *  @details When using FindPoints, gslib may return points as found on the
     *  boundary even when they are slightly outside the domain. This tolerance
-    *  is used to filter such points based on the distance value and mark them
+    *  is used to filter such points based on the distance^2 value and mark them
     *  as not found.*/
    virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
    {
@@ -563,7 +608,7 @@ public:
 
    /// Return the axis-aligned bounding boxes (AABB) computed during \ref Setup.
    /// The size of the returned vector is (nel x nverts x dim), where nel is the
-   /// number of elements (after splitting for simplcies), nverts is number of
+   /// number of elements (after splitting for simplicies), nverts is number of
    /// vertices (4 in 2D, 8 in 3D), and dim is the spatial dimension.
    void GetAxisAlignedBoundingBoxes(Vector &aabb) const;
 
@@ -578,8 +623,14 @@ public:
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                  Vector &obbV) const;
 
-   /// Return the bounding boxes as a mesh on rank 0.
-   /// Type: 0 - AABB, 1 - OBB
+   /** @brief Return the bounding boxes as a mesh on rank 0.
+    *
+    *  @param[in] type  Bounding-box type: 0 - AABB, 1 - OBB.
+    *
+    *  @return On rank 0, returns a newly allocated mesh containing the
+    *  bounding boxes. The caller owns the returned pointer and is responsible
+    *  for deleting it. On other ranks, returns nullptr.
+    */
    Mesh *GetBoundingBoxMesh(int type);
 
    virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
@@ -730,7 +781,7 @@ class GlobalBBoxTensorGridMap
 private:
    struct gslib::crystal *cr = nullptr;               // gslib's internal data
    struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
-   int dim, n_local_cells, num_procs;
+   int sdim, n_local_cells, num_procs;
    Array<int> gmap_n;
    Vector gmap_bnd_min, gmap_bnd_max;
    Vector gmap_fac;
@@ -741,23 +792,54 @@ public:
    /// Constructor for a given mesh and number of tensor grid divisions
    GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx);
 
-   /** @brief Constructor for given element bounds, spatial dimension, and
-    *  number of tensor grid divisions. */
+   /** @brief Constructor for given element bounds and spatial dimension.
+    *
+    *  @details This constructor must be called collectively on \a comm.
+    *  Supports spatial dimensions 1, 2, and 3, and accepts nel == 0 on a rank.
+    *
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    *
+    *  When by_max_size=false, n gives the number of tensor-grid divisions in
+    *  each direction. When by_max_size=true, n is a per-rank size hint used to
+    *  derive a uniform global resolution. The communicator-wide sum of n is
+    *  converted to nx = ceil(pow(sum(n), 1./sdim)) in each direction, so n is
+    *  not a hard cap on ggrid_map.Size().
+    */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
-                           Vector &elmax, int sdim, int n, int nel,
+                           Vector &elmax, int nel, int sdim, int n,
                            bool by_max_size);
 
-   /** @brief Constructor for given element bounds and number of tensor grid
-    *  divisions in each spatial direction. */
+   /** @brief Constructor for given element bounds, spatial dimension, and
+    *  tensor-grid divisions in each direction.
+    *
+    *  @details This constructor must be called collectively on \a comm.
+    *  Supports spatial dimensions 1, 2, and 3, and accepts nel == 0 on a rank.
+    *  Requires nx.Size() == sdim and positive entries in nx.
+    *
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    */
    GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
-                           Vector &elmax, Array<int> &nx, int nel);
+                           Vector &elmax, int nel, int sdim, Array<int> &nx);
 
    ~GlobalBBoxTensorGridMap();
 
    /** @brief Get list of procs corresponding to the list of points.
     *
-    *  @details This mesh should be called by all ranks at the same time as
-    *  it involves mpi communication to return the proc indices.
+    *  @details This method must be called collectively on the communicator
+    *  used to construct the map. The input points can be ordered byNodes:
+    *  (XXX...,YYY...,ZZZ) or byVDIM: (XYZ,XYZ,...), as specified by
+    *  \a ordering.
+    *
+    *  The output map contains one entry for each input point, keyed by the
+    *  point's local index in \a xyz. Points with no candidate ranks, including
+    *  points outside the global bounding box, have an empty list of candidate
+    *  ranks.
     */
    void MapPointsToProcs(Vector &xyz, int ordering,
                          std::map<int, std::vector<int>> &pt_to_procs) const;
@@ -772,7 +854,7 @@ public:
 private:
    /// Setup the map given element bounds and number of tensor grid divisions.
    void Setup(const MPI_Comm &comm, Vector &elmin, Vector &elmax,
-              Array<int> &nx, int nel);
+              int nel, Array<int> &nx);
 
    /// Get global hash cell index for a given point.
    int GetGlobalGridCellFromPoint(Vector &xyz) const;

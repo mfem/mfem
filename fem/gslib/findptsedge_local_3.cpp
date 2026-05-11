@@ -11,7 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -27,8 +26,6 @@
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
-
-#include <climits>
 
 namespace mfem
 {
@@ -131,7 +128,7 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
       {
          dxyz[d] = x[d] - b->c0[d];
       }
-      // tranform dxyz to the local coordinate system of the OBB,
+      // transform dxyz to the local coordinate system of the OBB,
       // and check if the point is inside the OBB [-1,1]^sDIM
       double test = 1;
       for (int d=0; d<sDIM; ++d)
@@ -319,7 +316,8 @@ newton_edge_fin:
    }
    out->r = nr;
    out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags<<3);
+   out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<3);
+#undef EVAL
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
@@ -367,7 +365,6 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                                          const double *lagcoeff,
                                          const int pN = 0)
 {
-#define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NEL = nel*D1D;
@@ -711,22 +708,22 @@ void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,
    {
       case 2:
          return FindPointsEdgeLocal3D_Kernel<2>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal3D_Kernel<3>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal3D_Kernel<4>(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal3D_Kernel(
-                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   npt, DEV.newt_tol, dist2tol, pp, point_pos_ordering, pgslm,
                    NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }

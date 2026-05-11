@@ -706,7 +706,7 @@ newton_vol_fin:
       int f = flags >> (2*dd) & 3u;
       res->r[dd] = f == 0 ? r0[dd]+dr[dd] : (f == 1 ? -1 : 1);
    }
-   res->flags = flags | (p->flags << 7);
+   res->flags = flags | ((p->flags & FLAG_MASK) << 7);
 }
 
 // Full Newton solve on the face. One of r/s/t is constrained.
@@ -889,7 +889,7 @@ newton_face_fin:
    res->r[dn] = p->r[dn];
    res->r[d1] = r[0];
    res->r[d2] = r[1];
-   res->flags = new_flags | (p->flags << 7);
+   res->flags = new_flags | ((p->flags & FLAG_MASK) << 7);
 }
 
 // Full Newton solve on the edge. Two of r/s/t are constrained.
@@ -973,7 +973,8 @@ newton_edge_fin:
    res->r[dn1] = p->r[dn1];
    res->r[dn2] = p->r[dn2];
    res->dist2p = -v;
-   res->flags = flags | new_flags | (p->flags << 7);
+   res->flags = flags | new_flags | ((p->flags & FLAG_MASK) << 7);
+#undef EVAL
 }
 
 // Find closest mesh node to the sought point.
@@ -1778,6 +1779,7 @@ static void FindPointsLocal3DKernel(const int npt,
          } //findpts_local
       } //elp
    });
+#undef MAXC
 }
 
 void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,

@@ -49,7 +49,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
-//    Surface mesh runs:
+// Surface meshes:
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
@@ -103,7 +103,6 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    int randomization     = 0;
    int npt               = 100; //points per proc
-   int visport           = 19916;
    bool surface          = false;
    double surf_aabb_size = 0.0;
 
@@ -146,7 +145,6 @@ int main (int argc, char *argv[])
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
                   "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
@@ -172,14 +170,10 @@ int main (int argc, char *argv[])
    Mesh *mesh = surface ? nullptr : input_mesh;
    if (surface)
    {
-      int nattr = input_mesh->bdr_attributes.Max();
-      Array<int> subdomain_attributes(nattr);
-      for (int i = 0; i < nattr; i++)
-      {
-         subdomain_attributes[i] = i+1;
-      }
+      MFEM_VERIFY(input_mesh->bdr_attributes.Size() > 0,
+                  "--surface requires a mesh with boundary attributes.");
       mesh = new Mesh(SubMesh::CreateFromBoundary(*input_mesh,
-                                                  subdomain_attributes));
+                                                  input_mesh->bdr_attributes));
    }
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
@@ -299,13 +293,13 @@ int main (int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sout;
-      sout.open(vishost, visport);
+      sout.open(vishost, 19916);
       if (!sout)
       {
          if (myid == 0)
          {
             cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
+                 << vishost << ':' << 19916 << endl;
          }
       }
       else
@@ -361,7 +355,6 @@ int main (int argc, char *argv[])
       {
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
-
          const Geometry::Type geom = mesh->GetElementGeometry(i);
          for (int j=0; j<npt; j++)
          {
