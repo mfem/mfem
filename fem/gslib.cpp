@@ -2496,6 +2496,9 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
       gsl_dist_l.HostRead();
       gsl_code_l.HostRead();
       gsl_elem_l.HostRead();
+      auto h_split_element_map = split_element_map.HostRead();
+      auto h_split_element_index = split_element_index.HostRead();
+      auto h_split_element_geom = split_element_geom.HostRead();
 
       // unpack arrays into opt
       for (int point=0; point<n; ++point)
@@ -2513,9 +2516,9 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          }
          {
             const int loc_id = AsConst(gsl_elem_l)[point];
-            opt[point].mfem_el = split_element_map[loc_id];
-            opt[point].loc_id  = split_element_index[loc_id];
-            opt[point].geom    = split_element_geom[loc_id];
+            opt[point].mfem_el = h_split_element_map[loc_id];
+            opt[point].loc_id  = h_split_element_index[loc_id];
+            opt[point].geom    = h_split_element_geom[loc_id];
          }
          // Note: we check if the point is on element border and mark it as
          // such. We do not mark points as CODE_INTERNAL because the found
