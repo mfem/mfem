@@ -10,14 +10,16 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
+
 #include "../fem/dfem/doperator.hpp"
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../linalg/test_same_matrices.hpp"
 
-#define DFEM_USE_KERNELS_QFUNCTIONS
-#ifdef DFEM_USE_KERNELS_QFUNCTIONS
 #include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-#endif
+using LocalQFLOKernelsBackend = mfem::future::LocalQFKernelsBackend<false>;
+using LocalQFHOKernelsBackend = mfem::future::LocalQFKernelsBackend<true>;
 
 #ifdef MFEM_USE_MPI
 
@@ -71,7 +73,7 @@ template <int DIM> struct Diffusion
    };
 };
 
-template <int DIM>
+template <int DIM, typename QFBackend>
 void diffusion(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -124,21 +126,11 @@ void diffusion(const char *filename, int p)
    {
       DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
+      dop_mf.AddDomainIntegrator<QFBackend>(
          mf_apply_qf,
          tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
          tuple{Gradient<U>{}},
          *ir, all_domain_attr);
-#ifdef DFEM_USE_KERNELS_QFUNCTIONS
-      if constexpr (DIM == 3)
-      {
-         dop_mf.AddDomainIntegrator<LocalQFKernelsBackend>(
-            mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
-            *ir, all_domain_attr);
-      }
-#endif
 
       Vector nodestv;
       nodes->GetTrueDofs(nodestv);
@@ -393,7 +385,7 @@ void diffusion(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
+TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -408,8 +400,14 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
             "../../data/inline-quad.mesh",
             "../../data/periodic-square.mesh"
          );
-      diffusion<2>(filename2d, p);
+      diffusion<2, LocalQFBackend>(filename2d, p);
    }
+}
+
+TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][LO]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
 
    SECTION("3d")
    {
@@ -421,7 +419,9 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
             "../../data/toroid-hex.mesh",
             "../../data/periodic-cube.mesh"
          );
-      diffusion<3>(filename3d, p);
+      diffusion<3, LocalQFBackend>(filename3d, p);
+      diffusion<3, LocalQFLOKernelsBackend>(filename3d, p);
+      diffusion<3, LocalQFHOKernelsBackend>(filename3d, p);
    }
 }
 

@@ -12,6 +12,8 @@ namespace mfem::future
 template<bool is_high_order = false>
 struct LocalQFKernelsBackend
 {
+   static constexpr bool has_cached_derivative = false;
+
    /**
     * @brief Make an action for a local device backend.
     *
