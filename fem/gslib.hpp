@@ -326,7 +326,7 @@ protected:
                             const double bbox_tol,
                             const uint local_hash_size,
                             const uint global_hash_size,
-                            const Vector *aabb_pad);
+                            const Vector *aabb_sz_inc);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
    void findptssurf_setup_3(DEV_STRUCT &devs,
@@ -338,7 +338,7 @@ protected:
                             const uint local_hash_size,
                             const uint global_hash_size,
                             const int rD,
-                            const Vector *aabb_pad);
+                            const Vector *aabb_sz_inc);
 
    /** @brief Shared implementation for the public \ref SetupSurf overloads.
     *
@@ -346,23 +346,24 @@ protected:
     *  split-element representation expected by gslib, and constructs the
     *  element bounding boxes used by the MFEM surface kernels.
     *
-    *  If @a aabb_pad is null, the setup stores the default oriented bounding
+    *  If @a aabb_sz_inc is null, the setup stores the default oriented bounding
     *  boxes and uses @a bbox_tol as their relative expansion factor.
     *
-    *  If @a aabb_pad is non-null, the setup stores axis-aligned bounding boxes
-    *  only, post-pads them by the requested absolute amount in each physical
-    *  direction, and adjusts the tolerance @a bdr_tol so points found in the
-    *  padded region are classified as border points.
+    *  If @a aabb_sz_inc is non-null, the setup stores axis-aligned bounding
+    *  boxes only, post-pads them by the requested absolute amount in each
+    *  physical direction, and adjusts the tolerance @a bdr_tol so points
+    *  found in the padded region are classified as border points.
     *
     *  @param[in] m         Input surface mesh.
     *  @param[in] bbox_tol  Relative bounding-box expansion used during setup.
-    *  @param[in] aabb_pad  Optional absolute padding applied to the stored
-    *                       axis-aligned bounding boxes after construction.
+    *  @param[in] aabb_sz_inc  Optional absolute padding applied to the
+    *                          stored axis-aligned bounding boxes after
+    *                          construction.
     *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
     */
    void SetupSurf_Base(Mesh &m,
                        const double bbox_tol,
-                       const Vector *aabb_pad,
+                       const Vector *aabb_sz_inc,
                        const double newt_tol);
 public:
    /// Serial constructor
@@ -420,7 +421,7 @@ public:
     *  physical direction. The padding is applied after the usual relative
     *  expansion controlled by @a bb_t.
     *
-    *  The size of @a aabb_pad determines how the padding values are
+    *  The size of @a aabb_sz_inc determines how the padding values are
     *  interpreted:
     *  - `1`: one padding value used in every direction for every element
     *  - `NElements`: one padding value per element, reused in every direction
@@ -433,13 +434,16 @@ public:
     *  stored boxes are modified only in their axis-aligned representation.
     *
     *  @param[in] m         Input surface mesh.
-    *  @param[in] aabb_pad  Absolute padding applied to the stored axis-aligned
-    *                       bounding boxes.
+    *  @param[in] aabb_sz_inc  Absolute padding applied to the stored
+    *                          axis-aligned bounding boxes.
     *  @param[in] bb_t      Relative size of the initial bounding box around
     *                       each element before absolute padding is applied.
     *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
+    *
+    * @note We disable the oriented bounding box check and update @a bdr_tol
+    *       with this setup.
     */
-   void SetupSurf(Mesh &m, const Vector &aabb_pad,
+   void SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
                   const double bb_t = 0.0,
                   const double newt_tol = 1.0e-12);
 

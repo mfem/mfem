@@ -378,32 +378,33 @@ MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
         + N2*vy[tri_id][2] + N3*vy[tri_id][3];
 }
 
-void VerifyAABBPadLayout(const Vector *aabb_pad, const uint nel, const int sd)
+void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
+                         const int sd)
 {
-   if (!aabb_pad) { return; }
+   if (!aabb_sz_inc) { return; }
 
-   const int sz = aabb_pad->Size();
+   const int sz = aabb_sz_inc->Size();
    MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
-               "Invalid aabb_pad length for SetupSurf: expected 1, NE, "
+               "Invalid aabb_sz_inc length for SetupSurf: expected 1, NE, "
                "SpaceDim, or NE*SpaceDim.");
 }
 
-double GetAABBPad(const Vector *aabb_pad, const int aabb_pad_size,
+double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
                   const uint nel, const int sd, const uint e, const int d)
 {
-   if (!aabb_pad) { return 0.0; }
+   if (!aabb_sz_inc) { return 0.0; }
 
-   MFEM_ASSERT(aabb_pad_size == 1 || aabb_pad_size == (int)nel ||
-               aabb_pad_size == sd || aabb_pad_size == (int)nel*sd,
-               "Invalid aabb_pad layout.");
+   MFEM_ASSERT(aabb_sz_inc_size == 1 || aabb_sz_inc_size == (int)nel ||
+               aabb_sz_inc_size == sd || aabb_sz_inc_size == (int)nel*sd,
+               "Invalid aabb_sz_inc layout.");
 
    double s = 0.0;
-   if (aabb_pad_size == 1) { s = (*aabb_pad)(0); }
-   else if (aabb_pad_size == (int)nel) { s = (*aabb_pad)((int)e); }
-   else if (aabb_pad_size == sd) { s = (*aabb_pad)(d); }
-   else { s = (*aabb_pad)((int)e*sd + d); }
+   if (aabb_sz_inc_size == 1) { s = (*aabb_sz_inc)(0); }
+   else if (aabb_sz_inc_size == (int)nel) { s = (*aabb_sz_inc)((int)e); }
+   else if (aabb_sz_inc_size == sd) { s = (*aabb_sz_inc)(d); }
+   else { s = (*aabb_sz_inc)((int)e*sd + d); }
 
-   MFEM_VERIFY(s >= 0.0, "aabb_pad pad must be non-negative.");
+   MFEM_VERIFY(s >= 0.0, "aabb_sz_inc pad must be non-negative.");
    return 0.5*s;
 }
 
@@ -914,7 +915,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
                                           const uint local_hash_size,
                                           const uint global_hash_size,
                                           const int rD,
-                                          const Vector *aabb_pad)
+                                          const Vector *aabb_sz_inc)
 {
    // compute element bounding boxes.
    const bool store_obb = obb_check;
@@ -935,8 +936,8 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    }
 
    auto h_bb = devs.bb.HostReadWrite();
-   VerifyAABBPadLayout(aabb_pad, nel, sd);
-   const int aabb_pad_size = aabb_pad ? aabb_pad->Size() : 0;
+   VerifyAABBPadLayout(aabb_sz_inc, nel, sd);
+   const int aabb_sz_inc_size = aabb_sz_inc ? aabb_sz_inc->Size() : 0;
 
    Vector elmin(3*nel), elmax(3*nel);
    for (uint i = 0; i < nel; i++)
@@ -945,7 +946,8 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 3; d++)
       {
-         const double pad = GetAABBPad(aabb_pad, aabb_pad_size, nel, sd, i, d);
+         const double pad = GetAABBPad(aabb_sz_inc, aabb_sz_inc_size,
+                                       nel, sd, i, d);
          if (pad > 0.0)
          {
             h_bb[min_off + d] -= pad;
@@ -999,7 +1001,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
                                           const double bbox_tol,
                                           const uint local_hash_size,
                                           const uint global_hash_size,
-                                          const Vector *aabb_pad)
+                                          const Vector *aabb_sz_inc)
 {
    // compute element bounding boxes.
    const bool store_obb = obb_check;
@@ -1009,17 +1011,18 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    obboxedge_calc_2(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
 
    auto h_bb = devs.bb.HostReadWrite();
-   VerifyAABBPadLayout(aabb_pad, nel, sd);
-   const int aabb_pad_size = aabb_pad ? aabb_pad->Size() : 0;
+   VerifyAABBPadLayout(aabb_sz_inc, nel, sd);
+   const int aabb_sz_inc_size = aabb_sz_inc ? aabb_sz_inc->Size() : 0;
 
    Vector elmin(2*nel), elmax(2*nel);
    for (uint i = 0; i < nel; i++)
    {
       const int min_off = (store_obb ? sd : 0) + n_box_ents*i;
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
-      for (int d = 0; d < 2 && aabb_pad; d++)
+      for (int d = 0; d < 2 && aabb_sz_inc; d++)
       {
-         const double pad = GetAABBPad(aabb_pad, aabb_pad_size, nel, sd, i, d);
+         const double pad = GetAABBPad(aabb_sz_inc, aabb_sz_inc_size,
+                                       nel, sd, i, d);
          if (pad > 0.0)
          {
             h_bb[min_off+d] -= pad;
@@ -1094,16 +1097,16 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    SetupSurf_Base(m, bb_t, nullptr, newt_tol);
 }
 
-void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &aabb_pad,
+void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
                                 const double bb_t,
                                 const double newt_tol)
 {
-   SetupSurf_Base(m, bb_t, &aabb_pad, newt_tol);
+   SetupSurf_Base(m, bb_t, &aabb_sz_inc, newt_tol);
 }
 
 void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                                      const double bbox_tol,
-                                     const Vector *aabb_pad,
+                                     const Vector *aabb_sz_inc,
                                      const double newt_tol)
 {
    // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
@@ -1111,7 +1114,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
-   obb_check = (aabb_pad == nullptr);
+   obb_check = (aabb_sz_inc == nullptr);
 
    mesh     = &m;
    dim      = mesh->Dimension();       // This is reference dimension
@@ -1160,7 +1163,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           bbox_tol,
                           mesh_points_cnt,
                           mesh_points_cnt,
-                          aabb_pad);
+                          aabb_sz_inc);
    }
    else if (spacedim==3)
    {
@@ -1179,13 +1182,13 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           mesh_points_cnt,
                           mesh_points_cnt,
                           dim,
-                          aabb_pad);
+                          aabb_sz_inc);
    }
 
    // If we are padding the bounding boxes, we compute bdr_tol such that
    // any point found within a bounding box gets marked CODE_BORDER even
    // when it is not actually on the boundary.
-   if (aabb_pad)
+   if (aabb_sz_inc)
    {
       const int n_box_ents = obb_check ?
                              (3*spacedim + spacedim*spacedim) : (2*spacedim);

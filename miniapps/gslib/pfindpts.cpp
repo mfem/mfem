@@ -104,7 +104,7 @@ int main (int argc, char *argv[])
    int randomization     = 0;
    int npt               = 100; //points per proc
    bool surface          = false;
-   double surf_aabb_size = 0.0;
+   double surf_aabb_sz_inc = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -148,7 +148,7 @@ int main (int argc, char *argv[])
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
-   args.AddOption(&surf_aabb_size, "-sabs", "--surface-aabb-size",
+   args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
                   "Absolute padding applied to surface-search axis-aligned "
                   "bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
@@ -203,19 +203,6 @@ int main (int argc, char *argv[])
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
-   }
-
-   if (visualization && surface && myid == 0)
-   {
-      osockstream sock(19916, "localhost");
-      sock << "mesh\n";
-      input_mesh->Print(sock);
-      sock.send();
-      sock << "window_title 'AABB Mesh'\n"
-           << "window_geometry "
-           << 0 << " " << 0 << " "
-           << 400 << " " << 400 << "\n"
-           << "keys RmclA" << endl;
    }
 
    // Distribute the mesh.
@@ -311,8 +298,7 @@ int main (int argc, char *argv[])
          if (sdim == 3) { sout << "keys mA\n"; }
          sout << "window_title 'Solution'\n"
               << "window_geometry "
-              << (surface ? 400 : 0) << " " << 0 << " "
-              << 400 << " " << 400 << "\n";
+              << 0 << " " << 0 << " " << 400 << " " << 400 << "\n";
          sout << flush;
       }
    }
@@ -367,11 +353,6 @@ int main (int argc, char *argv[])
             }
             Vector pos_i(sdim);
             transf->Transform(ip, pos_i);
-            if (j < npt_face_per_elem)
-            {
-               // pos_i(0) = 1.0;
-               // pos_i(1) = 1.0;
-            }
             for (int d=0; d<sdim; d++)
             {
                if (point_ordering == Ordering::byNODES)
@@ -394,31 +375,13 @@ int main (int argc, char *argv[])
    }
    MPI_Allreduce(MPI_IN_PLACE, &npt_total_face, 1, MPI_INT, MPI_SUM,
                  pmesh.GetComm());
-   // vxyz.SetSize(3);
-   // npt_total_face = 1;
-   // pts_cnt = 1;
-   // vxyz.Print();
-   // vxyz = 1.0;
-   // vxyz(2) = 0.77;
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(pmesh);
-   if (surface && surf_aabb_size > 0.0)
+   if (surface && surf_aabb_sz_inc > 0.0)
    {
-      Vector bb_size({surf_aabb_size});
-      bool spatially_varying = false;
-      if (spatially_varying)
-      {
-         bb_size.SetSize(pmesh.GetNE()*sdim);
-         for (int e = 0; e < pmesh.GetNE(); e++)
-         {
-            Vector center(sdim);
-            pmesh.GetElementCenter(e, center);
-            bb_size(e*sdim) = surf_aabb_size + 0.2*abs(center(1)-0.5);
-            bb_size(e*sdim + 1) = surf_aabb_size;
-         }
-      }
+      Vector bb_size({surf_aabb_sz_inc});
       finder.SetupSurf(pmesh, bb_size);
    }
    // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
@@ -472,21 +435,7 @@ int main (int argc, char *argv[])
             max_dist = std::max(max_dist, h_dist_p_out[i]);
             if (h_code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else
-         {
-            if (j == 0)
-            {
-               for (int d = 0; d < sdim; d++)
-               {
-                  pos(d) = point_ordering == Ordering::byNODES ?
-                           vxyz(d*pts_cnt + i) :
-                           vxyz(i*sdim + d);
-               }
-               std::cout << h_dist_p_out[i] << " k101\n";
-               pos.Print();
-               not_found++;
-            }
-         }
+         else { if (j == 0) { not_found++; } }
       }
    }
 
@@ -520,21 +469,6 @@ int main (int argc, char *argv[])
            << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
-
-   Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
-   if (visualization && myid == 0)
-   {
-      osockstream sock(19916, "localhost");
-      sock << "mesh\n";
-      aabb_mesh->Print(sock);
-      sock.send();
-      sock << "window_title 'AABB Mesh'\n"
-           << "window_geometry "
-           << (surface ? 800 : 0) << " " << 0 << " "
-           << 400 << " " << 400 << "\n"
-           << "keys jRmclA" << endl;
-   }
-   delete aabb_mesh;
 
 
    delete fec;
