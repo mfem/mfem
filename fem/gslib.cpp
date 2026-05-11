@@ -128,39 +128,6 @@ extern "C" {
 namespace mfem
 {
 
-namespace
-{
-
-MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
-   const int tri_id, const double u, const double v, double &tx, double &ty)
-{
-   const double N0 = (1.0-u)*(1.0-v);
-   const double N1 = u*(1.0-v);
-   const double N2 = u*v;
-   const double N3 = (1.0-u)*v;
-
-   // Must match the quad -> triangle split in SetupSplitMeshes.
-   const double vx[3][4] =
-   {
-      {0.0, 0.5,       1.0/3.0, 0.0    },
-      {0.5, 1.0,       0.5,     1.0/3.0},
-      {0.0, 1.0/3.0,   0.5,     0.0    }
-   };
-   const double vy[3][4] =
-   {
-      {0.0, 0.0,       1.0/3.0, 0.5    },
-      {0.0, 0.0,       0.5,     1.0/3.0},
-      {0.5, 1.0/3.0,   0.5,     1.0    }
-   };
-
-   tx = N0*vx[tri_id][0] + N1*vx[tri_id][1]
-        + N2*vx[tri_id][2] + N3*vx[tri_id][3];
-   ty = N0*vy[tri_id][0] + N1*vy[tri_id][1]
-        + N2*vy[tri_id][2] + N3*vy[tri_id][3];
-}
-
-}
-
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
@@ -381,6 +348,63 @@ static struct gslib::dbl_range dbl_range_expand(struct gslib::dbl_range b,
    struct gslib::dbl_range m;
    m.min = a-l, m.max = a+l;
    return m;
+}
+
+MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
+   const int tri_id, const double u, const double v, double &tx, double &ty)
+{
+   const double N0 = (1.0-u)*(1.0-v);
+   const double N1 = u*(1.0-v);
+   const double N2 = u*v;
+   const double N3 = (1.0-u)*v;
+
+   // Must match the quad -> triangle split in SetupSplitMeshes.
+   const double vx[3][4] =
+   {
+      {0.0, 0.5,       1.0/3.0, 0.0    },
+      {0.5, 1.0,       0.5,     1.0/3.0},
+      {0.0, 1.0/3.0,   0.5,     0.0    }
+   };
+   const double vy[3][4] =
+   {
+      {0.0, 0.0,       1.0/3.0, 0.5    },
+      {0.0, 0.0,       0.5,     1.0/3.0},
+      {0.5, 1.0/3.0,   0.5,     1.0    }
+   };
+
+   tx = N0*vx[tri_id][0] + N1*vx[tri_id][1]
+        + N2*vx[tri_id][2] + N3*vx[tri_id][3];
+   ty = N0*vy[tri_id][0] + N1*vy[tri_id][1]
+        + N2*vy[tri_id][2] + N3*vy[tri_id][3];
+}
+
+void VerifyAABBPadLayout(const Vector *aabb_pad, const uint nel, const int sd)
+{
+   if (!aabb_pad) { return; }
+
+   const int sz = aabb_pad->Size();
+   MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
+               "Invalid aabb_pad length for SetupSurf: expected 1, NE, "
+               "SpaceDim, or NE*SpaceDim.");
+}
+
+double GetAABBPad(const Vector *aabb_pad, const int aabb_pad_size,
+                  const uint nel, const int sd, const uint e, const int d)
+{
+   if (!aabb_pad) { return 0.0; }
+
+   MFEM_ASSERT(aabb_pad_size == 1 || aabb_pad_size == (int)nel ||
+               aabb_pad_size == sd || aabb_pad_size == (int)nel*sd,
+               "Invalid aabb_pad layout.");
+
+   double s = 0.0;
+   if (aabb_pad_size == 1) { s = (*aabb_pad)(0); }
+   else if (aabb_pad_size == (int)nel) { s = (*aabb_pad)((int)e); }
+   else if (aabb_pad_size == sd) { s = (*aabb_pad)(d); }
+   else { s = (*aabb_pad)((int)e*sd + d); }
+
+   MFEM_VERIFY(s >= 0.0, "aabb_pad pad must be non-negative.");
+   return 0.5*s;
 }
 
 void obboxsurf_calc_3(Vector &bb,
@@ -911,27 +935,8 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    }
 
    auto h_bb = devs.bb.HostReadWrite();
-
-   if (aabb_pad)
-   {
-      const int sz = aabb_pad->Size();
-      MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
-                  "Invalid aabb_pad length for SetupSurf: expected 1, NE, SpaceDim, or NE*SpaceDim.");
-   }
-
-   auto GetAABBPad = [&](const uint e, const int d)
-   {
-      if (!aabb_pad) { return 0.0; }
-      const int sd = 3;
-      const int sz = aabb_pad->Size();
-      double s = 0.0;
-      if (sz == 1) { s = (*aabb_pad)(0); }
-      else if (sz == (int)nel) { s = (*aabb_pad)((int)e); }
-      else if (sz == sd) { s = (*aabb_pad)(d); }
-      else { s = (*aabb_pad)((int)e*sd + d); }
-      MFEM_VERIFY(s >= 0.0, "aabb_pad pad must be non-negative.");
-      return 0.5*s;
-   };
+   VerifyAABBPadLayout(aabb_pad, nel, sd);
+   const int aabb_pad_size = aabb_pad ? aabb_pad->Size() : 0;
 
    Vector elmin(3*nel), elmax(3*nel);
    for (uint i = 0; i < nel; i++)
@@ -940,7 +945,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 3; d++)
       {
-         const double pad = GetAABBPad(i, d);
+         const double pad = GetAABBPad(aabb_pad, aabb_pad_size, nel, sd, i, d);
          if (pad > 0.0)
          {
             h_bb[min_off + d] -= pad;
@@ -1004,22 +1009,8 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    obboxedge_calc_2(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
 
    auto h_bb = devs.bb.HostReadWrite();
-
-   auto GetAABBPad = [&](const uint e, const int d)
-   {
-      if (!aabb_pad) { return 0.0; }
-      const int sd = 2;
-      const int sz = aabb_pad->Size();
-      MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
-                  "Invalid aabb_pad length for SetupSurf: expected 1, NE, SpaceDim, or NE*SpaceDim.");
-      double s = 0.0;
-      if (sz == 1) { s = (*aabb_pad)(0); }
-      else if (sz == (int)nel) { s = (*aabb_pad)((int)e); }
-      else if (sz == sd) { s = (*aabb_pad)(d); }
-      else { s = (*aabb_pad)((int)e*sd + d); }
-      MFEM_VERIFY(s >= 0.0, "aabb_pad pad must be non-negative.");
-      return 0.5*s;
-   };
+   VerifyAABBPadLayout(aabb_pad, nel, sd);
+   const int aabb_pad_size = aabb_pad ? aabb_pad->Size() : 0;
 
    Vector elmin(2*nel), elmax(2*nel);
    for (uint i = 0; i < nel; i++)
@@ -1028,7 +1019,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 2 && aabb_pad; d++)
       {
-         const double pad = GetAABBPad(i, d);
+         const double pad = GetAABBPad(aabb_pad, aabb_pad_size, nel, sd, i, d);
          if (pad > 0.0)
          {
             h_bb[min_off+d] -= pad;

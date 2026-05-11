@@ -340,9 +340,26 @@ protected:
                             const int rD,
                             const Vector *aabb_pad);
 
-   /// Shared implementation for SetupSurf overloads.
-   /// If @a aabb_pad is not null, it is used to post-pad the axis-aligned
-   /// bounding boxes after they are constructed with @a bbox_tol.
+   /** @brief Shared implementation for the public \ref SetupSurf overloads.
+    *
+    *  @details Initializes the surface-search data structures, builds the
+    *  split-element representation expected by gslib, and constructs the
+    *  element bounding boxes used by the MFEM surface kernels.
+    *
+    *  If @a aabb_pad is null, the setup stores the default oriented bounding
+    *  boxes and uses @a bbox_tol as their relative expansion factor.
+    *
+    *  If @a aabb_pad is non-null, the setup stores axis-aligned bounding boxes
+    *  only, post-pads them by the requested absolute amount in each physical
+    *  direction, and adjusts the tolerance @a bdr_tol so points found in the
+    *  padded region are classified as border points.
+    *
+    *  @param[in] m         Input surface mesh.
+    *  @param[in] bbox_tol  Relative bounding-box expansion used during setup.
+    *  @param[in] aabb_pad  Optional absolute padding applied to the stored
+    *                       axis-aligned bounding boxes after construction.
+    *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
+    */
    void SetupSurf_Base(Mesh &m,
                        const double bbox_tol,
                        const Vector *aabb_pad,
@@ -395,21 +412,33 @@ public:
                   const double newt_tol = 1.0e-12,
                   const int npt_max = 256);
 
-   /// Preprocess the surface mesh to compute data for FindPoints. The
-   /// axis-aligned bounding boxes are padded in each physical direction by the
-   /// specified absolute amount.
-   /// If aabb_pad.Size() == 1, the specified padding is used for X/Y/Z
-   ///                         direction in all elements.
-   /// If aabb_pad.Size() == NElements, the specified padding is used for each
-   ///                         element in all directions.
-   /// If aabb_pad.Size() == SpaceDim, the padding in each direction is used for
-   ///                         all elements.
-   /// If aabb_pad.Size() == NElements*SpaceDim, the padding in each direction is
-   ///                       used for each element. The ordering is
-   ///                       (dx1,dy1,dz1, ... dxN,dyN,dzN) where N is the
-   ///                       number of elements.
-   /// Note that this disables the oriented bounding box check as this
-   /// overload is only used to modify the axis-aligned bounding boxes.
+   /** @brief Preprocess the surface mesh to compute data for FindPoints using
+    *  padded axis-aligned bounding boxes.
+    *
+    *  @details This overload stores axis-aligned bounding boxes instead of the
+    *  default oriented boxes and post-pads them by an absolute amount in each
+    *  physical direction. The padding is applied after the usual relative
+    *  expansion controlled by @a bb_t.
+    *
+    *  The size of @a aabb_pad determines how the padding values are
+    *  interpreted:
+    *  - `1`: one padding value used in every direction for every element
+    *  - `NElements`: one padding value per element, reused in every direction
+    *  - `SpaceDim`: one padding value per physical direction, reused for every
+    *    element
+    *  - `NElements*SpaceDim`: one padding value per element and direction,
+    *    ordered as `(dx1,dy1,dz1, ... dxN,dyN,dzN)`
+    *
+    *  This overload disables the oriented bounding-box precheck because the
+    *  stored boxes are modified only in their axis-aligned representation.
+    *
+    *  @param[in] m         Input surface mesh.
+    *  @param[in] aabb_pad  Absolute padding applied to the stored axis-aligned
+    *                       bounding boxes.
+    *  @param[in] bb_t      Relative size of the initial bounding box around
+    *                       each element before absolute padding is applied.
+    *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
+    */
    void SetupSurf(Mesh &m, const Vector &aabb_pad,
                   const double bb_t = 0.0,
                   const double newt_tol = 1.0e-12);
