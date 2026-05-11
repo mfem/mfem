@@ -53,8 +53,9 @@
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
-//    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
-//    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+// Surface meshes + bounding box size increase:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+//    mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -378,11 +379,15 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(pmesh);
+   FindPointsGSLIB finder;
    if (surface && surf_aabb_sz_inc > 0.0)
    {
       Vector bb_size({surf_aabb_sz_inc});
       finder.SetupSurf(pmesh, bb_size);
+   }
+   else
+   {
+      finder.Setup(pmesh);
    }
    // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
