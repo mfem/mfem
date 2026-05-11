@@ -47,7 +47,7 @@
 // See: J.C. Nedelec, Mixed Finite Elements in R^3, Numerische Mathematik, 35
 // (1980), 315-341. https://doi.org/10.1007/BF01396415
 //
-// Sample runs:
+// Sample runs (defaults to partial assembly):
 //
 // clang-format off
 //
@@ -59,6 +59,7 @@
 //
 //   Current source in a metal box:
 //     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -d gpu
 //
 //   Current source with a mixture of absorbing and reflecting boundaries:
 //     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18'
@@ -75,9 +76,9 @@
 #include "../common/mesh_extras.hpp"
 #include "electromagnetics.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
-#include <chrono>
 
 // work-around for Windows builds:
 // KernelDispatch uses MFEM_EXPORT, need to get rid of this for
@@ -252,6 +253,9 @@ struct AmpereAction : public Operator
    // current dt, needed if there are loss terms
    mutable real_t dt = 0;
 
+   // temporarily set to false for computing max dt
+   bool apply_bcs_in_mult = true;
+
    struct AmperePA : public Operator
    {
       AmpereAction *action;
@@ -342,17 +346,23 @@ struct FaradayOperator : public Operator
    ParFiniteElementSpace *hdiv_space = nullptr;
 
    ParDiscreteLinearOperator curl_op;
+   ParBilinearForm hdiv_mass;
    std::unique_ptr<HypreParMatrix> neg_curl;
+   std::unique_ptr<HypreParMatrix> par_hdiv_mass;
 
    // temporary workspace vectors
    mutable std::unique_ptr<HypreParVector> E_work;
    mutable std::unique_ptr<HypreParVector> dBdt_work;
 
    FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
-                   ParFiniteElementSpace &hdiv, size_t assembly_type);
+                   ParFiniteElementSpace &hdiv, size_t assembly_type,
+                   Coefficient &inv_mu_coeff);
 
    void Mult(const Vector &E, Vector &dBdt) const override;
 };
+
+real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday,
+                 int niters = 20, real_t ptol = 1e-3);
 
 int main(int argc, char *argv[])
 {
@@ -590,19 +600,24 @@ int main(int argc, char *argv[])
    }
    if (dp_params.Size() > 0)
    {
-      // TODO: current source
+      // current source
       current_integrator = new CurrentIntegrator(pmesh, dp_params, tscale);
    }
    AmpereOperator ampere(pmesh, hcurl_space, hdiv_space, assembly_type,
                          *eps_coeff, *inv_mu_coeff, sigma_coeff.get(),
                          dEdtbc_coeff.get(), abcs, dbcs, current_integrator,
                          E_gf);
-   FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type);
+   FaradayOperator faraday(pmesh, hcurl_space, hdiv_space, assembly_type,
+                           *inv_mu_coeff);
 
-   // TODO: compute dtmax
-   real_t dtmax = 0.03e-9;
+   real_t dtmax = CalcMaxDt(ampere, faraday);
+   if (Mpi::Root())
+   {
+      std::cout << "Maximum Time Step:     " << dtmax / tscale << "ns"
+                << std::endl;
+   }
    int nsteps = SnapTimeStep(tf - ti, dtsf * dtmax, dt);
-   if ( Mpi::Root() )
+   if (Mpi::Root())
    {
       std::cout << "Number of Time Steps:  " << nsteps << std::endl;
       std::cout << "Time Step Size:        " << dt / tscale << "ns"
@@ -612,8 +627,8 @@ int main(int argc, char *argv[])
    // Create the ODE solver
    SIAVSolver siaSolver(tOrder);
    siaSolver.Init(faraday, ampere);
-   // TODO: initialize visualization
 
+   // initialize visualization
    socketstream E_sock, B_sock;
 
    if (visualization)
@@ -633,15 +648,13 @@ int main(int argc, char *argv[])
       {
          E_sock << "parallel " << num_procs << " " << myid << "\n";
          E_sock.precision(8);
-         E_sock << "solution\n"
-                << pmesh << E_gf << std::flush;
+         E_sock << "solution\n" << pmesh << E_gf << std::flush;
          E_sock << " window_title 'Electric Field (E)'";
          E_sock << " window_geometry 0 0 1024 768" << " keys cm" << std::endl;
 
          B_sock << "parallel " << num_procs << " " << myid << "\n";
          B_sock.precision(8);
-         B_sock << "solution\n"
-                << pmesh << B_gf << std::flush;
+         B_sock << "solution\n" << pmesh << B_gf << std::flush;
          B_sock << " window_title 'Magnetic Flux Density (B)'";
          B_sock << " window_geometry 0 0 1024 768" << " keys cm" << std::endl;
       }
@@ -798,7 +811,7 @@ void AmpereAction::Mult(const Vector &x, Vector &y) const
 {
    linsys->Mult(x, y);
    // bcs
-   if (dbc_dofs.Size() > 0)
+   if (apply_bcs_in_mult && dbc_dofs.Size() > 0)
    {
       y.SetSubVector(dbc_dofs, 0_r);
    }
@@ -808,7 +821,7 @@ void AmpereAction::AmperePA::Mult(const Vector &x, Vector &y) const
 {
    // TODO: full assembly version
    action->hcurl_mass.Mult(x, y);
-   if (action->loss_term)
+   if (action->dt && action->loss_term)
    {
       action->loss_term->AddMult(x, y, 0.5_r * action->dt);
    }
@@ -895,16 +908,30 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
 
 FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                  ParFiniteElementSpace &hdiv,
-                                 size_t assembly_type)
+                                 size_t assembly_type,
+                                 Coefficient &inv_mu_coeff)
    : Operator(hdiv.GetVSize(), hcurl.GetVSize()), pmesh(&pmesh_),
-     hcurl_space(&hcurl), hdiv_space(&hdiv), curl_op(&hcurl, &hdiv)
+     hcurl_space(&hcurl), hdiv_space(&hdiv), curl_op(&hcurl, &hdiv),
+     hdiv_mass(&hdiv)
 {
    curl_op.AddDomainInterpolator(new CurlInterpolator);
-#ifdef FARADAY_HAS_PA
    switch (assembly_type)
    {
-      case 1:
+      case 0:
+         // partial assembly
+         hdiv_mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+#ifdef FARADAY_HAS_PA
+         hdiv_mass.AddDomainIntegrator(new VectorFEMassIntegrator(inv_mu_coeff));
+         hdiv_mass.Assemble();
+         hdiv_mass.Finalize();
+         curl_op.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         curl_op.Assemble();
+         curl_op.Finalize();
+         break;
+#else
+         [[fallthrough]];
 #endif
+      case 1:
          // full assembly
          curl_op.Assemble();
          curl_op.Finalize();
@@ -912,16 +939,15 @@ FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
          *neg_curl *= -1_r;
          E_work.reset(hcurl_space->NewTrueDofVector());
          dBdt_work.reset(hdiv_space->NewTrueDofVector());
-#ifdef FARADAY_HAS_PA
-         break;
-      case 0:
-         // partial assembly
-         curl_op.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         curl_op.Assemble();
-         curl_op.Finalize();
+         hdiv_mass.AddDomainIntegrator(new VectorFEMassIntegrator(inv_mu_coeff));
+         hdiv_mass.Assemble();
+         hdiv_mass.Finalize();
+#ifndef FARADAY_HAS_PA
+         if (assembly_type)
+#endif
+            par_hdiv_mass.reset(hdiv_mass.ParallelAssemble());
          break;
    }
-#endif
 }
 
 void FaradayOperator::Mult(const Vector &E, Vector &dBdt) const
@@ -1306,14 +1332,13 @@ void CurrentIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    MFEM_ABORT("Not implemented yet");
 }
 
-int
-SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt)
+int SnapTimeStep(real_t tmax, real_t dtmax, real_t &dt)
 {
-   real_t dsteps = tmax/dtmax;
+   real_t dsteps = tmax / dtmax;
 
-   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
+   int nsteps = static_cast<int>(pow(10, (int)ceil(log10(dsteps))));
 
-   for (int i=1; i<=5; i++)
+   for (int i = 1; i <= 5; i++)
    {
       int a = (int)ceil(log10(dsteps / pow(5.0, i)));
       int nstepsi = (int)pow(5, i) * std::max<int>(1, (int)pow(10, a));
@@ -1324,4 +1349,103 @@ SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt)
    dt = tmax / nsteps;
 
    return nsteps;
+}
+
+real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
+                 real_t ptol)
+{
+   // use Power iteration to estimate the largest eigenvalue
+   int iter = 0;
+   real_t dt0 = 1;
+   real_t dt1 = 1;
+   real_t change = 1;
+
+   // random initial E tdofs to use for iteration
+   std::unique_ptr<HypreParVector> hcurl_buf(
+      faraday.hcurl_space->NewTrueDofVector());
+   std::unique_ptr<HypreParVector> hcurl_buf2(
+      faraday.hcurl_space->NewTrueDofVector());
+   hcurl_buf->Randomize(1234);
+   std::unique_ptr<HypreParVector> hdiv_buf(
+      faraday.hdiv_space->NewTrueDofVector());
+   HypreParVector *v0_tdof = hcurl_buf.get();
+   HypreParVector *v1_tdof = hcurl_buf2.get();
+   HypreParVector *hd_tdof = hdiv_buf.get();
+   std::unique_ptr<ParGridFunction> u0_ldof;
+   HypreParVector *u0_tdof = faraday.dBdt_work.get();
+   std::unique_ptr<ParGridFunction> hd_ldof;
+   if (!faraday.par_hdiv_mass)
+   {
+      u0_ldof.reset(new ParGridFunction(faraday.hdiv_space));
+      hd_ldof.reset(new ParGridFunction(faraday.hdiv_space));
+   }
+   const Operator *Rhcurl = faraday.hcurl_space->GetRestrictionOperator();
+   const Operator *Phcurl = faraday.hcurl_space->GetProlongationMatrix();
+
+   const Operator *Rhdiv = faraday.hdiv_space->GetRestrictionOperator();
+   const Operator *Phdiv = faraday.hdiv_space->GetProlongationMatrix();
+   HypreParVector *rhs_tdof = faraday.E_work.get();
+
+   ampere.action.dt = 0;
+   ampere.action.apply_bcs_in_mult = false;
+
+   while (iter < niters && change > ptol)
+   {
+
+      real_t normV0 = InnerProduct(*v0_tdof, *v0_tdof);
+      *v0_tdof /= sqrt(normV0);
+      if (faraday.neg_curl)
+      {
+         faraday.neg_curl->Mult(*v0_tdof, *u0_tdof);
+         if (faraday.par_hdiv_mass)
+         {
+            faraday.par_hdiv_mass->Mult(*u0_tdof, *hd_tdof);
+         }
+         else
+         {
+            // !defined(FARADAY_HAS_PA) case with partial assembly
+            if (Phdiv)
+            {
+               Phdiv->Mult(*u0_tdof, *u0_ldof);
+            }
+            else
+            {
+               *u0_ldof = *u0_tdof;
+            }
+            faraday.hdiv_mass.Mult(*u0_ldof, *hd_ldof);
+            if (Phdiv)
+            {
+               Phdiv->MultTranspose(*hd_ldof, *hd_tdof);
+            }
+            else
+            {
+               static_cast<Vector &>(*hd_tdof) =
+                  static_cast<Vector &>(*hd_ldof);
+            }
+         }
+         faraday.neg_curl->MultTranspose(*hd_tdof, *rhs_tdof);
+         if (faraday.par_hdiv_mass)
+         {
+            // TODO: full assembly on the ampere part
+         }
+         else
+         {
+            // !defined(FARADAY_HAS_PA) case with partial assembly
+            // TODO: this also sets the essential bcs, is this ok?
+            ampere.solver.Mult(*rhs_tdof, *v1_tdof);
+         }
+         real_t lambda = InnerProduct(*v0_tdof, *v1_tdof);
+         dt1 = 2_r / sqrt(lambda);
+      }
+      else
+      {
+         // TODO: partial assembly
+      }
+      change = fabs((dt1 - dt0) / dt0);
+      dt0 = dt1;
+      std::swap(v0_tdof, v1_tdof);
+      ++iter;
+   }
+   ampere.action.apply_bcs_in_mult = true;
+   return dt0;
 }

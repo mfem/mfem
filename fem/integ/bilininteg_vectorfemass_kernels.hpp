@@ -31,19 +31,39 @@ namespace internal
 {
 namespace hcurlmass
 {
-constexpr int NBZ3D(int MDQ)
+#if 1
+constexpr int NBZ3D(int d1d, int q1d)
 {
-   if (MDQ == 0)
+   if (d1d <= 1 || q1d <= 0)
+   {
+      return 1;
+   }
+   // assume q1d >= d1d
+   // z dimension is capped at 64 on nvidia and amd gpus
+   int tmp = std::min((128 + q1d * q1d * q1d - 1) / (q1d * q1d * q1d), 64);
+   int smem_req =
+      sizeof(mfem::real_t) *
+      (3 * ((d1d - 1) * d1d * d1d + 2 * q1d * q1d * q1d) * tmp +
+       q1d * (d1d - 1) + q1d * d1d);
+   // assume GPU has at least 48k shared memory
+   return std::max(std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req), 1);
+}
+#else
+constexpr int NBZ3D(int d1d, int q1d)
+{
+   if (d1d <= 1 || q1d <= 0)
    {
       return 1;
    };
-   int tmp = std::min((128 + MDQ * MDQ - 1) / (MDQ * MDQ), 64);
+   // assume q1d >= d1d
+   int tmp = std::min((128 + q1d * q1d - 1) / (q1d * q1d), 64);
    int smem_req = sizeof(real_t) *
-                  (3 * ((MDQ - 1) * MDQ * MDQ + 2 * MDQ * MDQ * MDQ) * tmp +
-                   MDQ * (MDQ - 1) + MDQ * (MDQ - 1));
+                  (3 * ((d1d - 1) * d1d * d1d + 2 * q1d * q1d * q1d) * tmp +
+                   q1d * (d1d - 1) + q1d * d1d);
    // assume GPU has at least 48k shared memory
    return std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req);
 }
+#endif
 } // namespace hcurlmass
 } // namespace internal
 
@@ -65,8 +85,7 @@ VectorFEMassIntegrator::ApplyPAKernels::Kernel()
          {
             // assume TrialD1D == TestD1D
             return internal::SmemPAHcurlMassApply3D<
-                   TrialD1D, Q1D,
-                   internal::hcurlmass::NBZ3D(std::max(TrialD1D, Q1D))>;
+                   TrialD1D, Q1D, internal::hcurlmass::NBZ3D(TrialD1D, Q1D)>;
          }
          else
          {
