@@ -38,7 +38,7 @@ namespace mfem
 class MultiVector
 {
 private:
-   std::vector<std::variant<Vector,Vector*>> blocks;
+   std::vector<std::variant<Vector,Vector*,const Vector*>> blocks;
 
 public:
    /// Create an empty MultiVector with zero blocks.
@@ -160,6 +160,28 @@ public:
        to synchronize the Memory flags of @a v and the ones of the @a i-th
        Vector blocks when data is moved between host and device. */
    inline void MakeRef(int i, Vector &v) { blocks[i] = &v; }
+
+   /** @brief Construct a MultiVector referencing multiple const Vectors given
+       as arguments. Individual blocks are read-only; non-const operator[]
+       will assert. */
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<const VectorTypes&,const Vector&>...>, bool> = true>
+   MultiVector(const VectorTypes &...vs) { MakeRef(vs...); }
+
+   /** @brief Update the @a i-th MultiVector block to reference the given
+       const Vector @a v. The block becomes read-only. */
+   inline void MakeRef(int i, const Vector &v) { blocks[i] = &v; }
+
+   /** @brief Update the MultiVector to reference multiple const Vectors given
+       as arguments. Individual blocks are read-only; non-const operator[]
+       will assert. */
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<const VectorTypes&,const Vector&>...>, bool> = true>
+   inline void MakeRef(const VectorTypes &...vs);
 };
 
 // Inline and template methods
@@ -167,13 +189,16 @@ public:
 inline Vector &MultiVector::operator[](int i)
 {
    auto &bi = blocks[i];
+   MFEM_ASSERT(bi.index() != 2, "Non-const access to a const Vector block");
    return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
 }
 
 inline const Vector &MultiVector::operator[](int i) const
 {
    auto &bi = blocks[i];
-   return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
+   return (bi.index() == 0) ? std::get<0>(bi) :
+          (bi.index() == 1) ? *std::get<1>(bi) :
+                              *std::get<2>(bi);
 }
 
 template <typename... VectorTypes,
@@ -186,6 +211,23 @@ inline void MultiVector::MakeRef(VectorTypes &...vs)
    if constexpr (sizeof...(vs) > 0)
    {
       const std::array vs_p{&static_cast<Vector&>(vs)...};
+      for (std::size_t i = 0; i < sizeof...(vs); i++)
+      {
+         blocks[i] = vs_p[i];
+      }
+   }
+}
+
+template <typename... VectorTypes,
+          std::enable_if_t<
+             std::conjunction_v<
+                std::is_convertible<const VectorTypes&,const Vector&>...>, bool>>
+inline void MultiVector::MakeRef(const VectorTypes &...vs)
+{
+   blocks.resize(sizeof...(vs));
+   if constexpr (sizeof...(vs) > 0)
+   {
+      const std::array vs_p{&static_cast<const Vector&>(vs)...};
       for (std::size_t i = 0; i < sizeof...(vs); i++)
       {
          blocks[i] = vs_p[i];
