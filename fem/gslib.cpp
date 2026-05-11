@@ -111,9 +111,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
-   int initialized = 0;
-   MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(nullptr, nullptr); }
+   if (!Mpi::IsInitialized()) { Mpi::Init(); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
@@ -1481,7 +1479,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    }
    DEV.find_device = true;
 
-   const int id = gsl_comm->id, np = gsl_comm->np;
+   const unsigned int id = gsl_comm->id, np = gsl_comm->np;
 
    gsl_mfem_ref.SetSize(points_cnt * dim);
    gsl_mfem_elem.SetSize(points_cnt);
@@ -1645,7 +1643,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          {
             const int pp = hash_offset[i];
             /* don't send back to where it just came from */
-            if (pp == p->proc)
+            if (static_cast<unsigned>(pp) == p->proc)
             {
                continue;
             }
@@ -2061,7 +2059,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
          sarray_transfer(struct evalOutPt_t, &outpt, proc, 1, cr);
 
          opt = (evalOutPt_t *)outpt.ptr;
-         for (int index = 0; index < outpt.n; index++)
+         for (size_t index = 0; index < outpt.n; index++)
          {
             int idx = ordering == Ordering::byNODES ?
                       opt->index + i*points_cnt :
@@ -3202,7 +3200,9 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
 void FindPointsGSLIB::SetupIntegrationRules(const int order,
                                             Array<IntegrationRule *> &ir_out)
 {
-   const int dof1D = order + 1;
+   MFEM_VERIFY(mesh, "Setup FindPointsGSLIB with mesh first.");
+   const int dof1D = order+1;
+   dim = mesh->Dimension();
 
    if (dim == 1)
    {
@@ -4213,7 +4213,8 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
       sarray_transfer(struct out_pt, outpt, proc, 1, cr);
 
       // Store received data
-      MFEM_VERIFY(outpt->n == points_cnt, "Incompatible size. Number of points "
+      MFEM_VERIFY(outpt->n == static_cast<size_t>(points_cnt),
+                  "Incompatible size. Number of points "
                   "received does not match the number of points originally "
                   "found using FindPoints.");
 
@@ -4768,9 +4769,7 @@ GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
-   int initialized;
-   MPI_Initialized(&initialized);
-   if (!initialized) { MPI_Init(nullptr, nullptr); }
+   if (!Mpi::IsInitialized()) { Mpi::Init(); }
    MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
