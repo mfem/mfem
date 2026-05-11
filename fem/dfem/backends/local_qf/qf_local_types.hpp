@@ -87,7 +87,7 @@ MFEM_HOST_DEVICE auto lo_input_qp_reg_as_arg_at(
 
 /// Write q-argument value `out` (`DecayT` at QP) into the LO register block at (qz,qy,qx).
 template <typename DecayT, int MQ1>
-MFEM_HOST_DEVICE void output_qp_reg_assign_at(
+MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
    lo_qp_reg_for_decay_t<DecayT, MQ1> &reg,
    int qz, int qy, int qx, const DecayT &out)
 {

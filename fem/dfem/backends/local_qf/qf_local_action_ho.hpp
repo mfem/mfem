@@ -26,22 +26,53 @@ struct LocalQFHOBackend
    constexpr int MAX_THREADS_PER_BLOCK() { return T_Q1D*T_Q1D; }
 
    //////////////////////////////////////////////////////////////////
-   template<int Q>
+   template<int MQ1>
    struct Shared
    {
-      real_t M[Q][Q], B[Q][Q], G[Q][Q];
+      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
    };
 
    //////////////////////////////////////////////////////////////////
-   template<int Q>
-   struct Exclusive
+   template<int MQ1T, typename ArgRegT, typename XE_T>
+   static inline MFEM_HOST_DEVICE
+   void LoadValue(Shared<MQ1T> &,
+                  const int, const int, const int, const int,
+                  const real_t*, const XE_T &, ArgRegT &)
    {
-      ker::vd_regs3d_t<1, 3, Q> del; // dofs buffer for rank-1 gradient
-      ker::vd_regs3d_t<3, 3, Q> mat; // dofs buffer for rank-2 gradient
-   };
+      static_assert(sizeof(ArgRegT) == 0,
+                    "LocalQFHOBackend::LoadValue is not implemented");
+   }
 
    //////////////////////////////////////////////////////////////////
-   // Per-QP register layout
+   template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename XE_T>
+   static inline MFEM_HOST_DEVICE
+   void LoadGradient(Shared<MQ1T> &s,
+                     const int e, const int d, const int q, const int,
+                     const real_t *B, const real_t *G,
+                     const XE_T &XE, ArgRegT &rarg)
+   {
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
+      if constexpr (ext_sz == 1)
+      {
+         ker::vd_regs3d_t<1, 3, MQ1T> dofs;
+         ker::LoadDofs3d(e, d, XE, dofs);
+         ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
+      }
+      else if constexpr (ext_sz == 2)
+      {
+         ker::vd_regs3d_t<3, 3, MQ1T> dofs;
+         ker::LoadDofs3d(e, d, XE, dofs);
+         ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
+      }
+      else
+      {
+         static_assert(ext_sz == 1 || ext_sz == 2,
+                       "Unsupported gradient rank");
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
    template<typename DecayT, int MQ1T>
    using QPReg = ho_qp_reg_for_decay_t<DecayT, MQ1T>;
 
@@ -61,47 +92,9 @@ struct LocalQFHOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int MQ1T, typename ArgRegT, typename XE_T>
-   static inline MFEM_HOST_DEVICE
-   void LoadValue(Shared<MQ1T> &, Exclusive<MQ1T> &,
-                  const int, const int, const int, const int,
-                  const real_t*, const XE_T &, ArgRegT &)
-   {
-      static_assert(sizeof(ArgRegT) == 0,
-                    "LocalQFHOBackend::LoadValue is not implemented");
-   }
-
-   //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename XE_T>
-   static inline MFEM_HOST_DEVICE
-   void LoadGradient(Shared<MQ1T> &s, Exclusive<MQ1T> &r,
-                     const int e, const int d, const int q, const int,
-                     const real_t *B, const real_t *G,
-                     const XE_T &XE, ArgRegT &arg_reg)
-   {
-      ker::LoadMatrix(d, q, B, s.B);
-      ker::LoadMatrix(d, q, G, s.G);
-      if constexpr (ext_sz == 1)
-      {
-         ker::LoadDofs3d(e, d, XE, r.del);
-         ker::Grad3d(d, q, s.M, s.B, s.G, r.del, arg_reg);
-      }
-      else if constexpr (ext_sz == 2)
-      {
-         ker::LoadDofs3d(e, d, XE, r.mat);
-         ker::Grad3d(d, q, s.M, s.B, s.G, r.mat, arg_reg);
-      }
-      else
-      {
-         static_assert(ext_sz == 1 || ext_sz == 2,
-                       "Unsupported gradient rank");
-      }
-   }
-
-   //////////////////////////////////////////////////////////////////
    template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared<MQ1T>&, Exclusive<MQ1T>&,
+   void WriteValue(Shared<MQ1T>&,
                    const int, const int, const int, const int,
                    const real_t*, const YE_T &, ArgRegT &)
    {
@@ -112,17 +105,18 @@ struct LocalQFHOBackend
    //////////////////////////////////////////////////////////////////
    template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteGradient(Shared<MQ1T> &s, Exclusive<MQ1T> &r,
+   void WriteGradient(Shared<MQ1T> &s,
                       const int e, const int d, const int q, const int,
                       const real_t *B, const real_t *G,
-                      YE_T &YE, ArgRegT &arg_reg)
+                      YE_T &YE, ArgRegT &rarg)
    {
       if constexpr (ext_sz == 1)
       {
          ker::LoadMatrix(d, q, B, s.B);
          ker::LoadMatrix(d, q, G, s.G);
-         ker::GradTranspose3d(d, q, s.M, s.B, s.G, arg_reg, r.del);
-         ker::WriteDofs3d(e, d, r.del, YE);
+         ker::vd_regs3d_t<1, 3, MQ1T> dofs;
+         ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
+         ker::WriteDofs3d(e, d, dofs, YE);
       }
       else { static_assert(ext_sz == 1, "Unsupported gradient rank"); }
    }

@@ -264,13 +264,12 @@ public:
          // -----------------------------------------------
          // Inputs and outputs argument registers
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> args_reg;
+         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
 
          // -----------------------------------------------
          // Shared memory
          // -----------------------------------------------
          MFEM_SHARED typename backend_t::template Shared<MQ1> smem;
-         typename backend_t::template Exclusive<MQ1> regs;
 
          // -----------------------------------------------
          // Load inputs
@@ -281,18 +280,17 @@ public:
             const auto &XE = in_XE[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
-            auto &arg_reg = get<i>(args_reg);
+            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<MQ1>(smem, regs, e, d, q, Q1D, B, XE, arg_reg);
+               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
-               backend_t::template LoadGradient<DIM, ext_sz, MQ1>(smem, regs,
-                                                                  e, d, q, Q1D, B, G,
-                                                                  XE, arg_reg);
+               backend_t::template LoadGradient<DIM, ext_sz, MQ1>
+               (smem, e, d, q, Q1D, B, G, XE, rarg);
             }
             else if constexpr (is_identity_fop<FOP>::value ||
                                is_weight_fop<FOP>::value)
@@ -338,7 +336,7 @@ public:
                      {
                         qarg = backend_t::template
                                qp_load<tuple_element_t<i, args_tuple_t>, MQ1>
-                        (get<i>(args_reg), qz, qy, qx);
+                        (get<i>(rargs), qz, qy, qx);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -373,7 +371,7 @@ public:
                         {
                            backend_t::template
                            qp_store<tuple_element_t<o, args_tuple_t>, MQ1>(
-                              get<o>(args_reg), qz, qy, qx, qarg);
+                              get<o>(rargs), qz, qy, qx, qarg);
                         }
                         else if constexpr (ext_sz == 2)
                         {
@@ -400,18 +398,18 @@ public:
             const int d = out_d1d[i], q = out_q1d[i];
             const auto B = out_B[i], G = out_G[i];
             const auto &YE = out_YE[i];
-            auto &arg_reg = get<o>(args_reg);
+            auto &arg_reg = get<o>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
             constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
             if constexpr (is_value_fop<FOP>::value)
             {
                backend_t::template WriteValue<DIM, ext_sz, MQ1>
-               (smem, regs, e, d, q, q1d, B, YE, arg_reg);
+               (smem, e, d, q, q1d, B, YE, arg_reg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
                backend_t::template WriteGradient<DIM, ext_sz, MQ1>
-               (smem, regs, e, d, q, q1d, B, G, YE, arg_reg);
+               (smem, e, d, q, q1d, B, G, YE, arg_reg);
             }
             else if constexpr (is_identity_fop<FOP>::value) { /* nothing to do */ }
             else { static_assert(false, "Unsupported"); }
