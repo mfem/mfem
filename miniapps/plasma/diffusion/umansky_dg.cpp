@@ -49,6 +49,11 @@
 // methods based on a discontinuous discretization of the temperature
 // field.
 //
+// This miniapp provides a simple AMR loop to aid in the investigation
+// of adaptive mesh refinement to mitigate the challenges mentioned
+// above. See Example 6 for a basic introduction to using AMR for the
+// Poisson problem.
+//
 // Sample runs:
 //
 //   Rectangular domain with two anisotropy ratios:
