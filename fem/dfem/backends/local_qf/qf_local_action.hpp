@@ -200,9 +200,9 @@ public:
 
       const int ne = ctx.nentities;
 
-      // -----------------------------------------------
+      // --------------------------------------------------
       // INPUTS: XE, DIM + 1(VDIM) + 1(number of elements)
-      // -----------------------------------------------
+      // --------------------------------------------------
       std::array<DeviceTensor<DIM+1+1, const real_t>, n_inputs> in_XE;
       for_constexpr<n_inputs>([&](auto ic)
       {
@@ -228,9 +228,9 @@ public:
          else { static_assert(false, "Unsupported"); }
       });
 
-      // -----------------------------------------------
+      // --------------------------------------------------
       // OUTPUTS: YE, DIM + 1(VDIM) + 1(number of elements)
-      // -----------------------------------------------
+      // --------------------------------------------------
       std::array<DeviceTensor<DIM+1+1, real_t>, n_outputs> out_YE;
       for_constexpr<n_outputs>([&](auto ic)
       {
@@ -310,6 +310,8 @@ public:
 
          // -----------------------------------------------
          // Evaluate the quadrature function
+         // Warning: no 'DIRECT' on the 'Z' direction,
+         // as one backend may need to iterate over it
          // -----------------------------------------------
          MFEM_FOREACH_THREAD(qz,z,q1d)
          {
@@ -339,8 +341,8 @@ public:
                      else if constexpr (is_value_fop<FOP>::value ||
                                         is_gradient_fop<FOP>::value)
                      {
-                        qarg = backend_t::template
-                               qp_load<tuple_element_t<i, args_tuple_t>, MQ1>
+                        using tuple_t = tuple_element_t<i, args_tuple_t>;
+                        qarg = backend_t::template qp_load<tuple_t, MQ1>
                         (get<i>(rargs), qz, qy, qx);
                      }
                      else { static_assert(false, "Unsupported"); }
@@ -373,9 +375,9 @@ public:
                         constexpr auto ext_sz = qf_param_slot<qfunc_t, o>::extents.size();
                         if constexpr (ext_sz == 1)
                         {
-                           backend_t::template
-                           qp_store<tuple_element_t<o, args_tuple_t>, MQ1>(
-                              get<o>(rargs), qz, qy, qx, qarg);
+                           using tuple_t = tuple_element_t<i, args_tuple_t>;
+                           backend_t::template qp_store<tuple_t, MQ1>
+                           (get<o>(rargs), qz, qy, qx, qarg);
                         }
                         else if constexpr (ext_sz == 2)
                         {

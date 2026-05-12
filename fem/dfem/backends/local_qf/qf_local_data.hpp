@@ -22,53 +22,33 @@
 namespace mfem::future
 {
 
-namespace detail
-{
-
-template<int... Is>
-constexpr int product_int_pack()
-{
-   if constexpr (sizeof...(Is) == 0) { return 1; }
-   else { return (Is * ... * 1); }
-}
-
-} // namespace detail
-
 ///////////////////////////////////////////////////////////////////////////////
-/// Static extents for one decayed q-function parameter type (`tensor<…>`, `real_t`, …).
+/// Static rank and extents for one decayed q-function parameter type
 template <typename T>
 struct qf_param_tensor_extents
 {
-   static constexpr bool is_tensor = false;
    static constexpr int rank = 0;
-   static constexpr int flat = 1;
    static constexpr std::array<int, 0> extents {};
 };
 
 template <typename scalar_t, int... Is>
 struct qf_param_tensor_extents<tensor<scalar_t, Is...>>
 {
-   static constexpr bool is_tensor = true;
    static constexpr int rank = sizeof...(Is);
-   static constexpr int flat = detail::product_int_pack<Is...>();
    static constexpr std::array<int, sizeof...(Is)> extents {{Is...}};
 };
 
 template <typename scalar_t>
 struct qf_param_tensor_extents<tensor<scalar_t>>
 {
-   static constexpr bool is_tensor = true;
    static constexpr int rank = 0;
-   static constexpr int flat = 1;
    static constexpr std::array<int, 0> extents {};
 };
 
 template <>
 struct qf_param_tensor_extents<real_t>
 {
-   static constexpr bool is_tensor = false;
    static constexpr int rank = 0;
-   static constexpr int flat = 1;
    static constexpr std::array<int, 0> extents {};
 };
 
@@ -84,11 +64,8 @@ private:
 public:
    using decay_t =
       std::remove_cv_t<std::remove_reference_t<raw_param_t>>;
-   using extents_trait = qf_param_tensor_extents<decay_t>;
 
-   static constexpr int flat = extents_trait::flat;
-   static constexpr int tensor_rank = extents_trait::rank;
-   static constexpr auto extents = extents_trait::extents;
+   static constexpr auto extents = qf_param_tensor_extents<decay_t>::extents;
 };
 
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
