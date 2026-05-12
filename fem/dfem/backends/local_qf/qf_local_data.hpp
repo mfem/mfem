@@ -1,3 +1,13 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 // Compile-time quadrature argument metadata for local q-functions
@@ -8,10 +18,6 @@
 #include <array>
 #include <cstddef>
 #include <type_traits>
-
-#ifdef NVTX_DBG_FMT
-#include NVTX_DBG_FMT // IWYU pragma: keep
-#endif // NVTX_DBG_FMT
 
 namespace mfem::future
 {
@@ -86,8 +92,7 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Bundles q-function signature params with `inputs_t` / `outputs_t` (FieldOperator
-/// tuple types). Mirrors `LocalQFImpl::Action` template parameters.
+/// Bundles q-function signature params with `inputs_t` / `outputs_t`
 template <
    typename qfunc_t,
    typename inputs_t,

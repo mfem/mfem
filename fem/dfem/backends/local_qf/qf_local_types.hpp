@@ -1,4 +1,17 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
+
+#include <cstddef>
+#include <type_traits>
 
 // Typed per-QP register layouts derived from decayed q-function parameter types,
 // for both the LO and HO backends.
@@ -6,9 +19,6 @@
 #include "fem/kernels.hpp"   // ker::v_regs3d_t, ker::vd_regs3d_t (HO layout)
 #include "fem/kernels3d.hpp" // low::regs3d_t, low::regs3d_vd_t (LO layout)
 #include "qf_local_data.hpp"
-
-#include <cstddef>
-#include <type_traits>
 
 #include "../util.hpp" // for as_tensor
 

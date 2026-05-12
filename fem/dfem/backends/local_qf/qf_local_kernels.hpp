@@ -1,6 +1,16 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
-#include "fem/dfem/integrator_ctx.hpp"
+#include <type_traits>
 
 #include "qf_local_action.hpp"
 #include "qf_local_action_lo.hpp"
@@ -13,6 +23,9 @@ template<bool is_high_order = false>
 struct LocalQFKernelsBackend
 {
    static constexpr bool has_cached_derivative = false;
+
+   using backend_t =
+      std::conditional_t<is_high_order, LocalQFHOBackend, LocalQFLOBackend>;
 
    /**
     * @brief Make an action for a local device backend.
@@ -30,22 +43,14 @@ struct LocalQFKernelsBackend
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeAction(
+   static auto MakeAction(
       const IntegratorContext &ctx,
       qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs)
    {
-      if constexpr (is_high_order)
-      {
-         return LocalQFKernelsImpl::Action<LocalQFHOBackend, qfunc_t, inputs_t, outputs_t>
-                (ctx, qfunc, inputs, outputs);
-      }
-      else
-      {
-         return LocalQFKernelsImpl::Action<LocalQFLOBackend, qfunc_t, inputs_t, outputs_t>
-                (ctx, qfunc, inputs, outputs);
-      }
+      return LocalQFKernelsImpl::Action<backend_t, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs);
    }
 
    /**
@@ -66,7 +71,7 @@ struct LocalQFKernelsBackend
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeDerivativeAction(
+   static auto MakeDerivativeAction(
       const IntegratorContext &,
       qfunc_t,
       inputs_t,

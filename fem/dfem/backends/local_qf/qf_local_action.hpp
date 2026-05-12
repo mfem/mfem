@@ -20,6 +20,10 @@
 
 #include "qf_local_types.hpp"
 
+#ifdef NVTX_DBG_FMT
+#include NVTX_DBG_FMT // IWYU pragma: keep
+#endif
+
 namespace mfem::future::LocalQFKernelsImpl
 {
 
