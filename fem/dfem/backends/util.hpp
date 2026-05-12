@@ -662,30 +662,6 @@ void create_qlayouts(const fops_t &fops,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// template <int M, int N, int P, int Q>
-// inline MFEM_HOST_DEVICE auto
-// recast_as(real_t (&base)[P*Q])
-// -> real_t(&)[M*N]
-// {
-//    return *reinterpret_cast<real_t(*)[M*N]>(&base);
-// }
-
-// template <int M, int N>
-// inline MFEM_HOST_DEVICE auto
-// subregs_const_ref(const regs_t<real_t, M, M> *offset)
-// -> const regs_t<real_t, M, M> (&)[N]
-// {
-//    return *reinterpret_cast<const regs_t<real_t, M, M>(*)[N]>(offset);
-// }
-
-// template <int M, int N>
-// inline MFEM_HOST_DEVICE auto subregs_ref(regs_t<real_t, M, M> *offset)
-// -> regs_t<real_t, M, M> (&)[N]
-// {
-//    return *reinterpret_cast<regs_t<real_t, M, M>(*)[N]>(offset);
-// }
-
-///////////////////////////////////////////////////////////////////////////////
 // Zero-copy view of a contiguous block as a tensor<T, n1>
 template<typename T, int n1> inline
 MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)

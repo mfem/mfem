@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-// #include <tuple>
 #include <utility>
 
 #include "fem/dfem/fieldoperator.hpp"
@@ -197,37 +196,6 @@ struct is_tensor_array_mut : std::false_type {};
 template <typename scalar_t, int... Dims>
 struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>>:
 /*  */ std::bool_constant<!std::is_const_v<scalar_t>> {};
-
-// supports_tensor_array_qfunc ////////////////////////////////////////////////
-// template <typename qfunc_t, typename inputs_t, typename outputs_t>
-// struct supports_tensor_array_qfunc
-// {
-//    using qf_signature = typename get_function_signature<qfunc_t>::type;
-//    using qf_param_ts = typename qf_signature::parameter_ts;
-
-//    static constexpr int ninputs = tuple_size<inputs_t>::value;
-//    static constexpr int noutputs = tuple_size<outputs_t>::value;
-//    static constexpr int nparams = tuple_size<qf_param_ts>::value;
-
-//    template <std::size_t... Is>
-//    static constexpr bool InputsOk(std::index_sequence<Is...>)
-//    {
-//       return (is_tensor_array<std::remove_cv_t<std::remove_reference_t<
-//               std::tuple_element_t<Is, qf_param_ts>>>>::value && ...);
-//    }
-
-//    template <std::size_t... Is>
-//    static constexpr bool OutputsOk(std::index_sequence<Is...>)
-//    {
-//       return (is_tensor_array_mut<std::remove_cv_t<std::remove_reference_t<
-//               std::tuple_element_t<ninputs + Is, qf_param_ts>>>>::value && ...);
-//    }
-
-//    static constexpr bool value =
-//       (nparams == ninputs + noutputs) &&
-//       InputsOk(std::make_index_sequence<ninputs> {}) &&
-//       OutputsOk(std::make_index_sequence<noutputs> {});
-// };
 
 // FieldBasisFromWeight ///////////////////////////////////////////////////////
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
