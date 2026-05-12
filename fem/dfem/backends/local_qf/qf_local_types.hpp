@@ -28,7 +28,7 @@ namespace mfem::future
 ///////////////////////////////////////////////////////////////////////////////
 /// Low-order 3D quadrature register storage for a decayed q-function parameter
 
-template <typename DecayT, int MQ1, int Rank = qf_param_tensor_extents<DecayT>::rank>
+template <typename DecayT, int MQ1, int Rank = qf_param_shape<DecayT>::rank>
 struct low_order_qp_reg_for_decay
 {
    static_assert(Rank >= 0 && Rank <= 2,
@@ -45,7 +45,7 @@ template <typename DecayT, int MQ1>
 struct low_order_qp_reg_for_decay<DecayT, MQ1, 1>
 {
 private:
-   static constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+   static constexpr int e0 = qf_param_shape<DecayT>::extents[0];
 
 public:
    using type = mfem::kernels::internal::low::regs3d_t<e0, MQ1>;
@@ -55,8 +55,8 @@ template <typename DecayT, int MQ1>
 struct low_order_qp_reg_for_decay<DecayT, MQ1, 2>
 {
 private:
-   static constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-   static constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+   static constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+   static constexpr int e1 = qf_param_shape<DecayT>::extents[1];
 
 public:
    using type = mfem::kernels::internal::low::regs3d_vd_t<e0, e1, MQ1>;
@@ -70,7 +70,7 @@ template <typename DecayT, int MQ1>
 MFEM_HOST_DEVICE auto lo_input_qp_reg_as_arg_at(
    lo_qp_reg_for_decay_t<DecayT, MQ1> &reg, int qz, int qy, int qx)
 {
-   constexpr int R = qf_param_tensor_extents<DecayT>::rank;
+   constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
       if constexpr (std::is_same_v<DecayT, real_t>)
@@ -84,13 +84,13 @@ MFEM_HOST_DEVICE auto lo_input_qp_reg_as_arg_at(
    }
    else if constexpr (R == 1)
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
       return as_tensor<real_t, e0>(&reg(qz, qy, qx, 0));
    }
    else
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-      constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+      constexpr int e1 = qf_param_shape<DecayT>::extents[1];
       return as_tensor<real_t, e0, e1>(&reg(qz, qy, qx, 0, 0));
    }
 }
@@ -101,7 +101,7 @@ MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
    lo_qp_reg_for_decay_t<DecayT, MQ1> &reg,
    int qz, int qy, int qx, const DecayT &out)
 {
-   constexpr int R = qf_param_tensor_extents<DecayT>::rank;
+   constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
       if constexpr (std::is_same_v<DecayT, real_t>)
@@ -115,13 +115,13 @@ MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
    }
    else if constexpr (R == 1)
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
       as_tensor<real_t, e0>(&reg(qz, qy, qx, 0)) = out;
    }
    else
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-      constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+      constexpr int e1 = qf_param_shape<DecayT>::extents[1];
       as_tensor<real_t, e0, e1>(&reg(qz, qy, qx, 0, 0)) = out;
    }
 }
@@ -129,7 +129,7 @@ MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
 ///////////////////////////////////////////////////////////////////////////////
 /// High-order 3D quadrature register storage for a decayed q-function parameter
 
-template <typename DecayT, int MQ1, int Rank = qf_param_tensor_extents<DecayT>::rank>
+template <typename DecayT, int MQ1, int Rank = qf_param_shape<DecayT>::rank>
 struct ho_qp_reg_for_decay
 {
    static_assert(Rank >= 0 && Rank <= 2,
@@ -146,7 +146,7 @@ template <typename DecayT, int MQ1>
 struct ho_qp_reg_for_decay<DecayT, MQ1, 1>
 {
 private:
-   static constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+   static constexpr int e0 = qf_param_shape<DecayT>::extents[0];
 public:
    using type = mfem::kernels::internal::vd_regs3d_t<1, e0, MQ1>;
 };
@@ -155,8 +155,8 @@ template <typename DecayT, int MQ1>
 struct ho_qp_reg_for_decay<DecayT, MQ1, 2>
 {
 private:
-   static constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-   static constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+   static constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+   static constexpr int e1 = qf_param_shape<DecayT>::extents[1];
 public:
    using type = mfem::kernels::internal::vd_regs3d_t<e0, e1, MQ1>;
 };
@@ -168,7 +168,7 @@ template <typename DecayT, int MQ1>
 MFEM_HOST_DEVICE auto ho_input_qp_reg_as_arg_at(
    ho_qp_reg_for_decay_t<DecayT, MQ1> &reg, int qz, int qy, int qx)
 {
-   constexpr int R = qf_param_tensor_extents<DecayT>::rank;
+   constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
       if constexpr (std::is_same_v<DecayT, real_t>)
@@ -182,7 +182,7 @@ MFEM_HOST_DEVICE auto ho_input_qp_reg_as_arg_at(
    }
    else if constexpr (R == 1)
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
       DecayT t;
       MFEM_UNROLL(e0)
       for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
@@ -190,8 +190,8 @@ MFEM_HOST_DEVICE auto ho_input_qp_reg_as_arg_at(
    }
    else // R == 2
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-      constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+      constexpr int e1 = qf_param_shape<DecayT>::extents[1];
       DecayT t;
       MFEM_UNROLL(e0)
       for (int i = 0; i < e0; ++i)
@@ -210,7 +210,7 @@ MFEM_HOST_DEVICE void ho_output_qp_reg_assign_at(
    ho_qp_reg_for_decay_t<DecayT, MQ1> &reg, int qz, int qy, int qx,
    const DecayT &out)
 {
-   constexpr int R = qf_param_tensor_extents<DecayT>::rank;
+   constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
       if constexpr (std::is_same_v<DecayT, real_t>)
@@ -224,14 +224,14 @@ MFEM_HOST_DEVICE void ho_output_qp_reg_assign_at(
    }
    else if constexpr (R == 1)
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
       MFEM_UNROLL(e0)
       for (int dd = 0; dd < e0; ++dd) { reg(0, dd, qz, qy, qx) = out(dd); }
    }
    else // R == 2
    {
-      constexpr int e0 = qf_param_tensor_extents<DecayT>::extents[0];
-      constexpr int e1 = qf_param_tensor_extents<DecayT>::extents[1];
+      constexpr int e0 = qf_param_shape<DecayT>::extents[0];
+      constexpr int e1 = qf_param_shape<DecayT>::extents[1];
       MFEM_UNROLL(e0)
       for (int i = 0; i < e0; ++i)
       {

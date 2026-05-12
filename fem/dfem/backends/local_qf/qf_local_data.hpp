@@ -23,30 +23,30 @@ namespace mfem::future
 {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Static rank and extents for one decayed q-function parameter type
+/// Static shape (tensor rank and per-axis sizes) for one decayed q-function parameter type
 template <typename T>
-struct qf_param_tensor_extents
+struct qf_param_shape
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
 };
 
 template <typename scalar_t, int... Is>
-struct qf_param_tensor_extents<tensor<scalar_t, Is...>>
+struct qf_param_shape<tensor<scalar_t, Is...>>
 {
    static constexpr int rank = sizeof...(Is);
    static constexpr std::array<int, sizeof...(Is)> extents {{Is...}};
 };
 
 template <typename scalar_t>
-struct qf_param_tensor_extents<tensor<scalar_t>>
+struct qf_param_shape<tensor<scalar_t>>
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
 };
 
 template <>
-struct qf_param_tensor_extents<real_t>
+struct qf_param_shape<real_t>
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
@@ -57,15 +57,12 @@ struct qf_param_tensor_extents<real_t>
 template <typename qfunc_t, std::size_t I>
 struct qf_param_slot
 {
-private:
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
    using raw_param_t = typename tuple_element<I, qf_param_ts>::type;
-public:
-   using decay_t =
-      std::remove_cv_t<std::remove_reference_t<raw_param_t>>;
+   using decay_t = std::remove_cv_t<std::remove_reference_t<raw_param_t>>;
 
-   static constexpr auto extents = qf_param_tensor_extents<decay_t>::extents;
+   static constexpr auto extents = qf_param_shape<decay_t>::extents;
 };
 
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
