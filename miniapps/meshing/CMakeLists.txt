@@ -132,6 +132,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
+  add_mfem_miniapp(pmesh-adaptive-limiting
+    MAIN pmesh-adaptive-limiting.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(pmesh-adaptive-limiting copy_miniapps_meshing_data)
+
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}

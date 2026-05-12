@@ -96,10 +96,39 @@ int main(int argc, char *argv[])
               mesh->GetNodalFESpace()->GetMaxElementOrder();
    }
 
+   // Loop over all boundary elements and set the attribute of adjacent
+   // volume elements to 2 using MFEM face adjacency info.
+   {
+      const int nbe = mesh->GetNBE();
+      for (int bi = 0; bi < nbe; bi++)
+      {
+         // if (mesh->GetBdrAttribute(bi) != 4) { continue; }
+         const int face_idx = mesh->GetBdrElementFaceIndex(bi);
+         auto fi = mesh->GetFaceInformation(face_idx);
+
+         // For boundary faces, only one adjacent element should be valid.
+         int adj_el = fi.element[0].index;
+
+         if (adj_el >= 0)
+         {
+            mesh->SetAttribute(adj_el, 2);
+         }
+      }
+      mesh->SetAttributes();
+   }
+
+   SubMesh *submesh = nullptr;
+   // Extract a submesh containing only elements with attribute 2.
+   {
+      Array<int> cond_attr;
+      cond_attr.Append(2);
+      submesh = new SubMesh(SubMesh::CreateFromDomain(*mesh, cond_attr));
+   }
+
    // Define a GridFunction for all geometric parameters associated with the
    // mesh.
-   L2_FECollection l2fec(order, mesh->Dimension());
-   FiniteElementSpace fespace(mesh, &l2fec, nTotalParams); // must order byNodes
+   L2_FECollection l2fec(order, submesh->Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fespace(submesh, &l2fec, nTotalParams); // must order byNodes
    GridFunction quality(&fespace);
 
    DenseMatrix jacobian(dim);
@@ -107,7 +136,7 @@ int main(int argc, char *argv[])
    Array<int> vdofs;
    Vector allVals;
    // Compute the geometric parameter at the dofs of each element.
-   for (int e = 0; e < mesh->GetNE(); e++)
+   for (int e = 0; e < submesh->GetNE(); e++)
    {
       const FiniteElement *fe = fespace.GetFE(e);
       const IntegrationRule &ir = fe->GetNodes();
@@ -116,10 +145,10 @@ int main(int argc, char *argv[])
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
-         mesh->GetElementJacobian(e, jacobian, &ip);
+         submesh->GetElementJacobian(e, jacobian, &ip);
          real_t sizeVal;
          Vector asprVals, skewVals, oriVals;
-         mesh->GetGeometricParametersFromJacobian(jacobian, sizeVal,
+         submesh->GetGeometricParametersFromJacobian(jacobian, sizeVal,
                                                   asprVals, skewVals, oriVals);
          allVals(q + 0) = sizeVal;
          for (int n = 0; n < nAspr; n++)
@@ -134,7 +163,7 @@ int main(int argc, char *argv[])
       quality.SetSubVector(vdofs, allVals);
    }
 
-   VisItDataCollection visit_dc("quality", mesh);
+   VisItDataCollection visit_dc("quality", submesh);
 
    // Visualize different parameters
    int visw = 400;
@@ -142,7 +171,7 @@ int main(int argc, char *argv[])
    int cx = 0;
    int cy = 0;
    int gap = 10;
-   FiniteElementSpace scfespace(mesh, &l2fec);
+   FiniteElementSpace scfespace(submesh, &l2fec);
    int ndofs = scfespace.GetNDofs();
    if (dim == 2)
    {
@@ -316,6 +345,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   delete submesh;
    delete mesh;
    return 0;
 }

@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
+PAR_MINIAPPS = pmesh-optimizer pmesh-adaptive-limiting pminimal-surface pmesh-fitting fit-node-position\
 	phpref mesh-bounding-boxes amster
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -66,7 +66,7 @@ MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
 jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-adaptive-limiting pmesh-fitting fit-node-position: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif

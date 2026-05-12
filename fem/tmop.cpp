@@ -805,15 +805,8 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
    real_t denominator = 1.0;
    if (btype == BarrierType::Shifted)
    {
-      if (bound)
-      {
-         denominator = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, (real_t) min_det_b));
-      }
-      else
-      {
-         denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep,
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep,
                                                (real_t) min_det_b));
-      }
    }
    else if (btype == BarrierType::Pseudo)
    {
@@ -2670,6 +2663,10 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (target_type == IDEAL_SHAPE_GIVEN_SIZE)
             {
                const real_t det = Jtr(i).Det();
+               if (det <= 0.0)
+               {
+                  nodes->Print();
+               }
                MFEM_VERIFY(det > 0.0, "The given mesh is inverted!");
                Jtr(i).Set(std::pow(det / detW, 1./dim), Wideal);
             }
@@ -4310,6 +4307,15 @@ void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
    int order = pmesh->GetNodalFESpace()->GetMaxElementOrder();
    int dim = pmesh->Dimension();
 
+   Array<int> ess_vdofs;
+   for (int i = 0; i < fdofs_arr.Size(); i++)
+   {
+      Array<int> facedofs = *(fdofs_arr[i]);
+      ess_vdofs.Append(facedofs);
+   }
+   ess_vdofs.Sort();
+   ess_vdofs.Unique();
+
    for (int i = 0; i < dim; i++)
    {
       H1_FECollection fec(order, dim);
@@ -4329,6 +4335,21 @@ void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
       Array<int> bdr(pmesh->bdr_attributes.Max());
       bdr = 1;
       fespace.GetEssentialTrueDofs(bdr, ess_tdof_list);
+      if (true) // interface fitting - also get DOFs marked for projection
+      {
+         Array<int> ess_tdof_marker, ess_tdof_list2;
+
+         for (int v = 0; v < ess_vdofs.Size(); v++)
+         {
+            int vdof = ess_vdofs[v];
+            int tdof = fespace.GetLocalTDofNumber(vdof);
+            if (tdof > -1)
+            {
+               ess_tdof_list2.Append(tdof);
+            }
+         }
+         ess_tdof_list.Append(ess_tdof_list2);
+      }
 
       OperatorPtr A;
       Vector B, X;

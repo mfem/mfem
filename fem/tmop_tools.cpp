@@ -1151,6 +1151,25 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    }
 }
 
+const IntegrationRule &TMOPNewtonSolver::GetIntegrationRule(
+                                             const FiniteElement &el,
+                                             int el_no) const
+{
+   if (quad_order_inc > 0 && el_no >= 0)
+   {
+      const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+      const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+      TMOP_Integrator *ti  = dynamic_cast<TMOP_Integrator *>(integs[0]);
+      MFEM_VERIFY(ti, "TMOP_Integrator is required for quad order increment.");
+      return IntegRules->Get(el.GetGeomType(), ti->GetElementAdaptedQuadOrder(el_no));
+   }
+   if (IntegRules)
+   {
+      return IntegRules->Get(el.GetGeomType(), integ_order);
+   }
+   return ir;
+}
+
 bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
                                             Vector &d_loc_out) const
 {
@@ -1174,6 +1193,7 @@ bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
          MFEM_ABORT("Combo integrators not supported yet.");
       }
    }
+   // std::cout << "tangential relaxation flag: " << flag << "\n";
    if (!flag) { return flag; }
 
    for (int i = 0; i < 1; i++)
@@ -1244,7 +1264,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
          d_loc.GetSubVector(xdofs, d_loc_el);
          posV += d_loc_el;
 
-         const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
+         const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i), -1);
          const int nsp = irule.GetNPoints();
          for (int j = 0; j < nsp; j++)
          {

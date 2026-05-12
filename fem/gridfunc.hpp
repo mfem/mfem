@@ -1628,6 +1628,19 @@ public:
 
       int GetMinimumPointsForGivenBases(int nb_i, int b_type_i, int cp_type_i);
 
+
+    void AdjustBounds(double dtol)
+    {
+        for (int i = 0; i < lbound.Height(); i++)
+        {
+            for (int j = 0; j < lbound.Width(); j++)
+            {
+                lbound(i,j) -= dtol;
+                ubound(i,j) += dtol;
+            }
+        }
+    }
+
       void Print(std::ostream &outp = mfem::out)
       {
          outp << "PLBound nb: " << nb << std::endl;

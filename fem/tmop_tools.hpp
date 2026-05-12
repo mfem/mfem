@@ -282,14 +282,8 @@ public:
    /// (ii) surface fitting weight.
    void ProcessNewState(const Vector &dx) const override;
 
-   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
-   {
-      if (IntegRules)
-      {
-         return IntegRules->Get(el.GetGeomType(), integ_order);
-      }
-      return ir;
-   }
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el,
+                                             int el_no=-1) const;
 
 
    /** @name Methods for adaptive surface fitting.
