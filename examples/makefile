@@ -203,7 +203,7 @@ clean-build:
 
 clean-exec:
 	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh ex6p-checkpoint.*
-	@rm -rf Example5* Example9* Example15* Example16* Example23* ParaView
+	@rm -rf Example5* Example9* Example15* Example16* Example23* Example41* ParaView
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.* sol_z.*
 	@rm -f order.* ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_* mode_deriv_* flux.*
