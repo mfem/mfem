@@ -162,8 +162,6 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-
-
    // The output mesh could be triangles or quadrilaterals
    int el_type = (el_type_arg == 0) ?
                  Element::TRIANGLE : Element::QUADRILATERAL;
@@ -397,7 +395,7 @@ int main(int argc, char *argv[])
       real_t local_max_err = errors.Max();
       real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
+                    MFEM_MPI_REAL_T, MPI_MAX, pmesh.GetComm());
 
       if (global_max_err < min_err)
       {
