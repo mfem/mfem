@@ -27,6 +27,9 @@ struct LocalQFKernelsBackend
    using backend_t =
       std::conditional_t<is_high_order, LocalQFHOBackend, LocalQFLOBackend>;
 
+   template<typename... Ts>
+   using action_t = LocalQFKernelsImpl::Action<backend_t, Ts...>;
+
    /**
     * @brief Make an action for a local device backend.
     *
@@ -49,8 +52,7 @@ struct LocalQFKernelsBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFKernelsImpl::Action<backend_t, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs);
+      return action_t<qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs, outputs);
    }
 
    /**

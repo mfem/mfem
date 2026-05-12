@@ -63,7 +63,7 @@ class Action
    const std::array<int, n_outputs> output_d1d, output_q1d;
    const std::array<int, n_outputs> output_vdim;
    // other constants
-   const int dim, ne, nq, nqpt;
+   const int dim, ne, nq, q1d;
    const ThreadBlocks thread_blocks;
 
 public:
@@ -105,11 +105,12 @@ public:
       dim(ctx.mesh.Dimension()),
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
-      nqpt(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks(backend_t::template thread_blocks<DIM>(nqpt))
+      q1d(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
+      thread_blocks(backend_t::template thread_blocks<DIM>(q1d))
    {
       NVTX_MARK_FUNCTION;
-      dbg("nfields:{} nqpt:{}", nfields, nqpt);
+      MFEM_ASSERT(DIM == ctx.mesh.Dimension(), "Dimension mismatch");
+      dbg("nfields:{} q1d:{}", nfields, q1d);
       dbg("input_d1d:{}", input_d1d);
       dbg("input_q1d:{}", input_q1d);
       dbg("input_vdim:{}", input_vdim);
@@ -140,7 +141,7 @@ public:
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      ActionCallbackKernels::Run(nqpt,
+      ActionCallbackKernels::Run(q1d,
                                  // arguments
                                  ctx,
                                  qfunc,
@@ -162,7 +163,7 @@ public:
                                  thread_blocks,
                                  xe, ye,
                                  // fallback arguments
-                                 nqpt);
+                                 q1d);
    }
 
 public:
@@ -191,8 +192,6 @@ public:
                                const int q1d)
    {
       NVTX_MARK_FUNCTION;
-
-      MFEM_ASSERT(Action::DIM == ctx.mesh.Dimension(), "Dimension mismatch");
 
       if (ctx.attr.Size() == 0) { return; }
 
