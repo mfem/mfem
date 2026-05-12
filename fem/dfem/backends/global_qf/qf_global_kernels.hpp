@@ -683,6 +683,8 @@ namespace mfem::future
 
 struct GlobalQFKernelsBackend
 {
+   static constexpr bool has_cached_derivative = false;
+
    template<typename qfunc_t, typename inputs_t, typename outputs_t>
    auto static MakeAction(const IntegratorContext &ctx,
                           qfunc_t qfunc,
@@ -691,6 +693,70 @@ struct GlobalQFKernelsBackend
    {
       NVTX_MARK_FUNCTION;
       return kernels::Action(ctx, qfunc, inputs, outputs);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeSetup(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      Vector &qp_cache)
+   {
+      MFEM_ABORT("GlobalQFBackend does not support derivative setup.");
+      return [](const std::vector<Vector *> &, const Vector &) {};
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeAction(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs)
+   {
+      MFEM_ABORT("GlobalQFBackend does not support derivative actions.");
+      return [](const std::vector<Vector *> &, const Vector &) {};
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeApply(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      MFEM_ABORT("GlobalQFBackend does not support derivative apply.");
+      return [](const std::vector<Vector *> &, const Vector *,
+      std::vector<Vector *> &) {};
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeAssemble(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      MFEM_ABORT("GlobalQFBackend does not support derivative assemble.");
+      return [](std::vector<Vector> &, SparseMatrix *&) {};
    }
 };
 
