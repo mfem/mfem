@@ -111,7 +111,6 @@ public:
       dbg("input_vdim:{}", input_vdim);
       dbg("input_idx:{}", input_idx);
       dbg("output_idx:{}", output_idx);
-      ArgMetadata::template dump<DIM>(input_vdim, output_vdim);
 
 #ifdef MFEM_ADD_SPECIALIZATIONS
       if constexpr (backend_t::MQ1 >= 8)

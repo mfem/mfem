@@ -16,8 +16,6 @@ using mfem::future::tuple_element;
 using mfem::future::tuple_element_t;
 #endif
 
-#include "local_qf/qf_local_data.hpp"
-
 namespace mfem::future
 {
 
