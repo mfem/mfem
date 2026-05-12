@@ -86,7 +86,6 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    const char *device_config = "cpu";
-   bool nc = true;
    real_t sigma = -1.0;
    real_t kappa = -1.0;
    real_t eta = 0.0;
@@ -124,9 +123,6 @@ int main(int argc, char *argv[])
                   "Height of domain.");
    args.AddOption(&Ak, "-Ak", "--diff-ratio",
                   "Diffusion Coefficient Ratio.");
-   args.AddOption(&nc, "-nc", "--non-conforming-amr", "-c",
-                  "--conforming-amr",
-                  "Enable or disable conforming adaptive mesh refinement.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&sigma, "-s", "--sigma",
@@ -138,11 +134,6 @@ int main(int argc, char *argv[])
    args.AddOption(&eta, "-eta", "--eta", "BR2 penalty parameter.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-#ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
-                  "-no-a", "--no-algebraic",
-                  "Use algebraic Ceed solver");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -182,7 +173,7 @@ int main(int argc, char *argv[])
    Mesh mesh = Mesh::MakeCartesian2D(nx, ny, Element::Type(el_type), 1, w, h);
    int dim = mesh.Dimension();
 
-   if (nc)
+   if (el_type == (int)Element::QUADRILATERAL)
    {
       mesh.EnsureNCMesh();
    }
