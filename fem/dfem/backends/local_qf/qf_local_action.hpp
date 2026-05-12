@@ -43,7 +43,10 @@ class Action
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   using ArgMetadata = LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>;
+   static_assert(
+      n_inputs + n_outputs ==
+      tuple_size<typename get_function_signature<qfunc_t>::type::parameter_ts>::value,
+      "LocalQF: q-function arity must match inputs + outputs");
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -290,7 +293,7 @@ public:
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               constexpr auto ext_sz = ArgMetadata::template qf_param_extents<i>().size();
+               constexpr auto ext_sz = qf_param_slot<qfunc_t, i>::extents.size();
                backend_t::template LoadGradient<DIM, ext_sz, MQ1>
                (smem, e, d, q, Q1D, B, G, XE, rarg);
             }
@@ -367,8 +370,7 @@ public:
                      }
                      else if constexpr (is_gradient_fop<FOP>::value)
                      {
-                        constexpr auto ext_sz =
-                           ArgMetadata::template qf_param_extents<o>().size();
+                        constexpr auto ext_sz = qf_param_slot<qfunc_t, o>::extents.size();
                         if constexpr (ext_sz == 1)
                         {
                            backend_t::template
@@ -402,7 +404,7 @@ public:
             const auto &YE = out_YE[i];
             auto &arg_reg = get<o>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
-            constexpr auto ext_sz = ArgMetadata::template qf_param_extents<o>().size();
+            constexpr auto ext_sz = qf_param_slot<qfunc_t, o>::extents.size();
             if constexpr (is_value_fop<FOP>::value)
             {
                backend_t::template WriteValue<DIM, ext_sz, MQ1>

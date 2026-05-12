@@ -261,8 +261,7 @@ template <typename backend_t, typename qfunc_t, typename inputs_t, typename outp
 struct build_args_reg_tuple_impl
 {
    using R = typename backend_t::template QPReg<
-                typename LocalQFArgMetadata<qfunc_t, inputs_t, outputs_t>::template
-                qf_decay_param_t<K>, MQ1>;
+                typename qf_param_slot<qfunc_t, K>::decay_t, MQ1>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
          outputs_t, MQ1,
          K + 1, N, Acc..., R>::type;

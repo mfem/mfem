@@ -91,34 +91,6 @@ public:
    static constexpr auto extents = extents_trait::extents;
 };
 
-///////////////////////////////////////////////////////////////////////////////
-/// Bundles q-function signature params with `inputs_t` / `outputs_t`
-template <
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t,
-   std::size_t ninputs = tuple_size<inputs_t>::value,
-   std::size_t noutputs = tuple_size<outputs_t>::value>
-struct LocalQFArgMetadata
-{
-   using qf_signature = typename get_function_signature<qfunc_t>::type;
-   using qf_param_ts = typename qf_signature::parameter_ts;
-
-   static constexpr std::size_t n_params = tuple_size<qf_param_ts>::value;
-
-   static_assert(ninputs + noutputs == n_params,
-                 "LocalQFArgMetadata: q-function arity must match inputs + outputs");
-
-   template <std::size_t I>
-   using qf_decay_param_t = typename qf_param_slot<qfunc_t, I>::decay_t;
-
-   template <std::size_t I>
-   static constexpr auto qf_param_extents()
-   {
-      return qf_param_slot<qfunc_t, I>::extents;
-   }
-};
-
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
 template<typename C, typename T>
 const auto create_union_field_map_for_dtq(C& ctx, T& io)
