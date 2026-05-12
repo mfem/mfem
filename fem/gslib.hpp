@@ -416,15 +416,15 @@ public:
    /** @brief Preprocess the surface mesh to compute data for FindPoints using
     *  padded axis-aligned bounding boxes.
     *
-    *  @details This overload stores axis-aligned bounding boxes instead of the
-    *  default oriented boxes and post-pads them by an absolute amount in each
-    *  physical direction. The padding is applied after the usual relative
+    *  @details This overload computes only axis-aligned bounding boxes and
+    *  increases their total length by user specified amount in each physical
+    *  direction. The padding is applied after the usual relative
     *  expansion controlled by @a bb_t.
     *
     *  The size of @a aabb_sz_inc determines how the padding values are
     *  interpreted:
     *  - `1`: one padding value used in every direction for every element
-    *  - `NElements`: one padding value per element, reused in every direction
+    *  - `NElements`: one padding value per element, reused in x/y/z directions
     *  - `SpaceDim`: one padding value per physical direction, reused for every
     *    element
     *  - `NElements*SpaceDim`: one padding value per element and direction,

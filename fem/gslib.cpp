@@ -1120,6 +1120,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    dim      = mesh->Dimension();       // This is reference dimension
    spacedim = mesh->SpaceDimension();  // This is physical dimension
    MFEM_VERIFY(dim < 3, "Configuration not supported yet.");
+   MFEM_VERIFY(dim < spacedim, "SetupSurf is only for surface meshes.");
 
    bool supported_surf_elem = true;
    for (int e = 0; e < mesh->GetNE() && supported_surf_elem; e++)
@@ -2618,7 +2619,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
             h_gsl_code[index]    = opt->code;
             h_gsl_mfem_elem[index] = opt->mfem_el;
 
-            if (opt->geom == (int)Geometry::TRIANGLE && dim == 2)
+            if (dim == 2 && opt->geom == (int)Geometry::TRIANGLE)
             {
                const int loc_id = opt->loc_id;
                const double u = 0.5*opt->r[0] + 0.5;
@@ -3776,6 +3777,7 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    MFEM_VERIFY(fec_h1,"Only h1 functions supported for surface meshes.");
    MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                "basis not supported");
+   MFEM_VERIFY(dim < spacedim, "InterpolateSurf is only for surface meshes.");
 
    bool has_split_elems = false;
    bool supported_surf_elem = true;
