@@ -150,6 +150,9 @@
 // Enable MFEM functionality based on the PUMI library.
 #cmakedefine MFEM_USE_PUMI
 
+// Enable SAMRAI support in MFEM.
+#cmakedefine MFEM_USE_SAMRAI
+
 // Enable Moonolith-based general interpolation between finite element spaces.
 #cmakedefine MFEM_USE_MOONOLITH
 
