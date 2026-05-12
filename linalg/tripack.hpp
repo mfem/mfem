@@ -26,6 +26,7 @@ enum class TriangularPart
 };
 
 /// Packed storage for a batch of triangular matrices of fixed size.
+/// The packed layout follows the LAPACK/MAGMA column-major convention.
 template <TriangularPart PART>
 class TriPackMatrix
 {
@@ -49,22 +50,23 @@ public:
       return n*(n + 1)/2;
    }
 
-   MFEM_HOST_DEVICE static int LowerIndex(const int i, const int j)
+   MFEM_HOST_DEVICE static int LowerIndex(const int i, const int j,
+                                          const int n)
    {
-      return i*(i + 1)/2 + j;
+      return j*(2*n + 1 - j)/2 + (i - j);
    }
 
    MFEM_HOST_DEVICE static int UpperIndex(const int i, const int j,
                                           const int n)
    {
-      return i*n - i*(i - 1)/2 + (j - i);
+      return j*(j + 1)/2 + i;
    }
 
    MFEM_HOST_DEVICE static int Index(const int i, const int j, const int n,
                                      const TriangularPart p)
    {
       return (p == TriangularPart::LOWER) ?
-             LowerIndex(i, j) : UpperIndex(i, j, n);
+             LowerIndex(i, j, n) : UpperIndex(i, j, n);
    }
 
    void SetSize(const int n, const int batch_size)
@@ -112,26 +114,50 @@ void MultUUt(const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
 template <TriangularPart PART>
 void Lump(const TriPackMatrix<PART> &packed, Vector &lump);
 
-void ComputeJacobiScaledCholeskyUpper(
-   const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-   TriPackMatrix<TriangularPart::UPPER> &upper_factor,
+   void ComputeJacobiScaledCholeskyUpper(
+      const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
+      TriPackMatrix<TriangularPart::UPPER> &upper_factor,
                                       bool do_scale = true);
 
-void SolveUpper(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                const Vector &rhs,
-                Vector &sol);
+   void ComputeCholeskyLower(
+      const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+      TriPackMatrix<TriangularPart::LOWER> &lower_factor);
+
+   void SolveUpper(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
+                   const Vector &rhs,
+                   Vector &sol);
 
 void SolveUpperTranspose(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
                          const Vector &rhs,
                          Vector &sol);
 
-void SolveCholesky(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
+   void SolveCholesky(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
                    const Vector &rhs,
                    Vector &sol);
 
-void ComputeJacobiScaledCholeskyUpperInverse(
+   void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+                   const Vector &rhs,
+                   Vector &sol);
+
+   void SolveLowerTranspose(
+      const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+      const Vector &rhs,
+      Vector &sol);
+
+   void SolveCholeskyLower(
+      const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+      const Vector &rhs,
+      Vector &sol);
+
+   void ComputeJacobiScaledCholeskyUpperInverse(
                                              const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
                                              TriPackMatrix<TriangularPart::UPPER> &upper_inverse,
+                                             bool do_scale = true,
+                                             bool do_refine = true);
+
+   void ComputeJacobiScaledCholeskyLowerInverse(
+                                             const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+                                             TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
                                              bool do_scale = true,
                                              bool do_refine = true);
 

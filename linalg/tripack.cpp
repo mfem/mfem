@@ -31,27 +31,31 @@ MFEM_HOST_DEVICE inline int SymmetricIndex(const int i,
       return (i <= j) ? TriPackMatrix<PART>::UpperIndex(i, j, n)
                       : TriPackMatrix<PART>::UpperIndex(j, i, n);
    }
-   return (i >= j) ? TriPackMatrix<PART>::LowerIndex(i, j)
-                   : TriPackMatrix<PART>::LowerIndex(j, i);
+   return (i >= j) ? TriPackMatrix<PART>::LowerIndex(i, j, n)
+                   : TriPackMatrix<PART>::LowerIndex(j, i, n);
 }
 
 MFEM_HOST_DEVICE inline int UpperRowFromPackedIndex(const int t, const int n)
 {
-   int row = 0;
-   while (row + 1 < n &&
-          TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row + 1, row + 1, n) <= t)
+   int col = 0;
+   while (col + 1 < n &&
+          TriPackMatrix<TriangularPart::UPPER>::UpperIndex(col, col, n) < t)
    {
-      ++row;
+      ++col;
    }
-   return row;
+   const int col_start = col*(col + 1)/2;
+   return t - col_start;
 }
 
 MFEM_HOST_DEVICE inline int UpperColFromPackedIndex(const int t, const int n)
 {
-   const int row = UpperRowFromPackedIndex(t, n);
-   const int row_start =
-      TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, row, n);
-   return row + (t - row_start);
+   int col = 0;
+   while (col + 1 < n &&
+          TriPackMatrix<TriangularPart::UPPER>::UpperIndex(col, col, n) < t)
+   {
+      ++col;
+   }
+   return col;
 }
 
 template <TriangularPart PART>
@@ -169,6 +173,158 @@ void ComputeScaledCholeskyFactors(
          for (int t = 0; t < packed_size; ++t) { R[eoff + t] = nan; }
       }
    });
+}
+
+void ComputeScaledCholeskyFactorsLower(
+   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+   Vector &scaled_factor,
+   Vector &scaling,
+   bool do_scale)
+{
+   const int n = packed_lower.GetNumRows();
+   const int batch_size = packed_lower.GetNumMatrices();
+   const int packed_size = packed_lower.GetPackedSize();
+   const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
+
+   scaled_factor.SetSize(batch_size*packed_size);
+   scaling.SetSize(batch_size*n);
+   scaled_factor.UseDevice(true);
+   scaling.UseDevice(true);
+
+   const real_t *A = packed_lower.Data().Read();
+   real_t *L = scaled_factor.Write();
+   real_t *D = scaling.Write();
+
+   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int eoff = e*packed_size;
+      const int doff = e*n;
+      const real_t eps = std::numeric_limits<real_t>::epsilon();
+      bool bad = false;
+
+      for (int i = 0; i < n; ++i)
+      {
+         const real_t Aii = A[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+         if (!(Aii > 0.0) || !TriPackIsFinite(Aii))
+         {
+            bad = true;
+            break;
+         }
+         D[doff + i] = do_scale ? 1.0/sqrt(Aii) : 1.0;
+      }
+
+      if (bad)
+      {
+         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
+         for (int t = 0; t < packed_size; ++t) { L[eoff + t] = nan; }
+         return;
+      }
+
+      for (int j = 0; j < n; ++j)
+      {
+         const real_t dj = D[doff + j];
+         for (int i = j; i < n; ++i)
+         {
+            const int t = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n);
+            L[eoff + t] = A[eoff + t] * D[doff + i] * dj;
+         }
+      }
+
+      for (int k = 0; k < n; ++k)
+      {
+         const int kk = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, k, n);
+         const real_t Lkk0 = L[kk];
+         real_t Lkk = Lkk0;
+
+         for (int s = 0; s < k; ++s)
+         {
+            const real_t Lks = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            Lkk -= Lks*Lks;
+         }
+
+         const real_t tol = 64.0*eps*fabs(Lkk0);
+         if (!TriPackIsFinite(Lkk) || Lkk < -tol)
+         {
+            bad = true;
+            break;
+         }
+
+         if (Lkk < 0.0) { Lkk = 0.0; }
+         L[kk] = sqrt(Lkk);
+
+         const real_t Ldiag = L[kk];
+         for (int i = k + 1; i < n; ++i)
+         {
+            const int ik = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n);
+            real_t Aik = L[ik];
+            for (int s = 0; s < k; ++s)
+            {
+               Aik -= L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, s, n)] *
+                      L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            }
+            L[ik] = Aik/Ldiag;
+         }
+      }
+
+      if (bad)
+      {
+         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
+         for (int t = 0; t < packed_size; ++t) { L[eoff + t] = nan; }
+      }
+   });
+}
+
+void ComputeCholeskyFactorsLower(
+   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+   Vector &factor)
+{
+   const int n = packed_lower.GetNumRows();
+   const int batch_size = packed_lower.GetNumMatrices();
+   const int packed_size = packed_lower.GetPackedSize();
+
+   factor.SetSize(batch_size*packed_size);
+   factor.UseDevice(true);
+
+   const real_t *A = packed_lower.Data().HostRead();
+   real_t *L = factor.HostWrite();
+
+   for (int e = 0; e < batch_size; ++e)
+   {
+      const int eoff = e*packed_size;
+      for (int j = 0; j < n; ++j)
+      {
+         for (int i = j; i < n; ++i)
+         {
+            L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
+               A[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)];
+         }
+      }
+
+      for (int k = 0; k < n; ++k)
+      {
+         const int kk = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, k, n);
+         real_t Akk = L[kk];
+         for (int s = 0; s < k; ++s)
+         {
+            const real_t Lks = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            Akk -= Lks*Lks;
+         }
+         MFEM_VERIFY(Akk > 0.0, "Matrix is not SPD.");
+         L[kk] = std::sqrt(Akk);
+
+         const real_t Lkk = L[kk];
+         for (int i = k + 1; i < n; ++i)
+         {
+            real_t Aik = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)];
+            for (int s = 0; s < k; ++s)
+            {
+               Aik -= L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, s, n)] *
+                      L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            }
+            L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] = Aik / Lkk;
+         }
+      }
+   }
 }
 
 }
@@ -369,6 +525,165 @@ void ComputeJacobiScaledCholeskyUpper(
    });
 }
 
+void ComputeCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+                          TriPackMatrix<TriangularPart::LOWER> &lower_factor)
+{
+   const int n = packed_lower.GetNumRows();
+   const int batch_size = packed_lower.GetNumMatrices();
+
+   MFEM_VERIFY(&packed_lower != &lower_factor,
+               "Input and output TriPackMatrix objects must be distinct.");
+   if (batch_size == 0)
+   {
+      lower_factor.SetSize(n, batch_size);
+      return;
+   }
+
+   Vector factored;
+   ComputeCholeskyFactorsLower(packed_lower, factored);
+
+   lower_factor.SetSize(n, batch_size);
+   lower_factor.UseDevice(true);
+
+   lower_factor.Data() = factored;
+}
+
+void ComputeJacobiScaledCholeskyLowerInverse(
+                                             const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+                                             TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
+                                             bool do_scale,
+                                             bool do_refine)
+{
+   const int n = packed_lower.GetNumRows();
+   const int batch_size = packed_lower.GetNumMatrices();
+   const int packed_size = packed_lower.GetPackedSize();
+   const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
+
+   MFEM_VERIFY(&packed_lower != &lower_inverse,
+               "Input and output TriPackMatrix objects must be distinct.");
+   if (batch_size == 0)
+   {
+      lower_inverse.SetSize(n, batch_size);
+      return;
+   }
+
+   lower_inverse.SetSize(n, batch_size);
+   lower_inverse.UseDevice(true);
+
+   Vector factored;
+   Vector work(batch_size*packed_size);
+   Vector scaling;
+   work.UseDevice(true);
+
+   Vector refinement;
+   if (do_refine)
+   {
+      refinement.SetSize(batch_size*packed_size);
+      refinement.UseDevice(true);
+   }
+
+   ComputeScaledCholeskyFactorsLower(packed_lower, factored, scaling, do_scale);
+
+   const real_t *L = factored.Read();
+   real_t *X = work.Write();
+   const real_t *D = scaling.Read();
+   real_t *E = do_refine ? refinement.Write() : nullptr;
+   real_t *Linv = lower_inverse.Data().Write();
+
+   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int eoff = e*packed_size;
+      const int doff = e*n;
+      bool bad = false;
+
+      for (int t = 0; t < packed_size; ++t)
+      {
+         if (!TriPackIsFinite(L[eoff + t]))
+         {
+            bad = true;
+            break;
+         }
+      }
+
+      if (bad)
+      {
+         for (int t = 0; t < packed_size; ++t) { Linv[eoff + t] = nan; }
+         return;
+      }
+
+      for (int t = 0; t < packed_size; ++t) { X[eoff + t] = 0.0; }
+
+      for (int j = 0; j < n; ++j)
+      {
+         const int jj = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(j, j, n);
+         X[jj] = 1.0/L[jj];
+
+         const real_t invLjj = X[jj];
+         for (int i = j + 1; i < n; ++i)
+         {
+            real_t sum = 0.0;
+            for (int k = j; k < i; ++k)
+            {
+               sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
+                      X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
+            }
+            X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] = -invLjj*sum;
+         }
+      }
+
+      if (do_refine)
+      {
+         for (int i = 0; i < n; ++i)
+         {
+            for (int j = 0; j <= i; ++j)
+            {
+               real_t sum = 0.0;
+               for (int k = j; k <= i; ++k)
+               {
+                  sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
+                         X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
+               }
+               E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
+                  ((i == j) ? 1.0 : 0.0) - sum;
+            }
+         }
+
+         for (int i = 0; i < n; ++i)
+         {
+            const real_t invLii =
+               1.0/L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+            E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)] *= invLii;
+
+            for (int j = 0; j < i; ++j)
+            {
+               real_t sum = 0.0;
+               for (int k = j; k < i; ++k)
+               {
+                  sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
+                         E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
+               }
+               E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
+                  (E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] - sum) * invLii;
+            }
+         }
+
+         for (int t = 0; t < packed_size; ++t)
+         {
+            X[eoff + t] += E[eoff + t];
+         }
+      }
+
+      for (int j = 0; j < n; ++j)
+      {
+         for (int i = j; i < n; ++i)
+         {
+            const int t = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n);
+            Linv[eoff + t] = X[eoff + t] * D[doff + j];
+         }
+      }
+   });
+}
+
 void SolveUpper(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
                 const Vector &rhs,
                 Vector &sol)
@@ -452,6 +767,91 @@ void SolveCholesky(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
    Vector tmp;
    SolveUpperTranspose(upper_factor, rhs, tmp);
    SolveUpper(upper_factor, tmp, sol);
+}
+
+void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+                const Vector &rhs,
+                Vector &sol)
+{
+   const int n = lower_factor.GetNumRows();
+   const int batch_size = lower_factor.GetNumMatrices();
+   const int packed_size = lower_factor.GetPackedSize();
+
+   MFEM_VERIFY(rhs.Size() == batch_size*n, "Right-hand side has the wrong size.");
+
+   Vector out(batch_size*n);
+   out.UseDevice(true);
+
+   const real_t *L = lower_factor.Data().Read();
+   const real_t *B = rhs.Read();
+   real_t *X = out.Write();
+
+   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const real_t *Le = L + e*packed_size;
+      const real_t *Be = B + e*n;
+      real_t *Xe = X + e*n;
+
+      for (int i = 0; i < n; ++i)
+      {
+         real_t sum = Be[i];
+         for (int j = 0; j < i; ++j)
+         {
+            sum -= Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] * Xe[j];
+         }
+         Xe[i] = sum / Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+      }
+   });
+
+   sol.SetSize(batch_size*n);
+   sol = out;
+}
+
+void SolveLowerTranspose(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+                         const Vector &rhs,
+                         Vector &sol)
+{
+   const int n = lower_factor.GetNumRows();
+   const int batch_size = lower_factor.GetNumMatrices();
+   const int packed_size = lower_factor.GetPackedSize();
+
+   MFEM_VERIFY(rhs.Size() == batch_size*n, "Right-hand side has the wrong size.");
+
+   Vector out(batch_size*n);
+   out.UseDevice(true);
+
+   const real_t *L = lower_factor.Data().Read();
+   const real_t *B = rhs.Read();
+   real_t *X = out.Write();
+
+   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const real_t *Le = L + e*packed_size;
+      const real_t *Be = B + e*n;
+      real_t *Xe = X + e*n;
+
+      for (int i = n - 1; i >= 0; --i)
+      {
+         real_t sum = Be[i];
+         for (int j = i + 1; j < n; ++j)
+         {
+            sum -= Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(j, i, n)] * Xe[j];
+         }
+         Xe[i] = sum / Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+      }
+   });
+
+   sol.SetSize(batch_size*n);
+   sol = out;
+}
+
+void SolveCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+                        const Vector &rhs,
+                        Vector &sol)
+{
+   Vector tmp;
+   SolveLower(lower_factor, rhs, tmp);
+   SolveLowerTranspose(lower_factor, tmp, sol);
 }
 
 void ComputeJacobiScaledCholeskyUpperInverse(

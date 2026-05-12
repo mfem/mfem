@@ -1439,7 +1439,7 @@ inline void EAMassAssembleTriangular1D(const int NE,
             }
             else
             {
-               idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i1, j1);
+               idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i1, j1, D1D);
             }
             if (add)
             {
@@ -1547,7 +1547,7 @@ inline void EAMassAssembleTriangular2D(const int NE,
                   }
                   else
                   {
-                     idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col);
+                     idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ndofs);
                   }
                   if (add)
                   {
@@ -2037,7 +2037,7 @@ inline void EAMassAssembleTriangular3D(const int NE,
                         }
                         else
                         {
-                           idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col);
+                           idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ND);
                         }
                         if (add)
                         {

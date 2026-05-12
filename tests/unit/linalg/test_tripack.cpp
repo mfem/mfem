@@ -29,6 +29,18 @@ void PackUpper(const DenseMatrix &mat, real_t *packed)
    }
 }
 
+void PackLower(const DenseMatrix &mat, real_t *packed)
+{
+   const int n = mat.Height();
+   for (int j = 0; j < n; ++j)
+   {
+      for (int i = j; i < n; ++i)
+      {
+         packed[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] = mat(i, j);
+      }
+   }
+}
+
 void FillFullBatch(const DenseMatrix &mat, real_t *full)
 {
    const int n = mat.Height();
@@ -53,6 +65,22 @@ void BuildUpperDense(const TriPackMatrix<TriangularPart::UPPER> &packed,
       for (int i = 0; i <= j; ++i)
       {
          mat(i, j) = data[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)];
+      }
+   }
+}
+
+void BuildLowerDense(const TriPackMatrix<TriangularPart::LOWER> &packed,
+                     int e, DenseMatrix &mat)
+{
+   const int n = packed.GetNumRows();
+   mat.SetSize(n);
+   mat = 0.0;
+   const real_t *data = packed.Data().HostRead() + e*packed.GetPackedSize();
+   for (int j = 0; j < n; ++j)
+   {
+      for (int i = j; i < n; ++i)
+      {
+         mat(i, j) = data[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)];
       }
    }
 }
@@ -82,6 +110,12 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
    real_t *packed_data = packed.Data().HostWrite();
    PackUpper(A0, packed_data);
    PackUpper(A1, packed_data + packed.GetPackedSize());
+
+   TriPackMatrix<TriangularPart::LOWER> packed_lower(n, batch_size);
+   packed_lower = 0.0;
+   real_t *packed_lower_data = packed_lower.Data().HostWrite();
+   PackLower(A0, packed_lower_data);
+   PackLower(A1, packed_lower_data + packed_lower.GetPackedSize());
 
    Vector full(batch_size*n*n);
    real_t *full_data = full.HostWrite();
@@ -206,6 +240,91 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
       {
          REQUIRE(x(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
          REQUIRE(y(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
+      }
+   }
+
+   SECTION("Lower Cholesky factor and solves")
+   {
+      TriPackMatrix<TriangularPart::LOWER> lfac;
+      Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
+      Vector y, t, x;
+
+      tripack::ComputeCholeskyLower(packed_lower, lfac);
+      tripack::SolveLowerTranspose(lfac, rhs, t);
+      tripack::SolveLower(lfac, t, x);
+      tripack::SolveCholeskyLower(lfac, rhs, y);
+
+      const DenseMatrix *mats[batch_size] = { &A0, &A1 };
+      for (int e = 0; e < batch_size; ++e)
+      {
+         DenseMatrix L;
+         DenseMatrix recon(n);
+         BuildLowerDense(lfac, e, L);
+         MultABt(L, L, recon);
+         recon -= *mats[e];
+         REQUIRE(recon.MaxMaxNorm() == MFEM_Approx(0.0, tol, tol));
+      }
+
+      Vector x_expected(batch_size*n);
+      for (int e = 0; e < batch_size; ++e)
+      {
+         DenseMatrix inv(n);
+         CalcInverse(*mats[e], inv);
+         for (int i = 0; i < n; ++i)
+         {
+            real_t sum = 0.0;
+            for (int j = 0; j < n; ++j)
+            {
+               sum += inv(i, j) * rhs(e*n + j);
+            }
+            x_expected(e*n + i) = sum;
+         }
+      }
+
+      for (int i = 0; i < x.Size(); ++i)
+      {
+         REQUIRE(x(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
+         REQUIRE(y(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
+      }
+   }
+
+   SECTION("Jacobi-scaled Cholesky lower inverse")
+   {
+      TriPackMatrix<TriangularPart::LOWER> linv;
+      Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
+      Vector y;
+
+      tripack::ComputeJacobiScaledCholeskyLowerInverse(packed_lower, linv);
+      const DenseMatrix *mats[batch_size] = { &A0, &A1 };
+      for (int e = 0; e < batch_size; ++e)
+      {
+         DenseMatrix L, recon(n), inv(n);
+         BuildLowerDense(linv, e, L);
+         MultABt(L, L, recon);
+         CalcInverse(*mats[e], inv);
+         recon -= inv;
+         REQUIRE(recon.MaxMaxNorm() == MFEM_Approx(0.0, tol, tol));
+      }
+
+      Vector y_expected(batch_size*n);
+      for (int e = 0; e < batch_size; ++e)
+      {
+         DenseMatrix inv(n);
+         CalcInverse(*mats[e], inv);
+         for (int i = 0; i < n; ++i)
+         {
+            real_t sum = 0.0;
+            for (int j = 0; j < n; ++j)
+            {
+               sum += inv(i, j) * rhs(e*n + j);
+            }
+            y_expected(e*n + i) = sum;
+         }
+      }
+
+      for (int i = 0; i < y.Size(); ++i)
+      {
+         REQUIRE(y(i) == MFEM_Approx(y_expected(i)).epsilon(tol));
       }
    }
 }
