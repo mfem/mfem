@@ -8,6 +8,11 @@
 #include <bitset>
 #include <random>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <filesystem>
+#include <ctime>
+#include <algorithm>
 
 #include <stdexcept>
 
@@ -166,8 +171,9 @@ real_t cvar_divergence_beween_distributions(
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_2,
     real_t cvar_alpha
 ) {
+    int myid = Mpi::WorldRank();
     if (latent_probabilities_1.size() != latent_probabilities_2.size()) {
-        std::cout << "Different Distribution Sizes." << std::endl;
+        if (myid == 0) std::cout << "Different Distribution Sizes." << std::endl;
         throw std::runtime_error("Cannot calculate divergence between two distributions of different sizes.");
     }
 
@@ -178,7 +184,7 @@ real_t cvar_divergence_beween_distributions(
         auto [bits_2, original_probability_2, latent_probability_2] = latent_probabilities_2[i];
        
         if (bits_1 != bits_2) {
-            std::cout << "Key error." << std::endl;
+            if (myid == 0) std::cout << "Key error." << std::endl;
             throw std::runtime_error("Cannot calculate divergence between two distributions with different supports.");
         }
         // due to floating-point roundoff we compare with a small tolerance
@@ -209,19 +215,48 @@ real_t proj_latent_onto_probability_simplex(
     int myid = Mpi::WorldRank();
     max_its = std::max(max_its, 10);
 
+    if (myid == 0)
+    {
+        std::cout << "[simplex_proj] BEGIN"
+                  << " size=" << latent_probabilities_k_jp1_unnormalized.size()
+                  << " alpha=" << alpha
+                  << " tol=" << tol
+                  << " max_its=" << max_its << std::endl;
+    }
+
     // todo [asnesw]: Figure out edge cases with these guys.
     real_t negative_latent_max = (real_t) -(DBL_MAX - 1);
     real_t negative_latent_min = (real_t) DBL_MAX;
+    int non_finite_latent_count = 0;
 
     for (auto &[bits, original_probability, latent_probability] : latent_probabilities_k_jp1_unnormalized)
     {
+        if (!std::isfinite(latent_probability) || !std::isfinite(original_probability))
+        {
+            non_finite_latent_count++;
+        }
         negative_latent_max = std::max(negative_latent_max, -latent_probability);
         negative_latent_min = std::min(negative_latent_min, -latent_probability);
     };
 
+    if (myid == 0)
+    {
+        std::cout << "[simplex_proj] Latent summary:"
+                  << " min(-latent)=" << negative_latent_min
+                  << " max(-latent)=" << negative_latent_max
+                  << " non_finite_count=" << non_finite_latent_count
+                  << std::endl;
+    }
+
     // these bound 1
     real_t a = inv_sigmoid(1 - alpha) + negative_latent_min - 1.0;
     real_t b = inv_sigmoid(1 - alpha) + negative_latent_max + 1.0;
+
+    if (myid == 0)
+    {
+        std::cout << "[simplex_proj] Initial bracket: a=" << a << ", b=" << b
+                  << ", inv_sigmoid(1-alpha)=" << inv_sigmoid(1 - alpha) << std::endl;
+    }
 
     // // we avoid summing
     // real_t calculate_summation_for_t(real_t t) {
@@ -244,6 +279,15 @@ real_t proj_latent_onto_probability_simplex(
     real_t a_vol_minus = calculate_summation_for_t(a) - 1;
     real_t b_vol_minus = calculate_summation_for_t(b) - 1;
 
+    if (myid == 0)
+    {
+        std::cout << "[simplex_proj] Endpoint evals:"
+                  << " f(a)=" << a_vol_minus
+                  << " f(b)=" << b_vol_minus
+                  << " product=" << (a_vol_minus * b_vol_minus)
+                  << std::endl;
+    }
+
     if (a_vol_minus * b_vol_minus > 0) {
         if (myid == 0) {
             std::cout << "ERROR: a_vol_minus = " << a_vol_minus << ", b_vol_minus = " << b_vol_minus << endl;
@@ -257,22 +301,46 @@ real_t proj_latent_onto_probability_simplex(
 
     for (int k = 0; k < max_its; k++) // Illinois iteration
     {
-        if (myid == 0) {
-            cout << "Iteration count " << k << ".\n";
+        if (myid == 0)
+        {
+            std::cout << "[simplex_proj] Iter " << k
+                      << ": a=" << a << ", b=" << b
+                      << ", f(a)=" << a_vol_minus << ", f(b)=" << b_vol_minus
+                      << ", denom=" << (b_vol_minus - a_vol_minus)
+                      << std::endl;
         }
 
         // false–position step
         x = b - b_vol_minus * (b - a) / (b_vol_minus - a_vol_minus);
         real_t x_vol_minus = calculate_summation_for_t(x) - 1; // f(x)
 
+        if (myid == 0)
+        {
+            std::cout << "[simplex_proj] Iter " << k
+                      << ": x=" << x << ", f(x)=" << x_vol_minus
+                      << std::endl;
+        }
+
         if (b_vol_minus * x_vol_minus < 0)
         {
             a = b;
             a_vol_minus = b_vol_minus;
+
+            if (myid == 0)
+            {
+                std::cout << "[simplex_proj] Iter " << k
+                          << ": sign change on [b, x], setting a <- b" << std::endl;
+            }
         }
         else
         {
             a_vol_minus = a_vol_minus / 2;
+
+            if (myid == 0)
+            {
+                std::cout << "[simplex_proj] Iter " << k
+                          << ": Illinois damping, new f(a)=" << a_vol_minus << std::endl;
+            }
         }
         b = x;
         b_vol_minus = x_vol_minus;
@@ -280,6 +348,12 @@ real_t proj_latent_onto_probability_simplex(
         if (abs(x_vol_minus) < tol)
         {
             done = true;
+            if (myid == 0)
+            {
+                std::cout << "[simplex_proj] CONVERGED at iter " << k
+                          << " with |f(x)|=" << std::abs(x_vol_minus)
+                          << std::endl;
+            }
             break;
         }
     }
@@ -293,6 +367,16 @@ real_t proj_latent_onto_probability_simplex(
     {
         mfem_warning("Simplex Projection reached maximum iteration without converging. "
                      "Result may not be accurate.");
+
+        if (myid == 0)
+        {
+            std::cout << "[simplex_proj] WARNING: reached max iterations without convergence." << std::endl;
+        }
+    }
+
+    if (myid == 0)
+    {
+        std::cout << "[simplex_proj] END: t_shift=" << x << std::endl;
     }
 
     return x; // this is the error
@@ -313,74 +397,238 @@ real_t proj_latent_onto_probability_simplex(
  * @return real_t Final volume, ∫_Ω sigmoid(ψ)
  */
 real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, real_t tol = 1e-12,
-            int max_its = 10)
+            int max_its = 10, bool use_heaviside_projection = false,
+            real_t heaviside_eta = 0.5, real_t heaviside_beta = 1.0)
 {
+    int myid = Mpi::WorldRank();
+
     ParGridFunction onegf(psi.ParFESpace());
     onegf = 1.0;
 
-    GridFunctionCoefficient psi_coeff(&psi);
+    class ProjectedDensityFromLatentCoeff : public Coefficient
+    {
+    public:
+        ProjectedDensityFromLatentCoeff(ParGridFunction *psi_, real_t shift_,
+                                        bool use_hproj_, real_t eta_, real_t beta_)
+            : psi(psi_), shift(shift_), use_hproj(use_hproj_), eta(eta_), beta(beta_) {}
+
+        virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+        {
+            real_t rho = sigmoid(psi->GetValue(T, ip) + shift);
+            if (use_hproj)
+            {
+                rho = PointwiseTrans::HProject(rho, eta, beta);
+            }
+            return rho;
+        }
+
+    private:
+        ParGridFunction *psi;
+        real_t shift;
+        bool use_hproj;
+        real_t eta;
+        real_t beta;
+    };
 
     real_t psimax;
     {
         real_t locmax = psi.Normlinf();
         // MPI_DOUBLE should be replaced with the MFEM data type
         MPI_Allreduce(&locmax, &psimax, 1, MPI_DOUBLE, MPI_MAX, psi.ParFESpace()->GetComm());
+
+        if(myid == 0)
+        {
+            std::cout << "[proj] psi.Normlinf local=" << locmax
+                      << ", global(psimax)=" << psimax << std::endl;
+        }
     }
 
     const real_t volume_proportion = target_volume / domain_volume;
 
+    if(myid == 0)
+    {
+        std::cout << "[proj] BEGIN" << std::endl;
+        std::cout << "[proj] target_volume=" << target_volume
+                  << ", domain_volume=" << domain_volume
+                  << ", volume_proportion=" << volume_proportion
+                  << ", use_heaviside_projection=" << use_heaviside_projection
+                  << ", heaviside_eta=" << heaviside_eta
+                  << ", heaviside_beta=" << heaviside_beta
+                  << ", tol=" << tol
+                  << ", max_its=" << max_its << std::endl;
+    }
+
+    if (!std::isfinite(volume_proportion))
+    {
+        if(myid == 0)
+        {
+            std::cout << "[proj] ERROR: volume_proportion is not finite." << std::endl;
+        }
+        throw std::runtime_error("proj: non-finite volume proportion");
+    }
+
     real_t a = inv_sigmoid(volume_proportion) - psimax; // lower bound of 0
     real_t b = inv_sigmoid(volume_proportion) + psimax; // upper bound of 0
 
-    ConstantCoefficient aCoefficient(a);
-    ConstantCoefficient bCoefficient(b);
+    if(myid == 0)
+    {
+        std::cout << "[proj] Initial bracket: a=" << a << ", b=" << b << std::endl;
+    }
 
-    SumCoefficient psiA(psi_coeff, aCoefficient);
-    SumCoefficient psiB(psi_coeff, bCoefficient);
-
-    TransformedCoefficient sigmoid_psi_a(&psiA, sigmoid);
-    TransformedCoefficient sigmoid_psi_b(&psiB, sigmoid);
+    ProjectedDensityFromLatentCoeff dens_a(&psi, a, use_heaviside_projection,
+                                           heaviside_eta, heaviside_beta);
+    ProjectedDensityFromLatentCoeff dens_b(&psi, b, use_heaviside_projection,
+                                           heaviside_eta, heaviside_beta);
 
     ParLinearForm int_sigmoid_psi_a(psi.ParFESpace());
-    int_sigmoid_psi_a.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_a));
+    int_sigmoid_psi_a.AddDomainIntegrator(new DomainLFIntegrator(dens_a));
     int_sigmoid_psi_a.Assemble();
-    real_t a_vol_minus = int_sigmoid_psi_a(onegf) - target_volume;
+    const real_t a_vol = int_sigmoid_psi_a(onegf);
+    real_t a_vol_minus = a_vol - target_volume;
+
+    if(myid == 0)
+    {
+        std::cout << "[proj] After assembling at a: int=" << a_vol
+                  << ", int-target=" << a_vol_minus << std::endl;
+    }
+
+    if (!std::isfinite(a_vol) || !std::isfinite(a_vol_minus))
+    {
+        if(myid == 0)
+        {
+            std::cout << "[proj] ERROR: NaN/Inf detected at lower bracket evaluation." << std::endl;
+        }
+        throw std::runtime_error("proj: non-finite lower bracket linear form evaluation");
+    }
 
     ParLinearForm int_sigmoid_psi_b(psi.ParFESpace());
-    int_sigmoid_psi_b.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_b));
+    int_sigmoid_psi_b.AddDomainIntegrator(new DomainLFIntegrator(dens_b));
     int_sigmoid_psi_b.Assemble();
-    real_t b_vol_minus = int_sigmoid_psi_b(onegf) - target_volume;
+    const real_t b_vol = int_sigmoid_psi_b(onegf);
+    real_t b_vol_minus = b_vol - target_volume;
+
+    if(myid == 0)
+    {
+        std::cout << "[proj] After assembling at b: int=" << b_vol
+                  << ", int-target=" << b_vol_minus << std::endl;
+    }
+
+    if (!std::isfinite(b_vol) || !std::isfinite(b_vol_minus))
+    {
+        if(myid == 0)
+        {
+            std::cout << "[proj] ERROR: NaN/Inf detected at upper bracket evaluation." << std::endl;
+        }
+        throw std::runtime_error("proj: non-finite upper bracket linear form evaluation");
+    }
+
+    if (a_vol_minus * b_vol_minus > 0)
+    {
+        if(myid == 0)
+        {
+            std::cout << "[proj] WARNING: Initial bracket may not contain root. "
+                      << "a_vol_minus=" << a_vol_minus
+                      << ", b_vol_minus=" << b_vol_minus << std::endl;
+        }
+    }
 
     bool done = false;
     real_t x;
-    real_t x_vol;
+
+    // ParLinearForm int_sigmoid_psi_x(psi.ParFESpace());
+    real_t x_vol = std::numeric_limits<real_t>::quiet_NaN();
 
     for (int k = 0; k < max_its; k++) // Illinois iteration
     {
-        // cout << "Iteration count " << k << ".\n";
-        x = b - b_vol_minus * (b - a) / (b_vol_minus - a_vol_minus);
+        const real_t denom = (b_vol_minus - a_vol_minus);
 
-        ConstantCoefficient xCoefficient(x);
-        SumCoefficient psiX(psi_coeff, xCoefficient);
-        TransformedCoefficient sigmoid_psi_x(&psiX, sigmoid);
+        if(myid == 0)
+        {
+            std::cout << "[proj] Iter " << k
+                      << ": a=" << a << ", b=" << b
+                      << ", a_vol_minus=" << a_vol_minus
+                      << ", b_vol_minus=" << b_vol_minus
+                      << ", denom=" << denom << std::endl;
+        }
+
+        if (!std::isfinite(denom) || std::abs(denom) <= std::numeric_limits<real_t>::epsilon())
+        {
+            if(myid == 0)
+            {
+                std::cout << "[proj] ERROR: invalid denominator in Illinois step." << std::endl;
+            }
+            throw std::runtime_error("proj: invalid denominator in root update");
+        }
+
+        x = b - b_vol_minus * (b - a) / denom;
+
+        if (!std::isfinite(x))
+        {
+            if(myid == 0)
+            {
+                std::cout << "[proj] ERROR: x is NaN/Inf after false-position update." << std::endl;
+            }
+            throw std::runtime_error("proj: non-finite iterate x");
+        }
+
+        ProjectedDensityFromLatentCoeff dens_x(&psi, x, use_heaviside_projection,
+                               heaviside_eta, heaviside_beta);
 
         ParLinearForm int_sigmoid_psi_x(psi.ParFESpace());
-        int_sigmoid_psi_x.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_x));
+        int_sigmoid_psi_x.AddDomainIntegrator(new DomainLFIntegrator(dens_x));
         int_sigmoid_psi_x.Assemble();
         x_vol = int_sigmoid_psi_x(onegf);
 
+        // int_sigmoid_psi_x.Update(psi.ParFESpace());
+        // int_sigmoid_psi_x = 0.0;
+        // int_sigmoid_psi_x.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_x));
+        // int_sigmoid_psi_x.Assemble();
+        // x_vol = int_sigmoid_psi_x(onegf);
+
+    //         ParLinearForm int_sigmoid_psi_b(psi.ParFESpace());
+    // int_sigmoid_psi_b.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_b));
+    // int_sigmoid_psi_b.Assemble();
+    // const real_t b_vol = int_sigmoid_psi_b(onegf);
+
         real_t x_vol_minus = x_vol - target_volume;
 
-        // cout << "target_volume: " << target_volume << ", domain_volume: " << domain_volume << ", a_vol_minus: " << a_vol_minus << ", b_vol_minus: " << b_vol_minus << " x_vol_minus: " << x_vol_minus << ".\n";
+        if(myid == 0)
+        {
+            std::cout << "[proj] Iter " << k
+                      << ": x=" << x
+                      << ", int(sigmoid(psi+x))=" << x_vol
+                      << ", x_vol_minus=" << x_vol_minus << std::endl;
+        }
+
+        if (!std::isfinite(x_vol) || !std::isfinite(x_vol_minus))
+        {
+            if(myid == 0)
+            {
+                std::cout << "[proj] ERROR: NaN/Inf from linear form at iteration "
+                          << k << "." << std::endl;
+            }
+            throw std::runtime_error("proj: non-finite linear form during iteration");
+        }
 
         if (b_vol_minus * x_vol_minus < 0)
         {
             a = b;
             a_vol_minus = b_vol_minus;
+
+            if(myid == 0)
+            {
+                std::cout << "[proj] Iter " << k << ": root is bracketed in [b, x], setting a <- b." << std::endl;
+            }
         }
         else
         {
             a_vol_minus = a_vol_minus / 2;
+
+            if(myid == 0)
+            {
+                std::cout << "[proj] Iter " << k << ": applying Illinois damping to a_vol_minus -> "
+                          << a_vol_minus << std::endl;
+            }
         }
         b = x;
         b_vol_minus = x_vol_minus;
@@ -388,20 +636,41 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
         if (abs(x_vol_minus) < tol)
         {
             done = true;
-            // cout << "x_vol_minus = " << x_vol_minus << " IS WITHINT tolerance of " << tol << ".\n";
+
+            if(myid == 0)
+            {
+                std::cout << "[proj] CONVERGED at iter " << k
+                          << " with |x_vol_minus|=" << std::abs(x_vol_minus)
+                          << " < tol=" << tol << std::endl;
+            }
             break;
         }
-        else
+
+        if(myid == 0)
         {
-            // cout << "x_vol_minus = " << x_vol_minus << " not within tolerance of " << tol << ".\n";
+            std::cout << "[proj] Iter " << k
+                      << ": not converged, |x_vol_minus|=" << std::abs(x_vol_minus)
+                      << std::endl;
         }
     }
 
     psi += x;
+
+    if(myid == 0)
+    {
+        std::cout << "[proj] Applied shift x=" << x
+                  << ". Returning final volume=" << x_vol << std::endl;
+    }
+
     if (!done)
     {
         mfem_warning("Projection reached maximum iteration without converging. "
                      "Result may not be accurate.");
+
+        if(myid == 0)
+        {
+            std::cout << "[proj] WARNING: max iterations reached without convergence." << std::endl;
+        }
     }
     return x_vol;
 }
@@ -458,13 +727,19 @@ void generate_symmetric_index_vector(
     }
 }
 
-// Return true when RUN_DETERMINISTIC_UNTIL < 0 or outer_iteration >= RUN_DETERMINISTIC_UNTIL >= 0
+// Return true if we are in a deterministic phase.
 // recall we use 1-indexing for the outer_iteration.
 bool is_deterministic_step(
     unsigned int outer_iteration,
-    const int RUN_DETERMINISTIC_UNTIL
+    const int RUN_DETERMINISTIC_UNTIL,
+    const int RUN_DETERMINISTIC_AFTER
 ) {
-    return (RUN_DETERMINISTIC_UNTIL < 0) || (RUN_DETERMINISTIC_UNTIL >= 0 && outer_iteration <= RUN_DETERMINISTIC_UNTIL);
+    const bool deterministic_until =
+        (RUN_DETERMINISTIC_UNTIL < 0) ||
+        (RUN_DETERMINISTIC_UNTIL >= 0 && outer_iteration <= RUN_DETERMINISTIC_UNTIL);
+    const bool deterministic_after =
+        (RUN_DETERMINISTIC_AFTER >= 0 && outer_iteration >= RUN_DETERMINISTIC_AFTER);
+    return deterministic_until || deterministic_after;
 }
 
 class DensCoeff : public Coefficient
@@ -493,6 +768,127 @@ private:
     real_t len;
 };
 
+/**
+ * @brief Initialize latent variable with a symmetric hole in the left-center of the domain.
+ *        
+ *        HOW IT WORKS - The Eval paradigm:
+ *        - HoleCoeff is a "spatial function" that MFEM evaluates at quadrature points
+ *        - When ProjectCoefficient() is called, MFEM loops through all mesh elements
+ *        - For each element, it calls Eval(T, ip) at each quadrature/integration point
+ *        - T.Transform(ip, transip) converts reference element coords → physical domain coords
+ *        - We check if the physical point is inside the hole, return different densities accordingly
+ * 
+ * @param odens_latent The latent density field to initialize
+ * @param target_volume Target material volume (vol_fraction * domain_volume)
+ * @param domain_volume Total domain volume
+ * @param myid MPI rank (for output)
+ * @param hole_radius Radius of the hole relative to domain size (default 0.1)
+ * @param hole_strength How much to reduce density in the hole (0-1, where 1 removes all material)
+ * @param hole_size_x Position of hole center in x-direction as fraction from left edge (default 0.25)
+ */
+void initialize_with_hole(ParGridFunction &odens_latent,
+                          real_t target_volume, real_t domain_volume, int myid,
+                          real_t hole_radius = 0.1, real_t hole_strength = 0.8,
+                          real_t hole_size_x = 0.25,
+                          bool use_heaviside_projection = false,
+                          real_t heaviside_eta = 0.5,
+                          real_t heaviside_beta = 1.0)
+{
+    auto &fes = *odens_latent.FESpace();
+    auto &mesh = *fes.GetMesh();
+    
+    // Get mesh bounding box — reduce across all MPI ranks to get global bounds
+    const real_t *v0 = mesh.GetVertex(0);
+    real_t xmin = v0[0], xmax = v0[0], ymin = v0[1], ymax = v0[1];
+    for (int i = 1; i < mesh.GetNV(); i++)
+    {
+        const real_t *coords = mesh.GetVertex(i);
+        xmin = std::min(xmin, coords[0]);
+        xmax = std::max(xmax, coords[0]);
+        ymin = std::min(ymin, coords[1]);
+        ymax = std::max(ymax, coords[1]);
+    }
+    {
+        const auto comm = odens_latent.ParFESpace()->GetComm();
+        real_t buf;
+        MPI_Allreduce(&xmin, &buf, 1, MPI_DOUBLE, MPI_MIN, comm); xmin = buf;
+        MPI_Allreduce(&xmax, &buf, 1, MPI_DOUBLE, MPI_MAX, comm); xmax = buf;
+        MPI_Allreduce(&ymin, &buf, 1, MPI_DOUBLE, MPI_MIN, comm); ymin = buf;
+        MPI_Allreduce(&ymax, &buf, 1, MPI_DOUBLE, MPI_MAX, comm); ymax = buf;
+    }
+    if (myid == 0)
+    {
+        std::cout << "[initialize_with_hole] Global bounding box:"
+                  << " x=[" << xmin << ", " << xmax << "]"
+                  << " y=[" << ymin << ", " << ymax << "]" << std::endl;
+    }
+    
+    real_t domain_width = xmax - xmin;
+    real_t domain_height = ymax - ymin;
+    real_t y_mid = 0.5 * (ymin + ymax);
+    
+    // Primary hole: left-center
+    real_t hole_center_x = xmin + hole_size_x * domain_width;
+    real_t hole_center_y = y_mid;
+    // Mirror hole: reflected about y_mid (guarantees vertical symmetry)
+    real_t hole_mirror_y = ymin + ymax - hole_center_y; // = y_mid when hole_center_y == y_mid
+    
+    // Baseline latent value corresponding to the target volume fraction
+    real_t baseline_latent = inv_sigmoid(target_volume / domain_volume);
+
+    // Initialize all DOFs to baseline
+    odens_latent = baseline_latent;
+    
+    // Create a coefficient that reduces density in both hole and its mirror
+    class HoleCoeff : public Coefficient {
+    public:
+        real_t center_x, center_y, mirror_y, radius, strength;
+        real_t baseline_latent;
+        
+        HoleCoeff(real_t cx, real_t cy, real_t my, real_t r, real_t s, real_t bl) 
+            : center_x(cx), center_y(cy), mirror_y(my), radius(r), strength(s), baseline_latent(bl) {}
+        
+        virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+        {
+            // T.Transform converts reference element coordinates to physical coordinates
+            Vector transip;
+            T.Transform(ip, transip);
+            
+            real_t dx = transip(0) - center_x;
+
+            // Check distance to primary hole
+            real_t dy1 = transip(1) - center_y;
+            real_t dist1 = std::sqrt(dx*dx + dy1*dy1);
+
+            // Check distance to mirror hole (reflected about y_mid)
+            real_t dy2 = transip(1) - mirror_y;
+            real_t dist2 = std::sqrt(dx*dx + dy2*dy2);
+
+            if (dist1 < radius || dist2 < radius) {
+                // Inside either hole: interpolate toward near-zero latent (very little material)
+                return baseline_latent - strength * (baseline_latent - inv_sigmoid(0.01));
+            }
+            // Outside both holes: return baseline latent value
+            return baseline_latent;
+        }
+    } hole_coeff(hole_center_x, hole_center_y, hole_mirror_y, hole_radius, hole_strength, baseline_latent);
+    
+    // Project the hole coefficient onto the latent field
+    odens_latent.ProjectCoefficient(hole_coeff);
+
+    // Normalize
+    real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
+                                  use_heaviside_projection, heaviside_eta, heaviside_beta);
+
+    if (myid == 0) {
+        std::cout << "Initialized with hole: target_volume=" << target_volume 
+                  << ", actual_material_volume=" << material_volume 
+                  << ", actual_volume_fraction=" << material_volume / domain_volume 
+                  << std::endl;
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     // initialization. {} scoping helps wih navigating code.
@@ -513,9 +909,9 @@ int main(int argc, char *argv[])
     const char *device_config = "cpu";
     bool visualization = true;
     bool algebraic_ceed = false;
-    real_t filter_radius = real_t(0.06); // original 0.01
+    real_t filter_radius = real_t(0.07); // original 0.01
 
-    const real_t starting_gamma = 1.0; // gamma is the stepsize for updating the prox for the latent probabilities. Original 0.001.
+    const real_t starting_gamma = 0.005; // gamma is the stepsize for updating the prox for the latent probabilities. Original 0.001.
     real_t gamma = starting_gamma;
 
     // starting for armijo backtracking line search. Nothing to do with cvar.
@@ -524,24 +920,46 @@ int main(int argc, char *argv[])
 
     const real_t starting_alpha_stepsize = 1.0; // no opinion here. But, hey, let's be aggresive since we are doing backtracking line search. Original 1.0 
     const real_t ARMIJO_C1 = 1e-4; // armijo backtracking line search parameter. Original 1e-4
-    const real_t ARMIJO_BETA = 0.1; // armijo backtracking line search parameter. Original 0.5
+    const real_t ARMIJO_BETA = 0.5; // armijo backtracking line search parameter. Original 0.5
     const real_t MIN_ALPHA = 1e-2;
+    const real_t MAX_ALPHA = 1.0;
+    const real_t ALPHA_SCALING_FACTOR_OVERRIDE = 1.0; // if alpha goes out of bounds, we scale it back by this factor. Original 0.5
 
-    const real_t starting_rho = 1.0;
+    // const real_t SAMPLE_POINT_THROWOUT_EPSILON = 1e-7; // if a sampled point has probability less than this, we throw it out and resample. Original 1e-6
+
+    const real_t CLAMP_VAL = 20;
+
+    const real_t starting_rho = 5.0;
     real_t rho = starting_rho;
-
-
 
     real_t vol_fraction = 0.45;
     // int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
     real_t rho_min = 1e-3;
-    real_t E_min = 1e-6; // try 1e-1, maybe 1e-3. Original 1e-6
+    real_t E_min = 1e-6; 
     real_t E_max = 1.0;
     real_t poisson_ratio = 0.02;
     bool glvis_visualization = true;
     bool paraview_output = true;
+
+    // Initialization options for the design domain
+    bool init_with_hole = true;             // Initialize with a symmetric hole in left-center
+    real_t hole_radius = 0.1;                // Radius of hole as fraction of domain
+    real_t hole_strength = 0.6;              // Strength of hole (0-1, where 1 removes material)
+    real_t hole_size_x = 0.15;              // Position of hole center in x-direction as fraction from left edge
+
+    // Promote black-white designs without changing the filter radius.
+    bool use_heaviside_projection = true;
+    real_t heaviside_eta = 0.5;
+    real_t heaviside_beta_start = 3.0;
+    real_t heaviside_beta_max = 12.0;
+    real_t heaviside_beta_growth = 1.08;
+    bool heaviside_beta_scaling = true;
+    real_t simp_power = 3.0;
+
+    // bool init_with_randomness = false;       // Initialize with symmetric random perturbations
+    // real_t randomness_magnitude = 0.5;       // Magnitude of random perturbations in latent space
 
     const real_t tau = 1e-10; // threshold for probability truncation.
 
@@ -550,22 +968,33 @@ int main(int argc, char *argv[])
     const real_t p3 = 0.01; 
     const real_t p4 = 0.005; // SET BACK TO 0.005
 
-    const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 30;
-    const int inner_loop_iterations = 10;
-    const int MAX_BACKTRACKING_ATTEMPTS = 10; // maximum number of backtracking attempts in each inner loop iteration.
+    const real_t cvar_alpha = 0.95;
+    const int outer_loop_iterations = 100;
+    const int inner_loop_iterations = 50;
+    const int MAX_BACKTRACKING_ATTEMPTS = 20; // maximum number of backtracking attempts in each inner loop iteration.
 
-    const real_t block_size_ratio = 0.35; // change back to 0.6
-    const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 3;
+    const real_t block_size_ratio = 1.0; // trying full blocks // change back to 0.35
+    const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 5;
 
-    // encoded exclusvely. If >=, 0, start running stochastic at the RUN_DETERMINISTIC_UNTILth step
-    const int RUN_DETERMINISTIC_UNTIL = 20; 
+    // Deterministic for outer <= RUN_DETERMINISTIC_UNTIL.
+    // If RUN_DETERMINISTIC_AFTER >= 0, deterministic again for outer >= RUN_DETERMINISTIC_AFTER.
+    // RUN_DETERMINISTIC_AFTER = -1 means this second phase never activates.
+    // Purely deterministic configuration: deterministic window always activates.
+    const int RUN_DETERMINISTIC_UNTIL = -1;
+    const int RUN_DETERMINISTIC_AFTER = -1;
     const bool RUN_SYMMETRIC = true;
+
+    if (RUN_DETERMINISTIC_UNTIL >= 0 && RUN_DETERMINISTIC_AFTER >= 0 &&
+        RUN_DETERMINISTIC_AFTER < RUN_DETERMINISTIC_UNTIL)
+    {
+        throw std::invalid_argument(
+            "RUN_DETERMINISTIC_AFTER must be >= RUN_DETERMINISTIC_UNTIL when both are non-negative.");
+    }
 
     // "const" or "gradient"
     const float epsilon_TV = 1e-3;
     const float epsilon_g = 1e-3;
-    const float epsilon_q = 1e-3;
+    const float epsilon_q = 1e-6;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
 
@@ -605,6 +1034,30 @@ int main(int argc, char *argv[])
                    "Enable or disable GLVis visualization.");
     args.AddOption(&filter_radius, "-fr", "--filter",
                    "Set the filter radius.");
+    args.AddOption(&init_with_hole, "-hole", "--init-hole", "-no-hole", "--no-init-hole",
+                   "Initialize with a symmetric hole in left-center of domain.");
+    args.AddOption(&hole_radius, "-hr", "--hole-radius",
+                   "Radius of the hole as fraction of domain (default 0.1).");
+    args.AddOption(&hole_strength, "-hs", "--hole-strength",
+                   "Strength of hole: 0-1 where 1 removes material (default 0.8).");
+    args.AddOption(&use_heaviside_projection, "-hproj", "--heaviside-projection", "-no-hproj", "--no-heaviside-projection",
+                   "Enable Heaviside projection of filtered densities to promote 0-1 designs.");
+    args.AddOption(&heaviside_eta, "-heta", "--heaviside-eta",
+                   "Threshold eta for Heaviside projection (default 0.5).");
+    args.AddOption(&heaviside_beta_start, "-hbs", "--heaviside-beta-start",
+                   "Initial beta for Heaviside projection continuation (default 1.0).");
+    args.AddOption(&heaviside_beta_max, "-hbm", "--heaviside-beta-max",
+                   "Maximum beta for Heaviside projection continuation (default 12.0).");
+    args.AddOption(&heaviside_beta_growth, "-hbg", "--heaviside-beta-growth",
+                   "Geometric growth factor for Heaviside beta continuation (default 1.08).");
+    args.AddOption(&heaviside_beta_scaling, "-hbsc", "--heaviside-beta-scaling", "-no-hbsc", "--no-heaviside-beta-scaling",
+                   "Enable geometric scaling of Heaviside beta through outer iterations.");
+    args.AddOption(&simp_power, "-sp", "--simp-power",
+                   "SIMP penalization power used for stiffness interpolation (default 3.0).");
+    // args.AddOption(&init_with_randomness, "-rand", "--init-random", "-no-rand", "--no-init-random",
+                //    "Initialize with symmetric random perturbations.");
+    // args.AddOption(&randomness_magnitude, "-rm", "--randomness-magnitude",
+                //    "Magnitude of random perturbations in latent space (default 0.5).");
     args.Parse();
     if (!args.Good())
     {
@@ -679,12 +1132,43 @@ int main(int argc, char *argv[])
     ParGridFunction odens_latent_old(filt->GetDesignFES());
     // ParGridFunction odens_latent_old_old(filt->GetDesignFES()); // for GBB test
 
+    mfem::Vector CLAMP_MIN_VECTOR(filt->GetDesignFES()->TrueVSize()); CLAMP_MIN_VECTOR = -CLAMP_VAL;
+    mfem::Vector CLAMP_MAX_VECTOR(filt->GetDesignFES()->TrueVSize()); CLAMP_MAX_VECTOR = CLAMP_VAL;
+
     // define the control field
     MappedGridFunctionCoefficient odens(&odens_latent, sigmoid);
     MappedGridFunctionCoefficient odens_old(&odens_latent_old, sigmoid);
     // MappedGridFunctionCoefficient odens_old_old(&odens_latent_old_old, sigmoid); // for GBB test
     // define the filtered field
     ParGridFunction fdens(filt->GetFilterFES());
+    ParGridFunction hbeta_fdens(filt->GetFilterFES());
+    real_t heaviside_beta_current = heaviside_beta_start;
+
+    class PostHeavisideCoefficient : public Coefficient
+    {
+    public:
+        PostHeavisideCoefficient(ParGridFunction *dens_, bool *use_hproj_,
+                                 real_t *eta_, real_t *beta_)
+            : dens(dens_), use_hproj(use_hproj_), eta(eta_), beta(beta_) {}
+
+        virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+        {
+            real_t val = dens->GetValue(T, ip);
+            if (*use_hproj)
+            {
+                val = PointwiseTrans::HProject(val, *eta, *beta);
+            }
+            return val;
+        }
+
+    private:
+        ParGridFunction *dens;
+        bool *use_hproj;
+        real_t *eta;
+        real_t *beta;
+    };
+    PostHeavisideCoefficient post_heaviside_coeff(
+        &fdens, &use_heaviside_projection, &heaviside_eta, &heaviside_beta_current);
 
     // hold the gradient of the functional. Used for GBB step size estimation.
     ParGridFunction odens_weighted_gradient(filt->GetDesignFES());
@@ -722,7 +1206,35 @@ int main(int argc, char *argv[])
 
 
     Vector odens_latent_vector(filt->GetDesignFES()->TrueVSize());
-    odens_latent = inv_sigmoid(vol_fraction); //@Will is that stable? What is inv_sigmoid
+    
+    // Apply selected initialization strategy
+    if (init_with_hole)
+    {
+        if (myid == 0)
+        {
+            std::cout << "Initializing with symmetric hole in left-center." << std::endl
+                      << "  Hole radius: " << hole_radius << std::endl
+                      << "  Hole strength: " << hole_strength << std::endl;
+        }
+        initialize_with_hole(odens_latent, target_volume, domain_volume, myid,
+                             hole_radius, hole_strength, hole_size_x,
+                             use_heaviside_projection, heaviside_eta, heaviside_beta_start);
+    }
+    // else if (init_with_randomness)
+    // {
+    //     if (myid == 0)
+    //     {
+    //         std::cout << "Initializing with symmetric random perturbations." << std::endl
+    //                   << "  Randomness magnitude: " << randomness_magnitude << std::endl;
+    //     }
+    //     initialize_with_symmetric_randomness(odens_latent, vol_fraction, randomness_magnitude, rng, 0);
+    // }
+    else
+    {
+        // Default uniform initialization
+        odens_latent = inv_sigmoid(vol_fraction);
+    }
+    
     odens_latent.SetTrueVector();
     odens_latent.GetTrueDofs(odens_latent_vector);
 
@@ -757,11 +1269,25 @@ int main(int argc, char *argv[])
 
     // filter the initial density
     filt->FFilter(&odens,fdens);
+    hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
 
     ParGridFunction& sol=elsolver->GetDisplacements();
 
+    char timestamp_buffer[32] = {0};
+    if (myid == 0)
+    {
+        const std::time_t now = std::time(nullptr);
+        std::tm local_tm;
+        localtime_r(&now, &local_tm);
+        std::strftime(timestamp_buffer, sizeof(timestamp_buffer), "%Y%m%d_%H%M%S", &local_tm);
+    }
+    MPI_Bcast(timestamp_buffer, static_cast<int>(sizeof(timestamp_buffer)), MPI_CHAR, 0, MPI_COMM_WORLD);
+
+    const std::string run_name =
+        "cvar_optimization_purely_deterministic_11May2026_v1_hole_" + std::string(timestamp_buffer);
+
     // set up the paraview
-    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_stochastic_03Apr2026_total", &pmesh);
+    mfem::ParaViewDataCollection paraview_dc(run_name, &pmesh);
     // rho_gf.ProjectCoefficient(rho);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order);
@@ -771,6 +1297,7 @@ int main(int argc, char *argv[])
     paraview_dc.SetTime(0.0);
     paraview_dc.RegisterField("density", &odens_gf);
     paraview_dc.RegisterField("filtered_density", &fdens);
+    paraview_dc.RegisterField("post_heaviside_density", &hbeta_fdens);
     paraview_dc.RegisterField("control_gradient", &odens_gradient_single);
     paraview_dc.RegisterField("latent_density", &odens_latent);
     paraview_dc.RegisterField("disp",&sol);
@@ -781,7 +1308,11 @@ int main(int argc, char *argv[])
     IsoComplCoef icc;
     icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements())); // (1) density (2) displacements. Deferred calculation.
     icc.SetMaterial(E_min, E_max, poisson_ratio);
-    icc.SetSIMP(3.0);
+    icc.SetSIMP(simp_power);
+    if (use_heaviside_projection)
+    {
+        icc.SetProj(heaviside_eta, heaviside_beta_current);
+    }
 
     // set the material to the elasticity solver
     elsolver->SetMaterial(*(icc.GetE()), *(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
@@ -829,28 +1360,152 @@ int main(int argc, char *argv[])
 
 
     int total_iterations = 0;
-    real_t alpha_stepsize;// / std::max(gradient_max, 1e-8); // initial stepsize
+    long long total_gradient_evaluations = 0;
+    long long total_function_evaluations = 0;
+
+    std::ofstream cvar_csv;
+    std::ofstream dual_probabilities_csv;
+    const std::string cvar_csv_dir = "cvar_csv";
+    const std::string cvar_csv_path = cvar_csv_dir + "/" + run_name + ".csv";
+    const std::string dual_probabilities_csv_path =
+        cvar_csv_dir + "/" + run_name + "_dual_probabilities.csv";
+    if (myid == 0)
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(cvar_csv_dir, ec);
+        if (ec)
+        {
+            throw std::runtime_error("Unable to create CSV directory '" + cvar_csv_dir + "': " + ec.message());
+        }
+
+        cvar_csv.open(cvar_csv_path);
+        if (!cvar_csv)
+        {
+            throw std::runtime_error("Unable to open " + cvar_csv_path + " for writing.");
+        }
+        cvar_csv << std::setprecision(17);
+        cvar_csv << "outer_iteration,inner_iteration,total_steps,total_gradient_evaluations,total_function_evaluations,armijo_descents,current_cvar,current_cvar_estimation\n";
+
+        dual_probabilities_csv.open(dual_probabilities_csv_path);
+        if (!dual_probabilities_csv)
+        {
+            throw std::runtime_error("Unable to open " + dual_probabilities_csv_path + " for writing.");
+        }
+        dual_probabilities_csv << std::setprecision(17);
+        dual_probabilities_csv
+            << "outer_iteration,inner_iteration,total_steps,scenario_index,scenario_bits,original_probability,latent_probability,dual_probability\n";
+    }
+
+    auto evaluate_compliance_for_scenario =
+        [&](const std::bitset<N> &bits,
+            const std::string &inner_iter_tag,
+            const std::string &eval_reason,
+            const bool verbose_bits_logging) -> real_t
+    {
+        if (myid == 0)
+        {
+            std::cout << inner_iter_tag
+                      << " [compliance-eval] reason=" << eval_reason
+                      << " scenario=" << bits.to_string()
+                      << std::endl;
+        }
+
+        elsolver->DelDispBC();
+        for (int bit_index = 2; bit_index < 8; bit_index++)
+        {
+            if (!(bits.test(bit_index - 2)))
+            {
+                elsolver->AddDispBC(bit_index, 4, 0.0);
+            }
+            else if (myid == 0 && verbose_bits_logging)
+            {
+                std::cout << inner_iter_tag << " [compliance-eval:" << eval_reason
+                          << "] Skipping bit " << (bit_index - 2)
+                          << " in scenario " << bits << ".\n";
+            }
+        }
+
+        elsolver->Assemble();
+        elsolver->FSolve();
+
+        ParGridFunction &sol_eval = elsolver->GetDisplacements();
+        icc.SetGridFunctions(&fdens, &sol_eval);
+
+        ParLinearForm compl_form_eval(filt->GetFilterFES());
+        compl_form_eval.AddDomainIntegrator(new DomainLFIntegrator(icc));
+        compl_form_eval.Assemble();
+        const real_t compliance_value = compl_form_eval(onegf);
+
+        if (myid == 0)
+        {
+            std::cout << inner_iter_tag
+                      << " [compliance-eval] reason=" << eval_reason
+                      << " value=" << compliance_value
+                      << std::endl;
+        }
+
+        return compliance_value;
+    };
+
+    auto dual_probability_from_latent =
+        [&](const real_t original_probability, const real_t latent_probability) -> real_t
+    {
+        return sigmoid(latent_probability) * original_probability / (1 - cvar_alpha);
+    };
+
+    /**
+     * Set the initial stepsize.
+     */
+    real_t alpha_stepsize = -1.0;
 
     // loop
-    for (unsigned int k = 1; k <= outer_loop_iterations; k++)
+    for (unsigned int outer = 1; outer <= outer_loop_iterations; outer++)
     {
-        if (k > 1)
+        if (use_heaviside_projection)
+        {
+            if (heaviside_beta_scaling)
+            {
+                heaviside_beta_current = std::min(
+                    heaviside_beta_start * std::pow(heaviside_beta_growth, static_cast<real_t>(outer - 1)),
+                    heaviside_beta_max);
+            }
+            else
+            {
+                heaviside_beta_current = heaviside_beta_start;
+            }
+
+            icc.SetProj(heaviside_eta, heaviside_beta_current);
+
+            if (myid == 0)
+            {
+                std::cout << "[projection] outer=" << outer
+                          << " eta=" << heaviside_eta
+                          << " beta=" << heaviside_beta_current
+                          << " beta_scaling=" << heaviside_beta_scaling
+                          << " simp_power=" << simp_power
+                          << std::endl;
+            }
+        }
+
+        if (outer > 1)
         {
             // maybe this needs to escalate faster? write a better stepsize finder. Also maybe different gamma for inner and outer loops
-            gamma *= ((real_t)k) / ((real_t)k - 1);
+            gamma *=  ((real_t)outer) / ((real_t)outer - 1); 
+            // gamma = std::max(1.5 * gamma, ((real_t)outer) / ((real_t)outer - 1) * gamma);
             // this needs to go to 0. Opposite reasoning :-) 
-            rho *= ((real_t)k - 1) / ((real_t)k); 
+            rho *= ((real_t)outer - 1) / ((real_t)outer); 
         }
         if (myid == 0)
         {
-            cout << "\nStep = " << k << endl;
+            cout << "\nStep = " << outer << endl;
         }
         // cout << "K IS " << k << endl;
 
         filt->FFilter(&odens, fdens);
 
-        {
+        if (total_iterations == 0) {
             odens_gf.ProjectCoefficient(odens);
+            hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
             paraview_dc.SetCycle(total_iterations);
             paraview_dc.SetTime((real_t)total_iterations);
             paraview_dc.Save();
@@ -875,8 +1530,9 @@ int main(int argc, char *argv[])
         std::vector<std::size_t> block_k;
 
 
-        if (is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL)) {
+        if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER)) {
             block_k = std::vector<size_t>(latent_probabilities_k_0.size()); // Create vector of size N
+
             std::iota(block_k.begin(), block_k.end(), 0);
         } else {
              std::vector<std::size_t> block_k_non_symmetrized = sample_k_indices_without_replacement(latent_probabilities_k_0, cvar_alpha, BLOCK_SIZE, tau, rng);
@@ -930,8 +1586,28 @@ int main(int argc, char *argv[])
         **/
         real_t g_eta_cache = std::numeric_limits<real_t>::max(); // reset the gradient holder for the new outer iteration. We will use this to calculate the GBB stepsize, but we won't actually need to calculate the stepsize until we are doing the update, which is after the inner loop.
 
+        /**
+         * Clamp psi
+         */ 
+        odens_latent.median(CLAMP_MIN_VECTOR, CLAMP_MAX_VECTOR);
+
+        real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
+                                      use_heaviside_projection, heaviside_eta, heaviside_beta_current); // last two are tol and max its
+        if (0 == myid)
+        {
+            cout << "For clamping on outer step " << outer << ", got material " << material_volume << ". Expected Material " << target_volume << "\n";
+        }
+
         for (size_t inner = 1; inner <= inner_loop_iterations; inner++)
         {
+            const std::string inner_iter_tag =
+                "(outer, inner)=(" + std::to_string(outer) + ", " + std::to_string(inner) +
+                "), total_iterations=" + std::to_string(total_iterations);
+
+            if (myid == 0) {
+                std::cout << inner_iter_tag << " gamma=" << gamma << "\n";
+            }
+
                         // TODO: Sample ahead of time. Makes it simpler. Fewer computes.
             std::vector<size_t> latent_probability_indices_to_sample;
             std::vector<float> latent_probability_indices_to_sample_weights;
@@ -939,19 +1615,19 @@ int main(int argc, char *argv[])
             bool xi_in_empty = true;
 
             // determine where we're sampling. If in the stochastic case, we can skip calculating unnecessary compliances.
-            if (is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL)) {
+            if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER)) {
                 // we need to calculate q_k_jp1 for this. So defer.
                 latent_probability_indices_to_sample_mask.assign(latent_probabilities_k_0.size(), true);
             } else {
 
                 // we can sample, and filter later.
-                std::cout << "Running stochastic sampling for gradient estimation at outer iteration " << k << ".\n";   
+                if (myid == 0) std::cout << inner_iter_tag << " Running stochastic sampling for gradient estimation.\n";
 
                 latent_probability_indices_to_sample_mask.assign(latent_probabilities_k_0.size(), false);
                 std::vector<real_t> weights_by_index(latent_probabilities_k_0.size(), 0); 
 
                 int TOTAL_GRADIENTS;
-                if (RUN_SYMMETRIC) {
+                if (!RUN_SYMMETRIC) {
                     TOTAL_GRADIENTS = STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
                 } else {
                     TOTAL_GRADIENTS = 2 * STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
@@ -960,10 +1636,10 @@ int main(int argc, char *argv[])
                 for (int sample = 0; sample < STOCHASTIC_GRADIENT_MINIBATCH_SIZE; ++sample) {
                     size_t sampled_index = q_distribution(rng);
 
-                    if (myid == 0) std::cout << "Sample " << sample << ": sampled_index = " << sampled_index << std::endl;
+                    if (myid == 0) std::cout << inner_iter_tag << " Sample " << sample << ": sampled_index = " << sampled_index << std::endl;
 
                     bool is_in_mask = block_membership_mask[sampled_index];
-                    if (myid == 0) std::cout << "  is_in_mask = " << is_in_mask << std::endl;
+                    if (myid == 0) std::cout << inner_iter_tag << " is_in_mask = " << is_in_mask << std::endl;
 
                     if (!is_in_mask) {
                         latent_probability_indices_to_sample_mask[sampled_index] = true;
@@ -980,7 +1656,7 @@ int main(int argc, char *argv[])
                         }
 
 
-                        if (myid == 0) std::cout << "  Added weight for non-block member" << std::endl;
+                        if (myid == 0) std::cout << inner_iter_tag << " Added weight for non-block member" << std::endl;
                     } else {
                         // real_t q_k_jp1_over_q_k_j = sigmoid(latent_probability_jp1) / sigmoid(latent_probability_j);
                         // weights_by_index[sampled_index] += q_k_jp1_over_q_k_j / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
@@ -997,7 +1673,7 @@ int main(int argc, char *argv[])
                             weights_by_index[symmetric_index] += 0.5 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;       
                         }
 
-                        if (myid == 0) std::cout << "  Added weight for block member" << std::endl;
+                        if (myid == 0) std::cout << inner_iter_tag << " Added weight for block member" << std::endl;
                     }
                 }
 
@@ -1011,11 +1687,13 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                std::cout << "Sampled indices for gradient estimation: ";
-                for (size_t i = 0; i < latent_probability_indices_to_sample.size(); ++i) {
-                    std::cout << latent_probability_indices_to_sample[i] << " (weight: " << latent_probability_indices_to_sample_weights[i] << ") ";
+                if (myid == 0) {
+                    std::cout << inner_iter_tag << " Sampled indices for gradient estimation: ";
+                    for (size_t i = 0; i < latent_probability_indices_to_sample.size(); ++i) {
+                        std::cout << latent_probability_indices_to_sample[i] << " (weight: " << latent_probability_indices_to_sample_weights[i] << ") ";
+                    }
+                    std::cout << std::endl;
                 }
-                std::cout << std::endl;
             }
 
             /****** 
@@ -1045,7 +1723,7 @@ int main(int argc, char *argv[])
 
                 if (0 == myid)
                 {
-                    std::cout << "For proximal probability, going through "
+                    std::cout << inner_iter_tag << " For proximal probability, going through "
                             << original_probability
                             << " probability element: "
                             << bits.to_string()
@@ -1054,40 +1732,14 @@ int main(int argc, char *argv[])
                             << ".\n";
                 }
 
-                // set up the boundary conditions
-                // set the boundary conditions [1,2,..,7]
-                elsolver->DelDispBC();
-                for (int i = 2; i < 8; i++)
-                {
-                    if (!(bits.test(i - 2)))
-                    {
-                        elsolver->AddDispBC(i, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
-                    } else {
-                        if (myid == 0) {
-                            std::cout << "Skipping bit " << (i - 2) << " in scenario " << bits << ".\n";
-                        }
-                    }
-                }
-
-                // solve the discrete elastic system
-                elsolver->Assemble();
-                elsolver->FSolve(); // solve for displacements
-
-                ParGridFunction &sol = elsolver->GetDisplacements();
-                icc.SetGridFunctions(&fdens, &sol);
-
-                real_t compliance_i = 0.0;
-                {
-                    ParLinearForm compl_form(filt->GetFilterFES());
-                    compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
-                    compl_form.Assemble();
-                    compliance_i = compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral.
-                }
+                real_t compliance_i = evaluate_compliance_for_scenario(
+                    bits, inner_iter_tag, "prox_update_base_compliance", true);
+                if (myid == 0) { total_function_evaluations++; }
 
                 base_compliances_by_index.emplace_back(compliance_i);
 
                 if (myid == 0) {
-                    std::cout << "Latent: " << latent_probability << ", gamma: " << gamma << ", compliance: " << compliance_i << ".\n";
+                    std::cout << inner_iter_tag << " Latent: " << latent_probability << ", gamma: " << gamma << ", compliance: " << compliance_i << ".\n";
                     // std::cout << "Latent: " << latent_probability << ", alpha_stepsize: " << alpha_stepsize << ", compliance: " << compliance_i << ".\n";
                 }
 
@@ -1100,12 +1752,12 @@ int main(int argc, char *argv[])
             }
 
             if (myid == 0) {
-                std::cout << "Printing latent_probabilities_k_jp1_unnormalized within inner loop, after calculating.\n";
+                std::cout << inner_iter_tag << " Printing latent_probabilities_k_jp1_unnormalized within inner loop, after calculating.\n";
                 for (size_t i = 0; i < latent_probabilities_k_jp1_unnormalized.size(); ++i) {
                     std::cout << i << ":" << std::get<2>(latent_probabilities_k_jp1_unnormalized[i]) << " ";
                 }
                 std::cout << "\n";
-                std::cout << "Done printing latent_probabilities_k_jp1_unnormalized.\n";
+                std::cout << inner_iter_tag << " Done printing latent_probabilities_k_jp1_unnormalized.\n";
             }
 
             // then we update the new latents to ensure they sum to 1. t is the number such that 
@@ -1121,8 +1773,32 @@ int main(int argc, char *argv[])
             for (auto &[bits, original_probability, latent_probability] : latent_probabilities_k_jp1)
             {
                 if (myid == 0) {
-                    std::cout <<"case: "<<bits.to_string()<<" "<<" p="<<original_probability<<" l="<<latent_probability<<std::endl;
+                    const real_t q_probability = sigmoid(latent_probability) * original_probability / (1 - cvar_alpha);
+                    std::cout << inner_iter_tag << " case: " << bits.to_string()
+                              << " p=" << original_probability
+                              << " l=" << latent_probability
+                              << " q_new=" << q_probability << std::endl;
                 }
+            }
+
+            if (myid == 0)
+            {
+                for (size_t scenario_index = 0; scenario_index < latent_probabilities_k_jp1.size(); ++scenario_index)
+                {
+                    const auto &[bits, original_probability, latent_probability] = latent_probabilities_k_jp1[scenario_index];
+                    const real_t dual_probability =
+                        sigmoid(latent_probability) * original_probability / (1 - cvar_alpha);
+
+                    dual_probabilities_csv << outer << ","
+                                           << inner << ","
+                                           << total_iterations << ","
+                                           << scenario_index << ","
+                                           << bits.to_string() << ","
+                                           << original_probability << ","
+                                           << latent_probability << ","
+                                           << dual_probability << "\n";
+                }
+                dual_probabilities_csv.flush();
             }
 
             /**
@@ -1135,8 +1811,8 @@ int main(int argc, char *argv[])
             Deterime I_j,  the set of indices we will sample gradients from.
             ****/
 
-            if (is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL)) {
-                std::cout << "Running deterministic sampling for gradient estimation at outer iteration " << k << ".\n";
+            if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER)) {
+                if (myid == 0) std::cout << inner_iter_tag << " Running deterministic sampling for gradient estimation.\n";
 
                 /***
                 In the deterministic case, we simply remove the q_i with numerically trivial probabilities
@@ -1147,7 +1823,7 @@ int main(int argc, char *argv[])
                 for (size_t i = 0; i < latent_probabilities_k_jp1.size(); ++i) {
 
                     auto &[bits, original_probability, latent_probability] = latent_probabilities_k_jp1[i];
-                    float probability = sigmoid(latent_probability) * original_probability / (1 - cvar_alpha);
+                    real_t probability = dual_probability_from_latent(original_probability, latent_probability);
 
                     if (probability > epsilon_q) {
                         latent_probability_indices_to_sample.push_back(i);
@@ -1156,7 +1832,7 @@ int main(int argc, char *argv[])
                     }
                 }
             } else {
-                std::cout << "Filtering post-stochastic sampling. " << k << ".\n";   
+                if (myid == 0) std::cout << inner_iter_tag << " Filtering post-stochastic sampling.\n";
 
                 for (size_t SAMPLE_INDEX = 0; SAMPLE_INDEX < latent_probability_indices_to_sample.size(); ++SAMPLE_INDEX) {
                     real_t sample = latent_probability_indices_to_sample[SAMPLE_INDEX];
@@ -1167,11 +1843,11 @@ int main(int argc, char *argv[])
                         auto [bits_j, original_probability_j, latent_probability_j] = latent_probabilities_k_j[sample];
                         auto [bits_jp1, original_probability_jp1, latent_probability_jp1] = latent_probabilities_k_jp1[sample];
 
-                        real_t q_k_jp1 = sigmoid(latent_probability_jp1) * original_probability_jp1 / (1 - cvar_alpha);
-                        if (myid == 0) std::cout << "  q_k_jp1 = " << q_k_jp1 << ", epsilon_q = " << epsilon_q << std::endl;
+                        real_t q_k_jp1 = dual_probability_from_latent(original_probability_jp1, latent_probability_jp1);
+                        if (myid == 0) std::cout << inner_iter_tag << " q_k_jp1 = " << q_k_jp1 << ", epsilon_q = " << epsilon_q << std::endl;
 
                         if (q_k_jp1 < epsilon_q) {
-                            if (myid == 0) std::cout << "Erasing sample " << sample << " because q_k_jp1 < epsilon_q" << std::endl;
+                            if (myid == 0) std::cout << inner_iter_tag << " Erasing sample " << sample << " because q_k_jp1 < epsilon_q" << std::endl;
 
                             latent_probability_indices_to_sample.erase(latent_probability_indices_to_sample.begin() + SAMPLE_INDEX);
                             latent_probability_indices_to_sample_weights.erase(latent_probability_indices_to_sample_weights.begin() + SAMPLE_INDEX);
@@ -1199,9 +1875,26 @@ int main(int argc, char *argv[])
 
                 const auto [bits, original_probability, latent_probability] = latent_probabilities_k_jp1[key];
 
+                if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER))
+                {
+                    const real_t dual_probability = dual_probability_from_latent(original_probability, latent_probability);
+                    if (dual_probability < epsilon_q)
+                    {
+                        if (myid == 0)
+                        {
+                            std::cout << inner_iter_tag
+                                      << " Skipping gradient eval for scenario " << bits.to_string()
+                                      << " because dual_probability=" << dual_probability
+                                      << " < epsilon_q=" << epsilon_q
+                                      << std::endl;
+                        }
+                        continue;
+                    }
+                }
+
                 if (0 == myid)
                 {
-                    std::cout << "For Gradient, going through "
+                    std::cout << inner_iter_tag << " For Gradient, going through "
                             << original_probability
                             << " probability element: "
                             << bits.to_string()
@@ -1224,6 +1917,7 @@ int main(int argc, char *argv[])
                 // solve the discrete elastic system
                 elsolver->Assemble();
                 elsolver->FSolve(); // solve for displacements
+                if (myid == 0) { total_gradient_evaluations++; }
 
                 // extract the solution
                 ParGridFunction &sol = elsolver->GetDisplacements();
@@ -1236,10 +1930,10 @@ int main(int argc, char *argv[])
                 filt->AFilter(icc.GetGradIsoComp(), odens_gradient_single); // adjoint operation to projection to find differential in design space. Chain rule.
                 real_t grad_norm_after_afilter = odens_gradient_single.ComputeL2Error(zero);
                 if (myid == 0) {
-                    std::cout << "After AFilter, norm odens_gradient_single: " << grad_norm_after_afilter << std::endl;
+                    std::cout << inner_iter_tag << " After AFilter, norm odens_gradient_single: " << grad_norm_after_afilter << std::endl;
                 }
                 if (std::isnan(grad_norm_after_afilter)) {
-                    if (myid == 0) std::cout << "NaN detected after AFilter for scenario " << bits.to_string() << std::endl;
+                    if (myid == 0) std::cout << inner_iter_tag << " NaN detected after AFilter for scenario " << bits.to_string() << std::endl;
                     odens_gradient_single = 0.0; // skip this gradient
                     continue;
                 }
@@ -1250,30 +1944,34 @@ int main(int argc, char *argv[])
 
                 real_t grad_norm_after_smooth = odens_gradient_single.ComputeL2Error(zero);
                 if (myid == 0) {
-                    std::cout << "After smoothing, norm odens_gradient_single: " << grad_norm_after_smooth << std::endl;
+                    std::cout << inner_iter_tag << " After smoothing, norm odens_gradient_single: " << grad_norm_after_smooth << std::endl;
                 }
                 if (std::isnan(grad_norm_after_smooth)) {
-                    if (myid == 0) std::cout << "NaN detected after smoothing for scenario " << bits.to_string() << std::endl;
+                    if (myid == 0) std::cout << inner_iter_tag << " NaN detected after smoothing for scenario " << bits.to_string() << std::endl;
                     odens_gradient_single = 0.0; // skip this gradient
                     continue;
                 }
                 // ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
 
                 real_t weight = latent_probability_indices_to_sample_weights[i];
-                if (!is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL) && block_membership_mask[key]) {
+                if (!is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER) && block_membership_mask[key]) {
                     const auto [bits_0, original_probability_0, latent_probability_0] = latent_probabilities_k_0[key];
 
                     // initial sampling was from q^k so we have to resample to have the right weight
                     weight = weight * sigmoid(latent_probability) / sigmoid(latent_probability_0); 
                 }
 
-                if (is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL) || block_membership_mask[key] || xi_in_empty)
+                if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER) || block_membership_mask[key] || xi_in_empty)
                 {
                     real_t gradient_magnitude;
                     {
-                        real_t locl2 = odens_gradient_single.Norml2();
-                        // MPI_DOUBLE should be replaced with the MFEM data type
-                        MPI_Allreduce(&locl2, &gradient_magnitude, 1, MPI_DOUBLE, MPI_SUM, odens_gradient_single.ParFESpace()->GetComm());
+                        // Compute a consistent global L2 norm: sqrt(sum_ranks ||g_r||_2^2).
+                        real_t local_l2 = odens_gradient_single.Norml2();
+                        real_t local_l2_sq = local_l2 * local_l2;
+                        real_t global_l2_sq;
+                        MPI_Allreduce(&local_l2_sq, &global_l2_sq, 1, MPI_DOUBLE, MPI_SUM,
+                                      odens_gradient_single.ParFESpace()->GetComm());
+                        gradient_magnitude = std::sqrt(global_l2_sq);
                     }
                     
                     x_j_iteration_max_gradient = std::max(x_j_iteration_max_gradient, gradient_magnitude);
@@ -1288,7 +1986,7 @@ int main(int argc, char *argv[])
 
             real_t total_gradient = odens_weighted_gradient.ComputeL2Error(zero);
             if (myid == 0) {
-                std::cout << "Total gradient norm: " << total_gradient << std::endl;
+                std::cout << inner_iter_tag << " Total gradient norm: " << total_gradient << std::endl;
             }
 
 
@@ -1306,6 +2004,17 @@ int main(int argc, char *argv[])
                 Index key = latent_probability_indices_to_sample[INDEX_IN_SAMPLER];
                 real_t weight = latent_probability_indices_to_sample_weights[INDEX_IN_SAMPLER];
                 real_t compliance = base_compliances_by_index[key];
+                if (!std::isfinite(compliance))
+                {
+                    const auto &[bits_selected, original_probability_selected, latent_probability_selected] = latent_probabilities_k_jp1[key];
+                    compliance = evaluate_compliance_for_scenario(
+                        bits_selected,
+                        inner_iter_tag,
+                        "baseline_function_late_compliance_for_selected_index",
+                        true);
+                    if (myid == 0) { total_function_evaluations++; }
+                    base_compliances_by_index[key] = compliance;
+                }
                 if (block_membership_mask[key]) {
 
                     // what we want to calculate is p_i/(1-alpha) h_i(x, t; r)
@@ -1328,14 +2037,14 @@ int main(int argc, char *argv[])
                     
                     real_t summand = h_i * (1 + std::exp(-latent_probability_0)) / gamma; // this is the same as dividing by q^{k, j+1}, but more stable.
                     if (myid == 0) {
-                        std::cout << "BASE Block member " << key << ": compliance=" << compliance << ", nabla_phi_plus_f=" << nabla_phi_plus_f 
+                        std::cout << inner_iter_tag << " BASE Block member " << key << ": compliance=" << compliance << ", nabla_phi_plus_f=" << nabla_phi_plus_f
                                   << ", h_i=" << h_i << ", summand=" << summand << ", weight=" << weight << std::endl;
                     }
                     F_x += weight * summand;
                 } else {
                     F_x += weight * compliance;
                     if (myid == 0) {
-                        std::cout << "BASE Non-Block member " << key << ": compliance=" << compliance << ", weight=" << weight << std::endl;
+                        std::cout << inner_iter_tag << " BASE Non-Block member " << key << ": compliance=" << compliance << ", weight=" << weight << std::endl;
                     }
                 }
             }
@@ -1344,16 +2053,19 @@ int main(int argc, char *argv[])
             // We treat each inner loop via armijo backtracking line search.
             // Note that q^{k, j+1} is a function of x. 
 
-            if (alpha_stepsize > 0) {
+            if (inner > 1 || alpha_stepsize > 0) {
                 // generalized BB stepsize calculation.
 
                 SumCoefficient odens_difference_coeff(odens, odens_old, 1.0, -1.0);
+                // add(odens, -1.0, odens_old, odens_difference);
                 odens_difference.ProjectCoefficient(odens_difference_coeff);
 
-                GridFunctionCoefficient latent_coeff(&odens_latent);
-                GridFunctionCoefficient latent_old_coeff(&odens_latent_old);
-                SumCoefficient odens_latent_difference_coeff(latent_coeff, latent_old_coeff, 1.0, -1.0);
-                odens_latent_difference.ProjectCoefficient(odens_latent_difference_coeff);
+                // GridFunctionCoefficient latent_coeff(&odens_latent);
+                // GridFunctionCoefficient latent_old_coeff(&odens_latent_old);
+                // SumCoefficient odens_latent_difference_coeff(latent_coeff, latent_old_coeff, 1.0, -1.0);
+                // odens_latent_difference.ProjectCoefficient(odens_latent_difference_coeff);
+
+                add(odens_latent, -1.0, odens_latent_old, odens_latent_difference);
 
                 GridFunctionCoefficient grad_coeff(&odens_weighted_gradient);
                 GridFunctionCoefficient grad_old_coeff(&odens_weighted_gradient_old);
@@ -1363,40 +2075,40 @@ int main(int argc, char *argv[])
 
                 // Compute L2 norms of the differences (for ?debugging / sanity checks)
                 ConstantCoefficient zero_c(0.0);
-                real_t local_dx_norm = odens_difference.ComputeL2Error(zero_c);
-                real_t local_dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
-                real_t local_dg_norm = odens_gradient_difference.ComputeL2Error(zero_c);
+                real_t dx_norm = odens_difference.ComputeL2Error(zero_c);
+                real_t dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
+                real_t dg_norm = odens_gradient_difference.ComputeL2Error(zero_c);
 
-                real_t dx_norm_sq = local_dx_norm * local_dx_norm;
-                real_t dpsi_norm_sq = local_dpsi_norm * local_dpsi_norm;
-                real_t dg_norm_sq = local_dg_norm * local_dg_norm;
-
-
-
-                /* TEMPORARY: Error for norms. */
-
-                odens_gf.ProjectCoefficient(odens);
-                odens_old_gf.ProjectCoefficient(odens_old);
-
-                real_t local_odens_norm = odens_gf.ComputeL2Error(zero_c);
-                real_t local_dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
-                real_t local_dg_norm = odens_gradient_difference.ComputeL2Error(zero_c);
-
-                real_t dx_norm_sq = local_dx_norm * local_dx_norm;
-                real_t dpsi_norm_sq = local_dpsi_norm * local_dpsi_norm;
-                real_t dg_norm_sq = local_dg_norm * local_dg_norm;
-
-                /* END Temporary */
+                // real_t dx_norm_sq = global_dx_norm * global_dx_norm;
+                // real_t dpsi_norm_sq = global_dpsi_norm * global_dpsi_norm;
+                // real_t dg_norm_sq = global_dg_norm * global_dg_norm;
 
 
-                real_t global_dx_norm_sq, global_dpsi_norm_sq, global_dg_norm_sq;
-                MPI_Allreduce(&dx_norm_sq, &global_dx_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
-                MPI_Allreduce(&dpsi_norm_sq, &global_dpsi_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
-                MPI_Allreduce(&dg_norm_sq, &global_dg_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
 
-                real_t dx_norm = std::sqrt(global_dx_norm_sq);
-                real_t dpsi_norm = std::sqrt(global_dpsi_norm_sq);
-                real_t dg_norm = std::sqrt(global_dg_norm_sq);
+                // /* TEMPORARY: Error for norms. */
+
+                // odens_gf.ProjectCoefficient(odens);
+                // odens_old_gf.ProjectCoefficient(odens_old);
+
+                // real_t local_odens_norm = odens_gf.ComputeL2Error(zero_c);
+                // real_t local_dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
+                // real_t local_dg_norm = odens_gradient_difference.ComputeL2Error(zero_c);
+
+                // real_t dx_norm_sq = local_dx_norm * local_dx_norm;
+                // real_t dpsi_norm_sq = local_dpsi_norm * local_dpsi_norm;
+                // real_t dg_norm_sq = local_dg_norm * local_dg_norm;
+
+                // /* END Temporary */
+
+
+                // real_t global_dx_norm_sq, global_dpsi_norm_sq, global_dg_norm_sq;
+                // MPI_Allreduce(&dx_norm_sq, &global_dx_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
+                // MPI_Allreduce(&dpsi_norm_sq, &global_dpsi_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
+                // MPI_Allreduce(&dg_norm_sq, &global_dg_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
+
+                // real_t dx_norm = std::sqrt(global_dx_norm_sq);
+                // real_t dpsi_norm = std::sqrt(global_dpsi_norm_sq);
+                // real_t dg_norm = std::sqrt(global_dg_norm_sq);
 
                 // Compute inner products via a linear form (consistent with how we compute gradient norms)
                 ParGridFunction one_design(filt->GetDesignFES());
@@ -1409,34 +2121,44 @@ int main(int argc, char *argv[])
                 ProductCoefficient dx_dpsi_coeff(dx_coeff, dpsi_coeff);
                 ProductCoefficient dx_dg_coeff(dx_coeff, dg_coeff);
 
+                // int delta g * delta rho
+                // int delta psi * delta rho
+                // -> ell(v): L2 -> R such that ell(v) = int delta rho * v dx
+                // -> ell(delta psi) / ell(delta g)
+
                 ParLinearForm ip_dx_dpsi_form(filt->GetDesignFES());
                 ip_dx_dpsi_form.AddDomainIntegrator(new DomainLFIntegrator(dx_dpsi_coeff));
                 ip_dx_dpsi_form.Assemble();
                 real_t ip_xp_global = ip_dx_dpsi_form(one_design);
 
+
                 ParLinearForm ip_dx_dg_form(filt->GetDesignFES());
                 ip_dx_dg_form.AddDomainIntegrator(new DomainLFIntegrator(dx_dg_coeff));
                 ip_dx_dg_form.Assemble();
                 real_t ip_xg_global = ip_dx_dg_form(one_design);
+                // cout << myid << ", " << ip_xp_global << ", " << ip_xg_global << std::endl;
 
                 real_t gbb_ratio = std::abs(ip_xp_global / std::max(std::abs(ip_xg_global), (real_t)1e-10));
 
                 if (myid == 0) {
-                    std::cout << "BB inner-product diagnostics:\n";
+                    std::cout << inner_iter_tag << " BB inner-product diagnostics:\n";
                     std::cout << "  ||dx||_2 = " << dx_norm << ", ||dpsi||_2 = " << dpsi_norm << ", ||dg||_2 = " << dg_norm << "\n";
                     std::cout << "  <dx, dpsi> = " << ip_xp_global << ", <dx, dg> = " << ip_xg_global << "\n";
                 }
 
-                alpha_stepsize = std::max(std::sqrt(alpha_stepsize * gbb_ratio), MIN_ALPHA);
+                alpha_stepsize = std::min(std::max(std::sqrt(alpha_stepsize * gbb_ratio / ALPHA_SCALING_FACTOR_OVERRIDE), MIN_ALPHA), MAX_ALPHA);
             } else {
-                real_t gradient_max;
-                {
-                    real_t locmax = odens_weighted_gradient.Normlinf();
+                real_t gradient_max = ParNormlp(odens_weighted_gradient, mfem::infinity(), odens_weighted_gradient.ParFESpace()->GetComm());;
+                if (myid == 0) cout << inner_iter_tag << " Initial gradient max: " << gradient_max << std::endl;
+                // {
+                    // gradient_max
+                    // real_t locmax = odens_weighted_gradient.Normlinf();
                     // MPI_DOUBLE should be replaced with the MFEM data type
-                    MPI_Allreduce(&locmax, &gradient_max, 1, MPI_DOUBLE, MPI_MAX, odens_weighted_gradient.ParFESpace()->GetComm());
-                }
-                alpha_stepsize = std::max(starting_alpha_stepsize / gradient_max, MIN_ALPHA); // scale with alpha
+                    // MPI_Allreduce(&locmax, &gradient_max, 1, MPI_DOUBLE, MPI_MAX, odens_weighted_gradient.ParFESpace()->GetComm());
+                // }
+                alpha_stepsize = std::min(std::max(starting_alpha_stepsize / gradient_max , MIN_ALPHA), MAX_ALPHA); // scale with alpha
             }
+            alpha_stepsize = alpha_stepsize * ALPHA_SCALING_FACTOR_OVERRIDE;
 
             // Initialize "old" state before entering the Armijo backtracking loop.
             // This ensures the first backtracking attempt has a meaningful dx/dpsi/dg
@@ -1448,6 +2170,7 @@ int main(int argc, char *argv[])
             // Note: odens_old is a mapped coefficient based on odens_latent_old,
             // so setting odens_latent_old is sufficient to make odens_old match odens.
 
+            int armijo_descents = 0;
             for (size_t prox_iter_attempts = 0; prox_iter_attempts < MAX_BACKTRACKING_ATTEMPTS; ++prox_iter_attempts) {
                 if (prox_iter_attempts > 0) {
                     odens_latent = odens_latent_old; // reset to old before trying the next stepsize
@@ -1462,10 +2185,13 @@ int main(int argc, char *argv[])
                 // odens_gf.ProjectCoefficient(odens);
 
                 // project our design onto the one with the proper volume
-                real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25); // last two are tol and max its
+                real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
+                                              use_heaviside_projection, heaviside_eta, heaviside_beta_current); // last two are tol and max its
                 if (0 == myid)
                 {
-                    cout << "On inner step " << prox_iter_attempts << ", got material " << material_volume << ". Expected Material " << target_volume << "\n";
+                    cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                         << " On inner step " << prox_iter_attempts << ", got material " << material_volume
+                         << ". Expected Material " << target_volume << "\n";
                 }
 
                 // update fdens after projection
@@ -1481,37 +2207,30 @@ int main(int argc, char *argv[])
                     real_t weight = latent_probability_indices_to_sample_weights[INDEX_IN_SAMPLER];
                     auto &[bits, original_probability, latent_probability] = latent_probabilities_k_0[key];
 
-                    // calculate compliance. 
-                    real_t compliance_i_armijo_test;
+                    if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER))
                     {
-                        elsolver->DelDispBC();
-                        for (int bit_index = 2; bit_index < 8; bit_index++)
+                        const auto &[bits_jp1, original_probability_jp1, latent_probability_jp1] = latent_probabilities_k_jp1[key];
+                        const real_t dual_probability = dual_probability_from_latent(original_probability_jp1, latent_probability_jp1);
+                        if (dual_probability < epsilon_q)
                         {
-                            if (!(bits.test(bit_index - 2)))
+                            if (myid == 0)
                             {
-                                elsolver->AddDispBC(bit_index, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
-                            } else {
-                                if (myid == 0) {
-                                    std::cout << "Running Armijo Test. Skipping bit " << (bit_index - 2) << " in scenario " << bits << ".\n";
-                                }
+                                std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                                          << " Skipping Armijo function eval for scenario " << bits_jp1.to_string()
+                                          << " because dual_probability=" << dual_probability
+                                          << " < epsilon_q=" << epsilon_q
+                                          << std::endl;
                             }
-                        }
-
-                        // solve the discrete elastic system
-                        elsolver->Assemble();
-                        elsolver->FSolve(); // solve for displacements
-
-                        ParGridFunction &sol = elsolver->GetDisplacements();
-                        icc.SetGridFunctions(&fdens, &sol);
-
-                        compliance_i_armijo_test = 0.0;
-                        {
-                            ParLinearForm compl_form(filt->GetFilterFES());
-                            compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
-                            compl_form.Assemble();
-                            compliance_i_armijo_test = compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral.
+                            continue;
                         }
                     }
+
+                    // calculate compliance.
+                    const std::string armijo_eval_tag =
+                        inner_iter_tag + ", prox_iter=" + std::to_string(prox_iter_attempts);
+                    real_t compliance_i_armijo_test = evaluate_compliance_for_scenario(
+                        bits, armijo_eval_tag, "armijo_backtracking_function_test", true);
+                    if (myid == 0) { total_function_evaluations++; }
 
                     if (block_membership_mask[key]) {
 
@@ -1528,14 +2247,17 @@ int main(int argc, char *argv[])
 
                         real_t summand = h_i * (1 + std::exp(-latent_probability_0)) / gamma; // this is the same as dividing by q^{k, j+1}, but more stable.
                         if (myid == 0) {
-                            std::cout << "Armijo Block member " << key << ": compliance=" << compliance_i_armijo_test << ", nabla_phi_plus_f=" << nabla_phi_plus_f 
+                            std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                                      << " Armijo Block member " << key << ": compliance=" << compliance_i_armijo_test << ", nabla_phi_plus_f=" << nabla_phi_plus_f
                                       << ", h_i=" << h_i << ", summand=" << summand << ", weight=" << weight << std::endl;
                         }
                         F_x_jp1 += weight * summand;
                     } else {
                         F_x_jp1 += weight * compliance_i_armijo_test;
                         if (myid == 0) {
-                            std::cout << "Armijo Non-Block member " << key << ": compliance=" << compliance_i_armijo_test << ", weight=" << weight << std::endl;
+                            std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                                      << " Armijo Non-Block member " << key << ": compliance=" << compliance_i_armijo_test
+                                      << ", weight=" << weight << std::endl;
                         }
                     }
                 }
@@ -1557,12 +2279,13 @@ int main(int argc, char *argv[])
                     gradient_inner_product = lf_norm(odens_weighted_gradient);
 
                     if (myid == 0) {
-                        std::cout << "Gradient inner product: " << gradient_inner_product << std::endl;
+                        std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                                  << " Gradient inner product: " << gradient_inner_product << std::endl;
                     }
                 }
 
                 if (myid == 0) {
-                    std::cout << "Armijo Test for prox iteration " << prox_iter_attempts << ":\n";
+                    std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts << " Armijo Test:\n";
                     std::cout << "F(x): " << F_x << "\n";
                     std::cout << "F(x_new): " << F_x_jp1 << "\n";
                     std::cout << "Gradient Inner Product: " << gradient_inner_product << "\n";
@@ -1572,13 +2295,15 @@ int main(int argc, char *argv[])
                 // Now, run the armijo test
                 if (F_x_jp1 <= F_x + ARMIJO_C1 * gradient_inner_product) {
                     if (myid == 0) {
-                        std::cout << "Armijo condition met for prox iteration " << prox_iter_attempts << ".\n";
+                        std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts << " Armijo condition met.\n";
                     }
                     break; // armijo condition satisfied, break out of backtracking loop
                 } else {
                     if (myid == 0) {
-                        std::cout << "Armijo condition NOT met for prox iteration " << prox_iter_attempts << ". Reducing stepsize.\n";
+                        std::cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
+                                  << " Armijo condition NOT met. Reducing stepsize.\n";
                     }
+                    armijo_descents++;
                     alpha_stepsize *= ARMIJO_BETA; // reduce stepsize and try again
                 }
             }
@@ -1587,15 +2312,98 @@ int main(int argc, char *argv[])
             {
                 total_iterations += 1;
                 odens_gf.ProjectCoefficient(odens);
-                paraview_dc.SetCycle(k);
-                paraview_dc.SetTime((real_t)k);
+                hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
+                paraview_dc.SetCycle(total_iterations);
+                paraview_dc.SetTime((real_t)total_iterations);
                 paraview_dc.Save();
+            }
+
+            // Extra CVaR reporting diagnostics.
+            // These additional compliance evaluations are intentionally excluded from
+            // total_function_evaluations and total_gradient_evaluations.
+            std::vector<std::tuple<real_t, real_t, real_t>> scenario_reporting_data;
+            scenario_reporting_data.reserve(latent_probabilities_k_jp1.size());
+            for (size_t i = 0; i < latent_probabilities_k_jp1.size(); ++i)
+            {
+                const auto &[bits, original_probability, latent_probability] = latent_probabilities_k_jp1[i];
+                const real_t compliance_i = evaluate_compliance_for_scenario(
+                    bits,
+                    inner_iter_tag,
+                    "reporting_all_compliances_for_true_base_cvar_not_counted",
+                    false);
+
+                scenario_reporting_data.emplace_back(
+                    compliance_i,
+                    original_probability,
+                    latent_probability);
+            }
+
+            real_t current_cvar_estimation = 0.0;
+            for (const auto &[compliance_i, original_probability_i, latent_probability_i] : scenario_reporting_data)
+            {
+                const real_t q_probability_i =
+                    sigmoid(latent_probability_i) * original_probability_i / (1 - cvar_alpha);
+                current_cvar_estimation += q_probability_i * compliance_i;
+            }
+
+            std::vector<std::pair<real_t, real_t>> compliance_probability_pairs;
+            compliance_probability_pairs.reserve(scenario_reporting_data.size());
+            for (const auto &[compliance_i, original_probability_i, latent_probability_i] : scenario_reporting_data)
+            {
+                compliance_probability_pairs.emplace_back(compliance_i, original_probability_i);
+            }
+
+            std::sort(
+                compliance_probability_pairs.begin(),
+                compliance_probability_pairs.end(),
+                [](const std::pair<real_t, real_t> &a, const std::pair<real_t, real_t> &b)
+                {
+                    return a.first > b.first;
+                });
+
+            const real_t tail_mass_target = 1.0 - cvar_alpha;
+            real_t remaining_tail_mass = tail_mass_target;
+            real_t tail_weighted_compliance_sum = 0.0;
+
+            for (const auto &[compliance_i, base_probability_i] : compliance_probability_pairs)
+            {
+                if (remaining_tail_mass <= 0.0)
+                {
+                    break;
+                }
+
+                const real_t tail_mass_taken = std::min(base_probability_i, remaining_tail_mass);
+                tail_weighted_compliance_sum += tail_mass_taken * compliance_i;
+                remaining_tail_mass -= tail_mass_taken;
+            }
+
+            const real_t current_cvar =
+                (tail_mass_target > 0.0)
+                    ? (tail_weighted_compliance_sum / tail_mass_target)
+                    : std::numeric_limits<real_t>::quiet_NaN();
+
+            if (myid == 0)
+            {
+                std::ostringstream csv_row;
+                csv_row << outer << ","
+                        << inner << ","
+                        << total_iterations << ","
+                        << total_gradient_evaluations << ","
+                        << total_function_evaluations << ","
+                        << armijo_descents << ","
+                        << current_cvar << ","
+                        << current_cvar_estimation << "\n";
+
+                cvar_csv << csv_row.str();
+                cvar_csv.flush();
+
+                std::cout << inner_iter_tag << " [csv] " << csv_row.str();
             }
 
             // we note, this is still for DETERMINISTIC
             {
                 if (myid == 0){
-                    std::cout << "Projecting gradient and checking termination conditions for inner loop." << std::endl;
+                    std::cout << inner_iter_tag << " Projecting gradient and checking termination conditions for inner loop." << std::endl;
                 }
                 
                 // get the projected gradient
@@ -1632,24 +2440,40 @@ int main(int argc, char *argv[])
 
                 real_t divergence_from_q_k_jp1 = cvar_divergence_beween_distributions(latent_probabilities_k_j, latent_probabilities_k_jp1, cvar_alpha);
 
+                const real_t sqrt_dj = (dj >= 0.0) ? std::sqrt(dj) : std::numeric_limits<real_t>::quiet_NaN();
+                const real_t gradient_threshold = x_j_iteration_max_gradient * sqrt_dj;
+                const bool gradient_condition_met = (projected_gradient_magnitude <= gradient_threshold);
+                const bool divergence_condition_met = (divergence_from_q_k_jp1 <= dj);
+                const bool inner_termination_met = gradient_condition_met && divergence_condition_met;
+
                 // doing this at the last moment. 
                 odens_weighted_gradient_old = odens_weighted_gradient;
 
                 if (myid == 0) {
-                    std::cout << "Inner Loop Iteration " << inner << " Termination Condition Check:\n";
+                    std::cout << inner_iter_tag << " Inner loop termination condition check:\n";
                     std::cout << "Projected Gradient Magnitude: " << projected_gradient_magnitude << "\n";
+                    std::cout << "Gradient Threshold (x_j_max_grad * sqrt(dj)): " << gradient_threshold << "\n";
+                    std::cout << "Gradient Criterion (g <= thresh): " << gradient_condition_met
+                              << " [lhs-rhs=" << (projected_gradient_magnitude - gradient_threshold) << "]\n";
                     std::cout << "Divergence from Base Distribution: " << divergence_from_q_k_0 << "\n";
                     std::cout << "Divergence from Step Distribution: " << divergence_from_q_k_jp1 << "\n";
                     std::cout << "Calculated D_j value: " << dj << "\n";
+                    std::cout << "Divergence Criterion (div_step <= dj): " << divergence_condition_met
+                              << " [lhs-rhs=" << (divergence_from_q_k_jp1 - dj) << "]\n";
+                    std::cout << "Combined Inner Termination Decision: " << inner_termination_met << "\n";
+                    if (!std::isfinite(gradient_threshold))
+                    {
+                        std::cout << "WARNING: gradient_threshold is non-finite (likely dj < 0 or overflow)." << "\n";
+                    }
                 }
 
-                if (projected_gradient_magnitude <= x_j_iteration_max_gradient * sqrt(dj) && divergence_from_q_k_jp1 <=  dj) {
+                if (inner_termination_met) {
                     if (myid == 0) {
-                        std::cout << "Termination conditions met for inner loop at iteration " << inner << ".\n";
+                        std::cout << inner_iter_tag << " Termination conditions met for inner loop.\n";
                     }
                     break;
                 } else if (myid == 0) {
-                    std::cout << "Termination conditions NOT met for inner loop at iteration " << inner << ".\n";
+                    std::cout << inner_iter_tag << " Termination conditions NOT met for inner loop.\n";
                 }
             }
 
@@ -1671,7 +2495,7 @@ int main(int argc, char *argv[])
         // for next iteration, we will start with the normalized version.
         latent_probabilities_k_0 = latent_probabilities_k_j;
         if (myid == 0) {
-            std::cout << "Outer Loop Iteration " << k << " Termination Condition Check:\n";
+            std::cout << "Outer Loop Iteration " << outer << " Termination Condition Check:\n";
             std::cout << "Gradient Magnitude: " << g_eta_cache << "\n";
             std::cout << "T1 Distance between q_k_0 and q_k_j: " << t1_distance_qk0_qkj << "\n";
         }
@@ -1682,14 +2506,20 @@ int main(int argc, char *argv[])
         **/
         if (g_eta_cache < epsilon_g && 0.5 * t1_distance_qk0_qkj < epsilon_TV) {
             if (myid == 0) {
-                std::cout << "Termination conditions met for outer loop at iteration " << k << ".\n";
+                std::cout << "Termination conditions met for outer loop at iteration " << outer << ".\n";
             }
             break;
         } else if (myid == 0) {
-            std::cout << "Termination conditions NOT met for outer loop at iteration " << k << ".\n";
+            std::cout << "Termination conditions NOT met for outer loop at iteration " << outer << ".\n";
         }
 
 
+    }
+
+    if (myid == 0)
+    {
+        cvar_csv.close();
+        dual_probabilities_csv.close();
     }
 
     delete elsolver;
