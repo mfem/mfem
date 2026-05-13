@@ -722,7 +722,7 @@ static inline void tmop_require(int id, const char *args[])
    real_t tol_fe = 4e-12;
 
    const bool has_adapt_lim = std::atof(args[ALC]) > 0.0;
-   if (has_adapt_lim) { tol_fe = 1e-5; }
+   if (has_adapt_lim) { tol_fe = 1e-8; }
 
    Req res[2];
    (args[ALV] = "-pa", dump_args(id, args), req_tmop(id, args, res[0]));
@@ -982,7 +982,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 2 })
           .TID({ 1 })
           .LS({ 3 })
-          .POR({ 2 })
+          .POR({ 1 })
           .QOR({ 5 })
           .NEWTON_ITERATIONS(50)
           .NEWTON_RTOLERANCE(1e-6)
@@ -999,7 +999,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .MID({ 302 })
           .TID({ 1 })
           .LS({ 3 })
-          .POR({ 2 })
+          .POR({ 1 })
           .QOR({ 5 })
           .NEWTON_ITERATIONS(50)
           .NEWTON_RTOLERANCE(1e-6)
