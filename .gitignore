@@ -95,6 +95,7 @@ examples/ex9-mesh.*
 examples/ex9-init.*
 examples/ex9-final.*
 examples/Example41*
+examples/ex41-p-*.bp
 examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
@@ -178,6 +179,7 @@ examples/hdg/ex21*.sol
 examples/hdg/ex21p_*.*
 examples/hdg/ex41
 examples/hdg/Example41*
+examples/hdg/ex41-p-*.bp
 
 examples/hiop/ex9
 examples/hiop/ex9p

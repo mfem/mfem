@@ -1,20 +1,18 @@
-//                                MFEM Example 41
+//                                MFEM Example 41 - Parallel Version
 //
-// Compile with: make ex41
+// Compile with: make ex41p
 //
 // Sample runs:
-//  ex41
-//  ex41 -cg
-//  ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
-//  ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//  ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//  ex41 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//  ex41 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.001 -tf 9
-//  ex41 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//  ex41 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//  ex41 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//  ex41 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//  ex41 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.01 -tf 8
+//  mpirun -np 4 ex41p
+//  mpirun -np 4 ex41p -cg
+//  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
+//  mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
+//  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
+//  mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9
+//  mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
+//  mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
+//  mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20
+//  mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8
 //
 // Device sample runs:
 //
@@ -24,10 +22,10 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), and the use of IMEX
-//               ODE time integrators.
+//               bilinear forms in MFEM (face integrators), DG-LOR Preconditioning
+//               and the use of IMEX ODE time integrators.
 //
-//               The option to use continuous finite elements is available too.
+//               The Option to use Continuous Finite Elements is available too.
 
 #include "mfem.hpp"
 
@@ -94,6 +92,7 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
+
 // Initial condition
 template<int problem=0>
 real_t u0_function(const Vector &x)
@@ -148,22 +147,21 @@ real_t u0_function(const Vector &x)
    return 0.0;
 }
 
-/// Solver for the implicit part of the ODE (the diffusion term).
-/// Solves systems of the form: (M + dt*S) k = rhs.
+
 class Implicit_Solver : public Solver
 {
 private:
-   SparseMatrix &M, &S, A;
+   HypreParMatrix &M, &S;
+   unique_ptr<HypreParMatrix> A;
    GMRESSolver linear_solver;
-   BlockILU prec;
+   HypreBoomerAMG prec;
    real_t dt;
 public:
-   Implicit_Solver(SparseMatrix &M_, SparseMatrix &S_,
+   Implicit_Solver(HypreParMatrix &M_, HypreParMatrix &S_,
                    const FiniteElementSpace &fes)
       : M(M_),
         S(S_),
-        prec(fes.GetTypicalFE()->GetDof(),
-             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
+        linear_solver(M.GetComm()),
         dt(1.0)
    {
       linear_solver.iterative_mode = false;
@@ -178,19 +176,27 @@ public:
    {
       real_t ddt = dt-dt_;
 
+      // syncronize ddt across all processes
+      MPI_Comm comm = M.GetComm();
+      int myrank;
+      MPI_Comm_rank(comm, &myrank);
+      MPI_Bcast(&ddt, 1, MPI_DOUBLE, 0, comm);
+
       // allow for some tolerance in the time stepping process
       constexpr real_t epsilon = std::numeric_limits<real_t>::epsilon() * 10;
 
-      if (std::abs(ddt) > epsilon)
+      if (fabs(ddt) > epsilon)
       {
+         if (0==myrank)
+         {
+            cout << "Updating Implicit_Solver time step from " << dt
+                 << " to " << dt_ << endl;
+         }
+
          dt = dt_;
          // Form operator A = M + dt*S
-         A = S;
-         A *= dt;
-         A += M;
-
-         // this will also call SetOperator on the preconditioner
-         linear_solver.SetOperator(A);
+         A.reset(Add(dt, S, 1.0, M));
+         linear_solver.SetOperator(*A);
       }
    }
 
@@ -220,21 +226,18 @@ public:
 class ImplicitTrace_Solver : public Solver
 {
 private:
-   DarcyForm &darcy;
+   ParDarcyForm &darcy;
    const Array<int> &ess_tdof_list;
-   const FiniteElementSpace *c_fes;
    OperatorHandle A;
    GMRESSolver linear_solver;
-   BlockILU prec;
+   HypreBoomerAMG prec;
    real_t dt;
    FunctionCoefficient idt_coeff;
 public:
-   ImplicitTrace_Solver(DarcyForm &darcy_, const Array<int> &ess_tdof_list_)
+   ImplicitTrace_Solver(ParDarcyForm &darcy_, const Array<int> &ess_tdof_list_)
       : darcy(darcy_),
         ess_tdof_list(ess_tdof_list_),
-        c_fes(darcy_.GetHybridization()->ConstraintFESpace()),
-        prec(c_fes->GetTypicalTraceElement()->GetDof(),
-             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
+        linear_solver(darcy.ParFluxFESpace()->GetComm()),
         dt(1.0),
         idt_coeff([this](const Vector&) { return 1./dt; })
    {
@@ -277,7 +280,7 @@ public:
 
    void Mult(const Vector &b, Vector &x) const override
    {
-      BlockVector darcy_b(darcy.GetOffsets());
+      BlockVector darcy_b(darcy.GetTrueOffsets());
       darcy_b.GetBlock(0) = 0.;
       darcy_b.GetBlock(1).Set(-1./dt, b);
 
@@ -288,25 +291,22 @@ public:
       rx = 0.;
       linear_solver.Mult(rb, rx);
 
-      BlockVector darcy_x(darcy.GetOffsets());
+      BlockVector darcy_x(darcy.GetTrueOffsets());
       darcy.GetHybridization()->ComputeSolution(darcy_b, rx, darcy_x);
       x = darcy_x.GetBlock(1);
    }
 };
 
-/** A time-dependent operator for the right-hand side of the ODE. The weak
-    form of the advection-diffusion equation is M du/dt = K u - S u + b,
-    where M is the mass matrix, K and S are the advection and diffusion
-    matrices, and b describes the flow on the boundary. In the case of IMEX
-    evolution, the diffusion term is treated implicitly, and the advection
-    term is treated explicitly.  */
+/** A time-dependent operator for the right-hand side of the ODE. The DG weak
+    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b
+    , where M and K are the mass and advection matrices, and b describes the
+    flow on the boundary. In the case of IMEX evolution, the diffusion term is
+    treated implicitly, and the advection term is treated explicitly.  */
 class IMEX_Evolution : public TimeDependentOperator
 {
 private:
-   BilinearForm &M;
-   Operator &K;
-   DarcyForm &darcy;
-   OperatorHandle S;
+   OperatorHandle M, K, S;
+   ParDarcyForm &darcy;
    const Vector &b;
    unique_ptr<Solver> M_prec;
    CGSolver M_solver;
@@ -316,13 +316,11 @@ private:
    mutable Vector z;
 
 public:
-   IMEX_Evolution(BilinearForm &M_, Operator &K_, DarcyForm &darcy_,
+   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParDarcyForm &darcy_,
                   const Vector &b_);
 
-   /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
    void Mult1(const Vector &x, Vector &y) const;
 
-   /// Evaluate k2: M*k2 = G2(u+k2*dt,t); -> (M+S*dt)*k2=-S*u
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
 
    void Mult(const Vector &x, Vector &y) const override
@@ -348,18 +346,24 @@ public:
          mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
       }
    }
-
 };
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+
+   // 2. Parse command-line options.
    int problem = 0;
    const char *mesh_file = "../../data/periodic-square.mesh";
-   int ref_levels = 2;
+   int ser_ref_levels = 2;
+   int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 64; //IMEXRK3(3,4,3)
+   int ode_solver_type = 64; // 64 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool dg = false;
@@ -369,19 +373,26 @@ int main(int argc, char *argv[])
    bool hybridization = false;
    bool trace_h1 = false;
    int vis_steps = 50;
+   bool adios2 = false;
+   bool binary = false;
    real_t diffusion_term = 0.01;
    bool visualization = true;
    bool paraview = false;
    bool visit = false;
-   bool binary = false;
-   int precision = 8;
+   int precision = 16;
+   cout.precision(precision);
+
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order, "-o", "--order", "Order of the finite elements.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&order, "-o", "--order",
+                  "Order (degree) of the finite elements.");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
@@ -396,50 +407,75 @@ int main(int argc, char *argv[])
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::IMEXTypes.c_str());
-   args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
    args.AddOption(&diffusion_term, "-dc", "--diffusion-coeff",
                   "Diffusion coefficient in the PDE.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
+   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
+                  "--ascii-datafiles",
+                  "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
-                  "--ascii-datafiles",
-                  "Use binary (Sidre) or ascii format for VisIt data files.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (Mpi::Root())
+      {
+         args.PrintUsage(cout);
+      }
       return 1;
    }
-   args.PrintOptions(cout);
+   if (Mpi::Root())
+   {
+      args.PrintOptions(cout);
+   }
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
+   // 3. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
-   Mesh mesh(mesh_file);
-   const int dim = mesh.Dimension();
+   Mesh *mesh = new Mesh(mesh_file);
+   const int dim = mesh->Dimension();
 
-   // 3. Define the IMEX (Split) ODE solver used for time integration. The IMEX
-   // solvers currently available are: 61 - Forward Backward Euler,
-   // 62 - IMEXRK2(2,2,2), 63 - IMEXRK2(2,3,2), and  64 - IMEX_DIRK_RK3.
+   // 4. Define the IMEX (Split) ODE solver used for time integration. The IMEX
+   // solvers currently available are: 55 - Forward Backward Euler,
+   // 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectIMEX(ode_solver_type);
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 5. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
-   for (int lev = 0; lev < ref_levels; lev++) {mesh.UniformRefinement();}
-   if (mesh.NURBSext) {mesh.SetCurvature(max(order, 1));}
-   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
+   for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); }
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(max(order, 1));
+   }
+   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
+
+   // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh->UniformRefinement();
+   }
+
+   // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    FiniteElementCollection *V_coll;
    if (dg)
@@ -460,14 +496,19 @@ int main(int argc, char *argv[])
    FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
                                                          BasisType::GaussLobatto);
 
-   FiniteElementSpace *V_space = new FiniteElementSpace(&mesh, V_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *W_space = new FiniteElementSpace(&mesh, W_coll);
+   ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, V_coll,
+                                                              (dg)?(dim):(1));
+   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
 
-   cout << "Number of flux unknowns: " << V_space->GetVSize() << endl;
-   cout << "Number of potential unknowns: " << W_space->GetVSize() << endl;
+   HYPRE_BigInt global_V_vSize = V_space->GlobalTrueVSize();
+   HYPRE_BigInt global_W_vSize = W_space->GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      cout << "Number of flux unknowns: " << global_V_vSize << endl;
+      cout << "Number of potential unknowns: " << global_W_vSize << endl;
+   }
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   // 8. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
@@ -493,12 +534,12 @@ int main(int argc, char *argv[])
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient inv_diff_coeff(1./diffusion_term);
 
-   DarcyForm darcy(V_space, W_space);
-   BilinearForm *mq = darcy.GetFluxMassForm();
-   MixedBilinearForm *divq = darcy.GetFluxDivForm();
-   BilinearForm *mp = (dg)?(darcy.GetPotentialMassForm()):(NULL);
+   ParDarcyForm darcy(V_space, W_space);
+   ParBilinearForm *mq = darcy.GetParFluxMassForm();
+   ParMixedBilinearForm *divq = darcy.GetParFluxDivForm();
+   ParBilinearForm *mp = (dg)?(darcy.GetParPotentialMassForm()):(NULL);
 
-   LinearForm *bp = darcy.GetPotentialRHS();
+   ParLinearForm *bp = darcy.GetParPotentialRHS();
    *bp = 0.0; //The inflow on the boundaries is set to zero.
 
    if (dg)
@@ -517,17 +558,19 @@ int main(int argc, char *argv[])
       {
          divq->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                             new DGNormalTraceIntegrator(-1.)));
+         divq->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                       new DGNormalTraceIntegrator(-1.)));
       }
    }
 
    // Mass term
 
-   BilinearForm m(W_space);
+   ParBilinearForm m(W_space);
    m.AddDomainIntegrator(new MassIntegrator);
 
    // Convective part
 
-   BilinearForm k(W_space);
+   ParBilinearForm k(W_space);
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
 
@@ -540,7 +583,7 @@ int main(int argc, char *argv[])
    Array<int> ess_flux_tdofs_list;
 
    FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   ParFiniteElementSpace *trace_space = NULL;
 
    if (hybridization)
    {
@@ -552,7 +595,7 @@ int main(int argc, char *argv[])
       {
          trace_coll = new DG_Interface_FECollection(order, dim);
       }
-      trace_space = new FiniteElementSpace(&mesh, trace_coll);
+      trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
       darcy.EnableHybridization(trace_space,
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
@@ -581,7 +624,7 @@ int main(int argc, char *argv[])
       darcy.Finalize(skip_zeros);
    }
 
-   // 7. Define the initial conditions.
+   // 9. Define the initial conditions. Set up visualization (if desired).
    std::unique_ptr<FunctionCoefficient> u0;
    if (0==problem)
    {
@@ -599,49 +642,46 @@ int main(int argc, char *argv[])
    {
       u0.reset(new FunctionCoefficient(u0_function<3>));
    }
+   ParGridFunction *u = new ParGridFunction(W_space);
+   u->ProjectCoefficient(*u0);
+   HypreParVector *U = u->GetTrueDofs();
 
-   GridFunction u(W_space);
-   u.ProjectCoefficient(*u0);
-
-   // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
    DataCollection *dc = NULL;
    if (visit)
    {
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example41", &mesh);
+         dc = new SidreDataCollection("Example41-Parallel", pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example41", &mesh);
+         dc = new VisItDataCollection("Example41-Parallel", pmesh);
          dc->SetPrecision(precision);
+         // To save the mesh using MFEM's parallel mesh format:
+         // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
-      dc->RegisterField("solution", &u);
+      dc->RegisterField("solution", u);
       dc->SetCycle(0);
       dc->SetTime(0.0);
       dc->Save();
    }
-
-   // 8. Set up paraview visualization, if desired.
-   unique_ptr<ParaViewDataCollection> pv;
+   ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pv = make_unique<ParaViewDataCollection>("Example41", &mesh);
-      pv->SetPrefixPath("ParaView");
-      pv->RegisterField("solution", &u);
-      pv->SetLevelsOfDetail(order);
-      pv->SetDataFormat(VTKFormat::BINARY);
-      pv->SetHighOrderOutput(true);
-      pv->SetCycle(0);
-      pv->SetTime(0.0);
-      pv->Save();
+      pd = new ParaViewDataCollection("Example41P", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("solution", u);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
    }
-
    socketstream sout;
    if (visualization)
    {
@@ -650,99 +690,145 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
+         if (Mpi::Root())
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+         }
          visualization = false;
-         cout << "GLVis visualization disabled.\n";
+         if (Mpi::Root())
+         {
+            cout << "GLVis visualization disabled.\n";
+         }
       }
       else
       {
+         sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << mesh << u;
+         sout << "solution\n" << *pmesh << *u;
          sout << "pause\n";
          sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         if (Mpi::Root())
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
       }
    }
+#ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection *adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex41-p-" + postfix + ".bp";
 
-   // 9. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      // output data substreams are half the number of mpi processes
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      // adios2_dc->SetLevelsOfDetail(2);
+      adios2_dc->RegisterField("solution", u);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
+
+
+   // 10. Define the time-dependent evolution operator describing the
+   //     ODE right-hand side, and perform time-integration (looping
+   //     over the time iterations, ti, with a time-step dt).
    IMEX_Evolution adv(m, k, darcy, *bp);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
-      ode_solver->Step(u, t, dt_real);
+      ode_solver->Step(*U, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
-         if (paraview)
+         if (Mpi::Root())
          {
-            pv->SetCycle(ti);
-            pv->SetTime(t);
-            pv->Save();
+            cout << "time step: " << ti << ", time: " << t << endl;
          }
+         *u = *U;
          if (visualization)
          {
-            sout << "solution\n" << mesh << u << flush;
+            sout << "parallel " << num_procs << " " << myid << "\n";
+            sout << "solution\n" << *pmesh << *u << flush;
          }
-         if (visit)
+         if (paraview)
          {
-            dc->SetCycle(ti);
-            dc->SetTime(t);
-            dc->Save();
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
          }
-
+#ifdef MFEM_USE_ADIOS2
+         // transient solutions can be visualized with ParaView
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
    }
 
-   // 10. Free the used memory.
-
+   // 11. Free the used memory.
+   delete pd;
+   delete U;
+   delete u;
    delete V_space;
    delete W_space;
    delete trace_space;
    delete V_coll;
    delete W_coll;
    delete trace_coll;
+   delete pmesh;
+   delete dc;
 
    return 0;
 }
 
-
 // Implementation of class IMEX_Evolution
-IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, Operator &K_,
-                               DarcyForm &darcy_, const Vector &b_)
-   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
-     M(M_), K(K_), darcy(darcy_), b(b_), z(height)
+IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                               ParDarcyForm &darcy_, const Vector &b_)
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()),
+     darcy(darcy_), b(b_), M_solver(M_.ParFESpace()->GetComm()),
+     z(height)
 {
-   Array<int> ess_tdof_list;
-
-   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M_prec = make_unique<DSmoother>(M.SpMat());
-      M_solver.SetOperator(M.SpMat());
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+      M_prec = make_unique<HypreSmoother>(M_mat, HypreSmoother::Jacobi);
    }
    else
    {
       MFEM_ABORT("Implicit time integration is not supported with partial assembly");
    }
 
+   M_solver.SetOperator(*M);
+
+   Array<int> ess_tdof_list;
    if (darcy.GetReduction())
    {
       darcy.FormSystemMatrix(ess_tdof_list, S);
-      implicit_solver = make_unique<Implicit_Solver>(
-                           M.SpMat(), *S.As<SparseMatrix>(), *M.FESpace());
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+      HypreParMatrix &S_mat = *S.As<HypreParMatrix>();
+      implicit_solver = make_unique<Implicit_Solver>(M_mat, S_mat, *M_.FESpace());
    }
    else if (darcy.GetHybridization())
    {
@@ -765,7 +851,7 @@ void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 {
    // Perform the explicit step
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
@@ -784,7 +870,7 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    else if (implicit_trace_solver)
    {
       // solve for k, k = ((M+dt S)^{-1} M x - x) / dt
-      M.Mult(x, z);
+      M->Mult(x, z);
       implicit_trace_solver->SetTimeStep(dt);
       implicit_trace_solver->Mult(z, k);
       k -= x;
