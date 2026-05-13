@@ -221,8 +221,8 @@ int main(int argc, char *argv[])
    // Set up the parallel linear form b(.) which corresponds to the
    // right-hand side of the FEM linear system, which in this case only
    // defines the boundary condition.
-   AnisotropicDiffusionCoefficient anisoDiffCoef(w, h, Ak);
-   UmanskyBoundaryCoefficient unitStepCoef(w, h);
+   umansky::AnisotropicDiffusionCoefficient anisoDiffCoef(w, h, Ak);
+   umansky::BoundaryCoefficient unitStepCoef(w, h);
    ParLinearForm b(&fespace);
    b.AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(unitStepCoef, anisoDiffCoef, sigma, kappa));
@@ -334,6 +334,9 @@ int main(int argc, char *argv[])
          gmres.Mult(b, x);
       }
 
+      // Determine the apparent width of the transition
+      real_t width = umansky::CalcWidth(x);
+      
       // Obtain the number of degrees of freedom
       int prob_size = fespace.GetTrueVSize();
 
@@ -369,7 +372,8 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         cout << "AMR iteration " << it << " complete." << endl;
+         cout << "AMR iteration " << it << " complete. "
+	      << "Apparent width: " << width << endl;
       }
 
       // Check stopping criteria

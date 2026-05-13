@@ -40,7 +40,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 COMMON_HDR = umansky.hpp
 
-COMMON_O=
+COMMON_O = umansky.o
 
 # Remove built-in rules
 %: %.cpp

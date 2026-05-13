@@ -16,10 +16,13 @@
 
 using namespace mfem;
 
-class UmanskyBoundaryCoefficient : public Coefficient
+namespace umansky
+{
+
+class BoundaryCoefficient : public Coefficient
 {
 public:
-   UmanskyBoundaryCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
+   BoundaryCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
 
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
@@ -68,5 +71,11 @@ public:
 private:
    real_t w_, h_, Ak_, d2_;
 };
+
+real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
+                real_t y0, real_t y1);
+real_t CalcWidth(ParGridFunction &u);
+  
+} // namespace umansky
 
 #endif // MFEM_UMANSKY_HPP

@@ -12,11 +12,13 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(umansky_cg
     MAIN umansky_cg.cpp
+    umansky.cpp
     EXTRA_HEADERS umansky.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
 
   add_mfem_miniapp(umansky_dg
     MAIN umansky_dg.cpp
+    umansky.cpp
     EXTRA_HEADERS umansky.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
 

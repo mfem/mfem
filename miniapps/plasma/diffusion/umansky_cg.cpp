@@ -233,14 +233,14 @@ int main(int argc, char *argv[])
    // Define the solution vector x as a parallel finite element grid
    // function corresponding to fespace. Initialize x with initial guess of
    // zero, which satisfies the boundary conditions.
-   UmanskyBoundaryCoefficient unitStepCoef(w, h);
+   umansky::BoundaryCoefficient unitStepCoef(w, h);
    ParGridFunction x(&fespace);
    x = 0.0;
 
    // Set up the parallel bilinear form a(.,.) on the finite element space
    // corresponding to the Laplacian operator -Delta, by adding the
    // Diffusion domain integrator.
-   AnisotropicDiffusionCoefficient anisoDiffCoef(w, h, Ak);
+   umansky::AnisotropicDiffusionCoefficient anisoDiffCoef(w, h, Ak);
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(anisoDiffCoef));
 
@@ -313,6 +313,9 @@ int main(int argc, char *argv[])
       // local finite element solution on each processor.
       a.RecoverFEMSolution(X, b, x);
 
+      // Determine the apparent width of the transition
+      real_t width = umansky::CalcWidth(x);
+      
       // Obtain the number of degrees of freedom
       int prob_size = fespace.GetTrueVSize();
 
@@ -348,7 +351,8 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         cout << "AMR iteration " << it << " complete." << endl;
+	cout << "AMR iteration " << it << " complete. "
+	     << "Apparent width: " << width << endl;
       }
 
       // Check stopping criteria
