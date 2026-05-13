@@ -2950,13 +2950,13 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // Reorder boundary elements
    if (Dim > 1)
    {
-      // Build a sort permutation: boundary element i goes to position bdr_perm[i].
-      // Sort by face index (be_to_face[i]) rather than just adjacent element
-      // index: after GetElementToFaceTable face indices are assigned in element
-      // order, so be_to_face encodes both the adjacent element and its local
-      // face position within that element.  This makes the result identical to
-      // what GenerateBoundaryElements would produce on a mesh that was
-      // originally written in Hilbert element order.
+      // Build a sort permutation: boundary element i goes to position
+      // bdr_perm[i]. Sort by face index (be_to_face[i]) rather than just
+      // adjacent element index: after GetElementToFaceTable face indices are
+      // assigned in element order, so be_to_face encodes both the adjacent
+      // element and its local face position within that element.  This makes
+      // the result identical to what GenerateBoundaryElements would produce on
+      // a mesh that was originally written in Hilbert element order.
       Array<int> bdr_perm(NumOfBdrElements);
       for (int i = 0; i < NumOfBdrElements; ++i) { bdr_perm[i] = i; }
       bdr_perm.Sort([this](int a, int b)
