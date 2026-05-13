@@ -405,7 +405,7 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
    }
 }
 
-TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][LO]")
+TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][LO][DIFFUSION]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

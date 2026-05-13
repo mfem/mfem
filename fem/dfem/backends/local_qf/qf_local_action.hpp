@@ -120,25 +120,27 @@ public:
       dbg("input_idx:{}", input_idx);
       dbg("output_idx:{}", output_idx);
 
-#ifdef MFEM_ADD_SPECIALIZATIONS
-      if constexpr (backend_t::MQ1 >= 8)
+      dbg("backend_t::MQ1:{}", backend_t::MQ1);
+      // #ifdef MFEM_ADD_SPECIALIZATIONS
+      // if constexpr (backend_t::MQ1 >= 8)
       {
+         ActionCallbackKernels::template Specialization<2>::Add(); // 0
          ActionCallbackKernels::template Specialization<3>::Add(); // 1
          ActionCallbackKernels::template Specialization<4>::Add(); // 2
-         ActionCallbackKernels::template Specialization<5>::Add(); // 3
-         ActionCallbackKernels::template Specialization<6>::Add(); // 4
-         ActionCallbackKernels::template Specialization<7>::Add(); // 5
-         ActionCallbackKernels::template Specialization<8>::Add(); // 6
+         // ActionCallbackKernels::template Specialization<5>::Add(); // 3
+         // ActionCallbackKernels::template Specialization<6>::Add(); // 4
+         // ActionCallbackKernels::template Specialization<7>::Add(); // 5
+         // ActionCallbackKernels::template Specialization<8>::Add(); // 6
       }
-      if constexpr (backend_t::MQ1 >= 16)
+      // if constexpr (backend_t::MQ1 >= 16)
       {
-         ActionCallbackKernels::template Specialization<10>::Add(); // 8
+         // ActionCallbackKernels::template Specialization<10>::Add(); // 8
          // quadrature_interpolator::Det3D fails before being able to use PA
          // ActionCallbackKernels::template Specialization<12>::Add(); // 10
          // ActionCallbackKernels::template Specialization<14>::Add(); // 12
          // ActionCallbackKernels::template Specialization<16>::Add(); // 14
       }
-#endif
+      // #endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -265,7 +267,7 @@ public:
       dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
+         static_assert(T_Q1D > 0);
          constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : backend_t::MQ1;
 
          // -----------------------------------------------
@@ -448,7 +450,9 @@ Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCall
 #else
    MFEM_CONTRACT_VAR(q1d);
    db1("\x1b[33mFallback q1d:{}", q1d);
-   return action_callback;
+   // return action_callback;
+   MFEM_ABORT("No kernel for q1d=" << q1d);
+   return nullptr;
 #endif
 }
 

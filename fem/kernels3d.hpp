@@ -44,16 +44,16 @@ using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 ///////////////////////////////////////////////////////////////////////////////
 /// Load 2D matrix into shared memory
 template <int MQ1>
-inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
+inline MFEM_HOST_DEVICE void LoadMatrix(const int d, const int q,
                                         const real_t *M, real_t (*sm)[MQ1])
 {
    if (MFEM_THREAD_ID(z) == 0)
    {
-      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
       {
-         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q)
          {
-            sm[dy][qx] = M[dy * q1d + qx];
+            sm[dy][qx] = M[dy * q + qx];
          }
       }
    }
@@ -357,7 +357,6 @@ inline MFEM_HOST_DEVICE void EvalTranspose3dX(const int d1d, const int q1d,
                                               regs3d_t<1,MQ1> &reg,
                                               real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
                                               real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
-
 {
    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
    {
@@ -628,4 +627,4 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
    }
 }
 
-} // namespace mfem::kernels::internal
+} // namespace mfem::kernels::internal::low
