@@ -11,6 +11,7 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
+#include "gslib_kernel_helpers.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -32,18 +33,7 @@ namespace mfem
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
 
-static MFEM_HOST_DEVICE void lagrange_eval(double *p0, double x,
-                                           int i, int p_Nq,
-                                           double *z, double *lagrangeCoeff)
-{
-   double p_i = (1 << (p_Nq - 1));
-   for (int j = 0; j < p_Nq; ++j)
-   {
-      double d_j = x - z[j];
-      p_i *= j == i ? 1 : d_j;
-   }
-   p0[i] = lagrangeCoeff[i] * p_i;
-}
+using gslib::lagrange_eval;
 
 template<int T_D1D = 0>
 static void InterpolateLocal3DKernel(const double *const gf_in,
@@ -135,21 +125,26 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
    auto plcf = DEV.lagcoeff_sol.ReadWrite(use_dev);
    switch (dof1Dsol)
    {
-      case 2: return InterpolateLocal3DKernel<2>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp,
-                                                    pgll, plcf);
-      case 3: return InterpolateLocal3DKernel<3>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp,
-                                                    pgll, plcf);
-      case 4: return InterpolateLocal3DKernel<4>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp,
-                                                    pgll, plcf);
-      case 5: return InterpolateLocal3DKernel<5>(pfin, pgsle, pgslr, pfout,
-                                                    npt, ncomp,
-                                                    pgll, plcf);
-      default: return InterpolateLocal3DKernel(pfin, pgsle, pgslr, pfout,
-                                                  npt, ncomp,
-                                                  pgll, plcf, dof1Dsol);
+      case 2:
+         InterpolateLocal3DKernel<2>(pfin, pgsle, pgslr, pfout,
+                                     npt, ncomp, pgll, plcf);
+         break;
+      case 3:
+         InterpolateLocal3DKernel<3>(pfin, pgsle, pgslr, pfout,
+                                     npt, ncomp, pgll, plcf);
+         break;
+      case 4:
+         InterpolateLocal3DKernel<4>(pfin, pgsle, pgslr, pfout,
+                                     npt, ncomp, pgll, plcf);
+         break;
+      case 5:
+         InterpolateLocal3DKernel<5>(pfin, pgsle, pgslr, pfout,
+                                     npt, ncomp, pgll, plcf);
+         break;
+      default:
+         InterpolateLocal3DKernel(pfin, pgsle, pgslr, pfout,
+                                  npt, ncomp, pgll, plcf, dof1Dsol);
+         break;
    }
 }
 
