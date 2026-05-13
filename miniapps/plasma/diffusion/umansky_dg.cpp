@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
    real_t eta = 0.0;
    bool pa = false;
    bool visualization = true;
+   bool paraview = false;
    bool visit = false;
 
    char vishost[] = "localhost";
@@ -142,6 +143,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView (paraview.org) visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
    args.Parse();
@@ -255,6 +259,18 @@ int main(int argc, char *argv[])
       visit_dc->RegisterField("solution", &x);
    }
 
+   // Initialize ParaView visualization
+   ParaViewDataCollection *paraview_dc = NULL;
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection("Umansky-DG-AMR", &pmesh);
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->RegisterField("solution", &x);
+   }
+
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
    // the elements with the largest estimated error and update all objects to
@@ -327,6 +343,14 @@ int main(int argc, char *argv[])
          visit_dc->SetCycle(it);
          visit_dc->SetTime(prob_size);
          visit_dc->Save();
+      }
+
+      // Send the solution to ParaView if enabled.
+      if (paraview)
+      {
+         paraview_dc->SetCycle(it);
+         paraview_dc->SetTime(prob_size);
+         paraview_dc->Save();
       }
 
       // Send the solution by socket to a GLVis server if enabled.
@@ -444,6 +468,7 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete visit_dc;
+   delete paraview_dc;
 
    return 0;
 }
