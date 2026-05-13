@@ -101,8 +101,8 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
-                                   const real_t (&sm0)[MQ1][MQ1][MQ1][3],
-                                   real_t (&sm1)[MQ1][MQ1][MQ1][3])
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -114,8 +114,7 @@ inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int dx = 0; dx < d1d; ++dx)
             {
-               const auto x = sm0[dz][dy][dx][0];
-               u = std::fma(B[dx][qx], x, u);
+               u = std::fma(B[dx][qx], sm0[dz][dy][dx][0], u);
             }
             sm1[dz][dy][qx][0] = u;
          }
@@ -127,10 +126,10 @@ inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Eval, 2/3
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
+inline MFEM_HOST_DEVICE void EvalY(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
-                                   const real_t (&sm1)[MQ1][MQ1][MQ1][3],
-                                   real_t (&sm0)[MQ1][MQ1][MQ1][3])
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -142,7 +141,7 @@ inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int dy = 0; dy < d1d; ++dy)
             {
-               u = std::fma(sm1[dz][dy][qx][1], B[dy][qy], u);
+               u = std::fma(B[dy][qy], sm1[dz][dy][qx][0], u);
             }
             sm0[dz][qy][qx][0] = u;
          }
@@ -156,8 +155,8 @@ inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
-                                   const real_t (&sm0)[MQ1][MQ1][MQ1][3],
-                                   regs3d_t<DIM,MQ1> &reg)
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<1,MQ1> &reg)
 {
    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
    {
@@ -183,9 +182,9 @@ inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
 template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
                                     const real_t (*B)[MQ1],
-                                    real_t (&sm0)[MQ1][MQ1][MQ1][3],
-                                    real_t (&sm1)[MQ1][MQ1][MQ1][3],
-                                    regs3d_t<DIM,MQ1> &reg)
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    regs3d_t<1,MQ1> &reg)
 {
    EvalX(d1d, q1d, B, sm0, sm1); // Grad X
    EvalY(d1d, q1d, B, sm1, sm0); // Grad Y
@@ -451,8 +450,8 @@ template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void EvalTranspose3d(const int d1d, const int q1d,
                                              const real_t (*B)[MQ1],
                                              regs3d_t<DIM,MQ1> &reg,
-                                             real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
-                                             real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][3],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][3])
 {
    EvalTranspose3dX(d1d, q1d, B, reg, sm1, sm0); // Eval^T X
    EvalTranspose3dY(d1d, q1d, B, sm0, sm1); // Eval^T Y
@@ -600,8 +599,7 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
-            const real_t u = reg[dz][dy][dx][0];
-            YE(dx, dy, dz, c, e) += u;
+            YE(dx, dy, dz, c, e) += reg[dz][dy][dx][0];
          }
       }
    }

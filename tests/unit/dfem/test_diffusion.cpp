@@ -14,9 +14,10 @@
 #include "mfem.hpp"
 
 #include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../linalg/test_same_matrices.hpp"
 
+#include "../fem/dfem/backends/local_qf/prelude.hpp"
+using LocalQFBackend = mfem::future::LocalQFBackend;
 #include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
 using LocalQFLOKernelsBackend = mfem::future::LocalQFKernelsBackend<false>;
 using LocalQFHOKernelsBackend = mfem::future::LocalQFKernelsBackend<true>;

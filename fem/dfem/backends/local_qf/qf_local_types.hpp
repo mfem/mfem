@@ -73,14 +73,7 @@ MFEM_HOST_DEVICE auto lo_input_qp_reg_as_arg_at(
    constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
-      if constexpr (std::is_same_v<DecayT, real_t>)
-      {
-         return reg(qz, qy, qx, 0);
-      }
-      else
-      {
-         return DecayT {reg(qz, qy, qx, 0)};
-      }
+      return as_tensor<real_t>(&reg(qz, qy, qx, 0));
    }
    else if constexpr (R == 1)
    {
@@ -104,14 +97,7 @@ MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
    constexpr int R = qf_param_shape<DecayT>::rank;
    if constexpr (R == 0)
    {
-      if constexpr (std::is_same_v<DecayT, real_t>)
-      {
-         reg(qz, qy, qx, 0) = out;
-      }
-      else
-      {
-         reg(qz, qy, qx, 0) = out.scalar();
-      }
+      as_tensor<real_t>(&reg(qz, qy, qx, 0)) = out;
    }
    else if constexpr (R == 1)
    {

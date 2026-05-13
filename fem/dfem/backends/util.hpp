@@ -662,6 +662,19 @@ void create_qlayouts(const fops_t &fops,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Zero-copy view of a contiguous block as a tensor<T>
+template<typename T> inline
+MFEM_HOST_DEVICE const tensor<T>& as_tensor(const T* ptr)
+{
+   return *std::launder(reinterpret_cast<const tensor<T>*>(ptr));
+}
+
+template<typename T> inline
+MFEM_HOST_DEVICE tensor<T>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T>*>(ptr));
+}
+
 // Zero-copy view of a contiguous block as a tensor<T, n1>
 template<typename T, int n1> inline
 MFEM_HOST_DEVICE const tensor<T, n1>& as_tensor(const T* ptr)
