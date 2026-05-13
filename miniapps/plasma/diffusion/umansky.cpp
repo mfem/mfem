@@ -13,7 +13,7 @@
 
 namespace umansky
 {
-  
+
 using namespace std;
 
 real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
@@ -62,7 +62,7 @@ real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
       }
 
       MPI_Allgather(&uc, 1, MFEM_MPI_REAL_T, ucVec.GetData(), 1,
-		    MFEM_MPI_REAL_T, comm);
+                    MFEM_MPI_REAL_T, comm);
 
       for (int i=0; i<nranks; i++)
       {
@@ -85,12 +85,12 @@ real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
       }
       else if (ub * uc < 0_r)
       {
- 	 a = c;
+         a = c;
          ua = uc;
       }
       else
       {
-	MFEM_ABORT("Bisection failed");
+         MFEM_ABORT("Bisection failed");
       }
 
       n++;

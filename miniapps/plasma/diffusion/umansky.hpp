@@ -75,7 +75,7 @@ private:
 real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
                 real_t y0, real_t y1);
 real_t CalcWidth(ParGridFunction &u);
-  
+
 } // namespace umansky
 
 #endif // MFEM_UMANSKY_HPP

@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
 
       // Determine the apparent width of the transition
       real_t width = umansky::CalcWidth(x);
-      
+
       // Obtain the number of degrees of freedom
       int prob_size = fespace.GetTrueVSize();
 
@@ -351,8 +351,8 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-	cout << "AMR iteration " << it << " complete. "
-	     << "Apparent width: " << width << endl;
+         cout << "AMR iteration " << it << " complete. "
+              << "Apparent width: " << width << endl;
       }
 
       // Check stopping criteria
