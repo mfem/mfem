@@ -763,6 +763,17 @@ void DifferentiableOperator::AddIntegrator(
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
+   // Check if any ouptut is a QuadratureFunction
+   bool disable_assemble = false;
+   for_constexpr([&](auto i)
+   {
+      if constexpr (is_identity_fop<
+                    std::decay_t<decltype(get<i>(outputs))>>::value)
+      {
+         disable_assemble = true;
+      }
+   }, std::make_index_sequence<num_outputs> {});
+
    for_constexpr([&](auto i)
    {
 #ifdef MFEM_USE_ENZYME
@@ -784,20 +795,23 @@ void DifferentiableOperator::AddIntegrator(
             backend_t::template MakeDerivativeApply<i>(
                ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
 
-         // Create assemble callback for sparse matrix assembly
-         assemble_derivative_sparsematrix_callbacks[i].push_back(
-            backend_t::template MakeDerivativeAssemble<i>(
-               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
-
-         // Create assemble callback for diagonal assembly
-         assemble_diagonal_callbacks[i].push_back(
-            backend_t::template MakeDerivativeAssembleDiagonal<i>(
-               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
-
          // Create transpose apply callback (J^T) using the same cache
          daction_transpose_callbacks[i].push_back(
             backend_t::template MakeDerivativeApplyTranspose<i>(
                ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+         if (!disable_assemble)
+         {
+            // Create assemble callback for sparse matrix assembly
+            assemble_derivative_sparsematrix_callbacks[i].push_back(
+               backend_t::template MakeDerivativeAssemble<i>(
+                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+
+            // Create assemble callback for diagonal assembly
+            assemble_diagonal_callbacks[i].push_back(
+               backend_t::template MakeDerivativeAssembleDiagonal<i>(
+                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+         }
       }
 
       // Keep the old action callback for backwards compatibility
