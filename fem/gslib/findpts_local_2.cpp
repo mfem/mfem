@@ -254,7 +254,7 @@ get_edge(const double *elx[2], const double *wtend, int ei,
       edge.dxdn[d] = workspace + (2 + d) * pN; //dxdn and dydn at DOFs along edge
    }
 
-   if (side_init != (1u << ei))
+   if (static_cast<unsigned>(side_init) != (1u << ei))
    {
 #define ELX(d, j, k) elx[d][j + k * pN] // assumes lexicographic ordering
       for (int d = 0; d < 2; ++d)
