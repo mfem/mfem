@@ -31,8 +31,7 @@ namespace mfem::future
 template <typename DecayT, int MQ1, int Rank = qf_param_shape<DecayT>::rank>
 struct low_order_qp_reg_for_decay
 {
-   static_assert(Rank >= 0 && Rank <= 2,
-                 "low_order_qp_reg_for_decay: rank > 2 not supported for LO registers");
+   static_assert(Rank >= 0 && Rank <= 2);
 };
 
 template <typename DecayT, int MQ1>
@@ -118,8 +117,7 @@ MFEM_HOST_DEVICE void lo_output_qp_reg_assign_at(
 template <typename DecayT, int MQ1, int Rank = qf_param_shape<DecayT>::rank>
 struct ho_qp_reg_for_decay
 {
-   static_assert(Rank >= 0 && Rank <= 2,
-                 "ho_qp_reg_for_decay: rank > 2 not supported on HO backend");
+   static_assert(Rank >= 0 && Rank <= 2);
 };
 
 template <typename DecayT, int MQ1>
@@ -238,8 +236,7 @@ struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N
 {
    using type = tuple<Acc...>;
    static_assert(sizeof...(Acc) == N);
-   static_assert(sizeof...(Acc) <= 9,
-                 "mfem::future::tuple supports at most 9 elements for this use case");
+   static_assert(sizeof...(Acc) <= 9);
 };
 
 template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
@@ -249,15 +246,13 @@ struct build_args_reg_tuple_impl
    using R = typename backend_t::template QPReg<
                 typename qf_param_slot<qfunc_t, K>::decay_t, MQ1>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
-         outputs_t, MQ1,
-         K + 1, N, Acc..., R>::type;
+         outputs_t, MQ1, K + 1, N, Acc..., R>::type;
 };
 
 template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
           int MQ1>
 using args_reg_t =
-   typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1,
-   0,
-   tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
+   typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t,
+   MQ1, 0, tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
 } // namespace mfem::future

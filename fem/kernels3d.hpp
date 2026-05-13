@@ -45,7 +45,7 @@ using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 /// Load 2D matrix into shared memory
 template <int MQ1>
 inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
-                                        const real_t *M, real_t (*N)[MQ1])
+                                        const real_t *M, real_t (*sm)[MQ1])
 {
    if (MFEM_THREAD_ID(z) == 0)
    {
@@ -53,7 +53,7 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            N[dy][qx] = M[dy * q1d + qx];
+            sm[dy][qx] = M[dy * q1d + qx];
          }
       }
    }
@@ -63,7 +63,7 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &XE,
-                                        real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
    {
@@ -71,7 +71,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
          {
-            sm0[dz][dy][dx][0] = XE(dx, dy, dz, 0, e);
+            sm[dz][dy][dx][0] = XE(dx, dy, dz, 0, e);
          }
       }
    }
@@ -81,7 +81,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
                                         const DeviceTensor<5, const real_t> &XE,
-                                        real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
    {
@@ -89,7 +89,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
       {
          MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
          {
-            sm0[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
+            sm[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
          }
       }
    }
