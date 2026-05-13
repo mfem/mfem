@@ -152,16 +152,14 @@ class Implicit_Solver : public Solver
 {
 private:
    HypreParMatrix &M, &S;
-   HypreParMatrix *A;
+   unique_ptr<HypreParMatrix> A;
    CGSolver linear_solver;
    real_t dt;
-   SparseMatrix M_diag;
 public:
    Implicit_Solver(HypreParMatrix &M_, HypreParMatrix &S_,
                    const FiniteElementSpace &fes)
       : M(M_),
         S(S_),
-        A(nullptr),
         linear_solver(M.GetComm()),
         dt(1.0)
    {
@@ -170,8 +168,6 @@ public:
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
       linear_solver.SetPrintLevel(0);
-
-      M.GetDiag(M_diag);
    }
 
    void SetTimeStep(real_t dt_)
@@ -184,10 +180,8 @@ public:
       MPI_Comm_rank(comm, &myrank);
       MPI_Bcast(&ddt, 1, MPI_DOUBLE, 0, comm);
 
-      real_t epsilon;
-      epsilon = std::numeric_limits<real_t>::epsilon();
       // allow for some tolerance in the time stepping process
-      epsilon*=10;
+      constexpr real_t epsilon = std::numeric_limits<real_t>::epsilon() * 10;
 
       if (fabs(ddt) > epsilon)
       {
@@ -197,10 +191,9 @@ public:
                  << " to " << dt_ << endl;
          }
 
-         delete A;
          dt = dt_;
          // Form operator A = M + dt*S
-         A = Add(dt, S, 1.0, M);
+         A.reset(Add(dt, S, 1.0, M));
          linear_solver.SetOperator(*A);
       }
    }
@@ -236,25 +229,16 @@ class IMEX_Evolution : public TimeDependentOperator
 private:
    OperatorHandle M, K, S, A;
    const Vector &b;
-   Solver *M_prec;
+   unique_ptr<Solver> M_prec;
    CGSolver M_solver;
-   Implicit_Solver *implicit_solver;
-   LORSolver<HypreBoomerAMG>* lor_solver;
+   unique_ptr<Implicit_Solver> implicit_solver;
+   unique_ptr<LORSolver<HypreBoomerAMG>> lor_solver;
 
    mutable Vector z;
-   mutable Vector w;
 
 public:
    IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_,
                   const Vector &b_, ParBilinearForm &A_);
-
-   virtual
-   ~IMEX_Evolution()
-   {
-      delete implicit_solver;
-      delete lor_solver;
-      delete M_prec;
-   }
 
    void Mult1(const Vector &x, Vector &y) const;
 
@@ -672,7 +656,7 @@ int main(int argc, char *argv[])
 IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                                ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
-     M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
+     M_solver(M_.ParFESpace()->GetComm()), z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
@@ -695,11 +679,10 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       A.Reset(A_.ParallelAssemble(), true);
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &S_mat = *S.As<HypreParMatrix>();
-      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
-      M_prec = hypre_prec;
+      M_prec = make_unique<HypreSmoother>(M_mat, HypreSmoother::Jacobi);
 
-      implicit_solver = new Implicit_Solver(M_mat, S_mat, *M_.FESpace());
-      lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
+      implicit_solver = make_unique<Implicit_Solver>(M_mat, S_mat, *M_.FESpace());
+      lor_solver = make_unique<LORSolver<HypreBoomerAMG>>(A_, ess_tdof_list);
       lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
       implicit_solver -> SetPreconditioner(*lor_solver);
    }
@@ -731,7 +714,7 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    MFEM_VERIFY(implicit_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
    S->Mult(x, z);
-   z*= -1.0;
+   z.Neg();
    implicit_solver->SetTimeStep(dt);
    implicit_solver->Mult(z, k);
 }
