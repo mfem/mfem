@@ -152,10 +152,8 @@ TEST_CASE("Hilbert reordering boundary element consistency", "[Mesh]")
    // the adjacent interior element (faces_info[be_to_face[i]].Elem1No).
    // This ensures spatial locality between volume and boundary elements.
 
-   SECTION("3D hex mesh boundary elements sorted after Hilbert reordering")
+   auto test = [](Mesh & mesh)
    {
-      Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
-
       // Record the number of boundary elements before reordering
       const int nbe = mesh.GetNBE();
       REQUIRE(nbe > 0);
@@ -178,56 +176,24 @@ TEST_CASE("Hilbert reordering boundary element consistency", "[Mesh]")
          mesh.GetFaceElements(fj, &elj, &dummy);
          REQUIRE(eli <= elj);
       }
+   };
+
+   SECTION("3D hex mesh boundary elements sorted after Hilbert reordering")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
+      test(mesh);
    }
 
    SECTION("2D quad mesh boundary elements sorted after Hilbert reordering")
    {
       Mesh mesh = Mesh::MakeCartesian2D(4, 5, Element::QUADRILATERAL);
-
-      const int nbe = mesh.GetNBE();
-      REQUIRE(nbe > 0);
-
-      Array<int> perm;
-      mesh.GetHilbertElementOrdering(perm);
-      mesh.ReorderElements(perm);
-
-      REQUIRE(mesh.GetNBE() == nbe);
-
-      for (int i = 0; i < mesh.GetNBE() - 1; ++i)
-      {
-         int fi, fj, o;
-         mesh.GetBdrElementFace(i,     &fi, &o);
-         mesh.GetBdrElementFace(i + 1, &fj, &o);
-         int eli, elj, dummy;
-         mesh.GetFaceElements(fi, &eli, &dummy);
-         mesh.GetFaceElements(fj, &elj, &dummy);
-         REQUIRE(eli <= elj);
-      }
+      test(mesh);
    }
 
    SECTION("3D tet mesh boundary elements sorted after Hilbert reordering")
    {
       Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::TETRAHEDRON);
-
-      const int nbe = mesh.GetNBE();
-      REQUIRE(nbe > 0);
-
-      Array<int> perm;
-      mesh.GetHilbertElementOrdering(perm);
-      mesh.ReorderElements(perm);
-
-      REQUIRE(mesh.GetNBE() == nbe);
-
-      for (int i = 0; i < mesh.GetNBE() - 1; ++i)
-      {
-         int fi, fj, o;
-         mesh.GetBdrElementFace(i,     &fi, &o);
-         mesh.GetBdrElementFace(i + 1, &fj, &o);
-         int eli, elj, dummy;
-         mesh.GetFaceElements(fi, &eli, &dummy);
-         mesh.GetFaceElements(fj, &elj, &dummy);
-         REQUIRE(eli <= elj);
-      }
+      test(mesh);
    }
 }
 
