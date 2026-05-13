@@ -215,9 +215,10 @@ int main(int argc, char *argv[])
    // by marking all the external boundary attributes from the mesh as
    // essential (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   Array<int> ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max())
       ess_bdr = 1;
    }
 
