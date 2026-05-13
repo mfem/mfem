@@ -439,45 +439,50 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    }
 }
 
-BlockGS AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
+BlockGS *AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
 {
    // SparseMatrix &A = static_cast<SparseMatrix&>(op);
    Vector PinvAx = x_random;
-   BlockGS PA_inv(op, blocksize);
+   BlockGS *smoother = new BlockGS(op, blocksize);
    for(int i = 0; i < 3; i++)
    {
       Vector Ax(PinvAx.Size());
       A.Mult(PinvAx, Ax);
-      PA_inv.Mult(Ax, PinvAx);
+      smoother->Mult(Ax, PinvAx);
       PinvAx /= PinvAx.Norml2();
    }
    real_t rho = PinvAx.Norml2();
-   real_t w = 4/3/rho;
-   real_t w_recip = 1/w;
-   BlockGS A_tilde(op, blocksize, w_recip);
+   real_t w = 4.0/3.0/rho;
+   smoother->SetDamping(1.0 / w);
    real_t tol = 1 + 0.03;
    int num_B_cols = B.Width();
    int num_B_rows = B.Height();
    for(int j = 0; j < num_B_cols; j++)
    {
       Vector b(num_B_rows);
-      B.GetColumn(j, b);
       Vector b_prev(num_B_rows);
-      b_prev.Set(10.0, b);
-      Vector Ab_prev;
-      A.Mult(b, Ab_prev);
-      while(b_prev.Norml2() / b.Norml2() > tol)
+      Vector Ab(num_B_rows);
+      B.GetColumn(j, b);
+
+      real_t norm_prev = b.Norml2();
+      real_t ratio;
+      do
       {
-         // Vector v(num_B_rows);
-         A_tilde.Mult(Ab_prev, b);
-         b -= b_prev;
          b_prev = b;
-         // b = v + b_prev;
-         A.Mult(b, Ab_prev);
+         A.Mult(b, Ab);
+         smoother->Mult(Ab, b);
+         b *= -1.0;
+         b += b_prev;
+
+         real_t norm = b.Norml2();
+         ratio = norm_prev / norm;
+         norm_prev = norm;
       }
+      while(ratio > tol);
+
       for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
    }
-   return A_tilde;
+   return smoother;
 }
 
 SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels)
@@ -539,7 +544,7 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       Vector x_random(A_prev.Height());
       for (int i = 0; i < x_random.Size(); i++){x_random(i) = dist(gen);}
       x_random /= x_random.Norml2();
-      BlockGS A_tilde = AdaptiveSmoother(*operators[k + 1], A_prev, 4, x_random, B);
+      BlockGS *A_tilde = AdaptiveSmoother(*operators[k + 1], A_prev, 4, x_random, B);
 
       //Get the Block Offsets
       Array<int> row_offsets(E[k+1].size()+1);
@@ -603,7 +608,7 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       }
       else
       {
-         smoothers[k] = &A_tilde;
+         smoothers[k] = A_tilde;
       }
       B = *mfem::Mult(*Pt, B);
    }

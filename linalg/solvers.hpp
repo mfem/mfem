@@ -1021,18 +1021,20 @@ public:
    /// Solve U^{-1} x = b
    void MultTranspose(const Vector &b, Vector &x) const;
 
+   void SetDamping(real_t damping_) { damping = damping_; }
+
 private:
    /// @brief Set up the block CSR structure corresponding to a sparse matrix @a A and factorize the diagonal blocks.
    void CreateBlockPatternAndFactorize(const class SparseMatrix &A);
 
    const int block_size;
 
-   const real_t damping;
+   real_t damping;
 
    /// Temporary vector used in the Mult() function.
    mutable Vector y;
 
-   // Block CSR storage  
+   // Block CSR storage
    Array<int> IB, ID, JB;
    DenseTensor AB;
    mutable DenseTensor DB;

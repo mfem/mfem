@@ -38,8 +38,6 @@ class SmoothedAggregationGMG : public Multigrid
 {
    public:
    SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels);
-
-
 };
 } // namespace mfem
 
