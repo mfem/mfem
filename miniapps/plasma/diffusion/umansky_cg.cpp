@@ -186,16 +186,15 @@ int main(int argc, char *argv[])
    // use continuous Lagrange finite elements of the specified order. If
    // order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   bool delete_fec;
+   unique_ptr<FiniteElementCollection> own_fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
+      own_fec = make_unique<H1_FECollection>(order, dim);
+      fec = own_fec.get();
    }
    else if (pmesh.GetNodes())
    {
       fec = pmesh.GetNodes()->OwnFEC();
-      delete_fec = false;
       if (myid == 0)
       {
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
@@ -203,8 +202,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
+      own_fec = make_unique<H1_FECollection>(order = 1, dim);
+      fec = own_fec.get();
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
@@ -447,10 +446,6 @@ int main(int argc, char *argv[])
    }
 
    // Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
    delete visit_dc;
    delete paraview_dc;
 
