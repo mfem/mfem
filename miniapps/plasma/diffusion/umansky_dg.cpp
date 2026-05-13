@@ -196,8 +196,7 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // Refine this mesh in parallel to increase the resolution.
-   int par_ref_levels = parallel_ref_levels;
-   for (int l = 0; l < par_ref_levels; l++)
+   for (int l = 0; l < parallel_ref_levels; l++)
    {
       pmesh.UniformRefinement();
    }
@@ -248,19 +247,20 @@ int main(int argc, char *argv[])
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("Umansky-DG-AMR-Parallel", &pmesh);
-   visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
-
+   VisItDataCollection *visit_dc = NULL;
    if (visit)
    {
-      visit_dc.RegisterField("solution", &x);
+      visit_dc = new VisItDataCollection("Umansky-DG-AMR-Parallel", &pmesh);
+      visit_dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+      visit_dc->RegisterField("solution", &x);
    }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
-   // the worst elements and update all objects to work with the new mesh.  We
-   // refine until the number of dofs in the finite element space
-   // reaches the user selected limit (defaults to one million dofs).
+   // the elements with the largest estimated error and update all objects to
+   // work with the new mesh.  We refine until the number of dofs in the finite
+   // element space reaches the user selected limit (defaults to one million
+   // dofs).
    for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
@@ -324,9 +324,9 @@ int main(int argc, char *argv[])
       // Send the solution to VisIt if enabled.
       if (visit)
       {
-         visit_dc.SetCycle(it);
-         visit_dc.SetTime(prob_size);
-         visit_dc.Save();
+         visit_dc->SetCycle(it);
+         visit_dc->SetTime(prob_size);
+         visit_dc->Save();
       }
 
       // Send the solution by socket to a GLVis server if enabled.
@@ -441,6 +441,9 @@ int main(int argc, char *argv[])
          break;
       }
    }
+
+   // Free the used memory.
+   delete visit_dc;
 
    return 0;
 }

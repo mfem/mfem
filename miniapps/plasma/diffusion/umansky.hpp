@@ -69,4 +69,4 @@ private:
    real_t w_, h_, Ak_, d2_;
 };
 
-#endif // MFEM_UMANSKY_SOLVER
+#endif // MFEM_UMANSKY_HPP

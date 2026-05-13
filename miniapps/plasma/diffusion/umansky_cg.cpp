@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    int parallel_ref_levels = 0;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool visit = true;
+   bool visit = false;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -171,8 +171,7 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // Refine this mesh in parallel to increase the resolution.
-   int par_ref_levels = parallel_ref_levels;
-   for (int l = 0; l < par_ref_levels; l++)
+   for (int l = 0; l < parallel_ref_levels; l++)
    {
       pmesh.UniformRefinement();
    }
@@ -218,7 +217,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
-      ess_bdr.SetSize(pmesh.bdr_attributes.Max())
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
    }
 
@@ -242,19 +241,20 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new DiffusionIntegrator(anisoDiffCoef));
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("Umansky-CG-AMR-Parallel", &pmesh);
-   visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
-
+   VisItDataCollection *visit_dc = NULL;
    if (visit)
    {
-      visit_dc.RegisterField("solution", &x);
+      visit_dc = new VisItDataCollection("Umansky-CG-AMR-Parallel", &pmesh);
+      visit_dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+      visit_dc->RegisterField("solution", &x);
    }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
-   // the worst elements and update all objects to work with the new mesh.  We
-   // refine until the number of dofs in the nodal finite element space
-   // reaches the user selected limit (defaults to one million dofs).
+   // the elements with the largest estimated error and update all objects to
+   // work with the new mesh.  We refine until the number of dofs in the nodal
+   // finite element space reaches the user selected limit (defaults to one
+   // million dofs).
    for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
@@ -302,9 +302,9 @@ int main(int argc, char *argv[])
       // Send the solution to VisIt if enabled.
       if (visit)
       {
-         visit_dc.SetCycle(it);
-         visit_dc.SetTime(prob_size);
-         visit_dc.Save();
+         visit_dc->SetCycle(it);
+         visit_dc->SetTime(prob_size);
+         visit_dc->Save();
       }
 
       // Send the solution by socket to a GLVis server if enabled.
@@ -425,6 +425,7 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
+   delete visit_dc;
 
    return 0;
 }
