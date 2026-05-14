@@ -35,9 +35,15 @@
 // TODO: Do we want this to be included from mfem.hpp automatically now?
 #include "fem/dfem/doperator.hpp"
 #include "linalg/tensor.hpp"
+#ifdef MFEM_USE_PETSC
+#include "linalg/petsc.hpp"
+#include "petscmat.h"
+#endif
 
 #include <limits>
 #include <memory>
+#include <sstream>
+#include <cstring>
 #include <string>
 
 using namespace mfem;
@@ -60,6 +66,7 @@ enum EXT_DATA_IDX
    VISCOSITY_TYPE,
    H0,
    DT_ESTIMATE,
+   DT_EST_METHOD,
    COUNT
 };
 
@@ -249,6 +256,7 @@ matd_t<DIM> qdata_setup(
    const real_t &cfl,
    const bool &use_viscosity,
    const int &viscosity_type,
+   const int &dt_est_method,
    real_t &dt_est)
 {
    using matd = matd_t<DIM>;
@@ -435,8 +443,14 @@ matd_t<DIM> qdata_setup(
    }
    else
    {
-      //const real_t sv = calcsv(J, DIMENSION-1);
-      const real_t sv = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
+      real_t sv = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
+      if (dt_est_method == 1)
+      {
+         if constexpr (DIM == 2)
+         {
+            sv = calcsv(J, DIM-1);
+         }
+      }
       // out << sv << ", ";
       const real_t hmin = sv / static_cast<real_t>(order_v);
       const real_t ihmin = 1.0 / hmin;
@@ -476,6 +490,7 @@ struct TimeStepEstimateQFunction
          external_data[EXT_DATA_IDX::CFL],
          static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
          static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
+         static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
          dt_est);
 
       return mfem::tuple{dt_est};
@@ -508,6 +523,7 @@ struct UpdateQuadratureDataQFunction
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
+            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
@@ -537,6 +553,7 @@ public:
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
+            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
@@ -587,6 +604,7 @@ public:
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
+            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             dt_est);
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
@@ -1382,6 +1400,135 @@ public:
                hydro.ess_tdof = ess_tdof_backup;
             }
 
+            if (hydro.use_petsc)
+            {
+#ifdef MFEM_USE_PETSC
+               const real_t h = jacobian->h;
+               auto comm = hydro.H1.GetComm();
+
+               // Build the assembled PETSc Jacobian in the same way as the
+               // historical serial PETSc prototype (laghos_petsc.cpp).
+               //
+               // Layout:
+               // [ x ]  size H1tsize
+               // [ v ]  size H1tsize
+               // [ e ]  size L2tsize
+
+               const int H1tsize = hydro.H1.GetTrueVSize();
+               const int L2tsize = hydro.L2.GetTrueVSize();
+
+               PetscParVector dRxdx_diag(comm, H1tsize);
+               dRxdx_diag = 1.0;
+               Mat dRxdx_petsc_mat;
+               PetscErrorCode ierr = MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat);
+               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatCreateDiagonal(dRxdx) failed");
+               PetscParMatrix dRxdx_petsc;
+               dRxdx_petsc.SetMat(dRxdx_petsc_mat);
+
+               PetscParVector dRxdv_diag(comm, H1tsize);
+               dRxdv_diag = -h;
+               for (int i = 0; i < hydro.ess_tdof.Size(); i++)
+               {
+                  dRxdv_diag[hydro.ess_tdof[i]] = 0.0;
+               }
+               Mat dRxdv_petsc_mat;
+               ierr = MatCreateDiagonal(dRxdv_diag, &dRxdv_petsc_mat);
+               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatCreateDiagonal(dRxdv) failed");
+               PetscParMatrix dRxdv_petsc;
+               dRxdv_petsc.SetMat(dRxdv_petsc_mat);
+
+               HypreParMatrix dRvdx_mat;
+               jacobian->dRvdx->Assemble(dRvdx_mat);
+               dRvdx_mat.EliminateRows(hydro.ess_tdof);
+               PetscParMatrix dRvdx_petsc(&dRvdx_mat);
+               dRvdx_petsc *= h;
+
+               HypreParMatrix dRvdv_mat;
+               jacobian->dRvdv->Assemble(dRvdv_mat);
+               PetscParMatrix dRvdv_petsc(&dRvdv_mat);
+               ParBilinearForm Mv(&hydro.H1);
+               Mv.AddDomainIntegrator(new VectorMassIntegrator(hydro.rho0_coeff,
+                                                              &hydro.ir));
+               Mv.Assemble();
+               Mv.Finalize();
+               HypreParMatrix Mv_mat;
+               Mv.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
+               PetscParMatrix Mv_petsc(&Mv_mat);
+               ierr = MatAYPX(dRvdv_petsc, h, Mv_petsc,
+                              MatStructure::DIFFERENT_NONZERO_PATTERN);
+               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatAYPX(dRvdv) failed");
+               auto tmp0 = dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
+               delete tmp0;
+
+               HypreParMatrix dRvde_mat;
+               jacobian->dRvde->Assemble(dRvde_mat);
+               dRvde_mat.EliminateRows(hydro.ess_tdof);
+               PetscParMatrix dRvde_petsc(&dRvde_mat);
+               dRvde_petsc *= h;
+
+               HypreParMatrix dRedx_mat;
+               jacobian->dRedx->Assemble(dRedx_mat);
+               PetscParMatrix dRedx_petsc(&dRedx_mat);
+               if (problem == 0)
+               {
+                  HypreParMatrix dTaylorSourcedx_mat;
+                  jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+                  PetscParMatrix dTaylorSourcedx_petsc(&dTaylorSourcedx_mat);
+                  dRedx_petsc += dTaylorSourcedx_petsc;
+               }
+               dRedx_petsc *= -h;
+
+               HypreParMatrix dRedv_mat;
+               jacobian->dRedv->Assemble(dRedv_mat);
+               auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
+               delete tmp1;
+               PetscParMatrix dRedv_petsc(&dRedv_mat);
+               dRedv_petsc *= -h;
+
+               HypreParMatrix dRede_mat;
+               jacobian->dRede->Assemble(dRede_mat);
+               PetscParMatrix dRede_petsc(&dRede_mat);
+               ParBilinearForm Me(&hydro.L2);
+               Me.AddDomainIntegrator(new MassIntegrator(hydro.rho0_coeff,
+                                                        &hydro.ir));
+               Me.Assemble();
+               Me.Finalize();
+               HypreParMatrix Me_mat;
+               Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
+               PetscParMatrix Me_petsc(&Me_mat);
+               ierr = MatAYPX(dRede_petsc, -h, Me_petsc,
+                              MatStructure::DIFFERENT_NONZERO_PATTERN);
+               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatAYPX(dRede) failed");
+
+               Array<int> offsets(4);
+               offsets[0] = 0;
+               offsets[1] = H1tsize;
+               offsets[2] = H1tsize;
+               offsets[3] = L2tsize;
+               offsets.PartialSum();
+
+               BlockOperator block_op(offsets);
+               block_op.SetBlock(0, 0, &dRxdx_petsc);
+               block_op.SetBlock(0, 1, &dRxdv_petsc);
+               block_op.SetBlock(1, 0, &dRvdx_petsc);
+               block_op.SetBlock(1, 1, &dRvdv_petsc);
+               block_op.SetBlock(1, 2, &dRvde_petsc);
+               block_op.SetBlock(2, 0, &dRedx_petsc);
+               block_op.SetBlock(2, 1, &dRedv_petsc);
+               block_op.SetBlock(2, 2, &dRede_petsc);
+
+               // Recreate the PETSc matrix every time. Trying to update the
+               // underlying Mat in-place is error-prone because the temporary
+               // block/matrix objects go out of scope after this call.
+               petsc_jacobian.reset(new PetscParMatrix(comm, &block_op,
+                                                      Operator::PETSC_MATAIJ));
+
+               return *petsc_jacobian;
+#else
+               MFEM_ABORT("MFEM is not built with PETSc");
+#endif
+            }
+
             return *jacobian;
          }
       }
@@ -1396,6 +1543,9 @@ public:
       mutable Vector u, u_l, e_source_t;
       mutable std::shared_ptr<FDJacobian> fd_jacobian;
       mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
+#ifdef MFEM_USE_PETSC
+      mutable std::unique_ptr<PetscParMatrix> petsc_jacobian;
+#endif
       bool fd_gradient;
       int dump_jacobians;
    };
@@ -1427,7 +1577,8 @@ public:
       const int &krylov_maximum_iterations,
       const int &preconditioner_lag,
       const PRECONDITIONER_TYPE &preconditioner_type,
-      Vector& external_data) :
+      Vector& external_data,
+      const bool use_petsc) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
       L2(L2),
@@ -1472,7 +1623,8 @@ public:
       krylov_maximum_iterations(krylov_maximum_iterations),
       preconditioner_lag(preconditioner_lag),
       preconditioner_type(preconditioner_type),
-      external_data(external_data)
+      external_data(external_data),
+      use_petsc(use_petsc)
    {
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
@@ -1507,27 +1659,43 @@ public:
 
       residual.reset(new LagrangianHydroResidualOperator(*this, X, fd_gradient,
                                                          dump_jacobians));
-      preconditioner.reset(new Preconditioner(*this));
 
-      auto gmres = new GMRESSolver(MPI_COMM_WORLD);
-      gmres->SetKDim(500);
-      gmres->SetMaxIter(krylov_maximum_iterations);
-      gmres->SetRelTol(1e-12);
-      gmres->SetAbsTol(0.0);
-      //gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-      gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
-      gmres->SetPreconditioner(*preconditioner);
-      krylov.reset(gmres);
+      if (use_petsc)
+      {
+#ifdef MFEM_USE_PETSC
+         snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
+         snes->SetOperator(*residual);
+         snes->SetRelTol(nonlinear_relative_tolerance);
+         snes->SetMaxIter(nonlinear_maximum_iterations);
+         snes->SetJacobianType(Operator::PETSC_MATAIJ);
+#else
+         MFEM_ABORT("MFEM is not built with PETSc");
+#endif
+      }
+      else
+      {
+         preconditioner.reset(new Preconditioner(*this));
 
-      newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD, *this));
-      newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-      //newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
-      newton->SetOperator(*residual);
-      newton->SetSolver(*krylov);
-      newton->SetMaxIter(nonlinear_maximum_iterations);
-      newton->SetRelTol(nonlinear_relative_tolerance);
-      newton->SetAbsTol(0.0);
-      // newton->SetAdaptiveLinRtol();
+         auto gmres = new GMRESSolver(MPI_COMM_WORLD);
+         gmres->SetKDim(500);
+         gmres->SetMaxIter(krylov_maximum_iterations);
+         gmres->SetRelTol(1e-12);
+         gmres->SetAbsTol(0.0);
+         //gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+         gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
+         gmres->SetPreconditioner(*preconditioner);
+         krylov.reset(gmres);
+
+         newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD, *this));
+         newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+         //newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
+         newton->SetOperator(*residual);
+         newton->SetSolver(*krylov);
+         newton->SetMaxIter(nonlinear_maximum_iterations);
+         newton->SetRelTol(nonlinear_relative_tolerance);
+         newton->SetAbsTol(0.0);
+         // newton->SetAdaptiveLinRtol();
+      }
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
@@ -1679,19 +1847,48 @@ public:
 
       residual->SetTimeStep(dt);
 
-      if (current_dt != dt || lag >= preconditioner_lag)
-      {
-         lag = 0;
-         current_dt = dt;
-         preconditioner->SetRebuildFlag(true);
-      }
-      lag++;
-
       Vector zero;
       K = X;
-      newton->Mult(zero, K);
+      if (use_petsc)
+      {
+#ifdef MFEM_USE_PETSC
+         // PETSc's SNES may cache internal state that depends on the operator.
+         // Recreate the SNES object periodically (and when the timestep
+         // changes) to avoid stale Jacobian/preconditioner state across
+         // time steps/stages, especially when users request Jacobian lagging
+         // through `-snes_lag_jacobian`.
+         if (current_dt != dt || snes == nullptr || petsc_lag >= 3)
+         {
+            current_dt = dt;
+            petsc_lag = 0;
+            delete snes;
+            snes = new PetscNonlinearSolver(MPI_COMM_WORLD);
+            snes->SetOperator(*residual);
+            snes->SetRelTol(nonlinear_relative_tolerance);
+            snes->SetMaxIter(nonlinear_maximum_iterations);
+            snes->SetJacobianType(Operator::PETSC_MATAIJ);
+         }
+         petsc_lag++;
 
-      newton_converged = newton->GetConverged();
+         snes->Mult(zero, K);
+         newton_converged = (snes->GetConverged() > 0);
+#else
+         MFEM_ABORT("MFEM is not built with PETSc");
+#endif
+      }
+      else
+      {
+         if (current_dt != dt || lag >= preconditioner_lag)
+         {
+            lag = 0;
+            current_dt = dt;
+            preconditioner->SetRebuildFlag(true);
+         }
+         lag++;
+
+         newton->Mult(zero, K);
+         newton_converged = newton->GetConverged();
+      }
 
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
       Kv.MakeRef(K, H1.GetTrueVSize(), H1.GetTrueVSize());
@@ -1894,6 +2091,9 @@ public:
 
    ~LagrangianHydroOperator()
    {
+#ifdef MFEM_USE_PETSC
+      delete snes;
+#endif
       delete Mv;
       delete Mv_Jprec;
       delete Me;
@@ -1928,7 +2128,11 @@ public:
    std::shared_ptr<Preconditioner> preconditioner;
    std::shared_ptr<Solver> krylov;
    std::shared_ptr<NewtonSolver> newton;
+#ifdef MFEM_USE_PETSC
+   PetscNonlinearSolver *snes = nullptr;
+#endif
    real_t current_dt = 0.0;
+   int petsc_lag = 0;
    int lag = 0;
 
    mutable FunctionCoefficient rho0_coeff;
@@ -1944,6 +2148,7 @@ public:
    const PRECONDITIONER_TYPE preconditioner_type;
    bool newton_converged = true;
    Vector &external_data;
+   const bool use_petsc;
    mutable bool qdata_is_current = false;
 };
 
@@ -1964,7 +2169,8 @@ static auto CreateLagrangianHydroOperator(
    const real_t &nonlinear_relative_tolerance,
    const int &krylov_maximum_iterations,
    const int &preconditioner_lag,
-   const PRECONDITIONER_TYPE &preconditioner_type)
+   const PRECONDITIONER_TYPE &preconditioner_type,
+   const bool use_petsc)
 {
    ParMesh &mesh = *H1.GetParMesh();
 
@@ -2372,7 +2578,8 @@ static auto CreateLagrangianHydroOperator(
              krylov_maximum_iterations,
              preconditioner_lag,
              preconditioner_type,
-             external_data);
+             external_data,
+             use_petsc);
 }
 
 
@@ -2462,6 +2669,31 @@ int main(int argc, char *argv[])
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
    int dump_jacobians = 0;
    int nretry = 100;
+   const char *petsc_opts = "";
+   bool petsc_legacy_dt = false;
+   bool petsc_opts_provided = false;
+   bool mesh_provided = false;
+   for (int i = 1; i < argc; i++)
+   {
+      if (strcmp(argv[i], "-petsc-opts") == 0 || strcmp(argv[i], "--petsc-opts") == 0)
+      {
+         petsc_opts_provided = true;
+         break;
+      }
+   }
+   for (int i = 1; i < argc; i++)
+   {
+      if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--mesh") == 0)
+      {
+         mesh_provided = true;
+         break;
+      }
+   }
+   if (petsc_opts_provided && !mesh_provided)
+   {
+      // Match the historical PETSc prototype default mesh.
+      mesh_file = "../../data/inline-quad.mesh";
+   }
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -2500,10 +2732,51 @@ int main(int argc, char *argv[])
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
    args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
    args.AddOption(&nretry, "-nretry", "--nretry", "");
+   args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
+                  "PETSc options (enables PETSc SNES path; single MPI rank only).");
+   args.AddOption(&petsc_legacy_dt, "-petsc-legacy-dt", "--petsc-legacy-dt",
+                  "-no-petsc-legacy-dt", "--no-petsc-legacy-dt",
+                  "Use legacy (larger) initial dt estimate for PETSc runs.");
    args.ParseCheck();
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
+
+   const bool use_petsc = petsc_opts_provided;
+   if (use_petsc)
+   {
+#ifdef MFEM_USE_PETSC
+      int np = 0;
+      MPI_Comm_size(MPI_COMM_WORLD, &np);
+      MFEM_VERIFY(np == 1,
+                  "The PETSc SNES path is intended for single-task runs; use mpirun -np 1.");
+
+      std::vector<char*> petsc_argv;
+      petsc_argv.push_back(argv[0]); // Program name as first arg
+
+      // Split petsc_opts string into individual arguments.
+      std::string opts_str(petsc_opts);
+      std::istringstream iss(opts_str);
+      std::string arg;
+
+      while (iss >> arg)
+      {
+         char* arg_copy = new char[arg.length() + 1];
+         std::strcpy(arg_copy, arg.c_str());
+         petsc_argv.push_back(arg_copy);
+      }
+
+      int petsc_argc = static_cast<int>(petsc_argv.size());
+      char** petsc_args = petsc_argv.data();
+
+      MFEMInitializePetsc(&petsc_argc, &petsc_args);
+
+      // Keep output formatting consistent with laghos_petsc.cpp for PETSc runs.
+      out << std::setprecision(6);
+#else
+      MFEM_ABORT("MFEM is not built with PETSc");
+#endif
+   }
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
    int dim = serial_mesh.Dimension();
@@ -2575,6 +2848,8 @@ int main(int argc, char *argv[])
          ess_vdofs.Append(dofs_list);
       }
    }
+   ess_tdof.Sort();
+   ess_tdof.Unique();
 
    // The monolithic BlockVector stores unknown fields as:
    // - 0 -> position
@@ -2730,6 +3005,7 @@ int main(int argc, char *argv[])
    external_data[EXT_DATA_IDX::VISCOSITY_TYPE] = viscosity_type;
    external_data[EXT_DATA_IDX::DT_ESTIMATE] =
       std::numeric_limits<real_t>::infinity();
+   external_data[EXT_DATA_IDX::DT_EST_METHOD] = use_petsc ? 1.0 : 0.0;
 
    LagrangianHydroOperator *hydro = nullptr;
    switch (dim)
@@ -2751,7 +3027,8 @@ int main(int argc, char *argv[])
                                                  nonlinear_relative_tolerance,
                                                  krylov_maximum_iterations,
                                                  preconditioner_lag,
-                                                 (PRECONDITIONER_TYPE)preconditioner_type);
+                                                 (PRECONDITIONER_TYPE)preconditioner_type,
+                                                 use_petsc);
          break;
       }
       case 3:
@@ -2771,7 +3048,8 @@ int main(int argc, char *argv[])
                                                  nonlinear_relative_tolerance,
                                                  krylov_maximum_iterations,
                                                  preconditioner_lag,
-                                                 (PRECONDITIONER_TYPE)preconditioner_type);
+                                                 (PRECONDITIONER_TYPE)preconditioner_type,
+                                                 use_petsc);
          break;
       }
       default: MFEM_ABORT("unsupported mesh dimension: " << dim);
@@ -2828,22 +3106,35 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      out << "IE: " << energy_init << "\n";
+      if (use_petsc) { out << "energy initial: " << energy_init << "\n"; }
+      else { out << "IE: " << energy_init << "\n"; }
    }
 
    // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
    //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
-   external_data[EXT_DATA_IDX::CFL] = 0.5;
    hydro->ResetTimeStepEstimate();
    real_t t = 0.0;
-   real_t dt = hydro->GetTimeStepEstimate(S);
-   external_data[EXT_DATA_IDX::CFL] = cfl;
+   real_t dt = 0.0;
+   if (use_petsc)
+   {
+      const real_t order_vel_backup = external_data[EXT_DATA_IDX::ORDER_VEL];
+      if (petsc_legacy_dt) { external_data[EXT_DATA_IDX::ORDER_VEL] = 1.0; }
+      dt = hydro->GetTimeStepEstimate(S);
+      external_data[EXT_DATA_IDX::ORDER_VEL] = order_vel_backup;
+   }
+   else
+   {
+      // Keep the original conservative startup for the MFEM path.
+      external_data[EXT_DATA_IDX::CFL] = 0.5;
+      dt = hydro->GetTimeStepEstimate(S);
+      external_data[EXT_DATA_IDX::CFL] = cfl;
+   }
 
-   // if (Mpi::Root())
-   // {
-   //    out << "time step estimate: " << dt << "\n";
-   // }
+   if (use_petsc && Mpi::Root())
+   {
+      out << "time step estimate: " << dt << "\n";
+   }
 
    real_t t_old;
    bool last_step = false;
@@ -2926,55 +3217,61 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10)
       {
-         // Repeat only when the mesh inverted.
-         // Can happen at time integration, even if all stages were ok.
-         // Don't repeat time steps for implicit 3point.
-         if ( (dt_est < dt || !hydro->newton_converged) && (problem != 3))
+         // The historical PETSc prototype (laghos_petsc.cpp) does not repeat
+         // implicit timesteps. Keep that behavior for the PETSc path to match
+         // results and avoid PETSc/SNES instability across retries.
+         if (!use_petsc)
          {
-            if (!hydro->newton_converged)
+            // Repeat only when the mesh inverted.
+            // Can happen at time integration, even if all stages were ok.
+            // Don't repeat time steps for implicit 3point.
+            if ( (dt_est < dt || !hydro->newton_converged) && (problem != 3))
             {
-               if (Mpi::Root())
-               {
-                  out << "writing viz for non converged newton step " << ti
-                      << " at time=" << t << "\n";
-               }
-               // vizcb(ti+100, t+100.0);
-            }
-
-            dt *= 0.85;
-            t = t_old;
-            S = S_old;
-            hydro->ResetQuadratureData();
-            last_step = false;
-            if (Mpi::Root())
-            {
-               out << "Repeating step " << ti << " with dt: " << dt << "." << std::endl;
-               //out << "Reason: " << min_detJ << std::endl;
                if (!hydro->newton_converged)
                {
-                  out << "Newton did not converge in "
-                      << hydro->newton->GetNumIterations() << " iterations.\n";
+                  if (Mpi::Root())
+                  {
+                     out << "writing viz for non converged newton step " << ti
+                         << " at time=" << t << "\n";
+                  }
+                  // vizcb(ti+100, t+100.0);
                }
-               else { out << "Estimated dt lower than taken dt.\n"; }
-            }
 
-            if (!hydro->newton_converged)
-            {
-               if (nretry == 1)
+               dt *= 0.85;
+               t = t_old;
+               S = S_old;
+               hydro->ResetQuadratureData();
+               last_step = false;
+               if (Mpi::Root())
                {
-                  hydro->residual->dump_jacobians = 1;
+                  out << "Repeating step " << ti << " with dt: " << dt << "." << std::endl;
+                  //out << "Reason: " << min_detJ << std::endl;
+                  if (!hydro->newton_converged)
+                  {
+                     out << "Newton did not converge in "
+                         << hydro->newton->GetNumIterations() << " iterations.\n";
+                  }
+                  else { out << "Estimated dt lower than taken dt.\n"; }
                }
-               else if (nretry == 0)
-               {
-                  if (Mpi::Root()) { out << "no retry planned, exit\n"; }
-                  exit(1);
-               }
-               nretry--;
-            }
 
-            ti--; continue;
+               if (!hydro->newton_converged)
+               {
+                  if (nretry == 1)
+                  {
+                     hydro->residual->dump_jacobians = 1;
+                  }
+                  else if (nretry == 0)
+                  {
+                     if (Mpi::Root()) { out << "no retry planned, exit\n"; }
+                     exit(1);
+                  }
+                  nretry--;
+               }
+
+               ti--; continue;
+            }
+            else if (dt_est > 1.25 * dt) { dt *= 1.10; }
          }
-         else if (dt_est > 1.25 * dt) { dt *= 1.10; }
       }
       else if (dt_est < dt)
       {
@@ -3010,7 +3307,22 @@ int main(int argc, char *argv[])
       //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       // }
 
-      if (ti % vis_steps == 0 || last_step)
+      if (use_petsc)
+      {
+         if (Mpi::Root() && (ti % 10 == 0 || last_step))
+         {
+            out << "dt_est: " << dt_est << "\n";
+         }
+
+         if (Mpi::Root())
+         {
+            out << "step " << std::setw(5) << ti
+                << ",\tt = " << std::setw(5) << std::setprecision(4) << t
+                << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
+            out << std::endl;
+         }
+      }
+      else if (ti % vis_steps == 0 || last_step)
       {
          if (Mpi::Root()) { out << "dt_est: " << dt_est << "\n"; }
 
@@ -3024,26 +3336,26 @@ int main(int argc, char *argv[])
 
          // Paraview.
          // vizcb(ti, t);
+      }
 
-         if (glvis)
+      if (glvis && (ti % vis_steps == 0 || last_step))
+      {
+         hydro->ComputeDensity(rho_gf);
+         int Wx = 0, Wy = 0; // window position
+         int Ww = 350, Wh = 350; // window size
+         int offx = Ww+10; // window offsets
+         if (problem != 0 && problem != 4)
          {
-            hydro->ComputeDensity(rho_gf);
-            int Wx = 0, Wy = 0; // window position
-            int Ww = 350, Wh = 350; // window size
-            int offx = Ww+10; // window offsets
-            if (problem != 0 && problem != 4)
-            {
-               VisualizeField(vis_rho, vishost, visport, rho_gf,
-                              "Density", Wx, Wy, Ww, Wh);
-            }
-            Wx += offx;
-            VisualizeField(vis_v, vishost, visport,
-                           v_gf, "Velocity", Wx, Wy, Ww, Wh);
-            Wx += offx;
-            VisualizeField(vis_e, vishost, visport, e_gf,
-                           "Specific Internal Energy", Wx, Wy, Ww,Wh);
-            Wx += offx;
+            VisualizeField(vis_rho, vishost, visport, rho_gf,
+                           "Density", Wx, Wy, Ww, Wh);
          }
+         Wx += offx;
+         VisualizeField(vis_v, vishost, visport,
+                        v_gf, "Velocity", Wx, Wy, Ww, Wh);
+         Wx += offx;
+         VisualizeField(vis_e, vishost, visport, e_gf,
+                        "Specific Internal Energy", Wx, Wy, Ww,Wh);
+         Wx += offx;
       }
    }
 
@@ -3081,6 +3393,13 @@ int main(int argc, char *argv[])
    }
 
    delete hydro;
+
+#ifdef MFEM_USE_PETSC
+   if (use_petsc)
+   {
+      MFEMFinalizePetsc();
+   }
+#endif
 
    return 0;
 }
