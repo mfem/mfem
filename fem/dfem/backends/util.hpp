@@ -727,6 +727,19 @@ MFEM_HOST_DEVICE tensor<T, n1, n2, n3, n4>& as_tensor(T* ptr)
    return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3, n4>*>(ptr));
 }
 
+// Generic zero-copy view using an explicit tensor type (e.g. tensor<real_t, DIM, DIM>)
+template <typename Tensor> inline
+MFEM_HOST_DEVICE Tensor& as_tensor(real_t* ptr)
+{
+   return *std::launder(reinterpret_cast<Tensor*>(ptr));
+}
+
+template <typename Tensor> inline
+MFEM_HOST_DEVICE const Tensor& as_tensor(const real_t* ptr)
+{
+   return *std::launder(reinterpret_cast<const Tensor*>(ptr));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 template<typename T>
 struct is_std_tuple : std::false_type {};

@@ -47,14 +47,12 @@ struct LocalQFLOBackend
    };
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename XE_T>
+   template<int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
    void LoadValue(Shared<MQ1> &s,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
-      static_assert(DIM == 3);
-      static_assert(RNK == 0);
       low::LoadMatrix(d, q, B, s.B);
       low::LoadDofs3d(e, d, XE, s.M[0]);
       low::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);

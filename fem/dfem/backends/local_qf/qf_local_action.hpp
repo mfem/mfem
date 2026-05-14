@@ -284,15 +284,14 @@ public:
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
             auto &rarg = get<i>(rargs);
-            constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<DIM, RNK, MQ1>
-               (smem, e, d, q, Q1D, B, XE, rarg);
+               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
                backend_t::template LoadGradient<DIM, RNK, MQ1>
                (smem, e, d, q, Q1D, B, G, XE, rarg);
             }
@@ -327,23 +326,12 @@ public:
                   {
                      constexpr size_t i = ic.value;
                      auto &qarg = get<i>(qargs);
-                     constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
                      const auto &XE = in_XE[i];
                      using FOP = tuple_element_t<i, inputs_t>;
+                     using ARG = typename qf_param_slot<qfunc_t, i>::qpreg_t;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
-                        if constexpr (RNK == 2)
-                        {
-                           qarg = as_tensor<real_t, DIM, DIM>(&XE(0, qx, qy, qz, e));
-                        }
-                        else if constexpr (RNK == 1)
-                        {
-                           qarg = as_tensor<real_t, DIM>(&XE(0, qx, qy, qz, e));
-                        }
-                        else
-                        {
-                           qarg = as_tensor<real_t>(&XE(0, qx, qy, qz, e));
-                        }
+                        qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
                      }
                      else if constexpr (is_weight_fop<FOP>::value)
                      {
@@ -352,8 +340,7 @@ public:
                      else if constexpr (is_value_fop<FOP>::value ||
                                         is_gradient_fop<FOP>::value)
                      {
-                        using qpreg_t = typename qf_param_slot<qfunc_t, i>::qpreg_t;
-                        qarg = backend_t::template qp_load<qpreg_t, MQ1>
+                        qarg = backend_t::template qp_load<ARG, MQ1>
                         (get<i>(rargs), qx, qy, qz);
                      }
                      else { static_assert(false, "Unsupported"); }
@@ -372,29 +359,16 @@ public:
                      constexpr size_t i = ic.value, o = n_inputs + i;
                      const auto qarg = get<o>(qargs);
                      const auto &YE = out_YE[i];
-                     constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
                      using FOP = tuple_element_t<i, outputs_t>;
+                     using ARG = typename qf_param_slot<qfunc_t, o>::qpreg_t;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
-                        if constexpr (RNK == 2)
-                        {
-                           as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = qarg;
-                        }
-                        else if constexpr (RNK == 1)
-                        {
-                           as_tensor<real_t, DIM>(&YE(0,qz,qy,qx,e)) = qarg;
-                        }
-                        else
-                        {
-                           as_tensor<real_t>(&YE(0,qz,qy,qx,e)) = qarg;
-                        }
+                        as_tensor<ARG>(&YE(0, qz, qy, qx, e)) = qarg;
                      }
                      else if constexpr (is_value_fop<FOP>::value ||
                                         is_gradient_fop<FOP>::value)
                      {
-                        static_assert(RNK == 0 || RNK == 1);
-                        using qpreg_t = typename qf_param_slot<qfunc_t, o>::qpreg_t;
-                        backend_t::template qp_store<qpreg_t, MQ1>
+                        backend_t::template qp_store<ARG, MQ1>
                         (get<o>(rargs), qx, qy, qz, qarg);
                      }
                      else { static_assert(false, "Unsupported"); }

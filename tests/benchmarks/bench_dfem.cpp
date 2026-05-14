@@ -1275,19 +1275,19 @@ REGISTER(BP, 1, dfem_PA_local_default);
 REGISTER(BP, 1, dfem_PA_local_kernels);
 
 /// BP3 /////////////////////////////////////////////////////////////////////
-// REGISTER(BP, 3, mfem_PA_std);
-// REGISTER(BP, 3, mfem_MF_HO_reg);
-// REGISTER(BP, 3, mfem_PA_HO_reg);
+REGISTER(BP, 3, mfem_PA_std);
+REGISTER(BP, 3, mfem_MF_HO_reg);
+REGISTER(BP, 3, mfem_PA_HO_reg);
 
-// REGISTER(BP, 3, dfem_MF_global_default);
-// REGISTER(BP, 3, dfem_MF_global_kernels);
-// REGISTER(BP, 3, dfem_PA_global_default);
-// REGISTER(BP, 3, dfem_PA_global_kernels);
+REGISTER(BP, 3, dfem_MF_global_default);
+REGISTER(BP, 3, dfem_MF_global_kernels);
+REGISTER(BP, 3, dfem_PA_global_default);
+REGISTER(BP, 3, dfem_PA_global_kernels);
 
-// REGISTER(BP, 3, dfem_MF_local_default);
-// REGISTER(BP, 3, dfem_MF_local_kernels);
-// REGISTER(BP, 3, dfem_PA_local_default);
-// REGISTER(BP, 3, dfem_PA_local_kernels);
+REGISTER(BP, 3, dfem_MF_local_default);
+REGISTER(BP, 3, dfem_MF_local_kernels);
+REGISTER(BP, 3, dfem_PA_local_default);
+REGISTER(BP, 3, dfem_PA_local_kernels);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
