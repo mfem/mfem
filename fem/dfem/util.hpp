@@ -1335,8 +1335,15 @@ inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
    const auto P = get_prolongation(field);
-   field_l.SetSize(P->Height());
-   P->Mult(x, field_l);
+   if (P == nullptr)
+   {
+      field_l = x;
+   }
+   else
+   {
+      field_l.SetSize(P->Height());
+      P->Mult(x, field_l);
+   }
 }
 
 inline
@@ -1344,8 +1351,15 @@ void prolongation_transpose(
    const FieldDescriptor &field, const Vector &field_l, Vector &x)
 {
    const auto P = get_prolongation(field);
-   x.SetSize(P->Width());
-   P->MultTranspose(field_l, x);
+   if (P == nullptr)
+   {
+      x = field_l;
+   }
+   else
+   {
+      x.SetSize(P->Width());
+      P->MultTranspose(field_l, x);
+   }
 }
 
 /// @brief Apply the prolongation operator to a vector of fields.
@@ -2890,11 +2904,25 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             MFEM_ABORT("identity/sum only implemented for QuadratureFunction");
          }
 
-         const int q1d = (int)floor(std::pow(ir.GetNPoints(),
-                                             1.0 / mesh_dimension) + 0.5);
-         const int nqpt = q1d;
-         const int ndof = nqpt;
+         bool use_tensor_dtq = false;
+         for (const auto *candidate_dtq : dtqs)
+         {
+            if (candidate_dtq != nullptr)
+            {
+               use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
+               break;
+            }
+         }
 
+         int nqpt = ir.GetNPoints();
+         int ndof = nqpt;
+         if (use_tensor_dtq)
+         {
+            const int q1d = (int)floor(std::pow(ir.GetNPoints(),
+                                                1.0 / mesh_dimension) + 0.5);
+            nqpt = q1d;
+            ndof = q1d;
+         }
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),

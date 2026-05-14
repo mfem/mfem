@@ -412,9 +412,8 @@ public:
 };
 
 template<int Q1D = 0>
-using action_backend_t = std::conditional_t<
-                         (Q1D > 0 && Q1D < 8) || (Q1D == 0),
-                         LocalQFLOBackend, LocalQFHOBackend>;
+using action_backend_t =
+   std::conditional_t<(Q1D > 0 && Q1D < 8), LocalQFLOBackend, LocalQFHOBackend>;
 
 template <
    typename qfunc_t,

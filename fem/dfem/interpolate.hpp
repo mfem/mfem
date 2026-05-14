@@ -196,8 +196,21 @@ void map_field_to_quadrature_data_tensor_product_3d(
    else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
-      auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d * q1d);
-      field_qp = field;
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               const int q = qx + q1d * qy + q1d * q1d * qz;
+               for (int vi = 0; vi < input.size_on_qp; vi++)
+               {
+                  field_qp(vi, q) = field_e[vi + input.size_on_qp * q];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
    }
    else
    {
@@ -328,8 +341,18 @@ void map_field_to_quadrature_data_tensor_product_2d(
    else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
-      auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d);
-      field_qp = field;
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            const int q = qx + q1d * qy;
+            for (int vi = 0; vi < input.size_on_qp; vi++)
+            {
+               field_qp(vi, q) = field_e[vi + input.size_on_qp * q];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
    }
    else
    {
@@ -414,8 +437,14 @@ void map_field_to_quadrature_data_tensor_product_1d(
    else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
-      auto field = Reshape(&field_e[0], input.size_on_qp, q1d);
-      field_qp = field;
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         for (int vi = 0; vi < input.size_on_qp; vi++)
+         {
+            field_qp(vi, qx) = field_e[vi + input.size_on_qp * qx];
+         }
+      }
+      MFEM_SYNC_THREAD;
    }
    else
    {
