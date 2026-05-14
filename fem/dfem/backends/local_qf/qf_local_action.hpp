@@ -34,9 +34,7 @@ namespace mfem::future::LocalQFKernelsImpl
 template<
    typename qfunc_t,
    typename inputs_t,
-   typename outputs_t,
-   std::size_t n_inputs = tuple_size<inputs_t>::value,
-   std::size_t n_outputs = tuple_size<outputs_t>::value>
+   typename outputs_t>
 class Action
 {
    static constexpr int DIM = 3;
@@ -46,10 +44,14 @@ class Action
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
 
-   static_assert(
-      n_inputs + n_outputs ==
-      tuple_size<typename get_function_signature<qfunc_t>::type::parameter_ts>::value,
-      "LocalQF: q-function arity must match inputs + outputs");
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
+
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+   static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
+                 "LocalQF: q-function arity must match inputs + outputs");
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -130,10 +132,10 @@ public:
       ActionCallbackKernels::template Specialization<7>::Add(); // 5
       ActionCallbackKernels::template Specialization<8>::Add(); // 6
       ActionCallbackKernels::template Specialization<10>::Add(); // 8
-      // quadrature_interpolator::Det3D fails before being able to use PA
       ActionCallbackKernels::template Specialization<12>::Add(); // 10
-      // ActionCallbackKernels::template Specialization<14>::Add(); // 12
-      // ActionCallbackKernels::template Specialization<16>::Add(); // 14
+      ActionCallbackKernels::template Specialization<14>::Add(); // 12
+      ActionCallbackKernels::template Specialization<16>::Add(); // 14
+      ActionCallbackKernels::template Specialization<18>::Add(); // 16
 #endif
    }
 
@@ -219,7 +221,7 @@ public:
          }
          else if constexpr (is_weight_fop<FOP>::value)
          {
-            MFEM_ASSERT(ctx.ir.GetNPoints() == q1d*q1d*q1d, "tensor-product IR expected");
+            MFEM_ASSERT(ctx.ir.GetNPoints() == q1d*q1d*q1d, "Size mismatch");
             in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, q1d, 1, 1);
          }
          else { static_assert(false, "Unsupported"); }
@@ -246,16 +248,12 @@ public:
             MFEM_ASSERT(ye[k]->Size() == v*q*q*q*ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, q, ne);
          }
-         else { static_assert(false, "Unsupported"); }
+         else { static_assert(false, "Unsupported FieldOperator"); }
       });
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
-
-      using qf_signature = typename get_function_signature<qfunc_t>::type;
-      using qf_param_ts = typename qf_signature::parameter_ts;
-      using args_tuple_t = decay_tuple<qf_param_ts>;
 
       constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
       dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
@@ -287,7 +285,8 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
+               backend_t::template LoadValue<MQ1>
+               (smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
@@ -413,41 +412,29 @@ public:
 };
 
 template<int Q1D = 0>
-using action_backend_t =
-   std::conditional_t<
-   (Q1D > 0 && Q1D < 8) || (Q1D == 0),
-   LocalQFLOBackend, LocalQFHOBackend>;
+using action_backend_t = std::conditional_t<
+                         (Q1D > 0 && Q1D < 8) || (Q1D == 0),
+                         LocalQFLOBackend, LocalQFHOBackend>;
 
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t n_inputs,
-         std::size_t n_outputs> template<int Q1D>
-typename Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel()
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int Q1D>
+typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionCallbackKernels::Kernel()
 {
    return action_callback<action_backend_t<Q1D>, Q1D>;
 }
 
-template<typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t n_inputs,
-         std::size_t n_outputs>
-typename Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
-(int q1d)
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionCallbackKernels::Fallback(int)
 {
-#ifdef MFEM_ADD_SPECIALIZATIONS
-   MFEM_ABORT("No kernel for q1d=" << q1d);
-   return nullptr;
-#else
-   MFEM_CONTRACT_VAR(q1d);
-   db1("\x1b[33mFallback q1d:{}", q1d);
    return action_callback<action_backend_t<>>;
-   // MFEM_ABORT("No kernel for q1d=" << q1d);
-   // return nullptr;
-#endif
 }
 
 } // namespace mfem::future::LocalQFKernelsImpl

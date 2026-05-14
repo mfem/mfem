@@ -23,7 +23,7 @@ namespace mfem::future
 struct LocalQFHOBackend
 {
    //////////////////////////////////////////////////////////////////
-   static constexpr int MQ1 = 16;
+   static constexpr int MQ1 = 32;
 
    //////////////////////////////////////////////////////////////////
    template <int DIM> static
@@ -44,19 +44,17 @@ struct LocalQFHOBackend
    };
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename XE_T>
+   template<int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
    void LoadValue(Shared<MQ1> &s,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
-      static_assert(DIM == 3);
-      static_assert(ext_sz == 1);
       ker::LoadMatrix(d, q, B, s.B);
       {
-         ker::vd_regs3d_t<1, 3, MQ1> dofs;
+         ker::v_regs3d_t<1, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);
-         ker::Eval3d(d, q, s.M, s.B, s.G, dofs, rarg);
+         ker::Eval3d(d, q, s.M, s.B, dofs, rarg);
       }
    }
 
@@ -68,9 +66,9 @@ struct LocalQFHOBackend
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
    {
-      static_assert(RNK == 1 || RNK == 2);
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
+      static_assert(RNK == 1 || RNK == 2);
       if constexpr (RNK == 1)
       {
          ker::vd_regs3d_t<1, 3, MQ1> dofs;
@@ -184,33 +182,32 @@ struct LocalQFHOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename YE_T>
+   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared<MQ1>&,
-                   const int, const int, const int, const int,
-                   const real_t*, const YE_T &, ArgRegT &)
+   void WriteValue(Shared<MQ1> &s,
+                   const int e, const int d, const int q, const int,
+                   const real_t *B, const YE_T &YE, ArgRegT &rarg)
    {
-      static_assert(sizeof(ArgRegT) == 0,
-                    "LocalQFHOBackend::WriteValue is not implemented");
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::v_regs3d_t<1, MQ1> dofs;
+      ker::EvalTranspose3d(d, q, s.M, s.B, rarg, dofs);
+      ker::WriteDofs3d(e, d, dofs, YE);
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename YE_T>
+   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
    void WriteGradient(Shared<MQ1> &s,
                       const int e, const int d, const int q, const int,
                       const real_t *B, const real_t *G,
                       YE_T &YE, ArgRegT &rarg)
    {
-      if constexpr (ext_sz == 1)
-      {
-         ker::LoadMatrix(d, q, B, s.B);
-         ker::LoadMatrix(d, q, G, s.G);
-         ker::vd_regs3d_t<1, 3, MQ1> dofs;
-         ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
-         ker::WriteDofs3d(e, d, dofs, YE);
-      }
-      else { static_assert(ext_sz == 1, "Unsupported gradient rank"); }
+      static_assert(RNK == 1);
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
+      ker::vd_regs3d_t<1, 3, MQ1> dofs;
+      ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
+      ker::WriteDofs3d(e, d, dofs, YE);
    }
 };
 

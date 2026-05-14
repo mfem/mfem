@@ -115,7 +115,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto orders = { 8, 7, 6, 5, 4, 3, 2, 1 };
+   const auto orders = { 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
@@ -550,12 +550,7 @@ MFStiffnessIntegrator::MFStiffnessKernelType
 MFStiffnessIntegrator::MFStiffnessKernels::Fallback(int d1, int q1, int n1)
 {
    db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
-#ifdef MFEM_ADD_SPECIALIZATIONS
-   MFEM_ABORT("No kernel for d1d=" << d1 << " q=" << q1 << " d1n=" << n1);
-   return nullptr;
-#else
    return MFStiffnessMult;
-#endif
 }
 
 /// MF MassIntegrator ///////////////////////////////////////////////////////
@@ -886,12 +881,7 @@ PAStiffnessIntegrator::StiffnessKernelType
 PAStiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    db1("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-#ifdef MFEM_ADD_SPECIALIZATIONS
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
-   return nullptr;
-#else
    return StiffnessMult;
-#endif
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
