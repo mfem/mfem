@@ -23,7 +23,7 @@ namespace mfem::future
 {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Static shape (tensor rank and per-axis sizes) for one decayed q-function parameter type
+/// Static shape for one decayed q-function parameter type
 template <typename T>
 struct qf_param_shape
 {
@@ -53,18 +53,12 @@ struct qf_param_shape<real_t>
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Type used in quadrature registers for parameter `T` (bare scalars use `tensor<real_t>`).
+/// Type used in quadrature registers for parameter
 template <typename T>
-struct qf_qpreg_param
-{
-   using type = T;
-};
+struct qf_reg_t { using type = T; };
 
 template <>
-struct qf_qpreg_param<real_t>
-{
-   using type = tensor<real_t>;
-};
+struct qf_reg_t<real_t> { using type = tensor<real_t>; };
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Per-parameter tensor info for slot `I` in the decayed q-function parameter tuple.
@@ -73,20 +67,25 @@ struct qf_param_slot
 {
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
-   using raw_param_t = typename tuple_element<I, qf_param_ts>::type;
-   using decay_t = std::remove_cv_t<std::remove_reference_t<raw_param_t>>;
-   using qpreg_t = typename qf_qpreg_param<decay_t>::type;
+   using qf_raw_param_t = typename tuple_element<I, qf_param_ts>::type;
+   using qf_decay_param_t =
+      std::remove_cv_t<std::remove_reference_t<qf_raw_param_t>>;
+   using qf_reg_param_t = typename qf_reg_t<qf_decay_param_t>::type;
 
-   static constexpr auto extents = qf_param_shape<decay_t>::extents;
+   static constexpr auto extents = qf_param_shape<qf_decay_param_t>::extents;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
-          int MQ1, std::size_t K, std::size_t N, typename... Acc>
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl;
 
-template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
-          int MQ1, std::size_t N, typename... Acc>
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N, N, Acc...>
 {
    using type = tuple<Acc...>;
@@ -94,18 +93,21 @@ struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N
    static_assert(sizeof...(Acc) <= 9);
 };
 
-template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
-          int MQ1, std::size_t K, std::size_t N, typename... Acc>
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl
 {
-   using R = typename backend_t::template QPReg<
-                typename qf_param_slot<qfunc_t, K>::qpreg_t, MQ1>;
+   using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
+   using R = typename backend_t::template QReg<qf_reg_param_t, MQ1>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
          outputs_t, MQ1, K + 1, N, Acc..., R>::type;
 };
 
-template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
-          int MQ1>
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
 using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;

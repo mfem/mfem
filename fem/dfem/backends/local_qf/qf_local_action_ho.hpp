@@ -86,26 +86,26 @@ struct LocalQFHOBackend
    //////////////////////////////////////////////////////////////////
    /// High-order 3D quadrature register storage for a q-function parameter
    template <typename T, int MQ1, int RNK = qf_param_shape<T>::rank>
-   struct high_order_qp_reg
+   struct high_order_qreg
    {
       static_assert(RNK >= 0 && RNK <= 2);
    };
 
    template <typename T, int MQ1>
-   struct high_order_qp_reg<T, MQ1, 0>
+   struct high_order_qreg<T, MQ1, 0>
    {
       using type = mfem::kernels::internal::v_regs3d_t<1, MQ1>;
    };
 
    template <typename T, int MQ1>
-   struct high_order_qp_reg<T, MQ1, 1>
+   struct high_order_qreg<T, MQ1, 1>
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
       using type = mfem::kernels::internal::vd_regs3d_t<1, e0, MQ1>;
    };
 
    template <typename T, int MQ1>
-   struct high_order_qp_reg<T, MQ1, 2>
+   struct high_order_qreg<T, MQ1, 2>
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
       static constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -113,12 +113,12 @@ struct LocalQFHOBackend
    };
 
    template <typename T, int MQ1>
-   using QPReg = typename high_order_qp_reg<T, MQ1>::type;
+   using QReg = typename high_order_qreg<T, MQ1>::type;
 
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   auto qp_load(QPReg<T, MQ1> &reg, int qz, int qy, int qx)
+   auto qp_load(QReg<T, MQ1> &reg, int qz, int qy, int qx)
    {
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)
@@ -150,13 +150,13 @@ struct LocalQFHOBackend
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   void qp_store(QPReg<T, MQ1> &reg, int qz, int qy, int qx,
+   void qp_store(QReg<T, MQ1> &reg, int qz, int qy, int qx,
                  const T &out)
    {
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)
       {
-         reg(0, qz, qy, qx) = out.scalar();
+         reg(0, qz, qy, qx) = out;
       }
       else if constexpr (R == 1)
       {

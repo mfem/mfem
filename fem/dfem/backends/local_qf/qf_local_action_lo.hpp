@@ -31,7 +31,7 @@ struct LocalQFLOBackend
    template <int DIM> static
    inline ThreadBlocks thread_blocks(const int q1d)
    {
-      // MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
+      MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
       return {q1d, (DIM >= 2) ? q1d : 1, (DIM >= 3) ? q1d : 1};
    }
 
@@ -87,26 +87,26 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    /// Low-order 3D quadrature register storage for a decayed q-function parameter
    template <typename T, int MQ1, int RNK = qf_param_shape<T>::rank>
-   struct low_order_qp_reg
+   struct low_order_qreg
    {
       static_assert(RNK >= 0 && RNK <= 2);
    };
 
    template <typename T, int MQ1>
-   struct low_order_qp_reg<T, MQ1, 0>
+   struct low_order_qreg<T, MQ1, 0>
    {
       using type = mfem::kernels::internal::low::regs3d_t<1, MQ1>;
    };
 
    template <typename T, int MQ1>
-   struct low_order_qp_reg<T, MQ1, 1>
+   struct low_order_qreg<T, MQ1, 1>
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
       using type = mfem::kernels::internal::low::regs3d_t<e0, MQ1>;
    };
 
    template <typename T, int MQ1>
-   struct low_order_qp_reg<T, MQ1, 2>
+   struct low_order_qreg<T, MQ1, 2>
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
       static constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -114,12 +114,12 @@ struct LocalQFLOBackend
    };
 
    template<typename T, int MQ1>
-   using QPReg = typename low_order_qp_reg<T, MQ1>::type;
+   using QReg = typename low_order_qreg<T, MQ1>::type;
 
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   auto qp_load(QPReg<T, MQ1> &reg, int qx, int qy, int qz)
+   auto qp_load(QReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)
@@ -146,7 +146,7 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   void qp_store(QPReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   void qp_store(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)

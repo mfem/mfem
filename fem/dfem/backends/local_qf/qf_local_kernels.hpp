@@ -23,53 +23,28 @@ struct LocalQFKernelsBackend
    using action_t = LocalQFKernelsImpl::Action<Ts...>;
 
    /**
-    * @brief Make an action for a local device backend.
+    * @brief Make an action for a local kernels backend.
     *
-    * @tparam qfunc_t The type of the qfunction.
-    * @tparam inputs_t The type of the inputs.
-    * @tparam outputs_t The type of the outputs.
     * @param ctx The integrator context.
-    * @param qfunc The qfunction.
-    * @param inputs The inputs.
-    * @param outputs The outputs.
+    * @param args The arguments to the action.
     * @return The action.
     */
-   template<
-      typename qfunc_t,
-      typename inputs_t,
-      typename outputs_t>
-   static auto MakeAction(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs)
+   template<typename... Args>
+   static auto MakeAction(const IntegratorContext &ctx, Args... args)
    {
-      return action_t<qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs, outputs);
+      return action_t<Args...>(ctx, args...);
    }
 
    /**
-    * @brief Make a derivative action for a local device backend.
+    * @brief Make a derivative action for a local kernels backend.
     *
     * @tparam derivative_id The id of the derivative.
-    * @tparam qfunc_t The type of the qfunction.
-    * @tparam inputs_t The type of the inputs.
-    * @tparam outputs_t The type of the outputs.
     * @param ctx The integrator context.
-    * @param qfunc The qfunction.
-    * @param inputs The inputs.
-    * @param outputs The outputs.
+    * @param args The arguments to the derivative action.
     * @return The derivative action.
     */
-   template<
-      int derivative_id,
-      typename qfunc_t,
-      typename inputs_t,
-      typename outputs_t>
-   static auto MakeDerivativeAction(
-      const IntegratorContext &,
-      qfunc_t,
-      inputs_t,
-      outputs_t)
+   template<int derivative_id, typename... Args>
+   static auto MakeDerivativeAction(const IntegratorContext &, Args...)
    {
       MFEM_ABORT("LocalDeviceBackend does not support derivative actions.");
    }

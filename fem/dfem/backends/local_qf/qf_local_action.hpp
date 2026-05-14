@@ -131,11 +131,11 @@ public:
       ActionCallbackKernels::template Specialization<6>::Add(); // 4
       ActionCallbackKernels::template Specialization<7>::Add(); // 5
       ActionCallbackKernels::template Specialization<8>::Add(); // 6
-      ActionCallbackKernels::template Specialization<10>::Add(); // 8
-      ActionCallbackKernels::template Specialization<12>::Add(); // 10
-      ActionCallbackKernels::template Specialization<14>::Add(); // 12
-      ActionCallbackKernels::template Specialization<16>::Add(); // 14
-      ActionCallbackKernels::template Specialization<18>::Add(); // 16
+      // ActionCallbackKernels::template Specialization<10>::Add(); // 8
+      // ActionCallbackKernels::template Specialization<12>::Add(); // 10
+      // ActionCallbackKernels::template Specialization<14>::Add(); // 12
+      // ActionCallbackKernels::template Specialization<16>::Add(); // 14
+      // ActionCallbackKernels::template Specialization<18>::Add(); // 16
 #endif
    }
 
@@ -327,7 +327,7 @@ public:
                      auto &qarg = get<i>(qargs);
                      const auto &XE = in_XE[i];
                      using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, i>::qpreg_t;
+                     using ARG = typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
                         qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
@@ -359,7 +359,7 @@ public:
                      const auto qarg = get<o>(qargs);
                      const auto &YE = out_YE[i];
                      using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, o>::qpreg_t;
+                     using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
                      if constexpr (is_identity_fop<FOP>::value)
                      {
                         as_tensor<ARG>(&YE(0, qz, qy, qx, e)) = qarg;
