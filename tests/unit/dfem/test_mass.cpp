@@ -17,10 +17,9 @@
 #include "../linalg/test_same_matrices.hpp"
 
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
-using LocalQFBackend = mfem::future::LocalQFBackend;
+using LocalQFDefaultBackend = mfem::future::LocalQFBackend;
 #include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using LocalQFLOKernelsBackend = mfem::future::LocalQFKernelsBackend<false>;
-using LocalQFHOKernelsBackend = mfem::future::LocalQFKernelsBackend<true>;
+using LocalQFKernelsBackend = mfem::future::LocalQFKernelsBackend;
 
 #ifdef MFEM_USE_MPI
 
@@ -97,18 +96,16 @@ void mass_action(const char *filename, int p)
       {
          v = u * w * det(J);
       };
-      dop.AddDomainIntegrator<QFBackend>(
-         mf_mass_qf,
-         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ Value<U>{} },
-         *ir, all_domain_attr);
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
+      dop.AddDomainIntegrator<QFBackend>(mf_mass_qf,
+                                         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                                         tuple{ Value<U>{} },
+                                         *ir, all_domain_attr);
+
+      Vector N;
+      nodes->GetTrueDofs(N);
       pfes.GetRestrictionMatrix()->Mult(x, X);
 
-      MultiVector MX{X, nodestv};
-      MultiVector MZ{Z};
-
+      MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
       Y -= Z;
 
@@ -120,76 +117,75 @@ void mass_action(const char *filename, int p)
 
    // Test boundary
    // This ensures that we're not trying to test on fully periodic meshes
-   // if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
-   //       (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
-   // {
-   //    SECTION("boundary")
-   //    {
-   //       const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
+   /*if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
+         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
+   {
+      // SECTION("boundary")
+      {
+         const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
 
-   //       Array<int> all_bdr_attr;
-   //       if (pmesh.bdr_attributes.Size() > 0)
-   //       {
-   //          all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
-   //          all_bdr_attr = 1;
-   //       }
+         Array<int> all_bdr_attr;
+         if (pmesh.bdr_attributes.Size() > 0)
+         {
+            all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
+            all_bdr_attr = 1;
+         }
 
-   //       ParBilinearForm blf(&pfes);
-   //       blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
-   //       blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   //       blf.Assemble();
-   //       blf.Mult(x, y);
-   //       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+         ParBilinearForm blf(&pfes);
+         blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   //       static constexpr int U = 0, Coords = 1;
-   //       const auto in_fds = std::vector
-   //       {
-   //          FieldDescriptor{ U, &pfes },
-   //          FieldDescriptor{ Coords, mfes }
-   //       };
-   //       const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+         static constexpr int U = 0, Coords = 1;
+         const auto in_fds = std::vector<FieldDescriptor> {{ U, &pfes }, { Coords, mfes }};
+         const auto out_fds = std::vector<FieldDescriptor> {{ U, &pfes }};
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+         const auto mf_mass_qf =
+            [] MFEM_HOST_DEVICE(const dscalar_t &u,
+                                const tensor<real_t, DIM, BDIM> &J,
+                                const real_t &w,
+                                dscalar_t& v)
+         {
+            v = u * weight(J) * w;
+         };
 
-   //       DifferentiableOperator dop(in_fds, out_fds, pmesh);
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop.AddBoundaryIntegrator<QFBackend>(mf_mass_qf,
+                                              tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                                              tuple{ Value<U>{} },
+                                              *ir, all_bdr_attr, derivatives);
 
-   //       const auto mf_mass_qf =
-   //          [] MFEM_HOST_DEVICE(const dscalar_t &u,
-   //                              const tensor<real_t, DIM, BDIM> &J,
-   //                              const real_t &w)
-   //       {
-   //          return tuple{u * weight(J) * w};
-   //       };
+         pfes.GetRestrictionMatrix()->Mult(x, X);
 
-   //       auto derivatives = std::integer_sequence<size_t, U> {};
-   //       dop.AddBoundaryIntegrator(mf_mass_qf,
-   //                                 tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-   //                                 tuple{ Value<U>{} },
-   //                                 *ir, all_bdr_attr, derivatives);
+         Vector N;
+         nodes->GetTrueDofs(N);
+         MultiVector MX{X, N}, MZ{Z};
+         dop.Mult(MX, MZ);
 
-   //       pfes.GetRestrictionMatrix()->Mult(x, X);
-   //       dop.Mult(X, Z);
+         Y -= MZ[0];
+         real_t norm_g, norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
 
-   //       Y -= Z;
-   //       real_t norm_g, norm_l = Y.Normlinf();
-   //       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   //       REQUIRE(norm_g == MFEM_Approx(0.0));
+         // Vector N;
+         // nodes->GetTrueDofs(N);
+         // MultiVector MX{X, N}, MZ{Z};
+         // auto dRdU = dop.GetDerivative(U, MX);
+         // dRdU->Mult(MX, MZ);
 
-   //       // Vector N;
-   //       // nodes->GetTrueDofs(N);
-   //       // MultiVector MX{X, N}, MZ{Z};
-   //       // auto dRdU = dop.GetDerivative(U, MX);
-   //       // dRdU->Mult(MX, MZ);
-
-   //       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-   //       Y -= Z;
-   //       norm_l = Y.Normlinf();
-   //       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   //       REQUIRE(norm_g == MFEM_Approx(0.0));
-   //       MPI_Barrier(MPI_COMM_WORLD);
-   //    }
-   // }
+         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+         Y -= Z;
+         norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+   }*/
 }
 
-/*template <int DIM> void mass_mat_mixed(const char* filename, int p)
+template <int DIM> void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
 
@@ -224,15 +220,22 @@ void mass_action(const char *filename, int p)
    blf.SpMat().Finalize();
 
    static constexpr int U = 0, P = 1, Coords = 2;
-   const auto sol = std::vector{FieldDescriptor{U, &fes1}};
-   DifferentiableOperator dop(sol, {{P, &fes0}, {Coords, nodes->ParFESpace()}},
-   pmesh);
+   // const auto sol = std::vector{FieldDescriptor{U, &fes1}};
+   // DifferentiableOperator dop(sol, {{P, &fes0}, {Coords, nodes->ParFESpace()}}, pmesh);
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &fes1 },
+      FieldDescriptor{ Coords, nodes->ParFESpace() }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ P, &fes0 },};
+   DifferentiableOperator dop(in_fds, out_fds, pmesh);
    const auto mf_mass_qf = [] MFEM_HOST_DEVICE(
                               const dscalar_t& u,
                               const tensor<real_t, DIM, DIM>& J,
-                              const real_t& w)
+                              const real_t& w,
+                              real_t& p)
    {
-      return tuple{u * w * det(J)};
+      p = u * w * det(J);
    };
 
    auto derivatives = std::integer_sequence<size_t, U> {};
@@ -248,8 +251,10 @@ void mass_action(const char *filename, int p)
    pgf = 0.0;
 
    // dop.SetParameters({&pgf, nodes});
+   // auto ddopdu = dop.GetDerivative(U, {&ugf}, {&pgf, nodes});
 
-   auto ddopdu = dop.GetDerivative(U, {&ugf}, {&pgf, nodes});
+   MultiVector X{pgf, *nodes};
+   auto ddopdu = dop.GetDerivative(U, X);
 
    SECTION("spmat")
    {
@@ -269,29 +274,29 @@ void mass_action(const char *filename, int p)
       delete Amfem;
       delete Adfem;
    }
-}*/
+}
 
 // no GPU tag to avoid failing 'hypre parallel mat' section
-// TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM]")
-// {
-//    const bool all_tests = launch_all_non_regression_tests;
+TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
 
-//    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
 
-//    SECTION("2d")
-//    {
-//       const auto filename2d =
-//          GENERATE(
-//             "../../data/star.mesh",
-//             "../../data/star-q3.mesh",
-//             "../../data/rt-2d-q3.mesh",
-//             "../../data/inline-quad.mesh",
-//             "../../data/periodic-square.mesh"
-//          );
-//       // mass_action<2>(filename2d, p);
-//       // mass_mat_mixed<2>(filename2d, p);
-//    }
-// }
+   SECTION("2d")
+   {
+      const auto filename2d =
+         GENERATE(
+            "../../data/star.mesh",
+            "../../data/star-q3.mesh",
+            "../../data/rt-2d-q3.mesh",
+            "../../data/inline-quad.mesh",
+            "../../data/periodic-square.mesh"
+         );
+      mass_action<2, LocalQFDefaultBackend>(filename2d, p);
+      // mass_mat_mixed<2>(filename2d, p);
+   }
+}
 
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][LO][MASS]")
 {
@@ -306,9 +311,8 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][LO][MASS]")
          "../../data/toroid-hex.mesh",
          "../../data/periodic-cube.mesh"
       );
-   mass_action<3, LocalQFBackend>(filename3d, p);
-   mass_action<3, LocalQFLOKernelsBackend>(filename3d, p);
-   // mass_action<3, LocalQFHOKernelsBackend>(filename3d, p);
+   mass_action<3, LocalQFDefaultBackend>(filename3d, p);
+   mass_action<3, LocalQFKernelsBackend>(filename3d, p);
    // mass_mat_mixed<3>(filename3d, p);
 }
 

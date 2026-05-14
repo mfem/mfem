@@ -500,6 +500,7 @@ public:
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
    template <
+      typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -611,6 +612,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 }
 
 template <
+   typename backend_t,
    typename qfunc_t,
    typename input_t,
    typename output_t,
@@ -627,7 +629,7 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
-   AddIntegrator<Entity::BoundaryElement>(
+   AddIntegrator<backend_t, Entity::BoundaryElement>(
       qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
 }
 

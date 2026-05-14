@@ -40,7 +40,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_divergence.cpp
   # dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
-  # fem/test_multiple_outputs.cpp
+  dfem/test_multiple_outputs.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp

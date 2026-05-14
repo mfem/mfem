@@ -17,10 +17,9 @@
 #include "../linalg/test_same_matrices.hpp"
 
 #include "../fem/dfem/backends/local_qf/prelude.hpp"
-using LocalQFBackend = mfem::future::LocalQFBackend;
+using LocalQFDefaultBackend = mfem::future::LocalQFBackend;
 #include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using LocalQFLOKernelsBackend = mfem::future::LocalQFKernelsBackend<false>;
-using LocalQFHOKernelsBackend = mfem::future::LocalQFKernelsBackend<true>;
+using LocalQFKernelsBackend = mfem::future::LocalQFKernelsBackend;
 
 #ifdef MFEM_USE_MPI
 
@@ -420,9 +419,8 @@ TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][LO][DIFFUSION]")
             "../../data/toroid-hex.mesh",
             "../../data/periodic-cube.mesh"
          );
-      diffusion<3, LocalQFBackend>(filename3d, p);
-      diffusion<3, LocalQFLOKernelsBackend>(filename3d, p);
-      diffusion<3, LocalQFHOKernelsBackend>(filename3d, p);
+      diffusion<3, LocalQFDefaultBackend>(filename3d, p);
+      diffusion<3, LocalQFKernelsBackend>(filename3d, p);
    }
 }
 
