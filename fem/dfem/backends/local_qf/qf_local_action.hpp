@@ -212,8 +212,8 @@ public:
          const size_t k = in_idx[i];
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_gradient_fop<FOP>::value ||
-                       is_value_fop<FOP>::value)
+         if constexpr (is_value_fop<FOP>::value ||
+                       is_gradient_fop<FOP>::value)
          {
             MFEM_ASSERT(xe[k]->Size() == d*d*d*v*ne, "Size mismatch");
             in_XE[i] = Reshape(xe[k]->Read(), d, d, d, v, ne);
@@ -290,20 +290,20 @@ public:
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
             auto &rarg = get<i>(rargs);
-            constexpr auto ext_sz = qf_param_slot<qfunc_t, i>::extents.size();
+            constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<DIM, ext_sz, MQ1>
+               backend_t::template LoadValue<DIM, RNK, MQ1>
                (smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               backend_t::template LoadGradient<DIM, ext_sz, MQ1>
+               backend_t::template LoadGradient<DIM, RNK, MQ1>
                (smem, e, d, q, Q1D, B, G, XE, rarg);
             }
-            else if constexpr (is_identity_fop<FOP>::value ||
-                               is_weight_fop<FOP>::value)
+            else if constexpr (is_weight_fop<FOP>::value ||
+                               is_identity_fop<FOP>::value)
             {
                // qp values are read directly from in_XE / IR
             }
@@ -348,7 +348,7 @@ public:
                      {
                         using tuple_t = tuple_element_t<i, args_tuple_t>;
                         qarg = backend_t::template qp_load<tuple_t, MQ1>
-                        (get<i>(rargs), qz, qy, qx);
+                        (get<i>(rargs), qx, qy, qz);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -371,17 +371,14 @@ public:
                      {
                         as_tensor<real_t, DIM, DIM>(&YE(0,qz,qy,qx,e)) = qarg;
                      }
-                     else if constexpr (is_gradient_fop<FOP>::value ||
-                                        is_value_fop<FOP>::value)
+                     else if constexpr (is_value_fop<FOP>::value ||
+                                        is_gradient_fop<FOP>::value)
                      {
-                        constexpr auto ext_sz = qf_param_slot<qfunc_t, o>::extents.size();
-                        static_assert(ext_sz == 0 || ext_sz == 1);
-                        if constexpr (ext_sz == 1 || ext_sz == 0)
-                        {
-                           using tuple_t = tuple_element_t<i, args_tuple_t>;
-                           backend_t::template qp_store<tuple_t, MQ1>
-                           (get<o>(rargs), qz, qy, qx, qarg);
-                        }
+                        constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+                        static_assert(RNK == 0 || RNK == 1);
+                        using tuple_t = tuple_element_t<i, args_tuple_t>;
+                        backend_t::template qp_store<tuple_t, MQ1>
+                        (get<o>(rargs), qx, qy, qz, qarg);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -401,15 +398,15 @@ public:
             const auto &YE = out_YE[i];
             auto &rarg = get<o>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
-            constexpr auto ext_sz = qf_param_slot<qfunc_t, o>::extents.size();
+            constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template WriteValue<DIM, ext_sz, MQ1>
+               backend_t::template WriteValue<DIM, RNK, MQ1>
                (smem, e, d, q, q1d, B, YE, rarg);
             }
             else if constexpr (is_gradient_fop<FOP>::value)
             {
-               backend_t::template WriteGradient<DIM, ext_sz, MQ1>
+               backend_t::template WriteGradient<DIM, RNK, MQ1>
                (smem, e, d, q, q1d, B, G, YE, rarg);
             }
             else if constexpr (is_identity_fop<FOP>::value)

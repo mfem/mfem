@@ -65,11 +65,11 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &XE,
                                         real_t (&sm)[MQ1][MQ1][MQ1][DIM])
 {
-   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
-      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
       {
-         MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
             sm[dz][dy][dx][0] = XE(dx, dy, dz, 0, e);
          }
@@ -83,11 +83,11 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
                                         const DeviceTensor<5, const real_t> &XE,
                                         real_t (&sm)[MQ1][MQ1][MQ1][DIM])
 {
-   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
-      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
       {
-         MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
             sm[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
          }

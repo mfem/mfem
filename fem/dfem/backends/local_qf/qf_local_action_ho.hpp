@@ -43,9 +43,9 @@ struct LocalQFHOBackend
    };
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename XE_T>
+   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
-   void LoadValue(Shared<MQ1T> &s,
+   void LoadValue(Shared<MQ1> &s,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
@@ -53,16 +53,16 @@ struct LocalQFHOBackend
       static_assert(ext_sz == 1);
       ker::LoadMatrix(d, q, B, s.B);
       {
-         ker::vd_regs3d_t<1, 3, MQ1T> dofs;
+         ker::vd_regs3d_t<1, 3, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);
          ker::Eval3d(d, q, s.M, s.B, s.G, dofs, rarg);
       }
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename XE_T>
+   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
-   void LoadGradient(Shared<MQ1T> &s,
+   void LoadGradient(Shared<MQ1> &s,
                      const int e, const int d, const int q, const int,
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
@@ -72,41 +72,41 @@ struct LocalQFHOBackend
       ker::LoadMatrix(d, q, G, s.G);
       if constexpr (ext_sz == 1)
       {
-         ker::vd_regs3d_t<1, 3, MQ1T> dofs;
+         ker::vd_regs3d_t<1, 3, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);
          ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
       }
       if constexpr (ext_sz == 2)
       {
-         ker::vd_regs3d_t<3, 3, MQ1T> dofs;
+         ker::vd_regs3d_t<3, 3, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);
          ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
       }
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename DecayT, int MQ1T>
-   using QPReg = ho_qp_reg_for_decay_t<DecayT, MQ1T>;
+   template<typename DecayT, int MQ1>
+   using QPReg = ho_qp_reg_for_decay_t<DecayT, MQ1>;
 
-   template<typename DecayT, int MQ1T>
+   template<typename DecayT, int MQ1>
    static MFEM_HOST_DEVICE inline
-   auto qp_load(QPReg<DecayT, MQ1T> &reg, int qz, int qy, int qx)
+   auto qp_load(QPReg<DecayT, MQ1> &reg, int qz, int qy, int qx)
    {
-      return ho_input_qp_reg_as_arg_at<DecayT, MQ1T>(reg, qz, qy, qx);
+      return ho_input_qp_reg_as_arg_at<DecayT, MQ1>(reg, qz, qy, qx);
    }
 
-   template<typename DecayT, int MQ1T>
+   template<typename DecayT, int MQ1>
    static MFEM_HOST_DEVICE inline
-   void qp_store(QPReg<DecayT, MQ1T> &reg, int qz, int qy, int qx,
+   void qp_store(QPReg<DecayT, MQ1> &reg, int qz, int qy, int qx,
                  const DecayT &out)
    {
-      ho_output_qp_reg_assign_at<DecayT, MQ1T>(reg, qz, qy, qx, out);
+      ho_output_qp_reg_assign_at<DecayT, MQ1>(reg, qz, qy, qx, out);
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1T, typename ArgRegT, typename YE_T>
+   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared<MQ1T>&,
+   void WriteValue(Shared<MQ1>&,
                    const int, const int, const int, const int,
                    const real_t*, const YE_T &, ArgRegT &)
    {
