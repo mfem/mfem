@@ -4102,8 +4102,11 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 #ifdef MFEM_USE_MPI
       // Don't count the overlapping DOFs in parallel.
       // The pfes might be ordered byVDIM, while the loop goes consecutively.
-      const int dof_i = pfes->DofToVDof(i, 0);
-      if (parallel && pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
+      if (parallel)
+      {
+         const int dof_i = pfes->DofToVDof(i, 0);
+         if (pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
+      }
 #endif
 
       dof_cnt++;

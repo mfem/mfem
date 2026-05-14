@@ -225,6 +225,20 @@ public:
       return dynamic_cast<const SubMesh *>(m) != nullptr;
    }
 
+   /**
+   * @brief Check if Mesh @a sub is a SubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsSubMesh(sub) &&
+             (sub = static_cast<const SubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
+   }
+
 private:
    /// Private constructor
    SubMesh(const Mesh &parent, From from, const Array<int> &attributes);

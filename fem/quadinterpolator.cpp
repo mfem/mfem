@@ -752,10 +752,10 @@ template <int DIM, int VDIM, int ND, int NQ>
 EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
-   if (DIM == 1) { return Eval1D; }
-   else if (DIM == 2) { return Eval2D<VDIM,ND,NQ>; }
-   else if (DIM == 3) { return Eval3D<VDIM,ND,NQ>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return Eval1D; }
+   else if constexpr (DIM == 2) { return Eval2D<VDIM,ND,NQ>; }
+   else if constexpr (DIM == 3) { return Eval3D<VDIM,ND,NQ>; }
+   MFEM_ABORT("");
 }
 
 template <int DIM>
