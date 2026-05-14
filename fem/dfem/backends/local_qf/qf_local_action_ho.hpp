@@ -10,18 +10,19 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../util.hpp" // for ThreadBlocks
-
 #include "fem/kernels.hpp"
 namespace ker = mfem::kernels::internal;
 
-#include "qf_local_types.hpp"
+#include "../../util.hpp" // for ThreadBlocks
+
+#include "qf_local_util.hpp"
 
 namespace mfem::future
 {
 
 struct LocalQFHOBackend
 {
+   //////////////////////////////////////////////////////////////////
    static constexpr int MQ1 = 16;
 
    //////////////////////////////////////////////////////////////////
@@ -85,22 +86,115 @@ struct LocalQFHOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename DecayT, int MQ1>
-   using QPReg = ho_qp_reg_for_decay_t<DecayT, MQ1>;
-
-   template<typename DecayT, int MQ1>
-   static MFEM_HOST_DEVICE inline
-   auto qp_load(QPReg<DecayT, MQ1> &reg, int qz, int qy, int qx)
+   /// High-order 3D quadrature register storage for a q-function parameter
+   template <typename T, int MQ1, int RNK = qf_param_shape<T>::rank>
+   struct high_order_qp_reg
    {
-      return ho_input_qp_reg_as_arg_at<DecayT, MQ1>(reg, qz, qy, qx);
+      static_assert(RNK >= 0 && RNK <= 2);
+   };
+
+   template <typename T, int MQ1>
+   struct high_order_qp_reg<T, MQ1, 0>
+   {
+      using type = mfem::kernels::internal::v_regs3d_t<1, MQ1>;
+   };
+
+   template <typename T, int MQ1>
+   struct high_order_qp_reg<T, MQ1, 1>
+   {
+      static constexpr int e0 = qf_param_shape<T>::extents[0];
+      using type = mfem::kernels::internal::vd_regs3d_t<1, e0, MQ1>;
+   };
+
+   template <typename T, int MQ1>
+   struct high_order_qp_reg<T, MQ1, 2>
+   {
+      static constexpr int e0 = qf_param_shape<T>::extents[0];
+      static constexpr int e1 = qf_param_shape<T>::extents[1];
+      using type = mfem::kernels::internal::vd_regs3d_t<e0, e1, MQ1>;
+   };
+
+   template <typename T, int MQ1>
+   using QPReg = typename high_order_qp_reg<T, MQ1>::type;
+
+   //////////////////////////////////////////////////////////////////
+   template<typename T, int MQ1>
+   static MFEM_HOST_DEVICE inline
+   auto qp_load(QPReg<T, MQ1> &reg, int qz, int qy, int qx)
+   {
+      constexpr int R = qf_param_shape<T>::rank;
+      if constexpr (R == 0)
+      {
+         if constexpr (std::is_same_v<T, real_t>)
+         {
+            return reg(0, qz, qy, qx);
+         }
+         else
+         {
+            return T{reg(0, qz, qy, qx)};
+         }
+      }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
+         return t;
+      }
+      else // R == 2
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
+         }
+         return t;
+      }
    }
-
-   template<typename DecayT, int MQ1>
+   //////////////////////////////////////////////////////////////////
+   template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   void qp_store(QPReg<DecayT, MQ1> &reg, int qz, int qy, int qx,
-                 const DecayT &out)
+   void qp_store(QPReg<T, MQ1> &reg, int qz, int qy, int qx,
+                 const T &out)
    {
-      ho_output_qp_reg_assign_at<DecayT, MQ1>(reg, qz, qy, qx, out);
+      constexpr int R = qf_param_shape<T>::rank;
+      if constexpr (R == 0)
+      {
+         if constexpr (std::is_same_v<T, real_t>)
+         {
+            reg(0, qz, qy, qx) = out;
+         }
+         else
+         {
+            reg(0, qz, qy, qx) = out.scalar();
+         }
+      }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { reg(0, dd, qz, qy, qx) = out(dd); }
+      }
+      else if constexpr (R == 2)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { reg(i, j, qz, qy, qx) = out(i, j); }
+         }
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
    }
 
    //////////////////////////////////////////////////////////////////

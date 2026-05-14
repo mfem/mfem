@@ -65,6 +65,37 @@ struct qf_param_slot
    static constexpr auto extents = qf_param_shape<decay_t>::extents;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
+          int MQ1, std::size_t K, std::size_t N, typename... Acc>
+struct build_args_reg_tuple_impl;
+
+template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
+          int MQ1, std::size_t N, typename... Acc>
+struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N, N, Acc...>
+{
+   using type = tuple<Acc...>;
+   static_assert(sizeof...(Acc) == N);
+   static_assert(sizeof...(Acc) <= 9);
+};
+
+template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
+          int MQ1, std::size_t K, std::size_t N, typename... Acc>
+struct build_args_reg_tuple_impl
+{
+   using R = typename backend_t::template QPReg<
+                typename qf_param_slot<qfunc_t, K>::decay_t, MQ1>;
+   using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
+         outputs_t, MQ1, K + 1, N, Acc..., R>::type;
+};
+
+template <typename backend_t, typename qfunc_t, typename inputs_t, typename outputs_t,
+          int MQ1>
+using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
+      inputs_t, outputs_t, MQ1, 0,
+      tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
+
+///////////////////////////////////////////////////////////////////////////////
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
 template<typename C, typename T>
 const auto create_union_field_map_for_dtq(C& ctx, T& io)
@@ -103,6 +134,7 @@ const auto make_dtqs(C& ctx)
    return dtq_vec;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template<typename Tuple>
 constexpr auto get_vdim(const Tuple& fields)
 {

@@ -88,6 +88,8 @@ void info()
    mfem::out << "version 10: 🟢 PA local default" << std::endl;
    mfem::out << "version 11: 🟢 PA local kernels LO" << std::endl;
    mfem::out << "version 12: 🟢 PA local kernels HO" << std::endl;
+   // local QF mass versions
+   mfem::out << "version 13: 🟢 MF local mass" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -96,7 +98,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+   const auto versions = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
 
    const auto orders = { 8, 7, 6, 5, 4, 3, 2, 1 };
 
@@ -114,7 +116,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 8; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 4/*8*/; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -351,7 +353,169 @@ MFStiffnessIntegrator::MFStiffnessKernels::Fallback(int d1, int q1, int n1)
 #endif
 }
 
-/// PA StiffnessIntegrator ///////////////////////////////////////////////////////
+/// MF MassIntegrator ///////////////////////////////////////////////////////
+struct MFMassIntegrator : public BilinearFormIntegrator
+{
+   const FiniteElementSpace *fes;
+   Vector NE;
+   int ne, p, d1d, q, q1d, d1n;
+   Geometry::Type geom_type;
+   const IntegrationRule *ir;
+   const DofToQuad *maps;
+   const real_t *B, *G;
+   const real_t *Bn, *Gn;
+
+public:
+   MFMassIntegrator()
+   {
+#ifdef MFEM_ADD_SPECIALIZATIONS
+      MFMassKernels::Specialization<2, 3, 2>::Add();
+      MFMassKernels::Specialization<3, 4, 2>::Add();
+      MFMassKernels::Specialization<4, 5, 2>::Add();
+      MFMassKernels::Specialization<5, 6, 2>::Add();
+      MFMassKernels::Specialization<6, 7, 2>::Add();
+      MFMassKernels::Specialization<7, 8, 2>::Add();
+      MFMassKernels::Specialization<9, 10, 2>::Add();
+#endif // MFEM_ADD_SPECIALIZATIONS
+   }
+
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fespace) override
+   {
+      fes = &fespace;
+      auto *mesh = fes->GetMesh();
+      ne = mesh->GetNE();
+      p = fes->GetFE(0)->GetOrder();
+      d1d = p + 1;
+      q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
+      geom_type = mesh->GetElementBaseGeometry(0);
+      ir = &IntRules.Get(geom_type, q);
+      q1d = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      maps = &fes->GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      B = maps->B.Read(), G = maps->G.Read();
+
+      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
+      const auto nfes = nodes->FESpace();
+      assert(nfes->GetVDim() == 3);
+      constexpr auto LEX = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *nRop = nfes->GetElementRestriction(LEX);
+      auto nR = dynamic_cast<const ElementRestriction*>(nRop);
+      NE.SetSize(nR->Height());
+
+      d1n = nfes->GetFE(0)->GetOrder() + 1;
+      nR->Mult(*nodes, (NE.UseDevice(true), NE));
+      MFEM_VERIFY(NE.Size() == ne * d1n * d1n * d1n * 3, "Invalid NE size");
+      const auto nfe = nfes->GetTypicalFE();
+      const auto &nmaps = nfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      Bn = nmaps.B.Read(), Gn = nmaps.G.Read();
+   }
+
+   template <int T_D1D = 0, int T_Q1D = 0, int T_D1N = 0>
+   static void MFMassMult(const int ne,
+                          const real_t *nodes_e,
+                          const IntegrationRule *ir,
+                          const real_t *b,
+                          const real_t *bn, const real_t *gn,
+                          const real_t *xe, real_t *ye,
+                          const int d1d, const int q1d, const int d1n)
+   {
+      db1();
+      constexpr int DIM = 3;
+
+      const auto w_r = ir->GetWeights().Read();
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int D1N = T_D1N ? T_D1N : d1n;
+
+      const auto XE = Reshape(xe, D1D, D1D, D1D, 1, ne);
+      const auto NE = Reshape(nodes_e, D1N, D1N, D1N, 3, ne);
+      auto YE = Reshape(ye, D1D, D1D, D1D, 1, ne);
+
+      mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D,
+                                   [=] MFEM_HOST_DEVICE(int e)
+      {
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+         ker::v_regs3d_t<1, MQ1> r0, r1;
+         ker::vd_regs3d_t<3, DIM, MQ1> g0, g1;
+
+         ker::LoadMatrix(D1N, Q1D, bn, sB);
+         ker::LoadMatrix(D1N, Q1D, gn, sG);
+         ker::LoadDofs3d(e, D1N, NE, g0);
+         ker::Grad3d(D1N, Q1D, smem, sB, sG, g0, g1); // g1 = grad(NE) = ∇Ξ
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadDofs3d(e, D1D, XE, r0);
+         ker::Eval3d(D1D, Q1D, smem, sB, r0, r1); // r1 = Eval(XE) = u
+
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const real_t u = r1[0][qz][qy][qx];
+                  const real_t Jn[9] =
+                  {
+                     g1(0, 0, qz, qy, qx), g1(1, 0, qz, qy, qx), g1(2, 0, qz, qy, qx),
+                     g1(0, 1, qz, qy, qx), g1(1, 1, qz, qy, qx), g1(2, 1, qz, qy, qx),
+                     g1(0, 2, qz, qy, qx), g1(1, 2, qz, qy, qx), g1(2, 2, qz, qy, qx)
+                  };
+
+                  const real_t w = W(qx, qy, qz);
+                  const real_t detJn = kernels::Det<3>(Jn);
+                  r0[0][qz][qy][qx] = w * detJn * u;
+                  dbg("w:{} detJn:{} u:{}", w, detJn, u);
+               }
+            }
+         }
+         // re-use sB
+         ker::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
+         ker::WriteDofs3d(e, D1D, r1, YE);
+      });
+   }
+
+   using MFMassKernelType = decltype(&MFMassMult<>);
+   MFEM_REGISTER_KERNELS(MFMassKernels, MFMassKernelType, (int, int,
+                                                           int));
+
+   void AddMultPA(const Vector &xe, Vector &ye) const override
+   {
+      MFMassKernels::Run(d1d, q1d, d1n,
+                         ne, NE.Read(),
+                         ir, B, Bn, Gn,
+                         xe.Read(), ye.ReadWrite(),
+                         d1d, q1d, d1n);
+   }
+};
+
+template <int D1D, int Q1D, int D1N>
+MFMassIntegrator::MFMassKernelType
+MFMassIntegrator::MFMassKernels::Kernel()
+{
+   db1("\x1b[33mD1D:{} Q1D:{} D1N:{}", D1D, Q1D, D1N);
+   return MFMassMult<D1D, Q1D, D1N>;
+}
+
+MFMassIntegrator::MFMassKernelType
+MFMassIntegrator::MFMassKernels::Fallback(int d1, int q1, int n1)
+{
+   db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
+#ifdef MFEM_ADD_SPECIALIZATIONS
+   MFEM_ABORT("No kernel for d1d=" << d1 << " q=" << q1 << " d1n=" << n1);
+   return nullptr;
+#else
+   return MFMassMult;
+#endif
+}
+
+/// PA MassIntegrator ///////////////////////////////////////////////////////
 struct PAStiffnessIntegrator : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes;
@@ -816,12 +980,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
-      if (version <= 2) // std, HO reg PA, HO reg MF
+      if (version <= 2 || version == 13) // std, HO reg PA, HO reg MF
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
          if (version == 1) { a.AddDomainIntegrator(new MFStiffnessIntegrator()); }
          if (version == 2) { a.AddDomainIntegrator(new PAStiffnessIntegrator(qfct)); }
+         if (version == 13) { a.AddDomainIntegrator(new MFMassIntegrator()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       }

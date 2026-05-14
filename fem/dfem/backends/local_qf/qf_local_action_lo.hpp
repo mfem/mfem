@@ -10,18 +10,21 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../util.hpp" // for ThreadBlocks
-
 #include "fem/kernels3d.hpp"
 namespace low = mfem::kernels::internal::low;
 
-#include "qf_local_types.hpp"
+#include "../../util.hpp" // for ThreadBlocks
+
+#include "../util.hpp" // for as_tensor
+
+#include "qf_local_util.hpp"
 
 namespace mfem::future
 {
 
 struct LocalQFLOBackend
 {
+   //////////////////////////////////////////////////////////////////
    static constexpr int MQ1 = 8;
 
    //////////////////////////////////////////////////////////////////
@@ -84,21 +87,89 @@ struct LocalQFLOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
-   using QPReg = lo_qp_reg_for_decay_t<T, MQ1>;
+   /// Low-order 3D quadrature register storage for a decayed q-function parameter
+   template <typename T, int MQ1, int RNK = qf_param_shape<T>::rank>
+   struct low_order_qp_reg
+   {
+      static_assert(RNK >= 0 && RNK <= 2);
+   };
 
+   template <typename T, int MQ1>
+   struct low_order_qp_reg<T, MQ1, 0>
+   {
+      using type = mfem::kernels::internal::low::regs3d_t<1, MQ1>;
+   };
+
+   template <typename T, int MQ1>
+   struct low_order_qp_reg<T, MQ1, 1>
+   {
+      static constexpr int e0 = qf_param_shape<T>::extents[0];
+      using type = mfem::kernels::internal::low::regs3d_t<e0, MQ1>;
+   };
+
+   template <typename T, int MQ1>
+   struct low_order_qp_reg<T, MQ1, 2>
+   {
+      static constexpr int e0 = qf_param_shape<T>::extents[0];
+      static constexpr int e1 = qf_param_shape<T>::extents[1];
+      using type = mfem::kernels::internal::low::regs3d_vd_t<e0, e1, MQ1>;
+   };
+
+   template<typename T, int MQ1>
+   using QPReg = typename low_order_qp_reg<T, MQ1>::type;
+
+   //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
    auto qp_load(QPReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
-      return lo_input_qp_reg_as_arg_at<T, MQ1>(reg, qx, qy, qz);
+      constexpr int R = qf_param_shape<T>::rank;
+      if constexpr (R == 0)
+      {
+         return as_tensor<real_t>(&reg[qz][qy][qx][0]);
+      }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         return as_tensor<real_t, e0>(&reg[qz][qy][qx][0]);
+      }
+      else if constexpr (R == 2)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         return as_tensor<real_t, e0, e1>(&reg[qz][qy][qx][0][0]);
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
    }
 
+   //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
    void qp_store(QPReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
-      lo_output_qp_reg_assign_at<T, MQ1>(reg, qx, qy, qz, out);
+      constexpr int R = qf_param_shape<T>::rank;
+      if constexpr (R == 0)
+      {
+         as_tensor<real_t>(&reg[qz][qy][qx][0]) = out;
+      }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         as_tensor<real_t, e0>(&reg[qz][qy][qx][0]) = out;
+      }
+      else if constexpr (R == 2)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         as_tensor<real_t, e0, e1>(&reg[qz][qy][qx][0][0]) = out;
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
    }
 
    //////////////////////////////////////////////////////////////////
@@ -111,7 +182,7 @@ struct LocalQFLOBackend
       static_assert(RNK == 0);
       low::LoadMatrix(d, q, B, s.B);
       low::EvalTranspose3d(d, q, s.B, rarg, s.M[1], s.M[0]);
-      low::WriteDofs3d(d, 0, e, rarg, YE);
+      low::WriteEvalDofs3d(d, 0, e, rarg, YE);
    }
 
    //////////////////////////////////////////////////////////////////
@@ -122,14 +193,11 @@ struct LocalQFLOBackend
                       const real_t *B, const real_t *G,
                       YE_T &YE, ArgRegT &rarg)
    {
-      static_assert(RNK == 1, "Unsupported gradient rank");
-      if constexpr (RNK == 1)
-      {
-         low::LoadMatrix(d, q, B, s.B);
-         low::LoadMatrix(d, q, G, s.G);
-         low::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
-         low::WriteDofs3d(d, 0, e, rarg, YE);
-      }
+      static_assert(RNK == 1);
+      low::LoadMatrix(d, q, B, s.B);
+      low::LoadMatrix(d, q, G, s.G);
+      low::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
+      low::WriteGradDofs3d(d, 0, e, rarg, YE);
    }
 };
 

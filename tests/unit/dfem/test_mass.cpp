@@ -95,8 +95,6 @@ void mass_action(const char *filename, int p)
                              const real_t &w,
                              real_t &v)
       {
-         static int loop = 0;
-         if (loop++ < 32) { dbg("w:{} detJ:{} u: {}", w, det(J), u); }
          v = u * w * det(J);
       };
       dop.AddDomainIntegrator<QFBackend>(
@@ -302,13 +300,13 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][LO][MASS]")
 
    const auto filename3d =
       GENERATE(
-         "../../data/fichera.mesh"//,
-         // "../../data/fichera-q3.mesh",
-         // "../../data/inline-hex.mesh",
-         // "../../data/toroid-hex.mesh",
-         // "../../data/periodic-cube.mesh"
+         "../../data/fichera.mesh",
+         "../../data/fichera-q3.mesh",
+         "../../data/inline-hex.mesh",
+         "../../data/toroid-hex.mesh",
+         "../../data/periodic-cube.mesh"
       );
-   // mass_action<3, LocalQFBackend>(filename3d, p);
+   mass_action<3, LocalQFBackend>(filename3d, p);
    mass_action<3, LocalQFLOKernelsBackend>(filename3d, p);
    // mass_action<3, LocalQFHOKernelsBackend>(filename3d, p);
    // mass_mat_mixed<3>(filename3d, p);

@@ -587,10 +587,10 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Eval Write
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
-                                         const int c, const int e,
-                                         regs3d_t<1,MQ1> &reg,
-                                         const DeviceTensor<5, real_t> &YE)
+inline MFEM_HOST_DEVICE void WriteEvalDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_t<DIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -607,10 +607,10 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient Write
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
-                                         const int c, const int e,
-                                         regs3d_t<DIM,MQ1> &reg,
-                                         const DeviceTensor<5, real_t> &YE)
+inline MFEM_HOST_DEVICE void WriteGradDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_t<DIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {

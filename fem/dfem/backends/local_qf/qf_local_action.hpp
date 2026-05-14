@@ -18,7 +18,7 @@
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 
-#include "qf_local_types.hpp"
+#include "qf_local_util.hpp"
 
 #ifdef NVTX_DBG_FMT
 #include NVTX_DBG_FMT // IWYU pragma: keep
@@ -376,7 +376,7 @@ public:
                      {
                         constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
                         static_assert(RNK == 0 || RNK == 1);
-                        using tuple_t = tuple_element_t<i, args_tuple_t>;
+                        using tuple_t = tuple_element_t<o, args_tuple_t>;
                         backend_t::template qp_store<tuple_t, MQ1>
                         (get<o>(rargs), qx, qy, qz, qarg);
                      }
