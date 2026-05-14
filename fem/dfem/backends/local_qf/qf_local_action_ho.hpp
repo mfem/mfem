@@ -125,14 +125,7 @@ struct LocalQFHOBackend
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)
       {
-         if constexpr (std::is_same_v<T, real_t>)
-         {
-            return reg(0, qz, qy, qx);
-         }
-         else
-         {
-            return T{reg(0, qz, qy, qx)};
-         }
+         return T{reg(0, qz, qy, qx)};
       }
       else if constexpr (R == 1)
       {
@@ -165,14 +158,7 @@ struct LocalQFHOBackend
       constexpr int R = qf_param_shape<T>::rank;
       if constexpr (R == 0)
       {
-         if constexpr (std::is_same_v<T, real_t>)
-         {
-            reg(0, qz, qy, qx) = out;
-         }
-         else
-         {
-            reg(0, qz, qy, qx) = out.scalar();
-         }
+         reg(0, qz, qy, qx) = out.scalar();
       }
       else if constexpr (R == 1)
       {

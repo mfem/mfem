@@ -53,6 +53,20 @@ struct qf_param_shape<real_t>
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Type used in quadrature registers for parameter `T` (bare scalars use `tensor<real_t>`).
+template <typename T>
+struct qf_qpreg_param
+{
+   using type = T;
+};
+
+template <>
+struct qf_qpreg_param<real_t>
+{
+   using type = tensor<real_t>;
+};
+
+///////////////////////////////////////////////////////////////////////////////
 /// Per-parameter tensor info for slot `I` in the decayed q-function parameter tuple.
 template <typename qfunc_t, std::size_t I>
 struct qf_param_slot
@@ -61,6 +75,7 @@ struct qf_param_slot
    using qf_param_ts = typename qf_signature::parameter_ts;
    using raw_param_t = typename tuple_element<I, qf_param_ts>::type;
    using decay_t = std::remove_cv_t<std::remove_reference_t<raw_param_t>>;
+   using qpreg_t = typename qf_qpreg_param<decay_t>::type;
 
    static constexpr auto extents = qf_param_shape<decay_t>::extents;
 };
@@ -84,7 +99,7 @@ template <typename backend_t, typename qfunc_t, typename inputs_t, typename outp
 struct build_args_reg_tuple_impl
 {
    using R = typename backend_t::template QPReg<
-                typename qf_param_slot<qfunc_t, K>::decay_t, MQ1>;
+                typename qf_param_slot<qfunc_t, K>::qpreg_t, MQ1>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
          outputs_t, MQ1, K + 1, N, Acc..., R>::type;
 };

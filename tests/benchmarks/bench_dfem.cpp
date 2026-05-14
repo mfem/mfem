@@ -243,10 +243,10 @@ template<int DIM>
 struct MF_Mass_local_qf
 {
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<real_t> &u,
+   void operator()(const real_t &u,
                    const tensor<real_t, DIM, DIM> &J,
                    const real_t &weight,
-                   tensor<real_t> &v) const
+                   real_t &v) const
    {
       v =  weight * det(J) * u;
    };
@@ -258,7 +258,7 @@ struct PA_Mass_Setup_local_qf
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<real_t, DIM, DIM> &J,
                    const tensor<real_t> &weight,
-                   tensor<real_t> &D) const
+                   real_t &D) const
    {
       D = weight * det(J);
    }
@@ -268,30 +268,30 @@ template<int>
 struct PA_Mass_Apply_local_qf
 {
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<real_t> &u,
-                   const tensor<real_t> &D,
-                   tensor<real_t> &v) const
+   void operator()(const real_t &u,
+                   const real_t &D,
+                   real_t &v) const
    {
       v = D * u;
    };
 };
 
-template<typename T, int DIM>
+template<typename qfunction_t, int DIM>
 constexpr bool mass_qf =
-   std::conditional_t<
-   std::is_same_v<T, MF_Mass_global_qf<DIM>> ||
-   std::is_same_v<T, PA_Mass_Setup_global_qf<DIM>> ||
-   std::is_same_v<T, PA_Mass_Apply_global_qf<DIM>> ||
-   std::is_same_v<T, MF_Mass_local_qf<DIM>> ||
-   std::is_same_v<T, PA_Mass_Setup_local_qf<DIM>> ||
-   std::is_same_v<T, PA_Mass_Apply_local_qf<DIM>>,
-   std::true_type, std::false_type>::value;
+   std::disjunction_v<
+   std::is_same<qfunction_t, MF_Mass_global_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Setup_global_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Apply_global_qf<DIM>>,
+   std::is_same<qfunction_t, MF_Mass_local_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Setup_local_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Apply_local_qf<DIM>>>;
 
-template<typename T, int DIM, int U>
-constexpr auto GradOrValue()
+template<typename qfunction_t, int DIM, int U>
+constexpr auto GradOrValue() ->
+std::conditional_t<mass_qf<qfunction_t, DIM>, Value<U>, Gradient<U>>
 {
-   if constexpr (mass_qf<T, DIM>) { static_assert(false); return Value<U> {}; }
-   return Gradient<U> {};
+   if constexpr (mass_qf<qfunction_t, DIM>) { return Value<U> {}; }
+   else { return Gradient<U> {}; }
 };
 
 /// GLOBAL Diffusion Q-Functions //////////////////////////////////////////////
@@ -1018,11 +1018,14 @@ struct BakeOff
       const auto dMFSetup = [&] (auto backend, auto qfunction)
       {
          using backend_t = decltype(backend);
+         using qfunction_t = decltype(qfunction);
          const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
          const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         constexpr auto GradValU = GradOrValue<backend_t, DIM, U>();
+         constexpr auto GradValU = GradOrValue<qfunction_t, DIM, U>();
+         // future::FieldOperator<U> GradValU = Gradient<U> {};
+         // if (is_mass_qf) { GradValU = Value<U> {}; }
          dop->template AddDomainIntegrator<backend_t>(qfunction,
                                                       tuple{GradValU, Gradient<Ξ>{}, Weight{}},
                                                       tuple{GradValU},
@@ -1045,11 +1048,12 @@ struct BakeOff
                                                *ir, ess_bdr);
          MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
+
          const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qfct}};
          const auto ofd1 = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd1, ofd1, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         constexpr auto GradValU = GradOrValue<backend_t, DIM, U>();
+         constexpr auto GradValU = GradOrValue<decltype(apply_qf), DIM, U>();
          dop->template AddDomainIntegrator<backend_t>(apply_qf,
                                                       tuple{GradValU, Identity<Q>{}},
                                                       tuple{GradValU},
@@ -1260,30 +1264,30 @@ static void Benchmark(bm::State& state) noexcept
 /// BP1 /////////////////////////////////////////////////////////////////////
 REGISTER(BP, 1, mfem_PA_std);
 
-// REGISTER(BP, 1, dfem_MF_global_default);
-// REGISTER(BP, 1, dfem_MF_global_kernels);
-// REGISTER(BP, 1, dfem_PA_global_default);
-// REGISTER(BP, 1, dfem_PA_global_kernels);
+REGISTER(BP, 1, dfem_MF_global_default);
+REGISTER(BP, 1, dfem_MF_global_kernels);
+REGISTER(BP, 1, dfem_PA_global_default);
+REGISTER(BP, 1, dfem_PA_global_kernels);
 
 REGISTER(BP, 1, dfem_MF_local_default);
-// REGISTER(BP, 1, dfem_MF_local_kernels);
-// REGISTER(BP, 1, dfem_PA_local_default);
-// REGISTER(BP, 1, dfem_PA_local_kernels);
+REGISTER(BP, 1, dfem_MF_local_kernels);
+REGISTER(BP, 1, dfem_PA_local_default);
+REGISTER(BP, 1, dfem_PA_local_kernels);
 
 /// BP3 /////////////////////////////////////////////////////////////////////
-REGISTER(BP, 3, mfem_PA_std);
-REGISTER(BP, 3, mfem_MF_HO_reg);
-REGISTER(BP, 3, mfem_PA_HO_reg);
+// REGISTER(BP, 3, mfem_PA_std);
+// REGISTER(BP, 3, mfem_MF_HO_reg);
+// REGISTER(BP, 3, mfem_PA_HO_reg);
 
-REGISTER(BP, 3, dfem_MF_global_default);
-REGISTER(BP, 3, dfem_MF_global_kernels);
-REGISTER(BP, 3, dfem_PA_global_default);
-REGISTER(BP, 3, dfem_PA_global_kernels);
+// REGISTER(BP, 3, dfem_MF_global_default);
+// REGISTER(BP, 3, dfem_MF_global_kernels);
+// REGISTER(BP, 3, dfem_PA_global_default);
+// REGISTER(BP, 3, dfem_PA_global_kernels);
 
-REGISTER(BP, 3, dfem_MF_local_default);
-REGISTER(BP, 3, dfem_MF_local_kernels);
-REGISTER(BP, 3, dfem_PA_local_default);
-REGISTER(BP, 3, dfem_PA_local_kernels);
+// REGISTER(BP, 3, dfem_MF_local_default);
+// REGISTER(BP, 3, dfem_MF_local_kernels);
+// REGISTER(BP, 3, dfem_PA_local_default);
+// REGISTER(BP, 3, dfem_PA_local_kernels);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
