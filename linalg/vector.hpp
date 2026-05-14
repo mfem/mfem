@@ -40,7 +40,7 @@ namespace mfem
 
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
-inline int CheckFinite(const real_t *v, const int n);
+inline bigint CheckFinite(const real_t *v, const bigint n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
@@ -83,7 +83,7 @@ class Vector
 protected:
 
    Memory<real_t> data;
-   int size;
+   bigint size;
 
 public:
 
@@ -99,30 +99,30 @@ public:
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
-   explicit Vector(int s);
+   explicit Vector(bigint s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(real_t *data_, int size_)
+   Vector(real_t *data_, bigint size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
-   Vector(Vector &base, int base_offset, int size_)
+   Vector(Vector &base, bigint base_offset, bigint size_)
       : data(base.data, base_offset, size_), size(size_) { }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
-   Vector(int size_, MemoryType mt)
+   Vector(bigint size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
    /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
        device MemoryType @a d_mt. */
-   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+   Vector(bigint size_, MemoryType h_mt, MemoryType d_mt)
       : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Create a vector from a statically sized C-style array of convertible type
-   template <typename CT, int N>
+   template <typename CT, bigint N>
    explicit Vector(const CT (&values)[N]) : Vector(N)
    { std::copy(values, values + N, begin()); }
 
@@ -130,7 +130,7 @@ public:
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,real_t>::value,bool>::type = true>
    explicit Vector(std::initializer_list<CT> values) :
-      Vector(static_cast<int> (values.size()))
+      Vector(static_cast<bigint> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
@@ -151,10 +151,10 @@ public:
    void Load(std::istream ** in, int np, int * dim);
 
    /// Load a vector from an input stream.
-   void Load(std::istream &in, int Size);
+   void Load(std::istream &in, bigint Size);
 
    /// Load a vector from an input stream, reading the size from the stream.
-   void Load(std::istream &in) { int s; in >> s; Load(in, s); }
+   void Load(std::istream &in) { bigint s; in >> s; Load(in, s); }
 
    /// @brief Resize the vector to size @a s.
    /** If the new size is less than or equal to Capacity() then the internal
@@ -164,16 +164,18 @@ public:
        @warning In the second case above (new size greater than current one),
        the vector will allocate new data array, even if it did not own the
        original data! Also, new entries are not initialized! */
-   void SetSize(int s);
+   void SetSize(bigint s);
 
    /// Resize the vector to size @a s using MemoryType @a mt.
-   void SetSize(int s, MemoryType mt);
+   void SetSize(bigint s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(bigint s, const Vector &v)
+   { SetSize(s, v.GetMemory().GetMemoryType()); }
 
-   /// Update \ref Capacity() to @a res (if less than current), keeping existing entries.
-   void Reserve(int res);
+   /** @brief Update \ref Capacity() to @a res (if less than current), keeping
+       existing entries. */
+   void Reserve(bigint res);
 
    /// Delete entries at @a indices and resize vector accordingly.
    /// @warning Indices must be unique!
@@ -188,13 +190,14 @@ public:
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(real_t *d, int s) { data.Wrap(d, s, false); size = s; }
+   void SetDataAndSize(real_t *d, bigint s)
+   { data.Wrap(d, s, false); size = s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(real_t *d, int s)
+   void NewDataAndSize(real_t *d, bigint s)
    {
       data.Delete();
       SetDataAndSize(d, s);
@@ -209,14 +212,15 @@ public:
        the Vector object takes ownership of all pointers owned by @a mem.
 
        @sa NewDataAndSize(). */
-   inline void NewMemoryAndSize(const Memory<real_t> &mem, int s, bool own_mem);
+   inline void NewMemoryAndSize(const Memory<real_t> &mem, bigint s,
+                                bool own_mem);
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
-   inline void MakeRef(Vector &base, int offset, int size);
+   inline void MakeRef(Vector &base, bigint offset, bigint size);
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
-   inline void MakeRef(Vector &base, int offset);
+   inline void MakeRef(Vector &base, bigint offset);
 
    /// Set the Vector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
@@ -231,11 +235,11 @@ public:
    { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
-   inline int Size() const { return size; }
+   inline bigint Size() const { return size; }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
-   inline int Capacity() const { return data.Capacity(); }
+   inline bigint Capacity() const { return data.Capacity(); }
 
    /// Return a pointer to the beginning of the Vector data.
    /** @warning This method should be used with caution as it gives write access
@@ -286,26 +290,26 @@ public:
    inline real_t *StealData() { real_t *p; StealData(&p); return p; }
 
    /// Access Vector entries. Index i = 0 .. size-1.
-   real_t &Elem(int i);
+   real_t &Elem(bigint i);
 
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const real_t &Elem(int i) const;
+   const real_t &Elem(bigint i) const;
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline real_t &operator()(int i);
+   inline real_t &operator()(bigint i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const real_t &operator()(int i) const;
+   inline const real_t &operator()(bigint i) const;
 
    /// Access Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline real_t &operator[](int i) { return (*this)(i); }
+   inline real_t &operator[](bigint i) { return (*this)(i); }
 
    /// Read only access to Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const real_t &operator[](int i) const { return (*this)(i); }
+   inline const real_t &operator[](bigint i) const { return (*this)(i); }
 
    /// Dot product with a `double *` array.
    /// This function always executes on the CPU. A HostRead() will be called if
@@ -357,10 +361,10 @@ public:
    Vector &Set(const real_t a, const Vector &x);
 
    /// (*this)[i + offset] = v[i]
-   void SetVector(const Vector &v, int offset);
+   void SetVector(const Vector &v, bigint offset);
 
    /// (*this)[i + offset] += v[i]
-   void AddSubVector(const Vector &v, int offset);
+   void AddSubVector(const Vector &v, bigint offset);
 
    /// (*this) = -(*this)
    void Neg();
@@ -511,7 +515,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
+   bigint CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual ~Vector();
@@ -561,17 +565,17 @@ inline bool IsFinite(const real_t &val)
 #endif
 }
 
-inline int CheckFinite(const real_t *v, const int n)
+inline bigint CheckFinite(const real_t *v, const bigint n)
 {
-   int bad = 0;
-   for (int i = 0; i < n; i++)
+   bigint bad = 0;
+   for (bigint i = 0; i < n; i++)
    {
       if (!IsFinite(v[i])) { bad++; }
    }
    return bad;
 }
 
-inline Vector::Vector(int s)
+inline Vector::Vector(bigint s)
 {
    MFEM_ASSERT(s>=0,"Unexpected negative size.");
    size = s;
@@ -581,7 +585,7 @@ inline Vector::Vector(int s)
    }
 }
 
-inline void Vector::SetSize(int s)
+inline void Vector::SetSize(bigint s)
 {
    if (s == size)
    {
@@ -601,7 +605,7 @@ inline void Vector::SetSize(int s)
    data.UseDevice(use_dev);
 }
 
-inline void Vector::SetSize(int s, MemoryType mt)
+inline void Vector::SetSize(bigint s, MemoryType mt)
 {
    if (mt == data.GetMemoryType())
    {
@@ -630,7 +634,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
    data.UseDevice(use_dev);
 }
 
-inline void Vector::Reserve(int res)
+inline void Vector::Reserve(bigint res)
 {
    if (res > Capacity())
    {
@@ -642,7 +646,7 @@ inline void Vector::Reserve(int res)
    }
 }
 
-inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
+inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, bigint s,
                                      bool own_mem)
 {
    data.Delete();
@@ -657,14 +661,14 @@ inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
    }
 }
 
-inline void Vector::MakeRef(Vector &base, int offset, int s)
+inline void Vector::MakeRef(Vector &base, bigint offset, bigint s)
 {
    data.Delete();
    size = s;
    data.MakeAlias(base.GetMemory(), offset, s);
 }
 
-inline void Vector::MakeRef(Vector &base, int offset)
+inline void Vector::MakeRef(Vector &base, bigint offset)
 {
    data.Delete();
    data.MakeAlias(base.GetMemory(), offset, size);
@@ -678,7 +682,7 @@ inline void Vector::Destroy()
    data.UseDevice(use_dev);
 }
 
-inline real_t &Vector::operator()(int i)
+inline real_t &Vector::operator()(bigint i)
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -686,7 +690,7 @@ inline real_t &Vector::operator()(int i)
    return data[i];
 }
 
-inline const real_t &Vector::operator()(int i) const
+inline const real_t &Vector::operator()(bigint i) const
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -712,11 +716,11 @@ inline Vector::~Vector()
    data.Delete();
 }
 
-inline real_t DistanceSquared(const real_t *x, const real_t *y, const int n)
+inline real_t DistanceSquared(const real_t *x, const real_t *y, const bigint n)
 {
    real_t d = 0.0;
 
-   for (int i = 0; i < n; i++)
+   for (bigint i = 0; i < n; i++)
    {
       d += (x[i]-y[i])*(x[i]-y[i]);
    }
@@ -724,7 +728,7 @@ inline real_t DistanceSquared(const real_t *x, const real_t *y, const int n)
    return d;
 }
 
-inline real_t Distance(const real_t *x, const real_t *y, const int n)
+inline real_t Distance(const real_t *x, const real_t *y, const bigint n)
 {
    return std::sqrt(DistanceSquared(x, y, n));
 }

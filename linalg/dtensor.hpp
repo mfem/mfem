@@ -24,13 +24,14 @@ class TensorInd
 {
 public:
    MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
+   static inline bigint result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-      return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-                              ::result(sizes, args...));
+      return static_cast<bigint>(
+                first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+                ::result(sizes, args...));
    }
 };
 
@@ -40,13 +41,13 @@ class TensorInd<Dim, Dim, T, Args...>
 {
 public:
    MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
+   static inline bigint result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<static_cast<T>(sizes[Dim-1]),
                   "Trying to access out of boundary.");
 #endif
-      return static_cast<int>(first);
+      return static_cast<bigint>(first);
    }
 };
 
@@ -57,7 +58,7 @@ class Init
 {
 public:
    MFEM_HOST_DEVICE
-   static inline int result(int* sizes, T first, Args... args)
+   static inline bigint result(int* sizes, T first, Args... args)
    {
       sizes[N - 1] = first;
       return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
@@ -70,10 +71,10 @@ class Init<Dim, Dim, T, Args...>
 {
 public:
    MFEM_HOST_DEVICE
-   static inline int result(int* sizes, T first, Args... args)
+   static inline bigint result(int* sizes, T first, Args... args)
    {
       sizes[Dim - 1] = first;
-      return first;
+      return static_cast<bigint>(first);
    }
 };
 
@@ -83,7 +84,7 @@ template<int Dim, typename Scalar = real_t>
 class DeviceTensor
 {
 protected:
-   int capacity;
+   bigint capacity;
    Scalar *data;
    int sizes[Dim];
 
@@ -99,8 +100,7 @@ public:
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
-      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
-      capacity = nb;
+      capacity = Init<1, Dim, Args...>::result(sizes, args...);
       data = (capacity > 0) ? data_ : nullptr;
    }
 
@@ -122,7 +122,7 @@ public:
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
+   MFEM_HOST_DEVICE inline Scalar& operator[](bigint i) const
    {
       return data[i];
    }

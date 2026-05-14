@@ -150,8 +150,8 @@ template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
 
 // Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
-template int Memory<int>::CompareHostAndDevice(int size) const;
-template int Memory<real_t>::CompareHostAndDevice(int size) const;
+template int Memory<int>::CompareHostAndDevice(bigint size) const;
+template int Memory<real_t>::CompareHostAndDevice(bigint size) const;
 
 
 namespace internal
