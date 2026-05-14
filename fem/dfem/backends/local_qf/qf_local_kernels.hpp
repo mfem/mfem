@@ -10,25 +10,17 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include <type_traits>
-
 #include "qf_local_action.hpp"
-#include "qf_local_action_lo.hpp"
-#include "qf_local_action_ho.hpp"
 
 namespace mfem::future
 {
 
-template<bool is_high_order = false>
 struct LocalQFKernelsBackend
 {
    static constexpr bool has_cached_derivative = false;
 
-   using backend_t =
-      std::conditional_t<is_high_order, LocalQFHOBackend, LocalQFLOBackend>;
-
    template<typename... Ts>
-   using action_t = LocalQFKernelsImpl::Action<backend_t, Ts...>;
+   using action_t = LocalQFKernelsImpl::Action<Ts...>;
 
    /**
     * @brief Make an action for a local device backend.

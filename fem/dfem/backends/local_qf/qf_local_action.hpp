@@ -13,7 +13,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <type_traits>
 #include <utility>
+
+#include "qf_local_action_lo.hpp"
+#include "qf_local_action_ho.hpp"
 
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
@@ -28,7 +32,6 @@ namespace mfem::future::LocalQFKernelsImpl
 {
 
 template<
-   typename backend_t,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
@@ -67,7 +70,6 @@ class Action
    const std::array<int, n_outputs> output_vdim;
    // other constants
    const int dim, ne, nq, q1d;
-   const ThreadBlocks thread_blocks;
 
 public:
    ////////////////////////////////////////////////////////
@@ -108,8 +110,7 @@ public:
       dim(ctx.mesh.Dimension()),
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
-      q1d(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5))),
-      thread_blocks(backend_t::template thread_blocks<DIM>(q1d))
+      q1d(static_cast<int>(std::floor(std::pow(nq, 1.0/dim) + 0.5)))
    {
       NVTX_MARK_FUNCTION;
       MFEM_ASSERT(DIM == ctx.mesh.Dimension(), "Dimension mismatch");
@@ -120,27 +121,20 @@ public:
       dbg("input_idx:{}", input_idx);
       dbg("output_idx:{}", output_idx);
 
-      dbg("backend_t::MQ1:{}", backend_t::MQ1);
-      // #ifdef MFEM_ADD_SPECIALIZATIONS
-      // if constexpr (backend_t::MQ1 >= 8)
-      {
-         ActionCallbackKernels::template Specialization<2>::Add(); // 0
-         ActionCallbackKernels::template Specialization<3>::Add(); // 1
-         ActionCallbackKernels::template Specialization<4>::Add(); // 2
-         // ActionCallbackKernels::template Specialization<5>::Add(); // 3
-         // ActionCallbackKernels::template Specialization<6>::Add(); // 4
-         // ActionCallbackKernels::template Specialization<7>::Add(); // 5
-         // ActionCallbackKernels::template Specialization<8>::Add(); // 6
-      }
-      // if constexpr (backend_t::MQ1 >= 16)
-      {
-         // ActionCallbackKernels::template Specialization<10>::Add(); // 8
-         // quadrature_interpolator::Det3D fails before being able to use PA
-         // ActionCallbackKernels::template Specialization<12>::Add(); // 10
-         // ActionCallbackKernels::template Specialization<14>::Add(); // 12
-         // ActionCallbackKernels::template Specialization<16>::Add(); // 14
-      }
-      // #endif
+#ifdef MFEM_ADD_SPECIALIZATIONS
+      ActionCallbackKernels::template Specialization<2>::Add(); // 0
+      ActionCallbackKernels::template Specialization<3>::Add(); // 1
+      ActionCallbackKernels::template Specialization<4>::Add(); // 2
+      ActionCallbackKernels::template Specialization<5>::Add(); // 3
+      ActionCallbackKernels::template Specialization<6>::Add(); // 4
+      ActionCallbackKernels::template Specialization<7>::Add(); // 5
+      ActionCallbackKernels::template Specialization<8>::Add(); // 6
+      ActionCallbackKernels::template Specialization<10>::Add(); // 8
+      // quadrature_interpolator::Det3D fails before being able to use PA
+      ActionCallbackKernels::template Specialization<12>::Add(); // 10
+      // ActionCallbackKernels::template Specialization<14>::Add(); // 12
+      // ActionCallbackKernels::template Specialization<16>::Add(); // 14
+#endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
@@ -165,7 +159,6 @@ public:
                                  output_d1d,
                                  output_q1d,
                                  // others
-                                 thread_blocks,
                                  xe, ye,
                                  // fallback arguments
                                  q1d);
@@ -173,7 +166,7 @@ public:
 
 public:
    ////////////////////////////////////////////////////////
-   template<int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend, int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
                                // inputs: idx, B, G, vdim, d1d, q1d
@@ -190,13 +183,14 @@ public:
                                const std::array<int, n_outputs> &out_vdim,
                                const std::array<int, n_outputs> &out_d1d,
                                const std::array<int, n_outputs> &out_q1d,
-                               const ThreadBlocks &thread_blocks,
                                const std::vector<Vector *> &xe,
                                std::vector<Vector *> &ye,
                                // fallback arguments
                                const int q1d)
    {
       NVTX_MARK_FUNCTION;
+
+      static auto thread_blocks = backend_t::template thread_blocks<DIM>(q1d);
 
       if (ctx.attr.Size() == 0) { return; }
 
@@ -267,7 +261,7 @@ public:
       dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-         static_assert(T_Q1D > 0);
+
          constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : backend_t::MQ1;
 
          // -----------------------------------------------
@@ -421,24 +415,30 @@ public:
    MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int));
 };
 
-template<typename backend_t,
-         typename qfunc_t,
-         typename inputs_t,
-         typename outputs_t,
-         std::size_t n_inputs,
-         std::size_t n_outputs> template<int Q1D> typename
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel
-(/* instantiated with Q1D */) { return action_callback<Q1D>; }
+template<int Q1D = 0>
+using action_backend_t =
+   std::conditional_t<
+   (Q1D > 0 && Q1D < 8) || (Q1D == 0),
+   LocalQFLOBackend, LocalQFHOBackend>;
 
-template<typename backend_t,
-         typename qfunc_t,
+template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
          std::size_t n_inputs,
-         std::size_t n_outputs> typename
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
-Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
+         std::size_t n_outputs> template<int Q1D>
+typename Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Kernel()
+{
+   return action_callback<action_backend_t<Q1D>, Q1D>;
+}
+
+template<typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         std::size_t n_inputs,
+         std::size_t n_outputs>
+typename Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCallbackKernels::Fallback
 (int q1d)
 {
 #ifdef MFEM_ADD_SPECIALIZATIONS
@@ -447,9 +447,9 @@ Action<backend_t, qfunc_t, inputs_t, outputs_t, n_inputs, n_outputs>::ActionCall
 #else
    MFEM_CONTRACT_VAR(q1d);
    db1("\x1b[33mFallback q1d:{}", q1d);
-   // return action_callback;
-   MFEM_ABORT("No kernel for q1d=" << q1d);
-   return nullptr;
+   return action_callback<action_backend_t<>>;
+   // MFEM_ABORT("No kernel for q1d=" << q1d);
+   // return nullptr;
 #endif
 }
 

@@ -61,23 +61,23 @@ struct LocalQFHOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int ext_sz, int MQ1, typename ArgRegT, typename XE_T>
+   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
    void LoadGradient(Shared<MQ1> &s,
                      const int e, const int d, const int q, const int,
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
    {
-      static_assert(ext_sz == 1 || ext_sz == 2);
+      static_assert(RNK == 1 || RNK == 2);
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
-      if constexpr (ext_sz == 1)
+      if constexpr (RNK == 1)
       {
          ker::vd_regs3d_t<1, 3, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);
          ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
       }
-      if constexpr (ext_sz == 2)
+      if constexpr (RNK == 2)
       {
          ker::vd_regs3d_t<3, 3, MQ1> dofs;
          ker::LoadDofs3d(e, d, XE, dofs);

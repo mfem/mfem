@@ -31,7 +31,7 @@ struct LocalQFLOBackend
    template <int DIM> static
    inline ThreadBlocks thread_blocks(const int q1d)
    {
-      MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
+      // MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
       return {q1d, (DIM >= 2) ? q1d : 1, (DIM >= 3) ? q1d : 1};
    }
 
