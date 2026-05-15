@@ -2664,6 +2664,7 @@ int main(int argc, char *argv[])
    int preconditioner_lag = 0;
    int vis_steps = 1;
    bool glvis = false;
+   bool paraview = false;
    int viscosity_type = 2;
    int preconditioner_type =
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
@@ -2729,6 +2730,9 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--vis-steps",
                   "Number of visualization steps.");
    args.AddOption(&glvis, "-glvis", "--glvis", "-no-glvis", "--no-glvis", "");
+   args.AddOption(&paraview, "-paraview", "--paraview",
+                  "-no-paraview", "--no-paraview",
+                  "Enable ParaView output (VTK files; can be expensive).");
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
    args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
    args.AddOption(&nretry, "-nretry", "--nretry", "");
@@ -3141,54 +3145,45 @@ int main(int argc, char *argv[])
    [[maybe_unused]] int steps = 0;
    BlockVector S_old(S);
 
-   ParGridFunction verr_gf(v_gf);
-   verr_gf.ProjectCoefficient(v_coeff);
-   v_gf.SyncAliasMemory(S);
-   v_gf.HostRead();
-   verr_gf.HostReadWrite();
-   for (int i = 0; i < verr_gf.Size(); i++)
+   std::unique_ptr<QuadratureSpace> qs;
+   std::unique_ptr<QuadratureFunction> vqf;
+   std::unique_ptr<QuadratureFunction> rqf;
+   std::unique_ptr<QuadratureFunction> eqf;
+   std::unique_ptr<ParaViewDataCollection> dc;
+
+   auto paraview_save = [&](const int ti, const real_t time)
    {
-      verr_gf(i) = abs(verr_gf(i) - std::as_const(v_gf)(i));
-   }
-
-   QuadratureSpace qs(mesh, ir);
-
-   QuadratureFunction vqf(&qs, v_gf.VectorDim());
-   vqf.ProjectGridFunction(v_gf);
-
-   QuadratureFunction rqf(&qs, rho_gf.VectorDim());
-   rqf.ProjectGridFunction(rho_gf);
-
-   QuadratureFunction eqf(&qs, e_gf.VectorDim());
-   eqf.ProjectGridFunction(e_gf);
-
-   ParaViewDataCollection dc("dfem", &mesh);
-   dc.SetLevelsOfDetail(order_v);
-   dc.SetDataFormat(VTKFormat::BINARY);
-   dc.SetHighOrderOutput(true);
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.RegisterField("velocity", &v_gf);
-   dc.RegisterField("density", &rho_gf);
-   dc.RegisterField("specific_internal_energy", &e_gf);
-   dc.RegisterField("material", &material_gf);
-   dc.RegisterQField("velocity_qf", &rqf);
-   dc.RegisterQField("density_qf", &rqf);
-   dc.RegisterQField("specific_internal_energy_qf", &eqf);
-
-   dc.SetCycle(0);
-   dc.SetTime(0);
-   dc.Save();
-
-   auto vizcb = [&](const int &ti, const real_t &t)
-   {
+      if (!dc) { return; }
       hydro->ComputeDensity(rho_gf);
-      vqf.ProjectGridFunction(v_gf);
-      rqf.ProjectGridFunction(rho_gf);
-      dc.SetCycle(ti);
-      dc.SetTime(t);
-      dc.Save();
+      vqf->ProjectGridFunction(v_gf);
+      rqf->ProjectGridFunction(rho_gf);
+      eqf->ProjectGridFunction(e_gf);
+      dc->SetCycle(ti);
+      dc->SetTime(time);
+      dc->Save();
    };
+
+   if (paraview)
+   {
+      qs.reset(new QuadratureSpace(mesh, ir));
+      vqf.reset(new QuadratureFunction(qs.get(), v_gf.VectorDim()));
+      rqf.reset(new QuadratureFunction(qs.get(), rho_gf.VectorDim()));
+      eqf.reset(new QuadratureFunction(qs.get(), e_gf.VectorDim()));
+
+      dc.reset(new ParaViewDataCollection("dfem", &mesh));
+      dc->SetLevelsOfDetail(order_v);
+      dc->SetDataFormat(VTKFormat::BINARY);
+      dc->SetHighOrderOutput(true);
+      dc->RegisterField("velocity", &v_gf);
+      dc->RegisterField("density", &rho_gf);
+      dc->RegisterField("specific_internal_energy", &e_gf);
+      dc->RegisterField("material", &material_gf);
+      dc->RegisterQField("velocity_qf", vqf.get());
+      dc->RegisterQField("density_qf", rqf.get());
+      dc->RegisterQField("specific_internal_energy_qf", eqf.get());
+
+      paraview_save(0, 0.0);
+   }
 
    for (int ti = 1; !last_step; ti++)
    {
@@ -3297,6 +3292,11 @@ int main(int argc, char *argv[])
       // needed, because some time integrators use different S-type vectors
       // and the oper object might have redirected the mesh positions to those.
       mesh.NewNodes(x_gf, false);
+
+      if (paraview && (ti % vis_steps == 0 || last_step))
+      {
+         paraview_save(ti, t);
+      }
 
       // out << "x_gf outer loop\n";
       // print_vector(x_gf);
