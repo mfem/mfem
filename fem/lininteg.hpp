@@ -382,7 +382,8 @@ public:
 
    bool SupportsDevice() const override { return true; }
 
-   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
                        Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;

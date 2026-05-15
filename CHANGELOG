@@ -42,6 +42,9 @@ New and updated examples and miniapps
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 
+GPU computing
+-------------------------------------
+- Added device assembly support for H(curl) VectorFEDomainLFIntegrator.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
