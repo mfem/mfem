@@ -2,13 +2,18 @@
 
 #include "action.hpp"
 #include "derivative_action_enzyme.hpp"
+#include "derivative_setup.hpp"
+#include "../local_qf/derivative_apply.hpp"
+#include "../local_qf/derivative_apply_transpose.hpp"
+#include "../local_qf/derivative_assemble.hpp"
+#include "../local_qf/derivative_assemble_diagonal.hpp"
 
 namespace mfem::future
 {
 
 struct GlobalQFBackend
 {
-   static constexpr bool has_cached_derivative = false;
+   static constexpr bool has_cached_derivative = true;
 
    template<
       typename qfunc_t,
@@ -35,7 +40,9 @@ struct GlobalQFBackend
       outputs_t outputs,
       Vector &qp_cache)
    {
-      return [](const std::vector<Vector *> &, const Vector &) {};
+      return GlobalQFImpl::DerivativeSetup<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs, qp_cache);
    }
 
    template<
@@ -66,8 +73,26 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      // Dummy: GlobalQFBackend doesn't support cached apply yet
-      return [](const std::vector<Vector *> &, const Vector *, std::vector<Vector *> &) {};
+      return LocalQFImpl::DerivativeApply<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs, qp_cache);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeApplyTranspose(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      return LocalQFImpl::DerivativeApplyTranspose<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs, qp_cache);
    }
 
    template<
@@ -82,8 +107,26 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      // Dummy: GlobalQFBackend doesn't support sparse matrix assembly yet
-      return [](std::vector<Vector> &, SparseMatrix *&) {};
+      return LocalQFImpl::DerivativeAssemble<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs, qp_cache);
+   }
+
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeAssembleDiagonal(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs,
+      const Vector &qp_cache)
+   {
+      return LocalQFImpl::DerivativeAssembleDiagonal<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs, qp_cache);
    }
 
 };
