@@ -36,7 +36,7 @@ runs:
   steps:
     - uses: ./.github/actions/sanitize/config
 
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       if: ${{env.DEBUG == 'true' && inputs.cache-skip != 'true'}}
       id: debug
       with:

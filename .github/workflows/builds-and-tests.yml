@@ -153,7 +153,7 @@ jobs:
       # /home/runner/work/mfem/mfem/mfem
       # Note: Done now to access "install-hypre" and "install-metis" actions.
       - name: checkout mfem
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: ${{ env.MFEM_TOP_DIR }}
           # Fetch the complete history for codecov to access commits ID
@@ -225,7 +225,7 @@ jobs:
       - name: cache hypre
         id: hypre-cache
         if: matrix.mpi == 'par'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
           key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
@@ -255,7 +255,7 @@ jobs:
       - name: cache metis
         id: metis-cache
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.METIS_TOP_DIR }}
           key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5
@@ -270,7 +270,7 @@ jobs:
       - name: cache vcpkg (Windows)
         id: vcpkg-cache
         if: matrix.os == 'windows-latest'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vcpkg_cache
           key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
@@ -295,7 +295,8 @@ jobs:
           export HOMEBREW_NO_INSTALL_CLEANUP=1
           brew update
           brew install enzyme
-          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required:.*\(llvm[^ ]*\).*/\1/p')
+          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required.*:.*\(llvm[^ ]*\).*/\1/p')
+          echo "ENZYME_LLVM=$ENZYME_LLVM"
           LLVM_PREFIX=$(brew --prefix $ENZYME_LLVM)
           echo "LLVM_PREFIX=$LLVM_PREFIX" >> $GITHUB_ENV
           echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
