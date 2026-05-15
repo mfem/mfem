@@ -49,11 +49,13 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
-//    Surface mesh runs:
+// Surface meshes:
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
-//    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+// Surface meshes + bounding box size increase:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+//    mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -102,9 +104,8 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    int randomization     = 0;
    int npt               = 100; //points per proc
-   int visport           = 19916;
    bool surface          = false;
-   double surf_aabb_size = 0.0;
+   double surf_aabb_sz_inc = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -145,13 +146,12 @@ int main (int argc, char *argv[])
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
                   "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
-   args.AddOption(&surf_aabb_size, "-sabs", "--surface-aabb-size",
-                  "Minimum axis-aligned bounding box size in FindPointsGSLIB "
-                  " surface meshes.");
+   args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
+                  "Absolute padding applied to surface-search axis-aligned "
+                  "bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -171,26 +171,14 @@ int main (int argc, char *argv[])
    Mesh *mesh = surface ? nullptr : input_mesh;
    if (surface)
    {
-      int nattr = input_mesh->bdr_attributes.Max();
-      Array<int> subdomain_attributes(nattr);
-      for (int i = 0; i < nattr; i++)
-      {
-         subdomain_attributes[i] = i+1;
-      }
+      MFEM_VERIFY(input_mesh->bdr_attributes.Size() > 0,
+                  "--surface requires a mesh with boundary attributes.");
       mesh = new Mesh(SubMesh::CreateFromBoundary(*input_mesh,
-                                                  subdomain_attributes));
+                                                  input_mesh->bdr_attributes));
    }
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
              sdim = mesh->SpaceDimension();
-
-   if (mesh->GetNumGeometries(dim) != 1 ||
-       (mesh->GetElementType(0)!=Element::SEGMENT &&
-        mesh->GetElementType(0)!=Element::QUADRILATERAL &&
-        mesh->GetElementType(0) != Element::HEXAHEDRON))
-   {
-      randomization = 0;
-   }
 
    if (myid == 0)
    {
@@ -216,19 +204,6 @@ int main (int argc, char *argv[])
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
-   }
-
-   if (visualization && surface && myid == 0)
-   {
-      osockstream sock(19916, "localhost");
-      sock << "mesh\n";
-      input_mesh->Print(sock);
-      sock.send();
-      sock << "window_title 'AABB Mesh'\n"
-           << "window_geometry "
-           << 0 << " " << 0 << " "
-           << 400 << " " << 400 << "\n"
-           << "keys RmclA" << endl;
    }
 
    // Distribute the mesh.
@@ -306,13 +281,13 @@ int main (int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sout;
-      sout.open(vishost, visport);
+      sout.open(vishost, 19916);
       if (!sout)
       {
          if (myid == 0)
          {
             cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
+                 << vishost << ':' << 19916 << endl;
          }
       }
       else
@@ -324,8 +299,7 @@ int main (int argc, char *argv[])
          if (sdim == 3) { sout << "keys mA\n"; }
          sout << "window_title 'Solution'\n"
               << "window_geometry "
-              << (surface ? 400 : 0) << " " << 0 << " "
-              << 400 << " " << 400 << "\n";
+              << 0 << " " << 0 << " " << 400 << " " << 400 << "\n";
          sout << flush;
       }
    }
@@ -368,24 +342,14 @@ int main (int argc, char *argv[])
       {
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
-
-         Vector pos_ref1(npt*dim);
-         pos_ref1.Randomize((myid+1)*17.0);
+         const Geometry::Type geom = mesh->GetElementGeometry(i);
          for (int j=0; j<npt; j++)
          {
             IntegrationPoint ip;
-            ip.x = pos_ref1(j*dim + 0);
-            if (dim > 1)
-            {
-               ip.y = pos_ref1(j*dim + 1);
-            }
-            if (dim == 3)
-            {
-               ip.z = pos_ref1(j*dim + 2);
-            }
+            Geometry::GetRandomPoint(geom, ip);
             if (j < npt_face_per_elem)
             {
-               ip.x = 0.0; // force point to be on the face
+               ip.x = 0.0; // force point to be on a face
                npt_total_face++;
             }
             Vector pos_i(sdim);
@@ -415,25 +379,17 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(pmesh);
-   if (surface && surf_aabb_size > 0.0)
+   FindPointsGSLIB finder;
+   if (surface && surf_aabb_sz_inc > 0.0)
    {
-      Vector bb_size({surf_aabb_size});
-      bool spatially_varying = false;
-      if (spatially_varying)
-      {
-         bb_size.SetSize(pmesh.GetNE()*sdim);
-         for (int e = 0; e < pmesh.GetNE(); e++)
-         {
-            Vector center(sdim);
-            pmesh.GetElementCenter(e, center);
-            bb_size(e*sdim) = surf_aabb_size + 0.2*abs(center(1)-0.5);
-            bb_size(e*sdim + 1) = surf_aabb_size;
-         }
-      }
+      Vector bb_size({surf_aabb_sz_inc});
       finder.SetupSurf(pmesh, bb_size);
    }
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   else
+   {
+      finder.Setup(pmesh);
+   }
+   // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
@@ -515,24 +471,9 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts << " out of "
            << npt_total_face
            << "\nMax interp error:     " << max_error
-           << "\nMax dist (of found):  " << max_dist
+           << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
-
-   Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
-   if (visualization && myid == 0)
-   {
-      osockstream sock(19916, "localhost");
-      sock << "mesh\n";
-      aabb_mesh->Print(sock);
-      sock.send();
-      sock << "window_title 'AABB Mesh'\n"
-           << "window_geometry "
-           << (surface ? 800 : 0) << " " << 0 << " "
-           << 400 << " " << 400 << "\n"
-           << "keys jRmclA" << endl;
-   }
-   delete aabb_mesh;
 
 
    delete fec;

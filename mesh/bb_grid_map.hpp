@@ -9,6 +9,46 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+/* The BBoxTensorGridMap class is adapted from similar functionality in the
+gslib library. Below is the gslib license and copyright statement:
+
+Copyright (c) 2008-2024, UCHICAGO ARGONNE, LLC.
+
+The UChicago Argonne, LLC as Operator of Argonne National
+Laboratory holds copyright in the Software. The copyright holder
+reserves all rights except those expressly granted to licensees,
+and U.S. Government license rights.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+notice, this list of conditions and the disclaimer below.
+
+2. Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the disclaimer (as noted below)
+in the documentation and/or other materials provided with the
+distribution.
+
+3. Neither the name of ANL nor the names of its contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+UCHICAGO ARGONNE, LLC, THE U.S. DEPARTMENT OF
+ENERGY OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #ifndef MFEM_BB_GRID_MAP
 #define MFEM_BB_GRID_MAP
 
@@ -32,9 +72,11 @@ namespace mfem
  *  intersecting that cell is returned. This yields a fast, conservative
  *  point-to-element candidate query.
  *
- *  The mapping procedure is currently setup such that if an element's bounding
- *  box boundary is exactly on a grid cell boundary, the element is assigned
- *  to the grid cell on the left/bottom side of the boundary in each dimension.
+ *  The mapping procedure uses a half-open interval convention in each
+ *  dimension. If an element bounding-box minimum lies exactly on a grid-cell
+ *  boundary, it is assigned to the cell on the right/high side of that
+ *  boundary. If an element bounding-box maximum lies exactly on a grid-cell
+ *  boundary, it is assigned to the cell on the left/low side.
  *
  *  The map itself is stored as a single array CSR structure where the offsets
  *  and values are stored in the same array. For a tensor grid with a total of
@@ -61,7 +103,7 @@ namespace mfem
 class BBoxTensorGridMap
 {
 private:
-   int dim; // spatial dimension
+   int sdim; // spatial dimension
    Array<int> lmap_nx; // grid resolution in each direction
    Vector lmap_bnd_min, lmap_bnd_max; // min and max extend of grid in x/y/z
    Vector lmap_fac; // number of cells per unit extent
@@ -72,29 +114,38 @@ public:
    /// Constructor for a given mesh and resolution of Cartesian grid.
    BBoxTensorGridMap(Mesh &mesh, int nx);
 
-   /** @brief Constructor with mesh element bounding boxes and resolution of
-    *  Cartesian grid in each direction.
+   /** @brief Constructor with mesh element bounding boxes and spatial dimension.
     *
-    *  @details Assumes elmin, elmax Ordering::byNodes:
-    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
-    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
-    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
-    */
-   BBoxTensorGridMap(Vector &elmin, Vector &elmax,
-                     Array<int> &nx, int nel);
-
-   /** @brief Constructor for given element bounds. The user can either specify
-    *  the max size of map (by_max_size=true) or the number of divisions
-    *  (by_max_size=false).
+    *  @details When by_max_size=false, nx gives the Cartesian grid resolution
+    *  in each direction. When by_max_size=true, nx[0] gives the requested
+    *  maximum size of lgrid_map. If nx[0] < 2 + nel, lgrid_map is resized to
+    *  the minimum feasible size 2 + nel.
     *
-    *  @details  When by_max_size=true, lgrid_map.Size() <= n.
     *  Assumes elmin, elmax Ordering::byNodes:
     *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
     *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
     *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
-    */
+   */
    BBoxTensorGridMap(Vector &elmin, Vector &elmax,
-                     int n, int nel, bool by_max_size=false);
+                     int nel, int sdim, Array<int> &nx,
+                     bool by_max_size=false);
+
+   /** @brief Constructor for given element bounds and spatial dimension.
+    *
+    *  @details The user can either specify the max size of map
+    *  (by_max_size=true) or the number of divisions (by_max_size=false).
+    *
+    *  @details When by_max_size=true, n gives the requested maximum size of
+    *  lgrid_map. If n >= 2 + nel, then lgrid_map.Size() <= n. Otherwise,
+    *  lgrid_map is resized to the minimum feasible size 2 + nel.
+    *
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+   */
+   BBoxTensorGridMap(Vector &elmin, Vector &elmax,
+                     int nel, int sdim, int n, bool by_max_size=false);
 
    /// Map a point to possible overlapping elements.
    Array<int> MapPointToElements(Vector &xyz) const;
@@ -115,18 +166,19 @@ private:
    /** @brief Setup using the element-wise bounding boxes.
     *
     *  @details When by_max_size = false, nx gives number of cells in each
-    * direction. When by_max_size = true, nx[0] gives the max size of the map.
-    * i.e. lgrid_map.Size() <= nx[0]. */
+    *  direction. When by_max_size = true, nx[0] gives the requested maximum
+    *  size of lgrid_map. If nx[0] < 2 + nel, lgrid_map is resized to the
+    *  minimum feasible size 2 + nel. */
    void Setup(Vector &elmin, Vector &elmax,
-              Array<int> &nx, int nel, bool by_max_size);
+              int nel, Array<int> &nx, bool by_max_size);
 
 public:
    /** @brief Get local (1D) indices for cells of tensor grid that intersect
     *  with the given bounding box. */
    static void GetGridRange(const int d, const Array<int> &lh_n,
                             const Vector &lh_fac,
-                            const Vector &lh_bnd_min, const Vector &lh_bnd_max,
-                            const double &xmin, const double &xmax,
+                            const Vector &lh_bnd_min,
+                            const real_t &xmin, const real_t &xmax,
                             int &imin, int &imax);
 
    /// Set grid fac - number of grid cells per unit grid extent.
