@@ -74,6 +74,9 @@ struct is_identity_fop : std::false_type {};
 template <int FIELD_ID>
 struct is_identity_fop<Identity<FIELD_ID>> : std::true_type {};
 
+template <typename T>
+constexpr bool is_identity_fop_v = is_identity_fop<T>::value;
+
 /// @brief Weight FieldOperator.
 ///
 /// This FieldOperator is used to signal that this field contains the quadrature
@@ -90,6 +93,9 @@ struct is_weight_fop : std::false_type {};
 template <>
 struct is_weight_fop<Weight> : std::true_type {};
 
+template <typename T>
+constexpr bool is_weight_fop_v = is_weight_fop<T>::value;
+
 /// @brief Value FieldOperator.
 ///
 /// This FieldOperator is used to signal that the field contains the
@@ -101,11 +107,14 @@ public:
    constexpr Value() : FieldOperator<FIELD_ID>() {};
 };
 
-template< typename T >
+template <typename T>
 struct is_value_fop : std::false_type {};
 
-template <int FIELD_ID>
-struct is_value_fop<Value<FIELD_ID>> : std::true_type {};
+template <int T>
+struct is_value_fop<Value<T>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_value_fop_v = is_value_fop<T>::value;
 
 /// @brief Gradient FieldOperator.
 ///
@@ -124,6 +133,9 @@ struct is_gradient_fop : std::false_type {};
 template <int FIELD_ID>
 struct is_gradient_fop<Gradient<FIELD_ID>> : std::true_type {};
 
+template <typename T>
+constexpr bool is_gradient_fop_v = is_gradient_fop<T>::value;
+
 /// @brief Sum FieldOperator.
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature
@@ -140,5 +152,8 @@ struct is_sum_fop : std::false_type {};
 
 template <int FIELD_ID>
 struct is_sum_fop<Sum<FIELD_ID>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_sum_fop_v = is_sum_fop<T>::value;
 
 } // namespace mfem::future

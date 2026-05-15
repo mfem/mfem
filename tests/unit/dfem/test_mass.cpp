@@ -277,7 +277,7 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
 }
 
 // no GPU tag to avoid failing 'hypre parallel mat' section
-TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM]")
+TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][KER][MASS]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -294,11 +294,12 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM]")
             "../../data/periodic-square.mesh"
          );
       mass_action<2, LocalQFDefaultBackend>(filename2d, p);
+      mass_action<2, LocalQFKernelsBackend>(filename2d, p);
       // mass_mat_mixed<2>(filename2d, p);
    }
 }
 
-TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][LO][MASS]")
+TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][KER][MASS]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

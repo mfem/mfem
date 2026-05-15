@@ -385,7 +385,7 @@ void diffusion(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
+TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -401,10 +401,11 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
             "../../data/periodic-square.mesh"
          );
       diffusion<2, LocalQFBackend>(filename2d, p);
+      diffusion<2, LocalQFKernelsBackend>(filename2d, p);
    }
 }
 
-TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][LO][DIFFUSION]")
+TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

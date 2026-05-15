@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "fem/kernels3d.hpp"
-namespace low = mfem::kernels::internal::low;
+#include "fem/kernels.hpp"
+namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
 
@@ -25,16 +25,16 @@ namespace mfem::future
 struct LocalQFLOBackend
 {
    //////////////////////////////////////////////////////////////////
-   static constexpr int MQ1 = 8;
+   static constexpr int DIM = 3, MQ1 = 8;
 
    //////////////////////////////////////////////////////////////////
-   template <int DIM> static
-   inline ThreadBlocks thread_blocks(const int q1d)
+   static inline ThreadBlocks thread_blocks(const int q1d)
    {
       MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
-      return {q1d, (DIM >= 2) ? q1d : 1, (DIM >= 3) ? q1d : 1};
+      return {q1d, q1d, q1d};
    }
 
+   //////////////////////////////////////////////////////////////////
    template <int T_Q1D> static inline
    constexpr int MAX_THREADS_PER_BLOCK() { return T_Q1D*T_Q1D*T_Q1D; }
 
@@ -53,33 +53,34 @@ struct LocalQFLOBackend
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
-      low::LoadMatrix(d, q, B, s.B);
-      low::LoadDofs3d(e, d, XE, s.M[0]);
-      low::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadDofs3d(e, d, XE, s.M[0]);
+      ker::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename XE_T>
+   template<int RNK, int MQ1, typename ArgRegT, typename XE_T,
+            typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
    void LoadGradient(Shared<MQ1> &s,
                      const int e, const int d, const int q, const int,
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
    {
-      low::LoadMatrix(d, q, B, s.B);
-      low::LoadMatrix(d, q, G, s.G);
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
       static_assert(RNK == 1 || RNK == 2);
       if constexpr (RNK == 1)
       {
-         low::LoadDofs3d(e, d, XE, s.M[0]);
-         low::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+         ker::LoadDofs3d(e, d, XE, s.M[0]);
+         ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
       }
       if constexpr (RNK == 2)
       {
          for (int c = 0; c < DIM; c++)
          {
-            low::LoadDofs3d(e, d, c, XE, s.M[0]);
-            low::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+            ker::LoadDofs3d(e, d, c, XE, s.M[0]);
+            ker::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
          }
       }
    }
@@ -95,14 +96,14 @@ struct LocalQFLOBackend
    template <typename T, int MQ1>
    struct low_order_qreg<T, MQ1, 0>
    {
-      using type = mfem::kernels::internal::low::regs3d_t<1, MQ1>;
+      using type = ker::regs3d_t<1, MQ1>;
    };
 
    template <typename T, int MQ1>
    struct low_order_qreg<T, MQ1, 1>
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
-      using type = mfem::kernels::internal::low::regs3d_t<e0, MQ1>;
+      using type = ker::regs3d_t<e0, MQ1>;
    };
 
    template <typename T, int MQ1>
@@ -110,7 +111,7 @@ struct LocalQFLOBackend
    {
       static constexpr int e0 = qf_param_shape<T>::extents[0];
       static constexpr int e1 = qf_param_shape<T>::extents[1];
-      using type = mfem::kernels::internal::low::regs3d_vd_t<e0, e1, MQ1>;
+      using type = ker::regs3d_vd_t<e0, e1, MQ1>;
    };
 
    template<typename T, int MQ1>
@@ -119,19 +120,19 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   auto qp_load(QReg<T, MQ1> &reg, int qx, int qy, int qz)
+   auto qp_pull(QReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
-      constexpr int R = qf_param_shape<T>::rank;
-      if constexpr (R == 0)
+      constexpr int RNK = qf_param_shape<T>::rank;
+      if constexpr (RNK == 0)
       {
          return as_tensor<real_t>(&reg[qz][qy][qx][0]);
       }
-      else if constexpr (R == 1)
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          return as_tensor<real_t, e0>(&reg[qz][qy][qx][0]);
       }
-      else if constexpr (R == 2)
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -146,19 +147,19 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
-   void qp_store(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
-      constexpr int R = qf_param_shape<T>::rank;
-      if constexpr (R == 0)
+      constexpr int RNK = qf_param_shape<T>::rank;
+      if constexpr (RNK == 0)
       {
          as_tensor<real_t>(&reg[qz][qy][qx][0]) = out;
       }
-      else if constexpr (R == 1)
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          as_tensor<real_t, e0>(&reg[qz][qy][qx][0]) = out;
       }
-      else if constexpr (R == 2)
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -171,31 +172,29 @@ struct LocalQFLOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
+   template<int MQ1, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
    void WriteValue(Shared<MQ1> &s,
                    const int e, const int d, const int q, const int,
                    const real_t *B, const YE_T &YE, ArgRegT &rarg)
    {
-      static_assert(RNK == 0);
-      low::LoadMatrix(d, q, B, s.B);
-      low::EvalTranspose3d(d, q, s.B, rarg, s.M[1], s.M[0]);
-      low::WriteEvalDofs3d(d, 0, e, rarg, YE);
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::EvalTranspose3d(d, q, s.B, rarg, s.M[1], s.M[0]);
+      ker::WriteEvalDofs3d(d, 0, e, rarg, YE);
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
+   template<int MQ1, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
    void WriteGradient(Shared<MQ1> &s,
                       const int e, const int d, const int q, const int,
                       const real_t *B, const real_t *G,
                       YE_T &YE, ArgRegT &rarg)
    {
-      static_assert(RNK == 1);
-      low::LoadMatrix(d, q, B, s.B);
-      low::LoadMatrix(d, q, G, s.G);
-      low::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
-      low::WriteGradDofs3d(d, 0, e, rarg, YE);
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
+      ker::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
+      ker::WriteGradDofs3d(d, 0, e, rarg, YE);
    }
 };
 

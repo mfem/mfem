@@ -23,6 +23,14 @@ namespace mfem::future
 {
 
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
+MFEM_HOST_DEVICE auto qf_store_value(const T &v)
+{
+   if constexpr (is_dual_number<T>::value) { return v.value; }
+   else { return v; }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Static shape for one decayed q-function parameter type
 template <typename T>
 struct qf_param_shape
@@ -195,6 +203,177 @@ constexpr auto get_Q1D(const Tuple& fields)
    {
       return std::array<int, sizeof...(f)> {f.B.GetShape()[0]...};
    }, fields);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Register type for one HO q-function parameter, given a dimension kernel ops type.
+template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
+struct ho_qreg;
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 0>
+{
+   using type = typename KerOps::template value_reg_t<1>;
+};
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 1>
+{
+   using type = typename KerOps::template grad_reg_t<1, KerOps::dimension>;
+};
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 2>
+{
+   static constexpr int e0 = qf_param_shape<T>::extents[0];
+   static constexpr int e1 = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template grad_reg_t<e0, e1>;
+};
+
+template<typename KerOps, typename T>
+using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
+
+namespace ho_qp_detail
+{
+
+/// Load one quadrature-point value (same @a qx,qy,qz as LO; 2D uses @a qy,@a qz only).
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
+{
+   static_assert(DIM == 2 || DIM == 3);
+   constexpr int R = qf_param_shape<T>::rank;
+   if constexpr (DIM == 2)
+   {
+      (void)qz;
+      if constexpr (R == 0) { return T{reg(0, qy, qx)}; }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qy, qx); }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qy, qx); }
+         }
+         return t;
+      }
+   }
+   else
+   {
+      if constexpr (R == 0) { return T{reg(0, qz, qy, qx)}; }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
+         }
+         return t;
+      }
+   }
+}
+
+/// Store one quadrature-point value (same @a qx,qy,qz as LO; 2D uses @a qy,@a qz only).
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
+                                      const T &out)
+{
+   static_assert(DIM == 2 || DIM == 3);
+   constexpr int R = qf_param_shape<T>::rank;
+   if constexpr (DIM == 2)
+   {
+      (void)qz;
+      if constexpr (R == 0) { reg(0, qy, qx) = qf_store_value(out); }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
+         {
+            reg(0, dd, qy, qx) = qf_store_value(out(dd));
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               reg(i, j, qy, qx) = qf_store_value(out(i, j));
+            }
+         }
+      }
+   }
+   else
+   {
+      if constexpr (R == 0) { reg(0, qz, qy, qx) = qf_store_value(out); }
+      else if constexpr (R == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
+         {
+            reg(0, dd, qz, qy, qx) = qf_store_value(out(dd));
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               reg(i, j, qz, qy, qx) = qf_store_value(out(i, j));
+            }
+         }
+      }
+   }
+}
+
+} // namespace ho_qp_detail
+
+/// Pull one quadrature-point value from an HO register (same @a qx,qy,qz as LO).
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline auto ho_qp_pull(Reg &reg, int qx, int qy, int qz)
+{
+   return ho_qp_detail::load_at<DIM, T>(reg, qx, qy, qz);
+}
+
+/// Push one quadrature-point value into an HO register (same @a qx,qy,qz as LO).
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline void ho_qp_push(Reg &reg, int qx, int qy, int qz,
+                                        const T &out)
+{
+   ho_qp_detail::store_at<DIM, T>(reg, qx, qy, qz, out);
 }
 
 } // namespace mfem::future

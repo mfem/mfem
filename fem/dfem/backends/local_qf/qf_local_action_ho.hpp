@@ -20,48 +20,211 @@ namespace ker = mfem::kernels::internal;
 namespace mfem::future
 {
 
+/// HO tensor-product kernels (2D/3D selected at compile time via @a DIM).
+template<int DIM, int MQ1>
+struct ho_ker_backend
+{
+   static constexpr int dimension = DIM;
+   static_assert(DIM == 2 || DIM == 3, "ho_ker_backend: only 2D and 3D");
+
+   template<int VDIM = 1>
+   using value_reg_t =
+      std::conditional_t<(DIM == 2), ker::v_regs2d_t<VDIM, MQ1>, ker::v_regs3d_t<VDIM, MQ1>>;
+
+   template<int e0, int e1>
+   using grad_reg_t = std::conditional_t<(DIM == 2),
+         ker::vd_regs2d_t<e0, e1, MQ1>, ker::vd_regs3d_t<e0, e1, MQ1>>;
+
+   template<typename XE_t, typename Dofs>
+   static MFEM_HOST_DEVICE void load_value_dofs(const int e, const int d,
+                                                const XE_t &XE, Dofs &dofs)
+   {
+      if constexpr (DIM == 2)
+      {
+         for (int c = 0; c < 1; ++c)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
+               {
+                  dofs[c][dy][dx] = XE(dx, dy, 0, c, e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else { ker::LoadDofs3d(e, d, XE, dofs); }
+   }
+
+   template<typename XE_t, typename Dofs>
+   static MFEM_HOST_DEVICE void load_grad_scalar_dofs(const int e, const int d,
+                                                      const XE_t &XE, Dofs &dofs)
+   {
+      if constexpr (DIM == 2)
+      {
+         for (int c = 0; c < 1; ++c)
+         {
+            for (int dd = 0; dd < DIM; ++dd)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
+                  {
+                     dofs[c][dd][dy][dx] = XE(dx, dy, 0, c, e);
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else { ker::LoadDofs3d(e, d, XE, dofs); }
+   }
+
+   template<int e0, int e1, typename XE_t, typename Dofs>
+   static MFEM_HOST_DEVICE void load_grad_dofs(const int e, const int d,
+                                               const XE_t &XE, Dofs &dofs)
+   {
+      if constexpr (DIM == 2)
+      {
+         for (int c = 0; c < e0; ++c)
+         {
+            for (int dd = 0; dd < e1; ++dd)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
+                  {
+                     dofs[c][dd][dy][dx] = XE(dx, dy, 0, c, e);
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else { ker::LoadDofs3d(e, d, XE, dofs); }
+   }
+
+   template<typename Smem, typename Dofs, typename ArgReg>
+   static MFEM_HOST_DEVICE void eval_value(const int d, const int q,
+                                           Smem &s, Dofs &dofs, ArgReg &rarg)
+   {
+      if constexpr (DIM == 2) { ker::Eval2d<1, MQ1>(d, q, s.M, s.B, dofs, rarg); }
+      else { ker::Eval3d(d, q, s.M, s.B, dofs, rarg); }
+   }
+
+   template<int e0, int e1, typename Smem, typename Dofs, typename ArgReg>
+   static MFEM_HOST_DEVICE void grad(const int d, const int q,
+                                     Smem &s, Dofs &dofs, ArgReg &rarg)
+   {
+      if constexpr (DIM == 2)
+      {
+         ker::Grad2d<e0, e1, MQ1>(d, q, s.M, s.B, s.G, dofs, rarg);
+      }
+      else { ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg); }
+   }
+
+   template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_value(const int d, const int q,
+                                            const int e, Smem &s,
+                                            ArgReg &rarg, Dofs &dofs,
+                                            YE_t &YE)
+   {
+      if constexpr (DIM == 2)
+      {
+         ker::EvalTranspose2d<1, MQ1>(d, q, s.M, s.B, rarg, dofs);
+         for (int c = 0; c < 1; ++c)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
+               {
+                  YE(dx, dy, 0, c, e) += dofs[c][dy][dx];
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         ker::EvalTranspose3d(d, q, s.M, s.B, rarg, dofs);
+         ker::WriteDofs3d(e, d, dofs, YE);
+      }
+   }
+
+   template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_gradient(const int d, const int q,
+                                               const int e, Smem &s,
+                                               ArgReg &rarg, Dofs &dofs,
+                                               YE_t &YE)
+   {
+      if constexpr (DIM == 2)
+      {
+         ker::GradTranspose2d(d, q, s.M, s.B, s.G, rarg, dofs);
+         for (int c = 0; c < 1; ++c)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
+               {
+                  real_t y = 0.0;
+                  for (int dd = 0; dd < DIM; ++dd) { y += dofs[c][dd][dy][dx]; }
+                  YE(dx, dy, 0, c, e) += y;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
+         ker::WriteDofs3d(e, d, dofs, YE);
+      }
+   }
+};
+
+template<int DIM>
 struct LocalQFHOBackend
 {
-   //////////////////////////////////////////////////////////////////
+   static constexpr int dimension = DIM;
    static constexpr int MQ1 = 32;
 
-   //////////////////////////////////////////////////////////////////
-   template <int DIM> static
-   ThreadBlocks thread_blocks(const int q1d)
+   template<int MQ1_ = MQ1>
+   using K = ho_ker_backend<DIM, MQ1_>;
+
+   static ThreadBlocks thread_blocks(const int q1d)
    {
       MFEM_VERIFY(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
-      return {q1d, (DIM >= 2) ? q1d : 1, 1};
+      return {q1d, q1d, 1};
    }
 
    template <int T_Q1D> static inline
-   constexpr int MAX_THREADS_PER_BLOCK() { return T_Q1D*T_Q1D; }
+   constexpr int MAX_THREADS_PER_BLOCK() { return T_Q1D * T_Q1D; }
 
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1>
+   template<int MQ1_ = MQ1>
    struct Shared
    {
-      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
+      real_t M[MQ1_][MQ1_], B[MQ1_][MQ1_], G[MQ1_][MQ1_];
    };
 
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1, typename ArgRegT, typename XE_T>
+   template<typename T, int MQ1_ = MQ1>
+   using QReg = ho_qreg_t<K<MQ1_>, T>;
+
+   template<int MQ1_, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
-   void LoadValue(Shared<MQ1> &s,
+   void LoadValue(Shared<MQ1_> &s,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      {
-         ker::v_regs3d_t<1, MQ1> dofs;
-         ker::LoadDofs3d(e, d, XE, dofs);
-         ker::Eval3d(d, q, s.M, s.B, dofs, rarg);
-      }
+      typename K<MQ1_>::template value_reg_t<1> dofs;
+      K<MQ1_>::load_value_dofs(e, d, XE, dofs);
+      K<MQ1_>::eval_value(d, q, s, dofs, rarg);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename XE_T>
+   template<int RNK, int MQ1_, typename ArgRegT, typename XE_T,
+            typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
-   void LoadGradient(Shared<MQ1> &s,
+   void LoadGradient(Shared<MQ1_> &s,
                      const int e, const int d, const int q, const int,
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
@@ -71,143 +234,56 @@ struct LocalQFHOBackend
       static_assert(RNK == 1 || RNK == 2);
       if constexpr (RNK == 1)
       {
-         ker::vd_regs3d_t<1, 3, MQ1> dofs;
-         ker::LoadDofs3d(e, d, XE, dofs);
-         ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
-      }
-      if constexpr (RNK == 2)
-      {
-         ker::vd_regs3d_t<3, 3, MQ1> dofs;
-         ker::LoadDofs3d(e, d, XE, dofs);
-         ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
-      }
-   }
-
-   //////////////////////////////////////////////////////////////////
-   /// High-order 3D quadrature register storage for a q-function parameter
-   template <typename T, int MQ1, int RNK = qf_param_shape<T>::rank>
-   struct high_order_qreg
-   {
-      static_assert(RNK >= 0 && RNK <= 2);
-   };
-
-   template <typename T, int MQ1>
-   struct high_order_qreg<T, MQ1, 0>
-   {
-      using type = mfem::kernels::internal::v_regs3d_t<1, MQ1>;
-   };
-
-   template <typename T, int MQ1>
-   struct high_order_qreg<T, MQ1, 1>
-   {
-      static constexpr int e0 = qf_param_shape<T>::extents[0];
-      using type = mfem::kernels::internal::vd_regs3d_t<1, e0, MQ1>;
-   };
-
-   template <typename T, int MQ1>
-   struct high_order_qreg<T, MQ1, 2>
-   {
-      static constexpr int e0 = qf_param_shape<T>::extents[0];
-      static constexpr int e1 = qf_param_shape<T>::extents[1];
-      using type = mfem::kernels::internal::vd_regs3d_t<e0, e1, MQ1>;
-   };
-
-   template <typename T, int MQ1>
-   using QReg = typename high_order_qreg<T, MQ1>::type;
-
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
-   static MFEM_HOST_DEVICE inline
-   auto qp_load(QReg<T, MQ1> &reg, int qz, int qy, int qx)
-   {
-      constexpr int R = qf_param_shape<T>::rank;
-      if constexpr (R == 0)
-      {
-         return T{reg(0, qz, qy, qx)};
-      }
-      else if constexpr (R == 1)
-      {
-         constexpr int e0 = qf_param_shape<T>::extents[0];
-         T t;
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
-         return t;
-      }
-      else // R == 2
-      {
-         constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int e1 = qf_param_shape<T>::extents[1];
-         T t;
-         MFEM_UNROLL(e0)
-         for (int i = 0; i < e0; ++i)
-         {
-            MFEM_UNROLL(e1)
-            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
-         }
-         return t;
-      }
-   }
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
-   static MFEM_HOST_DEVICE inline
-   void qp_store(QReg<T, MQ1> &reg, int qz, int qy, int qx,
-                 const T &out)
-   {
-      constexpr int R = qf_param_shape<T>::rank;
-      if constexpr (R == 0)
-      {
-         reg(0, qz, qy, qx) = out;
-      }
-      else if constexpr (R == 1)
-      {
-         constexpr int e0 = qf_param_shape<T>::extents[0];
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd) { reg(0, dd, qz, qy, qx) = out(dd); }
-      }
-      else if constexpr (R == 2)
-      {
-         constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int e1 = qf_param_shape<T>::extents[1];
-         MFEM_UNROLL(e0)
-         for (int i = 0; i < e0; ++i)
-         {
-            MFEM_UNROLL(e1)
-            for (int j = 0; j < e1; ++j) { reg(i, j, qz, qy, qx) = out(i, j); }
-         }
+         typename K<MQ1_>::template grad_reg_t<1, K<MQ1_>::dimension> dofs;
+         K<MQ1_>::load_grad_scalar_dofs(e, d, XE, dofs);
+         K<MQ1_>::template grad<1, K<MQ1_>::dimension>(d, q, s, dofs, rarg);
       }
       else
       {
-         static_assert(false, "Unsupported");
+         static constexpr int e0 = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int e1 = qf_param_shape<FieldParamT>::extents[1];
+         typename K<MQ1_>::template grad_reg_t<e0, e1> dofs;
+         K<MQ1_>::template load_grad_dofs<e0, e1>(e, d, XE, dofs);
+         K<MQ1_>::template grad<e0, e1>(d, q, s, dofs, rarg);
       }
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
-   static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared<MQ1> &s,
-                   const int e, const int d, const int q, const int,
-                   const real_t *B, const YE_T &YE, ArgRegT &rarg)
+   template<typename T, int MQ1_ = MQ1>
+   static MFEM_HOST_DEVICE inline
+   auto qp_pull(QReg<T, MQ1_> &reg, int qx, int qy, int qz)
    {
-      ker::LoadMatrix(d, q, B, s.B);
-      ker::v_regs3d_t<1, MQ1> dofs;
-      ker::EvalTranspose3d(d, q, s.M, s.B, rarg, dofs);
-      ker::WriteDofs3d(e, d, dofs, YE);
+      return ho_qp_pull<DIM, T>(reg, qx, qy, qz);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<int DIM, int RNK, int MQ1, typename ArgRegT, typename YE_T>
+   template<typename T, int MQ1_ = MQ1>
+   static MFEM_HOST_DEVICE inline
+   void qp_push(QReg<T, MQ1_> &reg, int qx, int qy, int qz, const T &out)
+   {
+      ho_qp_push<DIM, T>(reg, qx, qy, qz, out);
+   }
+
+   template<int MQ1_, typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteGradient(Shared<MQ1> &s,
+   void WriteValue(Shared<MQ1_> &s,
+                   const int e, const int d, const int q, const int,
+                   const real_t *B, YE_T &YE, ArgRegT &rarg)
+   {
+      ker::LoadMatrix(d, q, B, s.B);
+      typename K<MQ1_>::template value_reg_t<1> dofs;
+      K<MQ1_>::write_value(d, q, e, s, rarg, dofs, YE);
+   }
+
+   template<int MQ1_, typename ArgRegT, typename YE_T>
+   static inline MFEM_HOST_DEVICE
+   void WriteGradient(Shared<MQ1_> &s,
                       const int e, const int d, const int q, const int,
                       const real_t *B, const real_t *G,
                       YE_T &YE, ArgRegT &rarg)
    {
-      static_assert(RNK == 1);
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
-      ker::vd_regs3d_t<1, 3, MQ1> dofs;
-      ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
-      ker::WriteDofs3d(e, d, dofs, YE);
+      typename K<MQ1_>::template grad_reg_t<1, K<MQ1_>::dimension> dofs;
+      K<MQ1_>::write_gradient(d, q, e, s, rarg, dofs, YE);
    }
 };
 

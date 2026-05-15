@@ -46,7 +46,7 @@ struct LocalQFKernelsBackend
    template<int derivative_id, typename... Args>
    static auto MakeDerivativeAction(const IntegratorContext &, Args...)
    {
-      MFEM_ABORT("LocalDeviceBackend does not support derivative actions.");
+      MFEM_ABORT("LocalQFKernelsBackend does not support derivative actions.");
    }
 };
 
