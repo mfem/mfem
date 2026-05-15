@@ -358,6 +358,8 @@ TEST_CASE("Vector FE Linear Form Extension", "[LinearFormExtension], [GPU]")
          case FiniteElement::CURL:
             fec.reset(new ND_FECollection(p, dim));
             break;
+         default:
+            MFEM_ABORT("unsupported space type");
       }
       FiniteElementSpace fes(&mesh, fec.get());
 
