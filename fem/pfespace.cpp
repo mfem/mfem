@@ -1193,7 +1193,9 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
    MFEM_VERIFY(IsVariableOrder() && R,
                "GetEssentialTrueDofsVar is only for variable-order spaces");
 
-   true_ess_dofs.SetSize(R->Height(), 0);
+   true_ess_dofs.SetSize(R->Height());
+   true_ess_dofs.HostWrite();
+   true_ess_dofs = 0;
 
    const int ntdofs = tdof2ldof.Size();
    MFEM_VERIFY(vdim * ntdofs == R->NumRows() &&
