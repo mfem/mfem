@@ -2658,7 +2658,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          }
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_identity_fop<decltype(fop)>::value))
+             (!is_identity_fop<decltype(fop)>::value) &&
+             (dtq->FE != nullptr))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
