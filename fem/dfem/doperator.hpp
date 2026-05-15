@@ -783,8 +783,8 @@ void DifferentiableOperator::AddIntegrator(
       derivative_action_callbacks[i].push_back(
          backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #else
-      MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
-                 "but MFEM_USE_ENZYME is not defined.");
+      derivative_action_callbacks[i].push_back(
+         backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
 #endif
    }, derivative_ids);
 }

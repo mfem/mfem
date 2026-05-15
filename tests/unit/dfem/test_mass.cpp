@@ -37,7 +37,6 @@ using dscalar_t = dual<real_t, real_t>;
 template <int DIM, typename QFBackend>
 void mass_action(const char *filename, int p)
 {
-   constexpr int BDIM = DIM - 1;
    CAPTURE(filename, DIM, p);
 
    Mesh smesh(filename);
@@ -61,8 +60,8 @@ void mass_action(const char *filename, int p)
 
    ConstantCoefficient one(1.0);
 
-   // SECTION("domain")
    {
+      dbg();
       const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
       Array<int> all_domain_attr;
@@ -120,6 +119,7 @@ void mass_action(const char *filename, int p)
    /*if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
          (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
    {
+      constexpr int BDIM = DIM - 1;
       // SECTION("boundary")
       {
          const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
@@ -185,7 +185,8 @@ void mass_action(const char *filename, int p)
    }*/
 }
 
-template <int DIM> void mass_mat_mixed(const char* filename, int p)
+template <int DIM, typename QFBackend>
+void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
 
@@ -220,29 +221,23 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
    blf.SpMat().Finalize();
 
    static constexpr int U = 0, P = 1, Coords = 2;
-   // const auto sol = std::vector{FieldDescriptor{U, &fes1}};
-   // DifferentiableOperator dop(sol, {{P, &fes0}, {Coords, nodes->ParFESpace()}}, pmesh);
-   const auto in_fds = std::vector
-   {
-      FieldDescriptor{ U, &fes1 },
-      FieldDescriptor{ Coords, nodes->ParFESpace() }
-   };
-   const auto out_fds = std::vector{ FieldDescriptor{ P, &fes0 },};
-   DifferentiableOperator dop(in_fds, out_fds, pmesh);
+   DifferentiableOperator dop(
+   /* inputs  */ {{ U, &fes1 }, { Coords, nodes->ParFESpace() }},
+   /* outputs */ {{ P, &fes0 }}, pmesh);
    const auto mf_mass_qf = [] MFEM_HOST_DEVICE(
                               const dscalar_t& u,
                               const tensor<real_t, DIM, DIM>& J,
                               const real_t& w,
-                              real_t& p)
+                              dscalar_t& p)
    {
       p = u * w * det(J);
    };
 
    auto derivatives = std::integer_sequence<size_t, U> {};
-   dop.AddDomainIntegrator(mf_mass_qf,
-                           tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
-                           tuple{Value<P>{}},
-                           *ir, all_domain_attr, derivatives);
+   dop.AddDomainIntegrator<QFBackend>(mf_mass_qf,
+                                      tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
+                                      tuple{Value<P>{}},
+                                      *ir, all_domain_attr, derivatives);
 
    ParGridFunction ugf(&fes1);
    ugf = 0.0;
@@ -250,13 +245,12 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
    ParGridFunction pgf(&fes0);
    pgf = 0.0;
 
-   // dop.SetParameters({&pgf, nodes});
    // auto ddopdu = dop.GetDerivative(U, {&ugf}, {&pgf, nodes});
 
    MultiVector X{pgf, *nodes};
    auto ddopdu = dop.GetDerivative(U, X);
 
-   SECTION("spmat")
+   // SECTION("spmat" << filename)
    {
       SparseMatrix *A;
       ddopdu->Assemble(A);
@@ -264,7 +258,7 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
       delete A;
    }
 
-   SECTION("hypre parallel mat")
+   // SECTION("hypre parallel mat")
    {
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
@@ -278,46 +272,76 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
 
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][KER][MASS]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-
+   const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto mesh2d =
+      GENERATE("../../data/star.mesh",
+               "../../data/star-q3.mesh",
+               "../../data/rt-2d-q3.mesh",
+               "../../data/inline-quad.mesh",
+               "../../data/periodic-square.mesh");
 
-   SECTION("2d")
+   SECTION("LocalQF Default")
    {
-      const auto filename2d =
-         GENERATE(
-            "../../data/star.mesh",
-            "../../data/star-q3.mesh",
-            "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh"
-         );
-      mass_action<2, LocalQFDefaultBackend>(filename2d, p);
-      mass_action<2, LocalQFKernelsBackend>(filename2d, p);
-
-      // Avoiding failing 'hypre parallel mat' section
-#ifndef MFEM_USE_CUDA_OR_HIP
-      // mass_mat_mixed<2>(filename2d, p);
-#endif
+      mass_action<2, LocalQFDefaultBackend>(mesh2d, p);
    }
+
+   SECTION("LocalQF Kernels")
+   {
+      mass_action<2, LocalQFKernelsBackend>(mesh2d, p);
+   }
+
+   // Avoiding failing 'hypre parallel mat' section
+#ifndef MFEM_USE_CUDA_OR_HIP
+#ifdef MFEM_USE_ENZYME
+   SECTION("2D Mixed Default")
+   {
+      mass_mat_mixed<2, LocalQFDefaultBackend>(mesh2d, p);
+   }
+#else
+   SECTION("2D Mixed Kernels")
+   {
+      // 2D not supported yet
+      // mass_mat_mixed<2, LocalQFKernelsBackend>(mesh2d, p);
+   }
+#endif // MFEM_USE_ENZYME
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][KER][MASS]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto mesh3d =
+      GENERATE("../../data/fichera.mesh",
+               "../../data/fichera-q3.mesh",
+               "../../data/inline-hex.mesh",
+               "../../data/toroid-hex.mesh",
+               "../../data/periodic-cube.mesh");
+   SECTION("LocalQF Default")
+   {
+      mass_action<3, LocalQFDefaultBackend>(mesh3d, p);
+   }
 
-   const auto filename3d =
-      GENERATE(
-         "../../data/fichera.mesh",
-         "../../data/fichera-q3.mesh",
-         "../../data/inline-hex.mesh",
-         "../../data/toroid-hex.mesh",
-         "../../data/periodic-cube.mesh"
-      );
-   mass_action<3, LocalQFDefaultBackend>(filename3d, p);
-   mass_action<3, LocalQFKernelsBackend>(filename3d, p);
-   // mass_mat_mixed<3>(filename3d, p);
+   SECTION("LocalQF Kernels")
+   {
+      mass_action<3, LocalQFKernelsBackend>(mesh3d, p);
+   }
+
+   // Avoiding failing 'hypre parallel mat' section
+#ifndef MFEM_USE_CUDA_OR_HIP
+#ifdef MFEM_USE_ENZYME
+   SECTION("3D Mixed Default")
+   {
+      mass_mat_mixed<3, LocalQFDefaultBackend>(mesh3d, p);
+   }
+#else
+   SECTION("3D Mixed Kernels")
+   {
+      mass_mat_mixed<3, LocalQFKernelsBackend>(mesh3d, p);
+   }
+#endif // MFEM_USE_ENZYME
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 #endif // MFEM_USE_MPI

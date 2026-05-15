@@ -11,6 +11,7 @@
 #pragma once
 
 #include "qf_local_action.hpp"
+#include "qf_local_derivative_action.hpp"
 
 namespace mfem::future
 {
@@ -18,9 +19,6 @@ namespace mfem::future
 struct LocalQFKernelsBackend
 {
    static constexpr bool has_cached_derivative = false;
-
-   template<typename... Ts>
-   using action_t = LocalQFKernelsImpl::Action<Ts...>;
 
    /**
     * @brief Make an action for a local kernels backend.
@@ -32,8 +30,9 @@ struct LocalQFKernelsBackend
    template<typename... Args>
    static auto MakeAction(const IntegratorContext &ctx, Args... args)
    {
-      return action_t<Args...>(ctx, args...);
+      return LocalQFKernelsImpl::Action<Args...>(ctx, args...);
    }
+
 
    /**
     * @brief Make a derivative action for a local kernels backend.
@@ -43,10 +42,10 @@ struct LocalQFKernelsBackend
     * @param args The arguments to the derivative action.
     * @return The derivative action.
     */
-   template<int derivative_id, typename... Args>
-   static auto MakeDerivativeAction(const IntegratorContext &, Args...)
+   template<int id, typename... Args>
+   static auto MakeDerivativeAction(const IntegratorContext &ctx, Args... args)
    {
-      MFEM_ABORT("LocalQFKernelsBackend does not support derivative actions.");
+      return LocalQFKernelsImpl::DerivativeAction<id, Args...>(ctx, args...);
    }
 };
 

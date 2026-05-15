@@ -272,13 +272,8 @@ void diffusion(const char *filename, int p)
       vx.SetFromTrueDofs(vX);
 
       DifferentiableOperator dop_mf(
-      {
-         {U, &vpfes},
-         {Coords, mfes},
-      },
-      {
-         {U, &vpfes}
-      }, pmesh);
+      /* inputs  */ {{U, &vpfes}, {Coords, mfes}},
+      /* outputs */ {{U, &vpfes}}, pmesh);
 
       const auto mf_vector_diffusion_qf =
          [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
