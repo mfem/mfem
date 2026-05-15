@@ -109,49 +109,88 @@ public:
       MFEM_ASSERT(dim == 2 || dim == 3, "LocalQFKernels: only 2D and 3D");
 
 #ifdef MFEM_ADD_SPECIALIZATIONS
-      ActionCallbackKernels::template Specialization<2>::Add(); // 0
-      ActionCallbackKernels::template Specialization<3>::Add(); // 1
-      ActionCallbackKernels::template Specialization<4>::Add(); // 2
-      ActionCallbackKernels::template Specialization<5>::Add(); // 3
-      ActionCallbackKernels::template Specialization<6>::Add(); // 4
-      ActionCallbackKernels::template Specialization<7>::Add(); // 5
-      ActionCallbackKernels::template Specialization<8>::Add(); // 6
-      // ActionCallbackKernels::template Specialization<10>::Add(); // 8
-      // ActionCallbackKernels::template Specialization<12>::Add(); // 10
-      // ActionCallbackKernels::template Specialization<14>::Add(); // 12
-      // ActionCallbackKernels::template Specialization<16>::Add(); // 14
-      // ActionCallbackKernels::template Specialization<18>::Add(); // 16
+      // 2D kernels
+      ActionHO::template Specialization<2, 2>::Add(); // 0
+      ActionHO::template Specialization<2, 3>::Add(); // 1
+      ActionHO::template Specialization<2, 4>::Add(); // 2
+      ActionHO::template Specialization<2, 5>::Add(); // 3
+      ActionHO::template Specialization<2, 6>::Add(); // 4
+      ActionHO::template Specialization<2, 7>::Add(); // 5
+      ActionHO::template Specialization<2, 8>::Add(); // 6
+
+      // 3D kernels
+      ActionLO::template Specialization<3, 2>::Add(); // 0
+      ActionLO::template Specialization<3, 3>::Add(); // 1
+      ActionLO::template Specialization<3, 4>::Add(); // 2
+      ActionLO::template Specialization<3, 5>::Add(); // 3
+      ActionLO::template Specialization<3, 6>::Add(); // 4
+      ActionLO::template Specialization<3, 7>::Add(); // 5
+      ActionLO::template Specialization<3, 8>::Add(); // 6
+
+      // 3D HO kernels
+      ActionHO::template Specialization<3, 10>::Add(); // 8
+      ActionHO::template Specialization<3, 12>::Add(); // 10
+      ActionHO::template Specialization<3, 14>::Add(); // 12
+      ActionHO::template Specialization<3, 16>::Add(); // 14
+      ActionHO::template Specialization<3, 18>::Add(); // 16
 #endif
    }
 
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      ActionCallbackKernels::Run(dim, q1d,
-                                 // arguments
-                                 ctx,
-                                 qfunc,
-                                 // inputs
-                                 input_idx,
-                                 input_B,
-                                 input_G,
-                                 input_vdim,
-                                 input_d1d,
-                                 input_q1d,
-                                 // outputs
-                                 output_idx,
-                                 output_B,
-                                 output_G,
-                                 output_vdim,
-                                 output_d1d,
-                                 output_q1d,
-                                 xe, ye,
-                                 // fallback arguments
-                                 dim, q1d);
+      if (dim == 3 && q1d <= 8)
+      {
+         ActionLO::Run(dim, q1d,
+                       // arguments
+                       ctx,
+                       qfunc,
+                       // inputs
+                       input_idx,
+                       input_B,
+                       input_G,
+                       input_vdim,
+                       input_d1d,
+                       input_q1d,
+                       // outputs
+                       output_idx,
+                       output_B,
+                       output_G,
+                       output_vdim,
+                       output_d1d,
+                       output_q1d,
+                       xe, ye,
+                       // fallback arguments
+                       dim, q1d);
+      }
+      else
+      {
+         ActionHO::Run(dim, q1d,
+                       // arguments
+                       ctx,
+                       qfunc,
+                       // inputs
+                       input_idx,
+                       input_B,
+                       input_G,
+                       input_vdim,
+                       input_d1d,
+                       input_q1d,
+                       // outputs
+                       output_idx,
+                       output_B,
+                       output_G,
+                       output_vdim,
+                       output_d1d,
+                       output_q1d,
+                       xe, ye,
+                       // fallback arguments
+                       dim, q1d);
+      }
    }
 
    ////////////////////////////////////////////////////////
-   template<typename backend_t, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend, int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
                                // inputs: idx, B, G, vdim, d1d, q1d
@@ -175,10 +214,11 @@ public:
    {
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
+      MFEM_CONTRACT_VAR(dim);
       MFEM_ASSERT(dim == ctx.mesh.Dimension(), "Dimension mismatch");
 
-      static constexpr auto DIM = backend_t::dimension;
-      static constexpr auto B2D = backend_t::dimension == 2;
+      static constexpr auto DIM = backend_t::DIM;
+      static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
 
@@ -321,7 +361,7 @@ public:
                      }
                      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
                      {
-                        qarg = backend_t::template qp_pull<ARG>
+                        qarg = backend_t::template qp_pull<ARG, MQ1>
                         (get<i>(rargs), qx, qy, qz);
                      }
                      else { static_assert(false, "Unsupported"); }
@@ -349,7 +389,7 @@ public:
                      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
                      {
                         auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push<ARG>(rarg, qx, qy, qz, qarg);
+                        backend_t::template qp_push<ARG, MQ1>(rarg, qx, qy, qz, qarg);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -387,8 +427,9 @@ public:
          });
       }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }
-   using ActionKernelType = decltype(&Action::action_callback<LocalQFLOBackend>);
-   MFEM_REGISTER_KERNELS(ActionCallbackKernels, ActionKernelType, (int, int));
+   using ActionKernelType = decltype(&Action::action_callback<>);
+   MFEM_REGISTER_KERNELS(ActionLO, ActionKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(ActionHO, ActionKernelType, (int, int));
 };
 
 template <
@@ -397,21 +438,11 @@ template <
    typename outputs_t>
 template <int DIM, int Q1D>
 typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionCallbackKernels::Kernel()
+Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
-   using ActionType = Action<qfunc_t, inputs_t, outputs_t>;
-   if constexpr (DIM == 2)
-   {
-      return ActionType::template action_callback<LocalQFHOBackend<2>, Q1D>;
-   }
-   else if constexpr (DIM == 3)
-   {
-      return ActionType::template action_callback<LocalQFHOBackend<3>, Q1D>;
-   }
-   else
-   {
-      static_assert(false, "Unsupported dimension");
-   }
+   static_assert(DIM == 3 && Q1D <= 8);
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFLOBackend, Q1D>;
 }
 
 template <
@@ -419,8 +450,31 @@ template <
    typename inputs_t,
    typename outputs_t>
 typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionCallbackKernels::Fallback
-(int dim, int)
+Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int)
+{
+   MFEM_VERIFY(dim == 3, "Unsupported dimension");
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFLOBackend>;
+}
+
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
+
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
 {
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)

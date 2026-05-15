@@ -35,8 +35,8 @@ struct LocalQFLOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template <int T_Q1D> static inline
-   constexpr int MAX_THREADS_PER_BLOCK() { return T_Q1D*T_Q1D*T_Q1D; }
+   template <int Q1D> static inline
+   constexpr int MAX_THREADS_PER_BLOCK() { return Q1D * Q1D * Q1D; }
 
    //////////////////////////////////////////////////////////////////
    template<int MQ1>
@@ -114,6 +114,7 @@ struct LocalQFLOBackend
       using type = ker::regs3d_vd_t<e0, e1, MQ1>;
    };
 
+   //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    using QReg = typename low_order_qreg<T, MQ1>::type;
 

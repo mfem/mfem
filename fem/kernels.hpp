@@ -45,16 +45,16 @@ template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 
 template <int DIM, int N>
-struct regs3d_d_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
+struct regs3d_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
 
 template <int DIM, int N>
-using regs3d_d_t = regs3d_d_wrapper<DIM, N>;
+using regs3d_t = regs3d_wrapper<DIM, N>;
 
 template <int VDIM, int DIM, int N>
 struct regs3d_vd_wrapper: mfem::future::tensor<real_t, 0, 0, 0, VDIM, DIM> {};
 
 template <int VDIM, int DIM, int N>
-using regs3d_vd_t = regs3d_vd_device_wrapper<VDIM, DIM, N>;
+using regs3d_vd_t = regs3d_vd_wrapper<VDIM, DIM, N>;
 
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }

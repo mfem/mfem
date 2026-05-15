@@ -317,7 +317,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 

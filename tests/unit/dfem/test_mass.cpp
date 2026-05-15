@@ -276,8 +276,7 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
    }
 }
 
-// no GPU tag to avoid failing 'hypre parallel mat' section
-TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][KER][MASS]")
+TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][KER][MASS]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -295,11 +294,15 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][KER][MASS]")
          );
       mass_action<2, LocalQFDefaultBackend>(filename2d, p);
       mass_action<2, LocalQFKernelsBackend>(filename2d, p);
+
+      // Avoiding failing 'hypre parallel mat' section
+#ifndef MFEM_USE_CUDA_OR_HIP
       // mass_mat_mixed<2>(filename2d, p);
+#endif
    }
 }
 
-TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][KER][MASS]")
+TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][KER][MASS]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

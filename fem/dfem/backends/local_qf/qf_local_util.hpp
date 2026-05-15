@@ -206,20 +206,20 @@ constexpr auto get_Q1D(const Tuple& fields)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Register type for one HO q-function parameter, given a dimension kernel ops type.
+/// Register type for one HO q-function parameter
 template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
 struct ho_qreg;
 
 template<typename KerOps, typename T>
 struct ho_qreg<KerOps, T, 0>
 {
-   using type = typename KerOps::template value_reg_t<1>;
+   using type = typename KerOps::template val_reg_t<1>;
 };
 
 template<typename KerOps, typename T>
 struct ho_qreg<KerOps, T, 1>
 {
-   using type = typename KerOps::template grad_reg_t<1, KerOps::dimension>;
+   using type = typename KerOps::template del_reg_t<1, KerOps::DIM>;
 };
 
 template<typename KerOps, typename T>
@@ -227,7 +227,7 @@ struct ho_qreg<KerOps, T, 2>
 {
    static constexpr int e0 = qf_param_shape<T>::extents[0];
    static constexpr int e1 = qf_param_shape<T>::extents[1];
-   using type = typename KerOps::template grad_reg_t<e0, e1>;
+   using type = typename KerOps::template del_reg_t<e0, e1>;
 };
 
 template<typename KerOps, typename T>
@@ -236,22 +236,23 @@ using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
 namespace ho_qp_detail
 {
 
-/// Load one quadrature-point value (same @a qx,qy,qz as LO; 2D uses @a qy,@a qz only).
+/// Load one quadrature-point value
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
 {
    static_assert(DIM == 2 || DIM == 3);
-   constexpr int R = qf_param_shape<T>::rank;
+   constexpr int RNK = qf_param_shape<T>::rank;
    if constexpr (DIM == 2)
    {
-      (void)qz;
-      if constexpr (R == 0) { return T{reg(0, qy, qx)}; }
-      else if constexpr (R == 1)
+      MFEM_CONTRACT_VAR(qz);
+      if constexpr (RNK == 0) { return T{reg(0, qy, qx)}; }
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         T t;
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qy, qx); }
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         T t{};
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qy, qx); }
          return t;
       }
       else
@@ -270,13 +271,14 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    }
    else
    {
-      if constexpr (R == 0) { return T{reg(0, qz, qy, qx)}; }
-      else if constexpr (R == 1)
+      if constexpr (RNK == 0) { return T{reg(0, qz, qy, qx)}; }
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         T t;
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         T t{};
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
          return t;
       }
       else
@@ -295,22 +297,23 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    }
 }
 
-/// Store one quadrature-point value (same @a qx,qy,qz as LO; 2D uses @a qy,@a qz only).
+/// Store one quadrature-point value
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
                                       const T &out)
 {
    static_assert(DIM == 2 || DIM == 3);
-   constexpr int R = qf_param_shape<T>::rank;
+   constexpr int RNK = qf_param_shape<T>::rank;
    if constexpr (DIM == 2)
    {
       (void)qz;
-      if constexpr (R == 0) { reg(0, qy, qx) = qf_store_value(out); }
-      else if constexpr (R == 1)
+      if constexpr (RNK == 0) { reg(0, qy, qx) = qf_store_value(out); }
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd)
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd)
          {
             reg(0, dd, qy, qx) = qf_store_value(out(dd));
          }
@@ -332,12 +335,13 @@ MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
    }
    else
    {
-      if constexpr (R == 0) { reg(0, qz, qy, qx) = qf_store_value(out); }
-      else if constexpr (R == 1)
+      if constexpr (RNK == 0) { reg(0, qz, qy, qx) = qf_store_value(out); }
+      else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd)
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd)
          {
             reg(0, dd, qz, qy, qx) = qf_store_value(out(dd));
          }
@@ -361,14 +365,14 @@ MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
 
 } // namespace ho_qp_detail
 
-/// Pull one quadrature-point value from an HO register (same @a qx,qy,qz as LO).
+/// Pull one quadrature-point value from an HO register
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline auto ho_qp_pull(Reg &reg, int qx, int qy, int qz)
 {
    return ho_qp_detail::load_at<DIM, T>(reg, qx, qy, qz);
 }
 
-/// Push one quadrature-point value into an HO register (same @a qx,qy,qz as LO).
+/// Push one quadrature-point value into an HO register
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline void ho_qp_push(Reg &reg, int qx, int qy, int qz,
                                         const T &out)
