@@ -322,7 +322,8 @@ int main (int argc, char *argv[])
    bool tensor_product_only =
       pmesh->GetNE() == 0 ||
       (pmesh->GetNumGeometries(dim) == 1 &&
-         (pmesh->GetElementType(0)==Element::QUADRILATERAL || pmesh->GetElementType(0) == Element::HEXAHEDRON));
+       (pmesh->GetElementType(0)==Element::QUADRILATERAL ||
+        pmesh->GetElementType(0) == Element::HEXAHEDRON));
    MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, MPI_COMM_WORLD);
    PLBound *plb = nullptr;
