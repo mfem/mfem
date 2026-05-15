@@ -439,20 +439,21 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    }
 }
 
-BlockGS *AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
+real_t AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
 {
    // SparseMatrix &A = static_cast<SparseMatrix&>(op);
    Vector PinvAx = x_random;
    BlockGS *smoother = new BlockGS(op, blocksize);
-   for(int i = 0; i < 3; i++)
+   for(int i = 0; i < 4; i++)
    {
       Vector Ax(PinvAx.Size());
       A.Mult(PinvAx, Ax);
       smoother->Mult(Ax, PinvAx);
-      PinvAx /= PinvAx.Norml2();
+      if (i != 3){PinvAx /= PinvAx.Norml2();}
    }
    real_t rho = PinvAx.Norml2();
    real_t w = 4.0/3.0/rho;
+   real_t w_recip = 1.0 / w;
    smoother->SetDamping(1.0 / w);
    real_t tol = 1 + 0.03;
    int num_B_cols = B.Width();
@@ -466,6 +467,7 @@ BlockGS *AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &
 
       real_t norm_prev = b.Norml2();
       real_t ratio;
+      int it = 0;
       do
       {
          b_prev = b;
@@ -473,16 +475,16 @@ BlockGS *AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &
          smoother->Mult(Ab, b);
          b *= -1.0;
          b += b_prev;
-
          real_t norm = b.Norml2();
          ratio = norm_prev / norm;
          norm_prev = norm;
+         it += 1;
       }
-      while(ratio > tol);
+      while(ratio > tol && it < 80);
 
       for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
    }
-   return smoother;
+   return w_recip;
 }
 
 SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels)
@@ -491,25 +493,26 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    int vdim = fes.GetVDim();
    int ne = mesh.GetNE();
    int dim = mesh.Dimension();
-   int n_cut = (dim == 2) ? 2*2 - 1 : 2*2*2 - 2;
+   int n_cut = (dim == 2) ? 2*2 - 2 + 1: 2*2*2 - 3 + 1;
    FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
    GridFunction nodes(&nodal_fes);
    mesh.GetNodes(nodes);
    int nnodes = nodes.Size()/dim*vdim;
 
-   // Create the mesh hierarchy
+   // Create the mesh hierarchy.
    auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
 
    // Construct matrix B1
-   DenseMatrix B0(nnodes, 16); // make number of columns a median
+   std::cout << "construct B0 " << std::endl;
+   DenseMatrix B(nnodes, 64); // make number of columns a median
    std::random_device rd;
    std::mt19937 gen(rd()); 
    std::normal_distribution<double> dist(0.0, 1.0);
-   for (int i = 0; i < B0.Height(); i++)
+   for (int i = 0; i < B.Height(); i++)
    {
-      for (int j = 0; j < B0.Width(); j++)
+      for (int j = 0; j < B.Width(); j++)
       {
-         B0(i,j) = dist(gen);
+         B(i,j) = dist(gen);
       }
    }
 
@@ -535,83 +538,135 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    // class. All prolongations are owned.
    // Create the prolongations using 'E' using the SparseMatrix class
    operators[num_levels - 1] = &Af;
-   DenseMatrix B = B0;
+   Array<int> prev_dof_idx(ne+1);
+   prev_dof_idx = 0;
+   std::cout << "form first prev dof array " << std::endl;
+   for (int i = 0; i<ne; i++)
+   {
+      const FiniteElement *fe = fes.GetFE(i);
+      int num_nodes = fe->GetDof();
+      prev_dof_idx[i+1] = prev_dof_idx[i]+num_nodes;
+   }
    for (int k = num_levels - 2; k >= 0; --k)
    {
+      std::cout << "level k: " << k << std::endl;
       // Estimate Spactra Norm 
       // generate random vector x
       SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[k + 1]);
+      std::cout << "num non zero A: "<< A_prev.NumNonZeroElems() << std::endl;
       Vector x_random(A_prev.Height());
       for (int i = 0; i < x_random.Size(); i++){x_random(i) = dist(gen);}
       x_random /= x_random.Norml2();
-      BlockGS *A_tilde = AdaptiveSmoother(*operators[k + 1], A_prev, 4, x_random, B);
-
-      //Get the Block Offsets
-      Array<int> row_offsets(E[k+1].size()+1);
-      Array<int> col_offsets(E[k+1].size()+1);
-      row_offsets = 0;
-      col_offsets = 0;
-      for (int j = 0; j < E[k+1].size(); j++)
+      std::cout << "adaptive smoother: " << std::endl;
+      int block_size_in = (k == num_levels-2) ? 4 : n_cut;
+      real_t damping_factor = AdaptiveSmoother(*operators[k + 1], A_prev, block_size_in, x_random, B);
+      std::cout << "damping_factor "  << damping_factor << std::endl;
+      int num_el_part = E[k].size()+1;
+      Array<int> curr_dof_idx(num_el_part);
+      curr_dof_idx = 0;
+      std::cout << "forming P: "  << std::endl;
+      std::vector<Vector> Parr; 
+      for (int j = 0; j < num_el_part - 1; j++)
       {
-         int z = E[k][j];
-         row_offsets[z+1] += n_cut;
-         col_offsets[z+1] += 1;
-      }
-      Array<int> part_sizes_dof = row_offsets;
-      Array<int> part_sizes_el = col_offsets;
-      row_offsets.PartialSum();
-      // col_offsets /= n_cut;
-      col_offsets.PartialSum(); 
-
-      BlockMatrix P(row_offsets, col_offsets);
-
-      // Get submatrix from B
-      for (int i = 0; i < E[k].size(); i++)
-      {
-         DenseMatrix B_sub(part_sizes_dof[i], B.Width());
-         for (int j = 0; j < E[k+1].size(); j++)
+         std::vector<int> indices;
+         for (int i = 0; i < E[k+1].size(); i++) 
          {
-            if (E[k][j] == i)
+            if (j == E[k+1][i])
             {
-               int row_idx = j;
-               for (int nn = 0; nn < n_cut; nn++)
+               for (int mm=prev_dof_idx[i]; mm<prev_dof_idx[i+1]; mm++)
                {
-                  for(int c = 0; c <  B.Width(); c++)
-                  {
-                     B_sub(j+nn, c) = B(row_idx + nn, c);
-                  }
+                  indices.push_back(mm);
                }
             }
          }
-         DenseMatrixSVD Bsvd(B_sub, 'A', 'A'); 
-         DenseMatrix U = Bsvd.LeftSingularvectors(); 
-         SparseMatrix U_sub(part_sizes_dof[i], part_sizes_el[i]);
-         for(int ri = 0; ri < part_sizes_dof[i]; ri++)
+         DenseMatrix B_sub(indices.size(), B.Width());
+         for (int i = 0; i < indices.size(); i++)
          {
-            for (int ci = 0; ci < part_sizes_el[i]; ci++)
+            for (int c = 0; c <  B.Width(); c++)
             {
-               U_sub.Set(ri, ci,  U(ri, ci));
+               // val = (B(indices[i], c) > 1e-6) ? B(indices[i], c) : 0;
+               B_sub(i, c) = B(indices[i], c);
             }
          }
-         U_sub.Finalize();
-         P.SetBlock(i, i, &U_sub);
+         DenseMatrixSVD Bsvd(B_sub, 'A', 'A'); 
+         Bsvd.Eval(B_sub);
+         int num_keep = indices.size()/n_cut + (indices.size() % n_cut != 0);
+         DenseMatrix U = Bsvd.LeftSingularvectors(); 
+         for (int r = 0; r < U.Height(); r++)
+         {
+            for (int c = 0; c < num_keep; c++)
+            {
+               // real_t val = (std::abs(U(r,c)) > 1e-6) ? U(r,c) : 0;
+               real_t val = U(r,c);
+               Vector P_val(3);
+               P_val(0) = indices[r]; P_val(1) = curr_dof_idx[j] + c; P_val(2) = val;
+               Parr.push_back(P_val);
+               // P->Set(indices[r], curr_dof_idx[j] + c, val);
+            }
+         }
+         curr_dof_idx[j+1] = curr_dof_idx[j] + num_keep; 
       }
-      prolongations[k] = &P;
-      SparseMatrix *mono_P = P.CreateMonolithic();
-      unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *mono_P));
-      unique_ptr<SparseMatrix> Pt(Transpose(*mono_P));
-      operators[k] = mfem::Mult(*Pt, *AP);
-      if (k == 0)
+      SparseMatrix *P = new SparseMatrix(prev_dof_idx.Last(), curr_dof_idx.Last());
+      std::cout << "P height: "  << P->Height() << std::endl;
+      std::cout << "P width: "  << P->Width() << std::endl;
+      for (int pidx = 0; pidx < Parr.size(); pidx++)
       {
-         SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
-         smoothers[0] = new UMFPackSolver(Ac);
+         Vector P_v = Parr[pidx];
+         int ri = P_v(0); int ci = P_v(1); real_t value = P_v(2);
+         P -> Set(ri, ci, value);
       }
-      else
+      int block_size = (k == num_levels-2) ? 4 : n_cut;
+      BlockGS *A_tilde = new BlockGS(*operators[k+1], block_size, damping_factor);
+      P->Finalize();
+      SparseMatrix *A_prevt = Transpose(A_prev);
+      A_prevt->Finalize();
+      SparseMatrix A_inv_A(A_prev.Height(), A_prev.Width());
+      Vector A_col(A_prev.Height());
+      Vector A_col_vals;
+      Vector A_inv_A_col(A_prev.Height());
+      for (int j = 0; j < A_prev.Width(); j++)
       {
-         smoothers[k] = A_tilde;
+         A_col = 0.0;
+         Array<int> ind(A_prev.Height());
+         A_prevt->GetRow(j, ind, A_col_vals);
+         for (int k = 0; k < ind.Size(); k++)
+         {
+            A_col(ind[k]) = A_col_vals(k);
+         }
+         A_tilde->Mult(A_col, A_inv_A_col);
+         for (int i = 0; i < A_prev.Height(); i++)
+         {
+            if (i == j)
+            {
+               A_inv_A.Set(i,j, 1 - A_inv_A_col(i));
+            }
+            else
+            {
+               real_t val = (std::abs(A_inv_A_col(i))> 1e-6) ? A_inv_A_col(i) : 0;
+               A_inv_A.Set(i,j,-val);
+            }
+         }
       }
+      A_inv_A.Finalize();
+      SparseMatrix *T = mfem::Mult(A_inv_A, *P);
+      T = mfem::Mult(A_inv_A, *P);
+      T->Threshold(1e-6, false);
+      // T->Finalize();
+      prolongations[k] = T;
+      unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *T));
+      unique_ptr<SparseMatrix> Pt(Transpose(*T));
+      SparseMatrix *Anew = mfem::Mult(*Pt, *AP);
+      Anew->Threshold(1e-6, false);
+      std::cout << "A height: "  << Anew->Height() << std::endl;
+      std::cout << "A width: "  << Anew->Width() << std::endl;
+      operators[k] = Anew;
+      smoothers[k+1] = A_tilde;
       B = *mfem::Mult(*Pt, B);
+      prev_dof_idx = curr_dof_idx;
    }
+   SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
+   std::cout << "Num Non Zero Ac: " << Ac.NumNonZeroElems()  << std::endl;
+   smoothers[0] = new UMFPackSolver(Ac);
 }
 } // namespace mfem
 

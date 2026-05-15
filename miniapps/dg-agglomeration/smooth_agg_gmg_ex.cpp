@@ -24,7 +24,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../data/square-mixed.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int ref_levels = 2;
    int order = 1;
    real_t kappa_0 = 1.0;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
    const real_t sigma = -1.0;
-   const real_t kappa = kappa_0 * (order + 1) * (order + 1);
+   const real_t kappa = num_levels*kappa_0 * (order + 1) * (order + 1) / 2;
 
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);

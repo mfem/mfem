@@ -2894,9 +2894,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 }
 
-Blockl1Jacobi::Blockl1Jacobi(const Operator &op, int block_size_)
+Blockl1Jacobi::Blockl1Jacobi(const Operator &op, int block_size_, real_t damping_)
    : Solver(0),
-     block_size(block_size_)
+     block_size(block_size_),
+     damping(damping_)
 {
    SetOperator(op);
 }
@@ -2978,6 +2979,7 @@ void Blockl1Jacobi::Mult(const Vector &b, Vector &x) const
       LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
+   x *= damping;
 }
 
 void Blockl1Jacobi::MultTranspose(const Vector &b, Vector &x) const
@@ -2997,6 +2999,7 @@ void Blockl1Jacobi::MultTranspose(const Vector &b, Vector &x) const
       LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
+   x *= damping;
 }
 
 BlockGS::BlockGS(const Operator &op, int block_size_, real_t damping_)
@@ -3124,13 +3127,14 @@ void BlockGS::Mult(const Vector &b, Vector &x) const
          const DenseMatrix &U_ij = AB(k);
          U_ij.AddMult_a(-1.0, xj, xi);
       }
+
       LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
    x *= damping;
 }
 
-void BlockGS::MultTranspose(const Vector &b, Vector &x) const
+void BlockGS::MultTranspose(const Vector &b, Vector &x) const 
 {
    MFEM_VERIFY(height > 0, "BlockGS preconditioner is not constructed");
    const int nblockrows = Height()/block_size;
