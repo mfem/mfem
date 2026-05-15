@@ -369,8 +369,8 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F,
+                              const IntegrationRule *ir = nullptr);
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -387,6 +387,29 @@ public:
                        Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   using AssembleKernelType = void (*)(const int NE, const Array<int> &markers,
+                                       const Vector &jac,
+                                       const Array<real_t> &weights,
+                                       const Array<real_t> &testBO,
+                                       const Array<real_t> &testBC,
+                                       const Vector &coeff, Vector &y,
+                                       const int testd1d, const int q1d);
+
+   /// parameters: test_fetype, ndims, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType,
+                         (FiniteElement::DerivType, int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <FiniteElement::DerivType TestType, int DIM, int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
+   }
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
