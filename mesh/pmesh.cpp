@@ -2022,7 +2022,8 @@ std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF()
    int det_order = Dim*mesh_poly_deg-1;
    L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,
                                                   BasisType::GaussLobatto);
-   ParFiniteElementSpace *fespace_det = new ParFiniteElementSpace(this, fec_det);
+   ParFiniteElementSpace *fespace_det = new ParFiniteElementSpace(this,
+                                                                  fec_det);
    auto detgf = std::make_unique<ParGridFunction>(fespace_det);
    detgf->MakeOwner(fec_det);
    Mesh::UpdateJacobianDeterminantGF(detgf.get());

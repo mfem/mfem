@@ -10,16 +10,20 @@
 // CONTRIBUTING.md for details.
 //
 //    ---------------------------------------------------------------------
-//    Amsterdam 2023 code -- AMSTER (Automatic Mesh SmooThER)
+//       Tangential Relaxation Miniapp: TMOP-based Mesh Optimization with
+//                 Tangential Relaxation of Boundary Nodes
 //    ---------------------------------------------------------------------
 //
+// This miniapp performs high-order mesh optimization while allowing selected
+// boundary nodes to slide tangentially along extracted curves and surfaces.
+// The mesh quality objective is based on the Target-Matrix Optimization
+// Paradigm (TMOP), while tangential relaxation is enforced by projecting the
+// selected boundary nodes to lower-dimensional reference meshes constructed
+// from the initial geometry.
 //
 // Compile with: make tangential-relaxation
 //
 // Sample runs:
-// Blade - no bound on Jacobian + tangential relaxation
-// make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 8 -vis -rs 0 -mid 2 -tid 1  -ni 400 -st 1 -no-bound -bnd
-
 // Blade - bound on Jacobian + tangential relaxation
 // make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -st 1 -bnd -bdropt 1 -bound
 
@@ -34,6 +38,7 @@
 
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 #include "tangential-relaxation.hpp"
 
 using namespace mfem;
@@ -63,11 +68,8 @@ int main (int argc, char *argv[])
    int bdr_opt_case      = 1;
    bool vis              = false;
    bool move_bnd         = false;
-   bool final_pass       = true;
    bool bound            = true;
-   int solver_type       = 1;
    bool transform        = true;
-   bool adapt_qp         = false;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -92,20 +94,12 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
-   args.AddOption(&final_pass, "-final", "--final", "-no-final",
-                  "--no-final",
-                  "Enable final mesh optimization pass.");
    args.AddOption(&bound, "-bound", "--bound", "-no-bound",
                   "--no-bound",
                   "Enable bounds.");
-   args.AddOption(&solver_type, "-st", "--solver-type",
-                  "0 - Newton, 1 - LBFGS:\n\t");
    args.AddOption(&transform, "-transform", "--transform", "-no-transform",
                   "--no-transform",
                   "Enable transforms.");
-   args.AddOption(&adapt_qp, "-aqp", "--aqp", "-no-aqp",
-                  "--no-aqp",
-                  "Enable adaptive quad order.");
    args.Parse();
    if (!args.Good())
    {
@@ -122,24 +116,24 @@ int main (int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
 
+   // Helper for encoding pairs of boundary attributes in 3D edge cases.
    auto setTwoBits = [](int j, int k)
    {
       return (1 << (j-1)) | (1 << (k-1));
    };
 
-   // Setup edge-mesh for tangential relaxation
+   // Select the boundary attributes that will participate in tangential
+   // relaxation and build the corresponding lower-dimensional meshes.
    Array<ParMesh *> surf_mesh_arr;
    Array<int> surf_mesh_attr, surf_mesh_edge_attr;
    if (bdr_opt_case == 1) //blade
    {
-      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(1);
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
    else if (bdr_opt_case == 2) // Ale tangled - curvilinear right and top
    {
-      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(2);
       surf_mesh_arr.SetSize(2);
       surf_mesh_attr[0] = 3;
@@ -147,14 +141,12 @@ int main (int argc, char *argv[])
    }
    else if (bdr_opt_case == 4) // Ale tangled - rotated circular hole
    {
-      MFEM_VERIFY(dim == 2,"Only 2D meshes supported for tangential relaxation.");
       surf_mesh_attr.SetSize(1);
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
    else if (bdr_opt_case == 8) // 3D case - kershaw
    {
-      MFEM_VERIFY(dim == 3,"3D case");
       surf_mesh_attr.SetSize(3);
       surf_mesh_attr[0] = 1;
       surf_mesh_attr[1] = 2;
@@ -166,8 +158,9 @@ int main (int argc, char *argv[])
 
       surf_mesh_arr.SetSize(surf_mesh_attr.Size()+surf_mesh_edge_attr.Size());
    }
-   double bbox_fac = 2.0; //2.0;
+   double bbox_fac = 2.0;
 
+   // Decode the stored boundary-attribute pairs.
    auto getTwoSetBits = [](int val) -> std::pair<int, int>
    {
       std::pair<int, int> result = {-1, -1};
@@ -185,10 +178,11 @@ int main (int argc, char *argv[])
          bitIndex++;
       }
 
-      // Optional: handle cases where not exactly two bits are set
       return result;
    };
 
+   // Extract the boundary curves/surfaces from the initial serial mesh. These
+   // meshes define the geometry on which boundary nodes are allowed to slide.
    if (bdr_opt_case >= 1)
    {
       if (myid == 0)
@@ -222,9 +216,10 @@ int main (int argc, char *argv[])
          auto result = getTwoSetBits(surf_mesh_edge_attr[i]);
          int eattr1 = result.first;
          int eattr2 = result.second;
-         Mesh *meshsurf = SetupEdgeMesh3D(mesh, attr_count_ser, attr_marker_ser, eattr1,
-                                          eattr2);
-         surf_mesh_arr[i+surf_mesh_attr.Size()] = new ParMesh(MPI_COMM_WORLD, *meshsurf);
+         Mesh *meshsurf = SetupEdgeMesh3D(mesh, attr_count_ser,
+                                          attr_marker_ser, eattr1, eattr2);
+         surf_mesh_arr[i+surf_mesh_attr.Size()] = new ParMesh(MPI_COMM_WORLD,
+                                                              *meshsurf);
          delete meshsurf;
       }
       for (int i = 0; i < surf_mesh_arr.Size(); i++)
@@ -264,11 +259,8 @@ int main (int argc, char *argv[])
    ParGridFunction x0(&pfes);
    x0 = x;
 
-   // Metric.
-   TMOP_QualityMetric *metric = GetMetric(metric_id);
-   TargetConstructor *target_c = GetTargetConstructor(target_id, x0);
+   // Compute Jacobian determinant bounds from the initial mesh if requested.
    auto detgf = pmesh->GetJacobianDeterminantGF();
-
    Vector detgf_lower, detgf_upper;
    int ref_factor = dim == 2 ? 10 : 8;
    PLBound *plb = nullptr;
@@ -287,7 +279,8 @@ int main (int argc, char *argv[])
                              "Initial mesh", 600, 0, 300, 300, "jRmlAe");
    }
 
-   MeshOptimizer meshopt(pmesh);
+   // Mark boundary dofs by attribute and identify the subset that will be used
+   // for tangential relaxation.
    ParGridFunction attr_count(&pfes);
    ParGridFunction attr_count_s(&spfes);
    Array<int> attr_marker;
@@ -295,7 +288,7 @@ int main (int argc, char *argv[])
    SetupDofAttributes(attr_count_s, attr_marker);
    Array<int> aux_ess_dofs = IdentifyAuxiliaryEssentialDofs(attr_count);
    Array<int> aux_ess_dofs_s = IdentifyAuxiliaryEssentialDofs(attr_count_s);
-   // Get Dofs for all faces/edges
+   // Get dofs for all selected boundary faces and edges.
    Array<Array<int> *> bdr_face_dofs(surf_mesh_attr.Size());
    for (int i = 0; i < bdr_face_dofs.Size(); i++)
    {
@@ -320,14 +313,133 @@ int main (int argc, char *argv[])
       RemoveDofsFromBdrFaceDofs(*bdr_edge_dofs[i], aux_ess_dofs_s);
    }
 
-   real_t min_detA_m0 = GetMinDet(pmesh, x0, quad_order);
+   // Define the TMOP quality metric and target.
+   real_t min_det_m0 = GetMinDet(pmesh, x0, quad_order);
+   TMOP_QualityMetric *metric = nullptr;
+   switch (metric_id)
+   {
+      case 2: metric = new TMOP_Metric_002; break;
+      case 49: metric = new TMOP_AMetric_049(0.6); break;
+      case 80: metric = new TMOP_Metric_080(0.25); break;
+      case 301: metric = new TMOP_Metric_301; break;
+      case 302: metric = new TMOP_Metric_302; break;
+      case 303: metric = new TMOP_Metric_303; break;
+      case 322: metric = new TMOP_Metric_322; break;
+      case 360: metric = new TMOP_Metric_360; break;
+      default: MFEM_ABORT("Unknown metric_id");
+   }
 
-   meshopt.Setup(x, &min_detA_m0, quad_order, metric_id,
-                 target_id,
-                 plb, detgf.get(), solver_iter, move_bnd, surf_mesh_attr,
-                 aux_ess_dofs, solver_type, adapt_qp);
+   TargetConstructor::TargetType target_t;
+   switch (target_id)
+   {
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      default: MFEM_ABORT("Unknown target_id");
+   }
+   TargetConstructor *target_c =
+      new TargetConstructor(target_t, x.ParFESpace()->GetComm());
+   target_c->SetNodes(x);
 
+   // Setup the TMOP nonlinear form.
+   auto *tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
+   tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+   if (plb)
+   {
+      tmop_integ->EnableDeterminantPLBounds(detgf.get(), 3, 2);
+   }
+
+   auto *nlf = new ParNonlinearForm(&pfes);
+   nlf->AddDomainIntegrator(tmop_integ);
+
+   // Fix non-sliding boundary dofs and preserve corners and junctions.
+   if (!move_bnd)
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      nlf->SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         if (surf_mesh_attr.Find(attr) == -1)
+         {
+            if (attr == 1 || attr == 2 || (attr == 3 && dim == 3)) { n += nd; }
+            if (attr >= dim+1) { n += nd * dim; }
+         }
+      }
+
+      Array<int> ess_vdofs(n);
+      n = 0;
+      Array<int> vdofs;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int nd = pfes.GetBE(i)->GetDof();
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfes.GetBdrElementVDofs(i, vdofs);
+         if (surf_mesh_attr.Find(attr) == -1)
+         {
+            if (attr == 1)
+            {
+               for (int j = 0; j < nd; j++)
+               {
+                  ess_vdofs[n++] = vdofs[j];
+               }
+            }
+            else if (attr == 2)
+            {
+               for (int j = 0; j < nd; j++)
+               {
+                  ess_vdofs[n++] = vdofs[j+nd];
+               }
+            }
+            else if (attr == 3 && dim == 3)
+            {
+               for (int j = 0; j < nd; j++)
+               {
+                  ess_vdofs[n++] = vdofs[j+2*nd];
+               }
+            }
+            else if (attr >= dim+1)
+            {
+               for (int j = 0; j < vdofs.Size(); j++)
+               {
+                  ess_vdofs[n++] = vdofs[j];
+               }
+            }
+         }
+      }
+      for (int i = 0; i < aux_ess_dofs.Size(); i++)
+      {
+         ess_vdofs.Append(aux_ess_dofs[i]);
+      }
+      nlf->SetEssentialVDofs(ess_vdofs);
+   }
+
+   // Setup solver
+   const  int solver_type       = 1; // LBFGS
+   const IntegrationRule &ir =
+      IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
+   auto *solver = new TMOPNewtonSolver(pfes.GetComm(), ir, solver_type);
+   solver->SetIntegrationRules(IntRulesLo, quad_order);
+   if (plb) { solver->EnsurePositiveDeterminantBound(); }
+   solver->SetOperator(*nlf);
+   solver->SetMinDetPtr(&min_det_m0);
+   solver->SetMaxIter(solver_iter);
+   solver->SetRelTol(1e-8);
+   solver->SetAbsTol(0.0);
+   IterativeSolver::PrintLevel newton_pl;
+   solver->SetPrintLevel(newton_pl.Iterations().Summary());
+
+   // Setup FindPoints data for the extracted boundary meshes and enable
+   // tangential relaxation for the selected boundary dofs.
    Array<FindPointsGSLIB *> finder_arr;
+   Array<Array<int> *> tang_dofs_arr;
+   Array<GridFunction *> nodes0_arr;
    if (bdr_opt_case)
    {
       for (int i = 0; i < surf_mesh_attr.Size(); i++)
@@ -336,9 +448,8 @@ int main (int argc, char *argv[])
          finder_arr.Append(finder);
          finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
          finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
-         meshopt.SetupTangentialRelaxationForFacEdg(&pfes, bdr_face_dofs[i],
-                                                    finder,
-                                                    surf_mesh_arr[i]->GetNodes());
+         tang_dofs_arr.Append(bdr_face_dofs[i]);
+         nodes0_arr.Append(surf_mesh_arr[i]->GetNodes());
       }
       int noff = surf_mesh_attr.Size();
       for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
@@ -347,14 +458,29 @@ int main (int argc, char *argv[])
          finder_arr.Append(finder);
          finder->SetupSurf(*surf_mesh_arr[i+noff], bbox_fac);
          finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
-         meshopt.SetupTangentialRelaxationForFacEdg(&pfes, bdr_edge_dofs[i],
-                                                    finder, surf_mesh_arr[i+noff]->GetNodes());
+         tang_dofs_arr.Append(bdr_edge_dofs[i]);
+         nodes0_arr.Append(surf_mesh_arr[i+noff]->GetNodes());
       }
-      meshopt.EnableTangentialRelaxation();
+      solver->SetTangentialRelaxationFlag(true);
+      tmop_integ->EnableTangentialRelaxation(finder_arr, tang_dofs_arr,
+                                             nodes0_arr);
    }
 
-   meshopt.OptimizeNodes(x);
+   // Optimize the mesh nodes.
+   const real_t init_energy = nlf->GetParGridFunctionEnergy(x);
+   x.SetTrueVector();
+   Vector b;
+   solver->Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
 
+   const real_t final_energy = nlf->GetParGridFunctionEnergy(x);
+   if (pfes.GetMyRank() == 0)
+   {
+      std::cout << "Initial energy: " << init_energy << endl
+                << "Final energy:   " << final_energy << endl;
+   }
+
+   // Save the final optimized mesh.
    {
       ostringstream mesh_name;
       mesh_name << "tangential-out.mesh";
@@ -372,8 +498,14 @@ int main (int argc, char *argv[])
    }
 
    // 13. Free the used memory.
+   delete solver;
+   delete nlf;
    delete target_c;
    delete metric;
+   for (int i = 0; i < finder_arr.Size(); i++) { delete finder_arr[i]; }
+   for (int i = 0; i < bdr_face_dofs.Size(); i++) { delete bdr_face_dofs[i]; }
+   for (int i = 0; i < bdr_edge_dofs.Size(); i++) { delete bdr_edge_dofs[i]; }
+   for (int i = 0; i < surf_mesh_arr.Size(); i++) { delete surf_mesh_arr[i]; }
    delete pmesh;
 
    return 0;
