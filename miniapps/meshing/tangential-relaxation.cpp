@@ -27,14 +27,14 @@
 // Blade - bound on Jacobian + tangential relaxation
 // make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -st 1 -bnd -bdropt 1 -bound
 
-// Ale tangled - curvilinear right and top boundaries
-// mpirun -np 3 tangential-relaxation -m 2Dmorphedsquare.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2  -ni 400 -bnd -bound
-
-// circular hole
-// make tangential-relaxation -j4 && mpirun -np 3 tangential-relaxation -m 2Dcircularhole.mesh -o 2 -qo 8 -vis -rs 0 -mid 80 -tid 2 -bdropt 4 -ni 200 -bnd -bound
-
+// curvilinear right and top boundaries
+// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 2  -ni 400 -bnd -transform 1
+// triangles
+// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1 -no-bound
 // 3D
-// make tangential-relaxation -j4 && mpirun -np 10 tangential-relaxation -m kershaw_laghos_morphed_2.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 8  -ni 500 -bnd -no-bound
+// make tangential-relaxation -j4 &&  mpirun -np 12 tangential-relaxation -m cube.mesh -o 2 -qo 8 -vis -mid 301 -tid 1 -bdropt 3 -rs 2  -ni 1000 -bnd -transform 1 -no-bound
+
+// adaptive limiting
 
 
 #include "mfem.hpp"
@@ -43,6 +43,48 @@
 
 using namespace mfem;
 using namespace std;
+
+// Transformation from the unit square/cube to a smooth shield-like domain.
+void UnitSquareShieldTransformation(const Vector &xin, Vector &xout)
+{
+   MFEM_VERIFY(xin.Size() == 2 || xin.Size() == 3,
+               "This transformation is only defined in 2D and 3D.");
+
+   real_t x = xin(0);
+   real_t y = xin(1);
+   x = x + x*(1-x)*0.4;
+   y = y + y*(1-y)*0.4;
+
+   // a adds deformation inside.
+   // b pulls the top-right corner out.
+   // c adds boundary deformation.
+   real_t a = 0.2, b = 0.5, c = 1.5;
+
+   if (xin.Size() == 2)
+   {
+      xout.SetSize(2);
+      xout(0) = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y) + b * x * y;
+      xout(1) = y + a * sin(c * M_PI * x) * sin(0.5 * M_PI * y) + b * x * y;
+      return;
+   }
+
+   real_t z = xin(2);
+   z = z + z*(1-z)*0.25;
+   const real_t zb = xin(2) * (1.0 - xin(2));
+   const real_t xy_warp_x =
+      a * sin(0.5 * M_PI * x) * sin(c * M_PI * y) + b * x * y;
+   const real_t xy_warp_y =
+      a * sin(c * M_PI * x) * sin(0.5 * M_PI * y) + b * x * y;
+
+   xout.SetSize(3);
+   xout(0) = x + (1.0 + 0.6 * zb) * xy_warp_x
+             + 0.08 * a * sin(M_PI * xin(2)) * sin(c * M_PI * y);
+   xout(1) = y + (1.0 + 0.6 * zb) * xy_warp_y
+             + 0.08 * a * sin(M_PI * xin(2)) * sin(c * M_PI * x);
+   xout(2) = z + 0.18 * a * sin(c * M_PI * x) * sin(M_PI * xin(2))
+             + 0.18 * a * sin(c * M_PI * y) * sin(M_PI * xin(2))
+             + 0.12 * b * x * y * sin(M_PI * xin(2));
+}
 
 int main (int argc, char *argv[])
 {
@@ -69,7 +111,7 @@ int main (int argc, char *argv[])
    bool vis              = false;
    bool move_bnd         = false;
    bool bound            = true;
-   bool transform        = true;
+   int transform         = 0;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -97,9 +139,10 @@ int main (int argc, char *argv[])
    args.AddOption(&bound, "-bound", "--bound", "-no-bound",
                   "--no-bound",
                   "Enable bounds.");
-   args.AddOption(&transform, "-transform", "--transform", "-no-transform",
-                  "--no-transform",
-                  "Enable transforms.");
+   args.AddOption(&transform, "-transform", "--transform",
+                  "Transformation type:\n\t"
+                  "0: No transformation (default)\n\t"
+                  "1: Smooth shield-like transformation of a unit-square mesh");
    args.Parse();
    if (!args.Good())
    {
@@ -112,6 +155,18 @@ int main (int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
+
+   // Apply the requested mesh transformation.
+   if (transform == 1)
+   {
+      VectorFunctionCoefficient fcu(mesh->Dimension(),
+                                    UnitSquareShieldTransformation);
+      mesh->Transform(fcu);
+   }
+   else if (transform != 0)
+   {
+      MFEM_ABORT("Unknown transform option.");
+   }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
@@ -132,20 +187,14 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   else if (bdr_opt_case == 2) // Ale tangled - curvilinear right and top
+   else if (bdr_opt_case == 2) // morphed - curvilinear right and top
    {
       surf_mesh_attr.SetSize(2);
       surf_mesh_arr.SetSize(2);
-      surf_mesh_attr[0] = 3;
-      surf_mesh_attr[1] = 4;
+      surf_mesh_attr[0] = 1;
+      surf_mesh_attr[1] = 2;
    }
-   else if (bdr_opt_case == 4) // Ale tangled - rotated circular hole
-   {
-      surf_mesh_attr.SetSize(1);
-      surf_mesh_arr.SetSize(1);
-      surf_mesh_attr[0] = 4;
-   }
-   else if (bdr_opt_case == 8) // 3D case - kershaw
+   else if (bdr_opt_case == 3) // 3D case - kershaw
    {
       surf_mesh_attr.SetSize(3);
       surf_mesh_attr[0] = 1;
@@ -157,6 +206,12 @@ int main (int argc, char *argv[])
       surf_mesh_edge_attr[2] = setTwoBits(1,3);
 
       surf_mesh_arr.SetSize(surf_mesh_attr.Size()+surf_mesh_edge_attr.Size());
+   }
+   else if (bdr_opt_case == 4) // Ale tangled - rotated circular hole
+   {
+      surf_mesh_attr.SetSize(1);
+      surf_mesh_arr.SetSize(1);
+      surf_mesh_attr[0] = 4;
    }
    double bbox_fac = 2.0;
 
@@ -263,12 +318,18 @@ int main (int argc, char *argv[])
    auto detgf = pmesh->GetJacobianDeterminantGF();
    Vector detgf_lower, detgf_upper;
    int ref_factor = dim == 2 ? 10 : 8;
+
+   bool tensor_product_only =
+      pmesh->GetNE() == 0 ||
+      (pmesh->GetNumGeometries(dim) == 1 &&
+         (pmesh->GetElementType(0)==Element::QUADRILATERAL || pmesh->GetElementType(0) == Element::HEXAHEDRON));
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
+                 MPI_LAND, MPI_COMM_WORLD);
    PLBound *plb = nullptr;
-   PLBound plbt = detgf->GetBounds(detgf_lower, detgf_upper,
-                                   ref_factor);
-   if (bound)
+   if (tensor_product_only)
    {
-      plb = &plbt;
+      plb = new PLBound(detgf->FESpace(),
+                        ref_factor*(detgf->FESpace()->GetMaxElementOrder()+1));
    }
 
    // Visualize the starting mesh.
@@ -276,7 +337,7 @@ int main (int argc, char *argv[])
    {
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Initial mesh", 600, 0, 300, 300, "jRmlAe");
+                             "Initial mesh", 0, 0, 500, 500, "jRmlA");
    }
 
    // Mark boundary dofs by attribute and identify the subset that will be used
@@ -322,10 +383,9 @@ int main (int argc, char *argv[])
       case 49: metric = new TMOP_AMetric_049(0.6); break;
       case 80: metric = new TMOP_Metric_080(0.25); break;
       case 301: metric = new TMOP_Metric_301; break;
-      case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      case 322: metric = new TMOP_Metric_322; break;
-      case 360: metric = new TMOP_Metric_360; break;
+      case 323: metric = new TMOP_Metric_323; break;
+      case 347: metric = new TMOP_Metric_347(0.5); break;
       default: MFEM_ABORT("Unknown metric_id");
    }
 
@@ -494,7 +554,7 @@ int main (int argc, char *argv[])
    {
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Final mesh", 600, 0, 300, 300, "jRmlAe");
+                             "Final mesh", 600, 0, 500, 500, "jRmlA");
    }
 
    // 13. Free the used memory.

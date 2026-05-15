@@ -4236,7 +4236,8 @@ void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
       b = 0.0;
 
       ParBilinearForm a(&fespace);
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Use the legacy assembled operator here. The EA/FA diffusion path
+      // expects tensor-product elements and aborts on simplex meshes.
 
       ConstantCoefficient one(beta);
       a.AddDomainIntegrator(new DiffusionIntegrator(one)); // For ∇^2
