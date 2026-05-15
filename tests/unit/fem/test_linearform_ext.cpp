@@ -328,7 +328,7 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
    }
 }
 
-TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
+TEST_CASE("Vector FE Linear Form Extension", "[LinearFormExtension], [GPU]")
 {
    const bool all = launch_all_non_regression_tests;
 
@@ -341,60 +341,42 @@ TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   CAPTURE(mesh_file, dim, p);
+   {
+      const auto space_type =
+         dim == 3 ? GENERATE(FiniteElement::DIV, FiniteElement::CURL)
+         : FiniteElement::DIV;
 
-   RT_FECollection fec(p, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+      CAPTURE(mesh_file, dim, p, space_type);
 
-   VectorFunctionCoefficient coeff(dim, fvec_dim);
+      std::unique_ptr<FiniteElementCollection> fec;
 
-   LinearForm d1(&fes);
-   d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d1.UseFastAssembly(true);
-   d1.Assemble();
+      switch (space_type)
+      {
+         case FiniteElement::DIV:
+            fec.reset(new RT_FECollection(p, dim));
+            break;
+         case FiniteElement::CURL:
+            fec.reset(new ND_FECollection(p, dim));
+            break;
+      }
+      FiniteElementSpace fes(&mesh, fec.get());
 
-   LinearForm d2(&fes);
-   d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d2.UseFastAssembly(false);
-   d2.Assemble();
+      VectorFunctionCoefficient coeff(dim, fvec_dim);
 
-   CAPTURE(d1.Norml2(), d2.Norml2());
-   d1 -= d2;
-   REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
-}
+      LinearForm d1(&fes);
+      d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d1.UseFastAssembly(true);
+      d1.Assemble();
 
-TEST_CASE("H(curl) Linear Form Extension", "[LinearFormExtension], [GPU]")
-{
-   const bool all = launch_all_non_regression_tests;
+      LinearForm d2(&fes);
+      d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d2.UseFastAssembly(false);
+      d2.Assemble();
 
-   const auto mesh_file =
-      all ? GENERATE("../../data/fichera.mesh", "../../data/fichera-q3.mesh")
-      : GENERATE("../../data/fichera-q3.mesh");
-   const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3);
-
-   Mesh mesh(mesh_file);
-   const int dim = mesh.Dimension();
-
-   CAPTURE(mesh_file, dim, p);
-
-   ND_FECollection fec(p, dim);
-   FiniteElementSpace fes(&mesh, &fec);
-
-   VectorFunctionCoefficient coeff(dim, fvec_dim);
-
-   LinearForm d1(&fes);
-   d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d1.UseFastAssembly(true);
-   d1.Assemble();
-
-   LinearForm d2(&fes);
-   d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d2.UseFastAssembly(false);
-   d2.Assemble();
-
-   CAPTURE(d1.Norml2(), d2.Norml2());
-   d1 -= d2;
-   REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+      CAPTURE(d1.Norml2(), d2.Norml2());
+      d1 -= d2;
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
 }
 
 #ifdef MFEM_USE_MPI
