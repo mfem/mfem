@@ -504,7 +504,8 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
 
    // Construct matrix B1
    std::cout << "construct B0 " << std::endl;
-   DenseMatrix B(nnodes, 64); // make number of columns a median
+   int num_samp = (dim == 2) ? 16: 64;
+   DenseMatrix B(nnodes, num_samp); // make number of columns a median
    std::random_device rd;
    std::mt19937 gen(rd()); 
    std::normal_distribution<double> dist(0.0, 1.0);
@@ -615,42 +616,40 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
          int ri = P_v(0); int ci = P_v(1); real_t value = P_v(2);
          P -> Set(ri, ci, value);
       }
+      std::cout << "P is formed"  << std::endl;
       int block_size = (k == num_levels-2) ? 4 : n_cut;
       BlockGS *A_tilde = new BlockGS(*operators[k+1], block_size, damping_factor);
       P->Finalize();
-      SparseMatrix *A_prevt = Transpose(A_prev);
-      A_prevt->Finalize();
-      SparseMatrix A_inv_A(A_prev.Height(), A_prev.Width());
-      Vector A_col(A_prev.Height());
-      Vector A_col_vals;
-      Vector A_inv_A_col(A_prev.Height());
+      ProductOperator A_til_inv_A(A_tilde, &A_prev, false, false);
+      SparseMatrix A_til_inv_A_mat(A_prev.Height(), A_prev.Width());
+      Vector basis_vec(A_prev.Height());
+      basis_vec = 0.0;
       for (int j = 0; j < A_prev.Width(); j++)
       {
-         A_col = 0.0;
-         Array<int> ind(A_prev.Height());
-         A_prevt->GetRow(j, ind, A_col_vals);
-         for (int k = 0; k < ind.Size(); k++)
-         {
-            A_col(ind[k]) = A_col_vals(k);
-         }
-         A_tilde->Mult(A_col, A_inv_A_col);
+         Vector A_inv_A_col(A_prev.Height());
+         basis_vec(j) = 1.0;
+         A_til_inv_A.Mult(basis_vec, A_inv_A_col);
          for (int i = 0; i < A_prev.Height(); i++)
          {
             if (i == j)
             {
-               A_inv_A.Set(i,j, 1 - A_inv_A_col(i));
+               A_til_inv_A_mat.Set(i,j,1 - A_inv_A_col(i));
             }
             else
             {
                real_t val = (std::abs(A_inv_A_col(i))> 1e-6) ? A_inv_A_col(i) : 0;
-               A_inv_A.Set(i,j,-val);
+               A_til_inv_A_mat.Set(i,j, -val);
             }
-         }
-      }
-      A_inv_A.Finalize();
-      SparseMatrix *T = mfem::Mult(A_inv_A, *P);
-      T = mfem::Mult(A_inv_A, *P);
+         } 
+         basis_vec(j) = 0.0;
+      }    
+      A_til_inv_A_mat.Finalize();
+      std::cout << "S height: "  << A_til_inv_A_mat.Height() << std::endl;
+      std::cout << "S width: "  << A_til_inv_A_mat.Width() << std::endl;
+      SparseMatrix *T = mfem::Mult(A_til_inv_A_mat, *P);
+      //T = mfem::Mult(A_inv_A, *P);
       T->Threshold(1e-6, false);
+      std::cout << "T is formed"  << std::endl;
       // T->Finalize();
       prolongations[k] = T;
       unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *T));
