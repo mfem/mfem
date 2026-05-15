@@ -30,6 +30,16 @@ MFEM_HOST_DEVICE auto qf_store_value(const T &v)
    else { return v; }
 }
 
+/// True when quadrature-point values of `T` carry dual-number derivatives.
+template <typename T>
+struct qf_param_uses_dual : std::false_type {};
+
+template <typename S, int... Is>
+struct qf_param_uses_dual<tensor<S, Is...>> : is_dual_number<S> {};
+
+template <typename T>
+constexpr bool qf_param_uses_dual_v = qf_param_uses_dual<T>::value;
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Static shape for one decayed q-function parameter type
 template <typename T>

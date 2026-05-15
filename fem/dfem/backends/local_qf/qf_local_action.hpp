@@ -450,11 +450,9 @@ template <
    typename inputs_t,
    typename outputs_t>
 typename Action<qfunc_t, inputs_t, outputs_t>::ActionKernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int)
+Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(dim == 3, "Unsupported dimension");
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend>;
+   return ActionHO::Fallback(dim, q1d);
 }
 
 template <

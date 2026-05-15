@@ -77,10 +77,13 @@ struct LocalQFLOBackend
       }
       if constexpr (RNK == 2)
       {
-         for (int c = 0; c < DIM; c++)
+         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         static_assert(SDIM == DIM, "LO backend expects 3D spatial gradients");
+         for (int c = 0; c < VDIM; c++)
          {
             ker::LoadDofs3d(e, d, c, XE, s.M[0]);
-            ker::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+            ker::VectorGrad3d<VDIM, SDIM, MQ1>(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
          }
       }
    }
@@ -124,7 +127,39 @@ struct LocalQFLOBackend
    auto qp_pull(QReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
       constexpr int RNK = qf_param_shape<T>::rank;
-      if constexpr (RNK == 0)
+      if constexpr (qf_param_uses_dual_v<T>)
+      {
+         if constexpr (RNK == 0)
+         {
+            return T{reg[qz][qy][qx][0]};
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            T t{};
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd) { t(dd) = reg[qz][qy][qx][dd]; }
+            return t;
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            T t;
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j) { t(i, j) = reg[qz][qy][qx][i][j]; }
+            }
+            return t;
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
+      else if constexpr (RNK == 0)
       {
          return as_tensor<real_t>(&reg[qz][qy][qx][0]);
       }
@@ -151,7 +186,41 @@ struct LocalQFLOBackend
    void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
       constexpr int RNK = qf_param_shape<T>::rank;
-      if constexpr (RNK == 0)
+      if constexpr (qf_param_uses_dual_v<T>)
+      {
+         if constexpr (RNK == 0)
+         {
+            reg[qz][qy][qx][0] = qf_store_value(out);
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               reg[qz][qy][qx][dd] = qf_store_value(out(dd));
+            }
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  reg[qz][qy][qx][i][j] = qf_store_value(out(i, j));
+               }
+            }
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
+      else if constexpr (RNK == 0)
       {
          as_tensor<real_t>(&reg[qz][qy][qx][0]) = out;
       }
