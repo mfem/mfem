@@ -162,11 +162,12 @@ FindPointsGSLIB::FindPointsGSLIB()
    crystal_init(cr, gsl_comm);
 }
 
-FindPointsGSLIB::FindPointsGSLIB(Mesh &mesh_in, const double bb_t,
+FindPointsGSLIB::FindPointsGSLIB(Mesh &mesh_in,
+                                 const double bbox_rel_size_inc,
                                  const double newt_tol, const int npt_max)
    : FindPointsGSLIB()
 {
-   Setup(mesh_in, bb_t, newt_tol, npt_max);
+   Setup(mesh_in, bbox_rel_size_inc, newt_tol, npt_max);
 }
 
 FindPointsGSLIB::~FindPointsGSLIB()
@@ -221,15 +222,17 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    crystal_init(cr, gsl_comm);
 }
 
-FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in, const double bb_t,
+FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in,
+                                 const double bbox_rel_size_inc,
                                  const double newt_tol, const int npt_max)
    : FindPointsGSLIB(mesh_in.GetComm())
 {
-   Setup(mesh_in, bb_t, newt_tol, npt_max);
+   Setup(mesh_in, bbox_rel_size_inc, newt_tol, npt_max);
 }
 #endif
 
-void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
+void FindPointsGSLIB::Setup(Mesh &m, const double bbox_rel_size_inc,
+                            const double newt_tol,
                             const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
@@ -238,7 +241,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (m.Dimension() != m.SpaceDimension())
    {
-      SetupSurf(m, bb_t, newt_tol, npt_max);
+      SetupSurf(m, bbox_rel_size_inc, newt_tol, npt_max);
       return;
    }
    if (setupflag) { FreeData(); }
@@ -265,8 +268,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
-      fdataD = findpts_setup_2(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
-                               DEV.local_hash_size,
+      fdataD = findpts_setup_2(gsl_comm, elx, nr, NE_split_total, mr,
+                               bbox_rel_size_inc, DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
    }
    else
@@ -279,8 +282,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
       };
-      fdataD = findpts_setup_3(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
-                               DEV.local_hash_size,
+      fdataD = findpts_setup_3(gsl_comm, elx, nr, NE_split_total, mr,
+                               bbox_rel_size_inc, DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
    }
    setupflag = true;
@@ -911,7 +914,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
                                           const unsigned n,
                                           const uint nel,
                                           const unsigned m,
-                                          const double bbox_tol,
+                                          const double bbox_rel_size_inc,
                                           const uint local_hash_size,
                                           const uint global_hash_size,
                                           const int rD,
@@ -924,11 +927,11 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    devs.bb.SetSize(nel*n_box_ents);
    if (rD == 1)
    {
-      obboxedge_calc_3(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
+      obboxedge_calc_3(devs.bb, elx, n, nel, m, bbox_rel_size_inc, store_obb);
    }
    else if (rD == 2)
    {
-      obboxsurf_calc_3(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
+      obboxsurf_calc_3(devs.bb, elx, n, nel, m, bbox_rel_size_inc, store_obb);
    }
    else
    {
@@ -998,7 +1001,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
                                           const unsigned n,
                                           const uint nel,
                                           const unsigned m,
-                                          const double bbox_tol,
+                                          const double bbox_rel_size_inc,
                                           const uint local_hash_size,
                                           const uint global_hash_size,
                                           const Vector *aabb_sz_inc)
@@ -1008,7 +1011,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    const int sd = 2;
    const int n_box_ents = store_obb ? (3*sd + sd*sd) : (2*sd);
    devs.bb.SetSize(nel*n_box_ents);
-   obboxedge_calc_2(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
+   obboxedge_calc_2(devs.bb, elx, n, nel, m, bbox_rel_size_inc, store_obb);
 
    auto h_bb = devs.bb.HostReadWrite();
    VerifyAABBPadLayout(aabb_sz_inc, nel, sd);
@@ -1090,22 +1093,23 @@ static void lagrange_eval_second_derivative(double *p0, double x, int i,
    p2[i] = 8.0 * lagrangeCoeff[i] * u2;
 }
 
-void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
+void FindPointsGSLIB::SetupSurf(Mesh &m,
+                                const double bbox_rel_size_inc,
                                 const double newt_tol,
                                 const int npt_max)
 {
-   SetupSurf_Base(m, bb_t, nullptr, newt_tol);
+   SetupSurf_Base(m, bbox_rel_size_inc, nullptr, newt_tol);
 }
 
 void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
-                                const double bb_t,
+                                const double bbox_rel_size_inc,
                                 const double newt_tol)
 {
-   SetupSurf_Base(m, bb_t, &aabb_sz_inc, newt_tol);
+   SetupSurf_Base(m, bbox_rel_size_inc, &aabb_sz_inc, newt_tol);
 }
 
 void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
-                                     const double bbox_tol,
+                                     const double bbox_rel_size_inc,
                                      const Vector *aabb_sz_inc,
                                      const double newt_tol)
 {
@@ -1161,7 +1165,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           nr,
                           NE_split_total,
                           mr,
-                          bbox_tol,
+                          bbox_rel_size_inc,
                           mesh_points_cnt,
                           mesh_points_cnt,
                           aabb_sz_inc);
@@ -1179,7 +1183,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           nr,
                           NE_split_total,
                           mr,
-                          bbox_tol,
+                          bbox_rel_size_inc,
                           mesh_points_cnt,
                           mesh_points_cnt,
                           dim,
@@ -2885,12 +2889,12 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in_evec,
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
                                  const int point_pos_ordering,
-                                 const double bb_t,
+                                 const double bbox_rel_size_inc,
                                  const double newt_tol, const int npt_max)
 {
    if (!setupflag || (mesh != &m))
    {
-      Setup(m, bb_t, newt_tol, npt_max);
+      Setup(m, bbox_rel_size_inc, newt_tol, npt_max);
    }
    FindPoints(point_pos, point_pos_ordering);
 }
@@ -4621,7 +4625,8 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
 
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
-                                   const double bb_t, const double newt_tol,
+                                   const double bbox_rel_size_inc,
+                                   const double newt_tol,
                                    const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
@@ -4669,8 +4674,9 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
          pts_cnt == 0 ? nullptr : &gsl_mesh(0),
          pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
       };
-      fdataD = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
-                                 pts_cnt, pts_cnt, npt_max, newt_tol,
+      fdataD = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr,
+                                 bbox_rel_size_inc, pts_cnt, pts_cnt,
+                                 npt_max, newt_tol,
                                  &u_meshid, &distfint(0));
    }
    else
@@ -4683,8 +4689,9 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
          pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
          pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
       };
-      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
-                                 pts_cnt, pts_cnt, npt_max, newt_tol,
+      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr,
+                                 bbox_rel_size_inc, pts_cnt, pts_cnt,
+                                 npt_max, newt_tol,
                                  &u_meshid, &distfint(0));
    }
    setupflag = true;

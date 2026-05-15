@@ -323,7 +323,7 @@ protected:
                             const unsigned n,
                             const uint nel,
                             const unsigned m,
-                            const double bbox_tol,
+                            const double bbox_rel_size_inc,
                             const uint local_hash_size,
                             const uint global_hash_size,
                             const Vector *aabb_sz_inc);
@@ -334,7 +334,7 @@ protected:
                             const unsigned n,
                             const uint nel,
                             const unsigned m,
-                            const double bbox_tol,
+                            const double bbox_rel_size_inc,
                             const uint local_hash_size,
                             const uint global_hash_size,
                             const int rD,
@@ -346,23 +346,27 @@ protected:
     *  split-element representation expected by gslib, and constructs the
     *  element bounding boxes used by the MFEM surface kernels.
     *
-    *  If @a aabb_sz_inc is null, the setup stores the default oriented bounding
-    *  boxes and uses @a bbox_tol as their relative expansion factor.
+    *  If @a aabb_sz_inc is null, the setup stores the default oriented
+    *  bounding boxes and uses @a bbox_rel_size_inc as their relative size
+    *  increase factor.
     *
     *  If @a aabb_sz_inc is non-null, the setup stores axis-aligned bounding
     *  boxes only, post-pads them by the requested absolute amount in each
     *  physical direction, and adjusts the tolerance @a bdr_tol so points
     *  found in the padded region are classified as border points.
     *
-    *  @param[in] m         Input surface mesh.
-    *  @param[in] bbox_tol  Relative bounding-box expansion used during setup.
-    *  @param[in] aabb_sz_inc  Optional absolute padding applied to the
-    *                          stored axis-aligned bounding boxes after
-    *                          construction.
-    *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
+    *  @param[in] m                  Input surface mesh.
+    *  @param[in] bbox_rel_size_inc  Relative size increase applied when
+    *                                expanding each element bounding box during
+    *                                setup.
+    *  @param[in] aabb_sz_inc        Optional absolute padding applied to the
+    *                                stored axis-aligned bounding boxes after
+    *                                construction.
+    *  @param[in] newt_tol           Newton tolerance for the point-search
+    *                                kernels.
     */
    void SetupSurf_Base(Mesh &m,
-                       const double bbox_tol,
+                       const double bbox_rel_size_inc,
                        const Vector *aabb_sz_inc,
                        const double newt_tol);
 public:
@@ -370,7 +374,7 @@ public:
    FindPointsGSLIB();
 
    /// Serial constructor + setup with given Mesh (see \ref Setup)
-   FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
+   FindPointsGSLIB(Mesh &mesh_in, const double bbox_rel_size_inc = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
@@ -379,7 +383,7 @@ public:
    FindPointsGSLIB(MPI_Comm comm_);
 
    /// Constructor + setup with given ParMesh (see \ref Setup)
-   FindPointsGSLIB(ParMesh &mesh_in, const double bb_t = 0.1,
+   FindPointsGSLIB(ParMesh &mesh_in, const double bbox_rel_size_inc = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 #endif
@@ -395,21 +399,22 @@ public:
        Note: not tested with periodic (L2).
        Note: the input mesh \p m must have Nodes set.
 
-       @param[in] m         Input mesh.
-       @param[in] bb_t      (Optional) Relative size of bounding box around
-                            each element.
-       @param[in] newt_tol  (Optional) Newton tolerance for the gslib
-                            search methods.
-       @param[in] npt_max   (Optional) Number of points for simultaneous
-                            iteration. This alters performance and
-                            memory footprint.
+       @param[in] m                  Input mesh.
+       @param[in] bbox_rel_size_inc  (Optional) Relative size increase applied
+                                     when expanding each element bounding box.
+       @param[in] newt_tol           (Optional) Newton tolerance for the gslib
+                                     search methods.
+       @param[in] npt_max            (Optional) Number of points for
+                                     simultaneous iteration. This alters
+                                     performance and memory footprint.
    */
-   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+   void Setup(Mesh &m, const double bbox_rel_size_inc = 0.1,
+              const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
    /// Preprocess the surface mesh to compute data for FindPoints.
    void SetupSurf(Mesh &m,
-                  const double bb_t = 0.1,
+                  const double bbox_rel_size_inc = 0.1,
                   const double newt_tol = 1.0e-12,
                   const int npt_max = 256);
 
@@ -417,9 +422,9 @@ public:
     *  padded axis-aligned bounding boxes.
     *
     *  @details This overload computes only axis-aligned bounding boxes and
-    *  increases their total length by user specified amount in each physical
+    *  increases their total length by a user-specified amount in each physical
     *  direction. The padding is applied after the usual relative
-    *  expansion controlled by @a bb_t.
+    *  expansion controlled by @a bbox_rel_size_inc.
     *
     *  The size of @a aabb_sz_inc determines how the padding values are
     *  interpreted:
@@ -433,18 +438,21 @@ public:
     *  This overload disables the oriented bounding-box precheck because the
     *  stored boxes are modified only in their axis-aligned representation.
     *
-    *  @param[in] m         Input surface mesh.
-    *  @param[in] aabb_sz_inc  Absolute padding applied to the stored
-    *                          axis-aligned bounding boxes.
-    *  @param[in] bb_t      Relative size of the initial bounding box around
-    *                       each element before absolute padding is applied.
-    *  @param[in] newt_tol  Newton tolerance for the point-search kernels.
+    *  @param[in] m                  Input surface mesh.
+    *  @param[in] aabb_sz_inc        Absolute padding applied to the stored
+    *                                axis-aligned bounding boxes.
+    *  @param[in] bbox_rel_size_inc  Relative size increase applied when
+    *                                expanding each element bounding box before
+    *                                absolute padding is added.
+    *  @param[in] newt_tol           Newton tolerance for the point-search
+    *                                kernels.
     *
-    * @note We disable the oriented bounding box check and update @a bdr_tol
-    *       with this setup.
+    *  @note We disable the oriented bounding box check with this setup.
+    *        @a bdr_tol is also adjusted so that all points in the AABBs can
+    *        be found.
     */
    void SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
-                  const double bb_t = 0.0,
+                  const double bbox_rel_size_inc = 0.0,
                   const double newt_tol = 1.0e-12);
 
 
@@ -493,7 +501,8 @@ public:
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    const int point_pos_ordering = Ordering::byNODES,
-                   const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+                   const double bbox_rel_size_inc = 0.1,
+                   const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
    /** @brief Interpolation of field values at prescribed reference space
@@ -695,25 +704,28 @@ public:
        Note: not tested with periodic meshes (L2).
        Note: the input mesh \p m must have Nodes set.
 
-       @param[in] m         Input mesh.
-       @param[in] meshid    A unique # for each overlapping mesh. This id is
-                            used to make sure that points being searched are not
-                            looked for in the mesh that they belong to.
-       @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
-                            discriminator when one point is located in multiple
-                            meshes. The mesh that maximizes gfmax is chosen.
-                            For example, using the distance field based on the
-                            overlapping boundaries is helpful for convergence
-                            during Schwarz iterations.
-       @param[in] bb_t      (Optional) Relative size of bounding box around
-                            each element.
-       @param[in] newt_tol  (Optional) Newton tolerance for the gslib
-                            search methods.
-       @param[in] npt_max   (Optional) Number of points for simultaneous
-                            iteration. This alters performance and
-                            memory footprint.*/
+       @param[in] m                  Input mesh.
+       @param[in] meshid             A unique # for each overlapping mesh.
+                                     This id is used to make sure that points
+                                     being searched are not looked for in the
+                                     mesh that they belong to.
+       @param[in] gfmax              (Optional) GridFunction in H1 that is used
+                                     as a discriminator when one point is
+                                     located in multiple meshes. The mesh that
+                                     maximizes gfmax is chosen. For example,
+                                     using the distance field based on the
+                                     overlapping boundaries is helpful for
+                                     convergence during Schwarz iterations.
+       @param[in] bbox_rel_size_inc  (Optional) Relative size increase applied
+                                     when expanding each element bounding box.
+       @param[in] newt_tol           (Optional) Newton tolerance for the gslib
+                                     search methods.
+       @param[in] npt_max            (Optional) Number of points for
+                                     simultaneous iteration. This alters
+                                     performance and memory footprint.*/
    void Setup(Mesh &m, const int meshid, GridFunction *gfmax = nullptr,
-              const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+              const double bbox_rel_size_inc = 0.1,
+              const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
    /** Searches positions given in physical space by \p point_pos. All output
