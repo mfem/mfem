@@ -292,8 +292,6 @@ static void SmemPADivergenceApply2D(const int NE,
                                     const int te_d1d = 0,
                                     const int q1d = 0)
 {
-   dbg();
-
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -833,7 +831,6 @@ static void SmemPADivergenceApply3D(const int NE,
                                     const int te_d1d = 0,
                                     const int q1d = 0)
 {
-   dbg();
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -842,237 +839,58 @@ static void SmemPADivergenceApply3D(const int NE,
    MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   auto be = Reshape(be_.Read(), Q1D, TR_D1D);
-   auto g = Reshape(g_.Read(), Q1D, TR_D1D);
-   auto br = Reshape(br_.Read(), Q1D, TE_D1D);
-   auto Q = Reshape(q_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
-   auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
+   const auto Br = br_.Read(), Gr = g_.Read(), Be = be_.Read();
+   const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3,3, NE);
+   const auto X = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
+   auto Y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 1, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int VDIM = 3;
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1DR = T_TR_D1D ? T_TR_D1D : tr_d1d;
-      const int D1DE = T_TE_D1D ? T_TE_D1D : te_d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MD1 = MD1E > MD1R ? MD1E : MD1R;
-      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-      MFEM_SHARED real_t sBG[2][MQ1*MD1];
-      real_t (*B)[MD1] = (real_t (*)[MD1]) (sBG+0);
-      real_t (*G)[MD1] = (real_t (*)[MD1]) (sBG+1);
-      real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) (sBG+0);
-      MFEM_SHARED real_t sm0[3][MDQ*MDQ*MDQ];
-      MFEM_SHARED real_t sm1[3][MDQ*MDQ*MDQ];
-      real_t (*X)[MD1][MD1]    = (real_t (*)[MD1][MD1]) (sm0+2);
-      real_t (*DDQ0)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+0);
-      real_t (*DDQ1)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+1);
-      real_t (*DQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+0);
-      real_t (*DQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+1);
-      real_t (*DQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+2);
-      real_t (*QQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+0);
-      real_t (*QQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+1);
-      real_t (*QQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+2);
-      real_t (*QQD0)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm1+0);
-      real_t (*QDD0)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm0+0);
-      MFEM_SHARED real_t div[MQ1][MQ1][MQ1];
+      constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
 
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1DR)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = be(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+      auto sBt = (real_t (*)[MQ1]) sB;
+
+      kernels::internal::vd_regs3d_t<3, 3, MQ1> g0, g1;
+      kernels::internal::v_regs3d_t<1, MQ1> r0, r1;
+
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, Br, sB);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, Gr, sG);
+
+      kernels::internal::LoadDofs3d(e, TR_D1D, X, g0);
+      kernels::internal::Grad3d(TR_D1D, Q1D, smem, sB, sG, g0, g1);
+
+      for (int qz = 0; qz < Q1D; qz++)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
-               div[qz][qy][qx] = 0.0;
+               r0[0][qz][qy][qx] =
+                  // c = 0
+                  g1[0][0][qz][qy][qx] * Q(qx, qy, qz, 0, 0, e) +
+                  g1[0][1][qz][qy][qx] * Q(qx, qy, qz, 1, 0, e) +
+                  g1[0][2][qz][qy][qx] * Q(qx, qy, qz, 2, 0, e) +
+                  // c = 1
+                  g1[1][0][qz][qy][qx] * Q(qx, qy, qz, 0, 1, e) +
+                  g1[1][1][qz][qy][qx] * Q(qx, qy, qz, 1, 1, e) +
+                  g1[1][2][qz][qy][qx] * Q(qx, qy, qz, 2, 1, e) +
+                  // c = 2
+                  g1[2][0][qz][qy][qx] * Q(qx, qy, qz, 0, 2, e) +
+                  g1[2][1][qz][qy][qx] * Q(qx, qy, qz, 1, 2, e) +
+                  g1[2][2][qz][qy][qx] * Q(qx, qy, qz, 2, 2, e);
             }
          }
       }
       MFEM_SYNC_THREAD;
-
-      for (int c = 0; c < VDIM; ++c)
-      {
-         MFEM_FOREACH_THREAD(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  QQQ0[qz][qy][qx] = 0.0;
-                  QQQ1[qz][qy][qx] = 0.0;
-                  QQQ2[qz][qy][qx] = 0.0;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dz,z,D1DR)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1DR)
-            {
-               MFEM_FOREACH_THREAD(dx,x,D1DR)
-               {
-                  X[dz][dy][dx] = x(dx,dy,dz,c,e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dz,z,D1DR)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1DR)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  real_t u = 0.0;
-                  real_t v = 0.0;
-                  for (int dx = 0; dx < D1DR; ++dx)
-                  {
-                     const real_t coord = X[dz][dy][dx];
-                     u += coord * B[qx][dx];
-                     v += coord * G[qx][dx];
-                  }
-                  DDQ0[dz][dy][qx] = u;
-                  DDQ1[dz][dy][qx] = v;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dz,z,D1DR)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  real_t u = 0.0;
-                  real_t v = 0.0;
-                  real_t w = 0.0;
-                  for (int dy = 0; dy < D1DR; ++dy)
-                  {
-                     u += DDQ1[dz][dy][qx] * B[qy][dy];
-                     v += DDQ0[dz][dy][qx] * G[qy][dy];
-                     w += DDQ0[dz][dy][qx] * B[qy][dy];
-                  }
-                  DQQ0[dz][qy][qx] = u;
-                  DQQ1[dz][qy][qx] = v;
-                  DQQ2[dz][qy][qx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  real_t u = 0.0;
-                  real_t v = 0.0;
-                  real_t w = 0.0;
-                  for (int dz = 0; dz < D1DR; ++dz)
-                  {
-                     u += DQQ0[dz][qy][qx] * B[qz][dz];
-                     v += DQQ1[dz][qy][qx] * B[qz][dz];
-                     w += DQQ2[dz][qy][qx] * G[qz][dz];
-                  }
-                  QQQ0[qz][qy][qx] = u;
-                  QQQ1[qz][qy][qx] = v;
-                  QQQ2[qz][qy][qx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const real_t gX = QQQ0[qz][qy][qx];
-                  const real_t gY = QQQ1[qz][qy][qx];
-                  const real_t gZ = QQQ2[qz][qy][qx];
-                  div[qz][qy][qx] += gX*Q(q,0,c,e) + gY*Q(q,1,c,e) + gZ*Q(q,2,c,e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1DE)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               Bt[d][q] = br(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1DE)
-            {
-               real_t u = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  u += div[qz][qy][qx] * Bt[dx][qx];
-               }
-               QQD0[qz][qy][dx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1DE)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1DE)
-            {
-               real_t u = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  u += QQD0[qz][qy][dx] * Bt[dy][qy];
-               }
-               QDD0[qz][dy][dx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1DE)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1DE)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1DE)
-            {
-               real_t u = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  u += QDD0[qz][dy][dx] * Bt[dz][qz];
-               }
-               y(dx,dy,dz,e) += u;
-            }
-         }
-      }
+      kernels::internal::LoadMatrix(TE_D1D, Q1D, Be, sBt);
+      kernels::internal::EvalTranspose3d(TE_D1D, Q1D, smem, sBt, r0, r1);
+      kernels::internal::WriteDofs3d(e, TE_D1D, r1, Y);
    });
 }
 
+template <bool TRANSPOSE>
 static void PADivergenceApply(const int dim,
                               const int TR_D1D,
                               const int TE_D1D,
@@ -1083,12 +901,11 @@ static void PADivergenceApply(const int dim,
                               const Array<real_t> &Bt,
                               const Vector &op,
                               const Vector &x,
-                              Vector &y,
-                              bool transpose=false)
+                              Vector &y)
 {
    if (dim == 2)
    {
-      if (transpose)
+      if constexpr (TRANSPOSE)
       {
          return PADivergenceApplyTranspose2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
@@ -1099,7 +916,7 @@ static void PADivergenceApply(const int dim,
    }
    if (dim == 3)
    {
-      if (transpose)
+      if constexpr (TRANSPOSE)
       {
          return PADivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
@@ -1154,9 +971,8 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                     Vector &y) const
 {
-   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                     trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
-                     true);
+   PADivergenceApply<true>(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+                           trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y);
 }
 
 
