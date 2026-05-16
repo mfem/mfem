@@ -30,12 +30,22 @@ MFEM_HOST_DEVICE auto qf_store_value(const T &v)
    else { return v; }
 }
 
+template <typename T>
+MFEM_HOST_DEVICE auto qf_store_gradient(const T &v)
+{
+   if constexpr (is_dual_number<T>::value) { return v.gradient; }
+   else { return v; }
+}
+
 /// True when quadrature-point values of `T` carry dual-number derivatives.
 template <typename T>
 struct qf_param_uses_dual : std::false_type {};
 
 template <typename S, int... Is>
 struct qf_param_uses_dual<tensor<S, Is...>> : is_dual_number<S> {};
+
+template <typename V, typename G>
+struct qf_param_uses_dual<dual<V, G>> : std::true_type {};
 
 template <typename T>
 constexpr bool qf_param_uses_dual_v = qf_param_uses_dual<T>::value;
@@ -129,6 +139,16 @@ template <
 using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
+
+/// Register bank covering q-function inputs only (same types as first
+/// `n_inputs` slots of args_reg_t). Used where shadow / tangent paths never
+/// touch output parameter registers.
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
+using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
+      inputs_t, outputs_t, MQ1, 0,
+      tuple_size<inputs_t>::value>::type;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps

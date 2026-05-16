@@ -38,6 +38,7 @@ template <int DIM, typename QFBackend>
 void mass_action(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
+   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -60,6 +61,7 @@ void mass_action(const char *filename, int p)
 
    ConstantCoefficient one(1.0);
 
+   // Action matrix free
    {
       dbg();
       const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
@@ -95,10 +97,11 @@ void mass_action(const char *filename, int p)
       {
          v = u * w * det(J);
       };
-      dop.AddDomainIntegrator<QFBackend>(mf_mass_qf,
-                                         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-                                         tuple{ Value<U>{} },
-                                         *ir, all_domain_attr);
+      dop.AddDomainIntegrator<QFBackend>(
+         mf_mass_qf,
+         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Value<U>{} },
+         *ir, all_domain_attr);
 
       Vector N;
       nodes->GetTrueDofs(N);
@@ -232,12 +235,13 @@ void mass_mat_mixed(const char* filename, int p)
    {
       p = u * w * det(J);
    };
+   const auto derivatives = std::integer_sequence<size_t, U> {};
+   dop.AddDomainIntegrator<QFBackend>(
+      mf_mass_qf,
+      tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
+      tuple{Value<P>{}},
+      *ir, all_domain_attr, derivatives);
 
-   auto derivatives = std::integer_sequence<size_t, U> {};
-   dop.AddDomainIntegrator<QFBackend>(mf_mass_qf,
-                                      tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
-                                      tuple{Value<P>{}},
-                                      *ir, all_domain_attr, derivatives);
 
    ParGridFunction ugf(&fes1);
    ugf = 0.0;
@@ -245,12 +249,42 @@ void mass_mat_mixed(const char* filename, int p)
    ParGridFunction pgf(&fes0);
    pgf = 0.0;
 
-   // auto ddopdu = dop.GetDerivative(U, {&ugf}, {&pgf, nodes});
+   Vector xtvec(fes1.GetTrueVSize()), ytvec(fes0.GetTrueVSize());
+   Vector nodestv;
 
-   MultiVector X{pgf, *nodes};
+   xtvec.Randomize(1);
+   ugf.SetFromTrueDofs(xtvec);
+   nodes->GetTrueDofs(nodestv);
+
+   fes1.GetRestrictionMatrix()->Mult(ugf, xtvec);
+   MultiVector X{xtvec, nodestv};
    auto ddopdu = dop.GetDerivative(U, X);
 
-   // SECTION("spmat" << filename)
+   // Action linearized
+   {
+      xtvec.Randomize(567);
+      ugf.SetFromTrueDofs(xtvec);
+
+      Vector dztvec(fes0.GetTrueVSize());
+      MultiVector DZ{dztvec};
+      ddopdu->Mult(X[0], DZ);
+
+      blf.Mult(ugf, pgf);
+      fes0.GetProlongationMatrix()->MultTranspose(pgf, ytvec);
+
+      ytvec -= dztvec;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = ytvec.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   // spmat
+   if constexpr (std::is_same_v<QFBackend, LocalQFDefaultBackend>)
    {
       SparseMatrix *A;
       ddopdu->Assemble(A);
@@ -258,7 +292,8 @@ void mass_mat_mixed(const char* filename, int p)
       delete A;
    }
 
-   // SECTION("hypre parallel mat")
+   // hypre parallel mat
+   if constexpr (std::is_same_v<QFBackend, LocalQFDefaultBackend>)
    {
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
@@ -318,6 +353,7 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][KER][MASS]")
                "../../data/inline-hex.mesh",
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
+
    SECTION("LocalQF Default")
    {
       mass_action<3, LocalQFDefaultBackend>(mesh3d, p);

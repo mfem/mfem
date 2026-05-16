@@ -181,6 +181,199 @@ struct LocalQFLOBackend
    }
 
    //////////////////////////////////////////////////////////////////
+   /// Pull dual qp values: primal from `preg`, tangent from `sreg` when dependent.
+   template<typename T, int MQ1>
+   static MFEM_HOST_DEVICE inline
+   auto qp_pull_directional(QReg<T, MQ1> &preg, QReg<T, MQ1> &sreg,
+                            int qx, int qy, int qz, bool dependent)
+   {
+      if constexpr (!qf_param_uses_dual_v<T>)
+      {
+         return qp_pull<T, MQ1>(preg, qx, qy, qz);
+      }
+      else
+      {
+         if (!dependent) { return qp_pull<T, MQ1>(preg, qx, qy, qz); }
+         constexpr int RNK = qf_param_shape<T>::rank;
+         if constexpr (RNK == 0)
+         {
+            return T{preg[qz][qy][qx][0], sreg[qz][qy][qx][0]};
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            T t{};
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               t(dd) = {preg[qz][qy][qx][dd], sreg[qz][qy][qx][dd]};
+            }
+            return t;
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            T t;
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  t(i, j) = {preg[qz][qy][qx][i][j], sreg[qz][qy][qx][i][j]};
+               }
+            }
+            return t;
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename DT, typename XE_T>
+   static MFEM_HOST_DEVICE inline
+   DT identity_qp_pull_dual(bool dependent,
+                            const XE_T &XP, const XE_T &XD,
+                            int qx, int qy, int qz, int e)
+   {
+      constexpr int RNK = qf_param_shape<DT>::rank;
+      if constexpr (RNK == 0)
+      {
+         DT t{};
+         t.value = XP(0, qx, qy, qz, e);
+         t.gradient = dependent ? XD(0, qx, qy, qz, e) : 0.0;
+         return t;
+      }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<DT>::extents[0];
+         DT t{};
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
+         {
+            t(dd).value = XP(dd, qx, qy, qz, e);
+            t(dd).gradient = dependent ? XD(dd, qx, qy, qz, e) : 0.0;
+         }
+         return t;
+      }
+      else if constexpr (RNK == 2)
+      {
+         constexpr int e0 = qf_param_shape<DT>::extents[0];
+         constexpr int e1 = qf_param_shape<DT>::extents[1];
+         DT t{};
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               t(i, j).value = XP(i + e0 * j, qx, qy, qz, e);
+               t(i, j).gradient = dependent ? XD(i + e0 * j, qx, qy, qz, e) : 0.0;
+            }
+         }
+         return t;
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   /// Push tangent (dual ``.gradient``) into registers for integration / transpose eval.
+   template<typename T, int MQ1>
+   static MFEM_HOST_DEVICE inline
+   void qp_push_tangent(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   {
+      if constexpr (!qf_param_uses_dual_v<T>)
+      {
+         qp_push<T, MQ1>(reg, qx, qy, qz, out);
+      }
+      else
+      {
+         constexpr int RNK = qf_param_shape<T>::rank;
+         if constexpr (RNK == 0)
+         {
+            reg[qz][qy][qx][0] = qf_store_gradient(out);
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               reg[qz][qy][qx][dd] = qf_store_gradient(out(dd));
+            }
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  reg[qz][qy][qx][i][j] = qf_store_gradient(out(i, j));
+               }
+            }
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename DT, typename YE_T>
+   static MFEM_HOST_DEVICE inline
+   void identity_qp_write_tangent(YE_T &YE, int qx, int qy, int qz, int e,
+                                  const DT &qout)
+   {
+      constexpr int RNK = qf_param_shape<DT>::rank;
+      if constexpr (qf_param_uses_dual_v<DT>)
+      {
+         if constexpr (RNK == 0)
+         {
+            YE(0, qx, qy, qz, e) = qf_store_gradient(qout);
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               YE(dd, qx, qy, qz, e) = qf_store_gradient(qout(dd));
+            }
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  YE(i + e0 * j, qx, qy, qz, e) = qf_store_gradient(qout(i, j));
+               }
+            }
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    static MFEM_HOST_DEVICE inline
    void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
