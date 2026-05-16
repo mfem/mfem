@@ -911,6 +911,7 @@ static void PADivergenceApply(const int dim,
       }
       else
       {
+         MFEM_ABORT("Should not be called");
          return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
    }
@@ -922,6 +923,7 @@ static void PADivergenceApply(const int dim,
       }
       else
       {
+         MFEM_ABORT("Should not be called");
          return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
    }
@@ -949,6 +951,7 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 3>::Add(),
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 4>::Add(),
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 2, 5>::Add(),
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 4>::Add(),
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 5>::Add(),
          VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 7>::Add(),
