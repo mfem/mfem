@@ -11,7 +11,10 @@
 
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
-#include "../gridfunc.hpp"
+// #include "../gridfunc.hpp"
+#include "../kernels.hpp"
+
+using mfem::kernels::internal::SetMaxOf;
 
 namespace mfem
 {
@@ -152,6 +155,8 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
    PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                      ne, ir->GetWeights(), geom->J, coeff, pa_data);
+
+
 }
 
 // PA Divergence Apply 2D kernel
@@ -275,21 +280,67 @@ static void PADivergenceApply2D(const int NE,
 }
 
 // Shared memory PA Divergence Apply 2D kernel
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
-         const int T_NBZ = 0>
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply2D(const int NE,
                                     const Array<real_t> &b_,
                                     const Array<real_t> &g_,
                                     const Array<real_t> &bt_,
-                                    const Vector &op_,
+                                    const Vector &q_,
                                     const Vector &x_,
                                     Vector &y_,
                                     const int tr_d1d = 0,
                                     const int te_d1d = 0,
                                     const int q1d = 0)
 {
-   // TODO
-   MFEM_ASSERT(false, "SHARED MEM NOT PROGRAMMED YET");
+   dbg();
+
+   const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+   const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto B = b_.Read(), G = g_.Read(), Bt = bt_.Read();
+   const auto Q = Reshape(q_.Read(), Q1D, Q1D, 2, 2, NE);
+   const auto X = Reshape(x_.Read(), TR_D1D, TR_D1D, 2, NE);
+   auto Y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 1, NE);
+
+   mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
+
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+      auto sBt = (real_t (*)[MQ1]) sB;
+
+      kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1;
+      kernels::internal::v_regs2d_t<1, MQ1> r0, r1;
+
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, G, sG);
+
+      kernels::internal::LoadDofs2d(e, TR_D1D, X, g0);
+      kernels::internal::Grad2d(TR_D1D, Q1D, smem, sB, sG, g0, g1);
+
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            r0[0][qy][qx] =
+               g1[0][0][qy][qx] * Q(qx, qy, 0, 0, e) +
+               g1[0][1][qy][qx] * Q(qx, qy, 1, 0, e) +
+               g1[1][0][qy][qx] * Q(qx, qy, 0, 1, e) +
+               g1[1][1][qy][qx] * Q(qx, qy, 1, 1, e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      kernels::internal::LoadMatrix<MQ1, true>(TE_D1D, Q1D, Bt, sBt);
+      kernels::internal::EvalTranspose2d(TE_D1D, Q1D, smem, sBt, r0, r1);
+      kernels::internal::WriteDofs2d(e, TE_D1D, r1, Y);
+   });
 }
 
 // PA Divergence Apply 2D kernel transpose
@@ -842,9 +893,9 @@ static void SmemPADivergenceApply3D(const int NE,
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                div[qz][qy][qx] = 0.0;
             }
@@ -902,7 +953,7 @@ static void SmemPADivergenceApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   real_t u = 0.0;
                   real_t v = 0.0;
@@ -1062,9 +1113,40 @@ static void PADivergenceApply(const int dim,
 // PA Divergence Apply kernel
 void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                     trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
-                     false);
+   static const auto vector_divergence_kernel_specializations =
+      ( // 2D
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 2, 2, 2>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 2, 2, 3>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 2, 2, 4>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 3, 3, 3>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 3, 3, 4>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 3, 3, 5>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 4, 4, 4>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 4, 4, 5>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 4, 4, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 5, 5, 5>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 5, 5, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<2, 5, 5, 7>::Add(),
+         // 3D
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 3>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 4>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 2, 2, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 4>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 5>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 3, 3, 7>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 4, 4, 5>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 4, 4, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 4, 4, 8>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 5, 5, 6>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 5, 5, 7>::Add(),
+         VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Specialization<3, 5, 5, 9>::Add(),
+         true);
+   MFEM_CONTRACT_VAR(vector_divergence_kernel_specializations);
+
+   VectorDivergenceAddMultPA::Run(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+                                  trial_maps->B, trial_maps->G, test_maps->Bt,
+                                  pa_data, x, y,
+                                  trial_dofs1D, test_dofs1D, quad1D);
 }
 
 // PA Divergence Apply kernel
@@ -1075,5 +1157,43 @@ void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                      trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
                      true);
 }
+
+
+/// \cond DO_NOT_DOCUMENT
+
+template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D, int, int, int>
+VectorDivergenceIntegrator::VectorDivergenceAddMultPAType
+VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Kernel()
+{
+   static_assert(T_TR_D1D <= T_Q1D && T_TE_D1D <= T_Q1D);
+   if constexpr (DIM == 2)
+   {
+      return SmemPADivergenceApply2D<T_TR_D1D, T_TE_D1D, T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return SmemPADivergenceApply3D<T_TR_D1D, T_TE_D1D, T_Q1D>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+VectorDivergenceIntegrator::VectorDivergenceAddMultPAType
+VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Fallback
+(int dim, int tr_d1d, int te_d1d, int q1d)
+{
+   MFEM_VERIFY(tr_d1d <= q1d && te_d1d <= q1d, "");
+   MFEM_VERIFY(tr_d1d <= 16 && te_d1d <= 16 && q1d <= 16, "");
+   if (dim == 2)
+   {
+      return SmemPADivergenceApply2D<>;
+   }
+   else if (dim == 3)
+   {
+      return SmemPADivergenceApply3D<>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

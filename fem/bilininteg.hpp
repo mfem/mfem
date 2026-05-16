@@ -3060,6 +3060,16 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
+   using VectorDivergenceAddMultPAType =
+      void (*)(const int ne,
+               const Array<real_t> &b, const Array<real_t> &g, const Array<real_t> &bt,
+               const Vector &op, const Vector &x, Vector &y,
+               const int tr_d1d, const int te_d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorDivergenceAddMultPA,
+                         VectorDivergenceAddMultPAType,
+                         (int, int, int, int),
+                         (int, int, int));
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          const ElementTransformation &Trans);
