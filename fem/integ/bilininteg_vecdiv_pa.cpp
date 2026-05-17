@@ -282,9 +282,9 @@ static void PADivergenceApply2D(const int NE,
 // Shared memory PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply2D(const int NE,
-                                    const Array<real_t> &br_,
+                                    const Array<real_t> &b_,
                                     const Array<real_t> &g_,
-                                    const Array<real_t> &be_,
+                                    const Array<real_t> &bt_,
                                     const Vector &q_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -300,7 +300,7 @@ static void SmemPADivergenceApply2D(const int NE,
    MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const auto Br = br_.Read(), Gr = g_.Read(), Be = be_.Read();
+   const auto B = b_.Read(), G = g_.Read(), Bt = bt_.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, 2, 2, NE);
    const auto X = Reshape(x_.Read(), TR_D1D, TR_D1D, 2, NE);
    auto Y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 1, NE);
@@ -311,13 +311,12 @@ static void SmemPADivergenceApply2D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
-      auto sBt = (real_t (*)[MQ1]) sB;
 
       kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1;
       kernels::internal::v_regs2d_t<1, MQ1> r0, r1;
 
-      kernels::internal::LoadMatrix(TR_D1D, Q1D, Br, sB);
-      kernels::internal::LoadMatrix(TR_D1D, Q1D, Gr, sG);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, G, sG);
 
       kernels::internal::LoadDofs2d(e, TR_D1D, X, g0);
       kernels::internal::Grad2d(TR_D1D, Q1D, smem, sB, sG, g0, g1);
@@ -335,8 +334,8 @@ static void SmemPADivergenceApply2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      kernels::internal::LoadMatrix(TE_D1D, Q1D, Be, sBt);
-      kernels::internal::EvalTranspose2d(TE_D1D, Q1D, smem, sBt, r0, r1);
+      kernels::internal::LoadMatrix<MQ1,true>(TE_D1D, Q1D, Bt, sB);
+      kernels::internal::EvalTranspose2d(TE_D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs2d(e, TE_D1D, r1, Y);
    });
 }
@@ -821,9 +820,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply3D(const int NE,
-                                    const Array<real_t> &be_,
+                                    const Array<real_t> &b_,
                                     const Array<real_t> &g_,
-                                    const Array<real_t> &br_,
+                                    const Array<real_t> &bt_,
                                     const Vector &q_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -839,24 +838,23 @@ static void SmemPADivergenceApply3D(const int NE,
    MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const auto Br = br_.Read(), Gr = g_.Read(), Be = be_.Read();
+   const auto B = b_.Read(), G = g_.Read(), Bt = bt_.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3,3, NE);
    const auto X = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
    auto Y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 1, NE);
 
    mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_T1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
-      auto sBt = (real_t (*)[MQ1]) sB;
 
       kernels::internal::vd_regs3d_t<3, 3, MQ1> g0, g1;
       kernels::internal::v_regs3d_t<1, MQ1> r0, r1;
 
-      kernels::internal::LoadMatrix(TR_D1D, Q1D, Br, sB);
-      kernels::internal::LoadMatrix(TR_D1D, Q1D, Gr, sG);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, B, sB);
+      kernels::internal::LoadMatrix(TR_D1D, Q1D, G, sG);
 
       kernels::internal::LoadDofs3d(e, TR_D1D, X, g0);
       kernels::internal::Grad3d(TR_D1D, Q1D, smem, sB, sG, g0, g1);
@@ -884,8 +882,9 @@ static void SmemPADivergenceApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadMatrix(TE_D1D, Q1D, Be, sBt);
-      kernels::internal::EvalTranspose3d(TE_D1D, Q1D, smem, sBt, r0, r1);
+
+      kernels::internal::LoadMatrix<MQ1, true>(TE_D1D, Q1D, Bt, sB);
+      kernels::internal::EvalTranspose3d(TE_D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs3d(e, TE_D1D, r1, Y);
    });
 }
@@ -911,7 +910,6 @@ static void PADivergenceApply(const int dim,
       }
       else
       {
-         MFEM_ABORT("Should not be called");
          return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
    }
@@ -923,7 +921,6 @@ static void PADivergenceApply(const int dim,
       }
       else
       {
-         MFEM_ABORT("Should not be called");
          return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
    }
@@ -965,7 +962,7 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
    MFEM_CONTRACT_VAR(vector_divergence_kernel_specializations);
 
    VectorDivergenceAddMultPA::Run(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                                  trial_maps->B, trial_maps->G, test_maps->B,
+                                  trial_maps->B, trial_maps->G, test_maps->Bt,
                                   pa_data, x, y,
                                   trial_dofs1D, test_dofs1D, quad1D);
 }
