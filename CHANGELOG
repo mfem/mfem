@@ -32,6 +32,9 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds +
   recursive subdivision.
 
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
+
 Meshing improvements
 --------------------
 - Improved support for 1D NURBS meshes with variable order, including using
