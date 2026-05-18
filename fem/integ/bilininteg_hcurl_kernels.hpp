@@ -196,7 +196,6 @@ void PAHcurlMassApply3D(const int NE, const bool symmetric,
                         const Vector &x, Vector &y, const int TrialD1D,
                         const int TestD1D, const int Q1D);
 
-#if 1
 // Shared memory PA H(curl) Mass Apply 3D kernel
 // this version is universally faster on AMD, situationally faster on NVidia
 template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0, bool ACCUMULATE = true>
@@ -219,7 +218,8 @@ inline void SmemPAHcurlMassApply3D(
    // assume trial space == test space
    auto Bo = bo.Read();
    auto Bc = bc.Read();
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
+   auto op =
+      Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
    auto X_ = Reshape(x.Read(), 3 * (D1D - 1) * D1D * D1D, NE);
    auto y_ = y.ReadWrite();
 
@@ -254,27 +254,34 @@ inline void SmemPAHcurlMassApply3D(
       auto BO = Reshape(sBo, Q1D, D1D - 1);
       auto BC = Reshape(sBc, Q1D, D1D);
 
-      MFEM_SHARED real_t sX[nbz][VDIM * (MD1D - 1) * MD1D * MD1D];
-      MFEM_SHARED real_t sm0[nbz][VDIM * MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[nbz][VDIM * MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sX[nbz * VDIM * (MD1D - 1) * MD1D * MD1D];
+      MFEM_SHARED real_t sm0[nbz * VDIM * MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[nbz * VDIM * MDQ * MDQ * MDQ];
 
-      real_t *X = (real_t *)(sX + tidz);
-      // shapes of buffers always use MQ1D
-      real_t(*DDQ)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm0 + tidz);
-      real_t(*DQQ)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm1 + tidz);
-      real_t(*QQQ)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm0 + tidz);
-      real_t(*QQD)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm1 + tidz);
-      real_t(*QDD)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm0 + tidz);
+      real_t(*X)[nbz][(MD1D - 1) * MD1D * MD1D] =
+         (real_t(*)[nbz][(MD1D - 1) * MD1D * MD1D])(sX);
+      // shapes of buffers always use MQ1D to mitigate shared memory bank
+      // conflicts
+      real_t(*DDQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
+      real_t(*DQQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm1);
+      real_t(*QQQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
+      real_t(*QQD)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm1);
+      real_t(*QDD)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
 
       // load dofs into smem
       const int offset = (D1D - 1) * D1D * D1D;
-      MFEM_FOREACH_THREAD(ix, x, VDIM * offset) { X[ix] = X_(ix, e); }
-
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
+      {
+         for (int dim = 0; dim < VDIM; ++dim)
+         {
+            X[dim][tidz][ix] = X_(ix + dim * offset, e);
+         }
+      }
       // load basis functions data
       if (tidz == 0)
       {
@@ -284,6 +291,7 @@ inline void SmemPAHcurlMassApply3D(
             sBo[ix] = Bo[ix];
          }
       }
+
       for (int dim0 = 0; dim0 < VDIM; ++dim0)
       {
          MFEM_SYNC_THREAD;
@@ -294,6 +302,7 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
             const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
 
+            // threads assigned to mitigate bank conflicts
             MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
             {
                int qx = ix % Q1D;
@@ -314,9 +323,9 @@ inline void SmemPAHcurlMassApply3D(
                      {
                         b = BC(qx, dx);
                      }
-                     u += X[dx + (dy + dz * D1Dy) * D1Dx + dim1 * offset] * b;
+                     u += X[dim1][tidz][dx + (dy + dz * D1Dy) * D1Dx] * b;
                   }
-                  DDQ[dim1][dz][dy][qx] = u;
+                  DDQ[dim1][tidz][dz][dy][qx] = u;
                }
             }
          }
@@ -326,6 +335,7 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
             const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
             // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
+            // threads assigned to mitigate bank conflicts
             MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
             {
                int qx = ix % Q1D;
@@ -346,9 +356,9 @@ inline void SmemPAHcurlMassApply3D(
                      {
                         b = BC(qy, dy);
                      }
-                     u += DDQ[dim1][dz][dy][qx] * b;
+                     u += DDQ[dim1][tidz][dz][dy][qx] * b;
                   }
-                  DQQ[dim1][dz][qy][qx] = u;
+                  DQQ[dim1][tidz][dz][qy][qx] = u;
                }
             }
          }
@@ -377,7 +387,7 @@ inline void SmemPAHcurlMassApply3D(
                   {
                      b = BC(qz, dz);
                   }
-                  u += DQQ[dim1][dz][qy][qx] * b;
+                  u += DQQ[dim1][tidz][dz][qy][qx] * b;
                }
                // pa_data is row major
                int idx;
@@ -401,7 +411,7 @@ inline void SmemPAHcurlMassApply3D(
                {
                   idx = dim0 * VDIM + dim1;
                }
-               QQQ[dim1][qz][qy][qx] = op(qx, qy, qz, idx, e) * u;
+               QQQ[dim1][tidz][qz][qy][qx] = op(qx, qy, qz, idx, e) * u;
             }
          }
          MFEM_SYNC_THREAD;
@@ -412,6 +422,7 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dz = (dim0 == 2) ? D1D - 1 : D1D;
             const int D1Dy = (dim0 == 1) ? D1D - 1 : D1D;
             const int D1Dx = (dim0 == 0) ? D1D - 1 : D1D;
+            // threads assigned to mitigate bank conflicts
             MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
             {
                int dz = ix % Q1D;
@@ -434,13 +445,14 @@ inline void SmemPAHcurlMassApply3D(
                         {
                            b = BC(qz, dz);
                         }
-                        u += QQQ[dim1][qz][qy][qx] * b;
+                        u += QQQ[dim1][tidz][qz][qy][qx] * b;
                      }
-                     QQD[dim1][qy][qx][dz] = u;
+                     QQD[dim1][tidz][qy][qx][dz] = u;
                   }
                }
             }
             MFEM_SYNC_THREAD;
+            // threads assigned to mitigate bank conflicts
             MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
             {
                int dy = ix % Q1D;
@@ -463,13 +475,14 @@ inline void SmemPAHcurlMassApply3D(
                         {
                            b = BC(qy, dy);
                         }
-                        u += QQD[dim1][qy][qx][dz] * b;
+                        u += QQD[dim1][tidz][qy][qx][dz] * b;
                      }
-                     QDD[dim1][qx][dz][dy] = u;
+                     QDD[dim1][tidz][qx][dz][dy] = u;
                   }
                }
             }
             MFEM_SYNC_THREAD;
+
             MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
             {
                int dx = ix % D1Dx;
@@ -490,7 +503,7 @@ inline void SmemPAHcurlMassApply3D(
                   }
                   for (int dim1 = 0; dim1 < VDIM; ++dim1)
                   {
-                     u += QDD[dim1][qx][dz][dy] * b;
+                     u += QDD[dim1][tidz][qx][dz][dy] * b;
                   }
                }
                if constexpr (ACCUMULATE)
@@ -506,378 +519,6 @@ inline void SmemPAHcurlMassApply3D(
       }
    }); // end of element loop
 }
-
-#else
-// Shared memory PA H(curl) Mass Apply 3D kernel
-template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0, bool ACCUMULATE = true>
-inline void SmemPAHcurlMassApply3D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
-   const Array<real_t> &bo, const Array<real_t> &bc, const Array<real_t> &bot,
-   const Array<real_t> &bct, const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d = 0, const int = 0, const int q1d = 0)
-{
-   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
-               "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
-               "Error: q1d > HCURL_MAX_Q1D");
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   // D1D should be the number of closed basis dofs
-   MFEM_ASSERT(D1D > 1, "");
-
-   const int dataSize = symmetric ? 6 : 9;
-
-   // assume trial space == test space
-   auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
-   auto X_ = Reshape(x.Read(), 3 * (D1D - 1) * D1D * D1D, NE);
-   auto y_ = y.ReadWrite();
-
-   constexpr int MD_ = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
-   constexpr int MQ_ = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
-   constexpr int MDQ_ = std::max(MD_,MQ_);
-   constexpr int MB_ = TBATCH ? TBATCH : 1;
-
-   mfem::forall_2D_batch<MDQ_ * MDQ_ * MB_>(NE, std::max(D1D, Q1D),
-                                            std::max(D1D, Q1D), MB_,
-                                            [=] MFEM_HOST_DEVICE(int e)
-   {
-      // nvcc limit work-around: can't have Y_ be captured first in
-      // if constexpr, so capture y_ and construct Y_ locally
-      auto Y = Reshape(y_, 3 * (D1D - 1) * D1D * D1D, NE);
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      constexpr int nbz = TBATCH ? TBATCH : 1;
-      const int tidz = MFEM_THREAD_ID(z);
-#else
-      constexpr int nbz = 1;
-      constexpr int tidz = 0;
-#endif
-      constexpr int VDIM = 3;
-      constexpr int MD1D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
-      constexpr int MQ1D = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
-      constexpr int MDQ = std::max(MD1D, MQ1D);
-
-      MFEM_SHARED real_t sBo[MDQ * (MD1D - 1)];
-      MFEM_SHARED real_t sBc[MDQ * MD1D];
-      DeviceMatrix BO(sBo, Q1D, D1D - 1);
-      DeviceMatrix BC(sBc, Q1D, D1D);
-
-      MFEM_SHARED real_t sX[nbz][VDIM * (MD1D - 1) * MD1D * MD1D];
-      MFEM_SHARED real_t sm0[nbz][VDIM * MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[nbz][VDIM * MDQ * MDQ * MDQ];
-
-      real_t *X = (real_t(*))(sX + tidz);
-      real_t(*DDQ)[MD1D][MD1D][MQ1D] =
-         (real_t(*)[MD1D][MD1D][MQ1D])(sm0 + tidz);
-      real_t(*DQQ)[MD1D][MQ1D][MQ1D] =
-         (real_t(*)[MD1D][MQ1D][MQ1D])(sm1 + tidz);
-      real_t(*QQQ)[MQ1D][MQ1D][MQ1D] =
-         (real_t(*)[MQ1D][MQ1D][MQ1D])(sm0 + tidz);
-      real_t(*QQD)[MQ1D][MQ1D][MD1D] =
-         (real_t(*)[MQ1D][MQ1D][MD1D])(sm1 + tidz);
-      real_t(*QDD)[MQ1D][MD1D][MD1D] =
-         (real_t(*)[MQ1D][MD1D][MD1D])(sm0 + tidz);
-
-      // load dofs into smem
-      const int offset = (D1D - 1) * D1D * D1D;
-      for (int dim = 0; dim < VDIM; ++dim)
-      {
-         const int D1Dz = (dim == 2) ? D1D - 1 : D1D;
-         const int D1Dy = (dim == 1) ? D1D - 1 : D1D;
-         const int D1Dx = (dim == 0) ? D1D - 1 : D1D;
-
-         MFEM_FOREACH_THREAD(dy, y, D1Dy)
-         {
-            MFEM_FOREACH_THREAD(dx, x, D1Dx)
-            {
-               for (int dz = 0; dz < D1Dz; ++dz)
-               {
-                  X[dx + (dy + dz * D1Dy) * D1Dx + dim * offset] =
-                     X_(dx + (dy + dz * D1Dy) * D1Dx + dim * offset, e);
-               }
-            }
-         }
-      }
-
-      // load basis functions data
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d, y, D1D)
-         {
-            MFEM_FOREACH_THREAD(q, x, Q1D)
-            {
-               BC(q, d) = Bc(q, d);
-            }
-         }
-         MFEM_FOREACH_THREAD(d, y, D1D - 1)
-         {
-            MFEM_FOREACH_THREAD(q, x, Q1D)
-            {
-               BO(q, d) = Bo(q, d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      for (int dim0 = 0; dim0 < VDIM; ++dim0)
-      {
-         // sum factor to QQQ = Q_{dim0,dim1} B X_{dim1}
-         for (int dim1 = 0; dim1 < VDIM; ++dim1)
-         {
-            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
-            const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
-
-            MFEM_FOREACH_THREAD(dy, y, D1Dy)
-            {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
-               {
-                  real_t u[MD1D];
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     u[dz] = 0;
-                  }
-                  for (int dx = 0; dx < D1Dx; ++dx)
-                  {
-                     for (int dz = 0; dz < D1Dz; ++dz)
-                     {
-                        if (dim1 == 0)
-                        {
-                           u[dz] +=
-                              X[dx + (dy + dz * D1Dy) * D1Dx + dim1 * offset] *
-                              BO(qx, dx);
-                        }
-                        else
-                        {
-                           u[dz] +=
-                              X[dx + (dy + dz * D1Dy) * D1Dx + dim1 * offset] *
-                              BC(qx, dx);
-                        }
-                     }
-                  }
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     DDQ[dim1][dz][dy][qx] = u[dz];
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         for (int dim1 = 0; dim1 < VDIM; ++dim1)
-         {
-            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
-            // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
-               {
-                  real_t u[MD1D];
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     u[dz] = 0;
-                  }
-                  for (int dy = 0; dy < D1Dy; ++dy)
-                  {
-                     for (int dz = 0; dz < D1Dz; ++dz)
-                     {
-                        if (dim1 == 1)
-                        {
-                           u[dz] += DDQ[dim1][dz][dy][qx] * BO(qy, dy);
-                        }
-                        else
-                        {
-                           u[dz] += DDQ[dim1][dz][dy][qx] * BC(qy, dy);
-                        }
-                     }
-                  }
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     DQQ[dim1][dz][qy][qx] = u[dz];
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         for (int dim1 = 0; dim1 < VDIM; ++dim1)
-         {
-            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
-            // const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
-            // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
-               {
-                  real_t u[MQ1D];
-                  for (int qz = 0; qz < Q1D; ++qz)
-                  {
-                     u[qz] = 0;
-                  }
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        if (dim1 == 2)
-                        {
-                           u[qz] += DQQ[dim1][dz][qy][qx] * BO(qz, dz);
-                        }
-                        else
-                        {
-                           u[qz] += DQQ[dim1][dz][qy][qx] * BC(qz, dz);
-                        }
-                     }
-                  }
-                  for (int qz = 0; qz < Q1D; ++qz)
-                  {
-                     // pa_data is row major
-                     int idx;
-                     if (symmetric)
-                     {
-                        int row;
-                        int col;
-                        if (dim0 > dim1)
-                        {
-                           row = dim1;
-                           col = dim0;
-                        }
-                        else
-                        {
-                           row = dim0;
-                           col = dim1;
-                        }
-                        idx = col + VDIM * row - row * (row + 1) / 2;
-                     }
-                     else
-                     {
-                        idx = dim0 * VDIM + dim1;
-                     }
-                     QQQ[dim1][qz][qy][qx] = op(qx, qy, qz, idx, e) * u[qz];
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         // sum factor back to Y
-         // Assume bot and bct == bo^t and bc^t respectively (i.e. test == trial
-         // functions), skip loading them again.
-         {
-            const int D1Dz = (dim0 == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (dim0 == 1) ? D1D - 1 : D1D;
-            const int D1Dx = (dim0 == 0) ? D1D - 1 : D1D;
-            for (int dim1 = 0; dim1 < VDIM; ++dim1)
-            {
-               MFEM_FOREACH_THREAD(qy, y, Q1D)
-               {
-                  MFEM_FOREACH_THREAD(dx, x, D1Dx)
-                  {
-                     real_t u[MQ1D];
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        u[qz] = 0;
-                     }
-                     for (int qx = 0; qx < Q1D; ++qx)
-                     {
-                        for (int qz = 0; qz < Q1D; ++qz)
-                        {
-                           if (dim0 == 0)
-                           {
-                              u[qz] += QQQ[dim1][qz][qy][qx] * BO(qx, dx);
-                           }
-                           else
-                           {
-                              u[qz] += QQQ[dim1][qz][qy][qx] * BC(qx, dx);
-                           }
-                        }
-                     }
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        QQD[dim1][qz][qy][dx] = u[qz];
-                     }
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            for (int dim1 = 0; dim1 < VDIM; ++dim1)
-            {
-               MFEM_FOREACH_THREAD(dy, y, D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx, x, D1Dx)
-                  {
-                     real_t u[MQ1D];
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        u[qz] = 0;
-                     }
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        for (int qz = 0; qz < Q1D; ++qz)
-                        {
-                           if (dim0 == 1)
-                           {
-                              u[qz] += QQD[dim1][qz][qy][dx] * BO(qy, dy);
-                           }
-                           else
-                           {
-                              u[qz] += QQD[dim1][qz][qy][dx] * BC(qy, dy);
-                           }
-                        }
-                     }
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        QDD[dim1][qz][dy][dx] = u[qz];
-                     }
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-            MFEM_FOREACH_THREAD(dy, y, D1Dy)
-            {
-               MFEM_FOREACH_THREAD(dx, x, D1Dx)
-               {
-                  real_t u[MD1D];
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     u[dz] = 0;
-                  }
-                  for (int qz = 0; qz < Q1D; ++qz)
-                  {
-                     for (int dz = 0; dz < D1Dz; ++dz)
-                     {
-                        for (int dim1 = 0; dim1 < VDIM; ++dim1)
-                        {
-                           if (dim0 == 2)
-                           {
-                              u[dz] += QDD[dim1][qz][dy][dx] * BO(qz, dz);
-                           }
-                           else
-                           {
-                              u[dz] += QDD[dim1][qz][dy][dx] * BC(qz, dz);
-                           }
-                        }
-                     }
-                  }
-                  for (int dz = 0; dz < D1Dz; ++dz)
-                  {
-                     if constexpr (ACCUMULATE)
-                     {
-                        Y(dx + (dy + dz * D1Dy) * D1Dx + dim0 * offset, e) +=
-                           u[dz];
-                     }
-                     else
-                     {
-                        Y(dx + (dy + dz * D1Dy) * D1Dx + dim0 * offset, e) =
-                           u[dz];
-                     }
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-         }
-      }
-   }); // end of element loop
-}
-#endif
 
 // PA H(curl) curl-curl Assemble 2D kernel
 void PACurlCurlSetup2D(const int Q1D,
