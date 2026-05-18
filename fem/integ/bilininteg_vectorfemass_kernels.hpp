@@ -31,7 +31,6 @@ namespace internal
 {
 namespace hcurlmass
 {
-#if 1
 constexpr int NBZ3D(int d1d, int q1d)
 {
    if (d1d <= 1 || q1d <= 0)
@@ -48,22 +47,6 @@ constexpr int NBZ3D(int d1d, int q1d)
    // assume GPU has at least 48k shared memory
    return std::max(std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req), 1);
 }
-#else
-constexpr int NBZ3D(int d1d, int q1d)
-{
-   if (d1d <= 1 || q1d <= 0)
-   {
-      return 1;
-   };
-   // assume q1d >= d1d
-   int tmp = std::min((128 + q1d * q1d - 1) / (q1d * q1d), 64);
-   int smem_req = sizeof(real_t) *
-                  (3 * ((d1d - 1) * d1d * d1d + 2 * q1d * q1d * q1d) * tmp +
-                   q1d * (d1d - 1) + q1d * d1d);
-   // assume GPU has at least 48k shared memory
-   return std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req);
-}
-#endif
 } // namespace hcurlmass
 } // namespace internal
 

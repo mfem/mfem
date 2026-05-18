@@ -197,7 +197,6 @@ void PAHcurlMassApply3D(const int NE, const bool symmetric,
                         const int TestD1D, const int Q1D);
 
 // Shared memory PA H(curl) Mass Apply 3D kernel
-// this version is universally faster on AMD, situationally faster on NVidia
 template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0, bool ACCUMULATE = true>
 inline void SmemPAHcurlMassApply3D(
    const int NE, const bool symmetric, const bool scalar_coeff,
