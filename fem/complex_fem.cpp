@@ -932,7 +932,7 @@ ComplexSparseMatrix *
 MixedSesquilinearForm::AssembleComplexSparseMatrix()
 {
    return new mfem::ComplexSparseMatrix(
-             &_mblfr->SpMat(), &_mblfi->SpMat(), true, true, _conv);
+             &_mblfr->SpMat(), &_mblfi->SpMat(), false, false, _conv);
 }
 
 void
