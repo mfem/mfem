@@ -447,7 +447,7 @@ public:
     The @a convention argument in the class's constructor is documented in the
     mfem::ComplexOperator class found in linalg/complex_operator.hpp.
 
-    When supplying integrators to the ParMixedSesquilinearForm either the real or
+    When supplying integrators to the MixedSesquilinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
 */
