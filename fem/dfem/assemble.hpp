@@ -25,7 +25,10 @@ namespace mfem::future
 /// @param fhat Memory to hold the residual computation with layout
 /// [test_vdim, test_op_dim, nqp].
 /// @param qpdc The quadrature point data cache with data layout
-/// [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, nqp].
+/// [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, nqp]
+/// (C-style: test_vdim slowest, total_trial_op_dim fastest per QP).
+/// Access as qpdc(m, j, k, i, q) to get the Jacobian for
+/// output (i, k) w.r.t. input (j, m).
 /// @param itod Input Trial Operator Dimension array. If the trial
 /// operator is not dependent, the dimension is 0 to indicate that.
 /// @param inputs The input field operator types.
@@ -51,10 +54,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
 {
    constexpr int dimension = 3;
 
-   // [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
-   const int test_vdim = qpdc.GetShape()[0];
-   const int test_op_dim = qpdc.GetShape()[1];
-   const int trial_vdim = qpdc.GetShape()[2];
+   // [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, num_qp]
+   const int test_vdim = qpdc.GetShape()[3];
+   const int test_op_dim = qpdc.GetShape()[2];
+   const int trial_vdim = qpdc.GetShape()[1];
 
    // [num_test_dof, ...]
    const auto num_test_dof = A.GetShape()[0];
@@ -122,7 +125,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                                  {
                                     for (int k = 0; k < test_op_dim; k++)
                                     {
-                                       const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                       const real_t f = qpdc(m + m_offset, j, k, i, q);
                                        fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy) * B(qz, 0, Jz);
                                     }
                                  }
@@ -146,7 +149,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                                  {
                                     for (int k = 0; k < test_op_dim; k++)
                                     {
-                                       const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                       const real_t f = qpdc(m + m_offset, j, k, i, q);
                                        if (m == 0)
                                        {
                                           fhat(i, k, q) += f * G(qx, 0, Jx) * B(qy, 0, Jy) * B(qz, 0, Jz);
@@ -222,10 +225,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
 {
    constexpr int dimension = 2;
 
-   // [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
-   const int test_vdim = qpdc.GetShape()[0];
-   const int test_op_dim = qpdc.GetShape()[1];
-   const int trial_vdim = qpdc.GetShape()[2];
+   // [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, num_qp]
+   const int test_vdim = qpdc.GetShape()[3];
+   const int test_op_dim = qpdc.GetShape()[2];
+   const int trial_vdim = qpdc.GetShape()[1];
 
    // [num_test_dof, ...]
    const auto num_test_dof = A.GetShape()[0];
@@ -285,7 +288,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
                            {
                               for (int k = 0; k < test_op_dim; k++)
                               {
-                                 const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                 const real_t f = qpdc(m + m_offset, j, k, i, q);
                                  fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy);
                               }
                            }
@@ -306,7 +309,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
                            {
                               for (int k = 0; k < test_op_dim; k++)
                               {
-                                 const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                 const real_t f = qpdc(m + m_offset, j, k, i, q);
                                  if (m == 0)
                                  {
                                     fhat(i, k, q) += f * B(qx, 0, Jx) * G(qy, 0, Jy);
@@ -350,7 +353,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
 /// @param fhat Memory to hold the residual computation with layout
 /// [test_vdim, test_op_dim, nqp].
 /// @param qpdc The quadrature point data cache with data layout
-/// [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, nqp].
+/// [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, nqp]
+/// (C-style: test_vdim slowest, total_trial_op_dim fastest per QP).
+/// Access as qpdc(m, j, k, i, q) to get the Jacobian for
+/// output (i, k) w.r.t. input (j, m).
 /// @param itod Input Trial Operator Dimension array. If the trial
 /// operator is not dependent, the dimension is 0 to indicate that.
 /// @param inputs The input field operator types.
