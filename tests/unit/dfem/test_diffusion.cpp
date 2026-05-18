@@ -181,14 +181,15 @@ void diffusion(const char *filename, int p)
       {
          static constexpr int QData = 2;
          QuadratureSpace qspace(pmesh, *ir);
-         QuadratureFunction qd(qspace, DIM * DIM);
+         VectorQuadratureSpace qspace_vec(qspace, DIM * DIM);
+         QuadratureFunction qd(qspace_vec);
 
          DifferentiableOperator setupPAData(
          {
             {Coords, mfes}
          },
          {
-            {QData, &qd}
+            {QData, &qspace_vec}
          }, pmesh);
 
          typename Diffusion<DIM>::PASetup pa_setup_qf;
@@ -208,7 +209,7 @@ void diffusion(const char *filename, int p)
 
          DifferentiableOperator applyPAData(
          {
-            {U, &pfes}, {QData, &qd}
+            {U, &pfes}, {QData, &qspace_vec}
          },
          {
             {U, &pfes}

@@ -763,7 +763,7 @@ void DifferentiableOperator::AddIntegrator(
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   // Check if any ouptut is a QuadratureFunction
+   // Check if any ouptut is a VectorQuadratureSpace
    bool disable_assemble = false;
    for_constexpr([&](auto i)
    {

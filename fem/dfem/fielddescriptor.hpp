@@ -24,7 +24,7 @@ struct FieldDescriptor
    using data_variant_t =
       std::variant<const FiniteElementSpace *,
       const ParFiniteElementSpace *,
-      const QuadratureFunction *,
+      const VectorQuadratureSpace *,
       const ParameterSpace *>;
 
    /// Field ID

@@ -63,7 +63,8 @@ public:
                 const ParFiniteElementSpace &mfes,
                 const IntegrationRule &ir) :
       qspace(*fes.GetParMesh(), ir),
-      q(qspace)
+      qspace_vec(qspace, 1),
+      q(qspace_vec)
    {
       const auto in = std::vector
       {
@@ -72,7 +73,7 @@ public:
       };
       const auto out = std::vector
       {
-         FieldDescriptor{Q, &q}
+         FieldDescriptor{Q, &qspace_vec}
       };
 
       const auto &mesh = *fes.GetParMesh();
@@ -141,6 +142,7 @@ public:
 private:
    std::unique_ptr<DifferentiableOperator> dop;
    QuadratureSpace qspace;
+   VectorQuadratureSpace qspace_vec;
    mutable QuadratureFunction q;
    Vector coords;
 };

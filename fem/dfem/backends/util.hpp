@@ -61,7 +61,7 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    };
 }
 
-// QuadratureFunction identity copy
+// VectorQuadratureFunction identity copy
 inline FieldBasis FromQF()
 {
    return
@@ -118,7 +118,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       {
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return FromQF();
       }
@@ -188,9 +188,9 @@ void check_consistency(
 
       if constexpr (is_identity_fop<input_t>::value)
       {
-         MFEM_ASSERT(std::holds_alternative<const QuadratureFunction *>(fd.data),
+         MFEM_ASSERT(std::holds_alternative<const VectorQuadratureSpace *>(fd.data),
                      "Identity FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
       else if constexpr (is_weight_fop<input_t>::value)
       {
@@ -201,14 +201,14 @@ void check_consistency(
                      std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
                      std::holds_alternative<const ParameterSpace *>(fd.data),
                      "Value FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
       else if constexpr (is_gradient_fop<input_t>::value)
       {
          MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
                      std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
                      "Value FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
    });
 }

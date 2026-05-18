@@ -269,7 +269,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
    {
       QuadratureSpace qs(pmesh, *ir);
-      QuadratureFunction qdata(qs, DIM*DIM);
+      VectorQuadratureSpace vqs(qs, DIM * DIM);
+      QuadratureFunction qdata(vqs);
 
       DummyParameterSpace dps;
       ParameterFunction dpf(dps);
@@ -309,14 +310,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       {
          {U, &fes},
          {COORDINATES, nodes->ParFESpace()},
-         {S, &qdata},
+         {S, &vqs},
          {L, &dps}
       };
 
       const std::vector<FieldDescriptor> out
       {
          {V, &fes},
-         {S, &qdata}
+         {S, &vqs}
       };
 
       {
