@@ -44,7 +44,7 @@ New and updated examples and miniapps
 
 GPU computing
 -------------------------------------
-- Added device assembly support for H(curl) VectorFEDomainLFIntegrator.
+- Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
