@@ -1863,6 +1863,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       std::unique_ptr<mfem::FiniteElementSpace> fes;
       std::unique_ptr<mfem::GridFunction> field_in_h1;
+#ifdef MFEM_USE_MPI
       if (auto *pmesh = dynamic_cast<mfem::ParMesh*>(mesh))
       {
          fes = std::make_unique<mfem::ParFiniteElementSpace>(
@@ -1872,6 +1873,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                           static_cast<mfem::ParFiniteElementSpace*>(fes.get()));
       }
       else
+#endif
       {
          fes = std::make_unique<mfem::FiniteElementSpace>(
                   mesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
