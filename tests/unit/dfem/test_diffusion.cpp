@@ -37,10 +37,11 @@ template <int DIM> struct Diffusion
 
    struct MFApply
    {
-      MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
-                                              const matd_t &J,
-                                              const real_t &w,
-                                              dvecd_t &dvdxi) const
+      MFEM_HOST_DEVICE inline auto operator()(
+         const dvecd_t &dudxi,
+         const matd_t &J,
+         const real_t &w,
+         dvecd_t &dvdxi) const
       {
          const auto invJ = inv(J);
          const auto invJt = transpose(invJ);
@@ -50,9 +51,10 @@ template <int DIM> struct Diffusion
 
    struct PASetup
    {
-      MFEM_HOST_DEVICE inline auto operator()(const matd_t &J,
-                                              const real_t &w,
-                                              matd_t &qdata) const
+      MFEM_HOST_DEVICE inline auto operator()(
+         const matd_t &J,
+         const real_t &w,
+         matd_t &qdata) const
       {
          qdata = inv(J) * transpose(inv(J)) * det(J) * w;
       }
@@ -60,12 +62,33 @@ template <int DIM> struct Diffusion
 
    struct PAApply
    {
-      MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
-                                              const matd_t &qdata,
-                                              dvecd_t &dvdxi) const
+      MFEM_HOST_DEVICE inline auto operator()(
+         const dvecd_t &dudxi,
+         const matd_t &qdata,
+         dvecd_t &dvdxi) const
       {
          dvdxi = qdata * dudxi;
       };
+   };
+};
+
+template <int DIM> struct VectorDiffusion
+{
+   using dmatd_t = tensor<dscalar_t, DIM, DIM>;
+   using matd_t = tensor<real_t, DIM, DIM>;
+
+   struct MFApply
+   {
+      MFEM_HOST_DEVICE inline auto operator()(
+         const dmatd_t &dudxi,
+         const matd_t &J,
+         const real_t &w,
+         dmatd_t &dvdxi) const
+      {
+         const auto invJ = inv(J);
+         const auto invJt = transpose(invJ);
+         dvdxi = (dudxi * invJ) * invJt * det(J) * w;
+      }
    };
 };
 
@@ -90,289 +113,379 @@ void diffusion(const char *filename, int p)
       all_domain_attr = 1;
    }
 
-   H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
-
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p;
+   const int NE = mfes->GetNE(), d1d(p + 1), q = 2 * p;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
 
-   ParGridFunction x(&pfes), y(&pfes), z(&pfes);
-   Vector xtvec(pfes.GetTrueVSize()), ytvec(pfes.GetTrueVSize()),
-          ztvec(pfes.GetTrueVSize());
+   H1_FECollection fec(p, DIM);
 
-   xtvec.Randomize(1);
-   x.SetFromTrueDofs(xtvec);
+   static constexpr int U = 0, Coords = 1;
 
-   ParBilinearForm blf_fa(&pfes);
-   blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
-   blf_fa.Assemble();
-   blf_fa.Finalize();
-
-   static constexpr int U = 0, Coords = 1, Rho = 2;
-   const auto in = std::vector
+   SECTION("Scalar")
    {
-      FieldDescriptor{ U, &pfes },
-      FieldDescriptor{ Coords, mfes }
-   };
-   const auto out = std::vector{ FieldDescriptor{ U, &pfes } };
+      ParFiniteElementSpace pfes(&pmesh, &fec);
 
-   SECTION("action")
-   {
-      DifferentiableOperator dop_mf(in, out, pmesh);
-      typename Diffusion<DIM>::MFApply mf_apply_qf;
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_apply_qf,
-         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-         tuple{Gradient<U>{}},
-         *ir, all_domain_attr);
+      ParGridFunction x(&pfes), y(&pfes), z(&pfes);
+      Vector xtvec(pfes.GetTrueVSize()), ytvec(pfes.GetTrueVSize()),
+             ztvec(pfes.GetTrueVSize());
 
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
-
-      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-
-      MultiVector X{xtvec, nodestv};
-      MultiVector Z{ztvec};
-
-      dop_mf.Mult(X, Z);
-
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      ytvec -= ztvec;
-
-      real_t norm_global = 0.0;
-      real_t norm_local = ytvec.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
-
-   SECTION("action partial assembly")
-   {
-      static constexpr int QData = 2;
-      QuadratureSpace qspace(pmesh, *ir);
-      QuadratureFunction qd(qspace, DIM * DIM);
-
-      DifferentiableOperator setupPAData(
-      {
-         {Coords, mfes}
-      },
-      {
-         {QData, &qd}
-      }, pmesh);
-
-      typename Diffusion<DIM>::PASetup pa_setup_qf;
-      setupPAData.AddDomainIntegrator<LocalQFBackend>(
-         pa_setup_qf,
-         tuple{Gradient<Coords>{}, Weight{}},
-         tuple{Identity<QData>{}},
-         *ir, all_domain_attr);
-
-      {
-         Vector nodestv;
-         nodes->GetTrueDofs(nodestv);
-         MultiVector X{nodestv};
-         MultiVector Y{qd};
-         setupPAData.Mult(X, Y);
-      }
-
-      DifferentiableOperator applyPAData(
-      {
-         {U, &pfes}, {QData, &qd}
-      },
-      {
-         {U, &pfes}
-      }, pmesh);
-      typename Diffusion<DIM>::PAApply pa_apply_qf;
-      applyPAData.AddDomainIntegrator<LocalQFBackend>(
-         pa_apply_qf,
-         tuple{ Gradient<U>{}, Identity<QData>{} },
-         tuple{ Gradient<U>{} },
-         *ir, all_domain_attr);
-
-      {
-         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-         MultiVector X{xtvec, qd};
-         MultiVector Z{ztvec};
-         applyPAData.Mult(X, Z);
-      }
-
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      ytvec -= ztvec;
-
-      real_t norm_global = 0.0;
-      real_t norm_local = ytvec.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
-
-   SECTION("action linearized")
-   {
-      DifferentiableOperator dop_mf(in, out, pmesh);
-      typename Diffusion<DIM>::MFApply mf_apply_qf;
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_apply_qf,
-         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-         tuple{Gradient<U>{}},
-         *ir, all_domain_attr, derivatives);
-
-      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
-      MultiVector X{xtvec, nodestv};
-      MultiVector Z{ztvec};
-      auto ddop = dop_mf.GetDerivative(U, X);
-
-      // Randomize again s.t. the PA setup like cache can't
-      // trivially succeed by caching one direction only.
-      xtvec.Randomize(567);
+      xtvec.Randomize(1);
       x.SetFromTrueDofs(xtvec);
 
-      Vector dztvec(ztvec.Size());
-      MultiVector DZ{dztvec};
-      ddop->Mult(X[0], DZ);
+      ParBilinearForm blf_fa(&pfes);
+      blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+      blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_fa.Assemble();
+      blf_fa.Finalize();
 
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      const auto in = std::vector
+      {
+         FieldDescriptor{ U, &pfes },
+         FieldDescriptor{ Coords, mfes }
+      };
+      const auto out = std::vector{ FieldDescriptor{ U, &pfes } };
 
-      ytvec -= dztvec;
+      SECTION("Action")
+      {
+         DifferentiableOperator dop_mf(in, out, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr);
 
-      real_t norm_global = 0.0;
-      real_t norm_local = ytvec.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+
+         MultiVector X{xtvec, nodestv};
+         MultiVector Z{ztvec};
+
+         dop_mf.Mult(X, Z);
+
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+         ytvec -= ztvec;
+
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+      SECTION("Action Partial Assembly")
+      {
+         static constexpr int QData = 2;
+         QuadratureSpace qspace(pmesh, *ir);
+         QuadratureFunction qd(qspace, DIM * DIM);
+
+         DifferentiableOperator setupPAData(
+         {
+            {Coords, mfes}
+         },
+         {
+            {QData, &qd}
+         }, pmesh);
+
+         typename Diffusion<DIM>::PASetup pa_setup_qf;
+         setupPAData.AddDomainIntegrator<LocalQFBackend>(
+            pa_setup_qf,
+            tuple{Gradient<Coords>{}, Weight{}},
+            tuple{Identity<QData>{}},
+            *ir, all_domain_attr);
+
+         {
+            Vector nodestv;
+            nodes->GetTrueDofs(nodestv);
+            MultiVector X{nodestv};
+            MultiVector Y{qd};
+            setupPAData.Mult(X, Y);
+         }
+
+         DifferentiableOperator applyPAData(
+         {
+            {U, &pfes}, {QData, &qd}
+         },
+         {
+            {U, &pfes}
+         }, pmesh);
+         typename Diffusion<DIM>::PAApply pa_apply_qf;
+         applyPAData.AddDomainIntegrator<LocalQFBackend>(
+            pa_apply_qf,
+            tuple{ Gradient<U>{}, Identity<QData>{} },
+            tuple{ Gradient<U>{} },
+            *ir, all_domain_attr);
+
+         {
+            pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+            MultiVector X{xtvec, qd};
+            MultiVector Z{ztvec};
+            applyPAData.Mult(X, Z);
+         }
+
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+         ytvec -= ztvec;
+
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      SECTION("Action Linearized")
+      {
+         DifferentiableOperator dop_mf(in, out, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr, derivatives);
+
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         MultiVector Z{ztvec};
+         auto ddop = dop_mf.GetDerivative(U, X);
+
+         // Randomize again s.t. the PA setup like cache can't
+         // trivially succeed by caching one direction only.
+         xtvec.Randomize(567);
+         x.SetFromTrueDofs(xtvec);
+
+         Vector dztvec(ztvec.Size());
+         MultiVector DZ{dztvec};
+         ddop->Mult(X[0], DZ);
+
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+
+         ytvec -= dztvec;
+
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      SECTION("SparseMatrix")
+      {
+         DifferentiableOperator dop_mf(in, out, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr, derivatives);
+
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop_mf.GetDerivative(U, X);
+
+         SparseMatrix *A = nullptr;
+         dRdU->Assemble(A);
+
+         TestSameMatrices(*A, blf_fa.SpMat());
+         delete A;
+
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      SECTION("Assemble Diagonal")
+      {
+         DifferentiableOperator dop_mf(in, out, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr, derivatives);
+
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop_mf.GetDerivative(U, X);
+
+         Vector dfem_diagonal(pfes.GetTrueVSize());
+         dRdU->AssembleDiagonal(dfem_diagonal);
+
+         Vector mfem_diagonal(pfes.GetTrueVSize());
+         blf_fa.AssembleDiagonal(mfem_diagonal);
+
+         dfem_diagonal -= mfem_diagonal;
+
+         real_t norm_global = 0.0;
+         real_t norm_local = dfem_diagonal.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 
-   SECTION("action vector")
+   SECTION("Vector")
    {
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
       ParGridFunction vx(&vpfes), vy(&vpfes);
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
              vZ(vpfes.GetTrueVSize());
 
-      vX.Randomize(1);
-      vx.SetFromTrueDofs(vX);
-
-      DifferentiableOperator dop_mf(
+      SECTION("Action")
       {
-         {U, &vpfes},
-         {Coords, mfes},
-      },
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
+
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
+
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_vector_diffusion_qf,
+            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+            tuple{ Gradient<U>{} },
+            *ir, all_domain_attr);
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         MultiVector Z{vZ};
+         dop_mf.Mult(X, Z);
+
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy);
+         vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+
+         vY -= vZ;
+         real_t norm_global = 0.0;
+         real_t norm_local = vY.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      SECTION("Action Linearized")
       {
-         {U, &vpfes}
-      }, pmesh);
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
 
-      const auto mf_vector_diffusion_qf =
-         [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
-                              const tensor<real_t, DIM, DIM> &J,
-                              const real_t &w,
-                              tensor<dscalar_t, DIM, DIM> &dvdxi)
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
+
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         const auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_vector_diffusion_qf,
+            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+            tuple{ Gradient<U>{} },
+            *ir, all_domain_attr, derivatives);
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         const auto ddop = dop_mf.GetDerivative(U, X);
+
+         MultiVector Z{vZ};
+         ddop->Mult(vX, Z);
+
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy);
+         vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+
+         vY -= vZ;
+         real_t norm_global = 0.0;
+         real_t norm_local = vY.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      SECTION("SparseMatrix")
       {
-         const auto invJ = inv(J);
-         const auto invJt = transpose(invJ);
-         dvdxi = (dudxi * invJ) * invJt * det(J) * w;
-      };
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
 
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_vector_diffusion_qf,
-         tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ Gradient<U>{} },
-         *ir, all_domain_attr);
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
 
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
-      MultiVector X{vX, nodestv};
-      MultiVector Z{vZ};
-      dop_mf.Mult(X, Z);
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         const auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+            mf_vector_diffusion_qf,
+            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+            tuple{ Gradient<U>{} },
+            *ir, all_domain_attr, derivatives);
 
-      ParBilinearForm vblf_fa(&vpfes);
-      vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-      vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-      vblf_fa.Assemble();
-      vblf_fa.Finalize();
-      vblf_fa.Mult(vx, vy);
-      vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         const auto ddop = dop_mf.GetDerivative(U, X);
 
-      vY -= vZ;
-      real_t norm_global = 0.0;
-      real_t norm_local = vY.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
+         MultiVector Z{vZ};
+         ddop->Mult(vX, Z);
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
 
-   SECTION("SparseMatrix")
-   {
-      DifferentiableOperator dop_mf(in, out, pmesh);
-      typename Diffusion<DIM>::MFApply mf_apply_qf;
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_apply_qf,
-         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-         tuple{Gradient<U>{}},
-         *ir, all_domain_attr, derivatives);
+         SparseMatrix *A = nullptr;
+         ddop->Assemble(A);
 
-      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
-      MultiVector X{xtvec, nodestv};
-      auto dRdU = dop_mf.GetDerivative(U, X);
+         TestSameMatrices(*A, vblf_fa.SpMat());
+         delete A;
 
-      SparseMatrix *A = nullptr;
-      dRdU->Assemble(A);
-
-      TestSameMatrices(*A, blf_fa.SpMat());
-      delete A;
-
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
-
-   SECTION("Assemble Diagonal")
-   {
-      DifferentiableOperator dop_mf(in, out, pmesh);
-      typename Diffusion<DIM>::MFApply mf_apply_qf;
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_apply_qf,
-         tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-         tuple{Gradient<U>{}},
-         *ir, all_domain_attr, derivatives);
-
-      pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      Vector nodestv;
-      nodes->GetTrueDofs(nodestv);
-      MultiVector X{xtvec, nodestv};
-      auto dRdU = dop_mf.GetDerivative(U, X);
-
-      Vector dfem_diagonal(pfes.GetTrueVSize());
-      dRdU->AssembleDiagonal(dfem_diagonal);
-
-      Vector mfem_diagonal(pfes.GetTrueVSize());
-      blf_fa.AssembleDiagonal(mfem_diagonal);
-
-      dfem_diagonal -= mfem_diagonal;
-
-      real_t norm_global = 0.0;
-      real_t norm_local = dfem_diagonal.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 }
 
