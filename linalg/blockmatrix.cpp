@@ -22,27 +22,31 @@ namespace mfem
 
 BlockMatrix::BlockMatrix(const Array<int> & offsets):
    AbstractSparseMatrix(offsets.Last()),
-   owns_blocks(false),
    nRowBlocks(offsets.Size()-1),
    nColBlocks(offsets.Size()-1),
-   Aij(nRowBlocks, nColBlocks)
+   Aij(nRowBlocks, nColBlocks),
+   own_block(nRowBlocks, nColBlocks),
+   owns_blocks(false)
 {
    row_offsets.MakeRef(const_cast< Array<int>& >(offsets));
    col_offsets.MakeRef(const_cast< Array<int>& >(offsets));
    Aij = (SparseMatrix *)NULL;
+   own_block = owns_blocks;
 }
 
 BlockMatrix::BlockMatrix(const Array<int> & row_offsets_,
                          const Array<int> & col_offsets_):
    AbstractSparseMatrix(row_offsets_.Last(), col_offsets_.Last()),
-   owns_blocks(false),
    nRowBlocks(row_offsets_.Size()-1),
    nColBlocks(col_offsets_.Size()-1),
-   Aij(nRowBlocks, nColBlocks)
+   Aij(nRowBlocks, nColBlocks),
+   own_block(nRowBlocks, nColBlocks),
+   owns_blocks(false)
 {
    row_offsets.MakeRef(const_cast< Array<int>& >(row_offsets_));
    col_offsets.MakeRef(const_cast< Array<int>& >(col_offsets_));
    Aij = (SparseMatrix *)NULL;
+   own_block = owns_blocks;
 }
 
 
@@ -50,10 +54,15 @@ BlockMatrix::~BlockMatrix()
 {
    if (owns_blocks)
    {
-      for (SparseMatrix ** it = Aij.GetRow(0);
-           it != Aij.GetRow(0)+(Aij.NumRows()*Aij.NumCols()); ++it)
+      for (int jcol = 0; jcol != nColBlocks; ++jcol)
       {
-         delete *it;
+         for (int irow = 0; irow != nRowBlocks; ++irow)
+         {
+            if (IsBlockOwned(irow,jcol) && Aij(irow,jcol))
+            {
+               delete Aij(irow,jcol);
+            }
+         }
       }
    }
 }
@@ -76,6 +85,10 @@ void BlockMatrix::SetBlock(int i, int j, SparseMatrix * mat)
       mfem_error("BlockMatrix::SetBlock #2");
    }
 #endif
+   if (IsBlockOwned(i,j) && Aij(i,j))
+   {
+      delete Aij(i,j);
+   }
    Aij(i,j) = mat;
 }
 
@@ -667,7 +680,7 @@ void BlockMatrix::PrintMatlab(std::ostream & os) const
 BlockMatrix * Transpose(const BlockMatrix & A)
 {
    BlockMatrix * At = new BlockMatrix(A.ColOffsets(), A.RowOffsets());
-   At->owns_blocks = 1;
+   At->SetBlockOwnership(1);
 
    for (int irowAt = 0; irowAt < At->NumRowBlocks(); ++irowAt)
    {
@@ -685,7 +698,7 @@ BlockMatrix * Transpose(const BlockMatrix & A)
 BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B)
 {
    BlockMatrix * C= new BlockMatrix(A.RowOffsets(), B.ColOffsets());
-   C->owns_blocks = 1;
+   C->SetBlockOwnership(1);
    Array<SparseMatrix *> CijPieces(A.NumColBlocks());
 
    for (int irowC = 0; irowC < A.NumRowBlocks(); ++irowC)
