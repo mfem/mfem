@@ -79,7 +79,7 @@ void DPGWeakForm::AllocMat()
    if (static_cond) { return; }
 
    mat = new BlockMatrix(dof_offsets);
-   mat->owns_blocks = 1;
+   mat->SetBlockOwnership(1);
 
    for (int i = 0; i<mat->NumRowBlocks(); i++)
    {
@@ -134,8 +134,8 @@ void DPGWeakForm::BuildProlongation()
 {
    P = new BlockMatrix(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = trial_fes[i]->GetConformingProlongation();
@@ -155,7 +155,7 @@ void DPGWeakForm::ConformingAssemble()
 
    BlockMatrix * Pt = Transpose(*P);
    BlockMatrix * PtA = mfem::Mult(*Pt, *mat);
-   mat->owns_blocks = 0;
+   mat->SetBlockOwnership(0);
    for (int i = 0; i<nblocks; i++)
    {
       for (int j = 0; j<nblocks; j++)
@@ -175,7 +175,7 @@ void DPGWeakForm::ConformingAssemble()
    if (mat_e)
    {
       BlockMatrix *PtAe = mfem::Mult(*Pt, *mat_e);
-      mat_e->owns_blocks = 0;
+      mat_e->SetBlockOwnership(0);
       for (int i = 0; i<nblocks; i++)
       {
          for (int j = 0; j<nblocks; j++)
@@ -198,7 +198,7 @@ void DPGWeakForm::ConformingAssemble()
 
    mat = mfem::Mult(*PtA, *P);
 
-   PtA->owns_blocks = 0;
+   PtA->SetBlockOwnership(0);
    for (int i = 0; i<nblocks; i++)
    {
       for (int j = 0; j<nblocks; j++)
@@ -219,7 +219,7 @@ void DPGWeakForm::ConformingAssemble()
    if (mat_e)
    {
       BlockMatrix *PtAeP = mfem::Mult(*mat_e, *P);
-      mat_e->owns_blocks = 0;
+      mat_e->SetBlockOwnership(0);
       for (int i = 0; i<nblocks; i++)
       {
          for (int j = 0; j<nblocks; j++)
@@ -575,7 +575,7 @@ void DPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
       offsets.MakeRef( (P) ? tdof_offsets : dof_offsets);
 
       mat_e = new BlockMatrix(offsets);
-      mat_e->owns_blocks = 1;
+      mat_e->SetBlockOwnership(1);
       for (int i = 0; i<mat_e->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];

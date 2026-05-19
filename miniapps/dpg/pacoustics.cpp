@@ -648,7 +648,7 @@ int main(int argc, char *argv[])
 
       X = 0.;
       BlockDiagonalPreconditioner M(tdof_offsets);
-      M.owns_blocks=0;
+      M.SetBlockOwnership(0);
 
       if (!static_cond)
       {

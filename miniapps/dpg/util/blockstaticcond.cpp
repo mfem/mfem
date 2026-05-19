@@ -160,7 +160,7 @@ void BlockStaticCondensation::Init()
    ComputeOffsets();
 
    S = new BlockMatrix(rdof_offsets);
-   S->owns_blocks = 1;
+   S->SetBlockOwnership(1);
 
    for (int i = 0; i<S->NumRowBlocks(); i++)
    {
@@ -520,8 +520,8 @@ void BlockStaticCondensation::BuildProlongation()
 {
    P = new BlockMatrix(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
    {
@@ -543,8 +543,8 @@ void BlockStaticCondensation::BuildParallelProlongation()
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
    pP = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   pP->owns_blocks = 0;
-   R->owns_blocks = 0;
+   pP->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
    {
@@ -567,8 +567,8 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
 
    pS = new BlockOperator(rtdof_offsets);
    pS_e = new BlockOperator(rtdof_offsets);
-   pS->owns_blocks = 1;
-   pS_e->owns_blocks = 1;
+   pS->SetBlockOwnership(1);
+   pS_e->SetBlockOwnership(1);
    HypreParMatrix * A = nullptr;
    HypreParMatrix * PtAP = nullptr;
    int skip_i=0;
@@ -784,7 +784,7 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
       offsets.MakeRef( (P) ? rtdof_offsets : rdof_offsets);
 
       S_e = new BlockMatrix(offsets);
-      S_e->owns_blocks = 1;
+      S_e->SetBlockOwnership(1);
       for (int i = 0; i<S_e->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];

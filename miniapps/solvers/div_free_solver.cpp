@@ -373,7 +373,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
       {
          auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
          S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l));
-         S1->owns_blocks = 1;
+         S1->SetBlockOwnership(1);
          smoothers_[l] =
             std::make_unique<ProductSolver>(ops_[l].get(), S0, S1, false, true, true);
       }
@@ -399,7 +399,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M,
       ops_[l-1]->SetBlock(0, 0, M_c);
       ops_[l-1]->SetBlock(1, 0, B_c);
       ops_[l-1]->SetBlock(0, 1, B_c->Transpose());
-      ops_[l-1]->owns_blocks = 1;
+      ops_[l-1]->SetBlockOwnership(1);
    }
 
    if (data_.P_l2.size() == 0) { return; }

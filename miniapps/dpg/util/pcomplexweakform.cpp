@@ -45,10 +45,10 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
    p_mat_i = new BlockOperator(tdof_offsets);
    p_mat_e_r = new BlockOperator(tdof_offsets);
    p_mat_e_i = new BlockOperator(tdof_offsets);
-   p_mat_r->owns_blocks = 1;
-   p_mat_i->owns_blocks = 1;
-   p_mat_e_r->owns_blocks = 1;
-   p_mat_e_i->owns_blocks = 1;
+   p_mat_r->SetBlockOwnership(1);
+   p_mat_i->SetBlockOwnership(1);
+   p_mat_e_r->SetBlockOwnership(1);
+   p_mat_e_i->SetBlockOwnership(1);
    HypreParMatrix * A_r = nullptr;
    HypreParMatrix * A_i = nullptr;
    HypreParMatrix * PtAP_r = nullptr;
@@ -106,8 +106,8 @@ void ParComplexDPGWeakForm::BuildProlongation()
 {
    P = new BlockOperator(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
 
    for (int i = 0; i < nblocks; i++)
    {
