@@ -1038,8 +1038,7 @@ public:
          }
 
          jacobian = dynamic_cast<const LagrangianHydroJacobianOperator*>(&op);
-         MFEM_ASSERT(jacobian != nullptr,
-                     "Preconditioner can only be set with LagrangianHydroJacobianOperator");
+         MFEM_VERIFY(jacobian != nullptr, "Preconditioner error.");
 
          auto comm = hydro.H1.GetComm();
          const real_t h = jacobian->h;
@@ -1529,9 +1528,8 @@ public:
                // Recreate the PETSc matrix every time. Trying to update the
                // underlying Mat in-place is error-prone because the temporary
                // block/matrix objects go out of scope after this call.
-               petsc_jacobian.reset(new PetscParMatrix(comm, &block_op,
-                                                      Operator::PETSC_MATAIJ));
-
+               petsc_jacobian.reset(
+                  new PetscParMatrix(comm, &block_op, Operator::PETSC_MATAIJ));
                return *petsc_jacobian;
 #else
                MFEM_ABORT("MFEM is not built with PETSc");
@@ -2747,9 +2745,6 @@ int main(int argc, char *argv[])
    args.AddOption(&nretry, "-nretry", "--nretry", "");
    args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
                   "PETSc options (enables PETSc SNES path).");
-   args.AddOption(&petsc_legacy_dt, "-petsc-legacy-dt", "--petsc-legacy-dt",
-                  "-no-petsc-legacy-dt", "--no-petsc-legacy-dt",
-                  "Use legacy (larger) initial dt estimate for PETSc runs.");
    args.ParseCheck();
 
    Device device(device_config);
@@ -3108,23 +3103,13 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      if (use_petsc) { out << "energy initial: " << energy_init << "\n"; }
-      else { out << "IE: " << energy_init << "\n"; }
+      out << "energy initial: " << energy_init << "\n";
    }
-
-   // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
-   //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
    hydro->ResetTimeStepEstimate();
    real_t t = 0.0;
    real_t dt = 0.0;
-   if (use_petsc)
-   {
-      const real_t order_vel_backup = external_data[EXT_DATA_IDX::ORDER_VEL];
-      if (petsc_legacy_dt) { external_data[EXT_DATA_IDX::ORDER_VEL] = 1.0; }
-      dt = hydro->GetTimeStepEstimate(S);
-      external_data[EXT_DATA_IDX::ORDER_VEL] = order_vel_backup;
-   }
+   if (use_petsc) { dt = hydro->GetTimeStepEstimate(S); }
    else
    {
       // Keep the original conservative startup for the MFEM path.
@@ -3133,14 +3118,13 @@ int main(int argc, char *argv[])
       external_data[EXT_DATA_IDX::CFL] = cfl;
    }
 
-   if (use_petsc && Mpi::Root())
+   if (Mpi::Root())
    {
       out << "time step estimate: " << dt << "\n";
    }
 
    real_t t_old;
    bool last_step = false;
-   [[maybe_unused]] int steps = 0;
    BlockVector S_old(S);
 
    std::unique_ptr<QuadratureSpace> qs;
@@ -3191,8 +3175,6 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      // if (last_step) { hydro->residual->dump_jacobians = 1; }
-
       S_old = S;
       t_old = t;
       hydro->ResetTimeStepEstimate();
@@ -3200,15 +3182,11 @@ int main(int argc, char *argv[])
       // S is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
       ode_solver->Step(S, t, dt);
-      steps++;
-
-      // out << ">>> S:\n";
-      // pretty_print(S);
 
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
 
-      if (ode_solver_type > 10)
+      if (ode_solver_type > 10) // implicit.
       {
          // Don't repeat with PETSc.
          if (!use_petsc)
@@ -3294,31 +3272,13 @@ int main(int argc, char *argv[])
          paraview_save(ti, t);
       }
 
-      // out << "x_gf outer loop\n";
-      // print_vector(x_gf);
-
       // verr_gf.ProjectCoefficient(v_coeff);
       // for (int i = 0; i < verr_gf.Size(); i++)
       // {
       //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       // }
 
-      if (use_petsc)
-      {
-         if (Mpi::Root() && (ti % 10 == 0 || last_step))
-         {
-            out << "dt_est: " << dt_est << "\n";
-         }
-
-         if (Mpi::Root())
-         {
-            out << "step " << std::setw(5) << ti
-                << ",\tt = " << std::setw(5) << std::setprecision(4) << t
-                << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
-            out << std::endl;
-         }
-      }
-      else if (ti % vis_steps == 0 || last_step)
+      if (ti % vis_steps == 0 || last_step)
       {
          if (Mpi::Root()) { out << "dt_est: " << dt_est << "\n"; }
 
@@ -3329,9 +3289,6 @@ int main(int argc, char *argv[])
                 << ",\tdt = " << std::setw(5) << dt;
             out << std::endl;
          }
-
-         // Paraview.
-         // vizcb(ti, t);
       }
 
       if (glvis && (ti % vis_steps == 0 || last_step))
@@ -3391,10 +3348,7 @@ int main(int argc, char *argv[])
    delete hydro;
 
 #ifdef MFEM_USE_PETSC
-   if (use_petsc)
-   {
-      MFEMFinalizePetsc();
-   }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 #endif
 
    return 0;
