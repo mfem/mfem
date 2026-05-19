@@ -558,6 +558,9 @@ public:
    /// Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
+   /// Updates the internal mixed forms with the new finite element space.
+   virtual void Update();
+
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    ComplexSparseMatrix *AssembleComplexSparseMatrix();
@@ -1113,6 +1116,9 @@ public:
 
    /// Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
+
+   /// Updates the internal mixed forms with the new finite element space.
+   virtual void Update();
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
