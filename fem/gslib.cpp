@@ -1861,24 +1861,24 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
 
-      std::unique_ptr<mfem::FiniteElementSpace> fes;
-      std::unique_ptr<mfem::GridFunction> field_in_h1;
+      std::unique_ptr<FiniteElementSpace> fes;
+      std::unique_ptr<GridFunction> field_in_h1;
 #ifdef MFEM_USE_MPI
-      if (auto *pmesh = dynamic_cast<mfem::ParMesh*>(mesh))
+      if (auto *pmesh = dynamic_cast<ParMesh*>(mesh))
       {
-         fes = std::make_unique<mfem::ParFiniteElementSpace>(
+         fes = std::make_unique<ParFiniteElementSpace>(
                   pmesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
 
-         field_in_h1 = std::make_unique<mfem::ParGridFunction>(
-                          static_cast<mfem::ParFiniteElementSpace*>(fes.get()));
+         field_in_h1 = std::make_unique<ParGridFunction>(
+                          static_cast<ParFiniteElementSpace*>(fes.get()));
       }
       else
 #endif
       {
-         fes = std::make_unique<mfem::FiniteElementSpace>(
+         fes = std::make_unique<FiniteElementSpace>(
                   mesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
 
-         field_in_h1 = std::make_unique<mfem::GridFunction>(fes.get());
+         field_in_h1 = std::make_unique<GridFunction>(fes.get());
       }
 
       field_in_h1->UseDevice(false);
