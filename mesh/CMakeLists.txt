@@ -44,7 +44,6 @@ set(HDRS
   attribute_sets.hpp
   element.hpp
   face_nbr_geom.hpp
-  gmsh.hpp
   hexahedron.hpp
   mesh.hpp
   mesh_headers.hpp
