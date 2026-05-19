@@ -138,6 +138,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lor_batched.cpp
   fem/test_lor_dg.cpp
   fem/test_lor.cpp
+  fem/test_mixedsesqform.cpp
   fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
