@@ -1183,6 +1183,14 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
    A_i.SetOperatorOwner(false);
 }
 
+void
+MixedSesquilinearForm::Update()
+{
+   if ( _mblfr ) { _mblfr->Update(); }
+   if ( _mblfi ) { _mblfi->Update(); }
+}
+
+
 #ifdef MFEM_USE_MPI
 
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pf)
@@ -2513,6 +2521,14 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
    A_r.SetOperatorOwner(false);
    A_i.SetOperatorOwner(false);
 }
+
+void
+ParMixedSesquilinearForm::Update()
+{
+   if ( _pmblfr ) { _pmblfr->Update(); }
+   if ( _pmblfi ) { _pmblfi->Update(); }
+}
+
 
 
 #endif // MFEM_USE_MPI
