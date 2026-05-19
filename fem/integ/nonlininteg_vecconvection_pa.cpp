@@ -195,7 +195,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 // PA Convection NL 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLApply2D(const int NE,
                                       const real_t *b,
                                       const real_t *g,
@@ -264,7 +264,7 @@ static void SmemPAConvectionNLApply2D(const int NE,
 }
 
 // PA Convection NL 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLApply3D(const int NE,
                                       const real_t *b,
                                       const real_t *g,
@@ -358,18 +358,21 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 /// \cond DO_NOT_DOCUMENT
 
-template<int DIM, int T_D1D, int T_Q1D>
+// Maximum D1D or Q1D for the VectorConvectionNLFAddMultPA kernels
+namespace { constexpr int MDQ = 16; }
+
+template<int DIM, int D1D, int Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
 {
-   static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
+   static_assert(D1D <= Q1D, "d1d > q1d is not supported");
    if constexpr (DIM == 2)
    {
-      return SmemPAConvectionNLApply2D<T_D1D, T_Q1D>;
+      return SmemPAConvectionNLApply2D<MDQ, D1D, Q1D>;
    }
    else if constexpr (DIM == 3)
    {
-      return SmemPAConvectionNLApply3D<T_D1D, T_Q1D>;
+      return SmemPAConvectionNLApply3D<MDQ, D1D, Q1D>;
    }
    else { MFEM_ABORT("Unsupported kernel"); }
 }
@@ -379,15 +382,15 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
 (int dim, int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   MFEM_VERIFY(d1d <= MDQ, "d1d > " << MDQ << " is not supported");
+   MFEM_VERIFY(q1d <= MDQ, "q1d > " << MDQ << " is not supported");
    if (dim == 2)
    {
-      return SmemPAConvectionNLApply2D<>;
+      return SmemPAConvectionNLApply2D<MDQ>;
    }
    else if (dim == 3)
    {
-      return SmemPAConvectionNLApply3D<>;
+      return SmemPAConvectionNLApply3D<MDQ>;
    }
    else { MFEM_ABORT("Unsupported kernel"); }
 }

@@ -53,7 +53,7 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(
    }
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const real_t *b,
                                           const real_t *g,
@@ -146,7 +146,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLGradApply3D(const int ne,
                                           const real_t *b,
                                           const real_t *g,
@@ -278,12 +278,15 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
 
 /// \cond DO_NOT_DOCUMENT
 
+// Maximum D1D or Q1D for the VectorConvectionNLFAddMultGradPA kernels
+namespace { constexpr int MDQ = 16; }
+
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
-   return SmemPAConvectionNLGradApply2D<T_D1D, T_Q1D>;
+   return SmemPAConvectionNLGradApply2D<MDQ,T_D1D, T_Q1D>;
 }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
@@ -291,9 +294,9 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA2D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
-   return SmemPAConvectionNLGradApply2D<>;
+   MFEM_VERIFY(d1d <= MDQ, "d1d > " << MDQ << " is not supported");
+   MFEM_VERIFY(q1d <= MDQ, "q1d > " << MDQ << " is not supported");
+   return SmemPAConvectionNLGradApply2D<MDQ>;
 }
 
 template<int T_D1D, int T_Q1D>
@@ -301,7 +304,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
-   return SmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>;
+   return SmemPAConvectionNLGradApply3D<MDQ, T_D1D, T_Q1D>;
 }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
@@ -309,9 +312,9 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA3D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
-   return SmemPAConvectionNLGradApply3D<>;
+   MFEM_VERIFY(d1d <= MDQ, "d1d > " << MDQ << " is not supported");
+   MFEM_VERIFY(q1d <= MDQ, "q1d > " << MDQ << " is not supported");
+   return SmemPAConvectionNLGradApply3D<MDQ>;
 }
 
 /// \endcond DO_NOT_DOCUMENT
