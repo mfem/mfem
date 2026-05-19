@@ -1074,7 +1074,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       // essential dofs to zero.
       // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
       // method
-      if (A_i.Type() == Operator::Hypre_ParCSR)
+      if (A_i.Type() == Operator::MFEM_SPARSEMAT)
       {
          A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
       }
@@ -1098,8 +1098,8 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
-       A_i.Type() == Operator::Hypre_ParCSR)
+   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
+       A_i.Type() == Operator::MFEM_SPARSEMAT)
    {
       ComplexSparseMatrix * A_hyp =
          new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
@@ -1151,7 +1151,7 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
       // essential dofs to zero.
       // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
       // method
-      if (A_i.Type() == Operator::Hypre_ParCSR)
+      if (A_i.Type() == Operator::MFEM_SPARSEMAT)
       {
          A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
       }
@@ -1159,8 +1159,8 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
-       A_i.Type() == Operator::Hypre_ParCSR)
+   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
+       A_i.Type() == Operator::MFEM_SPARSEMAT)
    {
       ComplexSparseMatrix * A_hyp =
          new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
