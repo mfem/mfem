@@ -150,8 +150,8 @@ int main (int argc, char *argv[])
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
    args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
-                  "Absolute padding applied to surface-search axis-aligned "
-                  "bounding boxes in FindPointsGSLIB surface meshes.");
+                  "Absolute AABB expansion applied to surface-search "
+                  "axis-aligned bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -383,7 +383,7 @@ int main (int argc, char *argv[])
    if (surface && surf_aabb_sz_inc > 0.0)
    {
       Vector bb_size({surf_aabb_sz_inc});
-      finder.SetupSurf(pmesh, bb_size);
+      finder.SetupSurfWithAABBExpansion(pmesh, bb_size);
    }
    else
    {

@@ -388,8 +388,8 @@ void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
 
    const int sz = aabb_sz_inc->Size();
    MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
-               "Invalid aabb_sz_inc length for SetupSurf: expected 1, NE, "
-               "SpaceDim, or NE*SpaceDim.");
+               "Invalid aabb_sz_inc length for SetupSurfWithAABBExpansion: "
+               "expected 1, NE, SpaceDim, or NE*SpaceDim.");
 }
 
 double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
@@ -407,7 +407,8 @@ double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
    else if (aabb_sz_inc_size == sd) { s = (*aabb_sz_inc)(d); }
    else { s = (*aabb_sz_inc)((int)e*sd + d); }
 
-   MFEM_VERIFY(s >= 0.0, "aabb_sz_inc pad must be non-negative.");
+   MFEM_VERIFY(s >= 0.0,
+               "aabb_sz_inc absolute AABB expansion must be non-negative.");
    return 0.5*s;
 }
 
@@ -1101,11 +1102,11 @@ void FindPointsGSLIB::SetupSurf(Mesh &m,
    SetupSurf_Base(m, bbox_rel_size_inc, nullptr, newt_tol);
 }
 
-void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
-                                const double bbox_rel_size_inc,
-                                const double newt_tol)
+void FindPointsGSLIB::SetupSurfWithAABBExpansion(Mesh &m,
+                                                 const Vector &aabb_sz_inc,
+                                                 const double newt_tol)
 {
-   SetupSurf_Base(m, bbox_rel_size_inc, &aabb_sz_inc, newt_tol);
+   SetupSurf_Base(m, 0.0, &aabb_sz_inc, newt_tol);
 }
 
 void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
@@ -1124,7 +1125,8 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    dim      = mesh->Dimension();       // This is reference dimension
    spacedim = mesh->SpaceDimension();  // This is physical dimension
    MFEM_VERIFY(dim < 3, "Configuration not supported yet.");
-   MFEM_VERIFY(dim < spacedim, "SetupSurf is only for surface meshes.");
+   MFEM_VERIFY(dim < spacedim,
+               "Surface setup is only for surface meshes.");
 
    bool supported_surf_elem = true;
    for (int e = 0; e < mesh->GetNE() && supported_surf_elem; e++)
@@ -1138,7 +1140,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                "FindPointsGSLIB surface mesh support: only SEGMENT, "
                "QUADRILATERAL, and TRIANGLE elements are supported.");
    MFEM_VERIFY(dim < spacedim,
-               "FindPointsGSLIB::SetupSurf only supports surface meshes.");
+               "FindPointsGSLIB surface setup only supports surface meshes.");
 
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
    unsigned dof1D      = meshOrder + 1;
@@ -1190,7 +1192,7 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
                           aabb_sz_inc);
    }
 
-   // If we are padding the bounding boxes, we compute bdr_tol such that
+   // If we are applying absolute AABB expansion, compute bdr_tol such that
    // any point found within a bounding box gets marked CODE_BORDER even
    // when it is not actually on the boundary.
    if (aabb_sz_inc)

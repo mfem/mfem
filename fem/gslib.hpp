@@ -340,7 +340,7 @@ protected:
                             const int rD,
                             const Vector *aabb_sz_inc);
 
-   /** @brief Shared implementation for the public \ref SetupSurf overloads.
+   /** @brief Shared implementation for the public surface-setup methods.
     *
     *  @details Initializes the surface-search data structures, builds the
     *  split-element representation expected by gslib, and constructs the
@@ -351,17 +351,17 @@ protected:
     *  increase factor.
     *
     *  If @a aabb_sz_inc is non-null, the setup stores axis-aligned bounding
-    *  boxes only, post-pads them by the requested absolute amount in each
+    *  boxes only, applies the requested absolute AABB expansion in each
     *  physical direction, and adjusts the tolerance @a bdr_tol so points
-    *  found in the padded region are classified as border points.
+    *  found in the expanded region are classified as border points.
     *
     *  @param[in] m                  Input surface mesh.
     *  @param[in] bbox_rel_size_inc  Relative size increase applied when
     *                                expanding each element bounding box during
     *                                setup.
-    *  @param[in] aabb_sz_inc        Optional absolute padding applied to the
-    *                                stored axis-aligned bounding boxes after
-    *                                construction.
+    *  @param[in] aabb_sz_inc        Optional total absolute AABB expansion
+    *                                applied to the stored axis-aligned
+    *                                bounding boxes after construction.
     *  @param[in] newt_tol           Newton tolerance for the point-search
     *                                kernels.
     */
@@ -419,31 +419,30 @@ public:
                   const int npt_max = 256);
 
    /** @brief Preprocess the surface mesh to compute data for FindPoints using
-    *  padded axis-aligned bounding boxes.
+    *  absolute AABB expansion.
     *
-    *  @details This overload computes only axis-aligned bounding boxes and
-    *  increases their total length by a user-specified amount in each physical
-    *  direction. The padding is applied after the usual relative
-    *  expansion controlled by @a bbox_rel_size_inc.
+    *  @details This method computes only axis-aligned bounding boxes and
+    *  increases their total length by a user-specified amount in each
+    *  physical direction. The absolute AABB expansion is applied
+    *  symmetrically to the lower and upper bounds.
     *
-    *  The size of @a aabb_sz_inc determines how the padding values are
+    *  The size of @a aabb_sz_inc determines how the expansion values are
     *  interpreted:
-    *  - `1`: one padding value used in every direction for every element
-    *  - `NElements`: one padding value per element, reused in x/y/z directions
-    *  - `SpaceDim`: one padding value per physical direction, reused for every
-    *    element
-    *  - `NElements*SpaceDim`: one padding value per element and direction,
+    *  - `1`: one expansion value used in every direction for every element
+    *  - `NElements`: one expansion value per element, reused in x/y/z
+    *    directions
+    *  - `SpaceDim`: one expansion value per physical direction, reused for
+    *    every element
+    *  - `NElements*SpaceDim`: one expansion value per element and direction,
     *    ordered as `(dx1,dy1,dz1, ... dxN,dyN,dzN)`
     *
-    *  This overload disables the oriented bounding-box precheck because the
+    *  This method disables the oriented bounding-box precheck because the
     *  stored boxes are modified only in their axis-aligned representation.
     *
     *  @param[in] m                  Input surface mesh.
-    *  @param[in] aabb_sz_inc        Absolute padding applied to the stored
+    *  @param[in] aabb_sz_inc        Total absolute AABB expansion applied in
+    *                                each physical direction to the stored
     *                                axis-aligned bounding boxes.
-    *  @param[in] bbox_rel_size_inc  Relative size increase applied when
-    *                                expanding each element bounding box before
-    *                                absolute padding is added.
     *  @param[in] newt_tol           Newton tolerance for the point-search
     *                                kernels.
     *
@@ -451,9 +450,8 @@ public:
     *        @a bdr_tol is also adjusted so that all points in the AABBs can
     *        be found.
     */
-   void SetupSurf(Mesh &m, const Vector &aabb_sz_inc,
-                  const double bbox_rel_size_inc = 0.0,
-                  const double newt_tol = 1.0e-12);
+   void SetupSurfWithAABBExpansion(Mesh &m, const Vector &aabb_sz_inc,
+                                   const double newt_tol = 1.0e-12);
 
 
    /** @brief Searches positions given in physical space by \p point_pos.

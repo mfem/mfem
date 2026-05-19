@@ -626,7 +626,7 @@ TEST_CASE("GSLIBSurfAABBExpansion", "[GSLIBSurfAABBExpansion][GSLIB]")
 
    // make aabb at least big enough to include the offset points
    Vector aabb_sz_inc({2.1*offset});
-   finder.SetupSurf(mesh, aabb_sz_inc, 0.0);
+   finder.SetupSurfWithAABBExpansion(mesh, aabb_sz_inc);
    finder.FindPoints(xyz, Ordering::byVDIM);
    Array<unsigned int> code_with_pad = finder.GetCode();
 
