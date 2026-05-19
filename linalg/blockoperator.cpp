@@ -19,29 +19,33 @@ namespace mfem
 
 BlockOperator::BlockOperator(const Array<int> &offsets)
    : Operator(offsets.Last()),
-     owns_blocks(0),
      nRowBlocks(offsets.Size() - 1),
      nColBlocks(offsets.Size() - 1),
      row_offsets(offsets),
      col_offsets(offsets),
      op(nRowBlocks, nRowBlocks),
-     coef(nRowBlocks, nColBlocks)
+     coef(nRowBlocks, nColBlocks),
+     own_block(nRowBlocks, nColBlocks),
+     owns_blocks(0)
 {
    op = nullptr;
+   own_block = owns_blocks;
 }
 
 BlockOperator::BlockOperator(const Array<int> &row_offsets_,
                              const Array<int> &col_offsets_)
    : Operator(row_offsets_.Last(), col_offsets_.Last()),
-     owns_blocks(0),
      nRowBlocks(row_offsets_.Size()-1),
      nColBlocks(col_offsets_.Size()-1),
      row_offsets(row_offsets_),
      col_offsets(col_offsets_),
      op(nRowBlocks, nColBlocks),
-     coef(nRowBlocks, nColBlocks)
+     coef(nRowBlocks, nColBlocks),
+     own_block(nRowBlocks, nColBlocks),
+     owns_blocks(0)
 {
    op = nullptr;
+   own_block = owns_blocks;
 }
 
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
@@ -51,7 +55,7 @@ void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
 {
-   if (owns_blocks && op(iRow, iCol))
+   if (own_block(iRow, iCol) && op(iRow, iCol))
    {
       delete op(iRow, iCol);
    }
@@ -137,7 +141,10 @@ BlockOperator::~BlockOperator()
       {
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
-            delete op(iRow, jCol);
+            if (own_block(iRow, jCol) && op(iRow, jCol))
+            {
+               delete op(iRow, jCol);
+            }
          }
       }
    }
@@ -146,13 +153,14 @@ BlockOperator::~BlockOperator()
 BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    const Array<int> & offsets_):
    Solver(offsets_.Last()),
-   owns_blocks(0),
    nBlocks(offsets_.Size() - 1),
    offsets(0),
-   ops(nBlocks)
+   ops(nBlocks),
+   own_block(nBlocks)
 {
    ops = nullptr;
    offsets.MakeRef(offsets_);
+   own_block = 0;
 }
 
 void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
@@ -161,7 +169,7 @@ void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
                offsets[iblock+1] - offsets[iblock] == op->Width(),
                "incompatible Operator dimensions");
 
-   if (owns_blocks && ops[iblock])
+   if (own_block[iblock] && ops[iblock])
    {
       delete ops[iblock];
    }
@@ -233,9 +241,9 @@ void BlockDiagonalPreconditioner::MultTranspose(const Vector & x,
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
 {
-   if (owns_blocks)
+   for (int i=0; i<nBlocks; ++i)
    {
-      for (int i=0; i<nBlocks; ++i)
+      if (own_block[i] && ops[i])
       {
          delete ops[i];
       }
@@ -245,13 +253,15 @@ BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
 BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
    const Array<int> & offsets_)
    : Solver(offsets_.Last()),
-     owns_blocks(0),
      nBlocks(offsets_.Size() - 1),
      offsets(0),
-     ops(nBlocks, nBlocks)
+     ops(nBlocks, nBlocks),
+     own_block(nBlocks, nBlocks),
+     owns_blocks(0)
 {
    ops = nullptr;
    offsets.MakeRef(offsets_);
+   own_block = owns_blocks;
 }
 
 void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
@@ -272,6 +282,10 @@ void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
                offsets[iCol+1] - offsets[iCol] == op->NumCols(),
                "incompatible Operator dimensions");
 
+   if (own_block(iRow, iCol) && ops(iRow, iCol))
+   {
+      delete ops(iRow, iCol);
+   }
    ops(iRow, iCol) = op;
 }
 
@@ -375,7 +389,10 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
       {
          for (int jCol=0; jCol < nBlocks; ++jCol)
          {
-            delete ops(jCol,iRow);
+            if (own_block(iRow, jCol) && ops(iRow, jCol))
+            {
+               delete ops(iRow, jCol);
+            }
          }
       }
    }

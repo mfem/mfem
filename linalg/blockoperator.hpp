@@ -89,6 +89,15 @@ public:
    //! Set the coefficient for block i,j
    void SetBlockCoef(int i, int j, real_t c)
    { MFEM_VERIFY(op(i,j), ""); coef(i,j) = c; }
+   //! Set the ownership of block (i,j)
+   void SetBlockOwnership(int i, int j, int own)
+   { MFEM_VERIFY(op(i,j), ""); own_block(i,j) = own; if (own) { owns_blocks = 1; } }
+   //! Set the ownership of all blocks
+   void SetBlockOwnership(int own)
+   { own_block = own; owns_blocks = own; }
+   //! Check if block (i,j) is owned by the BlockOperator
+   int IsBlockOwned(int i, int j) const
+   { MFEM_VERIFY(op(i,j), ""); return own_block(i,j) ? 1 : 0; }
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
@@ -107,10 +116,6 @@ public:
 
    ~BlockOperator();
 
-   //! Controls the ownership of the blocks: if nonzero, BlockOperator will
-   //! delete all blocks that are set (non-NULL); the default value is zero.
-   int owns_blocks;
-
    virtual Type GetType() const { return MFEM_Block_Operator; }
 
 private:
@@ -126,6 +131,12 @@ private:
    Array2D<Operator *> op;
    //! 2D array that stores a coefficient for each block of the operator.
    Array2D<real_t> coef;
+   //! 2D array that stores the ownership of each block of the operator.
+   //! if nonzero, BlockOperator will delete all blocks that are set (non-NULL);
+   //! the default value is zero.
+   Array2D<int> own_block;
+   //! Nonzero if at least one block is owned by the BlockOperator.
+   int owns_blocks;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
    mutable BlockVector xblock;
@@ -170,6 +181,18 @@ public:
    const Operator & GetDiagonalBlock(int iblock) const
    { MFEM_VERIFY(ops[iblock], ""); return *ops[iblock]; }
 
+   //! Set the ownership of block (i,i)
+   void SetBlockOwnership(int iblock, int own)
+   { MFEM_VERIFY(ops[iblock], ""); own_block[iblock] = own; }
+
+   //! Set the ownership of all blocks
+   void SetBlockOwnership(int own) { own_block = own; }
+
+   //! Check if block (i,i) is owned by the BlockOperator
+   int IsBlockOwned(int iblock) const
+   { MFEM_VERIFY(ops[iblock], ""); return own_block[iblock] ? 1 : 0; }
+
+
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
 
@@ -184,11 +207,6 @@ public:
 
    ~BlockDiagonalPreconditioner();
 
-   //! Controls the ownership of the blocks: if nonzero,
-   //! BlockDiagonalPreconditioner will delete all blocks that are set
-   //! (non-NULL); the default value is zero.
-   int owns_blocks;
-
 private:
    //! Number of Blocks
    int nBlocks;
@@ -196,6 +214,10 @@ private:
    Array<int> offsets;
    //! 1D array that stores each block of the operator.
    Array<Operator *> ops;
+   //! 1D array that stores the ownership of each block of the operator.
+   //! if nonzero, BlockDiagonalPreconditioner will delete all blocks
+   //! that are set (non-NULL); the default value is zero.
+   Array<int> own_block;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
    mutable BlockVector xblock;
@@ -256,6 +278,18 @@ public:
    Operator & GetBlock(int iblock, int jblock)
    { MFEM_VERIFY(ops(iblock,jblock), ""); return *ops(iblock,jblock); }
 
+   //! Set the ownership of block (i,j)
+   void SetBlockOwnership(int i, int j, int own)
+   { MFEM_VERIFY(ops(i,j), ""); own_block(i,j) = own; if (own) { owns_blocks = 1; } }
+
+   //! Set the ownership of all blocks
+   void SetBlockOwnership(int own)
+   { own_block = own; owns_blocks = own; }
+
+   //! Check if block (i,j) is owned by the BlockLowerTriangularPreconditioner
+   int IsBlockOwned(int i, int j) const
+   { MFEM_VERIFY(ops(i,j), ""); return own_block(i,j) ? 1 : 0; }
+
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
 
@@ -267,11 +301,6 @@ public:
 
    ~BlockLowerTriangularPreconditioner();
 
-   //! Controls the ownership of the blocks: if nonzero,
-   //! BlockLowerTriangularPreconditioner will delete all blocks that are set
-   //! (non-NULL); the default value is zero.
-   int owns_blocks;
-
 private:
    //! Number of block rows/columns
    int nBlocks;
@@ -279,6 +308,12 @@ private:
    Array<int> offsets;
    //! 2D array that stores each block of the operator.
    Array2D<Operator *> ops;
+   //! 2D array that stores the ownership of each block of the operator.
+   //! if nonzero, BlockLowerTriangularPreconditioner will delete all
+   //! blocks that are set (non-NULL); the default value is zero.
+   Array2D<int> own_block;
+   //! Nonzero if at least one block is owned by the BlockLowerTriangularPreconditioner.
+   int owns_blocks;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
