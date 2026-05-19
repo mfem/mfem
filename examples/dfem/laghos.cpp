@@ -2701,7 +2701,7 @@ int main(int argc, char *argv[])
    }
    if (petsc_opts_provided && !mesh_provided)
    {
-      // Match the historical PETSc prototype default mesh.
+      // Match the old PETSc prototype default mesh.
       mesh_file = "../../data/inline-quad.mesh";
    }
 
@@ -3210,9 +3210,7 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10)
       {
-         // The historical PETSc prototype (laghos_petsc.cpp) does not repeat
-         // implicit timesteps. Keep that behavior for the PETSc path to match
-         // results and avoid PETSc/SNES instability across retries.
+         // Don't repeat with PETSc.
          if (!use_petsc)
          {
             // Repeat only when the mesh inverted.
