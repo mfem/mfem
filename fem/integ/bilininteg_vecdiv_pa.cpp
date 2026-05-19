@@ -448,6 +448,16 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
          true);
    MFEM_CONTRACT_VAR(vector_divergence_kernel_specializations);
 
+   VectorDivergenceAddMultPA::Run(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+                                  trial_maps->B, trial_maps->G, test_maps->Bt,
+                                  pa_data, x, y,
+                                  trial_dofs1D, test_dofs1D, quad1D);
+}
+
+// PA Divergence Apply kernel
+void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
+                                                    Vector &y) const
+{
    static const auto vector_divergence_transposed_kernel_specializations =
       ( // 2D
          VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Specialization<2, 2, 2, 2>::Add(),
@@ -479,22 +489,11 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
          true);
    MFEM_CONTRACT_VAR(vector_divergence_transposed_kernel_specializations);
 
-   VectorDivergenceAddMultPA::Run(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                                  trial_maps->B, trial_maps->G, test_maps->Bt,
-                                  pa_data, x, y,
-                                  trial_dofs1D, test_dofs1D, quad1D);
-}
-
-// PA Divergence Apply kernel
-void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
-                                                    Vector &y) const
-{
    VectorDivergenceAddMultTransposePA::Run(dim, trial_dofs1D, test_dofs1D, quad1D,
                                            ne, trial_maps->Bt, trial_maps->Gt, test_maps->B,
                                            pa_data, x, y,
                                            trial_dofs1D, test_dofs1D, quad1D);
 }
-
 
 /// \cond DO_NOT_DOCUMENT
 
