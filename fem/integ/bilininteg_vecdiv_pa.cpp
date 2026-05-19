@@ -11,7 +11,6 @@
 
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
-// #include "../gridfunc.hpp"
 #include "../kernels.hpp"
 
 using mfem::kernels::internal::SetMaxOf;
@@ -100,8 +99,6 @@ static void PADivergenceSetup3D(const int Q1D,
 }
 
 static void PADivergenceSetup(const int dim,
-                              const int TR_D1D,
-                              const int TE_D1D,
                               const int Q1D,
                               const int NE,
                               const Array<real_t> &W,
@@ -153,14 +150,11 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
       coeff = cQ->constant;
    }
-   PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
-                     ne, ir->GetWeights(), geom->J, coeff, pa_data);
-
-
+   PADivergenceSetup(dim, quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
 // Shared memory PA Divergence Apply 2D kernel
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void SmemPADivergenceApply2D(const int NE,
                                     const Array<real_t> &b_,
                                     const Array<real_t> &g_,
@@ -221,7 +215,7 @@ static void SmemPADivergenceApply2D(const int NE,
 }
 
 // PA Divergence Apply 2D kernel transpose
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void SmemPADivergenceApplyTranspose2D(const int NE,
                                              const Array<real_t> &bt,
                                              const Array<real_t> &gt,
@@ -279,7 +273,7 @@ static void SmemPADivergenceApplyTranspose2D(const int NE,
    });
 }
 
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void SmemPADivergenceApplyTranspose3D(const int NE,
                                              const Array<real_t> &bt,
                                              const Array<real_t> &gt,
@@ -349,7 +343,7 @@ static void SmemPADivergenceApplyTranspose3D(const int NE,
 }
 
 // Shared memory PA Vector Divergence Apply 3D kernel
-template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void SmemPADivergenceApply3D(const int NE,
                                     const Array<real_t> &b_,
                                     const Array<real_t> &g_,
@@ -504,7 +498,7 @@ void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
 
 /// \cond DO_NOT_DOCUMENT
 
-template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D, int, int, int>
+template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D>
 VectorDivergenceIntegrator::VectorDivergenceAddMultPAType
 VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Kernel()
 {
@@ -537,7 +531,7 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Fallback
    else { MFEM_ABORT("Unsupported kernel"); }
 }
 
-template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D, int, int, int>
+template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D>
 VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePAType
 VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Kernel()
 {
