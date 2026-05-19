@@ -71,6 +71,7 @@ enum EXT_DATA_IDX
 };
 
 int problem = 0;
+int petsc_lag_steps;
 
 enum PRECONDITIONER_TYPE
 {
@@ -892,19 +893,13 @@ public:
          real_t h) :
          Operator(2*hydro.H1.GetTrueVSize() + hydro.L2.GetTrueVSize()),
          h(h),
-         H1tsize(hydro.H1.GetTrueVSize()),
-         L2tsize(hydro.L2.GetTrueVSize()),
+         H1tsize(hydro.H1.GetTrueVSize()), L2tsize(hydro.L2.GetTrueVSize()),
          w(height),
          z(height),
          hydro(hydro),
-         dRvdx(dRvdx),
-         dRvdv(dRvdv),
-         dRvde(dRvde),
-         dRedx(dRedx),
-         dRedv(dRedv),
-         dRede(dRede),
-         dTaylorSourcedx(dTaylorSourcedx)
-      {}
+         dRvdx(dRvdx), dRvdv(dRvdv), dRvde(dRvde),
+         dRedx(dRedx), dRedv(dRedv), dRede(dRede),
+         dTaylorSourcedx(dTaylorSourcedx) { }
 
       void Mult(const Vector &u, Vector &y) const override
       {
@@ -1009,8 +1004,7 @@ public:
 
       real_t h;
       std::function<void(const Vector &, Vector &)> jvp, assembled_jvp;
-      const int H1tsize;
-      const int L2tsize;
+      const int H1tsize, L2tsize;
       mutable Vector w, z;
 
       LagrangianHydroOperator &hydro;
@@ -1293,7 +1287,6 @@ public:
          Rv.SyncAliasMemory(R);
 
          Rv.SetSubVector(hydro.ess_tdof, 0.0);
-         // Rv = 0.0;
 
          hydro.energy_conservation_pa->SetParameters({&uv_l, &hydro.qdata->stressp});
          hydro.energy_conservation_pa->Mult(ue, Re);
@@ -1406,8 +1399,7 @@ public:
                const real_t h = jacobian->h;
                auto comm = hydro.H1.GetComm();
 
-               // Build the assembled PETSc Jacobian in the same way as the
-               // historical serial PETSc prototype (laghos_petsc.cpp).
+               // Build the assembled PETSc Jacobian.
                //
                // Layout:
                // [ x ]  size H1tsize
@@ -1417,35 +1409,49 @@ public:
                const int H1tsize = hydro.H1.GetTrueVSize();
                const int L2tsize = hydro.L2.GetTrueVSize();
 
-               PetscParVector dRxdx_diag(comm, H1tsize);
-               dRxdx_diag = 1.0;
-               Mat dRxdx_petsc_mat;
-               PetscErrorCode ierr = MatCreateDiagonal(dRxdx_diag, &dRxdx_petsc_mat);
-               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatCreateDiagonal(dRxdx) failed");
-               PetscParMatrix dRxdx_petsc;
-               dRxdx_petsc.SetMat(dRxdx_petsc_mat);
+               //
+               // Build diagonal blocks through HypreParMatrix to guarantee a
+               // consistent parallel layout.
+               //
 
-               PetscParVector dRxdv_diag(comm, H1tsize);
-               dRxdv_diag = -h;
+               HYPRE_BigInt *H1_tdof_offsets = hydro.H1.GetTrueDofOffsets();
+
+               // Rxdx.
+               SparseMatrix dRxdx_diag(hydro.H1.GetTrueVSize());
+               for (int i = 0; i < dRxdx_diag.Height(); i++)
+               {
+                  dRxdx_diag.Set(i, i, 1.0);
+               }
+               dRxdx_diag.Finalize();
+               HypreParMatrix dRxdx_mat(comm, hydro.H1.GlobalTrueVSize(),
+                                        H1_tdof_offsets, &dRxdx_diag);
+               PetscParMatrix dRxdx_petsc(&dRxdx_mat);
+
+               // Rxdv.
+               SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
+               for (int i = 0; i < dRxdv_diag.Height(); i++)
+               {
+                  dRxdv_diag.Set(i, i, -h);
+               }
                for (int i = 0; i < hydro.ess_tdof.Size(); i++)
                {
-                  dRxdv_diag[hydro.ess_tdof[i]] = 0.0;
+                  dRxdv_diag.Set(hydro.ess_tdof[i], hydro.ess_tdof[i], 0.0);
                }
-               Mat dRxdv_petsc_mat;
-               ierr = MatCreateDiagonal(dRxdv_diag, &dRxdv_petsc_mat);
-               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatCreateDiagonal(dRxdv) failed");
-               PetscParMatrix dRxdv_petsc;
-               dRxdv_petsc.SetMat(dRxdv_petsc_mat);
+               dRxdv_diag.Finalize();
+               HypreParMatrix dRxdv_mat(comm, hydro.H1.GlobalTrueVSize(),
+                                        H1_tdof_offsets, &dRxdv_diag);
+               PetscParMatrix dRxdv_petsc(&dRxdv_mat);
 
+               // Rvdx.
                HypreParMatrix dRvdx_mat;
                jacobian->dRvdx->Assemble(dRvdx_mat);
                dRvdx_mat.EliminateRows(hydro.ess_tdof);
                PetscParMatrix dRvdx_petsc(&dRvdx_mat);
                dRvdx_petsc *= h;
 
+               // Rvdv.
                HypreParMatrix dRvdv_mat;
                jacobian->dRvdv->Assemble(dRvdv_mat);
-               PetscParMatrix dRvdv_petsc(&dRvdv_mat);
                ParBilinearForm Mv(&hydro.H1);
                Mv.AddDomainIntegrator(new VectorMassIntegrator(hydro.rho0_coeff,
                                                               &hydro.ir));
@@ -1453,19 +1459,20 @@ public:
                Mv.Finalize();
                HypreParMatrix Mv_mat;
                Mv.FormSystemMatrix(mfem::Array<int>(), Mv_mat);
-               PetscParMatrix Mv_petsc(&Mv_mat);
-               ierr = MatAYPX(dRvdv_petsc, h, Mv_petsc,
-                              MatStructure::DIFFERENT_NONZERO_PATTERN);
-               MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatAYPX(dRvdv) failed");
-               auto tmp0 = dRvdv_petsc.EliminateRowsCols(hydro.ess_tdof);
+               HypreParMatrix *dRvdv_combined = Add(1.0, Mv_mat, h, dRvdv_mat);
+               auto tmp0 = dRvdv_combined->EliminateRowsCols(hydro.ess_tdof);
                delete tmp0;
+               PetscParMatrix dRvdv_petsc(dRvdv_combined);
+               delete dRvdv_combined;
 
+               // Rvde.
                HypreParMatrix dRvde_mat;
                jacobian->dRvde->Assemble(dRvde_mat);
                dRvde_mat.EliminateRows(hydro.ess_tdof);
                PetscParMatrix dRvde_petsc(&dRvde_mat);
                dRvde_petsc *= h;
 
+               // Redx.
                HypreParMatrix dRedx_mat;
                jacobian->dRedx->Assemble(dRedx_mat);
                PetscParMatrix dRedx_petsc(&dRedx_mat);
@@ -1478,6 +1485,7 @@ public:
                }
                dRedx_petsc *= -h;
 
+               // Redv.
                HypreParMatrix dRedv_mat;
                jacobian->dRedv->Assemble(dRedv_mat);
                auto tmp1 = dRedv_mat.EliminateCols(hydro.ess_tdof);
@@ -1485,6 +1493,7 @@ public:
                PetscParMatrix dRedv_petsc(&dRedv_mat);
                dRedv_petsc *= -h;
 
+               // Rede.
                HypreParMatrix dRede_mat;
                jacobian->dRede->Assemble(dRede_mat);
                PetscParMatrix dRede_petsc(&dRede_mat);
@@ -1496,8 +1505,8 @@ public:
                HypreParMatrix Me_mat;
                Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
                PetscParMatrix Me_petsc(&Me_mat);
-               ierr = MatAYPX(dRede_petsc, -h, Me_petsc,
-                              MatStructure::DIFFERENT_NONZERO_PATTERN);
+               PetscErrorCode ierr = MatAYPX(dRede_petsc, -h, Me_petsc,
+                                     MatStructure::DIFFERENT_NONZERO_PATTERN);
                MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatAYPX(dRede) failed");
 
                Array<int> offsets(4);
@@ -1857,7 +1866,7 @@ public:
          // changes) to avoid stale Jacobian/preconditioner state across
          // time steps/stages, especially when users request Jacobian lagging
          // through `-snes_lag_jacobian`.
-         if (current_dt != dt || snes == nullptr || petsc_lag >= 3)
+         if (current_dt != dt || snes == nullptr || petsc_lag >= petsc_lag_steps)
          {
             current_dt = dt;
             petsc_lag = 0;
@@ -2737,7 +2746,7 @@ int main(int argc, char *argv[])
    args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
    args.AddOption(&nretry, "-nretry", "--nretry", "");
    args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
-                  "PETSc options (enables PETSc SNES path; single MPI rank only).");
+                  "PETSc options (enables PETSc SNES path).");
    args.AddOption(&petsc_legacy_dt, "-petsc-legacy-dt", "--petsc-legacy-dt",
                   "-no-petsc-legacy-dt", "--no-petsc-legacy-dt",
                   "Use legacy (larger) initial dt estimate for PETSc runs.");
@@ -2750,11 +2759,6 @@ int main(int argc, char *argv[])
    if (use_petsc)
    {
 #ifdef MFEM_USE_PETSC
-      int np = 0;
-      MPI_Comm_size(MPI_COMM_WORLD, &np);
-      MFEM_VERIFY(np == 1,
-                  "The PETSc SNES path is intended for single-task runs; use mpirun -np 1.");
-
       std::vector<char*> petsc_argv;
       petsc_argv.push_back(argv[0]); // Program name as first arg
 
@@ -3016,13 +3020,10 @@ int main(int argc, char *argv[])
    {
       case 2:
       {
-         hydro = CreateLagrangianHydroOperator<2>(H1FESpace,
-                                                 L2FESpace,
+         hydro = CreateLagrangianHydroOperator<2>(H1FESpace, L2FESpace,
                                                  ess_tdof,
                                                  rho0_coeff,
-                                                 x0_gf,
-                                                 rho0_gf,
-                                                 material_gf,
+                                                 x0_gf, rho0_gf, material_gf,
                                                  external_data,
                                                  ir,
                                                  fd_gradient,
@@ -3037,13 +3038,10 @@ int main(int argc, char *argv[])
       }
       case 3:
       {
-         hydro = CreateLagrangianHydroOperator<3>(H1FESpace,
-                                                 L2FESpace,
+         hydro = CreateLagrangianHydroOperator<3>(H1FESpace, L2FESpace,
                                                  ess_tdof,
                                                  rho0_coeff,
-                                                 x0_gf,
-                                                 rho0_gf,
-                                                 material_gf,
+                                                 x0_gf, rho0_gf, material_gf,
                                                  external_data,
                                                  ir,
                                                  fd_gradient,
@@ -3067,10 +3065,10 @@ int main(int argc, char *argv[])
       case 3: ode_solver = new RK3SSPSolver; break;
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new ImplicitMidpointSolver; break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      case 14: ode_solver = new SDIRK34Solver; break;
+      case 11: ode_solver = new BackwardEulerSolver; petsc_lag_steps = 1; break;
+      case 12: ode_solver = new ImplicitMidpointSolver; petsc_lag_steps = 2; break;
+      case 13: ode_solver = new SDIRK33Solver; petsc_lag_steps = 3; break;
+      case 14: ode_solver = new SDIRK34Solver; petsc_lag_steps = 3; break;
       default:
          out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return -1;
