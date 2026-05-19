@@ -11,7 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 #include "gslib_kernel_helpers.hpp"
 
 #ifdef MFEM_USE_GSLIB
@@ -27,8 +26,6 @@
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
 #endif
-
-#include <climits>
 
 namespace mfem
 {

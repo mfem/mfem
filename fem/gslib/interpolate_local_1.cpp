@@ -11,7 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 #include "gslib_kernel_helpers.hpp"
 
 #ifdef MFEM_USE_GSLIB
