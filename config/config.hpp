@@ -50,12 +50,6 @@ typedef double real_t;
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
 
-// nvcc with gcc will warn about the use of the literal operator
-#if defined(__GNUC__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-literal-operator"
-#endif
-
 MFEM_HOST_DEVICE
 constexpr real_t operator""_r(long double v)
 {
@@ -67,10 +61,6 @@ constexpr real_t operator""_r(unsigned long long v)
 {
    return static_cast<real_t>(v);
 }
-
-#if defined(__GNUC__)
-#pragma clang diagnostic pop
-#endif
 
 } // namespace mfem
 
