@@ -70,7 +70,8 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    a_h1_nd.Assemble();
 
    MixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1);
-   a_nd_h1.AddDomainIntegrator(nullptr, new MixedVectorWeakDivergenceIntegrator(neg_omega));
+   a_nd_h1.AddDomainIntegrator(nullptr,
+                               new MixedVectorWeakDivergenceIntegrator(neg_omega));
    a_nd_h1.Assemble();
 
    SesquilinearForm a_h1(&fespace_h1);
@@ -107,9 +108,9 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 
    // Form the off-diagonal entries
    a_h1_nd.FormRectangularLinearSystem(ess_tdof_list_h1, ess_tdof_list_nd, V, b_nd,
-                                      A_h1_nd, X_h1, B_nd);
+                                       A_h1_nd, X_h1, B_nd);
    a_nd_h1.FormRectangularLinearSystem(ess_tdof_list_nd, ess_tdof_list_h1, A, b_h1,
-                                      A_nd_h1, X_nd, B_h1);
+                                       A_nd_h1, X_nd, B_h1);
 
    trueRHS.GetBlock(0) += B_h1;
    trueRHS.GetBlock(1) += B_nd;
@@ -152,7 +153,7 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    ComplexGridFunction V_exact(&fespace_h1);
    ComplexGridFunction A_exact(&fespace_nd);
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec((Vector){0.0, 0.0, 0.0});
+   VectorConstantCoefficient zero_vec((Vector) {0.0, 0.0, 0.0});
 
    V_exact.ProjectCoefficient(V_exact_real, zero);
    A_exact.ProjectCoefficient(zero_vec, A_exact_imag);
@@ -165,7 +166,8 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_SUPERLU
 
-TEST_CASE("Parallel Mixed Sesquilinear Form", "[MixedSesquilinearForm][Parallel]")
+TEST_CASE("Parallel Mixed Sesquilinear Form",
+          "[MixedSesquilinearForm][Parallel]")
 {
    Mesh mesh(mesh_file);
    ParMesh par_mesh(MPI_COMM_WORLD, mesh);
@@ -208,7 +210,8 @@ TEST_CASE("Parallel Mixed Sesquilinear Form", "[MixedSesquilinearForm][Parallel]
    a_h1_nd.Assemble();
 
    ParMixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1);
-   a_nd_h1.AddDomainIntegrator(nullptr, new MixedVectorWeakDivergenceIntegrator(neg_omega));
+   a_nd_h1.AddDomainIntegrator(nullptr,
+                               new MixedVectorWeakDivergenceIntegrator(neg_omega));
    a_nd_h1.Assemble();
 
    ParSesquilinearForm a_h1(&fespace_h1);
@@ -249,18 +252,18 @@ TEST_CASE("Parallel Mixed Sesquilinear Form", "[MixedSesquilinearForm][Parallel]
 
    // Form the off-diagonal entries
    a_h1_nd.FormRectangularLinearSystem(ess_tdof_list_h1, ess_tdof_list_nd, V, b_nd,
-                                      A_h1_nd, X_h1, B_nd);
+                                       A_h1_nd, X_h1, B_nd);
    a_nd_h1.FormRectangularLinearSystem(ess_tdof_list_nd, ess_tdof_list_h1, A, b_h1,
-                                      A_nd_h1, X_nd, B_h1);
+                                       A_nd_h1, X_nd, B_h1);
 
    trueRHS.GetBlock(0) += B_h1;
    trueRHS.GetBlock(1) += B_nd;
-   
+
    h_blocks(0,0) = A_h1.As<ComplexHypreParMatrix>()->GetSystemMatrix();
    h_blocks(1,1) = A_nd.As<ComplexHypreParMatrix>()->GetSystemMatrix();
    h_blocks(0,1) = A_nd_h1.As<ComplexHypreParMatrix>()->GetSystemMatrix();
    h_blocks(1,0) = A_h1_nd.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-   
+
    OperatorHandle op(HypreParMatrixFromBlocks(h_blocks));
 
    SuperLURowLocMatrix S_op(*op);
@@ -281,7 +284,7 @@ TEST_CASE("Parallel Mixed Sesquilinear Form", "[MixedSesquilinearForm][Parallel]
    ParComplexGridFunction V_exact(&fespace_h1);
    ParComplexGridFunction A_exact(&fespace_nd);
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec((Vector){0.0, 0.0, 0.0});
+   VectorConstantCoefficient zero_vec((Vector) {0.0, 0.0, 0.0});
 
    V_exact.ProjectCoefficient(V_exact_real, zero);
    A_exact.ProjectCoefficient(zero_vec, A_exact_imag);
