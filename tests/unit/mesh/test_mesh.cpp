@@ -478,3 +478,42 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
       }
    }
 }
+
+TEST_CASE("Mesh::Swap preserves named attribute sets", "[Mesh]")
+{
+   // Regression test for a bug where Mesh::Swap swapped attributes and
+   // bdr_attributes but omitted the attr_sets maps, silently losing all named
+   // element/boundary sets on any move or swap of an mfem::Mesh.
+
+   Mesh a = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   Mesh b = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+
+   Array<int> a_elem_attrs({1});
+   Array<int> b_elem_attrs({1});
+   Array<int> a_bdr_attrs({1, 2});
+   Array<int> b_bdr_attrs({3, 4});
+
+   a.attribute_sets.SetAttributeSet("elem_set_a", a_elem_attrs);
+   a.bdr_attribute_sets.SetAttributeSet("bdr_set_a", a_bdr_attrs);
+   b.attribute_sets.SetAttributeSet("elem_set_b", b_elem_attrs);
+   b.bdr_attribute_sets.SetAttributeSet("bdr_set_b", b_bdr_attrs);
+
+   a.Swap(b, true);
+
+   // After swap, a should hold b's sets and b should hold a's sets.
+   REQUIRE(a.attribute_sets.AttributeSetExists("elem_set_b"));
+   REQUIRE(!a.attribute_sets.AttributeSetExists("elem_set_a"));
+   REQUIRE(a.bdr_attribute_sets.AttributeSetExists("bdr_set_b"));
+   REQUIRE(!a.bdr_attribute_sets.AttributeSetExists("bdr_set_a"));
+
+   REQUIRE(b.attribute_sets.AttributeSetExists("elem_set_a"));
+   REQUIRE(!b.attribute_sets.AttributeSetExists("elem_set_b"));
+   REQUIRE(b.bdr_attribute_sets.AttributeSetExists("bdr_set_a"));
+   REQUIRE(!b.bdr_attribute_sets.AttributeSetExists("bdr_set_b"));
+
+   // Verify set contents survived the swap.
+   Array<int> a_bdr_result = a.bdr_attribute_sets.GetAttributeSet("bdr_set_b");
+   Array<int> b_bdr_result = b.bdr_attribute_sets.GetAttributeSet("bdr_set_a");
+   REQUIRE(a_bdr_result == b_bdr_attrs);
+   REQUIRE(b_bdr_result == a_bdr_attrs);
+}
