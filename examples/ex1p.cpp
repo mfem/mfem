@@ -139,14 +139,14 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   {
+   /*{
       int ref_levels =
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
-   }
+   }*/
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -162,32 +162,29 @@ int main(int argc, char *argv[])
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
-   //    If the mesh is simplicial and partial assembly is requested,
-   //    we use the positive basis, which supports device execution.
-   const auto *fec =[&]() -> FiniteElementCollection*
+   //    use continuous Lagrange finite elements of the specified order.
+   //    - If order < 1, we instead use an isoparametric/isogeometric space.
+   //    - If the mesh is simplicial and partial assembly is requested,
+   //      we use the positive basis, which supports device execution.
+   FiniteElementCollection *fec;
+   auto basis_type = (pa && pmesh.IsSimplexMesh()) ?
+                     BasisType::Positive : BasisType::GaussLobatto;
+   if (order > 0)
    {
-      const auto geom = pmesh.GetTypicalElementGeometry();
-      const bool pa_simplex = pa && (!pmesh.IsMixedMesh()) &&
-      (geom == Geometry::TRIANGLE || geom == Geometry::TETRAHEDRON);
-      auto btype = pa_simplex ? BasisType::Positive : BasisType::GaussLobatto;
-
-      if (order > 0)
+      fec = new H1_FECollection(order, dim, basis_type);
+   }
+   else if (pmesh.GetNodes())
+   {
+      fec = pmesh.GetNodes()->OwnFEC();
+      if (myid == 0)
       {
-         return new H1_FECollection(order, dim, btype);
-      }
-      else if (pmesh.GetNodes())
-      {
-         auto *fec = pmesh.GetNodes()->OwnFEC();
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
-         return fec;
       }
-      else
-      {
-         return new H1_FECollection(order = 1, dim, btype);
-      }
-   }();
+   }
+   else
+   {
+      fec = new H1_FECollection(order = 1, dim, basis_type);
+   }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)

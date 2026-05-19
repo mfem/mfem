@@ -132,42 +132,36 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+   /*{
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
-   }
+   }*/
 
    // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   //    If the mesh is simplicial and partial assembly is requested,
-   //    we use the positive basis, which supports device execution.
-   const auto *fec =[&]() -> FiniteElementCollection*
+   //    Lagrange finite elements of the specified order.
+   //    - If order < 1, we instead use an isoparametric/isogeometric space.
+   //    - If the mesh is simplicial and partial assembly is requested,
+   //      we use the positive basis, which supports device execution.
+   FiniteElementCollection *fec;
+   auto basis_type = (pa && mesh.IsSimplexMesh()) ?
+                     BasisType::Positive : BasisType::GaussLobatto;
+   if (order > 0)
    {
-      const auto geom = mesh.GetTypicalElementGeometry();
-      const bool pa_simplex = pa && (!mesh.IsMixedMesh()) &&
-      (geom == Geometry::TRIANGLE || geom == Geometry::TETRAHEDRON);
-      auto btype = pa_simplex ? BasisType::Positive : BasisType::GaussLobatto;
-
-      if (order > 0)
-      {
-         return new H1_FECollection(order, dim, btype);
-      }
-      else if (mesh.GetNodes())
-      {
-         auto *fec = mesh.GetNodes()->OwnFEC();
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
-         return fec;
-      }
-      else
-      {
-         return new H1_FECollection(order = 1, dim, btype);
-      }
-   }();
+      fec = new H1_FECollection(order, dim, basis_type);
+   }
+   else if (mesh.GetNodes())
+   {
+      fec = mesh.GetNodes()->OwnFEC();
+      cout << "Using isoparametric FEs: " << fec->Name() << endl;
+   }
+   else
+   {
+      fec = new H1_FECollection(order = 1, dim, basis_type);
+   }
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
@@ -291,5 +285,6 @@ int main(int argc, char *argv[])
 
    // 15. Free the used memory.
    if (order > 0) { delete fec; }
+
    return 0;
 }

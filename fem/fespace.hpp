@@ -1519,13 +1519,11 @@ public:
    /// i.e. Bernstein/positive basis.
    bool UsesRaggedTensorBasis() const
    {
-      bool mixed = this->GetMesh()->IsMixedMesh();
-      bool simplex = (this->GetTypicalFE()->GetGeomType() == Geometry::TRIANGLE) ||
-                     (this->GetTypicalFE()->GetGeomType() == Geometry::TETRAHEDRON);
+      bool simplex = this->GetMesh()->IsSimplexMesh();
       bool positive =
          dynamic_cast<const mfem::H1Pos_TriangleElement *>(this->GetTypicalFE()) ||
          dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(this->GetTypicalFE());
-      return !mixed && simplex && positive;
+      return simplex && positive;
    }
 
    /** In variable-order spaces on nonconforming (NC) meshes, this function
