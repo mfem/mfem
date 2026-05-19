@@ -328,7 +328,7 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
    SECTION("Check EliminateRowCols")
    {
       Array<int> rows{{18,72,1342,951,423,877,1234}};
-      BlockMatrix Ae(offsets); Ae.owns_blocks = 1;
+      BlockMatrix Ae(offsets); Ae.SetBlockOwnership(1);
 
       // Make sure the matrix is symmetric
       BlockMatrix * At = Transpose(*A);
