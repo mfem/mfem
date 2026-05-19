@@ -1,7 +1,7 @@
 #ifndef MFEM_GSLIB_KERNEL_HELPERS_HPP
 #define MFEM_GSLIB_KERNEL_HELPERS_HPP
 
-#include "../../general/forall.hpp"
+#include "../../config/config.hpp"
 
 #include <cmath>
 
