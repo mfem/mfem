@@ -51,9 +51,6 @@
 //               9) Sovinec problem - a sine profile with diffusion perpendicular
 //                                    to gradient of potential with a manufactured
 //                                    steady-state solution
-//               10) Umansky problem - a transition profile with with diffusion
-//                                     along the interface, where the width is
-//                                     measured automatically
 //               We discretize with Raviart-Thomas finite elements (heat flux q)
 //               and piecewise discontinuous polynomials (temperature T). Alternatively,
 //               the piecewise discontinuous polynomials are used for both quantities.
@@ -89,7 +86,6 @@ enum Problem
    SteadyPeak,
    SteadyVaryingAngle,
    Sovinec,
-   Umansky,
    SingleNull,
    DoubleNull,
 };
@@ -112,8 +108,6 @@ TFunc GetTFun(const ProblemParams &params);
 VecTFunc GetQFun(const ProblemParams &params);
 TFunc GetFFun(const ProblemParams &params);
 MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim);
-
-real_t UmanskyTestWidth(const GridFunction &u);
 
 // Visualize the grid function in GLVis
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
@@ -194,9 +188,8 @@ int main(int argc, char *argv[])
                   "6=steady peak\n\t\t"
                   "7=steady varying angle\n\t\t"
                   "8=Sovinec\n\t\t"
-                  "9=Umansky\n\t\t"
-                  "10=Single null\n\t\t"
-                  "11=Double null\n\t\t");
+                  "9=Single null\n\t\t"
+                  "10=Double null\n\t\t");
    args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&pars.ks, "-ks", "--kappa_sym",
@@ -272,7 +265,6 @@ int main(int argc, char *argv[])
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
-      case Problem::Umansky:
       case Problem::SingleNull:
       case Problem::DoubleNull:
          break;
@@ -355,10 +347,6 @@ int main(int argc, char *argv[])
          break;
       case Problem::SteadyVaryingAngle:
          bdr_is_dirichlet = -1;
-         break;
-      case Problem::Umansky:
-         bdr_is_dirichlet[0] = -1;
-         bdr_is_dirichlet[1] = -1;
          break;
    }
 
@@ -771,11 +759,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         if (problem == Problem::Umansky)
-         {
-            const real_t w = UmanskyTestWidth(t_h);
-            cout << "Umansky width: " << w << "\n";
-         }
          cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
       }
@@ -1065,21 +1048,6 @@ MatFunc GetKFun(const ProblemParams &params)
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
-      case Problem::Umansky:
-         return [=](const Vector &x, DenseMatrix &kappa)
-         {
-            const int ndim = x.Size();
-            Vector b(ndim);
-            const real_t s = hypot(sx, sy);
-            b(0) = +sx / s;
-            b(1) = +sy / s;
-
-            kappa.Diag(ks * k, ndim);
-            if (ks != 1.)
-            {
-               AddMult_a_VVt((1. - ks) * k, b, kappa);
-            }
-         };
       case Problem::SingleNull:
          // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
          // diffusion in magnetized plasmas, Computers and Mathematics with
@@ -1312,41 +1280,6 @@ TFunc GetTFun(const ProblemParams &params)
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return psi / kappa_perp;
          };
-      case Problem::Umansky:
-         // M. V. Umansky, M. S. Day and T. D. Rognlien, On Numerical Solution
-         // of Strongly Anisotropic Diffusion Equation on Misaligned Grids,
-         // Numerical Heat Transfer, Part B: Fundamentals, 47(6), pp. 533-554
-         // (2005).
-         // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
-         return [=](const Vector &x, real_t t) -> real_t
-         {
-            if (x(0) < hx && x(1) < hy)
-            {
-               return 0.5 * (1.0 -
-                             std::pow(1.0 - x(0) / hx, order) +
-                             std::pow(1.0 - x(1) / hy, order));
-            }
-            else if (x(0) > sx - hx && x(1) > sy - hy)
-            {
-               return 0.5 * (1.0 +
-                             std::pow(1.0 - (sx - x(0)) / hx, order) -
-                             std::pow(1.0 - (sy - x(1)) / hy, order));
-            }
-            // else if (x_[0] > Lx_ - hx_ || x_[1] < hy_)
-            else if (hx * (x(1) + hy) < hy * x(0))
-            {
-               return 1.0;
-            }
-            // else if (x_[0] < hx_ || x_[1] > Ly_ - hy_)
-            else if (hx * x(1) > hy * (x(0) + hx))
-            {
-               return 0.0;
-            }
-            else
-            {
-               return 0.5 * (1.0 + std::tanh(M_LN10 * (x(0) / hx - x(1) / hy)));
-            }
-         };
       case Problem::SingleNull:
       case Problem::DoubleNull:
          // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
@@ -1414,7 +1347,6 @@ VecTFunc GetQFun(const ProblemParams &params)
          };
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
-      case Problem::Umansky:
       case Problem::SingleNull:
       case Problem::DoubleNull:
          return [=](const Vector &x, real_t, Vector &v)
@@ -1540,7 +1472,6 @@ TFunc GetFFun(const ProblemParams &params)
             return -((a > 0.)?(a):(1.)) * T;
          };
       case Problem::BoundaryLayer:
-      case Problem::Umansky:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
@@ -1598,7 +1529,6 @@ MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim)
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
-      case Problem::Umansky:
       case Problem::SingleNull:
       case Problem::DoubleNull:
          static MatrixFunctionCoefficient kappa(dim, KFun);
@@ -1607,88 +1537,6 @@ MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim)
    }
 
    return NULL;
-}
-
-real_t FindYVal(const GridFunction &u, real_t u_target, real_t x,
-                real_t y0, real_t y1)
-{
-   // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
-   Mesh *mesh = u.FESpace()->GetMesh();
-
-   Array<int> elem;
-   Array<IntegrationPoint> ips;
-   DenseMatrix point_mat(2, 1);
-   point_mat(0,0) = x;
-
-   real_t tol = 1e-5;
-
-   real_t a = y0;
-   real_t b = y1;
-
-   real_t ua = 1.0 - u_target;
-   //real_t ub = 0.0 - u_target;
-   real_t uc = 0.5 - u_target;
-
-   const int nmax = 20;
-   int n = 0;
-   while (n < nmax)
-   {
-      real_t c = 0.5 * (a + b);
-
-      point_mat(1,0) = c;
-      int nfound = mesh->FindPoints(point_mat, elem, ips);
-
-      if (nfound != 1)
-      {
-         MFEM_ABORT("Point (" << x << ", " << c << ") not found");
-      }
-
-      if (elem[0] >= 0)
-      {
-         uc = u.GetValue(elem[0], ips[0]) - u_target;
-      }
-      else
-      {
-         uc = -infinity();
-      }
-
-      if (std::abs(uc) < tol || 0.5 * (b - a) < tol)
-      {
-         return c;
-      }
-
-      if (ua * uc < 0.0)
-      {
-         b = c;
-         //ub = uc;
-      }
-      else
-      {
-         a = c;
-         ua = uc;
-      }
-
-      n++;
-   }
-   return -1.0;
-}
-
-real_t UmanskyTestWidth(const GridFunction &u)
-{
-   // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
-   Mesh *mesh = u.FESpace()->GetMesh();
-
-   Vector min, max;
-   mesh->GetBoundingBox(min,max);
-
-   double xMid = 0.5 * (max[0] + min[0]);
-   double y0 = min[1];
-   double y1 = max[1];
-
-   double y25 = FindYVal(u, 0.25, xMid, y0, y1);
-   double y75 = FindYVal(u, 0.75, xMid, y0, y1);
-
-   return y25 - y75;
 }
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
