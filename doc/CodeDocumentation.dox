@@ -135,6 +135,22 @@ namespace mfem {
  *   <a class="el" href="examples_2ginkgo_2ex1_8cpp_source.html">1</a>,
  *   demonstrating the use of MFEM's \link ginkgo.hpp Ginkgo integration\endlink.
  *
+ * <H4>HDG Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="hdg_2ex5_8cpp_source.html">5</a>,
+ *   <a class="el" href="hdg_2ex5p_8cpp_source.html">5p</a>,
+ *   <a class="el" href="hdg_2ex6_8cpp_source.html">6</a>,
+ *   <a class="el" href="hdg_2ex6p_8cpp_source.html">6p</a>,
+ *   <a class="el" href="hdg_2ex14_8cpp_source.html">14</a>,
+ *   <a class="el" href="hdg_2ex14p_8cpp_source.html">14p</a>,
+ *   <a class="el" href="hdg_2ex17_8cpp_source.html">21</a>,
+ *   <a class="el" href="hdg_2ex17p_8cpp_source.html">21p</a>,
+ *   <a class="el" href="hdg_2ex21_8cpp_source.html">21</a>,
+ *   <a class="el" href="hdg_2ex21p_8cpp_source.html">21p</a>,
+ *   <a class="el" href="hdg_2ex41_8cpp_source.html">41</a> and
+ *   <a class="el" href="hdg_2ex41p_8cpp_source.html">41p</a>,
+ *   demonstrating the use of MFEM's \link darcyhybridization.hpp hybridization framework for mixed systems\endlink.
+ *
  * <H4>HiOp Examples</H4>
  * - Variants of Examples
  *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and
@@ -239,6 +255,10 @@ namespace mfem {
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
+ * - <a class="el" href="anisodiff_8cpp_source.html">HDG anisotropic diffusion</a>: (Hybridized) mixed formulation of anisotropic problems
+ * - <a class="el" href="mfem-logo_8cpp_source.html">MFEM logo</a>: (Hybridized) mixed solution of convection-diffusion problem with MFEM logo
+ * - <a class="el" href="nguyen_8cpp_source.html">HDG convection-diffusion</a>: (Hybridized) mixed solution of convection-diffusion test problems
+ * - <a class="el" href="pnguyen_8cpp_source.html">HDG convection-diffusion (parallel)</a>: Parallel (hybridized) mixed solution of convection-diffusion test problems
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */
