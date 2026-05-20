@@ -99,25 +99,17 @@ public:
 
    real_t Eval(const Vector &u) const
    {
-      MultiVector X{u, coords};
-      MultiVector Y{q};
-      dop->Mult(X, Y);
-      real_t local_sum = q.Sum(), global_sum;
-      MPI_Allreduce(&local_sum, &global_sum, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
-      return global_sum;
+      real_t local = EvalLocal(u), global;
+      MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      return global;
    }
 
    // Returns the directional derivative dJ/du · du.
    real_t dJdu_dir(const Vector &u, const Vector &du) const
    {
-      MultiVector X{u, coords};
-      MultiVector dY{q};
-      dop->GetDerivative(U, X)->Mult(du, dY);
-      real_t local_sum = q.Sum(), global_sum;
-      MPI_Allreduce(&local_sum, &global_sum, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
-      return global_sum;
+      real_t local = dJdu_dir_local(u, du), global;
+      MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      return global;
    }
 
    // Computes the full gradient \nabla J(u) in the trial space via J^T.
@@ -138,10 +130,9 @@ public:
 
       // Global offset for this rank's DOFs and total DOF count.
       int offset = 0, global_size = local_size;
-      MPI_Exscan(&local_size, &offset, 1,
-                 MPITypeMap<int>::mpi_type, MPI_SUM, comm);
-      MPI_Allreduce(MPI_IN_PLACE, &global_size, 1,
-                    MPITypeMap<int>::mpi_type, MPI_SUM, comm);
+      MPI_Exscan(&local_size, &offset, 1, MPITypeMap<int>::mpi_type, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, MPITypeMap<int>::mpi_type, MPI_SUM,
+                    comm);
 
       g.SetSize(local_size);
       Vector up(u), um(u);
@@ -164,6 +155,22 @@ public:
    }
 
 private:
+   real_t EvalLocal(const Vector &u) const
+   {
+      MultiVector X{u, coords};
+      MultiVector Y{q};
+      dop->Mult(X, Y);
+      return q.Sum();
+   }
+
+   real_t dJdu_dir_local(const Vector &u, const Vector &du) const
+   {
+      MultiVector X{u, coords};
+      MultiVector dY{q};
+      dop->GetDerivative(U, X)->Mult(du, dY);
+      return q.Sum();
+   }
+
    MPI_Comm comm;
    std::unique_ptr<DifferentiableOperator> dop;
    QuadratureSpace qspace;
@@ -202,10 +209,6 @@ void functional(const char *filename, int p)
 
    Vector g(fes.GetTrueVSize());
    functional.grad(u, g);
-
-   pretty_print_mpi(u);
-   pretty_print_mpi(g);
-
    const real_t dJ_ad_grad = InnerProduct(pmesh.GetComm(), g, du);
 
    real_t best_error_dir  = infinity();
@@ -235,7 +238,6 @@ void functional(const char *filename, int p)
    // Must match entry-wise FD gradient
    Vector g_fd;
    functional.grad_fd(u, g_fd);
-   pretty_print_mpi(g_fd);
 
    Vector diff(g);
    diff -= g_fd;
@@ -244,7 +246,6 @@ void functional(const char *filename, int p)
    real_t global_norm;
    MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, pmesh.GetComm());
-   print_mpi_sync("|diff|_linf (global) = " + std::to_string(global_norm));
    REQUIRE(diff.Normlinf() / scale < 1e-5);
 
 }
@@ -259,27 +260,27 @@ TEST_CASE("dFEM functional derivative action matches finite differences",
    {
       const auto f =
          GENERATE(
-            // "../../data/star.mesh",
-            // "../../data/star-q3.mesh",
-            // "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh"
-            // "../../data/periodic-square.mesh"
+            "../../data/star.mesh",
+            "../../data/star-q3.mesh",
+            "../../data/rt-2d-q3.mesh",
+            "../../data/inline-quad.mesh",
+            "../../data/periodic-square.mesh"
          );
       functional<2>(f, p);
    }
 
-   // SECTION("3d")
-   // {
-   //    const auto f =
-   //       GENERATE(
-   //          "../../data/fichera.mesh",
-   //          "../../data/fichera-q3.mesh",
-   //          "../../data/inline-hex.mesh",
-   //          "../../data/toroid-hex.mesh",
-   //          "../../data/periodic-cube.mesh"
-   //       );
-   //    functional<3>(f, p);
-   // }
+   SECTION("3d")
+   {
+      const auto f =
+         GENERATE(
+            "../../data/fichera.mesh",
+            "../../data/fichera-q3.mesh",
+            "../../data/inline-hex.mesh",
+            "../../data/toroid-hex.mesh",
+            "../../data/periodic-cube.mesh"
+         );
+      functional<3>(f, p);
+   }
 }
 
 #endif // MFEM_USE_MPI

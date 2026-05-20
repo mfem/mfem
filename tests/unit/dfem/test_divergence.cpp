@@ -161,7 +161,7 @@ void vectordivergence(const char *filename, int p)
          MultiVector result{result_v};
          dRdV->MultTranspose(direction, result);
 
-         // Reference: mblf_fa.MultTranspose(ys, xv) -> restrict to T-dofs.
+         psfes.GetProlongationMatrix()->Mult(Ys, ys);
          mblf_fa.MultTranspose(ys, xv);
          Vector ref_v(pvfes.GetTrueVSize());
          pvfes.GetProlongationMatrix()->MultTranspose(xv, ref_v);
