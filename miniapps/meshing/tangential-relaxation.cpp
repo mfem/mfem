@@ -25,17 +25,11 @@
 //
 // Sample runs:
 // Blade - bound on Jacobian + tangential relaxation
-// make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -st 1 -bnd -bdropt 1 -bound
-
-// curvilinear right and top boundaries
+// make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -bnd -bdropt 1 -bound
+// curvilinear surfaces
 // make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 2  -ni 400 -bnd -transform 1
-// triangles
-// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1 -no-bound
-// 3D
-// make tangential-relaxation -j4 &&  mpirun -np 12 tangential-relaxation -m cube.mesh -o 2 -qo 8 -vis -mid 301 -tid 1 -bdropt 3 -rs 2  -ni 1000 -bnd -transform 1 -no-bound
-
-// adaptive limiting
-
+// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1
+// * mpirun -np 12 tangential-relaxation -m cube.mesh -o 2 -qo 12 -vis -mid 303 -tid 1 -rs 1 -ni 1000 -bnd -transform 1 -bdropt 3
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -110,7 +104,7 @@ int main (int argc, char *argv[])
    int bdr_opt_case      = 1;
    bool vis              = false;
    bool move_bnd         = false;
-   bool bound            = true;
+   bool bound            = false;
    int transform         = 0;
 
    // Parse command-line input file.
@@ -126,16 +120,25 @@ int main (int argc, char *argv[])
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
-                  "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
+                  "Supported values: 2D - 2, 49, 80 \n\t"
+                  "3D - 301, 303, 323, 347.");
    args.AddOption(&target_id, "-tid", "--target-id",
-                  "Mesh optimization metric 1/2/3 in 2D:\n\t");
+                  "Target (ideal element) type:\n\t"
+                  "1: Ideal shape, unit size\n\t"
+                  "2: Ideal shape, equal size\n\t"
+                  "3: Ideal shape, initial size");
    args.AddOption(&vis, "-vis", "--vis", "-no-vis", "--no-vis",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&bdr_opt_case, "-bdropt", "--bdr-opt",
-                  "Boundary attribute for tangential relaxation:\n\t");
+                  "Boundary attribute for tangential relaxation");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
-                  "Enable motion along horizontal and vertical boundaries.");
+                  "Enable motion along horizontal and vertical boundaries."
+                  " Boundaries are identified by attributes: \n\t"
+                  "1: parallel to y-axis in 2D, y-z plane in 3D\n\t"
+                  "2: parallel to x-axis in 2D, x-z plane in 3D\n\t"
+                  "3: parallel to x-y plane in 3D\n\t"
+                  "Attributes based on bdr_opt_case are handled separately.");
    args.AddOption(&bound, "-bound", "--bound", "-no-bound",
                   "--no-bound",
                   "Enable bounds.");
@@ -213,7 +216,7 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   double bbox_fac = 2.0;
+   double bbox_fac = 0.2;
 
    // Decode the stored boundary-attribute pairs.
    auto getTwoSetBits = [](int val) -> std::pair<int, int>
@@ -327,7 +330,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, MPI_COMM_WORLD);
    PLBound *plb = nullptr;
-   if (tensor_product_only)
+   if (tensor_product_only && bound)
    {
       plb = new PLBound(detgf->FESpace(),
                         ref_factor*(detgf->FESpace()->GetMaxElementOrder()+1));
@@ -418,6 +421,14 @@ int main (int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
+      for (int i = 0; i < surf_mesh_attr.Size(); i++)
+      {
+         const int attr = surf_mesh_attr[i];
+         if (attr >= 1 && attr <= ess_bdr.Size())
+         {
+            ess_bdr[attr - 1] = 0;
+         }
+      }
       nlf->SetEssentialBC(ess_bdr);
    }
    else
@@ -481,11 +492,9 @@ int main (int argc, char *argv[])
       nlf->SetEssentialVDofs(ess_vdofs);
    }
 
-   // Setup solver
-   const  int solver_type       = 1; // LBFGS
    const IntegrationRule &ir =
       IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
-   auto *solver = new TMOPNewtonSolver(pfes.GetComm(), ir, solver_type);
+   auto *solver = new TMOPNewtonSolver(pfes.GetComm(), ir, 1); // use LBFGS
    solver->SetIntegrationRules(IntRulesLo, quad_order);
    if (plb) { solver->EnsurePositiveDeterminantBound(); }
    solver->SetOperator(*nlf);
@@ -508,7 +517,7 @@ int main (int argc, char *argv[])
          FindPointsGSLIB *finder = new FindPointsGSLIB();
          finder_arr.Append(finder);
          finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
-         finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
+         finder->SetDistanceToleranceForPointsFoundOnBoundary(0.2);
          tang_dofs_arr.Append(bdr_face_dofs[i]);
          nodes0_arr.Append(surf_mesh_arr[i]->GetNodes());
       }
@@ -518,7 +527,7 @@ int main (int argc, char *argv[])
          FindPointsGSLIB *finder = new FindPointsGSLIB();
          finder_arr.Append(finder);
          finder->SetupSurf(*surf_mesh_arr[i+noff], bbox_fac);
-         finder->SetDistanceToleranceForPointsFoundOnBoundary(10);
+         finder->SetDistanceToleranceForPointsFoundOnBoundary(0.2);
          tang_dofs_arr.Append(bdr_edge_dofs[i]);
          nodes0_arr.Append(surf_mesh_arr[i+noff]->GetNodes());
       }

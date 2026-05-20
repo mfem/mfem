@@ -300,34 +300,57 @@ Mesh *SetupFaceMesh3D(Mesh *mesh, int attr)
 
    int nbdr_faces = mesh->GetNFbyType(FaceType::Boundary);
    Array<int> faces_to_include;
+   Array<int> face_geom;
    for (int f = 0; f < nbdr_faces; f++)
    {
       int attrib = mesh->GetBdrAttribute(f);
       if (attrib == attr)
       {
          faces_to_include.Append(mesh->GetBdrElementFaceIndex(f));
+         face_geom.Append(mesh->GetBdrElement(f)->GetGeometryType());
       }
    }
 
-   // Setup a mesh with dummy vertices
+   // Setup a mesh with dummy vertices while preserving the original boundary
+   // face type. Tet meshes contribute triangles; hex meshes contribute quads.
    int nel = faces_to_include.Size();
-   Vector vals;
-   Mesh *intmesh = new Mesh(2, nel*4, nel, 0, spaceDim);
+   int nvert = 0;
+   for (int i = 0; i < nel; i++)
    {
+      if (face_geom[i] == Geometry::TRIANGLE) { nvert += 3; }
+      else if (face_geom[i] == Geometry::SQUARE) { nvert += 4; }
+      else
+      {
+         MFEM_ABORT("Unsupported 3D boundary face geometry in SetupFaceMesh3D.");
+      }
+   }
+   Vector vals;
+   Mesh *intmesh = new Mesh(2, nvert, nel, 0, spaceDim);
+   {
+      int voff = 0;
       for (int i = 0; i < nel; i++)
       {
-         for (int j = 0; j < 4; j++) // 4 vertices per element
+         const int nv = (face_geom[i] == Geometry::TRIANGLE) ? 3 : 4;
+         for (int j = 0; j < nv; j++)
          {
             Vector vert(spaceDim);
             vert = 0.5;
             intmesh->AddVertex(vert.GetData());
          }
-         Array<int> verts(4);
-         for (int d = 0; d < 4; d++)
+         Array<int> verts(nv);
+         for (int d = 0; d < nv; d++)
          {
-            verts[d] = i*4+d;
+            verts[d] = voff + d;
          }
-         intmesh->AddQuad(verts, 1);
+         if (face_geom[i] == Geometry::TRIANGLE)
+         {
+            intmesh->AddTriangle(verts, 1);
+         }
+         else
+         {
+            intmesh->AddQuad(verts, 1);
+         }
+         voff += nv;
       }
       intmesh->Finalize(true, true);
       intmesh->FinalizeTopology(false);
@@ -340,10 +363,13 @@ Mesh *SetupFaceMesh3D(Mesh *mesh, int attr)
    for (int i = 0; i < nel; i++)
    {
       int fi = faces_to_include[i];
-      fes->GetFaceVDofs(fi, fdofs);
-      x->GetSubVector(fdofs, vals);
-      intnodespace->GetElementVDofs(i, fdofs);
-      intnodes->SetSubVector(fdofs, vals);
+      Array<int> src_fdofs, dst_fdofs;
+      fes->GetFaceVDofs(fi, src_fdofs);
+      x->GetSubVector(src_fdofs, vals);
+      intnodespace->GetElementVDofs(i, dst_fdofs);
+      MFEM_VERIFY(src_fdofs.Size() == dst_fdofs.Size(),
+                  "Face DOF count mismatch in SetupFaceMesh3D.");
+      intnodes->SetSubVector(dst_fdofs, vals);
    }
 
    return intmesh;
