@@ -2673,8 +2673,7 @@ int main(int argc, char *argv[])
    bool glvis = false;
    bool paraview = false;
    int viscosity_type = 2;
-   int preconditioner_type =
-      PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
+   int preconditioner_type = PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
    int dump_jacobians = 0;
    int nretry = 100;
    const char *petsc_opts = "";
@@ -2913,8 +2912,8 @@ int main(int argc, char *argv[])
          case 0: return 1.0;
          case 1: return 1.0;
          case 2: return (x(0) < 0.5) ? 1.0 : 0.1;
-         case 3: return (dim == 2) ? (x(0) > 1.0 && x(1) > 1.5) ? 0.125 : 1.0
-                           : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
+         case 3: return (dim == 2) ? x(0) > 1.0 && x(1) > 1.5 ? 0.125 : 1.0
+                                   : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
                                             (x(1) > 1.5 && x(2) > 1.5)) ? 0.125 : 1.0;
          default: MFEM_ABORT("error");
       }
@@ -3008,7 +3007,7 @@ int main(int argc, char *argv[])
    external_data[EXT_DATA_IDX::VISCOSITY_TYPE] = viscosity_type;
    external_data[EXT_DATA_IDX::DT_ESTIMATE] =
       std::numeric_limits<real_t>::infinity();
-   external_data[EXT_DATA_IDX::DT_EST_METHOD] = use_petsc ? 1.0 : 0.0;
+   external_data[EXT_DATA_IDX::DT_EST_METHOD] = (problem == 0) ? 1.0 : 0.0;
 
    LagrangianHydroOperator *hydro = nullptr;
    switch (dim)
@@ -3109,10 +3108,10 @@ int main(int argc, char *argv[])
    hydro->ResetTimeStepEstimate();
    real_t t = 0.0;
    real_t dt = 0.0;
-   if (use_petsc) { dt = hydro->GetTimeStepEstimate(S); }
+   if (problem == 0) { dt = hydro->GetTimeStepEstimate(S); }
    else
    {
-      // Keep the original conservative startup for the MFEM path.
+      // Keep the original conservative startup for non-TG problems.
       external_data[EXT_DATA_IDX::CFL] = 0.5;
       dt = hydro->GetTimeStepEstimate(S);
       external_data[EXT_DATA_IDX::CFL] = cfl;
@@ -3188,13 +3187,13 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10) // implicit.
       {
-         // Don't repeat with PETSc.
-         if (!use_petsc)
+         // Don't repeat for TGreen and 3point.
+         if (problem != 0 && problem != 3)
          {
             // Repeat only when the mesh inverted.
             // Can happen at time integration, even if all stages were ok.
             // Don't repeat time steps for implicit 3point.
-            if ( (dt_est < dt || !hydro->newton_converged) && (problem != 3))
+            if (dt_est < dt || !hydro->newton_converged)
             {
                if (!hydro->newton_converged)
                {
@@ -3217,8 +3216,20 @@ int main(int argc, char *argv[])
                   //out << "Reason: " << min_detJ << std::endl;
                   if (!hydro->newton_converged)
                   {
-                     out << "Newton did not converge in "
-                         << hydro->newton->GetNumIterations() << " iterations.\n";
+                     if (use_petsc)
+                     {
+#ifdef MFEM_USE_PETSC
+                        out << "SNES did not converge in "
+                            << hydro->snes->GetNumIterations() << " iterations.\n";
+#else
+                        out << "SNES did not converge.\n";
+#endif
+                     }
+                     else
+                     {
+                        out << "Newton did not converge in "
+                            << hydro->newton->GetNumIterations() << " iterations.\n";
+                     }
                   }
                   else { out << "Estimated dt lower than taken dt.\n"; }
                }
@@ -3242,7 +3253,7 @@ int main(int argc, char *argv[])
             else if (dt_est > 1.25 * dt) { dt *= 1.10; }
          }
       }
-      else if (dt_est < dt)
+      else if (dt_est < dt) // explicit.
       {
          // Repeat (solve again) with a decreased time step - decrease of the
          // time estimate suggests appearance of oscillations.
