@@ -137,6 +137,32 @@ int main(int argc, char *argv[])
       }
    }
 
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
+   GridFunction nodes2(nodes->FESpace());
+   nodes2 = *nodes; // 1-to-1 copy
+
+   VisItDataCollection vdc("check", &mesh);
+   vdc.RegisterField("d", nodes);
+   vdc.RegisterField("d2", &nodes2);
+   vdc.SetCycle(0);
+   vdc.Save();
+
+   // byNODES byVDIm shuffle
+   int nnode = nodes2.Size()/2;
+   for (int i = 0; i < nnode; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         int xi = i + j*nnode;
+         int ni = j + i*dim;
+         nodes2[xi] = nodes->Elem(ni);
+      }
+   } 
+   vdc.SetCycle(1);
+   vdc.Save();
+
+
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
