@@ -360,6 +360,7 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
 #ifdef MFEM_USE_UMPIRE
+   bool switch_host_umpire_to_host = true;
    // If MFEM has been compiled with Umpire support, use it as the default
    if (!mem_host_env && !mem_types_set)
    {
