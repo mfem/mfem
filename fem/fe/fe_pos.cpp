@@ -602,22 +602,25 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
          Vector shape_Ga1(ndof-1), shape_Ga2((ndof-1) * (ndof-1));
          for (int i = 0; i < nqpt; i++)
          {
-            // The first 'nqpt' points in 'ir' have the same x-coordinates as those
-            // of the 1D rule.
-            Poly_1D::CalcBernstein(ndof-1, ir.IntPoint(i).x, shape_a1);
-            Poly_1D::CalcBernstein(ndof-2, ir.IntPoint(i).x, shape_Ga1);
+            // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
+            // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
+            // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
+            // Gauss-Jacobi rule).
+            const real_t x = ir.IntPoint(i).x;
+            const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
+
+            Poly_1D::CalcBernstein(ndof-1, x, shape_a1);
+            Poly_1D::CalcBernstein(ndof-2, x, shape_Ga1);
             for (int j = 0; j < ndof; j++)
             {
                rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
                if (j < ndof-1)
                {
                   rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
-                  Poly_1D::CalcBernstein(ndof-2-j, ir.IntPoint(nqpt*i).y, shape_Ga2);
+                  Poly_1D::CalcBernstein(ndof-2-j, y, shape_Ga2);
                }
 
-               // The first 'column' of 'nqpt' points in 'ir' have the same y-coordinates as those
-               // of the 1D rule for second dimension
-               Poly_1D::CalcBernstein(ndof-1-j, ir.IntPoint(nqpt*i).y, shape_a2);
+               Poly_1D::CalcBernstein(ndof-1-j, y, shape_a2);
                for (int k = 0; k < ndof-j; k++)
                {
                   rd2q->Ba2t[i + nqpt*(j + ndof*k)] = rd2q->Ba2[k + ndof*(j + ndof*i)] = shape_a2(
@@ -901,16 +904,6 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
          rd2q->inverse_map3d_mass.SetSize(2 * basis_dim3d);
 
-         rd2q->T.SetSize(3 * nqpt);
-
-         // store 1D quad rules
-         for (int i = 0; i < nqpt; i++)
-         {
-            rd2q->T[i] = ir.IntPoint(i).x;
-            rd2q->T[i + nqpt] = ir.IntPoint(nqpt*i).y;
-            rd2q->T[i + nqpt*2] = ir.IntPoint(nqpt*nqpt*i).z;
-         }
-
          // forward and inverse maps for multi-index to collpased 1d index for diffusion, can combine
          // these four loops, but need four idx's and clause for shorter diff loops
          int idx = 0;
@@ -974,22 +967,27 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          Vector shape_Ga1(ndof-1), shape_Ga2(ndof-1), shape_Ga3(ndof-1);
          for (int i = 0; i < nqpt; i++)
          {
-            // The first 'nqpt' points in 'ir' have the same x-coordinates as those
-            // of the 1D rule.
-            Poly_1D::CalcBernstein(ndof-1, ir.IntPoint(i).x, shape_a1);
-            Poly_1D::CalcBernstein(ndof-2, ir.IntPoint(i).x, shape_Ga1);
+            // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
+            // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
+            // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
+            // Gauss-Jacobi rule). The first 'nqpt' points in the third dimension have the same z-coordinates
+            // as those of the 1D rule for the third dimension (i.e. Gauss-Legendre rule)
+            const real_t x = ir.IntPoint(i).x;
+            const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
+            const real_t z = ir.IntPoint(nqpt*nqpt*i).z / (1.0 - ir.IntPoint(
+                                                              nqpt*nqpt*i).x - ir.IntPoint(nqpt*nqpt*i).y);
+            Poly_1D::CalcBernstein(ndof-1, x, shape_a1);
+            Poly_1D::CalcBernstein(ndof-2, x, shape_Ga1);
             for (int j = 0; j < ndof; j++)
             {
                rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
                if (j < ndof-1)
                {
                   rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
-                  Poly_1D::CalcBernstein(ndof-2-j, ir.IntPoint(nqpt*i).y, shape_Ga2);
+                  Poly_1D::CalcBernstein(ndof-2-j, y, shape_Ga2);
                }
 
-               // The first 'column' of 'nqpt' points in 'ir' have the same y-coordinates as those
-               // of the 1D rule for second dimension
-               Poly_1D::CalcBernstein(ndof-1-j, ir.IntPoint(nqpt*i).y, shape_a2);
+               Poly_1D::CalcBernstein(ndof-1-j, y, shape_a2);
                for (int k = 0; k < ndof-j; k++)
                {
                   const int a_2d_mass = rd2q->forward_map2d_mass[k + ndof*j];
@@ -1001,10 +999,10 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                      const int a_2d_diff = rd2q->forward_map2d_diff[k + (ndof-1)*j];
                      rd2q->Ga2t[i + nqpt*a_2d_diff] = rd2q->Ga2[a_2d_diff + basis_dim2d_diff*i] =
                                                          shape_Ga2(k);
-                     Poly_1D::CalcBernstein(ndof-2-j-k, ir.IntPoint(nqpt*nqpt*i).z, shape_Ga3);
+                     Poly_1D::CalcBernstein(ndof-2-j-k, z, shape_Ga3);
                   }
 
-                  Poly_1D::CalcBernstein(ndof-1-j-k, ir.IntPoint(nqpt*nqpt*i).z, shape_a3);
+                  Poly_1D::CalcBernstein(ndof-1-j-k, z, shape_a3);
                   for (int m = 0; m < ndof-j-k; m++)
                   {
                      const int a_3d_mass = rd2q->forward_map3d_mass[m + ndof*(k + ndof*j)];

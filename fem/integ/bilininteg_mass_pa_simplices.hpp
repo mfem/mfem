@@ -186,7 +186,6 @@ inline void PAMassApplyTriangle(const int NE,
                                 const Array<real_t> &ba1t_,
                                 const Array<real_t> &ba2t_,
                                 const Array<real_t> &/*ba3t_*/,
-                                const Array<real_t> &/*t_*/,
                                 const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -389,7 +388,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
                                     const Array<real_t> &ba1t_,
                                     const Array<real_t> &ba2t_,
                                     const Array<real_t> &/*ba3t_*/, // unused in 2D...
-                                    const Array<real_t> &/*t_*/,
                                     const Vector &d_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -623,7 +621,6 @@ inline void PAMassApplyTetrahedron(const int NE,
                                    const Array<real_t> &ba1t_,
                                    const Array<real_t> &ba2t_,
                                    const Array<real_t> &ba3t_,
-                                   const Array<real_t> &/*t_*/,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -677,7 +674,6 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
                                         const real_t *ba1_,
                                         const real_t *ba2_,
                                         const real_t *ba3_,
-                                        const real_t */*t_*/,
                                         const real_t *ba1t_,
                                         const real_t *ba2t_,
                                         const real_t *ba3t_,
@@ -922,7 +918,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
                                        const Array<real_t> &ba1t_,
                                        const Array<real_t> &ba2t_,
                                        const Array<real_t> &ba3t_,
-                                       const Array<real_t> &t_,
                                        const Vector &d_,
                                        const Vector &x_,
                                        Vector &y_,
@@ -950,7 +945,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto Ba1t = ba1t_.Read();
    const auto Ba2t = ba2t_.Read();
    const auto Ba3t = ba3t_.Read();
-   const auto T = t_.Read();
    const auto D = d_.Read();
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
@@ -961,7 +955,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>
       (e, NE, BASIS_DIM, BASIS_DIM2D,
        forward_map2d, inverse_map2d, forward_map3d,
-       Ba1, Ba2, Ba3, T, Ba1t, Ba2t, Ba3t, D, X, Y,
+       Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t, D, X, Y,
        d1d, q1d);
    });
 }

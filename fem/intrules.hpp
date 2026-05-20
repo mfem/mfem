@@ -524,10 +524,9 @@ private:
    /// The following methods allocate new IntegrationRule objects without
    /// checking if they already exist.  To avoid memory leaks use
    /// IntegrationRules::Get(int GeomType, int Order) instead.
-   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order,
-                                            bool Pullback);
-   IntegrationRule *TriangleStroudIntegrationRule(int Order, bool Pullback);
-   IntegrationRule *TetrahedronStroudIntegrationRule(int Order, bool Pullback);
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
+   IntegrationRule *TriangleStroudIntegrationRule(int Order);
+   IntegrationRule *TetrahedronStroudIntegrationRule(int Order);
 
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
@@ -535,7 +534,7 @@ public:
    explicit StroudIntegrationRules();
 
    /// Returns a Stroud integration rule for given GeomType and Order.
-   const IntegrationRule &Get(int GeomType, int Order, bool Pullback);
+   const IntegrationRule &Get(int GeomType, int Order);
 
    void SetOwnRules(int o) { own_rules = o; }
 
@@ -555,11 +554,10 @@ extern MFEM_EXPORT StroudIntegrationRules StroudIntRules;
 /// Duffy Transformation of 2D and 3D tensor product rules of the form
 /// $X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i$, where $x_i$ are the vertices
 /// of the simplex and $\lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1})$, with
-/// $t$ being the coordinates in the unit square/cube.
-const IntegrationRule DuffyTrans(const IntegrationRule ir, int dim);
-
-/// Inverse Duffy Transformation for 2D and 3D tensor product rules.
-const IntegrationRule InverseDuffyTrans(const IntegrationRule ir, int dim);
+/// $t$ being the coordinates in the unit square/cube. This function is used only
+/// in the partial assembly of Bernstein elements on simplices and does NOT
+/// modify the quadrature weights.
+IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim);
 }
 
 #endif
