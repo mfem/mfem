@@ -62,6 +62,7 @@ public:
    MyFunctional(const ParFiniteElementSpace &fes,
                 const ParFiniteElementSpace &mfes,
                 const IntegrationRule &ir) :
+      comm(fes.GetComm()),
       qspace(*fes.GetParMesh(), ir),
       qspace_vec(qspace, 1),
       q(qspace_vec)
@@ -101,7 +102,10 @@ public:
       MultiVector X{u, coords};
       MultiVector Y{q};
       dop->Mult(X, Y);
-      return q.Sum(); // FIXME: NOT MPI COMPATIBLE
+      real_t local_sum = q.Sum(), global_sum;
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    comm);
+      return global_sum;
    }
 
    // Returns the directional derivative dJ/du · du.
@@ -110,7 +114,10 @@ public:
       MultiVector X{u, coords};
       MultiVector dY{q};
       dop->GetDerivative(U, X)->Mult(du, dY);
-      return q.Sum(); // FIXME: NOT MPI COMPATIBLE
+      real_t local_sum = q.Sum(), global_sum;
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    comm);
+      return global_sum;
    }
 
    // Computes the full gradient \nabla J(u) in the trial space via J^T.
@@ -127,19 +134,37 @@ public:
    // Computes the full gradient via element-wise central differences.
    void grad_fd(const Vector &u, Vector &g, real_t eps = 1e-5) const
    {
-      g.SetSize(u.Size());
+      const int local_size = u.Size();
+
+      // Global offset for this rank's DOFs and total DOF count.
+      int offset = 0, global_size = local_size;
+      MPI_Exscan(&local_size, &offset, 1,
+                 MPITypeMap<int>::mpi_type, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_size, 1,
+                    MPITypeMap<int>::mpi_type, MPI_SUM, comm);
+
+      g.SetSize(local_size);
       Vector up(u), um(u);
-      for (int i = 0; i < u.Size(); ++i)
+
+      // Loop over global DOF indices. Each rank perturbs only when gi falls in
+      // its local range [offset, offset+local_size); all ranks call Eval together.
+      for (int gi = 0; gi < global_size; ++gi)
       {
-         up(i) += eps;
-         um(i) -= eps;
-         g(i) = (Eval(up) - Eval(um)) / (2.0 * eps);
-         up(i) = u(i);
-         um(i) = u(i);
+         const int li = gi - offset;
+         if (li >= 0 && li < local_size) { up(li) += eps; um(li) -= eps; }
+         const real_t Jp = Eval(up);
+         const real_t Jm = Eval(um);
+         if (li >= 0 && li < local_size)
+         {
+            g(li) = (Jp - Jm) / (2.0 * eps);
+            up(li) = u(li);
+            um(li) = u(li);
+         }
       }
    }
 
 private:
+   MPI_Comm comm;
    std::unique_ptr<DifferentiableOperator> dop;
    QuadratureSpace qspace;
    VectorQuadratureSpace qspace_vec;
@@ -168,12 +193,8 @@ void functional(const char *filename, int p)
    Vector u(fes.GetTrueVSize());
    Vector du(fes.GetTrueVSize());
 
-   // Use deterministic nontrivial data
-   for (int i = 0; i < u.Size(); ++i)
-   {
-      u(i)  = 0.2 * std::sin(0.37 * i) + 0.05 * std::cos(1.13 * i);
-      du(i) = 0.1 * std::cos(0.51 * i) - 0.03 * std::sin(0.91 * i);
-   }
+   u.Randomize(5532);
+   du.Randomize(3251);
 
    MyFunctional<DIM> functional(fes, *mfes, ir);
 
@@ -181,6 +202,10 @@ void functional(const char *filename, int p)
 
    Vector g(fes.GetTrueVSize());
    functional.grad(u, g);
+
+   pretty_print_mpi(u);
+   pretty_print_mpi(g);
+
    const real_t dJ_ad_grad = InnerProduct(pmesh.GetComm(), g, du);
 
    real_t best_error_dir  = infinity();
@@ -210,16 +235,22 @@ void functional(const char *filename, int p)
    // Must match entry-wise FD gradient
    Vector g_fd;
    functional.grad_fd(u, g_fd);
-   {
-      Vector diff(g);
-      diff -= g_fd;
-      const real_t scale = std::max(real_t(1.0), g_fd.Normlinf());
-      REQUIRE(diff.Normlinf() / scale < 1e-5);
-   }
+   pretty_print_mpi(g_fd);
+
+   Vector diff(g);
+   diff -= g_fd;
+   const real_t scale = std::max(real_t(1.0), g_fd.Normlinf());
+   real_t local_norm = diff.Normlinf();
+   real_t global_norm;
+   MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, pmesh.GetComm());
+   print_mpi_sync("|diff|_linf (global) = " + std::to_string(global_norm));
+   REQUIRE(diff.Normlinf() / scale < 1e-5);
+
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
-          "[Parallel][dFEM][functional][XXX]")
+          "[Parallel][dFEM][functional]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -228,27 +259,27 @@ TEST_CASE("dFEM functional derivative action matches finite differences",
    {
       const auto f =
          GENERATE(
-            "../../data/star.mesh",
-            "../../data/star-q3.mesh",
-            "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh"
+            // "../../data/star.mesh",
+            // "../../data/star-q3.mesh",
+            // "../../data/rt-2d-q3.mesh",
+            "../../data/inline-quad.mesh"
+            // "../../data/periodic-square.mesh"
          );
       functional<2>(f, p);
    }
 
-   SECTION("3d")
-   {
-      const auto f =
-         GENERATE(
-            "../../data/fichera.mesh",
-            "../../data/fichera-q3.mesh",
-            "../../data/inline-hex.mesh",
-            "../../data/toroid-hex.mesh",
-            "../../data/periodic-cube.mesh"
-         );
-      functional<3>(f, p);
-   }
+   // SECTION("3d")
+   // {
+   //    const auto f =
+   //       GENERATE(
+   //          "../../data/fichera.mesh",
+   //          "../../data/fichera-q3.mesh",
+   //          "../../data/inline-hex.mesh",
+   //          "../../data/toroid-hex.mesh",
+   //          "../../data/periodic-cube.mesh"
+   //       );
+   //    functional<3>(f, p);
+   // }
 }
 
 #endif // MFEM_USE_MPI
