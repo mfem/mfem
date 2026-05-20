@@ -153,7 +153,7 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    ComplexGridFunction V_exact(&fespace_h1);
    ComplexGridFunction A_exact(&fespace_nd);
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec((Vector) {0.0, 0.0, 0.0});
+   VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
    V_exact.ProjectCoefficient(V_exact_real, zero);
    A_exact.ProjectCoefficient(zero_vec, A_exact_imag);
