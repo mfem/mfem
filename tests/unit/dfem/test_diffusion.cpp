@@ -11,8 +11,8 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../linalg/test_same_matrices.hpp"
 
 #include <utility>

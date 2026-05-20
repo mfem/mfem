@@ -175,7 +175,8 @@ struct DerivativeSetup
                         {
                            const int c_out = i * test_op_dim_o + k;
                            const int cache_idx =
-                              (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local * total_trial_op_dim_local +
+                              (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
+                              total_trial_op_dim_local +
                               j_cur * total_trial_op_dim_local +
                               m_global;
                            cache_ptr[cache_idx + residual_size_local * gq] =

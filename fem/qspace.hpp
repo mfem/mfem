@@ -206,6 +206,10 @@ public:
 
    /// Get the vector dimension.
    int GetVDim() const { return vdim; }
+
+   /** @brief Get the total size (on this MPI-rank in parallel) of the
+       VectorQuadratureSpace. */
+   int GetVSize() const { return qspace->GetSize() * vdim; }
 };
 
 /// Class representing the storage layout of a QuadratureFunction.
