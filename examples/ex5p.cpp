@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
       std::string postfix(mesh_file);
       postfix.erase(0, std::string("../data/").size() );
       postfix += "_o" + std::to_string(order);
-      const std::string collection_name = "ex5-p_" + postfix + ".bp";
+      const std::string collection_name = "ex5-p-" + postfix + ".bp";
 
       ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
       adios2_dc.SetLevelsOfDetail(1);

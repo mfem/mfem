@@ -182,6 +182,7 @@ set(SRCS
   darcy/darcyform.cpp
   darcy/darcyhybridization.cpp
   darcy/darcyreduction.cpp
+  darcy/estimators_hdg.cpp
   darcy/pdarcyform.cpp
   integrator.cpp
   bounds.cpp
@@ -315,11 +316,11 @@ set(HDRS
   transfer.hpp
   hyperbolic.hpp
   darcy/bilininteg_hdg.hpp
-  darcy/estimators_hdg.hpp
   darcy/darcy.hpp
   darcy/darcyform.hpp
   darcy/darcyhybridization.hpp
   darcy/darcyreduction.hpp
+  darcy/estimators_hdg.hpp
   darcy/pdarcyform.hpp
   integrator.hpp
   bounds.hpp
