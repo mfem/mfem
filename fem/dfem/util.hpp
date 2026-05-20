@@ -2672,6 +2672,21 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
                     is_gradient_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
+         // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
+         // uninitialized, B.Size()==0). Using garbage shapes would crash
+         // load_dtq_mem. Treat as a pass-through (which_input=-1) so that
+         // load_dtq_mem skips this entry; only dependent inputs need B/G in
+         // shared memory and ParameterSpace data is never the derivative
+         // direction when reached via Value/Gradient.
+         if (dtq == nullptr || dtq->B.Size() == 0)
+         {
+            return DofToQuadMap
+            {
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               -1
+            };
+         }
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
