@@ -74,9 +74,13 @@ public:
        integers are read, for order and number of control points. */
    KnotVector(std::istream &input);
 
-   /** @brief Create a KnotVector with undefined knots (initialized to -1) of
-       order @a order and number of control points @a NCP. */
-   KnotVector(int order, int NCP);
+   /** @brief Create a KnotVector with order @a order.
+       When @a NCP is not provided  the number of control points is set to
+       @a order + 1, and the first @a order + 1 knots are set to 0 and last
+       @a order + 1 knots are set to 1.
+       When @a NCP is given number of control points is @a NCP and
+       the knots are initialized to -1) */
+   KnotVector(int order, int NCP = -1);
 
    /** @brief Create a KnotVector with order @a order and knots @a knot.
        If @a k has the correct number of repeated knots at the begin and end,
@@ -88,12 +92,10 @@ public:
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
        lengths of length n, and a list of continuity of length n + 1.
-
        The intervals refer to spans between unique knot values (not counting
        zero-size intervals at repeated knots), and the continuity values should
        be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
-       polynomial degree). Periodicity is not supported.
-   */
+       polynomial degree). Periodicity is not supported.*/
    KnotVector(int order, const Vector& intervals,
               const Array<int>& continuity);
 
@@ -218,7 +220,7 @@ public:
        @a u.
        The main purpose of this function is its use in FindInterpolant.
        Use GetBotella instead for each shape function separately, perhaps in
-       conjuction with GetSpan and GetRefPoint.*/
+       conjunction with GetSpan and GetRefPoint.*/
    MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
@@ -1396,8 +1398,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   const int kv = edge_to_ukv[edge];
-   return kv >= 0 ? kv : -1 - kv;
+   return UnsignIndex(edge_to_ukv[edge]);
 }
 
 inline int NURBSExtension::KnotSign(int edge) const
@@ -1427,7 +1428,7 @@ const
    else
    {
       *okv = -oedge;
-      return knotVectors[-1-kv];
+      return knotVectors[FlipIndexSign(kv)];
    }
 }
 
