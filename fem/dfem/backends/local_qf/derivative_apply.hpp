@@ -357,7 +357,8 @@ struct DerivativeApply
                            for (int m = 0; m < trial_op_dim; m++)
                            {
                               const int cache_idx =
-                                 (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local * total_trial_op_dim_local +
+                                 (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
+                                 total_trial_op_dim_local +
                                  j * total_trial_op_dim_local + (m + m_offset);
 
                               const real_t dir_val = shadow_shmem[s](j + input_vdim * m, q);

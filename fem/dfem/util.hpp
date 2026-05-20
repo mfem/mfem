@@ -777,7 +777,7 @@ int GetVSize(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->GetSpace()->GetSize() * arg->GetVDim();
+         return arg->GetVSize();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -857,7 +857,7 @@ int GetTrueVSize(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->GetSpace()->GetSize() * arg->GetVDim();
+         return arg->GetVSize();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1035,7 +1035,7 @@ std::shared_ptr<const Operator> get_element_restriction(
       {
          // For VectorQuadratureSpace, create an identity operator
          // Data is already at quadrature points, so restriction is identity
-         const int size = arg->GetSpace()->GetSize() * arg->GetVDim();
+         const int size = arg->GetVSize();
          return std::make_shared<IdentityOperator>(size);
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
@@ -1428,7 +1428,7 @@ void prepare_residual(
       if (std::holds_alternative<const VectorQuadratureSpace *>(fields[i].data))
       {
          const auto fd = std::get<const VectorQuadratureSpace *>(fields[i].data);
-         s = fd->GetSpace()->GetSize() * fd->GetVDim();
+         s = fd->GetVSize();
       }
       else
       {
@@ -1993,9 +1993,9 @@ get_shmem_info(
          else
          {
             MFEM_ASSERT(vqs != nullptr, "null VectorQuadratureSpace in FieldDescriptor");
-            MFEM_ASSERT(vqs->GetSpace()->GetSize() * vqs->GetVDim() % num_entities == 0,
+            MFEM_ASSERT(vqs->GetVSize() % num_entities == 0,
                         "VectorQuadratureSpace size not divisible by num_entities");
-            field_sizes[i] = vqs->GetSpace()->GetSize() * vqs->GetVDim() / num_entities;
+            field_sizes[i] = vqs->GetVSize() / num_entities;
          }
       }
       else
@@ -2025,9 +2025,9 @@ get_shmem_info(
          else
          {
             MFEM_ASSERT(vqs != nullptr, "null VectorQuadratureSpace direction field");
-            MFEM_ASSERT(vqs->GetSpace()->GetSize() * vqs->GetVDim() % num_entities == 0,
+            MFEM_ASSERT(vqs->GetVSize() % num_entities == 0,
                         "VectorQuadratureSpace direction size not divisible by num_entities");
-            direction_size = vqs->GetSpace()->GetSize() * vqs->GetVDim() / num_entities;
+            direction_size = vqs->GetVSize() / num_entities;
          }
       }
       else
@@ -2651,8 +2651,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             const auto &fd = fds[field_map[idx]];
             if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
             {
-               const auto *qf = std::get<const VectorQuadratureSpace *>(fd.data);
-               value_dim = qf->GetVDim();
+               const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+               value_dim = vqs->GetVDim();
             }
             return std::tuple{dtq, value_dim, grad_dim};
          }
@@ -2697,8 +2697,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int mesh_dimension = -1;
          if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
          {
-            const auto *qf = std::get<const VectorQuadratureSpace *>(fd.data);
-            mesh_dimension = qf->GetSpace()->GetMesh()->Dimension();
+            const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+            mesh_dimension = vqs->GetSpace()->GetMesh()->Dimension();
          }
          else
          {

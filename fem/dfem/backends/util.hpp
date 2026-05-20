@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../fem/quadinterpolator.hpp"
+#include "../../quadinterpolator.hpp"
 #include "../util.hpp"
-#include "general/enzyme.hpp"
+#include "../../../general/enzyme.hpp"
 
 namespace mfem::future
 {
@@ -61,8 +61,8 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    };
 }
 
-// VectorQuadratureFunction identity copy
-inline FieldBasis FromQF()
+// VectorQuadratureSpace identity copy
+inline FieldBasis FromQS()
 {
    return
    {
@@ -120,7 +120,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return FromQF();
+         return FromQS();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {

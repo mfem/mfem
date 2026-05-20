@@ -14,7 +14,7 @@
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
-#include "../linalg/multivector.hpp"
+#include "../../linalg/multivector.hpp"
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
