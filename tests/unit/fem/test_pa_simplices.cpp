@@ -47,7 +47,7 @@ void test_pa_simplices(const char *filename, int p)
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const auto order = 2 * fe.GetOrder() + Tr.OrderW();
-   const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order, false);
+   const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
