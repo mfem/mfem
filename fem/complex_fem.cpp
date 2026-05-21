@@ -771,18 +771,18 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 bool
 MixedSesquilinearForm::RealInteg()
 {
-   int nint = _mblfr->GetFBFI()->Size() + _mblfr->GetDBFI()->Size() +
-              _mblfr->GetBBFI()->Size() +
-              _mblfr->GetBFBFI()->Size();
+   int nint = mblfr->GetFBFI()->Size() + mblfr->GetDBFI()->Size() +
+              mblfr->GetBBFI()->Size() +
+              mblfr->GetBFBFI()->Size();
    return (nint != 0);
 }
 
 bool
 MixedSesquilinearForm::ImagInteg()
 {
-   int nint = _mblfi->GetFBFI()->Size() + _mblfi->GetDBFI()->Size() +
-              _mblfi->GetBBFI()->Size() +
-              _mblfi->GetBFBFI()->Size();
+   int nint = mblfi->GetFBFI()->Size() + mblfi->GetDBFI()->Size() +
+              mblfi->GetBBFI()->Size() +
+              mblfi->GetBFBFI()->Size();
    return (nint != 0);
 }
 
@@ -790,8 +790,8 @@ MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
                                              FiniteElementSpace * test_fes,
                                              ComplexOperator::Convention convention)
    : _conv(convention),
-     _mblfr(new mfem::MixedBilinearForm(trial_fes, test_fes)),
-     _mblfi(new mfem::MixedBilinearForm(trial_fes, test_fes))
+     mblfr(new mfem::MixedBilinearForm(trial_fes, test_fes)),
+     mblfi(new mfem::MixedBilinearForm(trial_fes, test_fes))
 {
 }
 
@@ -801,15 +801,15 @@ MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
                                              MixedBilinearForm * bfi,
                                              ComplexOperator::Convention convention)
    : _conv(convention),
-     _mblfr(new MixedBilinearForm(trial_fes, test_fes, bfr)),
-     _mblfi(new MixedBilinearForm(trial_fes, test_fes, bfi))
+     mblfr(new MixedBilinearForm(trial_fes, test_fes, bfr)),
+     mblfi(new MixedBilinearForm(trial_fes, test_fes, bfi))
 {
 }
 
 MixedSesquilinearForm::~MixedSesquilinearForm()
 {
-   delete _mblfr;
-   delete _mblfi;
+   delete mblfr;
+   delete mblfi;
 }
 
 void
@@ -818,11 +818,11 @@ MixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddDomainIntegrator(bfi_real);
+      mblfr->AddDomainIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _mblfi->AddDomainIntegrator(bfi_imag);
+      mblfi->AddDomainIntegrator(bfi_imag);
    }
 }
 
@@ -833,11 +833,11 @@ MixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddDomainIntegrator(bfi_real, elem_marker);
+      mblfr->AddDomainIntegrator(bfi_real, elem_marker);
    }
    if (bfi_imag)
    {
-      _mblfi->AddDomainIntegrator(bfi_imag, elem_marker);
+      mblfi->AddDomainIntegrator(bfi_imag, elem_marker);
    }
 }
 
@@ -847,11 +847,11 @@ MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddBoundaryIntegrator(bfi_real);
+      mblfr->AddBoundaryIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _mblfi->AddBoundaryIntegrator(bfi_imag);
+      mblfi->AddBoundaryIntegrator(bfi_imag);
    }
 }
 
@@ -862,11 +862,11 @@ MixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
+      mblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
    }
    if (bfi_imag)
    {
-      _mblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
+      mblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
    }
 }
 
@@ -877,11 +877,11 @@ MixedSesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _mblfr->AddInteriorFaceIntegrator(bfi_real);
+      mblfr->AddInteriorFaceIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _mblfi->AddInteriorFaceIntegrator(bfi_imag);
+      mblfi->AddInteriorFaceIntegrator(bfi_imag);
    }
 }
 
@@ -891,11 +891,11 @@ MixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddBdrFaceIntegrator(bfi_real);
+      mblfr->AddBdrFaceIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _mblfi->AddBdrFaceIntegrator(bfi_imag);
+      mblfi->AddBdrFaceIntegrator(bfi_imag);
    }
 }
 
@@ -906,33 +906,72 @@ MixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _mblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
+      mblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
    }
    if (bfi_imag)
    {
-      _mblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+      mblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void MixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                                   BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      mblfr->AddTraceFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      mblfi->AddTraceFaceIntegrator(bfi_imag);
+   }
+}
+
+void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                                      BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real)
+   {
+      mblfr->AddBdrTraceFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)   {
+      mblfi->AddBdrTraceFaceIntegrator(bfi_imag);
+   }
+}
+
+void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                                      BilinearFormIntegrator *bfi_imag,
+                                                      Array<int> &bdr_marker)
+{
+   if (bfi_real)
+   {
+      mblfr->AddBdrTraceFaceIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      mblfi->AddBdrTraceFaceIntegrator(bfi_imag, bdr_marker);
    }
 }
 
 void
 MixedSesquilinearForm::Assemble(int skip_zeros)
 {
-   _mblfr->Assemble(skip_zeros);
-   _mblfi->Assemble(skip_zeros);
+   mblfr->Assemble(skip_zeros);
+   mblfi->Assemble(skip_zeros);
 }
 
 void
 MixedSesquilinearForm::Finalize(int skip_zeros)
 {
-   _mblfr->Finalize(skip_zeros);
-   _mblfi->Finalize(skip_zeros);
+   mblfr->Finalize(skip_zeros);
+   mblfi->Finalize(skip_zeros);
 }
 
 ComplexSparseMatrix *
 MixedSesquilinearForm::AssembleComplexSparseMatrix()
 {
    return new mfem::ComplexSparseMatrix(
-             &_mblfr->SpMat(), &_mblfi->SpMat(), false, false, _conv);
+             &mblfr->SpMat(), &mblfi->SpMat(), false, false, _conv);
 }
 
 void
@@ -945,8 +984,8 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                                    Vector & X,
                                                    Vector & B)
 {
-   FiniteElementSpace * fes_trial = _mblfr->TrialFESpace();
-   FiniteElementSpace * fes_test = _mblfr->TestFESpace();
+   FiniteElementSpace * fes_trial = mblfr->TrialFESpace();
+   FiniteElementSpace * fes_test = mblfr->TestFESpace();
    const int vsize_trial = fes_trial->GetVSize();
    const int vsize_test = fes_test->GetVSize();
 
@@ -1003,13 +1042,13 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    if (RealInteg())
    {
       b_0 = b_r;
-      _mblfr->FormRectangularLinearSystem(
+      mblfr->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_r, X_0, B_0);
       X_r = X_0;
       B_r = B_0;
 
       b_0 = b_i;
-      _mblfr->FormRectangularLinearSystem(
+      mblfr->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_r, X_0, B_0);
       X_i = X_0;
       B_i = B_0;
@@ -1017,12 +1056,12 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       if (ImagInteg())
       {
          b_0 = 0.0;
-         _mblfi->FormRectangularLinearSystem(
+         mblfi->FormRectangularLinearSystem(
             ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
          B_r -= B_0;
 
          b_0 = 0.0;
-         _mblfi->FormRectangularLinearSystem(
+         mblfi->FormRectangularLinearSystem(
             ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
          B_i += B_0;
       }
@@ -1030,14 +1069,14 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    else if (ImagInteg())
    {
       b_0 = b_i;
-      _mblfi->FormRectangularLinearSystem(
+      mblfi->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
       X_r = X_0;
       B_i = B_0;
 
       b_0 = b_r;
       b_0 *= -1.0;
-      _mblfi->FormRectangularLinearSystem(
+      mblfi->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
       X_i = X_0;
       B_r = B_0;
@@ -1062,21 +1101,6 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
          const int j = ess_trial_tdof_list[i];
          xe_r[j] = x_r[j];
          xe_i[j] = x_i[j];
-      }
-
-      A_r->AddMult(xe_r, b_r, -1.);
-      A_i->AddMult(xe_i, b_r, 1.);
-      A_i->AddMult(xe_r, b_i, -1.);
-      A_r->AddMult(xe_i, b_i, -1.);
-
-      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
-      // with standard essential BC treatment. Set columns corresponding to
-      // essential dofs to zero.
-      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
-      // method
-      if (A_i.Type() == Operator::MFEM_SPARSEMAT)
-      {
-         A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
       }
    }
 
@@ -1131,12 +1155,12 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
    OperatorHandle A_r, A_i;
    if (RealInteg())
    {
-      _mblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+      mblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
                                           A_r);
    }
    if (ImagInteg())
    {
-      _mblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+      mblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
                                           A_i);
    }
    if (!RealInteg() && !ImagInteg())
@@ -1186,8 +1210,8 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
 void
 MixedSesquilinearForm::Update()
 {
-   if ( _mblfr ) { _mblfr->Update(); }
-   if ( _mblfi ) { _mblfi->Update(); }
+   if ( mblfr ) { mblfr->Update(); }
+   if ( mblfi ) { mblfi->Update(); }
 }
 
 
@@ -2104,18 +2128,18 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
 bool
 ParMixedSesquilinearForm::RealInteg()
 {
-   int nint = _pmblfr->GetFBFI()->Size() + _pmblfr->GetDBFI()->Size() +
-              _pmblfr->GetBBFI()->Size() +
-              _pmblfr->GetBFBFI()->Size();
+   int nint = pmblfr->GetFBFI()->Size() + pmblfr->GetDBFI()->Size() +
+              pmblfr->GetBBFI()->Size() +
+              pmblfr->GetBFBFI()->Size();
    return (nint != 0);
 }
 
 bool
 ParMixedSesquilinearForm::ImagInteg()
 {
-   int nint = _pmblfi->GetFBFI()->Size() + _pmblfi->GetDBFI()->Size() +
-              _pmblfi->GetBBFI()->Size() +
-              _pmblfi->GetBFBFI()->Size();
+   int nint = pmblfi->GetFBFI()->Size() + pmblfi->GetDBFI()->Size() +
+              pmblfi->GetBBFI()->Size() +
+              pmblfi->GetBFBFI()->Size();
    return (nint != 0);
 }
 
@@ -2124,8 +2148,8 @@ ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
                                                    ParFiniteElementSpace * test_fes,
                                                    ComplexOperator::Convention convention)
    : _conv(convention),
-     _pmblfr(new ParMixedBilinearForm(trial_fes, test_fes)),
-     _pmblfi(new ParMixedBilinearForm(trial_fes, test_fes))
+     pmblfr(new ParMixedBilinearForm(trial_fes, test_fes)),
+     pmblfi(new ParMixedBilinearForm(trial_fes, test_fes))
 {
 }
 
@@ -2136,15 +2160,15 @@ ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
                                                    ParMixedBilinearForm * pbfi,
                                                    ComplexOperator::Convention convention)
    : _conv(convention),
-     _pmblfr(new ParMixedBilinearForm(trial_fes, test_fes, pbfr)),
-     _pmblfi(new ParMixedBilinearForm(trial_fes, test_fes, pbfi))
+     pmblfr(new ParMixedBilinearForm(trial_fes, test_fes, pbfr)),
+     pmblfi(new ParMixedBilinearForm(trial_fes, test_fes, pbfi))
 {
 }
 
 ParMixedSesquilinearForm::~ParMixedSesquilinearForm()
 {
-   delete _pmblfr;
-   delete _pmblfi;
+   delete pmblfr;
+   delete pmblfi;
 }
 
 void
@@ -2153,11 +2177,11 @@ ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _pmblfr->AddDomainIntegrator(bfi_real);
+      pmblfr->AddDomainIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddDomainIntegrator(bfi_imag);
+      pmblfi->AddDomainIntegrator(bfi_imag);
    }
 }
 
@@ -2168,11 +2192,11 @@ ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
 {
    if (bfi_real)
    {
-      _pmblfr->AddDomainIntegrator(bfi_real, elem_marker);
+      pmblfr->AddDomainIntegrator(bfi_real, elem_marker);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddDomainIntegrator(bfi_imag, elem_marker);
+      pmblfi->AddDomainIntegrator(bfi_imag, elem_marker);
    }
 }
 
@@ -2183,11 +2207,11 @@ ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _pmblfr->AddBoundaryIntegrator(bfi_real);
+      pmblfr->AddBoundaryIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddBoundaryIntegrator(bfi_imag);
+      pmblfi->AddBoundaryIntegrator(bfi_imag);
    }
 }
 
@@ -2199,11 +2223,11 @@ ParMixedSesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _pmblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
+      pmblfr->AddBoundaryIntegrator(bfi_real, bdr_marker);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
+      pmblfi->AddBoundaryIntegrator(bfi_imag, bdr_marker);
    }
 }
 
@@ -2214,11 +2238,11 @@ ParMixedSesquilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _pmblfr->AddInteriorFaceIntegrator(bfi_real);
+      pmblfr->AddInteriorFaceIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddInteriorFaceIntegrator(bfi_imag);
+      pmblfi->AddInteriorFaceIntegrator(bfi_imag);
    }
 }
 
@@ -2229,11 +2253,11 @@ ParMixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _pmblfr->AddBdrFaceIntegrator(bfi_real);
+      pmblfr->AddBdrFaceIntegrator(bfi_real);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddBdrFaceIntegrator(bfi_imag);
+      pmblfi->AddBdrFaceIntegrator(bfi_imag);
    }
 }
 
@@ -2245,33 +2269,72 @@ ParMixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *
 {
    if (bfi_real)
    {
-      _pmblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
+      pmblfr->AddBdrFaceIntegrator(bfi_real, bdr_marker);
    }
    if (bfi_imag)
    {
-      _pmblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+      pmblfi->AddBdrFaceIntegrator(bfi_imag, bdr_marker);
+   }
+}
+
+void ParMixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                                      BilinearFormIntegrator * bfi_imag)
+{
+   if (bfi_real)
+   {
+      pmblfr->AddTraceFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)
+   {
+      pmblfi->AddTraceFaceIntegrator(bfi_imag);
+   }
+}
+
+void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                                         BilinearFormIntegrator *bfi_imag)
+{
+   if (bfi_real)
+   {
+      pmblfr->AddBdrTraceFaceIntegrator(bfi_real);
+   }
+   if (bfi_imag)   {
+      pmblfi->AddBdrTraceFaceIntegrator(bfi_imag);
+   }
+}
+
+void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                                         BilinearFormIntegrator *bfi_imag,
+                                                         Array<int> &bdr_marker)
+{
+   if (bfi_real)
+   {
+      pmblfr->AddBdrTraceFaceIntegrator(bfi_real, bdr_marker);
+   }
+   if (bfi_imag)
+   {
+      pmblfi->AddBdrTraceFaceIntegrator(bfi_imag, bdr_marker);
    }
 }
 
 void
 ParMixedSesquilinearForm::Assemble(int skip_zeros)
 {
-   _pmblfr->Assemble(skip_zeros);
-   _pmblfi->Assemble(skip_zeros);
+   pmblfr->Assemble(skip_zeros);
+   pmblfi->Assemble(skip_zeros);
 }
 
 void
 ParMixedSesquilinearForm::Finalize(int skip_zeros)
 {
-   _pmblfr->Finalize(skip_zeros);
-   _pmblfi->Finalize(skip_zeros);
+   pmblfr->Finalize(skip_zeros);
+   pmblfi->Finalize(skip_zeros);
 }
 
 ComplexHypreParMatrix *
 ParMixedSesquilinearForm::ParallelAssemble()
 {
    return new ComplexHypreParMatrix(
-             _pmblfr->ParallelAssemble(), _pmblfi->ParallelAssemble(), true, true, _conv);
+             pmblfr->ParallelAssemble(), pmblfi->ParallelAssemble(), true, true, _conv);
 }
 
 void
@@ -2284,8 +2347,8 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                                       Vector & X,
                                                       Vector & B)
 {
-   FiniteElementSpace * pfes_trial = _pmblfr->TrialFESpace();
-   FiniteElementSpace * pfes_test = _pmblfr->TestFESpace();
+   FiniteElementSpace * pfes_trial = pmblfr->TrialFESpace();
+   FiniteElementSpace * pfes_test = pmblfr->TestFESpace();
    const int vsize_trial = pfes_trial->GetVSize();
    const int vsize_test = pfes_test->GetVSize();
 
@@ -2342,13 +2405,13 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    if (RealInteg())
    {
       b_0 = b_r;
-      _pmblfr->FormRectangularLinearSystem(
+      pmblfr->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_r, X_0, B_0);
       X_r = X_0;
       B_r = B_0;
 
       b_0 = b_i;
-      _pmblfr->FormRectangularLinearSystem(
+      pmblfr->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_r, X_0, B_0);
       X_i = X_0;
       B_i = B_0;
@@ -2356,12 +2419,12 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       if (ImagInteg())
       {
          b_0 = 0.0;
-         _pmblfi->FormRectangularLinearSystem(
+         pmblfi->FormRectangularLinearSystem(
             ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
          B_r -= B_0;
 
          b_0 = 0.0;
-         _pmblfi->FormRectangularLinearSystem(
+         pmblfi->FormRectangularLinearSystem(
             ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
          B_i += B_0;
       }
@@ -2369,14 +2432,14 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    else if (ImagInteg())
    {
       b_0 = b_i;
-      _pmblfi->FormRectangularLinearSystem(
+      pmblfi->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_r, b_0, A_i, X_0, B_0);
       X_r = X_0;
       B_i = B_0;
 
       b_0 = b_r;
       b_0 *= -1.0;
-      _pmblfi->FormRectangularLinearSystem(
+      pmblfi->FormRectangularLinearSystem(
          ess_trial_tdof_list, ess_test_tdof_list, x_i, b_0, A_i, X_0, B_0);
       X_i = X_0;
       B_r = B_0;
@@ -2401,21 +2464,6 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
          const int j = ess_trial_tdof_list[i];
          xe_r[j] = x_r[j];
          xe_i[j] = x_i[j];
-      }
-
-      A_r->AddMult(xe_r, b_r, -1.);
-      A_i->AddMult(xe_i, b_r, 1.);
-      A_i->AddMult(xe_r, b_i, -1.);
-      A_r->AddMult(xe_i, b_i, -1.);
-
-      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
-      // with standard essential BC treatment. Set columns corresponding to
-      // essential dofs to zero.
-      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
-      // method
-      if (A_i.Type() == Operator::Hypre_ParCSR)
-      {
-         A_i.As<HypreParMatrix>()->EliminateCols(ess_trial_tdof_list);
       }
    }
 
@@ -2470,12 +2518,12 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
    OperatorHandle A_r, A_i;
    if (RealInteg())
    {
-      _pmblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+      pmblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
                                            A_r);
    }
    if (ImagInteg())
    {
-      _pmblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
+      pmblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
                                            A_i);
    }
    if (!RealInteg() && !ImagInteg())
@@ -2525,8 +2573,8 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
 void
 ParMixedSesquilinearForm::Update()
 {
-   if ( _pmblfr ) { _pmblfr->Update(); }
-   if ( _pmblfi ) { _pmblfi->Update(); }
+   if ( pmblfr ) { pmblfr->Update(); }
+   if ( pmblfi ) { pmblfi->Update(); }
 }
 
 

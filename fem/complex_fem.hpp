@@ -456,8 +456,8 @@ class MixedSesquilinearForm
 private:
    ComplexOperator::Convention _conv;
 
-   MixedBilinearForm * _mblfr;
-   MixedBilinearForm * _mblfi;
+   MixedBilinearForm * mblfr;
+   MixedBilinearForm * mblfi;
 
    /* These methods check if the real/imag parts of the sesqulinear form are not
       empty */
@@ -500,14 +500,14 @@ public:
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level)
    {
-      _mblfr->SetAssemblyLevel(assembly_level);
-      _mblfi->SetAssemblyLevel(assembly_level);
+      mblfr->SetAssemblyLevel(assembly_level);
+      mblfi->SetAssemblyLevel(assembly_level);
    }
 
-   MixedBilinearForm & real() { return *_mblfr; }
-   MixedBilinearForm & imag() { return *_mblfi; }
-   const MixedBilinearForm & real() const { return *_mblfr; }
-   const MixedBilinearForm & imag() const { return *_mblfi; }
+   MixedBilinearForm & real() { return *mblfr; }
+   MixedBilinearForm & imag() { return *mblfi; }
+   const MixedBilinearForm & real() const { return *mblfr; }
+   const MixedBilinearForm & imag() const { return *mblfi; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
@@ -551,6 +551,23 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
                              BilinearFormIntegrator * bfi_imag,
                              Array<int> & bdr_marker);
+    
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+       This type of integrator assembles terms over all faces of the mesh using
+       the face FE from the trial space and the two adjacent volume FEs from
+       the test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real, 
+                               BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag,
+                                  Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
@@ -564,6 +581,19 @@ public:
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    ComplexSparseMatrix *AssembleComplexSparseMatrix();
+
+   /// Return the trial FE space associated with the MixedSesquilinearForm.
+   FiniteElementSpace *TrialFESpace() { return mblfr->TrialFESpace(); }
+
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const { return mblfr->TrialFESpace(); }
+
+   /// Return the test FE space associated with the MixedSesquilinearForm.
+   FiniteElementSpace *TestFESpace() { return mblfr->TestFESpace(); }
+
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return mblfr->TestFESpace(); }
+
 
    void FormRectangularLinearSystem(const Array<int> & ess_trial_tdof_list,
                                     const Array<int> & ess_test_tdof_list,
@@ -1016,8 +1046,8 @@ class ParMixedSesquilinearForm
 private:
    ComplexOperator::Convention _conv;
 
-   ParMixedBilinearForm * _pmblfr;
-   ParMixedBilinearForm * _pmblfi;
+   ParMixedBilinearForm * pmblfr;
+   ParMixedBilinearForm * pmblfi;
 
    /* These methods check if the real/imag parts of the sesqulinear form are not
       empty */
@@ -1059,14 +1089,14 @@ public:
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level)
    {
-      _pmblfr->SetAssemblyLevel(assembly_level);
-      _pmblfi->SetAssemblyLevel(assembly_level);
+      pmblfr->SetAssemblyLevel(assembly_level);
+      pmblfi->SetAssemblyLevel(assembly_level);
    }
 
-   ParMixedBilinearForm & real() { return *_pmblfr; }
-   ParMixedBilinearForm & imag() { return *_pmblfi; }
-   const ParMixedBilinearForm & real() const { return *_pmblfr; }
-   const ParMixedBilinearForm & imag() const { return *_pmblfi; }
+   ParMixedBilinearForm & real() { return *pmblfr; }
+   ParMixedBilinearForm & imag() { return *pmblfi; }
+   const ParMixedBilinearForm & real() const { return *pmblfr; }
+   const ParMixedBilinearForm & imag() const { return *pmblfi; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
@@ -1110,6 +1140,23 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
                              BilinearFormIntegrator * bfi_imag,
                              Array<int> & bdr_marker);
+
+    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+       This type of integrator assembles terms over all faces of the mesh using
+       the face FE from the trial space and the two adjacent volume FEs from
+       the test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real, 
+                               BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag,
+                                  Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);

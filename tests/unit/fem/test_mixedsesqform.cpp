@@ -20,7 +20,6 @@ constexpr real_t a_coef = 1.0;
 constexpr real_t b_coef = 2.0;
 constexpr real_t c_coef = 3.0;
 constexpr real_t omega_val = 10.0;
-const char *mesh_file = "./data/square.mesh";
 
 real_t V_exact_fn(const Vector &x)
 {
@@ -30,7 +29,7 @@ real_t V_exact_fn(const Vector &x)
 
 TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 {
-   Mesh mesh(mesh_file);
+   Mesh mesh = Mesh::MakeCartesian3D(10, 10, 1, Element::HEXAHEDRON);
    H1_FECollection fec_h1(1, mesh.Dimension());
    FiniteElementSpace fespace_h1(&mesh, &fec_h1);
    ND_FECollection fec_nd(1, mesh.Dimension());
@@ -137,11 +136,19 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    GMRESSolver gmres;
    gmres.SetOperator(blockOp);
    gmres.SetPreconditioner(P);
-   gmres.SetRelTol(1e-10);
-   gmres.SetMaxIter(5000);
+   gmres.SetAbsTol(1e-10);
+   gmres.SetMaxIter(2000);
    gmres.SetKDim(200);
-   gmres.SetPrintLevel(0);
+   gmres.SetPrintLevel(2);
    gmres.Mult(trueRHS, trueX);
+
+   std::fprintf(stderr,
+                "[GMRES] converged=%d iters=%d final_norm=%.3e\n",
+                gmres.GetConverged(), gmres.GetNumIterations(),
+                gmres.GetFinalNorm());
+   std::fprintf(stderr, "trueX block sizes: %d, %d  (matrix N=%d)\n",
+                trueX.GetBlock(0).Size(), trueX.GetBlock(1).Size(),
+                blockOp.Height());
 
    delete Sh1;
    delete Snd;
@@ -150,17 +157,18 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    A = trueX.GetBlock(1);
 
    // Check solution
-   ComplexGridFunction V_exact(&fespace_h1);
-   ComplexGridFunction A_exact(&fespace_nd);
    ConstantCoefficient zero(0.0);
    VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
-   V_exact.ProjectCoefficient(V_exact_real, zero);
-   A_exact.ProjectCoefficient(zero_vec, A_exact_imag);
-   V_exact -= V;
-   A_exact -= A;
-   REQUIRE(V_exact.Norml2() == MFEM_Approx(0.0, 1e-5));
-   REQUIRE(A_exact.Norml2() == MFEM_Approx(0.0, 1e-5));
+   real_t err_Vr = V.real().ComputeL2Error(V_exact_real);
+   real_t err_Vi = V.imag().ComputeL2Error(zero);
+   real_t err_Ar = A.real().ComputeL2Error(zero_vec);
+   real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
+   
+   REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Vi == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Ar == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Ai == MFEM_Approx(0.0, 1e-5));
 }
 
 #ifdef MFEM_USE_MPI
@@ -169,7 +177,7 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 TEST_CASE("Parallel Mixed Sesquilinear Form",
           "[MixedSesquilinearForm][Parallel]")
 {
-   Mesh mesh(mesh_file);
+   Mesh mesh = Mesh::MakeCartesian3D(10, 10, 1, Element::HEXAHEDRON);
    ParMesh par_mesh(MPI_COMM_WORLD, mesh);
    H1_FECollection fec_h1(1, mesh.Dimension());
    ParFiniteElementSpace fespace_h1(&par_mesh, &fec_h1);
@@ -270,7 +278,6 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    SuperLUSolver superlu(MPI_COMM_WORLD);
    superlu.SetPrintStatistics(false);
    superlu.SetSymmetricPattern(false);
-   superlu.SetColumnPermutation(superlu::PARMETIS);
    superlu.SetOperator(S_op);
    superlu.Mult(trueRHS, trueX);
 
@@ -281,17 +288,18 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    A.Distribute(trueX.GetBlock(1));
 
    // Check solution
-   ParComplexGridFunction V_exact(&fespace_h1);
-   ParComplexGridFunction A_exact(&fespace_nd);
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec((Vector) {0.0, 0.0, 0.0});
+   VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
-   V_exact.ProjectCoefficient(V_exact_real, zero);
-   A_exact.ProjectCoefficient(zero_vec, A_exact_imag);
-   V_exact -= V;
-   A_exact -= A;
-   REQUIRE(V_exact.Norml2() == MFEM_Approx(0.0, 1e-5));
-   REQUIRE(A_exact.Norml2() == MFEM_Approx(0.0, 1e-5));
+   real_t err_Vr = V.real().ComputeL2Error(V_exact_real);
+   real_t err_Vi = V.imag().ComputeL2Error(zero);
+   real_t err_Ar = A.real().ComputeL2Error(zero_vec);
+   real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
+   
+   REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Vi == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Ar == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_Ai == MFEM_Approx(0.0, 1e-5));
 }
 
 #endif
