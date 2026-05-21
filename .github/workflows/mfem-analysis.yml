@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: checkout MFEM
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: mfem
 
@@ -50,7 +50,7 @@ jobs:
 
       - name: Cache Hypre Install
         id: hypre-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
           key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-v2.5
@@ -65,7 +65,7 @@ jobs:
 
       - name: Cache Metis Install
         id: metis-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.METIS_TOP_DIR }}
           key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5

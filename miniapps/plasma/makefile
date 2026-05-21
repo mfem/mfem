@@ -12,14 +12,8 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
-CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
-   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
-
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -32,6 +26,14 @@ else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+PLASMA_SUBDIRS = pic
+
+SUBDIRS_ALL = $(addsuffix /all,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST = $(addsuffix /test,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST_NOCLEAN = $(addsuffix /test-noclean,$(PLASMA_SUBDIRS))
+SUBDIRS_CLEAN = $(addsuffix /clean,$(PLASMA_SUBDIRS))
+SUBDIRS_TPRINT = $(addsuffix /test-print,$(PLASMA_SUBDIRS))
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
@@ -41,25 +43,30 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS)
+all: $(MINIAPPS) $(SUBDIRS_ALL)
+
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
+   $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) $(SUBDIRS_CLEAN):
+	$(MAKE) -C $(@D) $(@F)
+$(SUBDIRS_TPRINT):
+	@$(MAKE) -C $(@D) $(@F)
 
 # Rules for building the miniapps
 HDG_DEPS = $(SRC)../hdg/darcyop
 HDG_MINIAPPS = braginskii_hdg
 
-%: $(SRC)%.o %_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
-	  $(MFEM_LIBS)
+%: $(SRC)%.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
-$(HDG_MINIAPPS): $(HDG_MINIAPPS).o $(HDG_MINIAPPS)_solver.o $(HDG_DEPS).o $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(HDG_DEPS).o \
+$(HDG_MINIAPPS): $(HDG_MINIAPPS).o $(HDG_DEPS).o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(HDG_DEPS).o \
 	  $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(CONFIG_MK)
@@ -69,14 +76,6 @@ $(HDG_MINIAPPS).o: $(HDG_MINIAPPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling miniapp dependencies
-$(addsuffix _solver.o,$(filter-out $(MINIAPPS), $(HDG_MINIAPPS))): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
-
-$(addsuffix _solver.o,$(HDG_MINIAPPS)): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(HDG_DEPS).hpp $(HDG_DEPS).o $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
-
 $(HDG_DEPS).o: $(HDG_DEPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
@@ -84,20 +83,11 @@ $(HDG_DEPS).o: $(HDG_DEPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
-# Rules to copy the *.mesh files - needed for running the sample runs when
-# building out-of-source:
-#ifneq ($(SRC),)
-#TRANSPORT2D_MESH_FILES = 
-#ifeq ($(MFEM_USE_NETCDF),YES)
-#   TRANSPORT2D_MESH_FILES += 
-#endif
-#$(TRANSPORT2D_MESH_FILES): %: $(SRC)%
-#	ln -sf $(<) .
-#transport2d: | $(TRANSPORT2D_MESH_FILES)
-#endif
-
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
+test: $(SUBDIRS_TEST)
+test-noclean: $(SUBDIRS_TEST_NOCLEAN)
+test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
@@ -108,11 +98,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build #clean-exec
+clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-#clean-exec:
-#	@rm -rf 
+clean-exec:

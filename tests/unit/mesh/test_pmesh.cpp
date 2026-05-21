@@ -121,6 +121,31 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
    }
 }
 
+TEST_CASE("ParMeshSharedFaces", "[Parallel], [ParMesh]")
+{
+   const char *mesh_file = "../../data/fichera-amr.mesh";
+
+   Mesh mesh(mesh_file);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   pmesh.ExchangeFaceNbrData();
+
+   const int nshared = pmesh.GetNSharedFaces();
+   int local_ghosts_nonmatching = 0;
+   for (int sf = 0; sf < nshared; sf++)
+   {
+      const int f = pmesh.GetSharedFace(sf);
+      FaceElementTransformations *ftr =
+         pmesh.GetSharedFaceTransformationsByLocalIndex(f, false);
+      if (f != ftr->ElementNo) { local_ghosts_nonmatching++; }
+   }
+
+   int global_ghosts_nonmatching = 0;
+   MPI_Allreduce(&local_ghosts_nonmatching, &global_ghosts_nonmatching, 1, MPI_INT,
+                 MPI_SUM, pmesh.GetComm());
+
+   REQUIRE(global_ghosts_nonmatching == 0);
+}
+
 namespace simplicial
 {
 

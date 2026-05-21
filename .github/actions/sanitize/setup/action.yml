@@ -23,7 +23,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - uses: actions/cache/restore@v4  # Cache for LLVM libcxx
+    - uses: actions/cache/restore@v5  # Cache for LLVM libcxx
       with:
         path: ${{env.LLVM_DIR}}
         fail-on-cache-miss: true
@@ -32,14 +32,14 @@ runs:
     - uses: ./.github/actions/sanitize/mpi
       if: ${{inputs.par == 'true'}}
 
-    - uses: actions/cache/restore@v4  # Cache for Hypre
+    - uses: actions/cache/restore@v5  # Cache for Hypre
       if: ${{inputs.par == 'true'}}
       with:
         path: ${{env.HYPRE_DIR}}
         fail-on-cache-miss: true
         key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-v2.5
 
-    - uses: actions/cache/restore@v4  # Cache for Metis
+    - uses: actions/cache/restore@v5  # Cache for Metis
       if: ${{inputs.par == 'true'}}
       with:
         path: ${{env.METIS_DIR}}
@@ -51,13 +51,13 @@ runs:
       run: ln -s -f ${{env.HYPRE_DIR}} hypre && ln -s -f ${{env.METIS_DIR}} metis-4.0
       shell: bash
 
-    - uses: actions/cache/restore@v4  # Cache for LSAN suppression file
+    - uses: actions/cache/restore@v5  # Cache for LSAN suppression file
       with:
         path: ${{env.LSAN_DIR}}
         fail-on-cache-miss: true
         key: build-lsan-suppression-file
 
-    - uses: actions/checkout@v4  # Checkout the repository
+    - uses: actions/checkout@v6  # Checkout the repository
       with:
         path: mfem
         # ref: ${{env.BRANCH}}

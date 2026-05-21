@@ -23,6 +23,8 @@ class BatchedLOR_DG : BatchedLORKernel
 {
    IntegrationRule ir_face; ///< Collocated Gauss-Lobatto face quadrature rule.
    real_t kappa; ///< DG penalty parameter.
+   bool has_bdr_integ; ///< Is there a boundary integrator?
+   const Array<int> *bdr_markers; ///< Boundary integrator markers.
 public:
    template <int ORDER, int SDIM> void Assemble2D();
    template <int ORDER> void Assemble3D();
@@ -38,14 +40,26 @@ public:
       ProjectLORCoefficient<MassIntegrator>(a, c1);
       ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 
-      auto *integ = GetInteriorFaceIntegrator<DGDiffusionIntegrator>(a);
-      if (integ)
+      if (auto *integ = GetInteriorFaceIntegrator<DGDiffusionIntegrator>(a))
       {
          kappa = integ->GetPenaltyParameter();
       }
       else
       {
          kappa = 0.0;
+      }
+
+      has_bdr_integ = false;
+      auto *bdr_face_integs = a.GetBFBFI();
+      for (int i = 0; i < bdr_face_integs->Size(); ++i)
+      {
+         if (auto *integ = dynamic_cast<DGDiffusionIntegrator*>((*bdr_face_integs)[i]))
+         {
+            kappa = integ->GetPenaltyParameter();
+            bdr_markers = (*a.GetBFBFI_Marker())[i];
+            has_bdr_integ = true;
+            break;
+         }
       }
    }
 
