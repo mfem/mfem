@@ -551,13 +551,13 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
                              BilinearFormIntegrator * bfi_imag,
                              Array<int> & bdr_marker);
-    
+
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
        the face FE from the trial space and the two adjacent volume FEs from
        the test space. */
-   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real, 
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
                                BilinearFormIntegrator * bfi_imag);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
@@ -1141,12 +1141,12 @@ public:
                              BilinearFormIntegrator * bfi_imag,
                              Array<int> & bdr_marker);
 
-    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
-       This type of integrator assembles terms over all faces of the mesh using
-       the face FE from the trial space and the two adjacent volume FEs from
-       the test space. */
-   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real, 
+      This type of integrator assembles terms over all faces of the mesh using
+      the face FE from the trial space and the two adjacent volume FEs from
+      the test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
                                BilinearFormIntegrator * bfi_imag);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.

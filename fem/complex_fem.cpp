@@ -914,7 +914,8 @@ MixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
    }
 }
 
-void MixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+void MixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator *
+                                                   bfi_real,
                                                    BilinearFormIntegrator * bfi_imag)
 {
    if (bfi_real)
@@ -927,19 +928,22 @@ void MixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_
    }
 }
 
-void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator
+                                                      *bfi_real,
                                                       BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real)
    {
       mblfr->AddBdrTraceFaceIntegrator(bfi_real);
    }
-   if (bfi_imag)   {
+   if (bfi_imag)
+   {
       mblfi->AddBdrTraceFaceIntegrator(bfi_imag);
    }
 }
 
-void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
+void MixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator
+                                                      *bfi_real,
                                                       BilinearFormIntegrator *bfi_imag,
                                                       Array<int> &bdr_marker)
 {
@@ -1156,12 +1160,12 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
    if (RealInteg())
    {
       mblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
-                                          A_r);
+                                         A_r);
    }
    if (ImagInteg())
    {
       mblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
-                                          A_i);
+                                         A_i);
    }
    if (!RealInteg() && !ImagInteg())
    {
@@ -2277,7 +2281,8 @@ ParMixedSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *
    }
 }
 
-void ParMixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+void ParMixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator *
+                                                      bfi_real,
                                                       BilinearFormIntegrator * bfi_imag)
 {
    if (bfi_real)
@@ -2290,21 +2295,24 @@ void ParMixedSesquilinearForm::AddTraceFaceIntegrator(BilinearFormIntegrator * b
    }
 }
 
-void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
-                                                         BilinearFormIntegrator *bfi_imag)
+void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(
+   BilinearFormIntegrator *bfi_real,
+   BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real)
    {
       pmblfr->AddBdrTraceFaceIntegrator(bfi_real);
    }
-   if (bfi_imag)   {
+   if (bfi_imag)
+   {
       pmblfi->AddBdrTraceFaceIntegrator(bfi_imag);
    }
 }
 
-void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi_real,
-                                                         BilinearFormIntegrator *bfi_imag,
-                                                         Array<int> &bdr_marker)
+void ParMixedSesquilinearForm::AddBdrTraceFaceIntegrator(
+   BilinearFormIntegrator *bfi_real,
+   BilinearFormIntegrator *bfi_imag,
+   Array<int> &bdr_marker)
 {
    if (bfi_real)
    {
@@ -2519,12 +2527,12 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
    if (RealInteg())
    {
       pmblfr->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
-                                           A_r);
+                                          A_r);
    }
    if (ImagInteg())
    {
       pmblfi->FormRectangularSystemMatrix(ess_trial_tdof_list, ess_test_tdof_list,
-                                           A_i);
+                                          A_i);
    }
    if (!RealInteg() && !ImagInteg())
    {
