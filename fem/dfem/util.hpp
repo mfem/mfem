@@ -2644,18 +2644,18 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int value_dim = 1;
          int grad_dim = 1;
 
-         if (dtq == nullptr)
-         {
-            // For VectorQuadratureSpace with Identity, use the vector dimension
-            // Data is point-wise at qpts: [nqpt][vdim]
-            const auto &fd = fds[field_map[idx]];
-            if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
-            {
-               const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
-               value_dim = vqs->GetVDim();
-            }
-            return std::tuple{dtq, value_dim, grad_dim};
-         }
+         // if (dtq == nullptr)
+         // {
+         //    // For VectorQuadratureSpace with Identity, use the vector dimension
+         //    // Data is point-wise at qpts: [nqpt][vdim]
+         //    const auto &fd = fds[field_map[idx]];
+         //    if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
+         //    {
+         //       const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+         //       value_dim = vqs->GetVDim();
+         //    }
+         //    return std::tuple{dtq, value_dim, grad_dim};
+         // }
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
              (!is_identity_fop<decltype(fop)>::value) &&
@@ -2720,25 +2720,25 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             MFEM_ABORT("identity/sum only implemented for VectorQuadratureSpace");
          }
 
-         bool use_tensor_dtq = false;
-         for (const auto *candidate_dtq : dtqs)
-         {
-            if (candidate_dtq != nullptr)
-            {
-               use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
-               break;
-            }
-         }
+         // bool use_tensor_dtq = false;
+         // for (const auto *candidate_dtq : dtqs)
+         // {
+         //    if (candidate_dtq != nullptr)
+         //    {
+         //       use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
+         //       break;
+         //    }
+         // }
+
+         // TODO: force tensor dtq rn, figure out a better way to handle this
 
          int nqpt = ir.GetNPoints();
          int ndof = nqpt;
-         if (use_tensor_dtq)
-         {
-            const int q1d = (int)floor(std::pow(ir.GetNPoints(),
-                                                1.0 / mesh_dimension) + 0.5);
-            nqpt = q1d;
-            ndof = q1d;
-         }
+         const int q1d = (int)floor(std::pow(ir.GetNPoints(),
+                                             1.0 / mesh_dimension) + 0.5);
+         nqpt = q1d;
+         ndof = q1d;
+
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
