@@ -944,19 +944,19 @@ int main(int argc, char *argv[])
     bool paraview_output = true;
 
     // Initialization options for the design domain
-    bool init_with_hole = true;             // Initialize with a symmetric hole in left-center
+    bool init_with_hole = false;             // Initialize with a symmetric hole in left-center
     real_t hole_radius = 0.1;                // Radius of hole as fraction of domain
     real_t hole_strength = 0.6;              // Strength of hole (0-1, where 1 removes material)
     real_t hole_size_x = 0.15;              // Position of hole center in x-direction as fraction from left edge
 
     // Promote black-white designs without changing the filter radius.
-    bool use_heaviside_projection = true;
+    bool use_heaviside_projection = false;
     real_t heaviside_eta = 0.5;
     real_t heaviside_beta_start = 3.0;
     real_t heaviside_beta_max = 12.0;
     real_t heaviside_beta_growth = 1.08;
     bool heaviside_beta_scaling = true;
-    real_t simp_power = 3.0;
+    real_t simp_power = 4.0;
 
     // bool init_with_randomness = false;       // Initialize with symmetric random perturbations
     // real_t randomness_magnitude = 0.5;       // Magnitude of random perturbations in latent space
@@ -1284,7 +1284,7 @@ int main(int argc, char *argv[])
     MPI_Bcast(timestamp_buffer, static_cast<int>(sizeof(timestamp_buffer)), MPI_CHAR, 0, MPI_COMM_WORLD);
 
     const std::string run_name =
-        "cvar_optimization_purely_deterministic_11May2026_v1_hole_" + std::string(timestamp_buffer);
+        "cvar_optimization_purely_deterministic_12May2026_simp4" + std::string(timestamp_buffer);
 
     // set up the paraview
     mfem::ParaViewDataCollection paraview_dc(run_name, &pmesh);
