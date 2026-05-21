@@ -415,8 +415,7 @@ public:
    /// Preprocess the surface mesh to compute data for FindPoints.
    void SetupSurf(Mesh &m,
                   const double bbox_rel_size_inc = 0.1,
-                  const double newt_tol = 1.0e-12,
-                  const int npt_max = 256);
+                  const double newt_tol = 1.0e-12);
 
    /** @brief Preprocess the surface mesh to compute data for FindPoints using
     *  absolute AABB expansion.
@@ -567,7 +566,12 @@ public:
     *  @details When using FindPoints, gslib may return points as found on the
     *  boundary even when they are slightly outside the domain. This tolerance
     *  is used to filter such points based on the distance^2 value and mark them
-    *  as not found.*/
+    *  as not found.
+    *
+    *  @note When the SetupSurfWithAABBExpansion method is used for surface
+    *  meshes, this tolerance is automatically computed based on the size of
+    *  expanded AABBs. Using this method will override that computed tolerance.
+    *  */
    virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
    {
       bdr_tol = bdr_tol_;

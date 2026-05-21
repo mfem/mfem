@@ -399,8 +399,8 @@ int main (int argc, char *argv[])
    else
    {
       finder.Setup(*mesh);
+      // finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    }
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
    finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();

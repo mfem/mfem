@@ -241,7 +241,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bbox_rel_size_inc,
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (m.Dimension() != m.SpaceDimension())
    {
-      SetupSurf(m, bbox_rel_size_inc, newt_tol, npt_max);
+      SetupSurf(m, bbox_rel_size_inc, newt_tol);
       return;
    }
    if (setupflag) { FreeData(); }
@@ -1096,8 +1096,7 @@ static void lagrange_eval_second_derivative(double *p0, double x, int i,
 
 void FindPointsGSLIB::SetupSurf(Mesh &m,
                                 const double bbox_rel_size_inc,
-                                const double newt_tol,
-                                const int npt_max)
+                                const double newt_tol)
 {
    SetupSurf_Base(m, bbox_rel_size_inc, nullptr, newt_tol);
 }
