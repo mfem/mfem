@@ -1,21 +1,10 @@
-//                                MFEM Example 5
+//                                MFEM logo miniapp
 //
-// Compile with: make ex5
+// Compile with: make mfem-logo
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  mfem-logo -nx 50 -o 3 -hb -dg -a 1e3 -ks 1e-3 -c 2e4
 //
 // Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
 //               problem in the mixed formulation corresponding to the system
@@ -31,29 +20,9 @@
 //               g = -a * <initial temperature> for the definite problem and
 //               g = -<initial temperature> for the indefinite one. These problems
 //               are offered:
-//               1) sine diffusion - with the asymptotic (a -> infinity) reference
-//                                   solution with the first order correction
-//               2) MFEM text conv-diff - random Gaussian blobs of conductivity
-//                                        and circular velocity with ASCII art
-//                                        of MFEM text as IC
-//               3) diffusion ring - arc segment IC diffused along circle
-//               4) diffusion ring Gauss - Gaussian blobs IC diffused along circle
-//               5) diffusion ring sine - sine profile in radial and angular
-//                                        direction is diffused along circle,
-//                                        analytic solution for asymptotic
-//                                        diffusion with zero radial diffusion
-//               6) boundary layer - exponentially decaying boundary layer problem
-//               7) steady peak - a peak profile with a constant conductivity and
-//                                a manufactured steady-state solution
-//               8) steady varying angle - a concave radial profile diffused
-//                                         along the circle with a manufactured
-//                                         steady-state solution
-//               9) Sovinec problem - a sine profile with diffusion perpendicular
-//                                    to gradient of potential with a manufactured
-//                                    steady-state solution
-//               10) Umansky problem - a transition profile with with diffusion
-//                                     along the interface, where the width is
-//                                     measured automatically
+//               - MFEM text conv-diff - random Gaussian blobs of conductivity
+//                                       and circular velocity with ASCII art
+//                                       of MFEM text as IC
 //               We discretize with Raviart-Thomas finite elements (heat flux q)
 //               and piecewise discontinuous polynomials (temperature T). Alternatively,
 //               the piecewise discontinuous polynomials are used for both quantities.
@@ -302,10 +271,6 @@ int main(int argc, char *argv[])
    auto cFun = GetCFun(pars);
    VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
 
-   auto tFun = GetTFun(pars);
-   FunctionCoefficient tcoeff(tFun); //temperature
-   SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
-
    auto fFun = GetFFun(pars);
    FunctionCoefficient fcoeff(fFun); //temperature rhs
 
@@ -489,19 +454,14 @@ int main(int argc, char *argv[])
       tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
    }
 
-   LinearForm *gform(new LinearForm);
-   gform->Update(V_space, rhs.GetBlock(0), 0);
-
-   LinearForm *fform(new LinearForm);
-   fform->Update(W_space, rhs.GetBlock(1), 0);
+   LinearForm *fform = darcy->GetPotentialRHS();
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
    //construct the operator
 
-   Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
-                               (Coefficient*)&fcoeff});
+   Array<Coefficient*> coeffs({(Coefficient*)&fcoeff});
 
-   DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, NULL, coeffs);
+   DarcyOperator op(ess_flux_tdofs_list, darcy, NULL, fform, NULL, coeffs);
 
    op.SetTolerance(1e-8);
 
