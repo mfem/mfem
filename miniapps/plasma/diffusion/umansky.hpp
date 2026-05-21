@@ -19,6 +19,12 @@ using namespace mfem;
 namespace umansky
 {
 
+/** The boundary values for the test problem defined in the Umansky
+    paper are set to zero on the y=0 and x=w sides of the rectangular
+    domain and zero to 1 on the x=0 and y=h sides. In order to improve
+    the symmetry of solutions we also define boundary values at the
+    points (0,0) and (w,h) to be equal to 0.5.
+ */
 class BoundaryCoefficient : public Coefficient
 {
 public:
@@ -52,6 +58,35 @@ private:
    real_t w_, h_;
 };
 
+/** In section 2.2 of the Umansky paper the anisotropic diffusion
+    coefficient is defined to be
+
+        / A C \
+    K = |     |
+        \ C B /
+
+    Where
+     A = K_xi cos^2(theta_m) + K_eta sin^2(theta_m)
+     B = K_xi sin^2(theta_m) + K_eta cos^2(theta_m)
+     C = (K_eta - K_xi) sin(theta_m) cos(theta_m)
+
+    The misalignment angle, theta_m, is defined as theta_m =
+    arctan(h/w) where h is the height of the domain and w is the
+    width.
+
+    We make use of the definition of theta_m to eliminate the
+    trigonometric functions from this coefficient. We also make the
+    simplifying assumption that K_eta=1 so that A_k, the anisotropy
+    ratio, is equal to K_xi.
+
+    With these changes the components of the diffusion coefficient can
+    be written as
+     A = 1 + (A_k - 1) w^2 / d^2
+     B = 1 + (A_k - 1) h^2 / d^2
+     C = (A_k - 1) w h / d^2
+
+    Where d^2 = w^2 + h^2, the squared length of the diagonal.
+ */
 class AnisotropicDiffusionCoefficient : public MatrixCoefficient
 {
 public:
