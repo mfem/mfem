@@ -472,46 +472,33 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   ParBilinearForm *Mq =(!nonlinear_flux && !bnldiff)?
-                        (darcy->GetParFluxMassForm()):(NULL);
-   ParNonlinearForm *Mqnl = (nonlinear_flux && !bnldiff)?
-                            (darcy->GetParFluxMassNonlinearForm()):(NULL);
-   ParBlockNonlinearForm *Mnl = (bnldiff)?
-                                (darcy->GetParBlockNonlinearForm()):(NULL);
-   ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
-   ParBilinearForm *Mt = (!nonlinear_pot && ((dg && (!Mnl || hybridization) &&
-                                              td > 0.) || bconv || btime))?
-                         (darcy->GetParPotentialMassForm()):(NULL);
-   ParNonlinearForm *Mtnl = (nonlinear_pot && ((dg && (!Mnl || hybridization) &&
-                                                td > 0.) || bconv || bnlconv || btime))?
-                            (darcy->GetParPotentialMassNonlinearForm()):(NULL);
-   FluxFunction *FluxFun = NULL;
-   NumericalFlux *FluxSolver = NULL;
-   MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
 
-   if (!Mnl)
+   MixedFluxFunction *HeatFluxFun = NULL;
+   if (!bnldiff)
    {
       //linear diffusion
-      if (dg)
+      if (!nonlinear_flux)
       {
-         if (Mq)
+         ParBilinearForm *Mq = darcy->GetParFluxMassForm();
+         if (dg)
          {
             Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
          }
-         if (Mqnl)
+         else
          {
-            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
          }
       }
       else
       {
-         if (Mq)
+         ParNonlinearForm *Mqnl = darcy->GetParFluxMassNonlinearForm();
+         if (dg)
          {
-            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
          }
-         if (Mqnl)
+         else
          {
             Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
          }
@@ -520,6 +507,7 @@ int main(int argc, char *argv[])
    else
    {
       //nonlinear diffusion
+      ParBlockNonlinearForm *Mnl = darcy->GetParBlockNonlinearForm();
       HeatFluxFun = GetHeatFluxFun(problem, k, dim);
       if (dg)
       {
@@ -550,16 +538,12 @@ int main(int argc, char *argv[])
    }
 
    //diffusion stabilization
-   if (dg && (!Mnl || hybridization) && td > 0.)
+   if (dg && (!bnldiff || hybridization) && td > 0.)
    {
-      if (bnldiff)
+      if (!nonlinear_pot)
       {
-         cerr << "Warning: Using linear stabilization for non-linear diffusion" << endl;
-      }
-
-      if (upwinded && hybridization)
-      {
-         if (Mt)
+         ParBilinearForm *Mt = darcy->GetParPotentialMassForm();
+         if (upwinded && hybridization)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
@@ -570,16 +554,7 @@ int main(int argc, char *argv[])
                                         bdr_is_dirichlet);
             }
          }
-         if (Mtnl)
-         {
-            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                       bdr_is_neumann);
-         }
-      }
-      else if (!upwinded)
-      {
-         if (Mt)
+         else if (!upwinded)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
@@ -590,7 +565,17 @@ int main(int argc, char *argv[])
                                         bdr_is_dirichlet);
             }
          }
-         if (Mtnl)
+      }
+      else
+      {
+         ParNonlinearForm *Mtnl = darcy->GetParPotentialMassNonlinearForm();
+         if (upwinded && hybridization)
+         {
+            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                       bdr_is_neumann);
+         }
+         else if (!upwinded)
          {
             Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
@@ -601,6 +586,7 @@ int main(int argc, char *argv[])
 
    //divergence/weak gradient
 
+   ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
    if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
@@ -638,71 +624,75 @@ int main(int argc, char *argv[])
       }
    }
 
-   //linear convection in the linear regime
+   //linear convection
 
-   if (bconv && Mt)
+   if (bconv)
    {
-      Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      if (upwinded)
+      if (!nonlinear_pot)
       {
-         Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         if (hybridization && trace_ess_bc)
+         ParBilinearForm *Mt = darcy->GetParPotentialMassForm();
+         Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+         if (upwinded)
          {
-            Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff),
-                                     bdr_is_neumann);
+            Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+            if (hybridization && trace_ess_bc)
+            {
+               Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff),
+                                        bdr_is_neumann);
+            }
+            else
+            {
+               Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+            }
          }
          else
          {
-            Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+            Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            if (hybridization)
+            {
+               //centered scheme does not work with Dirichlet when hybridized,
+               //giving an diverging system, we use the full BC flux here
+               Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                        bdr_is_neumann);
+            }
+            else
+            {
+               Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            }
          }
       }
       else
       {
-         Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         if (hybridization)
+         ParNonlinearForm *Mtnl = darcy->GetParPotentialMassNonlinearForm();
+         Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+         if (upwinded)
          {
-            //centered scheme does not work with Dirichlet when hybridized,
-            //giving an diverging system, we use the full BC flux here
-            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
-                                     bdr_is_neumann);
+            Mtnl->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+            Mtnl->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
          }
          else
          {
-            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         }
-      }
-   }
-
-   //linear convection in the nonlinear regime
-
-   if (bconv && Mtnl)
-   {
-      Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      if (upwinded)
-      {
-         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         Mtnl->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-      }
-      else
-      {
-         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         if (hybridization)
-         {
-            //centered scheme does not work with Dirichlet when hybridized,
-            //giving an diverging system, we use the full BC flux here
-            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
-                                       bdr_is_neumann);
-         }
-         else
-         {
-            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            Mtnl->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            if (hybridization)
+            {
+               //centered scheme does not work with Dirichlet when hybridized,
+               //giving an diverging system, we use the full BC flux here
+               Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                          bdr_is_neumann);
+            }
+            else
+            {
+               Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            }
          }
       }
    }
 
    //nonlinear convection in the nonlinear regime
 
-   if (bnlconv && Mtnl)
+   FluxFunction *FluxFun = NULL;
+   NumericalFlux *FluxSolver = NULL;
+   if (bnlconv && nonlinear_pot)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
       switch (hdg_scheme)
@@ -715,11 +705,21 @@ int main(int argc, char *argv[])
             cerr << "Unknown HDG scheme" << endl;
             exit(1);
       }
+      ParNonlinearForm *Mtnl = darcy->GetParPotentialMassNonlinearForm();
       Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
       Mtnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(
                                          *FluxSolver, 0, -1.));
       Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(
                                     *FluxSolver, 0, -1.));
+   }
+
+   // inertial term
+   // Note the mass integrator is added in DarcyOperator, but we must construct
+   // the corresponding bilinear form here
+   if (btime)
+   {
+      if (!nonlinear_pot) { darcy->GetParPotentialMassForm(); }
+      else { darcy->GetParPotentialMassNonlinearForm(); }
    }
 
    //set hybridization / assembly level

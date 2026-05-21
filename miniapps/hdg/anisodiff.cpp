@@ -429,40 +429,33 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   BilinearForm *Mq =(!nonlinear && !bnldiff)?(darcy->GetFluxMassForm()):(NULL);
-   NonlinearForm *Mqnl = (nonlinear && !bnldiff)?
-                         (darcy->GetFluxMassNonlinearForm()):(NULL);
-   BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
-   MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || pars.a > 0.))?
-                      (darcy->GetPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || pars.a > 0.))?
-                         (darcy->GetPotentialMassNonlinearForm()):(NULL);
-   MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
 
+   MixedFluxFunction *HeatFluxFun = NULL;
    if (!bnldiff)
    {
       //linear diffusion
-      if (dg)
+      if (!nonlinear)
       {
-         if (Mq)
+         BilinearForm *Mq = darcy->GetFluxMassForm();
+         if (dg)
          {
             Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
          }
-         if (Mqnl)
+         else
          {
-            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
          }
       }
       else
       {
-         if (Mq)
+         NonlinearForm *Mqnl = darcy->GetFluxMassNonlinearForm();
+         if (dg)
          {
-            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
          }
-         if (Mqnl)
+         else
          {
             Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
          }
@@ -471,6 +464,7 @@ int main(int argc, char *argv[])
    else
    {
       //nonlinear diffusion
+      BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
       HeatFluxFun = GetHeatFluxFun(pars, dim);
       if (dg)
       {
@@ -492,14 +486,16 @@ int main(int argc, char *argv[])
 
       if (td > 0.)
       {
-         if (Mt)
+         if (!nonlinear)
          {
+            BilinearForm *Mt = darcy->GetPotentialMassForm();
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                      bdr_is_neumann);
          }
-         if (Mtnl)
+         else
          {
+            NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
             Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                        bdr_is_neumann);
@@ -509,6 +505,7 @@ int main(int argc, char *argv[])
 
    //divergence/weak gradient
 
+   MixedBilinearForm *B = darcy->GetFluxDivForm();
    if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
@@ -530,12 +527,14 @@ int main(int argc, char *argv[])
 
    if (pars.a > 0.)
    {
-      if (Mt)
+      if (!nonlinear)
       {
+         BilinearForm *Mt = darcy->GetPotentialMassForm();
          Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
       }
       else
       {
+         NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
          Mtnl->AddDomainIntegrator(new MassIntegrator(acoeff));
       }
    }
