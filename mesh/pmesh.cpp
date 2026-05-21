@@ -4938,8 +4938,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       // FIXME: Double the faces also in 2D to get the boundaries when we shrink
       //        the materials in GLVis?
       // in 3D we print two oriented copies for each material interface face
-      num_bdr_elems += (Dim == 3) ? 2*interface_faces.Size()
-                       : interface_faces.Size();
+      num_bdr_elems += (Dim == 3 ? 2 : 1) * interface_faces.Size();
    }
    os << "\nboundary\n" << num_bdr_elems << '\n';
    for (int i = 0; i < NumOfBdrElements; i++)

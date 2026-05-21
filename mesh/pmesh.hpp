@@ -732,11 +732,15 @@ public:
    // - if print == 0, use the real element and boundary attributes,
    // - otherwise, processor rank + 1 is used for both, the element and boundary
    //   attributes.
+   // The ParMesh object itself is not modified, this only affects file output
+   // for visualization.
    // The default value of this flag is true.
    void SetPrintShared(bool print) { print_shared = print; }
 
    // Enable Print() and PrintAsOne() to add material interfaces as boundary
    // (typically used for visualization purposes).
+   // The ParMesh object itself is not modified, this only affects file output
+   // for visualization.
    // The default value of this flag is false.
    void SetPrintInterfaces(bool print) { print_interfaces = print; }
 
