@@ -950,13 +950,16 @@ int main(int argc, char *argv[])
     real_t hole_size_x = 0.15;              // Position of hole center in x-direction as fraction from left edge
 
     // Promote black-white designs without changing the filter radius.
-    bool use_heaviside_projection = false;
-    real_t heaviside_eta = 0.5;
-    real_t heaviside_beta_start = 3.0;
-    real_t heaviside_beta_max = 12.0;
-    real_t heaviside_beta_growth = 1.08;
-    bool heaviside_beta_scaling = true;
-    real_t simp_power = 4.0;
+
+    // TODO: heaviside projection with eroded for compliance and dilated for volume constraint, as in "Projection methods for topology optimization with multiple materials" by Wang et al 2020. We can do this by maintaining two prox variables for the latent probabilities, one for compliance and one for volume, and updating them with different heaviside betas.
+    bool use_heaviside_projection = true;
+    real_t heaviside_eta_d = 0.3;
+    real_t heaviside_eta_e = 0.7;
+    real_t heaviside_beta_start = 8.0;
+    real_t heaviside_beta_max = 8.0;
+    real_t heaviside_beta_growth = 1.00;
+    bool heaviside_beta_scaling = false;
+    real_t simp_power = 1.0;
 
     // bool init_with_randomness = false;       // Initialize with symmetric random perturbations
     // real_t randomness_magnitude = 0.5;       // Magnitude of random perturbations in latent space
@@ -970,7 +973,7 @@ int main(int argc, char *argv[])
 
     const real_t cvar_alpha = 0.95;
     const int outer_loop_iterations = 100;
-    const int inner_loop_iterations = 50;
+    const int inner_loop_iterations = 15;
     const int MAX_BACKTRACKING_ATTEMPTS = 20; // maximum number of backtracking attempts in each inner loop iteration.
 
     const real_t block_size_ratio = 1.0; // trying full blocks // change back to 0.35
@@ -1042,8 +1045,10 @@ int main(int argc, char *argv[])
                    "Strength of hole: 0-1 where 1 removes material (default 0.8).");
     args.AddOption(&use_heaviside_projection, "-hproj", "--heaviside-projection", "-no-hproj", "--no-heaviside-projection",
                    "Enable Heaviside projection of filtered densities to promote 0-1 designs.");
-    args.AddOption(&heaviside_eta, "-heta", "--heaviside-eta",
-                   "Threshold eta for Heaviside projection (default 0.5).");
+    args.AddOption(&heaviside_eta_d, "-heta-d", "--heaviside-eta-d",
+                   "Threshold eta for Heaviside projection in volume/projection computations (default 0.3).");
+    args.AddOption(&heaviside_eta_e, "-heta-e", "--heaviside-eta-e",
+                   "Threshold eta for Heaviside projection in compliance and gradient computations (default 0.7).");
     args.AddOption(&heaviside_beta_start, "-hbs", "--heaviside-beta-start",
                    "Initial beta for Heaviside projection continuation (default 1.0).");
     args.AddOption(&heaviside_beta_max, "-hbm", "--heaviside-beta-max",
@@ -1141,7 +1146,8 @@ int main(int argc, char *argv[])
     // MappedGridFunctionCoefficient odens_old_old(&odens_latent_old_old, sigmoid); // for GBB test
     // define the filtered field
     ParGridFunction fdens(filt->GetFilterFES());
-    ParGridFunction hbeta_fdens(filt->GetFilterFES());
+    ParGridFunction hbeta_fdens_e(filt->GetFilterFES());
+    ParGridFunction hbeta_fdens_d(filt->GetFilterFES());
     real_t heaviside_beta_current = heaviside_beta_start;
 
     class PostHeavisideCoefficient : public Coefficient
@@ -1167,8 +1173,10 @@ int main(int argc, char *argv[])
         real_t *eta;
         real_t *beta;
     };
-    PostHeavisideCoefficient post_heaviside_coeff(
-        &fdens, &use_heaviside_projection, &heaviside_eta, &heaviside_beta_current);
+    PostHeavisideCoefficient post_heaviside_coeff_e(
+        &fdens, &use_heaviside_projection, &heaviside_eta_e, &heaviside_beta_current);
+    PostHeavisideCoefficient post_heaviside_coeff_d(
+        &fdens, &use_heaviside_projection, &heaviside_eta_d, &heaviside_beta_current);
 
     // hold the gradient of the functional. Used for GBB step size estimation.
     ParGridFunction odens_weighted_gradient(filt->GetDesignFES());
@@ -1218,7 +1226,7 @@ int main(int argc, char *argv[])
         }
         initialize_with_hole(odens_latent, target_volume, domain_volume, myid,
                              hole_radius, hole_strength, hole_size_x,
-                             use_heaviside_projection, heaviside_eta, heaviside_beta_start);
+                             use_heaviside_projection, heaviside_eta_d, heaviside_beta_start);
     }
     // else if (init_with_randomness)
     // {
@@ -1269,7 +1277,8 @@ int main(int argc, char *argv[])
 
     // filter the initial density
     filt->FFilter(&odens,fdens);
-    hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
+    hbeta_fdens_e.ProjectCoefficient(post_heaviside_coeff_e);
+    hbeta_fdens_d.ProjectCoefficient(post_heaviside_coeff_d);
 
     ParGridFunction& sol=elsolver->GetDisplacements();
 
@@ -1284,7 +1293,7 @@ int main(int argc, char *argv[])
     MPI_Bcast(timestamp_buffer, static_cast<int>(sizeof(timestamp_buffer)), MPI_CHAR, 0, MPI_COMM_WORLD);
 
     const std::string run_name =
-        "cvar_optimization_purely_deterministic_12May2026_simp4" + std::string(timestamp_buffer);
+        "cvar_optimization_purely_deterministic_14May2026_simp1_inner15_" + std::string(timestamp_buffer);
 
     // set up the paraview
     mfem::ParaViewDataCollection paraview_dc(run_name, &pmesh);
@@ -1297,7 +1306,8 @@ int main(int argc, char *argv[])
     paraview_dc.SetTime(0.0);
     paraview_dc.RegisterField("density", &odens_gf);
     paraview_dc.RegisterField("filtered_density", &fdens);
-    paraview_dc.RegisterField("post_heaviside_density", &hbeta_fdens);
+    paraview_dc.RegisterField("post_heaviside_density_e", &hbeta_fdens_e);
+    paraview_dc.RegisterField("post_heaviside_density_d", &hbeta_fdens_d);
     paraview_dc.RegisterField("control_gradient", &odens_gradient_single);
     paraview_dc.RegisterField("latent_density", &odens_latent);
     paraview_dc.RegisterField("disp",&sol);
@@ -1311,7 +1321,7 @@ int main(int argc, char *argv[])
     icc.SetSIMP(simp_power);
     if (use_heaviside_projection)
     {
-        icc.SetProj(heaviside_eta, heaviside_beta_current);
+        icc.SetProj(heaviside_eta_e, heaviside_beta_current);
     }
 
     // set the material to the elasticity solver
@@ -1474,12 +1484,13 @@ int main(int argc, char *argv[])
                 heaviside_beta_current = heaviside_beta_start;
             }
 
-            icc.SetProj(heaviside_eta, heaviside_beta_current);
+            icc.SetProj(heaviside_eta_e, heaviside_beta_current);
 
             if (myid == 0)
             {
                 std::cout << "[projection] outer=" << outer
-                          << " eta=" << heaviside_eta
+                          << " eta_d=" << heaviside_eta_d
+                          << " eta_e=" << heaviside_eta_e
                           << " beta=" << heaviside_beta_current
                           << " beta_scaling=" << heaviside_beta_scaling
                           << " simp_power=" << simp_power
@@ -1505,7 +1516,8 @@ int main(int argc, char *argv[])
 
         if (total_iterations == 0) {
             odens_gf.ProjectCoefficient(odens);
-            hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
+            hbeta_fdens_e.ProjectCoefficient(post_heaviside_coeff_e);
+            hbeta_fdens_d.ProjectCoefficient(post_heaviside_coeff_d);
             paraview_dc.SetCycle(total_iterations);
             paraview_dc.SetTime((real_t)total_iterations);
             paraview_dc.Save();
@@ -1592,7 +1604,7 @@ int main(int argc, char *argv[])
         odens_latent.median(CLAMP_MIN_VECTOR, CLAMP_MAX_VECTOR);
 
         real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                      use_heaviside_projection, heaviside_eta, heaviside_beta_current); // last two are tol and max its
+                                      use_heaviside_projection, heaviside_eta_d, heaviside_beta_current); // last two are tol and max its
         if (0 == myid)
         {
             cout << "For clamping on outer step " << outer << ", got material " << material_volume << ". Expected Material " << target_volume << "\n";
@@ -1783,6 +1795,52 @@ int main(int argc, char *argv[])
 
             if (myid == 0)
             {
+                real_t max_latent_symmetry_gap = 0.0;
+                real_t max_dual_probability_symmetry_gap = 0.0;
+                real_t mean_latent_symmetry_gap = 0.0;
+                real_t mean_dual_probability_symmetry_gap = 0.0;
+                int counted_pairs = 0;
+
+                for (size_t i = 0; i < latent_probabilities_k_jp1.size(); ++i)
+                {
+                    const size_t j = symmetric_index_vector[i];
+                    if (i > j)
+                    {
+                        continue;
+                    }
+
+                    const auto &[bits_i, original_probability_i, latent_probability_i] = latent_probabilities_k_jp1[i];
+                    const auto &[bits_j, original_probability_j, latent_probability_j] = latent_probabilities_k_jp1[j];
+
+                    const real_t latent_gap = std::abs(latent_probability_i - latent_probability_j);
+                    const real_t dual_probability_i = dual_probability_from_latent(original_probability_i, latent_probability_i);
+                    const real_t dual_probability_j = dual_probability_from_latent(original_probability_j, latent_probability_j);
+                    const real_t dual_probability_gap = std::abs(dual_probability_i - dual_probability_j);
+
+                    max_latent_symmetry_gap = std::max(max_latent_symmetry_gap, latent_gap);
+                    max_dual_probability_symmetry_gap = std::max(max_dual_probability_symmetry_gap, dual_probability_gap);
+                    mean_latent_symmetry_gap += latent_gap;
+                    mean_dual_probability_symmetry_gap += dual_probability_gap;
+                    counted_pairs++;
+                }
+
+                if (counted_pairs > 0)
+                {
+                    mean_latent_symmetry_gap /= static_cast<real_t>(counted_pairs);
+                    mean_dual_probability_symmetry_gap /= static_cast<real_t>(counted_pairs);
+                }
+
+                std::cout << inner_iter_tag
+                          << " [symmetry-diagnostic] paired_cases=" << counted_pairs
+                          << " max_latent_gap=" << max_latent_symmetry_gap
+                          << " mean_latent_gap=" << mean_latent_symmetry_gap
+                          << " max_dual_prob_gap=" << max_dual_probability_symmetry_gap
+                          << " mean_dual_prob_gap=" << mean_dual_probability_symmetry_gap
+                          << std::endl;
+            }
+
+            if (myid == 0)
+            {
                 for (size_t scenario_index = 0; scenario_index < latent_probabilities_k_jp1.size(); ++scenario_index)
                 {
                     const auto &[bits, original_probability, latent_probability] = latent_probabilities_k_jp1[scenario_index];
@@ -1834,31 +1892,40 @@ int main(int argc, char *argv[])
             } else {
                 if (myid == 0) std::cout << inner_iter_tag << " Filtering post-stochastic sampling.\n";
 
+                std::vector<size_t> kept_indices;
+                std::vector<float> kept_weights;
+                kept_indices.reserve(latent_probability_indices_to_sample.size());
+                kept_weights.reserve(latent_probability_indices_to_sample_weights.size());
+
                 for (size_t SAMPLE_INDEX = 0; SAMPLE_INDEX < latent_probability_indices_to_sample.size(); ++SAMPLE_INDEX) {
-                    real_t sample = latent_probability_indices_to_sample[SAMPLE_INDEX];
+                    const size_t sample = latent_probability_indices_to_sample[SAMPLE_INDEX];
+                    const float sample_weight = latent_probability_indices_to_sample_weights[SAMPLE_INDEX];
+                    bool keep_sample = true;
 
                     if (block_membership_mask[sample]) {
-                        real_t sample_weight = latent_probability_indices_to_sample_weights[SAMPLE_INDEX];
+                        const auto [bits_j, original_probability_j, latent_probability_j] = latent_probabilities_k_j[sample];
+                        const auto [bits_jp1, original_probability_jp1, latent_probability_jp1] = latent_probabilities_k_jp1[sample];
 
-                        auto [bits_j, original_probability_j, latent_probability_j] = latent_probabilities_k_j[sample];
-                        auto [bits_jp1, original_probability_jp1, latent_probability_jp1] = latent_probabilities_k_jp1[sample];
-
-                        real_t q_k_jp1 = dual_probability_from_latent(original_probability_jp1, latent_probability_jp1);
+                        const real_t q_k_jp1 = dual_probability_from_latent(original_probability_jp1, latent_probability_jp1);
                         if (myid == 0) std::cout << inner_iter_tag << " q_k_jp1 = " << q_k_jp1 << ", epsilon_q = " << epsilon_q << std::endl;
 
                         if (q_k_jp1 < epsilon_q) {
-                            if (myid == 0) std::cout << inner_iter_tag << " Erasing sample " << sample << " because q_k_jp1 < epsilon_q" << std::endl;
-
-                            latent_probability_indices_to_sample.erase(latent_probability_indices_to_sample.begin() + SAMPLE_INDEX);
-                            latent_probability_indices_to_sample_weights.erase(latent_probability_indices_to_sample_weights.begin() + SAMPLE_INDEX);
+                            if (myid == 0) std::cout << inner_iter_tag << " Dropping sample " << sample << " because q_k_jp1 < epsilon_q" << std::endl;
                             latent_probability_indices_to_sample_mask[sample] = false;
-
-                            continue; // skip if the probability is too small, for non-triviality and numerical issues in ratio
+                            keep_sample = false;
                         } else {
                             xi_in_empty = false; // now we know that there is a nontrivial weight.
                         }
-                    } 
+                    }
+
+                    if (keep_sample) {
+                        kept_indices.push_back(sample);
+                        kept_weights.push_back(sample_weight);
+                    }
                 }
+
+                latent_probability_indices_to_sample.swap(kept_indices);
+                latent_probability_indices_to_sample_weights.swap(kept_weights);
             }
 
             /**
@@ -2186,7 +2253,7 @@ int main(int argc, char *argv[])
 
                 // project our design onto the one with the proper volume
                 real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                              use_heaviside_projection, heaviside_eta, heaviside_beta_current); // last two are tol and max its
+                                              use_heaviside_projection, heaviside_eta_d, heaviside_beta_current); // last two are tol and max its
                 if (0 == myid)
                 {
                     cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
@@ -2312,7 +2379,8 @@ int main(int argc, char *argv[])
             {
                 total_iterations += 1;
                 odens_gf.ProjectCoefficient(odens);
-                hbeta_fdens.ProjectCoefficient(post_heaviside_coeff);
+                hbeta_fdens_e.ProjectCoefficient(post_heaviside_coeff_e);
+                hbeta_fdens_d.ProjectCoefficient(post_heaviside_coeff_d);
                 paraview_dc.SetCycle(total_iterations);
                 paraview_dc.SetTime((real_t)total_iterations);
                 paraview_dc.Save();
