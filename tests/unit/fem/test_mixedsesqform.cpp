@@ -164,7 +164,7 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    real_t err_Vi = V.imag().ComputeL2Error(zero);
    real_t err_Ar = A.real().ComputeL2Error(zero_vec);
    real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
-   
+
    REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
    REQUIRE(err_Vi == MFEM_Approx(0.0, 1e-5));
    REQUIRE(err_Ar == MFEM_Approx(0.0, 1e-5));
@@ -295,7 +295,7 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    real_t err_Vi = V.imag().ComputeL2Error(zero);
    real_t err_Ar = A.real().ComputeL2Error(zero_vec);
    real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
-   
+
    REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
    REQUIRE(err_Vi == MFEM_Approx(0.0, 1e-5));
    REQUIRE(err_Ar == MFEM_Approx(0.0, 1e-5));
