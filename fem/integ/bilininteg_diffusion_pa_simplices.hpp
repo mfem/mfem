@@ -58,6 +58,8 @@ inline void PADiffusionApplyTriangle(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
+
    const int BASIS_DIM = D1D * (D1D+1) / 2;
    const int p2 = (D1D-1) * (D1D-1);
 
@@ -290,6 +292,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
    const int BASIS_DIM = D1D * (D1D+1) / 2;
    const int p2 = (D1D-1) * (D1D-1);
 
@@ -512,6 +515,8 @@ inline void PADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
+
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
@@ -791,6 +796,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
+
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;

@@ -147,8 +147,9 @@ int main(int argc, char *argv[])
    //    - If the mesh is simplicial and partial assembly is requested,
    //      we use the positive basis, which supports device execution.
    FiniteElementCollection *fec;
-   auto basis_type = (pa && mesh.IsSimplexMesh()) ?
-                     BasisType::Positive : BasisType::GaussLobatto;
+   const auto pa_simplices = pa && mesh.IsSimplexMesh();
+   const auto basis_type =
+      pa_simplices ? BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim, basis_type);
@@ -210,7 +211,14 @@ int main(int argc, char *argv[])
       // bit-for-bit deterministic at the cost of somewhat longer run time.
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   // A null integration rule selects the integrator's default one.
+   const IntegrationRule *ir = nullptr;
+   if (pa_simplices)
+   {
+      // For simplicial mesh, select the Stroud integration rule.
+      ir = &StroudIntRules.Get(mesh.GetTypicalElementGeometry(), 2*order);
+   }
+   a.AddDomainIntegrator(new DiffusionIntegrator(one, ir));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
