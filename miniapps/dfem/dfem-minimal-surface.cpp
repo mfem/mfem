@@ -48,8 +48,8 @@
 //               visualization.
 
 #include "mfem.hpp"
-#include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../fem/dfem/doperator.hpp"
+#include "../../fem/dfem/backends/local_qf/prelude.hpp"
 
 using namespace mfem;
 
