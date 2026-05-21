@@ -54,7 +54,8 @@
 #include "darcyop.hpp"
 #include <fstream>
 #include <iostream>
-#include <algorithm>
+#include <memory>
+#include <functional>
 
 using namespace std;
 using namespace mfem;
@@ -85,8 +86,8 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c);
 VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(Problem prob, real_t c);
 TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
-FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim);
+unique_ptr<FluxFunction> GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
+unique_ptr<MixedFluxFunction> GetHeatFluxFun(Problem prob, real_t k, int dim);
 
 int main(int argc, char *argv[])
 {
@@ -335,22 +336,22 @@ int main(int argc, char *argv[])
       ny = nx;
    }
 
-   Mesh *mesh = NULL;
+   Mesh mesh;
    if (strlen(mesh_file) > 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = Mesh(mesh_file, 1, 1);
    }
    else
    {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
-                                            sx, sy));
+      mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
+                                   sx, sy);
    }
 
-   int dim = mesh->Dimension();
+   int dim = mesh.Dimension();
 
    // Mark boundary conditions
-   Array<int> bdr_is_dirichlet(mesh->bdr_attributes.Max());
-   Array<int> bdr_is_neumann(mesh->bdr_attributes.Max());
+   Array<int> bdr_is_dirichlet(mesh.bdr_attributes.Max());
+   Array<int> bdr_is_neumann(mesh.bdr_attributes.Max());
    bdr_is_dirichlet = 0;
    bdr_is_neumann = 0;
 
@@ -391,54 +392,54 @@ int main(int argc, char *argv[])
    if (strlen(mesh_file) > 0)
    {
       int ref_levels = (serial_ref_levels >= 0)?(serial_ref_levels):
-                       (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+                       (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    {
       for (int l = 0; l < parallel_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         pmesh.UniformRefinement();
       }
    }
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *V_coll, *V_coll_dg = NULL;
+   unique_ptr<FiniteElementCollection> V_coll;
+   unique_ptr<FiniteElementCollection> V_coll_dg;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      V_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      V_coll = new BrokenRT_FECollection(order, dim);
-      V_coll_dg = new L2_FECollection(order+1, dim);
+      V_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      V_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
-      V_coll = new RT_FECollection(order, dim);
+      V_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
-                                                         BasisType::GaussLobatto);
+   auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
-   ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, V_coll,
-                                                              (dg)?(dim):(1));
-   FiniteElementSpace *V_space_dg = (V_coll_dg)?(new ParFiniteElementSpace(
-                                                    pmesh, V_coll_dg, dim)):(NULL);
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
+   auto V_space = make_unique<ParFiniteElementSpace>(&pmesh, V_coll.get(),
+                                                     (dg)?(dim):(1));
+   auto V_space_dg = (V_coll_dg)?(make_unique<ParFiniteElementSpace>(
+                                     &pmesh, V_coll_dg.get(), dim)):(nullptr);
+   auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
-   ParDarcyForm *darcy = new ParDarcyForm(V_space, W_space);
+   auto darcy = make_unique<ParDarcyForm>(V_space.get(), W_space.get());
 
    // 8. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
@@ -475,7 +476,7 @@ int main(int argc, char *argv[])
 
    //diffusion
 
-   MixedFluxFunction *HeatFluxFun = NULL;
+   unique_ptr<MixedFluxFunction> HeatFluxFun;
    if (!bnldiff)
    {
       //linear diffusion
@@ -690,17 +691,19 @@ int main(int argc, char *argv[])
 
    //nonlinear convection in the nonlinear regime
 
-   FluxFunction *FluxFun = NULL;
-   NumericalFlux *FluxSolver = NULL;
+   unique_ptr<FluxFunction> FluxFun;
+   unique_ptr<NumericalFlux> FluxSolver;
    if (bnlconv && nonlinear_pot)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
       switch (hdg_scheme)
       {
-         case 1: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_1); break;
-         case 2: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_2); break;
-         case 3: FluxSolver = new RusanovFlux(*FluxFun); break;
-         case 4: FluxSolver = new ComponentwiseUpwindFlux(*FluxFun); break;
+         case 1: FluxSolver = make_unique<HDGFlux>(*FluxFun, HDGFlux::HDGScheme::HDG_1);
+            break;
+         case 2: FluxSolver = make_unique<HDGFlux>(*FluxFun, HDGFlux::HDGScheme::HDG_2);
+            break;
+         case 3: FluxSolver = make_unique<RusanovFlux>(*FluxFun); break;
+         case 4: FluxSolver = make_unique<ComponentwiseUpwindFlux>(*FluxFun); break;
          default:
             cerr << "Unknown HDG scheme" << endl;
             exit(1);
@@ -730,8 +733,8 @@ int main(int argc, char *argv[])
       V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
    }
 
-   FiniteElementCollection *trace_coll{};
-   ParFiniteElementSpace *trace_space{};
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<ParFiniteElementSpace> trace_space;
 
    if (hybridization)
    {
@@ -740,14 +743,14 @@ int main(int argc, char *argv[])
 
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
+      trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
+      darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
       // set essential BC
@@ -824,11 +827,11 @@ int main(int argc, char *argv[])
 
    x = 0.;
    ParGridFunction q_h, t_h, tr_h, qt_h, q_hs, t_hs, tr_hs;
-   q_h.MakeRef(V_space, x.GetBlock(0), 0);
-   t_h.MakeRef(W_space, x.GetBlock(1), 0);
+   q_h.MakeRef(V_space.get(), x.GetBlock(0), 0);
+   t_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
    if (hybridization)
    {
-      tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
+      tr_h.MakeRef(trace_space.get(), x.GetBlock(2), 0);
    }
 
    if (btime)
@@ -848,8 +851,8 @@ int main(int argc, char *argv[])
    }
 
    // flux rhs
-   ParLinearForm *gform(new ParLinearForm);
-   gform->Update(V_space, rhs.GetBlock(0), 0);
+   unique_ptr<ParLinearForm> gform(new ParLinearForm);
+   gform->Update(V_space.get(), rhs.GetBlock(0), 0);
 
    // Neumann
    if (!hybridization && dg)
@@ -883,8 +886,8 @@ int main(int argc, char *argv[])
    }
 
    // potential rhs
-   ParLinearForm *fform(new ParLinearForm);
-   fform->Update(W_space, rhs.GetBlock(1), 0);
+   unique_ptr<ParLinearForm> fform(new ParLinearForm);
+   fform->Update(W_space.get(), rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
    //Neumann
@@ -929,14 +932,14 @@ int main(int argc, char *argv[])
 
    //prepare (reduced) solution and rhs vectors
 
-   ParLinearForm *hform = NULL;
+   unique_ptr<ParLinearForm> hform;
 
    //Neumann BC for the hybridized system
 
    if (hybridization)
    {
-      hform = new ParLinearForm();
-      hform->Update(trace_space, rhs.GetBlock(2), 0);
+      hform = make_unique<ParLinearForm>();
+      hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
       hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
@@ -949,19 +952,18 @@ int main(int argc, char *argv[])
                                (Coefficient*)&fcoeff,
                                (Coefficient*)&qtcoeff});
 
-   DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
+   DarcyOperator op(ess_flux_tdofs_list, darcy.get(), gform.get(), fform.get(),
+                    hform.get(), coeffs,
                     (DarcyOperator::SolverType) solver_type, false, btime);
 
-   //construct the time solver
-
-   ODESolver *ode_solver;
+   unique_ptr<ODESolver> ode_solver;
 
    switch (ode)
    {
-      case 1: ode_solver = new BackwardEulerSolver(); break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK23Solver(); break;
-      case 4: ode_solver = new SDIRK34Solver(); break;
+      case 1: ode_solver = make_unique<BackwardEulerSolver>(); break;
+      case 2: ode_solver = make_unique<SDIRK23Solver>(2); break;
+      case 3: ode_solver = make_unique<SDIRK23Solver>(); break;
+      case 4: ode_solver = make_unique<SDIRK34Solver>(); break;
       default:
          MFEM_ABORT("Unknown solver");
          return 1;
@@ -989,7 +991,7 @@ int main(int argc, char *argv[])
           t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - 100*epsilon))
       {
          i_Kovasznay++;
-         GridFunction t_Kovasznay(W_space);
+         GridFunction t_Kovasznay(W_space.get());
          t_Kovasznay.ProjectCoefficient(tcoeff);
          t_h += t_Kovasznay;
       }
@@ -1009,9 +1011,9 @@ int main(int argc, char *argv[])
       }
 
       real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
-      real_t norm_q = ComputeGlobalLpNorm(2., qcoeff, *pmesh, irs);
+      real_t norm_q = ComputeGlobalLpNorm(2., qcoeff, pmesh, irs);
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
-      real_t norm_t = ComputeGlobalLpNorm(2., tcoeff, *pmesh, irs);
+      real_t norm_t = ComputeGlobalLpNorm(2., tcoeff, pmesh, irs);
 
       if (verbose)
       {
@@ -1034,7 +1036,7 @@ int main(int argc, char *argv[])
       {
          darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
-         real_t norm_qt = ComputeGlobalLpNorm(2., qtcoeff, *pmesh, irs);
+         real_t norm_qt = ComputeGlobalLpNorm(2., qtcoeff, pmesh, irs);
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
          real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
          if (verbose)
@@ -1052,30 +1054,30 @@ int main(int argc, char *argv[])
       if (V_space_dg)
       {
          VectorGridFunctionCoefficient coeff(&q_h);
-         q_vh.SetSpace(V_space_dg);
+         q_vh.SetSpace(static_cast<ParFiniteElementSpace*>(V_space_dg.get()));
          q_vh.ProjectCoefficient(coeff);
       }
       else
       {
-         q_vh.MakeRef(V_space, q_h, 0);
+         q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
       // Project the analytic solution
 
       static ParGridFunction q_a, qt_a, t_a, c_gf;
 
-      q_a.SetSpace(V_space);
+      q_a.SetSpace(V_space.get());
       q_a.ProjectCoefficient(qcoeff);
 
-      qt_a.SetSpace(V_space);
+      qt_a.SetSpace(V_space.get());
       qt_a.ProjectCoefficient(qtcoeff);
 
-      t_a.SetSpace(W_space);
+      t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
       if (bconv)
       {
-         c_gf.SetSpace(V_space);
+         c_gf.SetSpace(V_space.get());
          c_gf.ProjectCoefficient(ccoeff);
       }
 
@@ -1091,7 +1093,7 @@ int main(int argc, char *argv[])
          ss << ".mesh";
          ofstream mesh_ofs(ss.str());
          mesh_ofs.precision(8);
-         pmesh->Print(mesh_ofs);
+         pmesh.Print(mesh_ofs);
 
          ss.str("");
          ss << "sol_q." << setfill('0') << setw(6) << myid;
@@ -1113,7 +1115,7 @@ int main(int argc, char *argv[])
       // 14. Save data in the VisIt format
       if (visit)
       {
-         static VisItDataCollection visit_dc("Example5-Parallel", pmesh);
+         static VisItDataCollection visit_dc("Example5-Parallel", &pmesh);
          if (ti == 0)
          {
             visit_dc.RegisterField("heat flux", &q_vh);
@@ -1135,7 +1137,7 @@ int main(int argc, char *argv[])
       // 15. Save data in the ParaView format
       if (paraview)
       {
-         static ParaViewDataCollection paraview_dc("Example5P", pmesh);
+         static ParaViewDataCollection paraview_dc("Example5P", &pmesh);
          if (ti == 0)
          {
             paraview_dc.SetPrefixPath("ParaView");
@@ -1163,7 +1165,7 @@ int main(int argc, char *argv[])
          static socketstream q_sock(vishost, visport);
          q_sock << "parallel " << num_procs << " " << myid << "\n";
          q_sock.precision(8);
-         q_sock << "solution\n" << *pmesh << q_vh << endl;
+         q_sock << "solution\n" << pmesh << q_vh << endl;
          if (ti == 0)
          {
             q_sock << "window_title 'Heat flux'" << endl;
@@ -1173,11 +1175,11 @@ int main(int argc, char *argv[])
          {
             // Make sure all ranks have sent their 'q' solution before initiating
             // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh->GetComm());
+            MPI_Barrier(pmesh.GetComm());
             static socketstream qt_sock(vishost, visport);
             qt_sock << "parallel " << num_procs << " " << myid << "\n";
             qt_sock.precision(8);
-            qt_sock << "solution\n" << *pmesh << qt_h << endl;
+            qt_sock << "solution\n" << pmesh << qt_h << endl;
             if (ti == 0)
             {
                qt_sock << "window_title 'Total flux'" << endl;
@@ -1185,11 +1187,11 @@ int main(int argc, char *argv[])
             }
             // Make sure all ranks have sent their 'qt' solution before initiating
             // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh->GetComm());
+            MPI_Barrier(pmesh.GetComm());
             static socketstream qs_sock(vishost, visport);
             qs_sock << "parallel " << num_procs << " " << myid << "\n";
             qs_sock.precision(8);
-            qs_sock << "solution\n" << *pmesh << q_hs << endl;
+            qs_sock << "solution\n" << pmesh << q_hs << endl;
             if (ti == 0)
             {
                qs_sock << "window_title 'Recon. flux'" << endl;
@@ -1197,11 +1199,11 @@ int main(int argc, char *argv[])
             }
             // Make sure all ranks have sent their 'qs' solution before initiating
             // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh->GetComm());
+            MPI_Barrier(pmesh.GetComm());
             static socketstream ts_sock(vishost, visport);
             ts_sock << "parallel " << num_procs << " " << myid << "\n";
             ts_sock.precision(8);
-            ts_sock << "solution\n" << *pmesh << t_hs << endl;
+            ts_sock << "solution\n" << pmesh << t_hs << endl;
             if (ti == 0)
             {
                ts_sock << "window_title 'Recon. temperature'" << endl;
@@ -1210,11 +1212,11 @@ int main(int argc, char *argv[])
          }
          // Make sure all ranks have sent their 'q' solution before initiating
          // another set of GLVis connections (one from each rank):
-         MPI_Barrier(pmesh->GetComm());
+         MPI_Barrier(pmesh.GetComm());
          static socketstream t_sock(vishost, visport);
          t_sock << "parallel " << num_procs << " " << myid << "\n";
          t_sock.precision(8);
-         t_sock << "solution\n" << *pmesh << t_h << endl;
+         t_sock << "solution\n" << pmesh << t_h << endl;
          if (ti == 0)
          {
             t_sock << "window_title 'Temperature'" << endl;
@@ -1224,11 +1226,11 @@ int main(int argc, char *argv[])
          {
             // Make sure all ranks have sent their 't' solution before initiating
             // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh->GetComm());
+            MPI_Barrier(pmesh.GetComm());
             static socketstream qa_sock(vishost, visport);
             qa_sock << "parallel " << num_procs << " " << myid << "\n";
             qa_sock.precision(8);
-            qa_sock << "solution\n" << *pmesh << q_a << endl;
+            qa_sock << "solution\n" << pmesh << q_a << endl;
             if (ti == 0)
             {
                qa_sock << "window_title 'Heat flux analytic'" << endl;
@@ -1238,11 +1240,11 @@ int main(int argc, char *argv[])
             {
                // Make sure all ranks have sent their 'qa' solution before initiating
                // another set of GLVis connections (one from each rank):
-               MPI_Barrier(pmesh->GetComm());
+               MPI_Barrier(pmesh.GetComm());
                static socketstream qta_sock(vishost, visport);
                qta_sock << "parallel " << num_procs << " " << myid << "\n";
                qta_sock.precision(8);
-               qta_sock << "solution\n" << *pmesh << qt_a << endl;
+               qta_sock << "solution\n" << pmesh << qt_a << endl;
                if (ti == 0)
                {
                   qta_sock << "window_title 'Total flux analytic'" << endl;
@@ -1251,11 +1253,11 @@ int main(int argc, char *argv[])
             }
             // Make sure all ranks have sent their 'qta' solution before initiating
             // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh->GetComm());
+            MPI_Barrier(pmesh.GetComm());
             static socketstream ta_sock(vishost, visport);
             ta_sock << "parallel " << num_procs << " " << myid << "\n";
             ta_sock.precision(8);
-            ta_sock << "solution\n" << *pmesh << t_a << endl;
+            ta_sock << "solution\n" << pmesh << t_a << endl;
             if (ti == 0)
             {
                ta_sock << "window_title 'Temperature analytic'" << endl;
@@ -1265,11 +1267,11 @@ int main(int argc, char *argv[])
             {
                // Make sure all ranks have sent their 'ta' solution before initiating
                // another set of GLVis connections (one from each rank):
-               MPI_Barrier(pmesh->GetComm());
+               MPI_Barrier(pmesh.GetComm());
                static socketstream c_sock(vishost, visport);
                c_sock << "parallel " << num_procs << " " << myid << "\n";
                c_sock.precision(8);
-               c_sock << "solution\n" << *pmesh << c_gf << endl;
+               c_sock << "solution\n" << pmesh << c_gf << endl;
                if (ti == 0)
                {
                   c_sock << "window_title 'Velocity'" << endl;
@@ -1279,26 +1281,6 @@ int main(int argc, char *argv[])
          }
       }
    }
-
-   // 17. Free the used memory.
-
-   delete ode_solver;
-   delete HeatFluxFun;
-   delete FluxFun;
-   delete FluxSolver;
-   delete fform;
-   delete gform;
-   delete hform;
-   delete darcy;
-   delete W_space;
-   delete V_space;
-   delete V_space_dg;
-   delete trace_space;
-   delete W_coll;
-   delete V_coll;
-   delete V_coll_dg;
-   delete trace_coll;
-   delete pmesh;
 
    return 0;
 }
@@ -1688,7 +1670,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
+unique_ptr<FluxFunction> GetFluxFun(Problem prob, VectorCoefficient &ccoef)
 {
    switch (prob)
    {
@@ -1701,16 +1683,16 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
       case Problem::SteadyAdvection:
       case Problem::NonsteadyAdvectionDiffusion:
       case Problem::KovasznayFlow:
-         return new AdvectionFlux(ccoef);
+         return make_unique<AdvectionFlux>(ccoef);
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
-         return new BurgersFlux(ccoef.GetVDim());
+         return make_unique<BurgersFlux>(ccoef.GetVDim());
    }
 
-   return NULL;
+   return nullptr;
 }
 
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
+unique_ptr<MixedFluxFunction> GetHeatFluxFun(Problem prob, real_t k, int dim)
 {
    switch (prob)
    {
@@ -1722,7 +1704,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
          static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
-         return new LinearDiffusionFlux(dim, ikappa);
+         return make_unique<LinearDiffusionFlux>(dim, ikappa);
       case Problem::SteadyLinearKappa:
       case Problem::NonsteadyLinearKappa:
       {
@@ -1734,9 +1716,9 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
          {
             return -1./((k+T)*(k+T));
          };
-         return new FunctionDiffusionFlux(dim, ikappa, dikappa);
+         return make_unique<FunctionDiffusionFlux>(dim, ikappa, dikappa);
       }
    }
 
-   return NULL;
+   return nullptr;
 }

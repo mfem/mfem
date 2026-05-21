@@ -38,6 +38,7 @@
 #include "darcyop.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -187,13 +188,13 @@ int main(int argc, char *argv[])
       pars.ny = pars.nx;
    }
 
-   Mesh *mesh = NULL;
+   Mesh mesh;
    if (strlen(mesh_file) > 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = Mesh(mesh_file, 1, 1);
 
       Vector x_min(2), x_max(2);
-      mesh->GetBoundingBox(x_min, x_max);
+      mesh.GetBoundingBox(x_min, x_max);
       pars.x0 = x_min(0);
       pars.y0 = x_min(1);
       pars.sx = x_max(0) - x_min(0);
@@ -201,12 +202,12 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(Mesh::MakeCartesian2D(pars.nx, pars.ny,
-                                            Element::QUADRILATERAL, false,
-                                            pars.sx, pars.sy));
+      mesh = Mesh::MakeCartesian2D(pars.nx, pars.ny,
+                                   Element::QUADRILATERAL, false,
+                                   pars.sx, pars.sy);
    }
 
-   int dim = mesh->Dimension();
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -216,45 +217,47 @@ int main(int argc, char *argv[])
    {
       if (ref_levels < 0)
       {
-         ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         ref_levels = (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       }
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
-   if (dr > 0.) { RandomizeMesh(*mesh, dr); }
+   if (dr > 0.) { RandomizeMesh(mesh, dr); }
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *V_coll, *V_coll_dg = NULL;
+   std::unique_ptr<FiniteElementCollection> V_coll;
+   std::unique_ptr<FiniteElementCollection> V_coll_dg;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      V_coll = std::make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      V_coll = new BrokenRT_FECollection(order, dim);
-      V_coll_dg = new L2_FECollection(order+1, dim);
+      V_coll = std::make_unique<BrokenRT_FECollection>(order, dim);
+      V_coll_dg = std::make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
-      V_coll = new RT_FECollection(order, dim);
+      V_coll = std::make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
-                                                         BasisType::GaussLobatto);
+   auto W_coll = std::make_unique<L2_FECollection>(order, dim,
+                                                   BasisType::GaussLobatto);
 
-   FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *V_space_dg = (V_coll_dg)?(new FiniteElementSpace(
-                                                    mesh, V_coll_dg, dim)):(NULL);
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
+   auto V_space = std::make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
+                                                       (dg)?(dim):(1));
+   auto V_space_dg = V_coll_dg ? std::make_unique<FiniteElementSpace>(
+                        &mesh, V_coll_dg.get(), dim)
+                     : nullptr;
+   auto W_space = std::make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
-   DarcyForm *darcy = new DarcyForm(V_space, W_space);
+   auto darcy = std::make_unique<DarcyForm>(V_space.get(), W_space.get());
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; //base temperature
@@ -362,8 +365,8 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   std::unique_ptr<FiniteElementCollection> trace_coll;
+   std::unique_ptr<FiniteElementSpace> trace_space;
 
 
    if (hybridization)
@@ -373,15 +376,15 @@ int main(int argc, char *argv[])
 
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
-         trace_space = new FiniteElementSpace(mesh, trace_coll);
+         trace_coll = std::make_unique<H1_Trace_FECollection>(max(order, 1), dim);
+         trace_space = std::make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
-         trace_space = new FiniteElementSpace(mesh, trace_coll);
+         trace_coll = std::make_unique<DG_Interface_FECollection>(order, dim);
+         trace_space = std::make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
       }
-      darcy->EnableHybridization(trace_space,
+      darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
 
@@ -447,11 +450,11 @@ int main(int argc, char *argv[])
 
    x = 0.;
    GridFunction q_h, t_h, tr_h, qt_h, q_hs, t_hs, tr_hs;
-   q_h.MakeRef(V_space, x.GetBlock(0), 0);
-   t_h.MakeRef(W_space, x.GetBlock(1), 0);
+   q_h.MakeRef(V_space.get(), x.GetBlock(0), 0);
+   t_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
    if (hybridization)
    {
-      tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
+      tr_h.MakeRef(trace_space.get(), x.GetBlock(2), 0);
    }
 
    LinearForm *fform = darcy->GetPotentialRHS();
@@ -461,7 +464,7 @@ int main(int argc, char *argv[])
 
    Array<Coefficient*> coeffs({(Coefficient*)&fcoeff});
 
-   DarcyOperator op(ess_flux_tdofs_list, darcy, NULL, fform, NULL, coeffs);
+   DarcyOperator op(ess_flux_tdofs_list, darcy.get(), NULL, fform, NULL, coeffs);
 
    op.SetTolerance(1e-8);
 
@@ -484,12 +487,12 @@ int main(int argc, char *argv[])
    if (V_space_dg)
    {
       VectorGridFunctionCoefficient coeff(&q_h);
-      q_vh.SetSpace(V_space_dg);
+      q_vh.SetSpace(V_space_dg.get());
       q_vh.ProjectCoefficient(coeff);
    }
    else
    {
-      q_vh.MakeRef(V_space, q_h, 0);
+      q_vh.MakeRef(V_space.get(), q_h, 0);
    }
 
    // 13. Save the mesh and the solution. This output can be viewed later using
@@ -503,7 +506,7 @@ int main(int argc, char *argv[])
       ss << ".mesh";
       ofstream mesh_ofs(ss.str());
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
 
       ss.str("");
       ss << "sol_q";
@@ -523,7 +526,7 @@ int main(int argc, char *argv[])
    // 14. Save data in the VisIt format
    if (visit)
    {
-      static VisItDataCollection visit_dc("Example5", mesh);
+      static VisItDataCollection visit_dc("Example5", &mesh);
       visit_dc.RegisterField("heat flux", &q_vh);
       visit_dc.RegisterField("temperature", &t_h);
       visit_dc.Save();
@@ -532,7 +535,7 @@ int main(int argc, char *argv[])
    // 15. Save data in the ParaView format
    if (paraview)
    {
-      static ParaViewDataCollection paraview_dc("Example5", mesh);
+      static ParaViewDataCollection paraview_dc("Example5", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
@@ -556,21 +559,6 @@ int main(int argc, char *argv[])
          VisualizeField(ts_sock, t_hs, "Recon. temperature");
       }
    }
-
-   // 17. Free the used memory.
-
-   delete fform;
-   delete gform;
-   delete darcy;
-   delete W_space;
-   delete V_space;
-   delete V_space_dg;
-   delete trace_space;
-   delete W_coll;
-   delete V_coll;
-   delete V_coll_dg;
-   delete trace_coll;
-   delete mesh;
 
    return 0;
 }
