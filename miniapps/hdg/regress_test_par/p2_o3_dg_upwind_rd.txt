@@ -4,8 +4,11 @@ Options used:
    --ncells-y 10
    --size-x 1
    --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
    --order 3
    --discontinuous
+   --no-broken-RT
    --upwinded
    --problem 2
    --time-final 1
@@ -17,13 +20,18 @@ Options used:
    --bc-neumann
    --reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
    --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
+   --no-reconstruct
    --no-mfem
    --no-visit
    --no-paraview
@@ -33,12 +41,12 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 10
-Reduction init took 0.000363176s.
+Reduction init took 0.000351929s.
 ***********************************************************
 dim(W) = 800
 ***********************************************************
-Assembly took 0.0730029s.
-Preconditioner took 3.0474e-05s.
+Assembly took 0.0879225s.
+Preconditioner took 4.6359e-05s.
 
 
  Num MPI tasks = 2
@@ -58,10 +66,7 @@ BoomerAMG SETUP PARAMETERS:
  Coarsening Type = Falgout-CLJP 
  measures are determined locally
 
-
- No global partition option chosen.
-
- Interpolation = one-point interpolation 
+ Interpolation = one-point
  Restriction = local approximate ideal restriction (AIR-1.5)
 
 Operator Matrix Information:
@@ -90,9 +95,9 @@ lev  rows x cols  min  max  avgW     weight      weight       min         max
   5    23 x 8       1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
 
 
-     Complexity:    grid = 1.945000
-                operator = 4.611965
-                memory = 4.673047
+     Complexity:   grid = 1.945000
+               operator = 4.611965
+                 memory = 4.673047
 
 
 
@@ -112,20 +117,20 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):  -1  -1   1
                              Coarsest grid:   0
 
-   Pass :  1   Iteration :   0  ||B r|| = 2.05891
-   Pass :  1   Iteration :   1  ||B r|| = 0.0499955
-   Pass :  1   Iteration :   2  ||B r|| = 0.00739711
-   Pass :  1   Iteration :   3  ||B r|| = 0.00264901
-   Pass :  1   Iteration :   4  ||B r|| = 0.00116864
-   Pass :  1   Iteration :   5  ||B r|| = 0.000531069
-   Pass :  1   Iteration :   6  ||B r|| = 0.000243092
-   Pass :  1   Iteration :   7  ||B r|| = 0.000126917
-   Pass :  1   Iteration :   8  ||B r|| = 5.67522e-05
-   Pass :  1   Iteration :   9  ||B r|| = 3.00441e-05
-   Pass :  1   Iteration :  10  ||B r|| = 1.06774e-05
-   Pass :  1   Iteration :  11  ||B r|| = 3.5676e-06
-   Pass :  1   Iteration :  12  ||B r|| = 1.21937e-06
-GMRES+HypreAMG converged in 12 iterations with a residual norm of 1.21937e-06.
-solver took 0.0373459s.
-|| q_h - q_ex || / || q_ex || = 4.92383e-06
-|| t_h - t_ex || / || t_ex || = 8.5832e-07
+   Pass :  1   Iteration :   0  ||B r|| = 2.05873
+   Pass :  1   Iteration :   1  ||B r|| = 0.0497967
+   Pass :  1   Iteration :   2  ||B r|| = 0.00738715
+   Pass :  1   Iteration :   3  ||B r|| = 0.00263913
+   Pass :  1   Iteration :   4  ||B r|| = 0.00116978
+   Pass :  1   Iteration :   5  ||B r|| = 0.000530806
+   Pass :  1   Iteration :   6  ||B r|| = 0.000243407
+   Pass :  1   Iteration :   7  ||B r|| = 0.000127117
+   Pass :  1   Iteration :   8  ||B r|| = 5.70352e-05
+   Pass :  1   Iteration :   9  ||B r|| = 2.99507e-05
+   Pass :  1   Iteration :  10  ||B r|| = 1.04719e-05
+   Pass :  1   Iteration :  11  ||B r|| = 3.5112e-06
+   Pass :  1   Iteration :  12  ||B r|| = 1.20345e-06
+GMRES+HypreAMG converged in 12 iterations with a residual norm of 1.20345e-06.
+solver took 0.0337696s.
+|| q_h - q_ex || / || q_ex || = 4.83003e-06
+|| t_h - t_ex || / || t_ex || = 8.58844e-07

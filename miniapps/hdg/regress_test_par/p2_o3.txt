@@ -4,8 +4,11 @@ Options used:
    --ncells-y 10
    --size-x 1
    --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
    --order 3
    --no-discontinuous
+   --no-broken-RT
    --centered
    --problem 2
    --time-final 1
@@ -17,13 +20,18 @@ Options used:
    --bc-neumann
    --no-reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
    --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
+   --no-reconstruct
    --no-mfem
    --no-visit
    --no-paraview
@@ -38,33 +46,33 @@ dim(V) = 1660
 dim(W) = 800
 dim(V+W) = 2460
 ***********************************************************
-Assembly took 0.109737s.
-Preconditioner took 0.0022915s.
-   Pass :  1   Iteration :   0  ||B r|| = 1.82877
-   Pass :  1   Iteration :   1  ||B r|| = 1.74992
-   Pass :  1   Iteration :   2  ||B r|| = 0.242061
-   Pass :  1   Iteration :   3  ||B r|| = 0.242002
-   Pass :  1   Iteration :   4  ||B r|| = 0.0414159
-   Pass :  1   Iteration :   5  ||B r|| = 0.0252564
-   Pass :  1   Iteration :   6  ||B r|| = 0.00608151
-   Pass :  1   Iteration :   7  ||B r|| = 0.00445303
-   Pass :  1   Iteration :   8  ||B r|| = 0.00215421
-   Pass :  1   Iteration :   9  ||B r|| = 0.00099883
-   Pass :  1   Iteration :  10  ||B r|| = 0.000987189
-   Pass :  1   Iteration :  11  ||B r|| = 0.000401643
-   Pass :  1   Iteration :  12  ||B r|| = 0.000260911
-   Pass :  1   Iteration :  13  ||B r|| = 0.000212466
-   Pass :  1   Iteration :  14  ||B r|| = 8.58462e-05
-   Pass :  1   Iteration :  15  ||B r|| = 7.35003e-05
-   Pass :  1   Iteration :  16  ||B r|| = 4.69452e-05
-   Pass :  1   Iteration :  17  ||B r|| = 2.08476e-05
-   Pass :  1   Iteration :  18  ||B r|| = 2.04026e-05
-   Pass :  1   Iteration :  19  ||B r|| = 8.95197e-06
-   Pass :  1   Iteration :  20  ||B r|| = 4.71519e-06
-   Pass :  1   Iteration :  21  ||B r|| = 4.69989e-06
-   Pass :  1   Iteration :  22  ||B r|| = 2.08416e-06
-   Pass :  1   Iteration :  23  ||B r|| = 1.27034e-06
-GMRES+HypreAMG converged in 23 iterations with a residual norm of 1.27034e-06.
-solver took 0.121194s.
-|| q_h - q_ex || / || q_ex || = 1.40813e-06
-|| t_h - t_ex || / || t_ex || = 6.7576e-07
+Assembly took 0.150622s.
+Preconditioner took 0.00196794s.
+   Pass :  1   Iteration :   0  ||B r|| = 1.82869
+   Pass :  1   Iteration :   1  ||B r|| = 1.74995
+   Pass :  1   Iteration :   2  ||B r|| = 0.24182
+   Pass :  1   Iteration :   3  ||B r|| = 0.241757
+   Pass :  1   Iteration :   4  ||B r|| = 0.0414839
+   Pass :  1   Iteration :   5  ||B r|| = 0.0252512
+   Pass :  1   Iteration :   6  ||B r|| = 0.00609912
+   Pass :  1   Iteration :   7  ||B r|| = 0.00444183
+   Pass :  1   Iteration :   8  ||B r|| = 0.00218583
+   Pass :  1   Iteration :   9  ||B r|| = 0.00103373
+   Pass :  1   Iteration :  10  ||B r|| = 0.00102009
+   Pass :  1   Iteration :  11  ||B r|| = 0.000411074
+   Pass :  1   Iteration :  12  ||B r|| = 0.000270268
+   Pass :  1   Iteration :  13  ||B r|| = 0.00021963
+   Pass :  1   Iteration :  14  ||B r|| = 8.8232e-05
+   Pass :  1   Iteration :  15  ||B r|| = 7.7279e-05
+   Pass :  1   Iteration :  16  ||B r|| = 4.80116e-05
+   Pass :  1   Iteration :  17  ||B r|| = 2.16099e-05
+   Pass :  1   Iteration :  18  ||B r|| = 2.12936e-05
+   Pass :  1   Iteration :  19  ||B r|| = 9.24985e-06
+   Pass :  1   Iteration :  20  ||B r|| = 5.0779e-06
+   Pass :  1   Iteration :  21  ||B r|| = 5.0376e-06
+   Pass :  1   Iteration :  22  ||B r|| = 2.2081e-06
+   Pass :  1   Iteration :  23  ||B r|| = 1.42953e-06
+GMRES+HypreAMG converged in 23 iterations with a residual norm of 1.42953e-06.
+solver took 0.137362s.
+|| q_h - q_ex || / || q_ex || = 1.7157e-06
+|| t_h - t_ex || / || t_ex || = 7.16928e-07
