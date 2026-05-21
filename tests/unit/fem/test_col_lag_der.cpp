@@ -151,6 +151,8 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       auto L = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
       auto P = GENERATE(true, false);
 
+      CAPTURE(L, P);
+
       const int nd = maps.ndof;
       const int nq = maps.nqpt;
 
@@ -163,7 +165,15 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
                evec_values.Read(), col_der.Write(), sdim, vdim, nd);
 
+      const real_t max_norm = qp_der.Normlinf();
+
       qp_der -= col_der;
-      REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+
+      const real_t abs_err = qp_der.Normlinf();
+      const real_t rel_err = max_norm > 0_r ?
+                             abs_err/max_norm :
+                             abs_err > 0_r ? mfem::infinity() : 0_r;
+      CAPTURE(rel_err, max_norm);
+      CHECK(rel_err <= 1e-13);
    }
 }

@@ -321,12 +321,17 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
-   const int nsdofs = pfes.GetFaceNbrVSize();
+   const int nsdofs = pfes.GetFaceNbrVSize() / vd;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_x_shared = Reshape(face_nbr_data.Read(),
-                             t?vd:nsdofs, t?nsdofs:vd);
+   const int ne_shared = nsdofs / elem_dofs;
+   const int nedof = elem_dofs;
+   // Note: the shape of face_nbr_data, as determined by
+   // ParFiniteElementSpace::ExchangeFaceNbrData, is (elem_dofs, vdim,
+   // ne_shared), independent of the ordering (byNODES or byVDIM) of the finite
+   // element space.
+   auto d_x_shared = Reshape(face_nbr_data.Read(), elem_dofs, vd, ne_shared);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -346,8 +351,9 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
          }
          else if (idx2>=threshold) // shared boundary
          {
-            d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
-                                              t?(idx2-threshold):c);
+            const int e_shared = (idx2 - threshold) / nedof;
+            const int i_shared = (idx2 - threshold) % nedof;
+            d_y(dof, c, 1, face) = d_x_shared(i_shared,c,e_shared);
          }
          else // true boundary
          {
