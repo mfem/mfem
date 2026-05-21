@@ -27,12 +27,14 @@ public:
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
    {
+      const real_t tol = std::numeric_limits<real_t>::epsilon();
+
       real_t x[2];
       Vector transip(x, 2);
 
       T.Transform(ip, transip);
 
-      if (fabs(w_ * x[1] - h_ * x[0]) < 1e-6 * sqrt(w_ * h_))
+      if (fabs(w_ * x[1] - h_ * x[0]) < w_ * h_ * tol)
       {
          return 0.5;
       }
