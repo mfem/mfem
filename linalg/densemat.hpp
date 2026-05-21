@@ -1191,9 +1191,6 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(real_t c);
 
-   /// Copy assignment operator (performs a deep copy)
-   DenseTensor &operator=(const DenseTensor &other);
-
    DenseTensor &operator+=(const real_t *m);
    DenseTensor &operator+=(const DenseTensor &m);
 

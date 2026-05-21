@@ -4379,13 +4379,6 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
-DenseTensor &DenseTensor::operator=(const DenseTensor &other)
-{
-   DenseTensor new_tensor(other);
-   Swap(new_tensor);
-   return *this;
-}
-
 DenseTensor &DenseTensor::operator+=(const real_t *m)
 {
    int s = SizeI() * SizeJ() * SizeK();
