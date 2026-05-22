@@ -93,8 +93,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    real_t sigma = -1.0;
    real_t kappa = -1.0;
-   real_t eta = 0.0;
-   bool pa = false;
    bool visualization = true;
    bool paraview = false;
    bool visit = false;
@@ -137,9 +135,6 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&eta, "-eta", "--eta", "BR2 penalty parameter.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -209,8 +204,7 @@ int main(int argc, char *argv[])
 
    // Define a parallel finite element space on the parallel mesh. Here we
    // use discontinuous finite elements of the specified order >= 0.
-   const auto bt = pa ? BasisType::GaussLobatto : BasisType::GaussLegendre;
-   DG_FECollection fec(order, dim, bt);
+   DG_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
@@ -242,13 +236,6 @@ int main(int argc, char *argv[])
                                                          sigma, kappa));
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(anisoDiffCoef,
                                                     sigma, kappa));
-   if (eta > 0)
-   {
-      MFEM_VERIFY(!pa, "BR2 not yet compatible with partial assembly.");
-      a.AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a.AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-   }
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    // Initialize VisIt visualization
    VisItDataCollection *visit_dc = NULL;
@@ -298,16 +285,9 @@ int main(int argc, char *argv[])
       OperatorHandle A;
 
       std::unique_ptr<HypreBoomerAMG> amg;
-      if (pa)
-      {
-         A.Reset(&a, false);
-      }
-      else
-      {
-         A.SetType(Operator::Hypre_ParCSR);
-         a.ParallelAssemble(A);
-         amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-      }
+      A.SetType(Operator::Hypre_ParCSR);
+      a.ParallelAssemble(A);
+      amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
 
       // Depending on the symmetry of A, define and apply a parallel PCG or
       // GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
