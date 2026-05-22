@@ -212,11 +212,6 @@ public:
    {
       linear_solver.SetPreconditioner(precond);
    }
-
-   ~Implicit_Solver() override
-   {
-      delete A;
-   }
 };
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
