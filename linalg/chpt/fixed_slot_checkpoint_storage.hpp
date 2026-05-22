@@ -64,13 +64,13 @@ public:
    void Pack(const mfem::Vector &v, void *dst) const
    {
       MFEM_VERIFY(v.Size() == n_, "FixedVectorPacker: vector size mismatch.");
-      std::memcpy(dst, v.GetData(), SlotBytes());
+      std::memcpy(dst, v.HostRead(), SlotBytes());
    }
 
    void Unpack(const void *src, mfem::Vector &out) const
    {
       out.SetSize(n_);
-      std::memcpy(out.GetData(), src, SlotBytes());
+      std::memcpy(out.HostWrite(), src, SlotBytes());
    }
 
    int Size() const { return n_; }
