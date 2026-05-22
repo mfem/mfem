@@ -43,6 +43,8 @@ public:
    SparseSmoother(const SparseMatrix &a, bool own = false)
    { SetOperator(a); own_oper = own; }
 
+   virtual ~SparseSmoother() { if (own_oper) { delete oper; } }
+
    /// Sets the underlying matrix. @a a must be a SparseMatrix.
    void SetOperator(const Operator &a) override;
 
@@ -77,9 +79,10 @@ public:
    /// @param[in]  a        The underlying SparseMatrix
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)
    /// @param[in]  it       Number of stationary iterations to perform
+   /// @param[in]  own      Ownership flag of the matrix
    GSSmoother(const SparseMatrix &a, GSType t = SYMMETRIC, int it = 1,
               bool own = false)
-      : GSSmoother(t, it) { SetOperator(a); own_oper = own; }
+      : GSSmoother(t, it) { SetOperator(a); SetOwnership(own);; }
 
    /// Same as GSSmoother(GSType,int), for backwards compatibility.
    GSSmoother(int t, int it = 1) : GSSmoother(GSType(t), it) { }
@@ -140,9 +143,10 @@ public:
    /// @param[in]  t        Type of Jacobi smoother (see DSmoother::JacobiType)
    /// @param[in]  s        Scaling factor
    /// @param[in]  it       Number of stationary iterations to perform
+   /// @param[in]  own      Ownership flag of the matrix
    DSmoother(const SparseMatrix &a, JacobiType t = JACOBI, real_t s = 1.,
              int it = 1, bool own = false)
-      : DSmoother(t, s, it) { SetOperator(a); own_oper = own; }
+      : DSmoother(t, s, it) { SetOperator(a); SetOwnership(own); }
 
    /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatbility.
    DSmoother(int t, real_t s = 1., int it = 1)
@@ -150,8 +154,9 @@ public:
 
    /// @brief Same as DSmoother(const SparseMatrix&,JacobiType,real_t,int), for
    /// backwards compatbility.
-   DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1)
-      : DSmoother(a, JacobiType(t), s, it) { }
+   DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1,
+             bool own = false)
+      : DSmoother(a, JacobiType(t), s, it, own) { }
 
    /// @brief Replace diagonal entries with their absolute values. Relevant only
    /// with JacobiType::JACOBI.
