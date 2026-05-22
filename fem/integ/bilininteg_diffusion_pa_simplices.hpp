@@ -58,8 +58,6 @@ inline void PADiffusionApplyTriangle(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
-
    const int BASIS_DIM = D1D * (D1D+1) / 2;
    const int p2 = (D1D-1) * (D1D-1);
 
@@ -292,7 +290,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
    const int BASIS_DIM = D1D * (D1D+1) / 2;
    const int p2 = (D1D-1) * (D1D-1);
 
@@ -308,7 +305,10 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   const int T1D = (Q1D > D1D) ? Q1D : D1D;
+   constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
+
+   mfem::forall_2D<T_T1D*T_T1D>(NE, T1D, T1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -515,8 +515,6 @@ inline void PADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
-
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
@@ -796,17 +794,15 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
-
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
    const int p2 = (D1D-1) * (D1D-1);
 
-   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
-   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
-   MFEM_VERIFY(D1D <= max_d1d, "");
-   MFEM_VERIFY(Q1D <= max_q1d, "");
+   const int MQ1 = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
+   const int MD1 = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
 
    const auto forward_map3d__ =
       DeviceTensor<3,const int>(forward_map3d_.Read(), D1D-1, D1D-1, D1D-1);
@@ -827,7 +823,10 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
 
-   mfem::forall_2D<T_Q1D*(T_Q1D*T_Q1D)>(NE, Q1D, Q1D*Q1D,
+   const int T1D = (Q1D > D1D) ? Q1D : D1D;
+   constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
+
+   mfem::forall_2D<T_T1D*(T_T1D*T_T1D)>(NE, T1D, T1D*T1D,
                                         [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1057,6 +1056,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+
+      // compute u,v,w once per (a_2d, a3)
+      auto uvw = (real_t (*)[BASIS_DIM2D_DIFF][MD1]) sm0;
       MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
@@ -1072,20 +1074,62 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                v += QDD1[a_2d][i3] * Ga3t[a][i3];
                w += QDD2[a_2d][i3] * Ga3t[a][i3];
             }
+            uvw[0][a_2d][a3] = u;
+            uvw[1][a_2d][a3] = v;
+            uvw[2][a_2d][a3] = w;
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            int idx = lex_map[a1][a2][a3];
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
+      {
+         const int a1 = inverse_map2d[a_2d][0];
+         const int a2 = inverse_map2d[a_2d][1];
+         MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2-1)
+         {
+            const real_t u = uvw[0][a_2d][a3];
+            const real_t v = uvw[1][a_2d][a3];
+            const real_t w = uvw[2][a_2d][a3];
+            const int idx = lex_map[a1][a2][a3];
             y(idx,e) -= p2 * (u + v + w);
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-            idx = lex_map[a1+1][a2][a3];
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
+      {
+         const int a1 = inverse_map2d[a_2d][0];
+         const int a2 = inverse_map2d[a_2d][1];
+         MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2-1)
+         {
+            const real_t u = uvw[0][a_2d][a3];
+            const int idx = lex_map[a1+1][a2][a3];
             y(idx,e) += p2 * u;
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-            idx = lex_map[a1][a2+1][a3];
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
+      {
+         const int a1 = inverse_map2d[a_2d][0];
+         const int a2 = inverse_map2d[a_2d][1];
+         MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2-1)
+         {
+            const real_t v = uvw[1][a_2d][a3];
+            const int idx = lex_map[a1][a2+1][a3];
             y(idx,e) += p2 * v;
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-            idx = lex_map[a1][a2][a3+1];
+      MFEM_FOREACH_THREAD_DIRECT(a_2d,y,BASIS_DIM2D_DIFF)
+      {
+         const int a1 = inverse_map2d[a_2d][0];
+         const int a2 = inverse_map2d[a_2d][1];
+         MFEM_FOREACH_THREAD_DIRECT(a3,x,D1D-a1-a2-1)
+         {
+            const real_t w = uvw[2][a_2d][a3];
+            const int idx = lex_map[a1][a2][a3+1];
             y(idx,e) += p2 * w;
          }
       }

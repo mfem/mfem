@@ -196,7 +196,6 @@ inline void PAMassApplyTriangle(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D + 1) / 2;
 
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
@@ -397,7 +396,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
 
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
@@ -411,7 +409,10 @@ inline void SmemPAMassApplyTriangle(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   const int T1D = (Q1D > D1D) ? Q1D : D1D;
+   constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
+
+   mfem::forall_2D<T_T1D*T_T1D>(NE, T1D, T1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTriangle_Element<T_D1D, T_Q1D>
       (e, NE, lex_map, Ba1, Ba2, Ba1t, Ba2t, D, X, Y, d1d, q1d);
@@ -631,8 +632,6 @@ inline void PAMassApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
-
    const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
    const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
 
@@ -930,8 +929,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= Q1D, "D1D <= Q1D required");
-
    const int BASIS_DIM = D1D * (D1D + 1) * (D1D + 2) / 6;
    const int BASIS_DIM2D = D1D * (D1D + 1) / 2;
 
@@ -955,7 +952,10 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D<T_Q1D*(T_Q1D*T_Q1D)>(NE, Q1D, Q1D*Q1D,
+   const int T1D = (Q1D > D1D) ? Q1D : D1D;
+   constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
+
+   mfem::forall_2D<T_T1D*(T_T1D*T_T1D)>(NE, T1D, T1D*T1D,
                                         [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>
