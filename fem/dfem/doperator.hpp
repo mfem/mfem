@@ -14,7 +14,7 @@
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
-#include "../linalg/multivector.hpp"
+#include "../../linalg/multivector.hpp"
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
@@ -728,7 +728,7 @@ void DifferentiableOperator::AddIntegrator(
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   // Check if any ouptut is a QuadratureFunction
+   // Check if any ouptut is a VectorQuadratureSpace
    [[maybe_unused]] bool disable_assemble = false;
    for_constexpr([&](auto i)
    {

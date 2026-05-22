@@ -11,8 +11,8 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -62,17 +62,19 @@ public:
    MyFunctional(const ParFiniteElementSpace &fes,
                 const ParFiniteElementSpace &mfes,
                 const IntegrationRule &ir) :
+      comm(fes.GetComm()),
       qspace(*fes.GetParMesh(), ir),
-      q(qspace)
+      qspace_vec(qspace, 1),
+      q(qspace_vec)
    {
-      const auto in = std::vector
+      const auto in_fds = std::vector
       {
          FieldDescriptor{U, &fes},
          FieldDescriptor{Coords, &mfes}
       };
-      const auto out = std::vector
+      const auto out_fds = std::vector
       {
-         FieldDescriptor{Q, &q}
+         FieldDescriptor{Q, &qspace_vec}
       };
 
       const auto &mesh = *fes.GetParMesh();
@@ -83,7 +85,7 @@ public:
          all_domain_attr = 1;
       }
 
-      dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
+      dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, mesh);
       CubicH1Functional<real_t, dim> apply;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop->AddDomainIntegrator<LocalQFBackend>(
@@ -97,19 +99,17 @@ public:
 
    real_t Eval(const Vector &u) const
    {
-      MultiVector X{u, coords};
-      MultiVector Y{q};
-      dop->Mult(X, Y);
-      return q.Sum(); // FIXME: NOT MPI COMPATIBLE
+      real_t local = EvalLocal(u), global;
+      MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      return global;
    }
 
    // Returns the directional derivative dJ/du · du.
    real_t dJdu_dir(const Vector &u, const Vector &du) const
    {
-      MultiVector X{u, coords};
-      MultiVector dY{q};
-      dop->GetDerivative(U, X)->Mult(du, dY);
-      return q.Sum(); // FIXME: NOT MPI COMPATIBLE
+      real_t local = dJdu_dir_local(u, du), global;
+      MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      return global;
    }
 
    // Computes the full gradient \nabla J(u) in the trial space via J^T.
@@ -126,21 +126,55 @@ public:
    // Computes the full gradient via element-wise central differences.
    void grad_fd(const Vector &u, Vector &g, real_t eps = 1e-5) const
    {
-      g.SetSize(u.Size());
+      const int local_size = u.Size();
+
+      // Global offset for this rank's DOFs and total DOF count.
+      int offset = 0, global_size = local_size;
+      MPI_Exscan(&local_size, &offset, 1, MPITypeMap<int>::mpi_type, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, MPITypeMap<int>::mpi_type, MPI_SUM,
+                    comm);
+
+      g.SetSize(local_size);
       Vector up(u), um(u);
-      for (int i = 0; i < u.Size(); ++i)
+
+      // Loop over global DOF indices. Each rank perturbs only when gi falls in
+      // its local range [offset, offset+local_size); all ranks call Eval together.
+      for (int gi = 0; gi < global_size; ++gi)
       {
-         up(i) += eps;
-         um(i) -= eps;
-         g(i) = (Eval(up) - Eval(um)) / (2.0 * eps);
-         up(i) = u(i);
-         um(i) = u(i);
+         const int li = gi - offset;
+         if (li >= 0 && li < local_size) { up(li) += eps; um(li) -= eps; }
+         const real_t Jp = Eval(up);
+         const real_t Jm = Eval(um);
+         if (li >= 0 && li < local_size)
+         {
+            g(li) = (Jp - Jm) / (2.0 * eps);
+            up(li) = u(li);
+            um(li) = u(li);
+         }
       }
    }
 
 private:
+   real_t EvalLocal(const Vector &u) const
+   {
+      MultiVector X{u, coords};
+      MultiVector Y{q};
+      dop->Mult(X, Y);
+      return q.Sum();
+   }
+
+   real_t dJdu_dir_local(const Vector &u, const Vector &du) const
+   {
+      MultiVector X{u, coords};
+      MultiVector dY{q};
+      dop->GetDerivative(U, X)->Mult(du, dY);
+      return q.Sum();
+   }
+
+   MPI_Comm comm;
    std::unique_ptr<DifferentiableOperator> dop;
    QuadratureSpace qspace;
+   VectorQuadratureSpace qspace_vec;
    mutable QuadratureFunction q;
    Vector coords;
 };
@@ -166,12 +200,8 @@ void functional(const char *filename, int p)
    Vector u(fes.GetTrueVSize());
    Vector du(fes.GetTrueVSize());
 
-   // Use deterministic nontrivial data
-   for (int i = 0; i < u.Size(); ++i)
-   {
-      u(i)  = 0.2 * std::sin(0.37 * i) + 0.05 * std::cos(1.13 * i);
-      du(i) = 0.1 * std::cos(0.51 * i) - 0.03 * std::sin(0.91 * i);
-   }
+   u.Randomize(5532);
+   du.Randomize(3251);
 
    MyFunctional<DIM> functional(fes, *mfes, ir);
 
@@ -208,16 +238,20 @@ void functional(const char *filename, int p)
    // Must match entry-wise FD gradient
    Vector g_fd;
    functional.grad_fd(u, g_fd);
-   {
-      Vector diff(g);
-      diff -= g_fd;
-      const real_t scale = std::max(real_t(1.0), g_fd.Normlinf());
-      REQUIRE(diff.Normlinf() / scale < 1e-5);
-   }
+
+   Vector diff(g);
+   diff -= g_fd;
+   const real_t scale = std::max(real_t(1.0), g_fd.Normlinf());
+   real_t local_norm = diff.Normlinf();
+   real_t global_norm;
+   MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, pmesh.GetComm());
+   REQUIRE(diff.Normlinf() / scale < 1e-5);
+
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
-          "[Parallel][dFEM][functional][XXX]")
+          "[Parallel][dFEM][functional]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

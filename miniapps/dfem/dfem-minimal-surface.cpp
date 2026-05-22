@@ -48,6 +48,8 @@
 //               visualization.
 
 #include "mfem.hpp"
+#include "../../fem/dfem/doperator.hpp"
+#include "../../fem/dfem/backends/local_qf/prelude.hpp"
 
 using namespace mfem;
 
@@ -116,11 +118,12 @@ public:
       auto operator()(
          const tensor<dscalar_t, dim> &dudxi,
          const tensor<real_t, dim, dim> &J,
-         const real_t &w) const
+         const real_t &w,
+         tensor<dscalar_t, dim> &dvdx) const
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         return tuple{coeff(dudx) * dudx * transpose(invJ) * det(J) * w};
+         dvdx = coeff(dudx) * dudx * transpose(invJ) * det(J) * w;
       }
    };
 
@@ -135,7 +138,8 @@ public:
          const tensor<real_t, dim> &ddelta_udxi,
          const tensor<real_t, dim> &dudxi,
          const tensor<real_t, dim, dim> &J,
-         const real_t &w) const
+         const real_t &w,
+         tensor<real_t, dim> &dvdx) const
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
@@ -145,7 +149,7 @@ public:
          const auto term1 = c * ddelta_udx;
          const auto term2 = c * c * c * dot(dudx, ddelta_udx) * dudx;
 
-         return tuple{(term1 - term2) * transpose(invJ) * det(J) * w};
+         dvdx = (term1 - term2) * transpose(invJ) * det(J) * w;
       }
    };
 
@@ -168,8 +172,8 @@ public:
          // One can retrieve the derivative of a DifferentiableOperator wrt a
          // field variable if the derivative has been requested during the
          // DifferentiableOperator::AddDomainIntegrator call.
-         dres_du = minsurface->res->GetDerivative(
-                      SOLUTION_U, {&minsurface->u}, {mesh_nodes});
+         MultiVector X{minsurface->u, *mesh_nodes};
+         dres_du = minsurface->res->GetDerivative(SOLUTION_U, X);
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -177,7 +181,8 @@ public:
          z = x;
          z.SetSubVector(minsurface->ess_tdofs, 0.0);
 
-         dres_du->Mult(z, y);
+         MultiVector Y{y};
+         dres_du->Mult(z, Y);
 
          auto d_y = y.ReadWrite();
          const auto d_x = x.Read();
@@ -216,22 +221,24 @@ public:
          Array<int> all_domain_attr(minsurface->H1.GetMesh()->attributes.Max());
          all_domain_attr = 1;
 
-         auto &mesh_nodes = *static_cast<ParGridFunction *>
-                            (minsurface->H1.GetParMesh()->GetNodes());
-         auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
+         mesh_nodes = static_cast<ParGridFunction *>
+                      (minsurface->H1.GetParMesh()->GetNodes());
+         auto &mesh_nodes_fes = *mesh_nodes->ParFESpace();
 
-         std::vector<FieldDescriptor> solutions =
+         std::vector<FieldDescriptor> inputs =
          {
-            {DIRECTION_U, &minsurface->H1}
-         };
-         std::vector<FieldDescriptor> parameters =
-         {
+            {DIRECTION_U, &minsurface->H1},
             {SOLUTION_U, &minsurface->H1},
             {MESH_NODES, &mesh_nodes_fes}
          };
 
+         std::vector<FieldDescriptor> outputs =
+         {
+            {SOLUTION_U, &minsurface->H1}
+         };
+
          dres_du = std::make_shared<DifferentiableOperator>(
-                      solutions, parameters, *minsurface->H1.GetParMesh());
+                      inputs, outputs, *minsurface->H1.GetParMesh());
 
          auto input_operators = tuple
          {
@@ -247,12 +254,12 @@ public:
          };
 
          ManualDerivativeApply manual_derivative_apply;
-         dres_du->AddDomainIntegrator(manual_derivative_apply, input_operators,
-                                      output_operators, minsurface->ir,
-                                      all_domain_attr);
+         dres_du->AddDomainIntegrator<LocalQFBackend>(manual_derivative_apply,
+                                                      input_operators,
+                                                      output_operators, minsurface->ir,
+                                                      all_domain_attr);
 
          minsurface->u.SetFromTrueDofs(x);
-         dres_du->SetParameters({&minsurface->u, &mesh_nodes});
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -260,7 +267,9 @@ public:
          z = x;
          z.SetSubVector(minsurface->ess_tdofs, 0.0);
 
-         dres_du->Mult(z, y);
+         MultiVector X{z, minsurface->u, *mesh_nodes};
+         MultiVector Y{y};
+         dres_du->Mult(X, Y);
 
          auto d_y = y.HostReadWrite();
          const auto d_x = x.HostRead();
@@ -272,9 +281,9 @@ public:
 
       const MinimalSurface *minsurface = nullptr;
       std::shared_ptr<DifferentiableOperator> dres_du;
+      ParGridFunction *mesh_nodes = nullptr;
       mutable Vector z;
    };
-
 
 public:
    MinimalSurface(ParFiniteElementSpace &H1,
@@ -299,14 +308,16 @@ public:
       // The constructor of DifferentiableOperator takes two vectors of
       // FieldDescriptors. A FieldDescriptor can be viewed as a a pair of an
       // identifier (the field ID) and it's accompanying space.
-      std::vector<FieldDescriptor> solutions;
-      solutions.push_back(FieldDescriptor(SOLUTION_U, &H1));
-      std::vector<FieldDescriptor> parameters;
-      parameters.push_back(FieldDescriptor(MESH_NODES, &mesh_nodes_fes));
+      std::vector<FieldDescriptor> inputs;
+      inputs.push_back(FieldDescriptor(SOLUTION_U, &H1));
+      inputs.push_back(FieldDescriptor(MESH_NODES, &mesh_nodes_fes));
+
+      std::vector<FieldDescriptor> outputs;
+      outputs.push_back(FieldDescriptor(SOLUTION_U, &H1));
 
       // Create the DifferentiableOperator on the desired mesh.
       res = std::make_shared<DifferentiableOperator>(
-               solutions, parameters, *H1.GetParMesh());
+               inputs, outputs, *H1.GetParMesh());
 
       // DifferentiableOperator::AddIntegrator consists mainly of multiple
       // components. The input and output operators and the pointwise
@@ -353,16 +364,9 @@ public:
       // formed integrator should be formed. This is necessary to specify at
       // compile time in order to instantiate the correct functions.
       auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
-      res->AddDomainIntegrator(mf_apply_qf, input_operators, output_operators,
-                               ir, all_domain_attr, derivatives);
-
-      // Before we are able to use DifferentiableOperator::Mult, we need to call
-      // DifferentiableOperator::SetParameters to set the parameters of the
-      // operator. Here, only the mesh node function is required. We do this
-      // here once, because we know that the nodes won't change. If they do,
-      // we'd have to call SetParameters before each call to Mult. This is done
-      // to be mathematically consistent with fixing paramaters.
-      res->SetParameters({&mesh_nodes});
+      res->AddDomainIntegrator<LocalQFBackend>(
+         mf_apply_qf, input_operators, output_operators,
+         ir, all_domain_attr, derivatives);
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
@@ -371,7 +375,9 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      res->Mult(x, y);
+      MultiVector X{x, *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes())};
+      MultiVector Y{y};
+      res->Mult(X, Y);
       y.SetSubVector(ess_tdofs, 0.0);
    }
 

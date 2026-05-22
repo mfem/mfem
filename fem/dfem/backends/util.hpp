@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../fem/quadinterpolator.hpp"
+#include "../../quadinterpolator.hpp"
 #include "../integrator_ctx.hpp"
 #include "../util.hpp"
-#include "general/enzyme.hpp"
+#include "../../../general/enzyme.hpp"
 
 #define DFEM_USE_OWN_TUPLE
 #ifndef DFEM_USE_OWN_TUPLE
@@ -73,8 +73,8 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    };
 }
 
-// QuadratureFunction identity copy
-inline FieldBasis FromQF()
+// VectorQuadratureSpace identity copy
+inline FieldBasis FromQS()
 {
    return
    {
@@ -130,9 +130,9 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       {
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return FromQF();
+         return FromQS();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -200,9 +200,9 @@ inline void check_consistency(
 
       if constexpr (is_identity_fop<input_t>::value)
       {
-         MFEM_ASSERT(std::holds_alternative<const QuadratureFunction *>(fd.data),
+         MFEM_ASSERT(std::holds_alternative<const VectorQuadratureSpace *>(fd.data),
                      "Identity FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
       else if constexpr (is_weight_fop<input_t>::value)
       {
@@ -213,14 +213,14 @@ inline void check_consistency(
                      std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
                      std::holds_alternative<const ParameterSpace *>(fd.data),
                      "Value FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
       else if constexpr (is_gradient_fop<input_t>::value)
       {
          MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
                      std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
                      "Value FieldOperator requested on non "
-                     "QuadratureFunction");
+                     "VectorQuadratureSpace");
       }
    });
 }

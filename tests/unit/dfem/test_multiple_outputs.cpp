@@ -11,12 +11,9 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
-#include "../fem/dfem/backends/global_qf/prelude.hpp"
-#include "linalg/tensor_arrays.hpp"
-#include "fem/dfem/tuple.hpp"
-using mfem::future::tuple;
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../linalg/tensor_arrays.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -272,7 +269,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
    {
       QuadratureSpace qs(pmesh, *ir);
-      QuadratureFunction qdata(qs, DIM*DIM);
+      VectorQuadratureSpace vqs(qs, DIM * DIM);
+      QuadratureFunction qdata(vqs);
 
       DummyParameterSpace dps;
       ParameterFunction dpf(dps);
@@ -315,14 +313,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          {
             {U, &fes},
             {COORDINATES, nodes->ParFESpace()},
-            {S, &qdata},
+            {S, &vqs},
             {L, &dps}
          };
 
          const std::vector<FieldDescriptor> out_fds
          {
             {V, &fes},
-            {S, &qdata}
+            {S, &vqs}
          };
 
          DifferentiableOperator dop(in_fds, out_fds, pmesh);

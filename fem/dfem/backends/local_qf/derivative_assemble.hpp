@@ -224,9 +224,11 @@ struct DerivativeAssemble
       const auto d_attr = ctx.attr.Read();
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      // Read cached derivatives from qp_cache
-      // Cache is laid out as: [test_vdim * test_op_dim * trial_vdim * total_trial_op_dim, num_qp, num_entities]
-      // which can be reshaped to: [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp, num_entities]
+      // Read cached derivatives from qp_cache.
+      // Cache layout per QP: C-style [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim]
+      // i.e. index = (i*tok + k)*trv*trop + j*trop + m.
+      // Reshaped for column-major access as [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, num_qp]
+      // so that qpdc(m, j, k, i, q) gives the Jacobian for output(i,k) w.r.t. input(j,m).
       auto cache_tensor = DeviceTensor<3, const real_t>(qp_cache.Read(),
                                                         residual_size_on_qp, num_qp, num_entities);
 
@@ -263,10 +265,10 @@ struct DerivativeAssemble
          auto Aee = Reshape(&Ae(0, 0, 0, 0, e), num_test_dof_local, test_vdim_local,
                             num_trial_dof_local, trial_vdim_local);
 
-         // Reshape cached derivatives for this element
-         // From [residual_size_on_qp, num_qp] to [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
-         auto qpdc = Reshape(&cache_tensor(0, 0, e), test_vdim_local, test_op_dim_local,
-                             trial_vdim_local, total_trial_op_dim_local, num_qp_local);
+         // Reshape to column-major [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, num_qp]
+         // matching the C-style storage order written by DerivativeSetup.
+         auto qpdc = Reshape(&cache_tensor(0, 0, e), total_trial_op_dim_local,
+                             trial_vdim_local, test_op_dim_local, test_vdim_local, num_qp_local);
 
          // Temporary storage for fhat
          real_t *shmem_ptr = reinterpret_cast<real_t *>(shmem);

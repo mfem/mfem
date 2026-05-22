@@ -198,7 +198,7 @@ inline const Vector &MultiVector::operator[](int i) const
    auto &bi = blocks[i];
    return (bi.index() == 0) ? std::get<0>(bi) :
           (bi.index() == 1) ? *std::get<1>(bi) :
-          *std::get<2>(bi);
+          /**/                *std::get<2>(bi);
 }
 
 template <typename... VectorTypes,

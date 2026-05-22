@@ -268,7 +268,7 @@ struct DerivativeApply
          }
       });
 
-      // Cache layout: [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, elem]
+      // Cache layout: [total_out_size_on_qp * trial_vdim * trial_op_dim, qp, elem]
       const int residual_size_on_qp = output_size_on_qp * trial_vdim *
                                       total_trial_op_dim;
       const int total_trial_op_dim_local = total_trial_op_dim;
@@ -276,6 +276,29 @@ struct DerivativeApply
       auto cache_tensor = DeviceTensor<3, const real_t>(qp_cache.Read(),
                                                         residual_size_on_qp,
                                                         num_qp_local, num_entities_local);
+
+      // Per-output component offsets for cache indexing (no qp dimension).
+      std::array<int, noutputs> out_offsets_arr{};
+      out_offsets_arr[0] = 0;
+      for (size_t oo = 1; oo < noutputs; oo++)
+      {
+         out_offsets_arr[oo] = out_offsets_arr[oo - 1] +
+                               out_vdim[oo - 1] * out_op_dim[oo - 1];
+      }
+      const auto out_offsets_local = out_offsets_arr;
+
+      // Per-output flat offsets into residual_shmem (includes qp dimension).
+      // Each output o occupies a contiguous block [vdim_o * op_dim_o * num_qp]
+      // so that Reshape(base + flat_o, vdim_o, op_dim_o, num_qp) is valid for
+      // map_quadrature_data_to_fields.
+      std::array<int, noutputs> out_flat_offsets_arr{};
+      out_flat_offsets_arr[0] = 0;
+      for (size_t oo = 1; oo < noutputs; oo++)
+      {
+         out_flat_offsets_arr[oo] = out_flat_offsets_arr[oo - 1] +
+                                    out_vdim[oo - 1] * out_op_dim[oo - 1] * num_qp;
+      }
+      const auto out_flat_offsets_local = out_flat_offsets_arr;
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {
@@ -302,67 +325,61 @@ struct DerivativeApply
             ir_weights, scratch_shmem, input_is_dependent_local, dimension_local,
             use_sum_factorization_local);
 
-         // Contract cached Jacobian with direction
-         // result(i,k,q) = sum_j sum_m J(i,k,j,m,q) * direction(j,m,q)
-         // Reshape cache as 5D: [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
-         const int test_vdim = out_vdim_local[0];
-         const int test_op_dim = out_op_dim_local[0];
-
-         MFEM_FOREACH_THREAD(q, x, num_qp_local)
-         {
-            for (int i = 0; i < test_vdim; i++)
-            {
-               for (int k = 0; k < test_op_dim; k++)
-               {
-                  real_t sum = 0.0;
-                  for (int j = 0; j < trial_vdim_local; j++)
-                  {
-                     // Loop over dependent inputs to access direction components
-                     int m_offset = 0;
-                     for_constexpr<ninputs>([&](auto s)
-                     {
-                        if (!input_is_dependent_local[s]) { return; }
-                        const int input_vdim = get<s>(inputs_local).vdim;
-                        const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
-
-                        for (int m = 0; m < trial_op_dim; m++)
-                        {
-                           // Access cache: qpdc(i, k, j, m + m_offset, q)
-                           const int cache_idx =
-                              i * test_op_dim * trial_vdim_local * total_trial_op_dim_local +
-                              k * trial_vdim_local * total_trial_op_dim_local +
-                              j * total_trial_op_dim_local + (m + m_offset);
-
-                           // Access direction from shadow_shmem[s]
-                           // Gradient is stored column-major: flat index = vdim_component + vdim*spatial_dim
-                           const real_t dir_val = shadow_shmem[s](j + input_vdim * m, q);
-
-                           sum += cache_tensor(cache_idx, q, e) * dir_val;
-                        }
-                        m_offset += trial_op_dim;
-                     });
-                  }
-                  residual_shmem(i * test_op_dim + k, q) = sum;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Map result to DOF space
+         // Contract cached Jacobian with direction for each output, storing
+         // results in a flat per-output block so that fhat has stride vdim*op_dim per qp.
+         real_t *resid_base = &residual_shmem(0, 0);
          for_constexpr<noutputs>([&](auto o)
          {
-            const int vdim = out_vdim_local[o];
-            const int op_dim = out_op_dim_local[o];
+            const int test_vdim_o   = out_vdim_local[o];
+            const int test_op_dim_o = out_op_dim_local[o];
+            const int out_offset_o  = out_offsets_local[o];
+            const int out_flat_o    = out_flat_offsets_local[o];
+
+            auto output_buf = Reshape(resid_base + out_flat_o, test_vdim_o,
+                                      test_op_dim_o, num_qp_local);
+
+            MFEM_FOREACH_THREAD(q, x, num_qp_local)
+            {
+               for (int i = 0; i < test_vdim_o; i++)
+               {
+                  for (int k = 0; k < test_op_dim_o; k++)
+                  {
+                     real_t sum = 0.0;
+                     for (int j = 0; j < trial_vdim_local; j++)
+                     {
+                        int m_offset = 0;
+                        for_constexpr<ninputs>([&](auto s)
+                        {
+                           if (!input_is_dependent_local[s]) { return; }
+                           const int input_vdim = get<s>(inputs_local).vdim;
+                           const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+
+                           for (int m = 0; m < trial_op_dim; m++)
+                           {
+                              const int cache_idx =
+                                 (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
+                                 total_trial_op_dim_local +
+                                 j * total_trial_op_dim_local + (m + m_offset);
+
+                              const real_t dir_val = shadow_shmem[s](j + input_vdim * m, q);
+                              sum += cache_tensor(cache_idx, q, e) * dir_val;
+                           }
+                           m_offset += trial_op_dim;
+                        });
+                     }
+                     output_buf(i, k, q) = sum;
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
             const int ndof = out_num_dof_local[o];
-
-            auto fhat = Reshape(&residual_shmem(0, 0), vdim, op_dim, num_qp_local);
-
-            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof,
+            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], test_vdim_o, ndof,
                                                   num_entities_local);
-            auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
+            auto y = Reshape(&ye_out(0, 0, e), ndof, test_vdim_o);
 
             map_quadrature_data_to_fields(
-               y, fhat, get<o>(outputs_local), output_dtq_maps_local[o],
+               y, output_buf, get<o>(outputs_local), output_dtq_maps_local[o],
                scratch_shmem, dimension_local, use_sum_factorization_local);
          });
       }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());

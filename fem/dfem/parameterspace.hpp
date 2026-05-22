@@ -20,7 +20,7 @@ namespace mfem::future
 class ParameterSpace
 {
 public:
-   ParameterSpace(int vdim = 1) : vdim(vdim) {}
+   ParameterSpace(int vdim = 1) : vdim(vdim) { dtq.FE = nullptr; dtq.IntRule = nullptr; }
 
    /// @brief Get vector dimension at each point
    ///

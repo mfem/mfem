@@ -943,9 +943,9 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->Size();
+         return arg->GetVSize();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -985,7 +985,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          MFEM_ABORT("internal error");
       }
@@ -1023,9 +1023,9 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->Size();
+         return arg->GetVSize();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1057,7 +1057,7 @@ int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return arg->GetVDim();
       }
@@ -1096,7 +1096,7 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return arg->GetSpace()->GetMesh()->Dimension();
       }
@@ -1125,9 +1125,9 @@ std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
       {
          return arg->GetQuadratureInterpolator(ir);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         // QuadratureFunction doesn't need a QuadratureInterpolator
+         // VectorQuadratureSpace doesn't need a QuadratureInterpolator
          return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
@@ -1160,7 +1160,7 @@ std::shared_ptr<const Operator> get_prolongation(const FieldDescriptor &f)
          return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
          const Operator*) {});
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return nullptr;
       }
@@ -1199,11 +1199,11 @@ std::shared_ptr<const Operator> get_element_restriction(
          return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
          const Operator*) {});
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         // For QuadratureFunction, create an identity operator
+         // For VectorQuadratureSpace, create an identity operator
          // Data is already at quadrature points, so restriction is identity
-         const int size = arg->Size();
+         const int size = arg->GetVSize();
          return std::make_shared<IdentityOperator>(size);
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
@@ -1245,9 +1245,9 @@ std::shared_ptr<const Operator> get_face_restriction(const FieldDescriptor &f,
          return std::shared_ptr<const Operator>(arg->GetFaceRestriction(o, ft,
          m), [](const Operator*) {});
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         // QuadratureFunction does not support face restrictions
+         // VectorQuadratureSpace does not support face restrictions
          MFEM_ABORT("internal error");
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
@@ -1611,10 +1611,10 @@ void prepare_residual(
    for (size_t i = 0; i < fields.size(); i++)
    {
       int s = 0;
-      if (std::holds_alternative<const QuadratureFunction *>(fields[i].data))
+      if (std::holds_alternative<const VectorQuadratureSpace *>(fields[i].data))
       {
-         const auto fd = std::get<const QuadratureFunction *>(fields[i].data);
-         s = fd->Size();
+         const auto fd = std::get<const VectorQuadratureSpace *>(fields[i].data);
+         s = fd->GetVSize();
       }
       else
       {
@@ -1865,7 +1865,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
             static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
          }
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          // MFEM_ABORT("GetDofToQuad not supported for QuadratureFunction");
          return nullptr;
@@ -2182,19 +2182,19 @@ get_shmem_info(
    std::array<int, num_fields> field_sizes;
    for (std::size_t i = 0; i < num_fields; i++)
    {
-      if (std::holds_alternative<const QuadratureFunction *>(fields[i].data))
+      if (std::holds_alternative<const VectorQuadratureSpace *>(fields[i].data))
       {
-         const auto qf = std::get<const QuadratureFunction *>(fields[i].data);
+         const auto vqs = std::get<const VectorQuadratureSpace *>(fields[i].data);
          if (num_entities == 0)
          {
             field_sizes[i] = 0;
          }
          else
          {
-            MFEM_ASSERT(qf != nullptr, "null QuadratureFunction in FieldDescriptor");
-            MFEM_ASSERT(qf->Size() % num_entities == 0,
-                        "QuadratureFunction size not divisible by num_entities");
-            field_sizes[i] = qf->Size() / num_entities;
+            MFEM_ASSERT(vqs != nullptr, "null VectorQuadratureSpace in FieldDescriptor");
+            MFEM_ASSERT(vqs->GetVSize() % num_entities == 0,
+                        "VectorQuadratureSpace size not divisible by num_entities");
+            field_sizes[i] = vqs->GetVSize() / num_entities;
          }
       }
       else
@@ -2214,19 +2214,19 @@ get_shmem_info(
    if (derivative_action_field_idx != -1)
    {
       const auto &fd = fields[derivative_action_field_idx];
-      if (std::holds_alternative<const QuadratureFunction *>(fd.data))
+      if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
       {
-         const auto qf = std::get<const QuadratureFunction *>(fd.data);
+         const auto vqs = std::get<const VectorQuadratureSpace *>(fd.data);
          if (num_entities == 0)
          {
             direction_size = 0;
          }
          else
          {
-            MFEM_ASSERT(qf != nullptr, "null QuadratureFunction direction field");
-            MFEM_ASSERT(qf->Size() % num_entities == 0,
-                        "QuadratureFunction direction size not divisible by num_entities");
-            direction_size = qf->Size() / num_entities;
+            MFEM_ASSERT(vqs != nullptr, "null VectorQuadratureSpace direction field");
+            MFEM_ASSERT(vqs->GetVSize() % num_entities == 0,
+                        "VectorQuadratureSpace direction size not divisible by num_entities");
+            direction_size = vqs->GetVSize() / num_entities;
          }
       }
       else
@@ -2844,21 +2844,22 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int value_dim = 1;
          int grad_dim = 1;
 
-         if (dtq == nullptr)
-         {
-            // For QuadratureFunction with Identity, use the vector dimension
-            // Data is point-wise at qpts: [nqpt][vdim]
-            const auto &fd = fds[field_map[idx]];
-            if (std::holds_alternative<const QuadratureFunction *>(fd.data))
-            {
-               const auto *qf = std::get<const QuadratureFunction *>(fd.data);
-               value_dim = qf->GetVDim();
-            }
-            return std::tuple{dtq, value_dim, grad_dim};
-         }
+         // if (dtq == nullptr)
+         // {
+         //    // For VectorQuadratureSpace with Identity, use the vector dimension
+         //    // Data is point-wise at qpts: [nqpt][vdim]
+         //    const auto &fd = fds[field_map[idx]];
+         //    if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
+         //    {
+         //       const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+         //       value_dim = vqs->GetVDim();
+         //    }
+         //    return std::tuple{dtq, value_dim, grad_dim};
+         // }
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_identity_fop<decltype(fop)>::value))
+             (!is_identity_fop<decltype(fop)>::value) &&
+             (dtq->FE != nullptr))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
@@ -2871,6 +2872,21 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
                     is_gradient_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
+         // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
+         // uninitialized, B.Size()==0). Using garbage shapes would crash
+         // load_dtq_mem. Treat as a pass-through (which_input=-1) so that
+         // load_dtq_mem skips this entry; only dependent inputs need B/G in
+         // shared memory and ParameterSpace data is never the derivative
+         // direction when reached via Value/Gradient.
+         if (dtq == nullptr || dtq->B.Size() == 0)
+         {
+            return DofToQuadMap
+            {
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               -1
+            };
+         }
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
@@ -2894,35 +2910,35 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 
          const auto &fd = fds[field_map[idx]];
          int mesh_dimension = -1;
-         if (std::holds_alternative<const QuadratureFunction *>(fd.data))
+         if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
          {
-            const auto *qf = std::get<const QuadratureFunction *>(fd.data);
-            mesh_dimension = qf->GetSpace()->GetMesh()->Dimension();
+            const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+            mesh_dimension = vqs->GetSpace()->GetMesh()->Dimension();
          }
          else
          {
-            MFEM_ABORT("identity/sum only implemented for QuadratureFunction");
+            MFEM_ABORT("identity/sum only implemented for VectorQuadratureSpace");
          }
 
-         bool use_tensor_dtq = false;
-         for (const auto *candidate_dtq : dtqs)
-         {
-            if (candidate_dtq != nullptr)
-            {
-               use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
-               break;
-            }
-         }
+         // bool use_tensor_dtq = false;
+         // for (const auto *candidate_dtq : dtqs)
+         // {
+         //    if (candidate_dtq != nullptr)
+         //    {
+         //       use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
+         //       break;
+         //    }
+         // }
+
+         // TODO: force tensor dtq rn, figure out a better way to handle this
 
          int nqpt = ir.GetNPoints();
          int ndof = nqpt;
-         if (use_tensor_dtq)
-         {
-            const int q1d = (int)floor(std::pow(ir.GetNPoints(),
-                                                1.0 / mesh_dimension) + 0.5);
-            nqpt = q1d;
-            ndof = q1d;
-         }
+         const int q1d = (int)floor(std::pow(ir.GetNPoints(),
+                                             1.0 / mesh_dimension) + 0.5);
+         nqpt = q1d;
+         ndof = q1d;
+
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),

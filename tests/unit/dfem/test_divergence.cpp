@@ -11,8 +11,8 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../fem/dfem/doperator.hpp"
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -163,7 +163,7 @@ void vectordivergence(const char *filename, int p)
          MultiVector result{result_v};
          dRdV->MultTranspose(direction, result);
 
-         // Reference: mblf_fa.MultTranspose(ys, xv) -> restrict to T-dofs.
+         psfes.GetProlongationMatrix()->Mult(Ys, ys);
          mblf_fa.MultTranspose(ys, xv);
          Vector ref_v(pvfes.GetTrueVSize());
          pvfes.GetProlongationMatrix()->MultTranspose(xv, ref_v);
