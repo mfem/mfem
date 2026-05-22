@@ -14,13 +14,50 @@
 
 #include "mfem.hpp"
 #include "../../general/socketstream.hpp"
-#include <array>
-#include <vector>
 
 namespace mfem
 {
 namespace hdg
 {
+/// A helper operator for Darcy-like mixed systems
+/** Class DarcyOperator helps with construction of a spatial operator for
+    mixed systems with (anti)symmetric weak form common for parabolic and
+    elliptic problems. These can be written as:
+    \verbatim
+        ┌        ┐┌   ┐   ┌    ┐
+        | Mu ±Bᵀ || u | _ | bu |
+        | B  Mp  || p | ̅  | bp |
+        └        ┘└   ┘   └    ┘
+    \endverbatim
+    following the notation of DarcyForm.
+
+    The mixed system discretization provided through DarcyForm is solved
+    implicitly with an appropriate solver and preconditioner to provide
+    time derivatives for time evolution of the system. Specifically,
+    these configurations are set up:
+    - mixed system - Schur complement preconditioner using Jacobi
+                     preconditioner for the flux mass and HypreBoomerAMG in
+                     parallel for the Schur complement, or UMFPackSolver
+                     / GSSmoother in serial (depending on availability and
+                     @a USE_DIRECT_SOLVER_SCHUR in darcyop.cpp).
+    - hybridized system - HypreBoomerAMG in parallel, or UMFPackSolver
+                          / GSSmoother in serial (depending on availability
+                          and @a USE_DIRECT_SOLVER_HYBRIDIZATION in darcyop.cpp)
+    - reduced system - HypreBoomerAMG in parallel, or UMFPackSolver
+                       / GSSmoother in serial (depending on availability
+                       and @a USE_DIRECT_SOLVER_REDUCTION in darcyop.cpp)
+
+    Note that DarcyOperator uses a BlockVector (with offsets obtained through
+    GetOffsets()) for representation of the state, which has 3 components for
+    hybridized systems: flux, potential and trace unknowns. This construction
+    speeds up the solution procedure by providing an initial guess of the trace
+    unknows to the linear solver.
+
+    DarcyOperator also handles construction of the intertial term in time
+    evolving cases (indicated in the constructor), which is added to the
+    DarcyForm and its contribution is added to the right hand side as well
+    every time step.
+  */
 class DarcyOperator : public TimeDependentOperator
 {
 public:
@@ -207,32 +244,78 @@ private:
    void SetupLinearSolver(real_t rtol, real_t atol, int iters);
 
 public:
+   /// Constructor
+   /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
+       @param darcy                    discretization of the mixed system
+       @param g                        flux right hand side
+       @param f                        potential right hand side
+       @param h                        trace right hand side
+       @param coeffs                   array of time-dependent coefficients
+                                       that need to be updated for assembly
+                                       of the right-hand-side linear forms
+       @param stype                    nonlinear solver type
+       @param btime_u                  flag for time evolving flux
+       @param btime_p                  flag for time evolving potential
+    */
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
                  LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-                 SolverType stype = SolverType::LBFGS,  bool bflux_u = false,
+                 SolverType stype = SolverType::LBFGS,  bool btime_u = false,
                  bool btime_p = false);
+
 #ifdef MFEM_USE_MPI
+   /// Constructor (parallel)
+   /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
+       @param darcy                    discretization of the mixed system
+       @param g                        flux right hand side
+       @param f                        potential right hand side
+       @param h                        trace right hand side
+       @param coeffs                   array of time-dependent coefficients
+                                       that need to be updated for assembly
+                                       of the right-hand-side linear forms
+       @param stype                    nonlinear solver type
+       @param btime_u                  flag for time evolving flux
+       @param btime_p                  flag for time evolving potential
+    */
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, ParDarcyForm *darcy,
                  ParLinearForm *g, ParLinearForm *f, ParLinearForm *h,
                  const Array<Coefficient*> &coeffs,
-                 SolverType stype = SolverType::LBFGS,  bool bflux_u = false,
+                 SolverType stype = SolverType::LBFGS,  bool btime_u = false,
                  bool btime_p = false);
 #endif
 
+   /// Destructor
    ~DarcyOperator();
 
+   /// Set the tolerance of iterative solvers
    void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
+
+   /// Set the maximal number of iterations of iterative solvers
    void SetMaxIters(int iters_) { max_iters = iters_; }
 
    void EnableSolutionController(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
 
+   /// Construct state vector offsets
+   /** Constructs state vector offsets corresponding to the DarcyForm @p darcy.
+       Note this includes trace unknonws for hybridized systems. */
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
+
+   /// Get the state vector offsets
+   /** @see ConstructOffsets() */
    inline const Array<int>& GetOffsets() const { return offsets; }
+
+   /// Get the associated DarcyForm
    inline const DarcyForm& GetDarcyForm() const { return *darcy; }
+
+#ifdef MFEM_USE_MPI
+   /// Get the associated ParDarcyForm
+   inline const ParDarcyForm& GetParDarcyForm() const
+   { MFEM_VERIFY(pdarcy, "No ParDarcyForm!"); return *pdarcy; }
+#endif
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
+   /// Updates the operator after a change of the mesh
    void Update();
 };
 
