@@ -1116,9 +1116,6 @@ TFunc GetTFun(const ProblemParams &params)
    const real_t &y0 = params.y0;
    const real_t &sx = params.sx;
    const real_t &sy = params.sy;
-   const real_t hx = sx / params.nx;
-   const real_t hy = sy / params.ny;
-   const real_t &order = params.order;
 
    auto kFun = GetKFun(params);
 
