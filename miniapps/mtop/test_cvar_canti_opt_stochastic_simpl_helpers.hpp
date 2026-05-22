@@ -353,5 +353,27 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
     return x_vol;
 }
 
+        class PostHeavisideCoefficient : public Coefficient
+    {
+    public:
+        PostHeavisideCoefficient(ParGridFunction *dens_, bool *use_hproj_,
+                                 real_t *eta_, real_t *beta_)
+            : dens(dens_), use_hproj(use_hproj_), eta(eta_), beta(beta_) {}
 
+        virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+        {
+            real_t val = dens->GetValue(T, ip);
+            if (*use_hproj)
+            {
+                val = PointwiseTrans::HProject(val, *eta, *beta);
+            }
+            return val;
+        }
+
+    private:
+        ParGridFunction *dens;
+        bool *use_hproj;
+        real_t *eta;
+        real_t *beta;
+    };
 }; // namespace mfem

@@ -77,8 +77,6 @@ int main(int argc, char *argv[])
     const real_t MAX_ALPHA = 1.0;
     const real_t ALPHA_SCALING_FACTOR_OVERRIDE = 1.0; // if alpha goes out of bounds, we scale it back by this factor. Original 0.5
 
-    // const real_t SAMPLE_POINT_THROWOUT_EPSILON = 1e-7; // if a sampled point has probability less than this, we throw it out and resample. Original 1e-6
-
     const real_t CLAMP_VAL = 20;
 
     const real_t starting_rho = 5.0;
@@ -102,26 +100,18 @@ int main(int argc, char *argv[])
     real_t hole_size_x = 0.15;              // Position of hole center in x-direction as fraction from left edge
 
     // Promote black-white designs without changing the filter radius.
-
-    // TODO: heaviside projection with eroded for compliance and dilated for volume constraint, as in "Projection methods for topology optimization with multiple materials" by Wang et al 2020. We can do this by maintaining two prox variables for the latent probabilities, one for compliance and one for volume, and updating them with different heaviside betas.
     bool use_heaviside_projection = true;
     real_t heaviside_eta_d = 0.3;
     real_t heaviside_eta_e = 0.7;
-    real_t heaviside_beta_start = 8.0;
-    real_t heaviside_beta_max = 8.0;
-    real_t heaviside_beta_growth = 1.00;
-    bool heaviside_beta_scaling = false;
+    real_t heaviside_beta = 8.0;
     real_t simp_power = 1.0;
-
-    // bool init_with_randomness = false;       // Initialize with symmetric random perturbations
-    // real_t randomness_magnitude = 0.5;       // Magnitude of random perturbations in latent space
 
     const real_t tau = 1e-10; // threshold for probability truncation.
 
     const real_t p1 = 0.01; 
     const real_t p2 = 0.01; 
     const real_t p3 = 0.01; 
-    const real_t p4 = 0.005; // SET BACK TO 0.005
+    const real_t p4 = 0.005; 
 
     const real_t cvar_alpha = 0.95;
     const int outer_loop_iterations = 100;
@@ -201,20 +191,10 @@ int main(int argc, char *argv[])
                    "Threshold eta for Heaviside projection in volume/projection computations (default 0.3).");
     args.AddOption(&heaviside_eta_e, "-heta-e", "--heaviside-eta-e",
                    "Threshold eta for Heaviside projection in compliance and gradient computations (default 0.7).");
-    args.AddOption(&heaviside_beta_start, "-hbs", "--heaviside-beta-start",
-                   "Initial beta for Heaviside projection continuation (default 1.0).");
-    args.AddOption(&heaviside_beta_max, "-hbm", "--heaviside-beta-max",
-                   "Maximum beta for Heaviside projection continuation (default 12.0).");
-    args.AddOption(&heaviside_beta_growth, "-hbg", "--heaviside-beta-growth",
-                   "Geometric growth factor for Heaviside beta continuation (default 1.08).");
-    args.AddOption(&heaviside_beta_scaling, "-hbsc", "--heaviside-beta-scaling", "-no-hbsc", "--no-heaviside-beta-scaling",
-                   "Enable geometric scaling of Heaviside beta through outer iterations.");
+    args.AddOption(&heaviside_beta, "-hb", "--heaviside-beta",
+                   "Beta for Heaviside projection continuation (default 1.0).");
     args.AddOption(&simp_power, "-sp", "--simp-power",
                    "SIMP penalization power used for stiffness interpolation (default 3.0).");
-    // args.AddOption(&init_with_randomness, "-rand", "--init-random", "-no-rand", "--no-init-random",
-                //    "Initialize with symmetric random perturbations.");
-    // args.AddOption(&randomness_magnitude, "-rm", "--randomness-magnitude",
-                //    "Magnitude of random perturbations in latent space (default 0.5).");
     args.Parse();
     if (!args.Good())
     {
@@ -272,6 +252,8 @@ int main(int argc, char *argv[])
     // allocate the fiter
     FilterOperator *filt = new FilterOperator(filter_radius, &pmesh);
     // set the boundary conditions
+
+    // @TODO handle this within the initialization code. Too manual.
     filt->AddBC(1, 1.0); // free hold
     filt->AddBC(2, 1.0);
     filt->AddBC(3, 1.0);
@@ -300,35 +282,11 @@ int main(int argc, char *argv[])
     ParGridFunction fdens(filt->GetFilterFES());
     ParGridFunction hbeta_fdens_e(filt->GetFilterFES());
     ParGridFunction hbeta_fdens_d(filt->GetFilterFES());
-    real_t heaviside_beta_current = heaviside_beta_start;
 
-    class PostHeavisideCoefficient : public Coefficient
-    {
-    public:
-        PostHeavisideCoefficient(ParGridFunction *dens_, bool *use_hproj_,
-                                 real_t *eta_, real_t *beta_)
-            : dens(dens_), use_hproj(use_hproj_), eta(eta_), beta(beta_) {}
-
-        virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
-        {
-            real_t val = dens->GetValue(T, ip);
-            if (*use_hproj)
-            {
-                val = PointwiseTrans::HProject(val, *eta, *beta);
-            }
-            return val;
-        }
-
-    private:
-        ParGridFunction *dens;
-        bool *use_hproj;
-        real_t *eta;
-        real_t *beta;
-    };
     PostHeavisideCoefficient post_heaviside_coeff_e(
-        &fdens, &use_heaviside_projection, &heaviside_eta_e, &heaviside_beta_current);
+        &fdens, &use_heaviside_projection, &heaviside_eta_e, &heaviside_beta);
     PostHeavisideCoefficient post_heaviside_coeff_d(
-        &fdens, &use_heaviside_projection, &heaviside_eta_d, &heaviside_beta_current);
+        &fdens, &use_heaviside_projection, &heaviside_eta_d, &heaviside_beta);
 
     // hold the gradient of the functional. Used for GBB step size estimation.
     ParGridFunction odens_weighted_gradient(filt->GetDesignFES());
@@ -378,17 +336,8 @@ int main(int argc, char *argv[])
         }
         initialize_with_hole(odens_latent, target_volume, domain_volume, myid,
                              hole_radius, hole_strength, hole_size_x,
-                             use_heaviside_projection, heaviside_eta_d, heaviside_beta_start);
+                             use_heaviside_projection, heaviside_eta_d, heaviside_beta);
     }
-    // else if (init_with_randomness)
-    // {
-    //     if (myid == 0)
-    //     {
-    //         std::cout << "Initializing with symmetric random perturbations." << std::endl
-    //                   << "  Randomness magnitude: " << randomness_magnitude << std::endl;
-    //     }
-    //     initialize_with_symmetric_randomness(odens_latent, vol_fraction, randomness_magnitude, rng, 0);
-    // }
     else
     {
         // Default uniform initialization
@@ -473,7 +422,7 @@ int main(int argc, char *argv[])
     icc.SetSIMP(simp_power);
     if (use_heaviside_projection)
     {
-        icc.SetProj(heaviside_eta_e, heaviside_beta_current);
+        icc.SetProj(heaviside_eta_e, heaviside_beta);
     }
 
     // set the material to the elasticity solver
@@ -623,31 +572,16 @@ int main(int argc, char *argv[])
     // loop
     for (unsigned int outer = 1; outer <= outer_loop_iterations; outer++)
     {
-        if (use_heaviside_projection)
+        icc.SetProj(heaviside_eta_e, heaviside_beta);
+
+        if (myid == 0)
         {
-            if (heaviside_beta_scaling)
-            {
-                heaviside_beta_current = std::min(
-                    heaviside_beta_start * std::pow(heaviside_beta_growth, static_cast<real_t>(outer - 1)),
-                    heaviside_beta_max);
-            }
-            else
-            {
-                heaviside_beta_current = heaviside_beta_start;
-            }
-
-            icc.SetProj(heaviside_eta_e, heaviside_beta_current);
-
-            if (myid == 0)
-            {
-                std::cout << "[projection] outer=" << outer
-                          << " eta_d=" << heaviside_eta_d
-                          << " eta_e=" << heaviside_eta_e
-                          << " beta=" << heaviside_beta_current
-                          << " beta_scaling=" << heaviside_beta_scaling
-                          << " simp_power=" << simp_power
-                          << std::endl;
-            }
+            std::cout << "[projection] outer=" << outer
+                        << " eta_d=" << heaviside_eta_d
+                        << " eta_e=" << heaviside_eta_e
+                        << " beta=" << heaviside_beta
+                        << " simp_power=" << simp_power
+                        << std::endl;
         }
 
         if (outer > 1)
@@ -675,24 +609,9 @@ int main(int argc, char *argv[])
             paraview_dc.Save();
         }
 
-        // first we calculate and find the new latent probabilities.
-        // real_t inner_loop_gamma;
-        // if (inner_loop_gamma_choice == "restart") {
-        //     inner_loop_gamma = starting_gamma;
-        // } else if (inner_loop_gamma_choice == "lockstep") {
-        //     inner_loop_gamma = gamma;
-        // } else {
-        //     throw std::runtime_error("Invalid gamma");
-        // }
 
-        // cout << "STARTING RUNNING LOOP" << endl;
-
-        // int inner = 1;
-
-        // now we also set 
-
+        // Block for update. Deterministic or sampled without replacement.
         std::vector<std::size_t> block_k;
-
 
         if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER)) {
             block_k = std::vector<size_t>(latent_probabilities_k_0.size()); // Create vector of size N
@@ -756,7 +675,7 @@ int main(int argc, char *argv[])
         odens_latent.median(CLAMP_MIN_VECTOR, CLAMP_MAX_VECTOR);
 
         real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                      use_heaviside_projection, heaviside_eta_d, heaviside_beta_current); // last two are tol and max its
+                                      use_heaviside_projection, heaviside_eta_d, heaviside_beta); // last two are tol and max its
         if (0 == myid)
         {
             cout << "For clamping on outer step " << outer << ", got material " << material_volume << ". Expected Material " << target_volume << "\n";
@@ -778,7 +697,9 @@ int main(int argc, char *argv[])
             std::vector<bool> latent_probability_indices_to_sample_mask; // for debugging. Remove later.
             bool xi_in_empty = true;
 
-            // determine where we're sampling. If in the stochastic case, we can skip calculating unnecessary compliances.
+            /**
+             * Determine where we're sampling. If in the stochastic case, we can skip calculating unnecessary compliances.
+             * */
             if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER)) {
                 // we need to calculate q_k_jp1 for this. So defer.
                 latent_probability_indices_to_sample_mask.assign(latent_probabilities_k_0.size(), true);
@@ -1405,7 +1326,7 @@ int main(int argc, char *argv[])
 
                 // project our design onto the one with the proper volume
                 real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                              use_heaviside_projection, heaviside_eta_d, heaviside_beta_current); // last two are tol and max its
+                                              use_heaviside_projection, heaviside_eta_d, heaviside_beta); // last two are tol and max its
                 if (0 == myid)
                 {
                     cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts
