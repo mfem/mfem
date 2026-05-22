@@ -692,6 +692,25 @@ int main(int argc, char *argv[])
                                              inflow, velocity, m)); break;
    }
 
+   if (!DG)
+   {
+      auto *cg_adv = dynamic_cast<CG_FE_Evolution *>(adv.get());
+      MFEM_VERIFY(cg_adv != NULL, "Expected a CG_FE_Evolution operator.");
+
+      real_t dt_lo_local = 0.0, dt_lo_global = 0.0;
+      cg_adv->ComputeLOTimeStepEstimates(dt_lo_local, dt_lo_global);
+      if (Mpi::Root())
+      {
+         cout << "CG low-order time step estimate (local matrices):  "
+              << dt_lo_local << '\n';
+         cout << "CG low-order time step estimate (global assembled): "
+              << dt_lo_global << '\n';
+         std::cout << dt_lo_global / dt_lo_local << std::endl;
+         cout << "Commandl line dt: " << dt << std::endl;
+      }
+      // dt = dt_lo_global;
+   }
+
    real_t t = 0.0;
    adv->SetTime(t);
    ode_solver->Init(*adv);

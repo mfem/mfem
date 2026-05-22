@@ -1,6 +1,7 @@
 //                  MFEM Example 9 - Serial/Parallel Shared Code
 
 #include "mfem.hpp"
+#include <limits>
 
 namespace mfem
 {
@@ -92,6 +93,24 @@ public:
    }
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
+
+   /// Estimate a CFL-like forward Euler time step for the low-order (LO)
+   /// scheme, based on Lemma 4.3 in:
+   ///   HIGH-ORDER MULTI-MATERIAL ALE HYDRODYNAMICS
+   ///   Anderson, Dobrev, Kolev, Rieben, Tomov (2018).
+   ///
+   /// The LO forward Euler update can be written in the form
+   ///   M_L u^{n+1} = (M_L + dt * K_LO) u^n + dt * rhs_const,
+   /// where M_L is the lumped mass matrix and K_LO has nonnegative
+   /// off-diagonals and nonpositive diagonal.
+   /// Lemma 4.3 gives the sufficient condition for entrywise nonnegativity:
+   ///   m_i + dt * (K_LO)_{ii} >= 0  for all i,
+   /// i.e., dt <= min_i m_i / (-(K_LO)_{ii}) over DOFs with (K_LO)_{ii} < 0.
+   ///
+   /// Two estimates are returned:
+   /// - dt_local: uses per-element (unassembled) matrices; ignores overlap.
+   /// - dt_global: uses the globally assembled diagonal (sums element overlap).
+   void ComputeLOTimeStepEstimates(real_t &dt_local, real_t &dt_global) const;
 
    virtual ~CG_FE_Evolution() { }
 };
@@ -214,6 +233,112 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
 
    // apply inverse lumped mass matrix
    udot /= lumpedmassmatrix;
+}
+
+void CG_FE_Evolution::ComputeLOTimeStepEstimates(real_t &dt_local,
+                                                 real_t &dt_global) const
+{
+   // Elementwise (unassembled) estimate.
+   dt_local = std::numeric_limits<real_t>::infinity();
+
+   // Globally assembled diagonal of K_LO (in the DOF numbering of 'fes').
+   Vector kdiag(lumpedmassmatrix.Size());
+   kdiag = 0.0;
+
+   const int nE = fes.GetNE();
+   Array<int> dofs;
+
+   for (int e = 0; e < nE; e++)
+   {
+      auto element = fes.GetFE(e);
+      auto eltrans = fes.GetElementTransformation(e);
+
+      // Assemble element matrices for the LO operator:
+      //   K_LO,e = (-K_e + D_e),
+      // where D_e is the discrete upwinding diffusion constructed from K_e.
+      conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
+      mass_int.AssembleElementMatrix(*element, *eltrans, Me);
+
+      fes.GetElementDofs(e, dofs);
+      const int nd = dofs.Size();
+
+      Vector me(nd), kdiag_e(nd);
+      for (int i = 0; i < nd; i++)
+      {
+         // m_i^e = sum_j (M_e)_{ij}  (row-sum lumping)
+         real_t mi = 0.0;
+         for (int j = 0; j < nd; j++) { mi += Me(i, j); }
+         me(i) = mi;
+
+         // Start with the diagonal from -K_e.
+         kdiag_e(i) = -Ke(i, i);
+      }
+
+      // Add diagonal contributions from the diffusion D_e:
+      // D_e has off-diagonal entries d_ij >= 0 and diagonal entries
+      // (D_e)_{ii} = -sum_{j != i} d_ij.
+      for (int i = 0; i < nd; i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            const real_t d_ij =
+               std::max(std::max(Ke(i, j), Ke(j, i)), real_t(0.0));
+            kdiag_e(i) -= d_ij;
+            kdiag_e(j) -= d_ij;
+         }
+      }
+
+      // Per-element time step estimate (ignores overlap).
+      for (int i = 0; i < nd; i++)
+      {
+         if (kdiag_e(i) < 0.0)
+         {
+            dt_local = std::min(dt_local, me(i) / (-kdiag_e(i)));
+         }
+      }
+
+      // Contribute to the globally assembled diagonal.
+      for (int i = 0; i < nd; i++) { kdiag(dofs[i]) += kdiag_e(i); }
+   }
+
+   // Add boundary flow contribution (diagonal) from the LO evolution operator.
+   // Note: In this example set-up this is typically zero.
+   kdiag += b_lumped;
+
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      // Sum K_LO diagonal contributions over shared DOFs.
+      Array<real_t> kdiag_array(kdiag.GetData(), kdiag.Size());
+      pfes->GroupComm().Reduce<real_t>(kdiag_array, GroupCommunicator::Sum);
+      pfes->GroupComm().Bcast(kdiag_array);
+   }
+#endif
+
+   // Global (assembled) estimate.
+   dt_global = std::numeric_limits<real_t>::infinity();
+   for (int i = 0; i < kdiag.Size(); i++)
+   {
+      if (kdiag(i) < 0.0)
+      {
+         dt_global = std::min(dt_global, lumpedmassmatrix(i) / (-kdiag(i)));
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      // Reduce to a global minimum over all MPI ranks.
+      real_t dt_local_glob = dt_local;
+      real_t dt_global_glob = dt_global;
+      MPI_Allreduce(&dt_local, &dt_local_glob, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, pfes->GetComm());
+      MPI_Allreduce(&dt_global, &dt_global_glob, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
+      dt_local = dt_local_glob;
+      dt_global = dt_global_glob;
+   }
+#endif
 }
 
 void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
@@ -427,4 +552,3 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 }
 
 } // namespace mfem
-
