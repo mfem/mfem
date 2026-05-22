@@ -9,7 +9,7 @@ using namespace mfem;
 
 /************************************************************************
  * The forward state consists of vector and several additional values.
- * The goal is to demontrate how different storages can be used together
+ * The goal is to demonstrate how different storages can be used together
  * with DynamicCheckpointing in order to avoid unnecessary memory 
  * allocations, data copies, and deallocations.
  * *********************************************************************/
