@@ -47,10 +47,13 @@ public:
                  mfem::FindPointsGSLIB& E_finder_, int num_particles,
                  mfem::Ordering::Type pdata_ordering);
 
-   /// Initialize charged particles with given parameters
+   /// Initialize charged particles with given parameters.
+   /// @a init_case: 0 = Landau damping, 1 = two-stream instability.
    void InitializeChargedParticles(const mfem::real_t& k,
                                    const mfem::real_t& alpha, mfem::real_t m,
                                    mfem::real_t q, mfem::real_t L,
+                                   int init_case, mfem::real_t v0,
+                                   mfem::real_t beam_variance,
                                    bool reproduce = false);
 
    /// Find Particles in mesh corresponding to E and field

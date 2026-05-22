@@ -41,7 +41,9 @@
 // Sample runs:
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -diff 10 -eoi 10
+//      mpirun -n 4 ./electrostatic-pic -case 0 -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -diff 10 -eoi 10
+//   2D2V Two-stream instability (warm beams):
+//      mpirun -n 4 ./electrostatic-pic -case 1 -rdi 1 -npt 409600 -k 0.2855993321  -v0 0.5 -vvar 0.01 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -no-vis
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
 //      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 #include <fstream>
@@ -73,8 +75,13 @@ struct PICContext
    real_t q = 1.0;    ///< Particle charge.
    real_t m = 1.0;    ///< Particle mass.
 
-   real_t k = 1.0;      ///< Wave number (Landau damping init).
-   real_t alpha = 0.1;  ///< Perturbation amplitude (Landau damping init).
+   real_t k = 1.0;      ///< Wave number for initial distribution.
+   real_t alpha = 0.1;  ///< Density perturbation amplitude.
+
+   int init_case = 0;  ///< 0 = Landau damping, 1 = two-stream instability.
+   real_t v0 = 0.5;    ///< Counter-streaming beam speed (case 1).
+   real_t beam_variance =
+      0.0;  ///< Variance of each counter-streaming beam (case 1).
 
    real_t dt = 1e-2;  ///< Time step size.
    real_t diffusivity =
@@ -145,6 +152,12 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.k, "-k", "--k", "Wave number for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Perturbation amplitude for initial distribution.");
+   args.AddOption(&ctx.init_case, "-case", "--case",
+                  "Initial distribution: 0 = Landau damping, 1 = two-stream.");
+   args.AddOption(&ctx.v0, "-v0", "--v0",
+                  "Counter-streaming beam speed (case 1 only).");
+   args.AddOption(&ctx.beam_variance, "-vvar", "--beam-variance",
+                  "Variance of each counter-streaming beam (case 1 only).");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_interval, "-rdi", "--redist-interval",
@@ -173,6 +186,10 @@ int main(int argc, char* argv[])
                "Alpha should be in range [-1, 1).");
    MFEM_VERIFY(ctx.k > 0.0,
                "k must be nonzero for displacement initialization.");
+   MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1,
+               "case must be 0 (Landau) or 1 (two-stream).");
+   MFEM_VERIFY(ctx.beam_variance >= 0.0,
+               "beam-variance must be non-negative.");
 
    ctx.L = 2.0 * M_PI / ctx.k;
 
@@ -232,8 +249,9 @@ int main(int argc, char* argv[])
       ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
    ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, E_finder, num_particles,
                                 ordering_type);
-   particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m, ctx.q,
-                                             ctx.L, ctx.reproduce);
+   particle_mover.InitializeChargedParticles(
+      ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
+      ctx.beam_variance, ctx.reproduce);
 
    // 8. Start the main loop
    real_t t = 0;

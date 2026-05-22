@@ -39,9 +39,15 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
                                                const real_t& alpha,
-                                               real_t m, real_t q,
-                                               real_t L, bool reproduce)
+                                               real_t m, real_t q, real_t L,
+                                               int init_case, real_t v0,
+                                               real_t beam_variance,
+                                               bool reproduce)
 {
+   MFEM_VERIFY(init_case == 0 || init_case == 1,
+               "init_case must be 0 (Landau) or 1 (two-stream).");
+   MFEM_VERIFY(beam_variance >= 0.0, "beam_variance must be non-negative.");
+
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
    std::mt19937 gen(
@@ -50,6 +56,7 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
    const int dim = charged_particles->Coords().GetVDim();
+   const real_t beam_std = std::sqrt(beam_variance);
 
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(ParticleMover::MOM);
@@ -58,23 +65,31 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
 
    for (int i = 0; i < charged_particles->GetNParticles(); i++)
    {
-      // Initialize momentum.
-      for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
-
-      // Uniform positions (no accept-reject).
-      for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
-
-      // Displacement along x for perturbation ~ cos(k x).
-      for (int d = 0; d < dim; d++)
+      if (init_case == 0)
       {
-         real_t x = X(i, d);
-         x -= (alpha / k) * std::sin(k * x);
+         // Landau damping: Maxwellian momentum, sin(kx) density perturbation.
+         for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
 
-         // Periodic wrap to [0, L).
-         x = std::fmod(x, L);
-         if (x < 0) { x += L; }
+         for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
 
-         X(i, d) = x;
+         for (int d = 0; d < dim; d++)
+         {
+            real_t x = X(i, d);
+            x -= (alpha / k) * std::sin(k * x);
+            x = std::fmod(x, L);
+            if (x < 0) { x += L; }
+            X(i, d) = x;
+         }
+      }
+      else  // init_case == 1
+      {
+         // Two-stream: Gaussian beams at +/-v0 in x, Maxwellian transverse.
+         const real_t vx_mean = (real_dist(gen) < 0.5 ? v0 : -v0);
+         P(i, 0) = m * (vx_mean + beam_std * norm_dist(gen));
+
+         for (int d = 1; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
+
+         for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
       }
 
       M(i) = m;
