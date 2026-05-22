@@ -142,14 +142,6 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    gmres.SetPrintLevel(2);
    gmres.Mult(trueRHS, trueX);
 
-   std::fprintf(stderr,
-                "[GMRES] converged=%d iters=%d final_norm=%.3e\n",
-                gmres.GetConverged(), gmres.GetNumIterations(),
-                gmres.GetFinalNorm());
-   std::fprintf(stderr, "trueX block sizes: %d, %d  (matrix N=%d)\n",
-                trueX.GetBlock(0).Size(), trueX.GetBlock(1).Size(),
-                blockOp.Height());
-
    delete Sh1;
    delete Snd;
 
@@ -160,15 +152,11 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    ConstantCoefficient zero(0.0);
    VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
-   real_t err_Vr = V.real().ComputeL2Error(V_exact_real);
-   real_t err_Vi = V.imag().ComputeL2Error(zero);
-   real_t err_Ar = A.real().ComputeL2Error(zero_vec);
-   real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
+   real_t err_V = V.ComputeL2Error(V_exact_real, zero);
+   real_t err_A = A.ComputeL2Error(zero_vec, A_exact_imag);
 
-   REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
-   REQUIRE(err_Vi == MFEM_Approx(0.0, 1e-5));
-   REQUIRE(err_Ar == MFEM_Approx(0.0, 1e-5));
-   REQUIRE(err_Ai == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_V == MFEM_Approx(0.0, 1e-5));
+   REQUIRE(err_A == MFEM_Approx(0.0, 1e-5));
 }
 
 #ifdef MFEM_USE_MPI
