@@ -658,6 +658,7 @@ void MemoryManager::Destroy()
                                    "destroy " << (int)seg.mtypes[1] << ", "
                                    << seg.is_temporary());
          Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1], seg.is_temporary());
+         segment_maps[1].erase(seg.lowers[1]);
          seg.lowers[1] = nullptr;
          // seg.mtypes[1] = MemoryType::DEFAULT;
       }
@@ -668,6 +669,7 @@ void MemoryManager::Destroy()
                                    "destroy " << (int)seg.mtypes[0] << ", "
                                    << seg.is_temporary());
          Dealloc(seg.lowers[0], seg.nbytes, seg.mtypes[0], seg.is_temporary());
+         segment_maps[0].erase(seg.lowers[0]);
          seg.lowers[0] = nullptr;
          // seg.mtypes[0] = MemoryType::DEFAULT;
       }
@@ -1133,6 +1135,14 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
    seg.lowers[0] = hptr;
    seg.lowers[1] = dptr;
+   if (hptr)
+   {
+      segment_maps[0].emplace(hptr, next_segment);
+   }
+   if (dptr && dptr != hptr)
+   {
+      segment_maps[1].emplace(dptr, next_segment);
+   }
    seg.nbytes = nbytes;
    if (hptr && hloc == MemoryType::DEFAULT)
    {
@@ -1208,6 +1218,14 @@ void MemoryManager::erase(size_t segment)
       {
          if (!--seg.ref_count)
          {
+            if (seg.lowers[0])
+            {
+               segment_maps[0].erase(seg.lowers[0]);
+            }
+            if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
+            {
+               segment_maps[1].erase(seg.lowers[1]);
+            }
             seg.lowers[0] = nullptr;
             seg.lowers[1] = nullptr;
             seg.nbytes = 0;
@@ -1507,6 +1525,8 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         segment_maps[on_device].emplace(seg.lowers[on_device], segment);
+
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
@@ -1731,6 +1751,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
@@ -1763,6 +1784,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
             }
             seg.lowers[!on_device] =
                Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+            segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
                                   "alloc " << (int)seg.mtypes[!on_device]
@@ -1819,6 +1841,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
@@ -1852,6 +1875,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
             }
             seg.lowers[!on_device] =
                Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+            segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
                                   "alloc " << (int)seg.mtypes[!on_device]
@@ -1941,7 +1965,8 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                                const char *src1, MemoryType sloc0,
                                MemoryType sloc1, size_t src_offset,
                                size_t marker0, size_t marker1,
-                               RBase::Segment *dseg, bool on_device)
+                               RBase::Segment *dseg, size_t dsegment,
+                               bool on_device)
 {
    if (!src0)
    {
@@ -2207,6 +2232,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
       // perform lazy device allocation of dst
       dseg->lowers[on_device] =
          Alloc(dseg->nbytes, dseg->mtypes[on_device], dseg->is_temporary());
+      segment_maps[on_device].emplace(dseg->lowers[on_device], dsegment);
       MFEM_MEM_OP_DEBUG_ADD(
          0, dseg->lowers[on_device], dseg->lowers[on_device] + dseg->nbytes,
          "alloc " << (int)dseg->mtypes[on_device] << ", " << dseg->is_temporary());
@@ -2249,7 +2275,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
          // assume dst is valid in either host or device over the entire range
          CopyImpl(&dseg.lowers[0], dseg.mtypes[1], dst_offset, 0, nbytes,
                   sseg.lowers[1], sseg.lowers[0], sseg.mtypes[1],
-                  sseg.mtypes[0], src_offset, currs[1], currs[0], nullptr,
+                  sseg.mtypes[0], src_offset, currs[1], currs[0], nullptr, 0,
                   false);
       }
       else
@@ -2262,7 +2288,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
             CopyImpl(&dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
                      sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
                      sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i],
-                     &dseg, i);
+                     &dseg, dst_seg, i);
          }
       }
    }
@@ -2290,6 +2316,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
          // perform lazy device allocation
          dseg.lowers[1] =
             Alloc(dseg.nbytes, dseg.mtypes[1], dseg.is_temporary());
+         segment_maps[1].emplace(dseg.lowers[1], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, dseg.lowers[1], dseg.lowers[1] + dseg.nbytes,
                                "alloc " << (int)dseg.mtypes[1] << ", "
                                << dseg.is_temporary());
@@ -2317,11 +2344,12 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
          if (!dseg.lowers[i] && copy_segs.size())
          {
             // perform lazy device allocation
-            dseg.lowers[1] =
-               Alloc(dseg.nbytes, dseg.mtypes[1], dseg.is_temporary());
+            dseg.lowers[i] =
+               Alloc(dseg.nbytes, dseg.mtypes[i], dseg.is_temporary());
+            segment_maps[i].emplace(dseg.lowers[i], segment);
             MFEM_MEM_OP_DEBUG_ADD(
-               0, dseg.lowers[1], dseg.lowers[1] + dseg.nbytes,
-               "alloc " << (int)dseg.mtypes[1] << ", " << dseg.is_temporary());
+               0, dseg.lowers[i], dseg.lowers[i] + dseg.nbytes,
+               "alloc " << (int)dseg.mtypes[i] << ", " << dseg.is_temporary());
          }
          BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
                       MemoryType::HOST, copy_segs);
@@ -2351,7 +2379,7 @@ void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
    size_t curr = 0;
    CopyImpl(&dst, MemoryType::HOST, 0, curr, nbytes, sseg.lowers[0],
             sseg.lowers[1], sseg.mtypes[0], sseg.mtypes[1], offset, sh_curr,
-            sd_curr, nullptr, false);
+            sd_curr, nullptr, 0, false);
 }
 
 void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)

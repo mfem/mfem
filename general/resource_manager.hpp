@@ -158,6 +158,10 @@ private:
       /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
    };
 
+   // 0 holds host, host-pinned, and managed memory spaces
+   // 1 holds device-only memory spaces
+   std::map<const void *, size_t> segment_maps[2];
+
    /// remove all validity markers for a segment
    void clear_segment(size_t segment);
    void clear_segment(RBase::Segment &seg);
@@ -220,7 +224,7 @@ private:
                    size_t marker, size_t nbytes, const char *src0,
                    const char *src1, MemoryType sloc0, MemoryType sloc1,
                    size_t src_offset, size_t marker0, size_t marker1,
-                   RBase::Segment *dseg, bool on_device);
+                   RBase::Segment *dseg, size_t dsegment, bool on_device);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -651,6 +655,7 @@ public:
                   << seg.is_temporary());
                inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
                             seg.is_temporary());
+               inst.segment_maps[1].erase(seg.lowers[1]);
                seg.lowers[1] = nullptr;
                inst.SetValidity(segment, 0, seg.nbytes, true, false);
             }
@@ -902,6 +907,7 @@ template <class T> void Memory<T>::Delete()
                "dealloc " << (int)seg.mtypes[1] << ", " << seg.is_temporary());
             inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
                          seg.is_temporary());
+            inst.segment_maps[1].erase(seg.lowers[1]);
          }
          seg.lowers[1] = nullptr;
       }
@@ -923,6 +929,7 @@ template <class T> void Memory<T>::Delete()
          MFEM_ASSERT(offset_ == 0, "should not have any offset");
          MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
                      "should hot refer to a subsection");
+         inst.segment_maps[0].erase(seg.lowers[0]);
          seg.lowers[0] = nullptr;
          if (!temporary && h_mt == MemoryType::HOST)
          {
