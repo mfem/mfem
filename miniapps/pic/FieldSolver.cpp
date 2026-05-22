@@ -44,10 +44,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_, real_t diffusivity,
                          bool precompute_neutralizing_const_,
-                         int efield_output_interval_,
-                         int phi_output_interval_,
-                         int rho_output_interval_,
-                         int field_sample_resolution_)
+                         int efield_output_interval_, int phi_output_interval_,
+                         int rho_output_interval_, int field_sample_resolution_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
       E_finder(E_finder_),
       b(phi_fes),
@@ -95,12 +93,9 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
       HypreParMatrix* K2 =
          ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
-      HypreParMatrix* K4 = ParMult(K2, K2);
 
-      // Form the p=4 hyper-diffusion operator: M + diffusivity * K^4
-      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K4);
+      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K2);
 
-      delete K4;
       delete K2;
       delete temp_diffusion_matrix;
       delete M;
@@ -225,21 +220,30 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    {
       cout << "Total charge A: " << ComputeGlobalSum(b) << "\t";
    }
-   else { ComputeGlobalSum(b); }
+   else
+   {
+      ComputeGlobalSum(b);
+   }
 
    DepositCharge(pfes, Q, b);
    if (Mpi::Root())
    {
       cout << "Total charge B: " << ComputeGlobalSum(b) << "\t";
    }
-   else { ComputeGlobalSum(b); }
+   else
+   {
+      ComputeGlobalSum(b);
+   }
 
    DiffuseRHS(b, rho_gf);
    if (Mpi::Root())
    {
       cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
    }
-   else { ComputeGlobalSum(b); }
+   else
+   {
+      ComputeGlobalSum(b);
+   }
 
    HypreParVector B(pfes);
    b.ParallelAssemble(B);
@@ -408,44 +412,47 @@ void FieldSolver::SampleAndWriteScalarField(const ParGridFunction& field,
          const real_t x = efield_sample_points[p];
          const real_t y = efield_sample_points[efield_sample_npts + p];
          const real_t value = scalar_sample_values[p];
-         out << timestep << "," << i << "," << j << "," << x << "," << y
-             << "," << value << "\n";
+         out << timestep << "," << i << "," << j << "," << x << "," << y << ","
+             << value << "\n";
       }
    }
 }
 
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
-   HypreParVector* B = b.ParallelAssemble();
-   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+   for (int i = 0; i < 10; i++)
+   {
+      HypreParVector* B = b.ParallelAssemble();
+      ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
 
-   // Warm-start from the previous rho state to reduce linear iterations.
-   HypreParVector Rho_true(pfes);
-   rho_gf.GetTrueDofs(Rho_true);
+      // Warm-start from the previous rho state to reduce linear iterations.
+      HypreParVector Rho_true(pfes);
+      rho_gf.GetTrueDofs(Rho_true);
 
-   HyprePCG solver(M_plus_cK_matrix->GetComm());
-   solver.SetOperator(*M_plus_cK_matrix);
-   solver.SetTol(1e-12);
-   solver.SetMaxIter(4000);
-   solver.SetPrintLevel(0);
-   solver.iterative_mode = true;
+      HyprePCG solver(M_plus_cK_matrix->GetComm());
+      solver.SetOperator(*M_plus_cK_matrix);
+      solver.SetTol(1e-12);
+      solver.SetMaxIter(4000);
+      solver.SetPrintLevel(0);
+      solver.iterative_mode = true;
 
-   HypreBoomerAMG prec(*M_plus_cK_matrix);
-   prec.SetPrintLevel(0);
-   solver.SetPreconditioner(prec);
+      HypreBoomerAMG prec(*M_plus_cK_matrix);
+      prec.SetPrintLevel(0);
+      solver.SetPreconditioner(prec);
 
-   solver.Mult(*B, Rho_true);
-   delete B;
+      solver.Mult(*B, Rho_true);
+      delete B;
 
-   rho_gf.SetFromTrueDofs(Rho_true);
+      rho_gf.SetFromTrueDofs(Rho_true);
 
-   b = 0.0;
+      b = 0.0;
 
-   b.GetDLFI()->DeleteAll();
+      b.GetDLFI()->DeleteAll();
 
-   GridFunctionCoefficient rho_coeff(&rho_gf);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rho_coeff));
-   b.Assemble();
+      GridFunctionCoefficient rho_coeff(&rho_gf);
+      b.AddDomainIntegrator(new DomainLFIntegrator(rho_coeff));
+      b.Assemble();
+   }
 }
 
 real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
