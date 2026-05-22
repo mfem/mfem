@@ -202,7 +202,7 @@ void OptionsParser::Parse()
                   break;
                case LONG:
                   isValid = isValidAsInt(argv[i]);
-                  *(long long *)(options[j].var_ptr) = atoi(argv[i++]);
+                  *(long long *)(options[j].var_ptr) = atoll(argv[i++]);
                   break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
@@ -418,7 +418,7 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *line_sep = "";
    static const char *types[] = { " <int>", " <double>", " <string>",
                                   " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+                                  " '<double>...'", " '<long>...'"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
