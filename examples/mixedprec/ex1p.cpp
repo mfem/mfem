@@ -194,6 +194,76 @@ static void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
    CheckHypreError(HYPRE_ParCSRPCGDestroy_pre(precision, pcg),
                    "HYPRE_ParCSRPCGDestroy_pre");
 }
+
+static void SolveDoublePrecisionSystemWithSinglePrecisionAMG(
+   const HypreParMatrix &A_double,
+   const HypreParMatrix &A_single,
+   const HypreParVector &b_double,
+   real_t tol,
+   HypreParVector &x_double)
+{
+   const HYPRE_Precision pcg_precision = HYPRE_REAL_DOUBLE;
+   const HYPRE_Precision amg_precision = HYPRE_REAL_SINGLE;
+
+   MFEM_VERIFY(A_double.GetHyprePrecision() == pcg_precision,
+               "A_double must be a double-precision hypre matrix");
+   MFEM_VERIFY(A_single.GetHyprePrecision() == amg_precision,
+               "A_single must be a single-precision hypre matrix");
+   MFEM_VERIFY(b_double.GetHyprePrecision() == pcg_precision,
+               "b_double must be a double-precision hypre vector");
+   MFEM_VERIFY(x_double.GetHyprePrecision() == pcg_precision,
+               "x_double must be a double-precision hypre vector");
+
+   HYPRE_Solver pcg = NULL;
+   HYPRE_Solver amg = NULL;
+   CheckHypreError(HYPRE_ParCSRPCGCreate_pre(
+                      pcg_precision, A_double.GetComm(), &pcg),
+                   "HYPRE_ParCSRPCGCreate_pre");
+   CheckHypreError(HYPRE_BoomerAMGCreate_pre(amg_precision, &amg),
+                   "HYPRE_BoomerAMGCreate_pre");
+
+   SetSinglePrecisionBoomerAMGOptions(amg);
+
+   CheckHypreError(HYPRE_ParCSRPCGSetTol_pre(pcg_precision, pcg, tol),
+                   "HYPRE_ParCSRPCGSetTol_pre");
+   CheckHypreError(HYPRE_ParCSRPCGSetMaxIter_pre(pcg_precision, pcg, 2000),
+                   "HYPRE_ParCSRPCGSetMaxIter_pre");
+   CheckHypreError(HYPRE_ParCSRPCGSetPrintLevel_pre(pcg_precision, pcg, 1),
+                   "HYPRE_ParCSRPCGSetPrintLevel_pre");
+   CheckHypreError(HYPRE_ParCSRPCGSetPrecond_pre(
+                      pcg_precision, pcg,
+                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_mp,
+                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_mp,
+                      amg),
+                   "HYPRE_ParCSRPCGSetPrecond_pre");
+
+   HYPRE_ParCSRMatrix A_single_hyp =
+      (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) A_single;
+   CheckHypreError(HYPRE_PCGSetPrecondMatrix_pre(
+                      pcg_precision, pcg, (HYPRE_Matrix) A_single_hyp),
+                   "HYPRE_PCGSetPrecondMatrix_pre");
+
+   x_double = 0.0;
+   b_double.HypreRead();
+   x_double.HypreReadWrite();
+
+   HYPRE_ParCSRMatrix A_double_hyp =
+      (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) A_double;
+   HYPRE_ParVector b_hyp = (HYPRE_ParVector)(hypre_ParVector *) b_double;
+   HYPRE_ParVector x_hyp = (HYPRE_ParVector)(hypre_ParVector *) x_double;
+
+   CheckHypreError(HYPRE_ParCSRPCGSetup_pre(
+                      pcg_precision, pcg, A_double_hyp, b_hyp, x_hyp),
+                   "HYPRE_ParCSRPCGSetup_pre");
+   CheckHypreError(HYPRE_ParCSRPCGSolve_pre(
+                      pcg_precision, pcg, A_double_hyp, b_hyp, x_hyp),
+                   "HYPRE_ParCSRPCGSolve_pre");
+
+   CheckHypreError(HYPRE_BoomerAMGDestroy_pre(amg_precision, amg),
+                   "HYPRE_BoomerAMGDestroy_pre");
+   CheckHypreError(HYPRE_ParCSRPCGDestroy_pre(pcg_precision, pcg),
+                   "HYPRE_ParCSRPCGDestroy_pre");
+}
 #endif
 
 int main(int argc, char *argv[])
@@ -213,6 +283,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   bool full_single_solve = true;
    int num_refinements = 2;
    int num_iterative_refinements = 0;
 
@@ -242,6 +313,9 @@ int main(int argc, char *argv[])
                   "Number of mesh refinements.");
    args.AddOption(&num_iterative_refinements, "-nir", "--num-iter-refine",
                   "Number of iterative refinements for single-precision solve.");
+   args.AddOption(&full_single_solve, "-fs", "--full-single", "-no-fs",
+                  "--double-solve-single-prec",
+                  "Solve full system in single precision.");
 
    args.Parse();
    if (!args.Good())
@@ -380,15 +454,15 @@ int main(int argc, char *argv[])
    Vector sol_single(X.Size());
 
 #ifdef HYPRE_MIXED_PRECISION
-   if (!pa)
+   MFEM_VERIFY(!pa, "Partial assembly is not supported in mixed precision");
+   if (full_single_solve)
    {
-      HypreParMatrix *A_hyp = A.As<HypreParMatrix>();
-      MFEM_VERIFY(A_hyp != NULL, "expected a hypre matrix for the assembled "
+      HypreParMatrix *A_double = A.As<HypreParMatrix>();
+      MFEM_VERIFY(A_double != NULL, "expected a hypre matrix for the assembled "
                   "linear system");
-      HypreParMatrix &A_double = *A_hyp;
-      HypreParMatrix A_single(A_double, HYPRE_REAL_SINGLE);
-      HypreParVector b_double(MPI_COMM_WORLD, A_double.GetGlobalNumRows(),
-                              B, 0, A_double.GetRowStarts());
+      HypreParMatrix A_single(*A_double, HYPRE_REAL_SINGLE);
+      HypreParVector b_double(MPI_COMM_WORLD, A_double->GetGlobalNumRows(),
+                              B, 0, A_double->GetRowStarts());
       HypreParVector b_single(b_double, HYPRE_REAL_SINGLE);
       HypreParVector x_single(A_single);
 
@@ -422,6 +496,22 @@ int main(int argc, char *argv[])
             sol_single[i] += (real_t) xsdata[i];
          }
       }
+   }
+   else
+   {
+      // Solve the double-precision system with a single-precision preconditioner.
+      HypreParMatrix *A_double = A.As<HypreParMatrix>();
+      MFEM_VERIFY(A_double != NULL, "expected a hypre matrix for the assembled "
+                  "linear system");
+      HypreParMatrix A_single(*A_double, HYPRE_REAL_SINGLE);
+      HypreParVector b_double(MPI_COMM_WORLD, A_double->GetGlobalNumRows(),
+                              B, 0, A_double->GetRowStarts());
+      HypreParVector x_double(*A_double);
+
+      SolveDoublePrecisionSystemWithSinglePrecisionAMG(
+         *A_double, A_single, b_double, 1.0e-12, x_double);
+
+      sol_single = x_double;
    }
 #endif
 
