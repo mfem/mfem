@@ -138,6 +138,7 @@ static void SetSinglePrecisionBoomerAMGOptions(HYPRE_Solver amg)
 
 static void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
                                        const HypreParVector &b_single,
+                                       real_t tol,
                                        HypreParVector &x_single)
 {
    const HYPRE_Precision precision = HYPRE_REAL_SINGLE;
@@ -159,7 +160,7 @@ static void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
 
    SetSinglePrecisionBoomerAMGOptions(amg);
 
-   CheckHypreError(HYPRE_ParCSRPCGSetTol_pre(precision, pcg, 1e-6),
+   CheckHypreError(HYPRE_ParCSRPCGSetTol_pre(precision, pcg, tol),
                    "HYPRE_ParCSRPCGSetTol_pre");
    CheckHypreError(HYPRE_ParCSRPCGSetMaxIter_pre(precision, pcg, 2000),
                    "HYPRE_ParCSRPCGSetMaxIter_pre");
@@ -212,6 +213,8 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   int num_refinements = 2;
+   int num_iterative_refinements = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -235,6 +238,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&num_refinements, "-nr", "--num-refine",
+                  "Number of mesh refinements.");
+   args.AddOption(&num_iterative_refinements, "-nir", "--num-iter-refine",
+                  "Number of iterative refinements for single-precision solve.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -260,14 +268,9 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < num_refinements; l++)
       {
          mesh.UniformRefinement();
       }
@@ -389,13 +392,35 @@ int main(int argc, char *argv[])
       HypreParVector b_single(b_double, HYPRE_REAL_SINGLE);
       HypreParVector x_single(A_single);
 
-      SolveSinglePrecisionSystem(A_single, b_single, x_single);
+      SolveSinglePrecisionSystem(A_single, b_single, 1.0e-6, x_single);
 
-      const hypre_float *xsdata = x_single.GetHypreFloatData();
+      hypre_float *xsdata = x_single.GetHypreFloatData();
+      hypre_float *b_single_data = b_single.GetHypreFloatData();
 
       for (int i=0; i<sol_single.Size(); ++i)
       {
          sol_single[i] = (real_t) xsdata[i];
+      }
+
+      Vector res(X.Size());
+      for (int ir=0; ir<num_iterative_refinements; ++ir)
+      {
+         // Compute the residual in double precision.
+         A->Mult(sol_single, res); // Ax in double-precision
+
+         for (int i=0; i<sol_single.Size(); ++i)
+         {
+            b_single_data[i] = (float) (B[i] - res[i]);
+         }
+
+         // Solve the single-precision system with the residual as the RHS.
+         const real_t tol = ir < 2 ? 1.0e-6 : 1.0e-2;
+         SolveSinglePrecisionSystem(A_single, b_single, tol, x_single);
+
+         for (int i=0; i<sol_single.Size(); ++i)
+         {
+            sol_single[i] += (real_t) xsdata[i];
+         }
       }
    }
 #endif
