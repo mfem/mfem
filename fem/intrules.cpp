@@ -236,7 +236,7 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
-const IntegrationRule DuffyTrans(const IntegrationRule ir, int dim)
+IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim)
 {
    IntegrationRule ir_mapped(ir.GetNPoints());
    ir_mapped.SetOrder(ir.GetOrder());
@@ -268,43 +268,6 @@ const IntegrationRule DuffyTrans(const IntegrationRule ir, int dim)
    else
    {
       MFEM_ABORT("Duffy transformation not implemented for this dimension!");
-   }
-}
-
-
-const IntegrationRule InverseDuffyTrans(const IntegrationRule ir, int dim)
-{
-   IntegrationRule ir_mapped(ir.GetNPoints());
-   ir_mapped.SetOrder(ir.GetOrder());
-
-   if (dim == 2)
-   {
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x = ir.IntPoint(i).x;
-         ip_mapped.y = ir.IntPoint(i).y / (1 - ir.IntPoint(i).x);
-         ip_mapped.weight = ir.IntPoint(i).weight;
-         // might be good to safeguard against Lobatto case here
-      }
-      return ir_mapped;
-   }
-   else if (dim == 3)
-   {
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x = ir.IntPoint(i).x;
-         ip_mapped.y = ir.IntPoint(i).y / (1 - ir.IntPoint(i).x);
-         ip_mapped.z = ir.IntPoint(i).z / (1 - ir.IntPoint(i).x - ir.IntPoint(i).y);
-         ip_mapped.weight = ir.IntPoint(i).weight;
-         // might be good to safeguard against Lobatto case here
-      }
-      return ir_mapped;
-   }
-   else
-   {
-      MFEM_ABORT("Inverse Duffy transformation not implemented for this dimension!");
    }
 }
 
@@ -2598,17 +2561,14 @@ StroudIntegrationRules::StroudIntegrationRules()
 #endif
 }
 
-const IntegrationRule &StroudIntegrationRules::Get(int GeomType, int Order,
-                                                   bool Pullback)
+const IntegrationRule &StroudIntegrationRules::Get(int GeomType, int Order)
 {
    Array<IntegrationRule *> *ir_array = NULL;
 
    switch (GeomType)
    {
-      case Geometry::TRIANGLE:    ir_array = Pullback ? &SquareStroudIntRules :
-                                                &TriangleStroudIntRules; break;
-      case Geometry::TETRAHEDRON: ir_array = Pullback ? &CubeStroudIntRules :
-                                                &TetrahedronStroudIntRules; break;
+      case Geometry::TRIANGLE:    ir_array = &TriangleStroudIntRules; break;
+      case Geometry::TETRAHEDRON: ir_array = &TetrahedronStroudIntRules; break;
       case Geometry::INVALID:
       case Geometry::NUM_GEOMETRIES:
          MFEM_ABORT("Unknown type of reference element!");
@@ -2625,7 +2585,7 @@ const IntegrationRule &StroudIntegrationRules::Get(int GeomType, int Order,
 
    if (!HaveIntRule(*ir_array, Order))
    {
-      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order, Pullback);
+      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
 #ifdef MFEM_DEBUG
       int RealOrder = Order;
       while (RealOrder+1 < ir_array->Size() && (*ir_array)[RealOrder+1] == ir)
@@ -2680,14 +2640,14 @@ StroudIntegrationRules::~StroudIntegrationRules()
 
 
 IntegrationRule *StroudIntegrationRules::GenerateIntegrationRule(int GeomType,
-                                                                 int Order, bool Pullback)
+                                                                 int Order)
 {
    switch (GeomType)
    {
       case Geometry::TRIANGLE:
-         return TriangleStroudIntegrationRule(Order, Pullback);
+         return TriangleStroudIntegrationRule(Order);
       case Geometry::TETRAHEDRON:
-         return TetrahedronStroudIntegrationRule(Order, Pullback);
+         return TetrahedronStroudIntegrationRule(Order);
       case Geometry::INVALID:
       case Geometry::NUM_GEOMETRIES:
          MFEM_ABORT("Unknown type of reference element!");
@@ -2701,7 +2661,7 @@ IntegrationRule *StroudIntegrationRules::GenerateIntegrationRule(int GeomType,
   triangle via IntegrationRule::DuffyTrans() occurs only in evaluation of coefficient
   vectors, see e.g. MassIntegrator::AssemblePASimplex. */
 IntegrationRule *StroudIntegrationRules::TriangleStroudIntegrationRule(
-   int Order, bool Pullback)
+   int Order)
 {
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
@@ -2717,28 +2677,16 @@ IntegrationRule *StroudIntegrationRules::TriangleStroudIntegrationRule(
    IntegrationRule ir_1_0;
    QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, &ir_1_0);
 
-   if (Pullback)
-   {
-      AllocIntRule(SquareStroudIntRules, RealOrder); // RealOrder >= Order
-      // create rule in unit square
-      SquareStroudIntRules[RealOrder-1] =
-         SquareStroudIntRules[RealOrder] =
-            new IntegrationRule(ir_1_0, ir_0_0);
-      return SquareStroudIntRules[Order];
-   }
-   else
-   {
-      AllocIntRule(TriangleStroudIntRules, RealOrder); // RealOrder >= Order
-      // create rule in unit square
-      TriangleStroudIntRules[RealOrder-1] =
-         TriangleStroudIntRules[RealOrder] =
-            new IntegrationRule(ir_1_0, ir_0_0);
-      // map rule to reference triangle
-      // TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
-      *TriangleStroudIntRules[RealOrder-1] =
-         DuffyTrans(*TriangleStroudIntRules[RealOrder-1], 2);
-      return TriangleStroudIntRules[Order];
-   }
+   AllocIntRule(TriangleStroudIntRules, RealOrder); // RealOrder >= Order
+   // create rule in unit square
+   TriangleStroudIntRules[RealOrder-1] =
+      TriangleStroudIntRules[RealOrder] =
+         new IntegrationRule(ir_1_0, ir_0_0);
+   // map rule to reference triangle
+   // TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
+   *TriangleStroudIntRules[RealOrder-1] =
+      DuffyTrans(*TriangleStroudIntRules[RealOrder-1], 2);
+   return TriangleStroudIntRules[Order];
 }
 
 /* Integration rule in reference tetrahedron according to tensor product Gauss-Jacobi rule.
@@ -2747,7 +2695,7 @@ IntegrationRule *StroudIntegrationRules::TriangleStroudIntegrationRule(
   triangle via IntegrationRule::DuffyTrans() occurs only in evaluation of coefficient
   vectors, see e.g. MassIntegrator::AssemblePASimplex. */
 IntegrationRule *StroudIntegrationRules::TetrahedronStroudIntegrationRule(
-   int Order, bool Pullback)
+   int Order)
 {
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
@@ -2762,28 +2710,16 @@ IntegrationRule *StroudIntegrationRules::TetrahedronStroudIntegrationRule(
    IntegrationRule ir_2_0;
    QuadratureFunctions1D::GaussJacobi(n, 2.0, 0.0, &ir_2_0);
 
-   if (Pullback)
-   {
-      AllocIntRule(CubeStroudIntRules, RealOrder); // RealOrder >= Order
-      // create rule in unit cube
-      CubeStroudIntRules[RealOrder-1] =
-         CubeStroudIntRules[RealOrder] =
-            new IntegrationRule(ir_2_0, ir_1_0, ir_0_0);
-      return CubeStroudIntRules[Order];
-   }
-   else
-   {
-      AllocIntRule(TetrahedronStroudIntRules, RealOrder); // RealOrder >= Order
-      // create rule in unit cube
-      TetrahedronStroudIntRules[RealOrder-1] =
-         TetrahedronStroudIntRules[RealOrder] =
-            new IntegrationRule(ir_2_0, ir_1_0, ir_0_0);
-      // map rule to reference tetrahedron
-      // TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
-      *TetrahedronStroudIntRules[RealOrder-1] =
-         DuffyTrans(*TetrahedronStroudIntRules[RealOrder-1], 3);
-      return TetrahedronStroudIntRules[Order];
-   }
+   AllocIntRule(TetrahedronStroudIntRules, RealOrder); // RealOrder >= Order
+   // create rule in unit cube
+   TetrahedronStroudIntRules[RealOrder-1] =
+      TetrahedronStroudIntRules[RealOrder] =
+         new IntegrationRule(ir_2_0, ir_1_0, ir_0_0);
+   // map rule to reference tetrahedron
+   // TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
+   *TetrahedronStroudIntRules[RealOrder-1] =
+      DuffyTrans(*TetrahedronStroudIntRules[RealOrder-1], 3);
+   return TetrahedronStroudIntRules[Order];
 }
 
 IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,

@@ -328,8 +328,7 @@ TEST_CASE("Stroud conical quadrature rules in a simplex",
    {
       for (int order = 0; order <= 25; order++)
       {
-         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TRIANGLE, order,
-                                                        false);
+         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TRIANGLE, order);
 
          // using the monomial basis: x^m y^n, 0 <= m+n <= order
          for (int p = 0; p <= order; p++)
@@ -360,8 +359,7 @@ TEST_CASE("Stroud conical quadrature rules in a simplex",
    {
       for (int order = 0; order <= 21; order++)
       {
-         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TETRAHEDRON, order,
-                                                        false);
+         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TETRAHEDRON, order);
 
          for (int p = 0; p <= order; p++)
          {

@@ -1102,6 +1102,12 @@ inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
    ForallWrap<2>(true, N, body, X, Y, BZ);
 }
 
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+{
+   ForallWrap<2, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, BZ);
+}
+
 template<typename lambda>
 inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
 {

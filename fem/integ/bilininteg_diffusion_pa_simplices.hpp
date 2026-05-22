@@ -34,9 +34,9 @@ namespace internal
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F2 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTriangle(const int NE,
@@ -296,16 +296,16 @@ template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPADiffusionApplyTriangle(const int NE,
                                          const bool symmetric,
                                          const Array<int> &lex_map_,
-                                         [[maybe_unused]] const Array<int> &/*forward_map2d_*/,
-                                         [[maybe_unused]] const Array<int> &/*inverse_map2d_*/,
-                                         [[maybe_unused]] const Array<int> &/*forward_map3d_*/,
-                                         [[maybe_unused]] const Array<int> &/*inverse_map3d_*/,
+                                         const Array<int> &/*forward_map2d_*/,
+                                         const Array<int> &/*inverse_map2d_*/,
+                                         const Array<int> &/*forward_map3d_*/,
+                                         const Array<int> &/*inverse_map3d_*/,
                                          const Array<real_t> &ga1_,
                                          const Array<real_t> &ga2_,
-                                         [[maybe_unused]] const Array<real_t> &/*ga3_*/,
+                                         const Array<real_t> &/*ga3_*/,
                                          const Array<real_t> &ga1t_,
                                          const Array<real_t> &ga2t_,
-                                         [[maybe_unused]] const Array<real_t> &/*ga3t_*/,
+                                         const Array<real_t> &/*ga3t_*/,
                                          const Vector &d_,
                                          const Vector &x_,
                                          Vector &y_,
@@ -315,13 +315,14 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const int D1D = T_D1D;
    const int Q1D = T_Q1D;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
+   const int p2 = (D1D-1) * (D1D-1);
+
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
    const auto ga2_ptr = ga2_.Read();
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
-   int p2 = (D1D-1) * (D1D-1);
 
    if (!Ga1_initialized<T_D1D, T_Q1D>)
    {
@@ -377,7 +378,6 @@ MFEM_ABORT("Non CUDA diffusion partial assemble is not implemented");
       {
          X[i] = x(i,e);
       }
-
       MFEM_SYNC_THREAD;
       // DQ corresponds to C1 in AAD algorithm
       if (int a1 = MFEM_THREAD_ID(x); a1 < D1D-1)
@@ -537,9 +537,9 @@ MFEM_ABORT("Non CUDA diffusion partial assemble is not implemented");
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F3 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTetrahedron(const int NE,
@@ -547,11 +547,11 @@ inline void PADiffusionApplyTetrahedron(const int NE,
                                         const Array<int> &lex_map_,
                                         const Array<int> &forward_map2d_,
                                         const Array<int> &inverse_map2d_,
-                                        [[maybe_unused]] const Array<int> &/*forward_map3d_*/,
+                                        const Array<int> &/*forward_map3d_*/,
                                         const Array<int> &inverse_map3d_,
                                         const Array<real_t> &ga1_,
                                         const Array<real_t> &ga2_,
-                                        [[maybe_unused]] const Array<real_t> &/*ga3_*/,
+                                        const Array<real_t> &/*ga3_*/,
                                         const Array<real_t> &ga1t_,
                                         const Array<real_t> &ga2t_,
                                         const Array<real_t> &ga3t_,
@@ -849,13 +849,18 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
+   const int p2 = (D1D-1) * (D1D-1);
+
+   const int MQ1 = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
+   const int MD1 = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
 
    const auto ga2_ptr = ga2_.Read();
    const auto ga3_ptr = ga3_.Read();
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
-   const int p2 = (D1D-1) * (D1D-1);
 
    if (!Ga1_initialized<T_D1D, T_Q1D>)
    {
@@ -923,7 +928,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       {
          X[i] = x(i,e);
       }
-
       MFEM_SYNC_THREAD;
       {
          real_t us[std::max(1, D1D - 1)];

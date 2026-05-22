@@ -32,9 +32,9 @@ namespace internal
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F2 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
@@ -52,11 +52,11 @@ void PAMassApplyTriangle_Element(const int e,
                                  const int d1d = 0,
                                  const int q1d = 0)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
+   const int D1D = d1d, Q1D = q1d;
    constexpr int max_D1D = DofQuadLimits::MAX_D1D_SIMPLEX;
    constexpr int max_Q1D = DofQuadLimits::MAX_Q1D_SIMPLEX;
 
+   const auto lex_map = DeviceTensor<2,const int>(lex_map_, D1D, D1D);
    const auto Ba1 = ConstDeviceMatrix(ba1_, D1D, Q1D);
    const auto Ba2 = ConstDeviceCube(ba2_, D1D, D1D, Q1D);
    const auto Ba1t = ConstDeviceMatrix(ba1t_, Q1D, D1D);
@@ -104,7 +104,7 @@ void PAMassApplyTriangle_Element(const int e,
          const int a1i2 = a1 + D1D*i2;
          for (int a2 = 0; a2 < D1D-a1; a2++)
          {
-            const int idx = lex_map_[a2 + D1D*a1];
+            const int idx = lex_map(a2, a1);
             C1[a1i2] += X(idx, e) * Ba2(a2, a1, i2);
          }
       }
@@ -157,7 +157,7 @@ void PAMassApplyTriangle_Element(const int e,
    }
    // dofs to quad operation, step 2: convert second multiindex to second
    // quadrature index. The contribution to the local RHS is
-   //       Y_{\alpha} = F2_{\alpha}.
+   //    Y_{\alpha} = F2_{\alpha}.
    for (int a1 = 0; a1 < D1D; a1++)
    {
       for (int i2 = 0; i2 < Q1D; i2++)
@@ -165,7 +165,7 @@ void PAMassApplyTriangle_Element(const int e,
          const int a1i2 = i2 + Q1D*a1;
          for (int a2 = 0; a2 < D1D-a1; a2++)
          {
-            const int idx = lex_map_[a2 + D1D*a1];
+            const int idx = lex_map(a2, a1);
             Y(idx,e) += C1[a1i2] * Ba2t(i2, a1, a2);
          }
       }
@@ -186,7 +186,6 @@ inline void PAMassApplyTriangle(const int NE,
                                 const Array<real_t> &ba1t_,
                                 const Array<real_t> &ba2t_,
                                 const Array<real_t> &/*ba3t_*/,
-                                const Array<real_t> &/*t_*/,
                                 const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -446,9 +445,9 @@ inline void SmemPAMassApplyTriangle(const int NE,
    routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
    \alpha (stored in the array F3 and roughly corresponding to Algorithm 3 of [1]).
 
-   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
-       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
-       33(6), 3087-3109.
+   [1] Bernstein–Bézier finite elements of arbitrary order and optimal assembly procedures.
+       Ainsworth, M., Andriamaro, G., & Davydov, O. (2011).
+       SIAM Journal on Scientific Computing, 33(6), 3087-3109.
    */
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
@@ -644,7 +643,6 @@ inline void PAMassApplyTetrahedron(const int NE,
                                    const Array<real_t> &ba1t_,
                                    const Array<real_t> &ba2t_,
                                    const Array<real_t> &ba3t_,
-                                   const Array<real_t> &/*t_*/,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -697,7 +695,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
                                        const Array<real_t> &ba1t_,
                                        const Array<real_t> &ba2t_,
                                        const Array<real_t> &ba3t_,
-                                       const Array<real_t> &t_,
                                        const Vector &d_,
                                        const Vector &x_,
                                        Vector &y_,
@@ -711,7 +708,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 
    const auto Ba2_ptr = ba2_.Read();
    const auto Ba3_ptr = ba3_.Read();
-   const auto T_ptr = t_.Read();
    // const auto Ba1t = ba1t_.Read();
    // const auto Ba2t = ba2t_.Read();
    // const auto Ba3t = ba3t_.Read();

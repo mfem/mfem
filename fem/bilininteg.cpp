@@ -1366,7 +1366,7 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
 
    if (stroud)
    {
-      return StroudIntRules.Get(trial_fe.GetGeomType(), order, false);
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
    }
    else
    {
@@ -1471,7 +1471,7 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
 
    if (stroud)
    {
-      return StroudIntRules.Get(trial_fe.GetGeomType(), order, false);
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
    }
    else
    {

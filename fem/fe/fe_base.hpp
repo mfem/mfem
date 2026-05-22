@@ -269,10 +269,6 @@ public:
 
    Array<int> forward_map2d_mass, forward_map3d_mass;
    Array<int> inverse_map2d_mass, inverse_map3d_mass;
-
-   /** @brief Arrays for holding the d one-dimensional quadrature nodes for Stroud conical
-       conical quadrature. */
-   Array<real_t> T;
 };
 
 /// Describes the function space on each element

@@ -53,15 +53,14 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    if (stroud)
    {
-      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-      maps = &el.GetDofToQuad(InverseDuffyTrans(*ir, dim), DofToQuad::RAGGED_TENSOR);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
       // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    }
    else
    {
-      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
       maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    }
    dofs1D = maps->ndof;
@@ -186,7 +185,6 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          const Array<real_t> &Ba1t = rmaps->Ba1t;
          const Array<real_t> &Ba2t = rmaps->Ba2t;
          const Array<real_t> &Ba3t = rmaps->Ba3t;
-         const Array<real_t> &T = rmaps->T;
          const Array<int> &lex_map = rmaps->lex_map;
          const Array<int> &forward_map2d = rmaps->forward_map2d_mass;
          const Array<int> &inverse_map2d = rmaps->inverse_map2d_mass;
@@ -195,7 +193,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, forward_map2d,
                                     inverse_map2d,
                                     forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t,
-                                    T, D, x, y, D1D, Q1D);
+                                    D, x, y, D1D, Q1D);
       }
       else
       {

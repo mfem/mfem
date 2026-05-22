@@ -113,7 +113,7 @@ struct BakeOff
    BilinearFormIntegrator *bfi;
 
    BakeOff(int p, int side):
-      p(p), c(SIMPLICES ? side / 2 : side),
+      p(p), c(side),
       q(2 * p + (GLL ? (SIMPLICES && BFI != 7) ? 0 : -1 : 3)),
       n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
@@ -128,7 +128,7 @@ struct BakeOff
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(SIMPLICES
-         ? &StroudIntRules.Get(geom_type, q, false)
+         ? &StroudIntRules.Get(geom_type, q)
          : &irs.Get(geom_type, q)),
       ir_rhs(&IntRules.Get(geom_type, 2*p)),
       one(1.0),

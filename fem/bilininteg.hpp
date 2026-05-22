@@ -2413,8 +2413,8 @@ public:
                                           const Array<real_t>&, const Array<real_t>&,
                                           const Array<real_t>&, const Array<real_t>&,
                                           const Array<real_t>&, const Array<real_t>&,
-                                          const Array<real_t>&, const Vector&,
-                                          const Vector&, Vector&, const int, const int);
+                                          const Vector&, const Vector&, Vector&,
+                                          const int, const int);
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
