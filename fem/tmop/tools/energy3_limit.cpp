@@ -204,20 +204,34 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
-   TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                             ALFmF0, E, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
 
-   return PA.E * PA.O;
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALC_stride = nqp_el * NE;
+   const int ALF_stride = ndof_el * NE;
+
+   const bool const_coeff = false;
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+
+   real_t energy = 0.0;
+   for (int c = 0; c < nal; c++)
+   {
+      const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
+                                ALFmF0, E, d, q);
+      energy += PA.E * PA.O;
+   }
+
+   return energy;
 }
 
 } // namespace mfem

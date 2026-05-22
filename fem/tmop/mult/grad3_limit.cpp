@@ -212,21 +212,37 @@ void TMOP_Integrator::AddMultGradPA_AdaptLim_3D(const Vector &R,
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
    const auto RR = Reshape(R.Read(), d, d, d, 3, NE);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
-   const auto ALF_grad = Reshape(PA.ALFG.Read(), 3, q, q, q, NE);
-   const auto ALF_hess = Reshape(PA.ALFH.Read(), 3, 3, q, q, q, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, 3, NE);
 
-   TMOPMultGradAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, B,
-                               RR, ALF_grad, ALF_hess, ALFmF0, Y, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALC_stride = nqp_el * NE;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 3 * nqp_el * NE;
+   const int ALFH_stride = 3 * 3 * nqp_el * NE;
+
+   const bool const_coeff = false;
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   const real_t *ALFG_all = PA.ALFG.Read();
+   const real_t *ALFH_all = PA.ALFH.Read();
+   for (int c = 0; c < nal; c++)
+   {
+      const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);
+      const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 3, 3, q, q, q, NE);
+
+      TMOPMultGradAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, B,
+                                  RR, ALF_grad, ALF_hess, ALFmF0, Y, d, q);
+   }
 }
 
 } // namespace mfem

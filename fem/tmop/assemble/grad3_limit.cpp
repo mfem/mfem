@@ -399,16 +399,31 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_3D(const Vector &x) const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+
    const auto *B_nodes = PA.maps_nodes->B.Read(),
                *G_nodes = PA.maps_nodes->G.Read();
    const auto *B = PA.maps->B.Read();
    const auto X = Reshape(x.Read(), d, d, d, 3, NE);
-   const auto ALF = Reshape(PA.ALF.Read(), d, d, d, NE);
-   auto ALF_grad = Reshape(PA.ALFG.Write(), 3, q, q, q, NE);
-   auto ALF_hess = Reshape(PA.ALFH.Write(), 3, 3, q, q, q, NE);
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 3 * nqp_el * NE;
+   const int ALFH_stride = 3 * 3 * nqp_el * NE;
 
-   TMOPAssembleGradAdaptLim3D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
-                                   ALF_grad, ALF_hess, d, q);
+   const real_t *ALF_all = PA.ALF.Read();
+   real_t *ALFG_all = PA.ALFG.Write();
+   real_t *ALFH_all = PA.ALFH.Write();
+   for (int c = 0; c < nal; c++)
+   {
+      const auto ALF = Reshape(ALF_all + c * ALF_stride, d, d, d, NE);
+      auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);
+      auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 3, 3, q, q, q, NE);
+
+      TMOPAssembleGradAdaptLim3D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
+                                      ALF_grad, ALF_hess, d, q);
+   }
    PA.AL_grads_assembled = true;
 }
 

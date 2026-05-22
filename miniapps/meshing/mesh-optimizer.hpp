@@ -455,6 +455,15 @@ real_t adapt_lim_fun(const Vector &x)
    return val;
 }
 
+// Second field for adaptive limiting examples (kept simple on purpose).
+real_t adapt_lim_fun2(const Vector &x)
+{
+   real_t val = x(0);
+   val = std::max((real_t)0., val);
+   val = std::min((real_t)1., val);
+   return val;
+}
+
 // Used for exact surface alignment
 real_t surface_level_set(const Vector &x)
 {

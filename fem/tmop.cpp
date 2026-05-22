@@ -3758,7 +3758,8 @@ void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
 TMOP_Integrator::~TMOP_Integrator()
 {
    delete lim_func;
-   delete adapt_lim_gf;
+   for (int i = 0; i < adapt_lim_gf.Size(); i++) { delete adapt_lim_gf[i]; }
+   for (int i = 0; i < adapt_lim_gf0.Size(); i++) { delete adapt_lim_gf0[i]; }
    delete surf_fit_gf;
    delete surf_fit_limiter;
    delete surf_fit_grad;
@@ -3800,20 +3801,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              AdaptivityEvaluator &ae,
                                              real_t delta_max)
 {
-   MFEM_VERIFY(delta_max > 0.0,
-               "EnableAdaptiveLimiting requires delta_max > 0.0.");
-
-   adapt_lim_gf0 = &z0;
-   delete adapt_lim_gf;
-   adapt_lim_gf   = new GridFunction(z0);
-   adapt_lim_coeff = &coeff;
-   adapt_lim_eval = &ae;
-   adapt_lim_delta_max = delta_max;
-
-   adapt_lim_eval->SetSerialMetaInfo(*z0.FESpace()->GetMesh(),
-                                     *z0.FESpace());
-   adapt_lim_eval->SetInitialField
-   (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
+   Array<const GridFunction *> z0_arr(1);
+   Array<Coefficient *> c_arr(1);
+   z0_arr[0] = &z0;
+   c_arr[0] = &coeff;
+   EnableAdaptiveLimiting(z0_arr, c_arr, ae, delta_max);
 }
 
 #ifdef MFEM_USE_MPI
@@ -3822,21 +3814,102 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              AdaptivityEvaluator &ae,
                                              real_t delta_max)
 {
+   Array<const ParGridFunction *> z0_arr(1);
+   Array<Coefficient *> c_arr(1);
+   z0_arr[0] = &z0;
+   c_arr[0] = &coeff;
+   EnableAdaptiveLimiting(z0_arr, c_arr, ae, delta_max);
+}
+#endif
+
+void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                                             const Array<Coefficient *> &coeff,
+                                             AdaptivityEvaluator &ae,
+                                             real_t delta_max)
+{
    MFEM_VERIFY(delta_max > 0.0,
                "EnableAdaptiveLimiting requires delta_max > 0.0.");
+   MFEM_VERIFY(z0.Size() > 0, "EnableAdaptiveLimiting requires at least one field.");
+   MFEM_VERIFY(z0.Size() == coeff.Size(),
+               "EnableAdaptiveLimiting requires one Coefficient per field.");
 
-   adapt_lim_gf0 = &z0;
-   adapt_lim_pgf0 = &z0;
-   delete adapt_lim_gf;
-   adapt_lim_gf   = new GridFunction(z0);
-   adapt_lim_coeff = &coeff;
+   // Verify compatibility of input fields.
+   const FiniteElementSpace *sfes = z0[0]->FESpace();
+   MFEM_VERIFY(sfes, "EnableAdaptiveLimiting: null FE space.");
+   MFEM_VERIFY(sfes->GetVDim() == 1,
+               "EnableAdaptiveLimiting expects scalar input GridFunctions.");
+   const int ndofs = sfes->GetVSize();
+   Mesh *mesh = sfes->GetMesh();
+   MFEM_VERIFY(mesh, "EnableAdaptiveLimiting: null Mesh.");
+
+   for (int i = 0; i < z0.Size(); i++)
+   {
+      MFEM_VERIFY(z0[i], "EnableAdaptiveLimiting: null GridFunction pointer.");
+      const FiniteElementSpace *fes_i = z0[i]->FESpace();
+      MFEM_VERIFY(fes_i, "EnableAdaptiveLimiting: null FE space.");
+      MFEM_VERIFY(fes_i->GetVDim() == 1,
+                  "EnableAdaptiveLimiting expects scalar input GridFunctions.");
+      MFEM_VERIFY(fes_i->GetVSize() == ndofs,
+                  "EnableAdaptiveLimiting requires all fields to share the same FE space.");
+      MFEM_VERIFY(fes_i->GetMesh() == mesh,
+                  "EnableAdaptiveLimiting requires all fields to be on the same Mesh.");
+      MFEM_VERIFY(coeff[i], "EnableAdaptiveLimiting: null Coefficient pointer.");
+   }
+
+   // Reset any previously enabled adaptive limiting data.
+   for (int i = 0; i < adapt_lim_gf.Size(); i++) { delete adapt_lim_gf[i]; }
+   for (int i = 0; i < adapt_lim_gf0.Size(); i++) { delete adapt_lim_gf0[i]; }
+   adapt_lim_gf.SetSize(0);
+   adapt_lim_gf0.SetSize(0);
+   adapt_lim_init_nodes.SetSize(0);
+   adapt_lim_coeff.SetSize(0);
+
+   adapt_lim_coeff.SetSize(coeff.Size());
+   for (int i = 0; i < coeff.Size(); i++) { adapt_lim_coeff[i] = coeff[i]; }
    adapt_lim_eval = &ae;
    adapt_lim_delta_max = delta_max;
 
-   adapt_lim_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
-                                  *z0.ParFESpace());
-   adapt_lim_eval->SetInitialField
-   (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
+   // Cache the initial mesh nodes (ldofs) so we can re-set the evaluator's
+   // source field for each component as needed.
+   MFEM_VERIFY(mesh->GetNodes(), "EnableAdaptiveLimiting requires mesh Nodes.");
+   adapt_lim_init_nodes = *mesh->GetNodes();
+
+#ifdef MFEM_USE_MPI
+   if (auto pfes = dynamic_cast<const ParFiniteElementSpace *>(sfes))
+   {
+      auto *pm = pfes->GetParMesh();
+      MFEM_VERIFY(pm, "EnableAdaptiveLimiting: null ParMesh.");
+      adapt_lim_eval->SetParMetaInfo(*pm, *pfes);
+   }
+   else
+#endif
+   {
+      adapt_lim_eval->SetSerialMetaInfo(*mesh, *sfes);
+   }
+
+   // Copy the initial fields; remapped fields are initialized to the same data.
+   adapt_lim_gf0.SetSize(z0.Size());
+   adapt_lim_gf.SetSize(z0.Size());
+   for (int i = 0; i < z0.Size(); i++)
+   {
+      adapt_lim_gf0[i] = new GridFunction(*z0[i]);
+      adapt_lim_gf[i]  = new GridFunction(*z0[i]);
+   }
+
+   // Initialize the evaluator with the first field; the source field will be
+   // switched as needed when remapping multiple fields.
+   adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                                             const Array<Coefficient *> &coeff,
+                                             AdaptivityEvaluator &ae,
+                                             real_t delta_max)
+{
+   Array<const GridFunction *> z0_base(z0.Size());
+   for (int i = 0; i < z0.Size(); i++) { z0_base[i] = z0[i]; }
+   EnableAdaptiveLimiting(z0_base, coeff, ae, delta_max);
 }
 #endif
 
@@ -4157,26 +4230,36 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 
 void TMOP_Integrator::UpdateAfterMeshTopologyChange()
 {
-   if (adapt_lim_gf)
+   if (adapt_lim_gf.Size() > 0)
    {
-      adapt_lim_gf->Update();
-      adapt_lim_eval->SetSerialMetaInfo(*adapt_lim_gf->FESpace()->GetMesh(),
-                                        *adapt_lim_gf->FESpace());
-      adapt_lim_eval->SetInitialField
-      (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
+      for (int i = 0; i < adapt_lim_gf0.Size(); i++) { adapt_lim_gf0[i]->Update(); }
+      for (int i = 0; i < adapt_lim_gf.Size(); i++) { adapt_lim_gf[i]->Update(); }
+
+      Mesh *mesh = adapt_lim_gf[0]->FESpace()->GetMesh();
+      MFEM_VERIFY(mesh && mesh->GetNodes(), "internal error");
+      adapt_lim_init_nodes = *mesh->GetNodes();
+
+      adapt_lim_eval->SetSerialMetaInfo(*mesh, *adapt_lim_gf[0]->FESpace());
+      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
    }
 }
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 {
-   if (adapt_lim_gf)
+   if (adapt_lim_gf.Size() > 0)
    {
-      adapt_lim_gf->Update();
-      adapt_lim_eval->SetParMetaInfo(*adapt_lim_pgf0->ParFESpace()->GetParMesh(),
-                                     *adapt_lim_pgf0->ParFESpace());
-      adapt_lim_eval->SetInitialField
-      (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
+      for (int i = 0; i < adapt_lim_gf0.Size(); i++) { adapt_lim_gf0[i]->Update(); }
+      for (int i = 0; i < adapt_lim_gf.Size(); i++) { adapt_lim_gf[i]->Update(); }
+
+      auto *pfes = dynamic_cast<ParFiniteElementSpace *>(adapt_lim_gf[0]->FESpace());
+      MFEM_VERIFY(pfes, "internal error");
+      ParMesh *pmesh = pfes->GetParMesh();
+      MFEM_VERIFY(pmesh && pmesh->GetNodes(), "internal error");
+      adapt_lim_init_nodes = *pmesh->GetNodes();
+
+      adapt_lim_eval->SetParMetaInfo(*pmesh, *pfes);
+      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
    }
 }
 #endif
@@ -4208,7 +4291,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // No adaptive limiting / surface fitting terms if the function is called
    // as part of a FD derivative computation (because we include the exact
    // derivatives of these terms in FD computations).
-   const bool adaptive_limiting = (adapt_lim_gf && fd_call_flag == false);
+   const bool adaptive_limiting = (adapt_lim_gf.Size() > 0 && fd_call_flag == false);
    const bool surface_fit = (surf_fit_marker && fd_call_flag == false);
 
    DSh.SetSize(dof, dim);
@@ -4271,11 +4354,23 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
    //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
 
+   const int nal = adapt_lim_coeff.Size();
+   const int nqp = ir.GetNPoints();
    Vector adapt_lim_gf_q, adapt_lim_gf0_q;
    if (adaptive_limiting)
    {
-      adapt_lim_gf->GetValues(el_id, ir, adapt_lim_gf_q);
-      adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
+      MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+                  "internal error");
+      adapt_lim_gf_q.SetSize(nal * nqp);
+      adapt_lim_gf0_q.SetSize(nal * nqp);
+      Vector zc, z0c;
+      for (int c = 0; c < nal; c++)
+      {
+         zc.MakeRef(adapt_lim_gf_q, c * nqp, nqp);
+         z0c.MakeRef(adapt_lim_gf0_q, c * nqp, nqp);
+         adapt_lim_gf[c]->GetValues(el_id, ir, zc);
+         adapt_lim_gf0[c]->GetValues(el_id, ir, z0c);
+      }
    }
 
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -4307,9 +4402,13 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       // Contribution from the adaptive limiting term.
       if (adaptive_limiting)
       {
-         const real_t diff = (adapt_lim_gf_q(i) - adapt_lim_gf0_q(i)) /
-                             adapt_lim_delta_max;
-         val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
+         for (int c = 0; c < nal; c++)
+         {
+            const int idx = c * nqp + i;
+            const real_t diff = (adapt_lim_gf_q(idx) - adapt_lim_gf0_q(idx)) /
+                                adapt_lim_delta_max;
+            val += adapt_lim_coeff[c]->Eval(*Tpr, ip) * lim_normal * diff * diff;
+         }
       }
 
       energy += weight * val;
@@ -4602,7 +4701,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (metric_coeff || lim_coeff || adapt_lim_gf ||
+   if (metric_coeff || lim_coeff || adapt_lim_gf.Size() > 0 ||
        surf_fit_gf || surf_fit_pos || exact_action)
    {
       Tpr = new IsoparametricTransformation;
@@ -4700,7 +4799,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       }
    }
 
-   if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
+   if (adapt_lim_gf.Size() > 0) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
    if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
    delete Tpr;
@@ -4774,7 +4873,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (metric_coeff || lim_coeff || adapt_lim_gf || surf_fit_gf || surf_fit_pos)
+   if (metric_coeff || lim_coeff || adapt_lim_gf.Size() > 0 ||
+       surf_fit_gf || surf_fit_pos)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -4829,7 +4929,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
    }
 
-   if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
+   if (adapt_lim_gf.Size() > 0) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
    if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
 
    delete Tpr;
@@ -4842,34 +4942,44 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
                                               DenseMatrix &mat)
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
-   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q, adapt_lim_gf0_q(nqp);
+   const int nal = adapt_lim_coeff.Size();
+   MFEM_VERIFY(nal > 0, "internal error");
+   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+               "internal error");
 
+   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
-   adapt_lim_gf->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   adapt_lim_gf->GetSubVector(dofs, adapt_lim_gf_e);
-   adapt_lim_gf->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
-   adapt_lim_gf0->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
+   adapt_lim_gf[0]->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
 
    // Project the gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the gradient go in adapt_lim_gf_grad_e.
-   DenseMatrix adapt_lim_gf_grad_e(dof, dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
    el.ProjectGrad(el, Tpr, grad_phys);
-   Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
-   grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
    Vector adapt_lim_gf_grad_q(dim);
-   for (int q = 0; q < nqp; q++)
+   for (int c = 0; c < nal; c++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      el.CalcShape(ip, shape);
+      adapt_lim_gf[c]->GetSubVector(dofs, adapt_lim_gf_e);
+      adapt_lim_gf[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
+      adapt_lim_gf0[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
 
-      adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
-      adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) /
-                             adapt_lim_delta_max / adapt_lim_delta_max;
-      adapt_lim_gf_grad_q *= weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
+      DenseMatrix adapt_lim_gf_grad_e(dof, dim);
+      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
+      grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
-      AddMultVWt(shape, adapt_lim_gf_grad_q, mat);
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         el.CalcShape(ip, shape);
+
+         adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
+         adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) /
+                                adapt_lim_delta_max / adapt_lim_delta_max;
+         adapt_lim_gf_grad_q *=
+            weights(q) * lim_normal * adapt_lim_coeff[c]->Eval(Tpr, ip);
+
+         AddMultVWt(shape, adapt_lim_gf_grad_q, mat);
+      }
    }
 }
 
@@ -4880,60 +4990,68 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
                                                DenseMatrix &mat)
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
-   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q, adapt_lim_gf0_q(nqp);
+   const int nal = adapt_lim_coeff.Size();
+   MFEM_VERIFY(nal > 0, "internal error");
+   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+               "internal error");
 
+   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
-   adapt_lim_gf->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   adapt_lim_gf->GetSubVector(dofs, adapt_lim_gf_e);
-   adapt_lim_gf->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
-   adapt_lim_gf0->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
+   adapt_lim_gf[0]->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
 
    // Project the gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the gradient go in adapt_lim_gf_grad_e.
-   DenseMatrix adapt_lim_gf_grad_e(dof, dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
    el.ProjectGrad(el, Tpr, grad_phys);
-   Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
-   grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
-
-   // Project the gradient of each gradient of adapt_lim_gf in the same space.
-   // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
-   DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
-   Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
-   // Reshape to be more convenient later (no change in the data).
-   adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
-
    Vector adapt_lim_gf_grad_q(dim);
    DenseMatrix adapt_lim_gf_hess_q(dim, dim);
 
-   for (int q = 0; q < nqp; q++)
+   for (int c = 0; c < nal; c++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      el.CalcShape(ip, shape);
+      adapt_lim_gf[c]->GetSubVector(dofs, adapt_lim_gf_e);
+      adapt_lim_gf[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
+      adapt_lim_gf0[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
 
-      adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
-      Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
-      adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
+      DenseMatrix adapt_lim_gf_grad_e(dof, dim);
+      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
+      grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
-      const real_t coeff = adapt_lim_coeff->Eval(Tpr, ip);
-      const real_t factor =
-         weights(q) * lim_normal * coeff * 2.0 /
-         (adapt_lim_delta_max * adapt_lim_delta_max);
+      // Project the gradient of each gradient of adapt_lim_gf in the same space.
+      // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
+      DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
+      Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
+      // Reshape to be more convenient later (no change in the data).
+      adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
 
-      for (int i = 0; i < dof * dim; i++)
+      for (int q = 0; q < nqp; q++)
       {
-         const int idof = i % dof, idim = i / dof;
-         for (int j = 0; j <= i; j++)
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         el.CalcShape(ip, shape);
+
+         adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
+         Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
+         adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
+
+         const real_t coeff_q = adapt_lim_coeff[c]->Eval(Tpr, ip);
+         const real_t factor =
+            weights(q) * lim_normal * coeff_q * 2.0 /
+            (adapt_lim_delta_max * adapt_lim_delta_max);
+
+         for (int i = 0; i < dof * dim; i++)
          {
-            const int jdof = j % dof, jdim = j / dof;
-            const real_t entry =
-               factor *
-               (adapt_lim_gf_grad_q(idim) * shape(idof) *
-                adapt_lim_gf_grad_q(jdim) * shape(jdof) +
-                (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
-                adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
-            mat(i, j) += entry;
-            if (i != j) { mat(j, i) += entry; }
+            const int idof = i % dof, idim = i / dof;
+            for (int j = 0; j <= i; j++)
+            {
+               const int jdof = j % dof, jdim = j / dof;
+               const real_t entry =
+                  factor *
+                  (adapt_lim_gf_grad_q(idim) * shape(idof) *
+                   adapt_lim_gf_grad_q(jdim) * shape(jdof) +
+                   (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
+                   adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
+               mat(i, j) += entry;
+               if (i != j) { mat(j, i) += entry; }
+            }
          }
       }
    }
@@ -5206,7 +5324,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    fd_call_flag = false;
 
    // Contributions from adaptive limiting, surface fitting (exact derivatives).
-   if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
+   if (adapt_lim_gf.Size() > 0 || surf_fit_gf || surf_fit_pos)
    {
       const IntegrationRule &ir = ActionIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -5230,7 +5348,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
-      if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO); }
+      if (adapt_lim_gf.Size() > 0) { AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO); }
       if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, Tpr, PMatO); }
    }
 }
@@ -5316,7 +5434,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    fd_call_flag = false;
 
    // Contributions from adaptive limiting.
-   if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
+   if (adapt_lim_gf.Size() > 0 || surf_fit_gf || surf_fit_pos)
    {
       const IntegrationRule &ir = GradientIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -5339,7 +5457,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                       ir.IntPoint(q).weight;
       }
 
-      if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
+      if (adapt_lim_gf.Size() > 0) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
       if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, Tpr, elmat); }
    }
 }
@@ -5686,9 +5804,18 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    }
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
-   if (adapt_lim_gf)
+   if (adapt_lim_gf.Size() > 0)
    {
-      adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
+      const int nal = adapt_lim_coeff.Size();
+      MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+                  "internal error");
+
+      for (int c = 0; c < nal; c++)
+      {
+         adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[c]);
+         adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf[c], ordering);
+      }
+
       if (PA.enabled)
       {
          PA.AL_grads_assembled = false;
@@ -5698,9 +5825,22 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 
          // Refresh PA.ALF from the updated adapt_lim_gf.
          const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
-         const Operator *alf_R =
-            adapt_lim_gf->FESpace()->GetElementRestriction(ord);
-         alf_R->Mult(*adapt_lim_gf, PA.ALF);
+         const FiniteElementSpace *alfes = adapt_lim_gf[0]->FESpace();
+         const Operator *alf_R = alfes->GetElementRestriction(ord);
+
+         const int ndofs = alfes->GetVSize();
+         const int Esize = alf_R->Height();
+         MFEM_VERIFY(PA.nal == nal, "internal error");
+         MFEM_VERIFY(PA.ALF.Size() == nal * Esize, "internal error");
+         MFEM_VERIFY(PA.ALFmF0.Size() == nal * Esize, "internal error");
+
+         Vector ALFc;
+         for (int c = 0; c < nal; c++)
+         {
+            MFEM_VERIFY(adapt_lim_gf[c]->Size() == ndofs, "internal error");
+            ALFc.MakeRef(PA.ALF, c * Esize, Esize);
+            alf_R->Mult(*adapt_lim_gf[c], ALFc);
+         }
 
          // Step 2 of PA.ALFmF0 update: add the new ALF.
          PA.ALFmF0 += PA.ALF;
@@ -5975,9 +6115,29 @@ void TMOPComboIntegrator::EnableAdaptiveLimiting(const GridFunction &z0,
    tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
 }
 
+void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                                                 const Array<Coefficient *> &coeff,
+                                                 AdaptivityEvaluator &ae,
+                                                 real_t delta_max)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
+}
+
 #ifdef MFEM_USE_MPI
 void TMOPComboIntegrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                                  Coefficient &coeff,
+                                                 AdaptivityEvaluator &ae,
+                                                 real_t delta_max)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
+}
+
+void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                                                 const Array<Coefficient *> &coeff,
                                                  AdaptivityEvaluator &ae,
                                                  real_t delta_max)
 {

@@ -909,13 +909,18 @@ int main (int argc, char *argv[])
    if (lim_const != 0.0) { tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
-   ParGridFunction adapt_lim_gf0(&ind_fes);
-   ConstantCoefficient adapt_lim_coeff(adapt_lim_const);
+   ParGridFunction adapt_lim_gf0_1(&ind_fes);
+   ParGridFunction adapt_lim_gf0_2(&ind_fes);
+   ConstantCoefficient adapt_lim_coeff_1(adapt_lim_const);
+   const real_t adapt_lim_const_2 = 0.5 * adapt_lim_const;
+   ConstantCoefficient adapt_lim_coeff_2(adapt_lim_const_2);
    AdaptivityEvaluator *adapt_lim_eval = NULL;
    if (adapt_lim_const > 0.0)
    {
-      FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
-      adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
+      FunctionCoefficient adapt_lim_gf0_coeff_1(adapt_lim_fun);
+      FunctionCoefficient adapt_lim_gf0_coeff_2(adapt_lim_fun2);
+      adapt_lim_gf0_1.ProjectCoefficient(adapt_lim_gf0_coeff_1);
+      adapt_lim_gf0_2.ProjectCoefficient(adapt_lim_gf0_coeff_2);
 
       if (adapt_eval == 0) { adapt_lim_eval = new AdvectorCG(al); }
       else if (adapt_eval == 1)
@@ -928,13 +933,18 @@ int main (int argc, char *argv[])
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      tmop_integ->EnableAdaptiveLimiting(adapt_lim_gf0, adapt_lim_coeff,
-                                         *adapt_lim_eval, 1.0);
+      Array<const ParGridFunction *> z0(2);
+      Array<Coefficient *> coeff(2);
+      z0[0] = &adapt_lim_gf0_1;
+      z0[1] = &adapt_lim_gf0_2;
+      coeff[0] = &adapt_lim_coeff_1;
+      coeff[1] = &adapt_lim_coeff_2;
+      tmop_integ->EnableAdaptiveLimiting(z0, coeff, *adapt_lim_eval, 1.0);
       if (visualization)
       {
          socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0,
-                                "Zeta 0 - initial mesh", 300, 600, 300, 300);
+         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
+                                "Zeta0(1) - initial mesh", 300, 600, 300, 300);
       }
    }
 
@@ -1050,11 +1060,13 @@ int main (int argc, char *argv[])
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      adapt_lim_coeff.constant = 0.0;
+      adapt_lim_coeff_1.constant = 0.0;
+      adapt_lim_coeff_2.constant = 0.0;
       init_metric_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
-      adapt_lim_coeff.constant = adapt_lim_const;
+      adapt_lim_coeff_1.constant = adapt_lim_const;
+      adapt_lim_coeff_2.constant = adapt_lim_const_2;
    }
 
    // Visualize the starting mesh and metric values.
@@ -1216,7 +1228,8 @@ int main (int argc, char *argv[])
    hr_solver.AddFESpaceForUpdate(&pfes_h1);
    if (adapt_lim_const > 0.)
    {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0_1);
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0_2);
       hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
    hr_solver.Mult();
@@ -1245,11 +1258,13 @@ int main (int argc, char *argv[])
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      adapt_lim_coeff.constant = 0.0;
+      adapt_lim_coeff_1.constant = 0.0;
+      adapt_lim_coeff_2.constant = 0.0;
       fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
-      adapt_lim_coeff.constant = adapt_lim_const;
+      adapt_lim_coeff_1.constant = adapt_lim_const;
+      adapt_lim_coeff_2.constant = adapt_lim_const_2;
    }
    if (myid == 0)
    {
@@ -1274,8 +1289,8 @@ int main (int argc, char *argv[])
    if (adapt_lim_const > 0.0 && visualization)
    {
       socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0,
-                             "Zeta 0 - final mesh", 600, 600, 300, 300);
+      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0_1,
+                             "Zeta0(1) - final mesh", 600, 600, 300, 300);
    }
 
    // Visualize the mesh displacement.
