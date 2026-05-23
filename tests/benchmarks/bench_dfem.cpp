@@ -13,10 +13,6 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#ifndef MFEM_DEBUG
-#define MFEM_ADD_SPECIALIZATIONS
-#endif // MFEM_DEBUG
-
 #include <memory>
 #include <type_traits>
 
@@ -139,7 +135,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 // Register kernel specializations used in the benchmarks /////////////////////
 static void AddKernelSpecializations()
 {
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
    QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 2>::Add();
    QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 3>::Add();
    QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 5>::Add();
@@ -185,7 +181,7 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<3, 3, 6, 6>::Add();
    VDIFF::Specialization<3, 3, 7, 7>::Add();
    VDIFF::Specialization<3, 3, 8, 8>::Add();
-#endif // MFEM_ADD_SPECIALIZATIONS
+#endif // MFEM_DEBUG
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -399,7 +395,7 @@ struct MFStiffnessIntegrator : public BilinearFormIntegrator
 public:
    MFStiffnessIntegrator()
    {
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
       MFStiffnessKernels::Specialization<2, 3, 2>::Add();
       MFStiffnessKernels::Specialization<3, 4, 2>::Add();
       MFStiffnessKernels::Specialization<4, 5, 2>::Add();
@@ -407,7 +403,7 @@ public:
       MFStiffnessKernels::Specialization<6, 7, 2>::Add();
       MFStiffnessKernels::Specialization<7, 8, 2>::Add();
       MFStiffnessKernels::Specialization<9, 10, 2>::Add();
-#endif // MFEM_ADD_SPECIALIZATIONS
+#endif // MFEM_DEBUG
    }
 
    using BilinearFormIntegrator::AssemblePA;
@@ -571,7 +567,7 @@ struct MFMassIntegrator : public BilinearFormIntegrator
 public:
    MFMassIntegrator()
    {
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
       MFMassKernels::Specialization<2, 3, 2>::Add();
       MFMassKernels::Specialization<3, 4, 2>::Add();
       MFMassKernels::Specialization<4, 5, 2>::Add();
@@ -579,7 +575,7 @@ public:
       MFMassKernels::Specialization<6, 7, 2>::Add();
       MFMassKernels::Specialization<7, 8, 2>::Add();
       MFMassKernels::Specialization<9, 10, 2>::Add();
-#endif // MFEM_ADD_SPECIALIZATIONS
+#endif // MFEM_DEBUG
    }
 
    using BilinearFormIntegrator::AssemblePA;
@@ -709,12 +705,12 @@ MFMassIntegrator::MFMassKernelType
 MFMassIntegrator::MFMassKernels::Fallback(int d1, int q1, int n1)
 {
    db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
    MFEM_ABORT("No kernel for d1d=" << d1 << " q=" << q1 << " d1n=" << n1);
    return nullptr;
 #else
    return MFMassMult;
-#endif
+#endif // MFEM_DEBUG
 }
 
 /// PA MassIntegrator ///////////////////////////////////////////////////////
@@ -729,7 +725,7 @@ struct PAStiffnessIntegrator : public BilinearFormIntegrator
 public:
    PAStiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 4>::Add();
       StiffnessKernels::Specialization<4, 5>::Add();
@@ -737,7 +733,7 @@ public:
       StiffnessKernels::Specialization<6, 7>::Add();
       StiffnessKernels::Specialization<7, 8>::Add();
       StiffnessKernels::Specialization<9, 10>::Add();
-#endif // MFEM_ADD_SPECIALIZATIONS
+#endif // MFEM_DEBUG
    }
 
    using BilinearFormIntegrator::AssemblePA;

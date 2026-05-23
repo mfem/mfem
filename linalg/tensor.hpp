@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "../general/backends.hpp"
 #include "dual.hpp"
 #include <limits>
 #include <type_traits> // for std::false_type
@@ -40,7 +39,7 @@ struct tensor<T>
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
 
-   MFEM_HOST_DEVICE tensor() = default;
+   tensor() = default;
    MFEM_HOST_DEVICE tensor(T v) : values(v) {}
 
    MFEM_HOST_DEVICE T& operator[](int) { return values; }

@@ -108,7 +108,7 @@ public:
       NVTX_MARK_FUNCTION;
       MFEM_ASSERT(dim == 2 || dim == 3, "LocalQFKernels: only 2D and 3D");
 
-#ifdef MFEM_ADD_SPECIALIZATIONS
+#ifndef MFEM_DEBUG
       // 2D kernels
       ActionHO::template Specialization<2, 2>::Add(); // 0
       ActionHO::template Specialization<2, 3>::Add(); // 1
@@ -133,7 +133,7 @@ public:
       ActionHO::template Specialization<3, 14>::Add(); // 12
       ActionHO::template Specialization<3, 16>::Add(); // 14
       ActionHO::template Specialization<3, 18>::Add(); // 16
-#endif
+#endif // MFEM_DEBUG
    }
 
    void operator()(const std::vector<Vector *> &xe,
