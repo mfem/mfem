@@ -10,8 +10,10 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
+
 #ifdef MFEM_USE_ENZYME
 #include "../linalg/test_same_matrices.hpp"
 #endif
@@ -31,7 +33,8 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-template <int DIM> struct Diffusion
+template <int DIM>
+struct Diffusion
 {
    using dvecd_t = tensor<dscalar_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;

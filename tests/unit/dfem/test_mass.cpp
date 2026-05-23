@@ -9,21 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// FIXME: update this test to work with the new dFEM API.
-#if 0
-
 #include "../unit_tests.hpp"
 
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
 
-#include "../fem/dfem/doperator.hpp"
-#include "../linalg/test_same_matrices.hpp"
+#include "../../../fem/dfem/doperator.hpp"
 
-#include "../fem/dfem/backends/local_qf/prelude.hpp"
-using LocalQFDefaultBackend = mfem::future::LocalQFBackend;
-#include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using LocalQFKernelsBackend = mfem::future::LocalQFKernelsBackend;
+#ifdef MFEM_USE_ENZYME
+#include "../linalg/test_same_matrices.hpp"
+#endif
+
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -38,7 +35,8 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-template <int DIM, typename QFBackend>
+template <int DIM,
+          typename QFBackend = LocalQFBackend>
 void mass_action(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -67,7 +65,6 @@ void mass_action(const char *filename, int p)
 
    // Action matrix free
    {
-      dbg();
       const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
       Array<int> all_domain_attr;
@@ -192,7 +189,7 @@ void mass_action(const char *filename, int p)
    }*/
 }
 
-template <int DIM, typename QFBackend>
+template <int DIM, typename QFBackend = LocalQFBackend>
 void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -262,10 +259,14 @@ void mass_mat_mixed(const char* filename, int p)
 
    fes1.GetRestrictionMatrix()->Mult(ugf, xtvec);
    MultiVector X{xtvec, nodestv};
+
+#ifdef MFEM_USE_ENZYME
    auto ddopdu = dop.GetDerivative(U, X);
+#endif // MFEM_USE_ENZYME
 
    // Action linearized
    {
+#ifdef MFEM_USE_ENZYME
       xtvec.Randomize(567);
       ugf.SetFromTrueDofs(xtvec);
 
@@ -285,20 +286,23 @@ void mass_mat_mixed(const char* filename, int p)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
    }
 
    // spmat
-   if constexpr (std::is_same_v<QFBackend, LocalQFDefaultBackend>)
    {
+#ifdef MFEM_USE_ENZYME
       SparseMatrix *A;
       ddopdu->Assemble(A);
       TestSameMatrices(*A, blf.SpMat());
       delete A;
+#endif // MFEM_USE_ENZYME
    }
 
+
    // hypre parallel mat
-   if constexpr (std::is_same_v<QFBackend, LocalQFDefaultBackend>)
    {
+#ifdef MFEM_USE_ENZYME
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
       HypreParMatrix *Adfem;
@@ -306,6 +310,7 @@ void mass_mat_mixed(const char* filename, int p)
       TestSameMatrices(*Adfem, *Amfem);
       delete Amfem;
       delete Adfem;
+#endif // MFEM_USE_ENZYME
    }
 }
 
@@ -320,22 +325,14 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS]")
                "../../data/inline-quad.mesh",
                "../../data/periodic-square.mesh");
 
-   SECTION("LocalQF Default")
-   {
-      mass_action<2, LocalQFDefaultBackend>(mesh2d, p);
-   }
-
-   SECTION("LocalQF Kernels")
-   {
-      mass_action<2, LocalQFKernelsBackend>(mesh2d, p);
-   }
+   mass_action<2>(mesh2d, p);
 
    // Avoiding failing 'hypre parallel mat' section
 #ifndef MFEM_USE_CUDA_OR_HIP
 #ifdef MFEM_USE_ENZYME
    SECTION("2D Mixed Default")
    {
-      mass_mat_mixed<2, LocalQFDefaultBackend>(mesh2d, p);
+      mass_mat_mixed<2>(mesh2d, p);
    }
 #else
    SECTION("2D Mixed Kernels")
@@ -358,32 +355,23 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS]")
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
 
-   SECTION("LocalQF Default")
-   {
-      mass_action<3, LocalQFDefaultBackend>(mesh3d, p);
-   }
+   mass_action<3>(mesh3d, p);
 
-   SECTION("LocalQF Kernels")
-   {
-      mass_action<3, LocalQFKernelsBackend>(mesh3d, p);
-   }
 
    // Avoiding failing 'hypre parallel mat' section
 #ifndef MFEM_USE_CUDA_OR_HIP
 #ifdef MFEM_USE_ENZYME
    SECTION("3D Mixed Default")
    {
-      mass_mat_mixed<3, LocalQFDefaultBackend>(mesh3d, p);
+      mass_mat_mixed<3>(mesh3d, p);
    }
 #else
    SECTION("3D Mixed Kernels")
    {
-      mass_mat_mixed<3, LocalQFKernelsBackend>(mesh3d, p);
+      mass_mat_mixed<3>(mesh3d, p);
    }
 #endif // MFEM_USE_ENZYME
 #endif // MFEM_USE_CUDA_OR_HIP
 }
 
 #endif // MFEM_USE_MPI
-
-#endif // # if 0

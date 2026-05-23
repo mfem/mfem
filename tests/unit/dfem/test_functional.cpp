@@ -253,9 +253,9 @@ void functional(const char *filename, int p)
 TEST_CASE("dFEM functional derivative action matches finite differences",
           "[Parallel][dFEM][functional]")
 {
+#ifdef MFEM_USE_ENZYME
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-
    SECTION("2d")
    {
       const auto f =
@@ -281,6 +281,7 @@ TEST_CASE("dFEM functional derivative action matches finite differences",
          );
       functional<3>(f, p);
    }
+#endif // MFEM_USE_ENZYME
 }
 
 #endif // MFEM_USE_MPI
