@@ -168,23 +168,6 @@ static inline bool IsSupportedHypreParVectorPrecision(HYPRE_Precision precision)
    return precision == HYPRE_REAL_SINGLE || precision == HYPRE_REAL_DOUBLE;
 }
 
-static inline bool HypreParVectorUsesMFEMReal(const hypre_ParVector *v)
-{
-   return hypre_ParVectorPrecision(v) == MFEMHypreRealPrecision();
-}
-
-static inline bool HypreSeqVectorUsesMFEMReal(const hypre_Vector *v)
-{
-   return hypre_VectorPrecision(v) == MFEMHypreRealPrecision();
-}
-
-static inline void VerifyHypreParVectorUsesMFEMReal(const hypre_ParVector *v)
-{
-   MFEM_VERIFY(HypreParVectorUsesMFEMReal(v),
-               "this HypreParVector stores hypre data with a precision "
-               "different from mfem::real_t");
-}
-
 static hypre_ParVector *CreateHypreParVectorWithPrecision(
    MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *col,
    HYPRE_Precision precision)
@@ -209,6 +192,24 @@ static inline void InitializeHypreParVectorWithPrecision(hypre_ParVector *v)
    MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInitialize_pre");
 }
 #endif
+
+static inline bool HypreParVectorUsesMFEMReal(const hypre_ParVector *v)
+{
+#ifdef HYPRE_MIXED_PRECISION
+   return hypre_ParVectorPrecision(v) == MFEMHypreRealPrecision();
+#else
+   return true;
+#endif
+}
+
+static inline bool HypreSeqVectorUsesMFEMReal(const hypre_Vector *v)
+{
+#ifdef HYPRE_MIXED_PRECISION
+   return hypre_VectorPrecision(v) == MFEMHypreRealPrecision();
+#else
+   return true;
+#endif
+}
 
 inline void HypreParVector::_SetDataAndSize_()
 {
@@ -248,6 +249,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
 #endif
+   using_real_t = true;
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -269,6 +271,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #else
    x = hypre_ParVectorCreate(comm,glob_size,col);
 #endif
+   using_real_t = true;
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_SeqVectorSetDataOwner(x_loc,0);
@@ -367,6 +370,7 @@ HypreParVector::HypreParVector(const HypreParMatrix &A,
                                             hypre_ParCSRMatrixPrecision(Ah));
    }
    InitializeHypreParVectorWithPrecision(x);
+   using_real_t = HypreParVectorUsesMFEMReal(x);
 #else
    if (!transpose)
    {
@@ -376,6 +380,7 @@ HypreParVector::HypreParVector(const HypreParMatrix &A,
    {
       x = hypre_ParVectorInRangeOf(const_cast<HypreParMatrix&>(A));
    }
+   using_real_t = true;
 #endif
    _SetDataAndSize_();
    own_ParVector = 1;
@@ -386,6 +391,9 @@ HypreParVector::HypreParVector(HYPRE_ParVector y) : Vector()
    x = (hypre_ParVector *) y;
    _SetDataAndSize_();
    own_ParVector = 0;
+#ifdef HYPRE_MIXED_PRECISION
+   using_real_t = HypreParVectorUsesMFEMReal(x);
+#endif
 }
 
 HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
@@ -401,6 +409,7 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
                              pfes->GetTrueDofOffsets());
    hypre_ParVectorInitialize(x);
 #endif
+   using_real_t = true;
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -427,6 +436,7 @@ HypreParVector HypreParVector::CreateCompatibleVector() const
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
    result._SetDataAndSize_();
    result.own_ParVector = 1;
+   result.using_real_t = true;
 
    return result;
 #endif
@@ -449,6 +459,7 @@ HypreParVector HypreParVector::CreateCompatibleVector(
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
    result._SetDataAndSize_();
    result.own_ParVector = 1;
+   result.using_real_t = HypreParVectorUsesMFEMReal(result.x);
 
    return result;
 }
@@ -470,11 +481,17 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
    own_ParVector = owner;
 }
 
-Vector * HypreParVector::GlobalVector() const
+void HypreParVector::VerifyRealPrecision() const
 {
 #ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
+   MFEM_VERIFY(using_real_t, "This HypreParVector stores hypre data with "
+               "precision different from mfem::real_t");
 #endif
+}
+
+Vector * HypreParVector::GlobalVector() const
+{
+   VerifyRealPrecision();
    MFEM_VERIFY(size > 0,
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
@@ -544,9 +561,7 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 
 void HypreParVector::SetData(real_t *data_)
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    Vector::SetData(data_);
 }
@@ -619,9 +634,7 @@ void HypreParVector::HypreRead() const
 
 void HypreParVector::HypreReadWrite()
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -631,9 +644,7 @@ void HypreParVector::HypreReadWrite()
 
 void HypreParVector::HypreWrite()
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -643,9 +654,7 @@ void HypreParVector::HypreWrite()
 
 void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -661,9 +670,7 @@ void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -678,9 +685,7 @@ void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 {
-#ifdef HYPRE_MIXED_PRECISION
-   VerifyHypreParVectorUsesMFEMReal(x);
-#endif
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 

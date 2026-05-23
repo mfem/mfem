@@ -234,10 +234,19 @@ private:
    /// The actual object
    hypre_ParVector *x;
 
+   /// Indicates whether x has real_t as its floating point type.
+   bool using_real_t;
+
    friend class HypreParMatrix;
 
-   // Set Vector::data and Vector::size from *x
+   /// Set Vector::data and Vector::size from *x
    inline void _SetDataAndSize_();
+
+   /** @brief Verify that x uses real_t as its floating point type.
+
+       This verification is used only by functions that assume the precision
+       type to match the MFEM real_t type. */
+   void VerifyRealPrecision() const;
 
 public:
 

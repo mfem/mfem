@@ -331,6 +331,11 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+#ifndef HYPRE_MIXED_PRECISION
+   MFEM_ABORT("This version of ex1p requires hypre to be built with mixed"
+              "precision");
+#endif
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -451,10 +456,12 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+   // Solve the system in single precision (full_single_solve == true) or in
+   // double precision (full_single_solve == false) with the AMG preconditioner
+   // in single precision.
+
    Vector sol_single(X.Size());
 
-#ifdef HYPRE_MIXED_PRECISION
-   MFEM_VERIFY(!pa, "Partial assembly is not supported in mixed precision");
    if (full_single_solve)
    {
       HypreParMatrix *A_double = A.As<HypreParMatrix>();
@@ -513,9 +520,8 @@ int main(int argc, char *argv[])
 
       sol_single = x_double;
    }
-#endif
 
-   // 13. Solve the linear system A X = B.
+   // 13. Solve the linear system A X = B in precision real_t.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
