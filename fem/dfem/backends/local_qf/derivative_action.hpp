@@ -131,6 +131,22 @@ public:
                   "LocalQFBackend: derivative direction field not found in unionfds");
 
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
+
+#ifndef MFEM_DEBUG
+      // 2D kernels
+      DerivativeActionHO::template Specialization<2, 2>::Add();
+      DerivativeActionHO::template Specialization<2, 3>::Add();
+      DerivativeActionHO::template Specialization<2, 4>::Add();
+      DerivativeActionHO::template Specialization<2, 5>::Add();
+      DerivativeActionHO::template Specialization<2, 6>::Add();
+
+      // 3D kernels
+      DerivativeActionLO::template Specialization<3, 2>::Add();
+      DerivativeActionLO::template Specialization<3, 3>::Add();
+      DerivativeActionLO::template Specialization<3, 4>::Add();
+      DerivativeActionLO::template Specialization<3, 5>::Add();
+      DerivativeActionLO::template Specialization<3, 6>::Add();
+#endif
    }
 
    //////////////////////////////////////////////////////////////////
@@ -201,10 +217,11 @@ public:
                                           const std::array<bool, n_inputs> &input_dep,
                                           const Vector &direction_e,
                                           // fallback arguments
-                                          const int q1d)
+                                          const int dim, const int q1d)
    {
+      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+
       if (ctx.attr.Size() == 0) { return; }
-      MFEM_ASSERT(3 == ctx.mesh.Dimension(), "Dimension mismatch");
 
       static constexpr auto DIM = backend_t::DIM;
       static constexpr auto B2D = backend_t::DIM == 2;
@@ -585,4 +602,4 @@ DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionH
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-} // namespace mfem::future::LocalQFKernelsImpl
+} // namespace mfem::future::LocalQFImpl

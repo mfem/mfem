@@ -20,6 +20,261 @@ namespace ker = mfem::kernels::internal;
 namespace mfem::future
 {
 
+///////////////////////////////////////////////////////////////////////////////
+/// Register type for one HO q-function parameter
+template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
+struct ho_qreg;
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 0>
+{
+   using type = typename KerOps::template val_reg_t<1>;
+};
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 1>
+{
+   using type = typename KerOps::template del_reg_t<1, KerOps::DIM>;
+};
+
+template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 2>
+{
+   static constexpr int VDIM = qf_param_shape<T>::extents[0];
+   static constexpr int SDIM = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template del_reg_t<VDIM, SDIM>;
+};
+
+template<typename KerOps, typename T>
+using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
+
+namespace ho_qp_detail
+{
+
+/// Load one quadrature-point value
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
+{
+   static_assert(DIM == 2 || DIM == 3);
+   constexpr int RNK = qf_param_shape<T>::rank;
+   if constexpr (DIM == 2)
+   {
+      MFEM_CONTRACT_VAR(qz);
+      if constexpr (RNK == 0) { return T{reg(0, qy, qx)}; }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         T t{};
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qy, qx); }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qy, qx); }
+         }
+         return t;
+      }
+   }
+   else
+   {
+      if constexpr (RNK == 0) { return T{reg(0, qz, qy, qx)}; }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         T t{};
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
+         }
+         return t;
+      }
+   }
+}
+
+template<bool tangent, typename U>
+MFEM_HOST_DEVICE inline auto qp_store(const U &v)
+{
+   if constexpr (tangent) { return qf_store_gradient(v); }
+   else { return qf_store_value(v); }
+}
+
+/// Store primal value or dual tangent at one quadrature point
+template<int DIM, typename T, typename Reg, bool tangent>
+MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
+                                      const T &out)
+{
+   static_assert(DIM == 2 || DIM == 3);
+   constexpr int RNK = qf_param_shape<T>::rank;
+   if constexpr (DIM == 2)
+   {
+      MFEM_CONTRACT_VAR(qz);
+      if constexpr (RNK == 0) { reg(0, qy, qx) = qp_store<tangent>(out); }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd)
+         {
+            reg(0, dd, qy, qx) = qp_store<tangent>(out(dd));
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               reg(i, j, qy, qx) = qp_store<tangent>(out(i, j));
+            }
+         }
+      }
+   }
+   else
+   {
+      if constexpr (RNK == 0) { reg(0, qz, qy, qx) = qp_store<tangent>(out); }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int n = (e0 < DIM) ? e0 : DIM;
+         MFEM_UNROLL(n)
+         for (int dd = 0; dd < n; ++dd)
+         {
+            reg(0, dd, qz, qy, qx) = qp_store<tangent>(out(dd));
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               reg(i, j, qz, qy, qx) = qp_store<tangent>(out(i, j));
+            }
+         }
+      }
+   }
+}
+
+/// Pull primal/tangent pair into a dual q-function argument (HO registers)
+template<int DIM, typename T, typename Reg>
+MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
+                                              int qx, int qy, int qz,
+                                              bool dependent)
+{
+   if constexpr (!qf_param_uses_dual_v<T>)
+   {
+      return load_at<DIM, T>(preg, qx, qy, qz);
+   }
+   else
+   {
+      if (!dependent) { return load_at<DIM, T>(preg, qx, qy, qz); }
+      constexpr int RNK = qf_param_shape<T>::rank;
+      if constexpr (DIM == 2)
+      {
+         MFEM_CONTRACT_VAR(qz);
+         if constexpr (RNK == 0)
+         {
+            return T{preg(0, qy, qx), sreg(0, qy, qx)};
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int n = (e0 < DIM) ? e0 : DIM;
+            T t{};
+            MFEM_UNROLL(n)
+            for (int dd = 0; dd < n; ++dd)
+            {
+               t(dd) = {preg(0, dd, qy, qx), sreg(0, dd, qy, qx)};
+            }
+            return t;
+         }
+         else
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            T t;
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  t(i, j) = {preg(i, j, qy, qx), sreg(i, j, qy, qx)};
+               }
+            }
+            return t;
+         }
+      }
+      else
+      {
+         if constexpr (RNK == 0)
+         {
+            return T{preg(0, qz, qy, qx), sreg(0, qz, qy, qx)};
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int n = (e0 < DIM) ? e0 : DIM;
+            T t{};
+            MFEM_UNROLL(n)
+            for (int dd = 0; dd < n; ++dd)
+            {
+               t(dd) = {preg(0, dd, qz, qy, qx), sreg(0, dd, qz, qy, qx)};
+            }
+            return t;
+         }
+         else
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            T t;
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  t(i, j) = {preg(i, j, qz, qy, qx), sreg(i, j, qz, qy, qx)};
+               }
+            }
+            return t;
+         }
+      }
+   }
+}
+
+} // namespace ho_qp_detail
+
 /// HO tensor-product kernels
 template<int T_DIM, int MQ1>
 struct ho_ker_backend
@@ -36,31 +291,11 @@ struct ho_ker_backend
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>, ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
    template<typename XE_t, typename Dofs>
-   static MFEM_HOST_DEVICE void load_value_dofs(const int e, const int d,
-                                                const XE_t &XE, Dofs &dofs)
+   static MFEM_HOST_DEVICE void load_dofs(const int e, const int d,
+                                          const XE_t &XE, Dofs &dofs)
    {
-      if constexpr (DIM == 2)
-      {
-         ker::LoadDofs2d(e, d, XE, dofs);
-      }
-      else
-      {
-         ker::LoadDofs3d(e, d, XE, dofs);
-      }
-   }
-
-   template<typename XE_t, typename Dofs>
-   static MFEM_HOST_DEVICE void load_grad_scalar_dofs(const int e, const int d,
-                                                      const XE_t &XE, Dofs &dofs)
-   {
-      if constexpr (DIM == 2)
-      {
-         ker::LoadDofs2d(e, d, XE, dofs);
-      }
-      else
-      {
-         ker::LoadDofs3d(e, d, XE, dofs);
-      }
+      if constexpr (DIM == 2) { ker::LoadDofs2d(e, d, XE, dofs); }
+      else { ker::LoadDofs3d(e, d, XE, dofs); }
    }
 
    template<int VDIM, int SDIM, typename XE_t, typename Dofs>
@@ -68,14 +303,7 @@ struct ho_ker_backend
                                                const XE_t &XE, Dofs &dofs)
    {
       static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
-      if constexpr (DIM == 2)
-      {
-         ker::LoadDofs2d(e, d, XE, dofs);
-      }
-      else
-      {
-         ker::LoadDofs3d(e, d, XE, dofs);
-      }
+      load_dofs(e, d, XE, dofs);
    }
 
    template<typename Smem, typename Dofs, typename ArgReg>
@@ -207,7 +435,7 @@ struct LocalQFHOBackend
    {
       ker::LoadMatrix(d, q, B, s.B);
       typename backend_t<MQ1>::template val_reg_t<1> dofs;
-      backend_t<MQ1>::load_value_dofs(e, d, XE, dofs);
+      backend_t<MQ1>::load_dofs(e, d, XE, dofs);
       backend_t<MQ1>::eval_value(d, q, s, dofs, rarg);
    }
 
@@ -231,14 +459,8 @@ struct LocalQFHOBackend
       if constexpr (SDIM == DIM)
       {
          typename backend_t<MQ1>::template del_reg_t<VDIM, SDIM> dofs;
-         if constexpr (RNK == 1)
-         {
-            backend_t<MQ1>::load_grad_scalar_dofs(e, d, XE, dofs);
-         }
-         else
-         {
-            backend_t<MQ1>::template load_grad_dofs<VDIM, SDIM>(e, d, XE, dofs);
-         }
+         if constexpr (RNK == 1) { backend_t<MQ1>::load_dofs(e, d, XE, dofs); }
+         else { backend_t<MQ1>::template load_grad_dofs<VDIM, SDIM>(e, d, XE, dofs); }
          backend_t<MQ1>::template grad<VDIM, SDIM>(d, q, s, dofs, rarg);
       }
    }
@@ -248,7 +470,7 @@ struct LocalQFHOBackend
    static MFEM_HOST_DEVICE inline
    auto qp_pull(QReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
-      return ho_qp_pull<DIM, T>(reg, qx, qy, qz);
+      return ho_qp_detail::load_at<DIM, T>(reg, qx, qy, qz);
    }
 
    //////////////////////////////////////////////////////////////////
@@ -256,7 +478,119 @@ struct LocalQFHOBackend
    static MFEM_HOST_DEVICE inline
    void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
-      ho_qp_push<DIM, T>(reg, qx, qy, qz, out);
+      ho_qp_detail::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename T, int MQ1>
+   static MFEM_HOST_DEVICE inline
+   auto qp_pull_directional(QReg<T, MQ1> &preg, QReg<T, MQ1> &sreg,
+                            int qx, int qy, int qz, bool dependent)
+   {
+      return ho_qp_detail::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
+                                                    dependent);
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename T, int MQ1>
+   static MFEM_HOST_DEVICE inline
+   void qp_push_tangent(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   {
+      ho_qp_detail::store_at<DIM, T, decltype(reg), qf_param_uses_dual_v<T>>
+                                                                          (reg, qx, qy, qz, out);
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename DT, typename XE_T>
+   static MFEM_HOST_DEVICE inline
+   DT identity_qp_pull_dual(bool dependent,
+                            const XE_T &XP, const XE_T &XD,
+                            int qx, int qy, int qz, int e)
+   {
+      constexpr int RNK = qf_param_shape<DT>::rank;
+      if constexpr (RNK == 0)
+      {
+         DT t{};
+         t.value = XP(0, qx, qy, qz, e);
+         t.gradient = dependent ? XD(0, qx, qy, qz, e) : 0.0;
+         return t;
+      }
+      else if constexpr (RNK == 1)
+      {
+         constexpr int e0 = qf_param_shape<DT>::extents[0];
+         DT t{};
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
+         {
+            t(dd).value = XP(dd, qx, qy, qz, e);
+            t(dd).gradient = dependent ? XD(dd, qx, qy, qz, e) : 0.0;
+         }
+         return t;
+      }
+      else if constexpr (RNK == 2)
+      {
+         constexpr int e0 = qf_param_shape<DT>::extents[0];
+         constexpr int e1 = qf_param_shape<DT>::extents[1];
+         DT t{};
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               t(i, j).value = XP(i + e0 * j, qx, qy, qz, e);
+               t(i, j).gradient = dependent ? XD(i + e0 * j, qx, qy, qz, e) : 0.0;
+            }
+         }
+         return t;
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename DT, typename YE_T>
+   static MFEM_HOST_DEVICE inline
+   void identity_qp_write_tangent(YE_T &YE, int qx, int qy, int qz, int e,
+                                  const DT &qout)
+   {
+      constexpr int RNK = qf_param_shape<DT>::rank;
+      if constexpr (qf_param_uses_dual_v<DT>)
+      {
+         if constexpr (RNK == 0)
+         {
+            YE(0, qx, qy, qz, e) = qf_store_gradient(qout);
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               YE(dd, qx, qy, qz, e) = qf_store_gradient(qout(dd));
+            }
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  YE(i + e0 * j, qx, qy, qz, e) = qf_store_gradient(qout(i, j));
+               }
+            }
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      }
    }
 
    //////////////////////////////////////////////////////////////////

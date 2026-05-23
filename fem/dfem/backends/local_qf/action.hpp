@@ -105,13 +105,11 @@ public:
                   "LocalQFBackend: unionfds size mismatch");
 #ifndef MFEM_DEBUG
       // 2D kernels
-      // ActionHO::template Specialization<2, 2>::Add();
-      // ActionHO::template Specialization<2, 3>::Add();
-      // ActionHO::template Specialization<2, 4>::Add();
-      // ActionHO::template Specialization<2, 5>::Add();
-      // ActionHO::template Specialization<2, 6>::Add();
-      // ActionHO::template Specialization<2, 7>::Add();
-      // ActionHO::template Specialization<2, 8>::Add();
+      ActionHO::template Specialization<2, 2>::Add();
+      ActionHO::template Specialization<2, 3>::Add();
+      ActionHO::template Specialization<2, 4>::Add();
+      ActionHO::template Specialization<2, 5>::Add();
+      ActionHO::template Specialization<2, 6>::Add();
 
       // 3D kernels
       ActionLO::template Specialization<3, 2>::Add();
@@ -119,8 +117,6 @@ public:
       ActionLO::template Specialization<3, 4>::Add();
       ActionLO::template Specialization<3, 5>::Add();
       ActionLO::template Specialization<3, 6>::Add();
-      // ActionLO::template Specialization<3, 7>::Add();
-      // ActionLO::template Specialization<3, 8>::Add();
 
       // 3D HO kernels
       // ActionHO::template Specialization<3, 10>::Add();
