@@ -407,81 +407,10 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
-                  args_tuple_t qargs;
-
-                  // --------------------------------------
-                  // Pulling arguments from registers to qargs tuple
-                  // --------------------------------------
-                  for_constexpr<n_inputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value;
-                     auto &qarg = get<i>(qargs);
-                     const auto &XE = in_XE[i];
-                     const auto &XEd = in_XE_dir[i];
-                     using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        using DT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
-                        {
-                           qarg = backend_t::template identity_qp_pull_dual<DT>
-                           (input_dep[i], XE, XEd, qx, qy, qz, e);
-                        }
-                        else
-                        {
-                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
-                        }
-                     }
-                     else if constexpr (is_weight_fop_v<FOP>)
-                     {
-                        qarg = XE(qx, qy, qz, 0, 0);
-                     }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-                     {
-                        qarg = backend_t::template qp_pull_directional<ARG, MQ1>
-                        (get<i>(rargs), get<i>(sargs), qx, qy, qz,
-                         input_dep[i]);
-                     }
-                     else { static_assert(false, "Unsupported"); }
-                  });
-
-                  // --------------------------------------
-                  // Call the quadrature function
-                  // --------------------------------------
-                  call_qfunc_no_move(qfunc, qargs);
-
-                  // --------------------------------------
-                  // Pushing arguments from qargs tuple to registers
-                  // --------------------------------------
-                  for_constexpr<n_outputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value, o = n_inputs + i;
-                     const auto &qarg = get<o>(qargs);
-                     auto &YE = out_YE[i];
-                     using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        using DT = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
-                        {
-                           backend_t::identity_qp_write_tangent
-                           (YE, qx, qy, qz, e, qarg);
-                        }
-                        else
-                        {
-                           as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
-                        }
-                     }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-                     {
-                        auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push_tangent<ARG, MQ1>
-                        (rarg, qx, qy, qz, qarg);
-                     }
-                     else { static_assert(false, "Unsupported"); }
-                  });
+                  backend_t::template DerivativeEvaluateAtQP<
+                     qfunc_t, inputs_t, outputs_t, MQ1>
+                  (qfunc, rargs, sargs, input_dep, qx, qy, qz, e,
+                   in_XE, in_XE_dir, out_YE);
                }
             }
          }

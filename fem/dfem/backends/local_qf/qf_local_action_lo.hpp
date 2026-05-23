@@ -18,6 +18,7 @@ namespace ker = mfem::kernels::internal;
 #include "../util.hpp" // for as_tensor
 
 #include "qf_local_util.hpp"
+#include "qf_local_derivative_qp.hpp"
 
 namespace mfem::future
 {
@@ -26,6 +27,13 @@ struct LocalQFLOBackend
 {
    //////////////////////////////////////////////////////////////////
    static constexpr int DIM = 3, MQ1 = 8;
+
+#ifdef MFEM_USE_ENZYME
+   /// LO derivative uses Enzyme forward-mode; HO keeps dual numbers at qp.
+   static constexpr bool derivative_use_enzyme = true;
+#else
+   static constexpr bool derivative_use_enzyme = false;
+#endif
 
    //////////////////////////////////////////////////////////////////
    static inline ThreadBlocks thread_blocks(const int q1d)
@@ -489,6 +497,32 @@ struct LocalQFLOBackend
          }
       }
       else { static_assert(false, "Unsupported"); }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t,
+      int MQ1,
+      typename RArgs,
+      typename SArgs,
+      typename InXE,
+      typename InXEd,
+      typename OutYE>
+   static MFEM_HOST_DEVICE inline void DerivativeEvaluateAtQP(
+      const qfunc_t &qfunc,
+      RArgs &rargs,
+      SArgs &sargs,
+      const std::array<bool, tuple_size<inputs_t>::value> &input_dep,
+      const int qx, const int qy, const int qz, const int e,
+      const InXE &in_XE,
+      const InXEd &in_XE_dir,
+      OutYE &out_YE)
+   {
+      derivative_evaluate_at_qp<LocalQFLOBackend, qfunc_t, inputs_t, outputs_t,
+                                  MQ1>(qfunc, rargs, sargs, input_dep,
+                                       qx, qy, qz, e, in_XE, in_XE_dir, out_YE);
    }
 };
 

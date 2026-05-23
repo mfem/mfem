@@ -182,21 +182,6 @@ struct DerivativeSetup
       qp_cache.UseDevice(true);
    }
 
-   template <typename func_t, typename args_t, int... Is>
-   MFEM_HOST_DEVICE static void call_qfunc_no_move_impl(
-      const func_t &func, args_t &args, std::integer_sequence<int, Is...>)
-   {
-      (void)func(get<Is>(args)...);
-   }
-
-   template <typename func_t, typename args_t>
-   MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
-                                                   args_t &args)
-   {
-      constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
-      call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
-   }
-
    template <typename qf_param_ts>
    MFEM_HOST_DEVICE static void call_qfunction_fwddiff_and_cache(
       const qfunc_t &qfunc,
@@ -361,39 +346,6 @@ struct DerivativeSetup
          }
          MFEM_SYNC_THREAD;
       }
-   }
-
-   template <typename args_t, int... Is>
-   MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
-      const qfunc_t &qfunc,
-      args_t &primal_args,
-      args_t &shadow_args,
-      std::integer_sequence<int, Is...>)
-   {
-#ifdef MFEM_USE_ENZYME
-      auto wrapper = [](const qfunc_t *qf, decltype(get<Is>(primal_args))&... args)
-      {
-         (*qf)(args...);
-      };
-      __enzyme_fwddiff<void>(
-         (void (*)(const qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
-         enzyme_const, &qfunc,
-         enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-         &get<Is>(shadow_args)...);
-#else
-      MFEM_ABORT("Enzyme not available");
-#endif
-   }
-
-   template <typename args_t>
-   MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
-      const qfunc_t &qfunc,
-      args_t &primal_args,
-      args_t &shadow_args)
-   {
-      constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
-      call_enzyme_fwddiff_impl(qfunc, primal_args, shadow_args,
-                               std::make_integer_sequence<int, nargs> {});
    }
 
    void operator()(const std::vector<Vector *> &xe) const
