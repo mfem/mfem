@@ -3803,9 +3803,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
 {
    Array<const GridFunction *> z0_arr(1);
    Array<Coefficient *> c_arr(1);
+   Array<real_t> d_arr(1);
    z0_arr[0] = &z0;
    c_arr[0] = &coeff;
-   EnableAdaptiveLimiting(z0_arr, c_arr, ae, delta_max);
+   d_arr[0] = delta_max;
+   EnableAdaptiveLimiting(z0_arr, c_arr, ae, d_arr);
 }
 
 #ifdef MFEM_USE_MPI
@@ -3816,28 +3818,20 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 {
    Array<const ParGridFunction *> z0_arr(1);
    Array<Coefficient *> c_arr(1);
+   Array<real_t> d_arr(1);
    z0_arr[0] = &z0;
    c_arr[0] = &coeff;
-   EnableAdaptiveLimiting(z0_arr, c_arr, ae, delta_max);
+   d_arr[0] = delta_max;
+   EnableAdaptiveLimiting(z0_arr, c_arr, ae, d_arr);
 }
 #endif
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
                                              const Array<Coefficient *> &coeff,
                                              AdaptivityEvaluator &ae,
-                                             real_t delta_max)
-{
-   Array<real_t> delta_max_arr(z0.Size());
-   delta_max_arr = delta_max;
-   EnableAdaptiveLimiting(z0, coeff, ae, delta_max_arr);
-}
-
-void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
-                                             const Array<Coefficient *> &coeff,
-                                             AdaptivityEvaluator &ae,
                                              const Array<real_t> &delta_max)
 {
-   MFEM_VERIFY(z0.Size() > 0, "EnableAdaptiveLimiting requires at least one field.");
+   MFEM_VERIFY(z0.Size() > 0, "Requires at least one field.");
    MFEM_VERIFY(z0.Size() == coeff.Size(),
                "EnableAdaptiveLimiting requires one Coefficient per field.");
    MFEM_VERIFY(z0.Size() == delta_max.Size(),
@@ -3917,16 +3911,6 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &
 }
 
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
-                                             const Array<Coefficient *> &coeff,
-                                             AdaptivityEvaluator &ae,
-                                             real_t delta_max)
-{
-   Array<const GridFunction *> z0_base(z0.Size());
-   for (int i = 0; i < z0.Size(); i++) { z0_base[i] = z0[i]; }
-   EnableAdaptiveLimiting(z0_base, coeff, ae, delta_max);
-}
-
 void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
                                              const Array<Coefficient *> &coeff,
                                              AdaptivityEvaluator &ae,
@@ -6148,16 +6132,6 @@ void TMOPComboIntegrator::EnableAdaptiveLimiting(const GridFunction &z0,
 void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
                                                  const Array<Coefficient *> &coeff,
                                                  AdaptivityEvaluator &ae,
-                                                 real_t delta_max)
-{
-   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
-
-   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
-}
-
-void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
-                                                 const Array<Coefficient *> &coeff,
-                                                 AdaptivityEvaluator &ae,
                                                  const Array<real_t> &delta_max)
 {
    MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
@@ -6168,16 +6142,6 @@ void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const GridFunction 
 #ifdef MFEM_USE_MPI
 void TMOPComboIntegrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                                  Coefficient &coeff,
-                                                 AdaptivityEvaluator &ae,
-                                                 real_t delta_max)
-{
-   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
-
-   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
-}
-
-void TMOPComboIntegrator::EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
-                                                 const Array<Coefficient *> &coeff,
                                                  AdaptivityEvaluator &ae,
                                                  real_t delta_max)
 {
