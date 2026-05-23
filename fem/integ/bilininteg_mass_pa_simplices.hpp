@@ -253,7 +253,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
                                     const Array<real_t> &ba1t_,
                                     const Array<real_t> &ba2t_,
                                     const Array<real_t> &/*ba3t_*/, // unused in 2D...
-                                    const Array<real_t> &/*t_*/,
                                     const Vector &d_,
                                     const Vector &x_,
                                     Vector &y_,
