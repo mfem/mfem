@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <memory>
+
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
@@ -35,7 +37,7 @@ class DummyParameterSpace : public ParameterSpace
 public:
    class Bimpl : public Operator
    {
-      virtual void Mult(const Vector &x, Vector &y) const
+      void Mult(const Vector &x, Vector &y) const override
       {
          for (int i = 0; i < y.Size(); i++)
          {
@@ -46,7 +48,7 @@ public:
 
    class Btimpl : public Operator
    {
-      virtual void Mult(const Vector &x, Vector &y) const
+      void Mult(const Vector &x, Vector &y) const override
       {
          y(0) = x(0);
       }
@@ -54,30 +56,30 @@ public:
 
    DummyParameterSpace() : ParameterSpace(1) {}
 
-   virtual int GetTrueVSize() const override
+   int GetTrueVSize() const override
    {
       return 1;
    }
 
-   virtual int GetVSize() const override
+   int GetVSize() const override
    {
       return 1;
    }
 
-   virtual const Operator* GetB() const override
+   const Operator* GetB() const override
    {
       if (!B)
       {
-         B.reset(new Bimpl());
+         B = std::make_unique<Bimpl>();
       }
       return B.get();
    }
 
-   virtual const Operator* GetBt() const override
+   const Operator* GetBt() const override
    {
       if (!Bt)
       {
-         Bt.reset(new Btimpl());
+         Bt = std::make_unique<Btimpl>();
       }
       return Bt.get();
    }
@@ -171,6 +173,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
    const char *filename = "../../data/inline-quad.mesh";
    CAPTURE(filename, DIM, p);
+   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    MFEM_ASSERT(smesh.Dimension() == DIM, "DIM and mesh dimension have to match");
