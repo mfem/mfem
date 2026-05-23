@@ -182,7 +182,6 @@ MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D);
 real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -195,6 +194,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
 
    const int nal = PA.nal;
    MFEM_VERIFY(nal > 0, "internal error");
+   MFEM_VERIFY(PA.ALD.Size() == nal, "internal error");
+   PA.ALD.HostRead();
 
    const int ndof_el = d * d;
    const int nqp_el = q * q;
@@ -208,6 +209,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
    real_t energy = 0.0;
    for (int c = 0; c < nal; c++)
    {
+      const real_t delta_max = PA.ALD(c);
       const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
       TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,

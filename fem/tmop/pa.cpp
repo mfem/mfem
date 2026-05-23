@@ -431,8 +431,11 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.ALFmF0 *= -1.0;
    PA.ALFmF0 += PA.ALF;
 
-   // adapt_lim_delta_max -> PA.al_delta.
-   PA.al_delta = adapt_lim_delta_max;
+   // Per-field delta_max values.
+   MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
+   PA.ALD.SetSize(nal);
+   PA.ALD.HostWrite();
+   for (int c = 0; c < nal; c++) { PA.ALD(c) = adapt_lim_delta_max[c]; }
 
    // Allocate storage for gradient and Hessian of ALF at quadrature points
    // These will be filled during AssembleGradPA

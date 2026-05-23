@@ -217,7 +217,6 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
                                             Vector &y) const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -230,6 +229,7 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
 
    const int nal = PA.nal;
    MFEM_VERIFY(nal > 0, "internal error");
+   const real_t *ALD = PA.ALD.HostRead();
 
    const int ndof_el = d * d * d;
    const int nqp_el = q * q * q;
@@ -243,6 +243,7 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
    const real_t *ALFG_all = PA.ALFG.Read();
    for (int c = 0; c < nal; c++)
    {
+      const real_t delta_max = ALD[c];
       const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
       const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);

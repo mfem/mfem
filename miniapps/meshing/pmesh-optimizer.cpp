@@ -935,11 +935,14 @@ int main (int argc, char *argv[])
 
       Array<const ParGridFunction *> z0(2);
       Array<Coefficient *> coeff(2);
+      Array<real_t> delta_max(2);
       z0[0] = &adapt_lim_gf0_1;
       z0[1] = &adapt_lim_gf0_2;
       coeff[0] = &adapt_lim_coeff_1;
       coeff[1] = &adapt_lim_coeff_2;
-      tmop_integ->EnableAdaptiveLimiting(z0, coeff, *adapt_lim_eval, 1.0);
+      delta_max[0] = 1.0;
+      delta_max[1] = 0.5;
+      tmop_integ->EnableAdaptiveLimiting(z0, coeff, *adapt_lim_eval, delta_max);
       if (visualization)
       {
          socketstream vis1;

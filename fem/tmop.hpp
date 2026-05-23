@@ -2039,15 +2039,15 @@ protected:
 
    // Adaptive limiting.
    // Adaptive limiting fields. Each field adds a term to the integral:
-   //   ∫ c_k (z_k(x) - z_k0(x0))^2 / delta_max^2 dx
+   //   int [ c_k (z_k(x) - z_k0(x0))^2 / delta_max_k^2 ] dx
    // with one Coefficient per field. The fields z_k(x) are remapped from their
    // initial values z_k0(x0) through a single AdaptivityEvaluator instance.
-   Array<GridFunction *> adapt_lim_gf0;       // Owned. Initial fields z_k0(x0).
-   Array<GridFunction *> adapt_lim_gf;        // Owned. Remapped fields z_k(x).
-   Vector adapt_lim_init_nodes;              // Owned. Initial mesh nodes (ldofs).
-   Array<Coefficient *> adapt_lim_coeff;     // Not owned, one per field.
-   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
-   real_t adapt_lim_delta_max = 1.0;
+   Array<GridFunction *> adapt_lim_gf0;   // Owned. Initial fields z_k0(x0).
+   Array<GridFunction *> adapt_lim_gf;    // Owned. Remapped fields z_k(x).
+   Vector adapt_lim_init_nodes;           // Owned. Initial mesh nodes (ldofs).
+   Array<Coefficient *> adapt_lim_coeff;  // Not owned, one per field.
+   AdaptivityEvaluator *adapt_lim_eval;   // Not owned. Used for all fields.
+   Array<real_t> adapt_lim_delta_max;     // Per-field delta_max_k (>0).
 
    // Surface fitting.
    const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
@@ -2147,10 +2147,9 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
-              ALF, ALFmF0, ALFG, ALFH;
+              ALF, ALFmF0, ALFG, ALFH, ALD;
       mutable bool AL_grads_assembled;
       int nal = 0; // number of adaptive limiting fields
-      real_t al_delta;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const DofToQuad *maps_nodes = nullptr;
@@ -2410,6 +2409,11 @@ public:
                                const Array<Coefficient *> &coeff,
                                AdaptivityEvaluator &ae,
                                real_t delta_max = 1.0);
+   /// Multi-field adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
@@ -2419,6 +2423,11 @@ public:
                                const Array<Coefficient *> &coeff,
                                AdaptivityEvaluator &ae,
                                real_t delta_max = 1.0);
+   /// Multi-field parallel adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #endif
 
    /** @brief Fitting of certain DOFs to the zero level set of a function.
@@ -2649,6 +2658,11 @@ public:
                                const Array<Coefficient *> &coeff,
                                AdaptivityEvaluator &ae,
                                real_t delta_max = 1.0);
+   /// Multi-field adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
@@ -2658,6 +2672,11 @@ public:
                                const Array<Coefficient *> &coeff,
                                AdaptivityEvaluator &ae,
                                real_t delta_max = 1.0);
+   /// Multi-field parallel adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #endif
 
 
