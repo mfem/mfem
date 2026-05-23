@@ -158,6 +158,49 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 2D input VDIM vector into given register tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &X,
+                                        v_regs2d_t<VDIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            Y[c][dy][dx] = X(dx, dy, 0, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load 2D input VDIM vector into given register tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int SDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &X,
+                                        vd_regs2d_t<VDIM, SDIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      for (int dd = 0; dd < SDIM; ++dd)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+            {
+               Y[c][dd][dy][dx] = X(dx, dy, 0, c, e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// Load 2D input scalar into given register tensor
 template <int MQ1 = 0>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
@@ -215,6 +258,49 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y(dx, dy, c, e) += X(c, dy, dx);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Write 2D scalar into given device tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
+                                         v_regs2d_t<VDIM, MQ1> &X,
+                                         const DeviceTensor<5, real_t> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            Y(dx, dy, 0, c, e) += X[c][dy][dx];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+
+/// Write 2D VDIM vector into given device tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
+                                         vd_regs2d_t<VDIM, DIM, MQ1> &X,
+                                         const DeviceTensor<5, real_t> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            real_t y = 0.0;
+            for (int dd = 0; dd < DIM; ++dd) { y += X[c][dd][dy][dx]; }
+            Y(dx, dy, 0, c, e) += y;
          }
       }
    }

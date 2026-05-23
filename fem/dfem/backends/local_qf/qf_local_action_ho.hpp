@@ -31,9 +31,9 @@ struct ho_ker_backend
    using val_reg_t = std::conditional_t<(DIM == 2),
          ker::v_regs2d_t<VDIM, MQ1>, ker::v_regs3d_t<VDIM, MQ1>>;
 
-   template<int e0, int e1>
+   template<int VDIM, int SDIM>
    using del_reg_t = std::conditional_t<(DIM == 2),
-         ker::vd_regs2d_t<e0, e1, MQ1>, ker::vd_regs3d_t<e0, e1, MQ1>>;
+         ker::vd_regs2d_t<VDIM, SDIM, MQ1>, ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
    template<typename XE_t, typename Dofs>
    static MFEM_HOST_DEVICE void load_value_dofs(const int e, const int d,
@@ -41,19 +41,12 @@ struct ho_ker_backend
    {
       if constexpr (DIM == 2)
       {
-         for (int c = 0; c < 1; ++c)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
-               {
-                  dofs[c][dy][dx] = XE(dx, dy, 0, c, e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         ker::LoadDofs2d(e, d, XE, dofs);
       }
-      else { ker::LoadDofs3d(e, d, XE, dofs); }
+      else
+      {
+         ker::LoadDofs3d(e, d, XE, dofs);
+      }
    }
 
    template<typename XE_t, typename Dofs>
@@ -62,46 +55,27 @@ struct ho_ker_backend
    {
       if constexpr (DIM == 2)
       {
-         for (int c = 0; c < 1; ++c)
-         {
-            for (int dd = 0; dd < DIM; ++dd)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
-                  {
-                     dofs[c][dd][dy][dx] = XE(dx, dy, 0, c, e);
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         ker::LoadDofs2d(e, d, XE, dofs);
       }
-      else { ker::LoadDofs3d(e, d, XE, dofs); }
+      else
+      {
+         ker::LoadDofs3d(e, d, XE, dofs);
+      }
    }
 
-   template<int e0, int e1, typename XE_t, typename Dofs>
+   template<int VDIM, int SDIM, typename XE_t, typename Dofs>
    static MFEM_HOST_DEVICE void load_grad_dofs(const int e, const int d,
                                                const XE_t &XE, Dofs &dofs)
    {
+      static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
       if constexpr (DIM == 2)
       {
-         for (int c = 0; c < e0; ++c)
-         {
-            for (int dd = 0; dd < e1; ++dd)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
-                  {
-                     dofs[c][dd][dy][dx] = XE(dx, dy, 0, c, e);
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         ker::LoadDofs2d(e, d, XE, dofs);
       }
-      else { ker::LoadDofs3d(e, d, XE, dofs); }
+      else
+      {
+         ker::LoadDofs3d(e, d, XE, dofs);
+      }
    }
 
    template<typename Smem, typename Dofs, typename ArgReg>
@@ -112,18 +86,25 @@ struct ho_ker_backend
       {
          ker::Eval2d<1, MQ1>(d, q, s.M, s.B, dofs, rarg);
       }
-      else { ker::Eval3d(d, q, s.M, s.B, dofs, rarg); }
+      else
+      {
+         ker::Eval3d(d, q, s.M, s.B, dofs, rarg);
+      }
    }
 
-   template<int e0, int e1, typename Smem, typename Dofs, typename ArgReg>
+   template<int VDIM, int SDIM, typename Smem, typename Dofs, typename ArgReg>
    static MFEM_HOST_DEVICE void grad(const int d, const int q,
                                      Smem &s, Dofs &dofs, ArgReg &rarg)
    {
+      static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
       if constexpr (DIM == 2)
       {
-         ker::Grad2d<e0, e1, MQ1>(d, q, s.M, s.B, s.G, dofs, rarg);
+         ker::Grad2d<VDIM, SDIM, MQ1>(d, q, s.M, s.B, s.G, dofs, rarg);
       }
-      else { ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg); }
+      else
+      {
+         ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
+      }
    }
 
    template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
@@ -135,17 +116,7 @@ struct ho_ker_backend
       if constexpr (DIM == 2)
       {
          ker::EvalTranspose2d<1, MQ1>(d, q, s.M, s.B, rarg, dofs);
-         for (int c = 0; c < 1; ++c)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
-               {
-                  YE(dx, dy, 0, c, e) += dofs[c][dy][dx];
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         ker::WriteDofs2d(e, d, dofs, YE);
       }
       else
       {
@@ -154,33 +125,42 @@ struct ho_ker_backend
       }
    }
 
+   template<int VDIM, int SDIM, typename Smem, typename Dofs, typename ArgReg,
+            typename YE_t>
+   static MFEM_HOST_DEVICE void write_gradient_2d(const int d, const int q,
+                                                  const int e, Smem &s,
+                                                  ArgReg &rarg, Dofs &dofs,
+                                                  YE_t &YE)
+   {
+      ker::GradTranspose2d<VDIM, SDIM, MQ1>(d, q, s.M, s.B, s.G, rarg, dofs);
+      ker::WriteDofs2d<VDIM, SDIM, MQ1>(e, d, dofs, YE);
+   }
+
    template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_gradient_3d(const int d, const int q,
+                                                  const int e, Smem &s,
+                                                  ArgReg &rarg, Dofs &dofs,
+                                                  YE_t &YE)
+   {
+      ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
+      ker::WriteDofs3d(e, d, dofs, YE);
+   }
+
+   template<int VDIM, int SDIM, typename Smem, typename Dofs, typename ArgReg,
+            typename YE_t>
    static MFEM_HOST_DEVICE void write_gradient(const int d, const int q,
                                                const int e, Smem &s,
                                                ArgReg &rarg, Dofs &dofs,
                                                YE_t &YE)
    {
+      static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
       if constexpr (DIM == 2)
       {
-         ker::GradTranspose2d(d, q, s.M, s.B, s.G, rarg, dofs);
-         for (int c = 0; c < 1; ++c)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy, y, d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx, x, d)
-               {
-                  real_t y = 0.0;
-                  for (int dd = 0; dd < DIM; ++dd) { y += dofs[c][dd][dy][dx]; }
-                  YE(dx, dy, 0, c, e) += y;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         write_gradient_2d<VDIM, SDIM>(d, q, e, s, rarg, dofs, YE);
       }
       else
       {
-         ker::GradTranspose3d(d, q, s.M, s.B, s.G, rarg, dofs);
-         ker::WriteDofs3d(e, d, dofs, YE);
+         write_gradient_3d(d, q, e, s, rarg, dofs, YE);
       }
    }
 };
@@ -243,19 +223,23 @@ struct LocalQFHOBackend
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
       static_assert(RNK == 1 || RNK == 2);
-      if constexpr (RNK == 1)
+      static constexpr int VDIM =
+         (RNK == 1) ? 1 : qf_param_shape<FieldParamT>::extents[0];
+      static constexpr int SDIM =
+         (RNK == 1) ? qf_param_shape<FieldParamT>::extents[0]
+         : qf_param_shape<FieldParamT>::extents[1];
+      if constexpr (SDIM == DIM)
       {
-         typename backend_t<MQ1>::template del_reg_t<1, backend_t<MQ1>::DIM> dofs;
-         backend_t<MQ1>::load_grad_scalar_dofs(e, d, XE, dofs);
-         backend_t<MQ1>::template grad<1, backend_t<MQ1>::DIM>(d, q, s, dofs, rarg);
-      }
-      else
-      {
-         static constexpr int e0 = qf_param_shape<FieldParamT>::extents[0];
-         static constexpr int e1 = qf_param_shape<FieldParamT>::extents[1];
-         typename backend_t<MQ1>::template del_reg_t<e0, e1> dofs;
-         backend_t<MQ1>::template load_grad_dofs<e0, e1>(e, d, XE, dofs);
-         backend_t<MQ1>::template grad<e0, e1>(d, q, s, dofs, rarg);
+         typename backend_t<MQ1>::template del_reg_t<VDIM, SDIM> dofs;
+         if constexpr (RNK == 1)
+         {
+            backend_t<MQ1>::load_grad_scalar_dofs(e, d, XE, dofs);
+         }
+         else
+         {
+            backend_t<MQ1>::template load_grad_dofs<VDIM, SDIM>(e, d, XE, dofs);
+         }
+         backend_t<MQ1>::template grad<VDIM, SDIM>(d, q, s, dofs, rarg);
       }
    }
 
@@ -298,17 +282,17 @@ struct LocalQFHOBackend
    {
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
-      if constexpr (RNK == 1)
+      static_assert(RNK == 1 || RNK == 2);
+      static constexpr int VDIM =
+         (RNK == 1) ? 1 : qf_param_shape<FieldParamT>::extents[0];
+      static constexpr int SDIM =
+         (RNK == 1) ? qf_param_shape<FieldParamT>::extents[0]
+         : qf_param_shape<FieldParamT>::extents[1];
+      if constexpr (SDIM == DIM)
       {
-         typename backend_t<MQ1>::template del_reg_t<1, backend_t<MQ1>::DIM> dofs;
-         backend_t<MQ1>::write_gradient(d, q, e, s, rarg, dofs, YE);
-      }
-      else
-      {
-         static constexpr int e0 = qf_param_shape<FieldParamT>::extents[0];
-         static constexpr int e1 = qf_param_shape<FieldParamT>::extents[1];
-         typename backend_t<MQ1>::template del_reg_t<e0, e1> dofs;
-         backend_t<MQ1>::write_gradient(d, q, e, s, rarg, dofs, YE);
+         typename backend_t<MQ1>::template del_reg_t<VDIM, SDIM> dofs;
+         backend_t<MQ1>::template write_gradient<VDIM, SDIM>
+         (d, q, e, s, rarg, dofs, YE);
       }
    }
 };

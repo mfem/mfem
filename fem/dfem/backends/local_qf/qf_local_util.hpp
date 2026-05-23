@@ -255,9 +255,9 @@ struct ho_qreg<KerOps, T, 1>
 template<typename KerOps, typename T>
 struct ho_qreg<KerOps, T, 2>
 {
-   static constexpr int e0 = qf_param_shape<T>::extents[0];
-   static constexpr int e1 = qf_param_shape<T>::extents[1];
-   using type = typename KerOps::template del_reg_t<e0, e1>;
+   static constexpr int VDIM = qf_param_shape<T>::extents[0];
+   static constexpr int SDIM = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template del_reg_t<VDIM, SDIM>;
 };
 
 template<typename KerOps, typename T>

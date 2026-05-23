@@ -202,6 +202,8 @@ constexpr auto get_type_name() -> std::string_view
    return function.substr(start, size);
 }
 
+template <typename...> struct static_type;
+
 template <typename Tuple, std::size_t... Is>
 void print_tuple_impl(const Tuple& t, std::index_sequence<Is...>)
 {

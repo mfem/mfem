@@ -18,10 +18,6 @@
 
 #include "qf_local_util.hpp"
 
-#ifdef NVTX_DBG_FMT
-#include NVTX_DBG_FMT // IWYU pragma: keep
-#endif
-
 namespace mfem::future::LocalQFImpl
 {
 
@@ -105,40 +101,26 @@ public:
       nq(ctx.ir.GetNPoints()),
       q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5)))
    {
-      // inputs
-      dbg("input_dtq: {}", input_dtq);
-      dbg("inputs B: {}", input_B);
-      dbg("inputs G: {}", input_G);
-      dbg("inputs d1d: {}", input_d1d);
-      dbg("inputs q1d: {}", input_q1d);
-      dbg("inputs vdim: {}", input_vdim);
-      // outputs
-      dbg("output_dtq: {}", output_dtq);
-      dbg("outputs B: {}", output_B);
-      dbg("outputs G: {}", output_G);
-      dbg("outputs d1d: {}", output_d1d);
-      dbg("outputs q1d: {}", output_q1d);
-      dbg("outputs vdim: {}", output_vdim);
-
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
+#ifndef MFEM_DEBUG
       // 2D kernels
-      // ActionHO::template Specialization<2, 2>::Add();
-      // ActionHO::template Specialization<2, 3>::Add();
-      // ActionHO::template Specialization<2, 4>::Add();
-      // // ActionHO::template Specialization<2, 5>::Add();
-      // // ActionHO::template Specialization<2, 6>::Add();
-      // // ActionHO::template Specialization<2, 7>::Add();
-      // // ActionHO::template Specialization<2, 8>::Add();
+      ActionHO::template Specialization<2, 2>::Add();
+      ActionHO::template Specialization<2, 3>::Add();
+      ActionHO::template Specialization<2, 4>::Add();
+      // ActionHO::template Specialization<2, 5>::Add();
+      // ActionHO::template Specialization<2, 6>::Add();
+      // ActionHO::template Specialization<2, 7>::Add();
+      // ActionHO::template Specialization<2, 8>::Add();
 
       // 3D kernels
-      // ActionLO::template Specialization<3, 2>::Add();
-      // ActionLO::template Specialization<3, 3>::Add();
-      // ActionLO::template Specialization<3, 4>::Add();
-      // // ActionLO::template Specialization<3, 5>::Add();
-      // // ActionLO::template Specialization<3, 6>::Add();
-      // // ActionLO::template Specialization<3, 7>::Add();
-      // // ActionLO::template Specialization<3, 8>::Add();
+      ActionLO::template Specialization<3, 2>::Add();
+      ActionLO::template Specialization<3, 3>::Add();
+      ActionLO::template Specialization<3, 4>::Add();
+      // ActionLO::template Specialization<3, 5>::Add();
+      // ActionLO::template Specialization<3, 6>::Add();
+      // ActionLO::template Specialization<3, 7>::Add();
+      // ActionLO::template Specialization<3, 8>::Add();
 
       // 3D HO kernels
       // ActionHO::template Specialization<3, 10>::Add();
@@ -146,6 +128,7 @@ public:
       // ActionHO::template Specialization<3, 14>::Add();
       // ActionHO::template Specialization<3, 16>::Add();
       // ActionHO::template Specialization<3, 18>::Add();
+#endif
    }
 
    template <typename Kernels>
