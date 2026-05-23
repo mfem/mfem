@@ -105,9 +105,9 @@ public:
       nq(ctx.ir.GetNPoints()),
       q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5)))
    {
-      dbg("q1d:{}", q1d);
       auto dep_map = make_dependency_map(inputs);
       input_is_dependent = dep_map.at(derivative_id);
+
       int dfi = -1;
       for (size_t uf = 0; uf < ctx.unionfds.size(); ++uf)
       {
@@ -127,7 +127,6 @@ public:
                    const Vector *direction_l,
                    std::vector<Vector *> &ye) const
    {
-      dbg();
       if (ctx.attr.Size() == 0) { return; }
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeAction: direction vector is null");
