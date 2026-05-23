@@ -3832,37 +3832,26 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &
                                              const Array<real_t> &delta_max)
 {
    MFEM_VERIFY(z0.Size() > 0, "Requires at least one field.");
-   MFEM_VERIFY(z0.Size() == coeff.Size(),
-               "EnableAdaptiveLimiting requires one Coefficient per field.");
-   MFEM_VERIFY(z0.Size() == delta_max.Size(),
-               "EnableAdaptiveLimiting requires one delta_max per field.");
+   MFEM_VERIFY(z0.Size() == coeff.Size(), "Requires one Coefficient per field.");
+   MFEM_VERIFY(z0.Size() == delta_max.Size(), "Requires one delta_max per field.");
    for (int i = 0; i < delta_max.Size(); i++)
    {
-      MFEM_VERIFY(delta_max[i] > 0.0,
-                  "EnableAdaptiveLimiting requires delta_max > 0.0.");
+      MFEM_VERIFY(delta_max[i] > 0.0, "Requires delta_max > 0.0.");
    }
 
    // Verify compatibility of input fields.
    const FiniteElementSpace *sfes = z0[0]->FESpace();
-   MFEM_VERIFY(sfes, "EnableAdaptiveLimiting: null FE space.");
-   MFEM_VERIFY(sfes->GetVDim() == 1,
-               "EnableAdaptiveLimiting expects scalar input GridFunctions.");
+   MFEM_VERIFY(sfes->GetVDim() == 1, "Expects scalar input GridFunctions.");
    const int ndofs = sfes->GetVSize();
    Mesh *mesh = sfes->GetMesh();
-   MFEM_VERIFY(mesh, "EnableAdaptiveLimiting: null Mesh.");
-
    for (int i = 0; i < z0.Size(); i++)
    {
-      MFEM_VERIFY(z0[i], "EnableAdaptiveLimiting: null GridFunction pointer.");
+      MFEM_VERIFY(z0[i], "NULL GridFunction pointer.");
       const FiniteElementSpace *fes_i = z0[i]->FESpace();
-      MFEM_VERIFY(fes_i, "EnableAdaptiveLimiting: null FE space.");
-      MFEM_VERIFY(fes_i->GetVDim() == 1,
-                  "EnableAdaptiveLimiting expects scalar input GridFunctions.");
-      MFEM_VERIFY(fes_i->GetVSize() == ndofs,
-                  "EnableAdaptiveLimiting requires all fields to share the same FE space.");
-      MFEM_VERIFY(fes_i->GetMesh() == mesh,
-                  "EnableAdaptiveLimiting requires all fields to be on the same Mesh.");
-      MFEM_VERIFY(coeff[i], "EnableAdaptiveLimiting: null Coefficient pointer.");
+      MFEM_VERIFY(fes_i->GetVDim() == 1, "Expects scalar input GridFunctions.");
+      MFEM_VERIFY(fes_i->GetVSize() == ndofs, "All fields on the same FE space.");
+      MFEM_VERIFY(fes_i->GetMesh() == mesh, "All fields on the same Mesh.");
+      MFEM_VERIFY(coeff[i], "NULL Coefficient pointer.");
    }
 
    // Reset any previously enabled adaptive limiting data.
@@ -3883,11 +3872,12 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const Array<const GridFunction *> &
    MFEM_VERIFY(mesh->GetNodes(), "EnableAdaptiveLimiting requires mesh Nodes.");
    adapt_lim_init_nodes = *mesh->GetNodes();
 
+   // Setup the evaluator.
 #ifdef MFEM_USE_MPI
    if (auto pfes = dynamic_cast<const ParFiniteElementSpace *>(sfes))
    {
       auto *pm = pfes->GetParMesh();
-      MFEM_VERIFY(pm, "EnableAdaptiveLimiting: null ParMesh.");
+      MFEM_VERIFY(pm, "Invalid ParMesh.");
       adapt_lim_eval->SetParMetaInfo(*pm, *pfes);
    }
    else
@@ -4245,11 +4235,9 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
       for (int i = 0; i < adapt_lim_gf.Size(); i++) { adapt_lim_gf[i]->Update(); }
 
       Mesh *mesh = adapt_lim_gf[0]->FESpace()->GetMesh();
-      MFEM_VERIFY(mesh && mesh->GetNodes(), "internal error");
-      adapt_lim_init_nodes = *mesh->GetNodes();
 
       adapt_lim_eval->SetSerialMetaInfo(*mesh, *adapt_lim_gf[0]->FESpace());
-      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
+      adapt_lim_eval->SetInitialField(*mesh->GetNodes(), *adapt_lim_gf0[0]);
    }
 }
 
@@ -4264,11 +4252,9 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
       auto *pfes = dynamic_cast<ParFiniteElementSpace *>(adapt_lim_gf[0]->FESpace());
       MFEM_VERIFY(pfes, "internal error");
       ParMesh *pmesh = pfes->GetParMesh();
-      MFEM_VERIFY(pmesh && pmesh->GetNodes(), "internal error");
-      adapt_lim_init_nodes = *pmesh->GetNodes();
 
       adapt_lim_eval->SetParMetaInfo(*pmesh, *pfes);
-      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
+      adapt_lim_eval->SetInitialField(*pmesh->GetNodes(), *adapt_lim_gf0[0]);
    }
 }
 #endif
@@ -4368,8 +4354,6 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    Vector adapt_lim_gf_q, adapt_lim_gf0_q;
    if (adaptive_limiting)
    {
-      MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
-                  "internal error");
       adapt_lim_gf_q.SetSize(nal * nqp);
       adapt_lim_gf0_q.SetSize(nal * nqp);
       Vector zc, z0c;
@@ -4411,7 +4395,6 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       // Contribution from the adaptive limiting term.
       if (adaptive_limiting)
       {
-         MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
          for (int c = 0; c < nal; c++)
          {
             const int idx = c * nqp + i;
@@ -4953,10 +4936,6 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    const int nal = adapt_lim_coeff.Size();
-   MFEM_VERIFY(nal > 0, "internal error");
-   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
-               "internal error");
-   MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
 
    Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
@@ -5003,10 +4982,6 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    const int nal = adapt_lim_coeff.Size();
-   MFEM_VERIFY(nal > 0, "internal error");
-   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
-               "internal error");
-   MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
 
    Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
@@ -5821,9 +5796,6 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    if (adapt_lim_gf.Size() > 0)
    {
       const int nal = adapt_lim_coeff.Size();
-      MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
-                  "internal error");
-
       for (int c = 0; c < nal; c++)
       {
          adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[c]);
@@ -5844,10 +5816,6 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 
          const int ndofs = alfes->GetVSize();
          const int Esize = alf_R->Height();
-         MFEM_VERIFY(PA.nal == nal, "internal error");
-         MFEM_VERIFY(PA.ALF.Size() == nal * Esize, "internal error");
-         MFEM_VERIFY(PA.ALFmF0.Size() == nal * Esize, "internal error");
-
          Vector ALFc;
          for (int c = 0; c < nal; c++)
          {
