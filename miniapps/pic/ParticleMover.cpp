@@ -19,22 +19,30 @@ using namespace mfem;
 using namespace mfem::common;
 
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
+                             ParGridFunction* phi_gf_,
+                             ParGridFunction* rho_gf_,
                              FindPointsGSLIB& E_finder_, int num_particles,
                              Ordering::Type pdata_ordering)
-   : E_gf(E_gf_), E_finder(E_finder_)
+   : E_gf(E_gf_), phi_gf(phi_gf_), rho_gf(rho_gf_), E_finder(E_finder_)
 {
    MFEM_ASSERT(E_gf, "Must pass an E field to ParticleMover.");
+   MFEM_ASSERT(phi_gf, "Must pass a phi field to ParticleMover.");
+   MFEM_ASSERT(rho_gf, "Must pass a rho field to ParticleMover.");
 
    const int dim = E_gf->ParFESpace()->GetMesh()->SpaceDimension();
 
    pm_.SetSize(dim);
    pp_.SetSize(dim);
 
-   // Create particle set: 2 scalars of mass and charge,
-   // 2 vectors of size space dim for momentum and e field.
-   Array<int> field_vdims({1, 1, dim, dim});
+   // Create particle set: 4 scalars of mass, charge, phi, and rho,
+   // plus 2 vectors of size space dim for momentum and E field.
+   Array<int> field_vdims({1, 1, dim, dim, 1, 1});
+   Array<const char*> field_names(
+      {"mass", "charge", "momentum", "efield", "phi", "rho"});
+   Array<const char*> tag_names({"tag0"});
    charged_particles = std::make_unique<ParticleSet>(
-      comm, num_particles, dim, field_vdims, 1, pdata_ordering);
+      comm, num_particles, dim, field_vdims, field_names, 1, tag_names,
+      pdata_ordering);
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
@@ -144,6 +152,17 @@ void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
    FindParticles();
 
    t += dt;
+}
+
+void ParticleMover::UpdateParticleOutputFields()
+{
+   FindParticles();
+
+   ParticleVector& phi = charged_particles->Field(PHI);
+   ParticleVector& rho = charged_particles->Field(RHO);
+
+   E_finder.Interpolate(*phi_gf, phi, phi.GetOrdering());
+   E_finder.Interpolate(*rho_gf, rho, rho.GetOrdering());
 }
 
 void ParticleMover::Redistribute()

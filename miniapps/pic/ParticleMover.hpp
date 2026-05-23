@@ -26,12 +26,16 @@ public:
       MASS,    // vdim = 1
       CHARGE,  // vdim = 1
       MOM,     // vdim = dim
-      EFIELD   // vdim = dim
+      EFIELD,  // vdim = dim
+      PHI,     // vdim = 1
+      RHO      // vdim = 1
    };
 
 protected:
    /// Pointers to E field GridFunctions
    mfem::ParGridFunction* E_gf;
+   mfem::ParGridFunction* phi_gf;
+   mfem::ParGridFunction* rho_gf;
 
    /// FindPointsGSLIB object for E field mesh
    mfem::FindPointsGSLIB& E_finder;
@@ -44,6 +48,8 @@ protected:
 
 public:
    ParticleMover(MPI_Comm comm, mfem::ParGridFunction* E_gf_,
+                 mfem::ParGridFunction* phi_gf_,
+                 mfem::ParGridFunction* rho_gf_,
                  mfem::FindPointsGSLIB& E_finder_, int num_particles,
                  mfem::Ordering::Type pdata_ordering);
 
@@ -62,6 +68,9 @@ public:
    /// Advance particles one time step using Boris algorithm
    void Step(mfem::real_t& t, mfem::real_t dt, mfem::real_t L,
              bool first_step = false);
+
+   /// Sample phi and rho at the current particle positions for CSV output.
+   void UpdateParticleOutputFields();
 
    /// Redistribute particles across processors
    void Redistribute();

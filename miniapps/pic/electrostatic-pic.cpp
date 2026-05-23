@@ -247,8 +247,8 @@ int main(int argc, char* argv[])
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
    int num_particles =
       ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
-   ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, E_finder, num_particles,
-                                ordering_type);
+   ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, &phi_gf, &rho_gf,
+                                E_finder, num_particles, ordering_type);
    particle_mover.InitializeChargedParticles(
       ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
       ctx.beam_variance, ctx.reproduce);
@@ -338,7 +338,10 @@ int main(int argc, char* argv[])
           (step % ctx.output_csv_interval == 0 || step == 1))
       {
          std::string csv_prefix = "PIC_Part_";
-         Array<int> field_idx{2}, tag_idx;
+         particle_mover.UpdateParticleOutputFields();
+         Array<int> field_idx{ParticleMover::MOM, ParticleMover::PHI,
+                              ParticleMover::RHO},
+            tag_idx;
          std::string file_name =
             csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx,
