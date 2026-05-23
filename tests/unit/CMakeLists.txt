@@ -38,7 +38,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_functional.cpp
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
-  # dfem/test_lvector_interface.cpp
+  dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   dfem/test_multiple_outputs.cpp
   general/test_array.cpp

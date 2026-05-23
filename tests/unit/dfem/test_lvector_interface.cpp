@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// FIXME: update this test to work with the new dFEM API.
-#if 0
-
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
+
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -22,29 +22,27 @@ using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
 
-constexpr int DIM = 3;
-
-namespace kernels
-{
+template <int DIM>
 struct MFApply
 {
-   MFEM_HOST_DEVICE inline auto operator()(const tensor<real_t, DIM> &dudxi,
-                                           const tensor<real_t, DIM, DIM> &J,
-                                           const real_t &w) const
+   MFEM_HOST_DEVICE inline auto operator()(
+      const tensor<real_t, DIM> &dudxi,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      tensor<real_t, DIM> &dvdxi) const
    {
       const auto invJ = inv(J);
-      return tuple{ (dudxi * invJ) * transpose(invJ) * det(J) * w };
+      const auto invJt = transpose(invJ);
+      dvdxi = (dudxi * invJ) * invJt * det(J) * w;
    }
 };
-}
 
-TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
+template <int DIM, typename QFBackend = LocalQFBackend>
+void l_vector_interface(const char *filename, int p)
 {
-   constexpr int p = 2; // Polynomial order
-   constexpr int r = 1;
-   constexpr int q = 2 * p + r;
+   CAPTURE(filename, DIM, p);
+   dbg("{} {} {}", filename, DIM, p);
 
-   const auto filename = GENERATE("../../data/fichera.mesh");
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
@@ -52,6 +50,9 @@ TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
    pmesh.EnsureNodes();
    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
    smesh.Clear();
+
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
+   const int q = 2 * p + 1;
 
    Array<int> all_domain_attr;
    if (pmesh.attributes.Size() > 0)
@@ -79,18 +80,28 @@ TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
 
    static constexpr int U = 0, Coords = 1;
 
-   const auto solution = std::vector{FieldDescriptor{U, &pfes}};
-   DifferentiableOperator dop(solution, {{Coords, mfes}}, pmesh);
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, mfes }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   kernels::MFApply mf_apply_qf;
-   dop.AddDomainIntegrator(mf_apply_qf,
-                           tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-                           tuple{Gradient<U>{}}, *ir, all_domain_attr);
+   DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+   MFApply<DIM> mf_apply;
+   dop.AddDomainIntegrator<LocalQFBackend>(
+      mf_apply,
+      tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+      tuple{Gradient<U>{}},
+      *ir, all_domain_attr);
 
    // Use the L-vector interface to multiply
    dop.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-   dop.SetParameters({nodes});
-   dop.Mult(x, z);
+
+   MultiVector mx{x, *nodes};
+   MultiVector mz{z};
+   dop.Mult(mx, mz);
 
    blf_fa.Mult(x, y);
 
@@ -98,6 +109,30 @@ TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
    REQUIRE(z.Normlinf() == MFEM_Approx(0.0));
 }
 
-#endif
+TEST_CASE("dFEM L-Vector 2D", "[Parallel][dFEM][GPU][2D]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto mesh2d =
+      GENERATE("../../data/star.mesh",
+               "../../data/star-q3.mesh",
+               "../../data/rt-2d-q3.mesh",
+               "../../data/inline-quad.mesh",
+               "../../data/periodic-square.mesh");
+   l_vector_interface<2>(mesh2d, p);
+}
 
-#endif // # if 0
+TEST_CASE("dFEM L-Vector 3D", "[Parallel][dFEM][GPU][3D]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto mesh3d =
+      GENERATE("../../data/fichera.mesh",
+               "../../data/fichera-q3.mesh",
+               "../../data/inline-hex.mesh",
+               "../../data/toroid-hex.mesh",
+               "../../data/periodic-cube.mesh");
+   l_vector_interface<3>(mesh3d, p);
+}
+
+#endif // MFEM_USE_MPI
