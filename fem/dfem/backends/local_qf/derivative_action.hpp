@@ -17,6 +17,7 @@
 #include "qf_local_util.hpp"
 
 #include "qf_local_action_lo.hpp"
+#include "qf_local_action_ho.hpp"
 
 namespace mfem::future::LocalQFImpl
 {
@@ -133,6 +134,27 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
+   template <typename Kernels>
+   void run_kernels(const std::vector<Vector *> &xe,
+                    std::vector<Vector *> &ye) const
+   {
+      Kernels::Run(
+         dim, q1d,
+         // arguments
+         ctx, qfunc,
+         // inputs
+         input_idx, input_B, input_G, input_vdim, input_d1d, input_q1d,
+         // outputs
+         output_idx, output_B, output_G, output_vdim, output_d1d, output_q1d,
+         // input and output vectors
+         xe, ye,
+         input_is_dependent,
+         direction_e,
+         // fallback arguments
+         dim, q1d);
+   }
+
+   //////////////////////////////////////////////////////////////////
    void operator()(
       const std::vector<Vector *> &xe,
       const Vector *direction_l,
@@ -146,34 +168,18 @@ public:
       restriction<Entity::Element>(direction_fd, *direction_l, direction_e,
                                    ElementDofOrdering::LEXICOGRAPHIC);
 
-      DerivativeActionLO::Run(q1d,
-                              // arguments
-                              ctx,
-                              qfunc,
-                              // inputs
-                              input_idx,
-                              input_B,
-                              input_G,
-                              input_vdim,
-                              input_d1d,
-                              input_q1d,
-                              // outputs
-                              output_idx,
-                              output_B,
-                              output_G,
-                              output_vdim,
-                              output_d1d,
-                              output_q1d,
-                              xe,
-                              ye,
-                              input_is_dependent,
-                              direction_e,
-                              // fallback arguments
-                              q1d);
+      if (dim == 3 && q1d <= 8)
+      {
+         run_kernels<DerivativeActionLO>(xe, ye);
+      }
+      else
+      {
+         run_kernels<DerivativeActionHO>(xe, ye);
+      }
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename backend_t, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend, int T_Q1D = 0>
    static void derivative_action_callback(const IntegratorContext &ctx,
                                           const qfunc_t &qfunc,
                                           // inputs: idx, B, G, vdim, d1d, q1d
@@ -498,21 +504,23 @@ public:
       }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }
 
-   using DerivativeActionKernelType =
-      decltype(&DerivativeAction::derivative_action_callback<LocalQFLOBackend>);
-   MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeActionKernelType, (int));
+   using DerivativeKernelType =
+      decltype(&DerivativeAction::derivative_action_callback<>);
+   MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int));
 };
 
+// Low Order backend
 template <
    int derivative_id,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t>
-template <int Q1D>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionKernelType
+template <int DIM, int Q1D>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Kernel()
 {
-   static_assert(Q1D <= 8);
+   static_assert(DIM == 3 && Q1D <= 8);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::template
@@ -524,14 +532,57 @@ template <
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionKernelType
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Fallback
-(int)
+(int dim, int q1d)
 {
+   MFEM_VERIFY(dim == 3 && q1d <= 8,
+               "Unsupported dimension: " << dim <<
+               " and/or quadrature order: " << q1d);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::template
           derivative_action_callback<LocalQFLOBackend>;
+}
+
+// High Order backend
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Kernel()
+{
+   using derivative_action_t =
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return derivative_action_t::template
+          derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
+
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Fallback
+(int dim, int)
+{
+   using derivative_action_t =
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   if (dim == 2)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFHOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFHOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
 }
 
 } // namespace mfem::future::LocalQFKernelsImpl
