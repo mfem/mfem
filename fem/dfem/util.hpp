@@ -1867,12 +1867,10 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         // MFEM_ABORT("GetDofToQuad not supported for QuadratureFunction");
          return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         const auto dtq = arg->GetDofToQuad();
          return &arg->GetDofToQuad();
       }
       else
@@ -2857,14 +2855,13 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          //    return std::tuple{dtq, value_dim, grad_dim};
          // }
 
-         if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_identity_fop<decltype(fop)>::value) &&
+         if ((!is_identity_fop<decltype(fop)>::value) &&
+             (dtq->mode != DofToQuad::Mode::TENSOR) &&
              (dtq->FE != nullptr))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
          }
-
          return std::tuple{dtq, value_dim, grad_dim};
       };
 

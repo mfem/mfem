@@ -359,9 +359,6 @@ void diffusion(const char *filename, int p)
 
    SECTION("Vector")
    {
-#undef DFEM_RUN_VECTOR_DIFFUSION_TESTS
-#ifdef DFEM_RUN_VECTOR_DIFFUSION_TESTS
-
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
       ParGridFunction vx(&vpfes), vy(&vpfes);
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
@@ -510,11 +507,10 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
 #endif // MFEM_USE_ENZYME
       }
-#endif // DFEM_RUN_VECTOR_DIFFUSION_TESTS
    }
 }
 
-TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
+TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][DIFFUSION][2D]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -527,7 +523,7 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
    diffusion<2>(mesh2d, p);
 }
 
-TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
+TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][DIFFUSION][3D]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
