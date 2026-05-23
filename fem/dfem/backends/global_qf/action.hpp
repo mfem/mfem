@@ -44,6 +44,7 @@ struct Action
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
 
+      // prepare xq and yq BlockVectors
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
@@ -52,7 +53,10 @@ struct Action
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
+      xq.Update(xq_offsets, Device::GetMemoryType());
+      xq.UseDevice(true);
+      xq = 0.0; // verify this is necessary
+      xq.SyncToBlocks();
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -62,7 +66,10 @@ struct Action
          yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
+      yq.Update(yq_offsets, Device::GetMemoryType());
+      yq.UseDevice(true);
+      yq = 0.0; // verify this is necessary
+      yq.SyncToBlocks();
    }
 
    void operator()(

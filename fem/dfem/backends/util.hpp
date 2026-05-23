@@ -78,7 +78,11 @@ inline FieldBasis FromQS()
 {
    return
    {
-      [](const Vector &xe, Vector &xq) { xq = xe; },
+      [](const Vector &xe, Vector &xq)
+      {
+         // xq = xe;
+         xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
+      },
       [](const Vector &yq, Vector &ye) { ye = yq; }
    };
 }
@@ -101,14 +105,14 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
       {
          const int nqp = ir.GetNPoints();
          MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
-
          const int ne = xq.Size() / nqp;
-         const real_t *wref = ir.GetWeights().HostRead();
-
-         for (int e = 0; e < ne; e++)
+         const auto wref = ir.GetWeights().Read();
+         auto xq_w = Reshape(xq.Write(), nqp, ne);
+         mfem::forall(ne * nqp, [=] MFEM_HOST_DEVICE(int eq)
          {
-            std::memcpy(xq.HostReadWrite() + e*nqp, wref, nqp*sizeof(real_t));
-         }
+            const int q = eq % nqp, e = eq / nqp;
+            xq_w(q,e) = wref[q];
+         });
       },
       [](const Vector &, Vector &) {}
    };

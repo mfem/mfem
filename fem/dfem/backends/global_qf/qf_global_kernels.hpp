@@ -92,7 +92,7 @@ constexpr std::array<bool, N> all_true()
    return all_true_impl<N>(std::make_index_sequence<N> {});
 }
 
-// set_layout /////////////////////////////////////////////////////////////////
+// ✅ set_layout /////////////////////////////////////////////////////////////////
 template <typename ndarray_t>
 inline void set_layout_default(ndarray_t &a)
 {
@@ -112,6 +112,7 @@ inline void set_layout_default(ndarray_t &a)
    a.set_layout(perm);
 }
 
+// ✅
 template <typename ndarray_t>
 inline void set_layout(ndarray_t& a, const std::vector<int>& layout)
 {
@@ -197,7 +198,7 @@ template <typename scalar_t, int... Dims>
 struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>>:
 /*  */ std::bool_constant<!std::is_const_v<scalar_t>> {};
 
-// FieldBasisFromWeight ///////////////////////////////////////////////////////
+// ✅ FieldBasisFromWeight ///////////////////////////////////////////////////////
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
    NVTX_MARK_FUNCTION;
@@ -221,6 +222,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
+// ✅
 inline FieldBasis FromQI(const QuadratureInterpolator *qi,
                          QuadratureInterpolator::EvalFlags mode)
 {
@@ -259,7 +261,7 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    };
 }
 
-// QuadratureFunction identity copy
+// ✅ QuadratureFunction identity copy
 inline FieldBasis FromQF()
 {
    NVTX_MARK_FUNCTION;
@@ -274,7 +276,7 @@ inline FieldBasis FromQF()
    };
 }
 
-// User-defined parameter space B
+// ✅ User-defined parameter space B
 inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
    NVTX_MARK_FUNCTION;
@@ -303,7 +305,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       {
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
-      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return FromQF();
       }
@@ -322,7 +324,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    }, f.data);
 }
 
-// create_fieldbases //////////////////////////////////////////////////////////
+// ✅ create_fieldbases //////////////////////////////////////////////////////////
 template <typename fops_t, size_t nfops> inline
 std::array<FieldBasis, nfops> get_bases(fops_t &fops,
                                         const std::array<size_t, nfops> &fop_to_fd,
@@ -361,7 +363,7 @@ std::array<FieldBasis, nfops> get_bases(fops_t &fops,
    return bases;
 }
 
-// check_types ////////////////////////////////////////////////////////////////
+// ✅ check_types ////////////////////////////////////////////////////////////////
 template <typename fops_t, size_t nfops> inline
 bool check_types(fops_t &fops,
                  const std::array<size_t, nfops> &fop_to_fd,
@@ -403,11 +405,11 @@ bool check_types(fops_t &fops,
    return true;
 }
 
-// create_fop_to_fd ///////////////////////////////////////////////////////////
+// ✅ create_fop_to_fd /////////////////////////////////////////////////////////
 // Create quadrature function fop to fields map
 template <size_t M, typename fops_t, size_t N = tuple_size<fops_t>::value>
-std::array<size_t, M> fop_to_fd(const fops_t &fops,
-                                const std::vector<FieldDescriptor> &fields)
+std::array<size_t, M> create_fop_to_fd(const fops_t &fops,
+                                       const std::vector<FieldDescriptor> &fields)
 {
    static_assert(N == M, "sizes must match");
    std::array<size_t, M> fop_to_fd;
@@ -438,7 +440,7 @@ std::array<size_t, M> fop_to_fd(const fops_t &fops,
    return fop_to_fd;
 }
 
-// interpolate ////////////////////////////////////////////////////////////////
+// ✅ interpolate ////////////////////////////////////////////////////////////////
 template <size_t ninputs>
 inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
                         const std::array<FieldBasis, ninputs> &input_bases,
@@ -455,7 +457,7 @@ inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
    });
 }
 
-// call_qfunc /////////////////////////////////////////////////////////////////
+// ✅ call_qfunc /////////////////////////////////////////////////////////////////
 template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
 inline void call_qfunc(const qfunc_t &qfunc,
                        const BlockVector &xq,
@@ -493,7 +495,7 @@ inline void call_qfunc(const qfunc_t &qfunc,
    }, std::tuple_cat(inputs, outputs));
 }
 
-// integrate //////////////////////////////////////////////////////////////////
+// ✅ integrate //////////////////////////////////////////////////////////////////
 template <size_t noutputs>
 inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
                       const std::array<FieldBasis, noutputs> &output_bases,
@@ -547,8 +549,8 @@ public:
       qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs),
-      input_to_infd(fop_to_fd<N>(inputs, ctx.infds)),
-      output_to_outfd(fop_to_fd<M>(outputs, ctx.outfds)),
+      input_to_infd(create_fop_to_fd<N>(inputs, ctx.infds)),
+      output_to_outfd(create_fop_to_fd<M>(outputs, ctx.outfds)),
       input_checks(check_types(inputs, input_to_infd, ctx.infds)),
       output_checks(check_types(outputs, output_to_outfd, ctx.outfds)),
       input_bases(get_bases(inputs, input_to_infd, ctx.infds, ctx.ir)),
@@ -556,7 +558,7 @@ public:
    {
       NVTX_MARK_FUNCTION;
 
-      // Prepare inputs q-layouts maps for the qfunc call
+      // ✅ Prepare inputs q-layouts maps for the qfunc call
       constexpr_for<0, N>([&](auto i)
       {
          using in_t = std::decay_t<decltype(inputs)>;
@@ -570,7 +572,7 @@ public:
          }
       });
 
-      // Prepare outputs q-layouts maps for the qfunc call
+      // ✅ Prepare outputs q-layouts maps for the qfunc call
       constexpr_for<0, M>([&](auto i)
       {
          using out_t = std::decay_t<decltype(outputs)>;
@@ -618,7 +620,7 @@ public:
       yq.SyncToBlocks();
    }
 
-   //////////////////////////////////////////////////////////////////
+   //✅////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
@@ -649,6 +651,7 @@ public:
 namespace mfem::future
 {
 
+// ✅ //////////////////////////////////////////////////////////////////////////
 struct GlobalQFKernelsBackend
 {
    static constexpr bool has_cached_derivative = false;

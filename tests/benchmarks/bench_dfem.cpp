@@ -924,6 +924,7 @@ struct BakeOff
    std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
    QuadratureSpace qspace;
+   VectorQuadratureSpace vqspace;
    QuadratureFunction qfct;
 
    struct WrapOpArg1: public Operator
@@ -969,7 +970,7 @@ struct BakeOff
       B(pfes.GetVSize()),
       X(x),
       // dFEM
-      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qfct},
+      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &vqspace},
       u_sol{u_fd},
       q_param {q_fd},
       elem_size(DIM * DIM * ir->GetNPoints()),
@@ -977,7 +978,8 @@ struct BakeOff
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
-      qfct(qspace, DIM*DIM)
+      vqspace(qspace, DIM*DIM),
+      qfct(vqspace)
    {
       NVTX_MARK_FUNCTION;
       smesh.Clear();
@@ -1032,7 +1034,7 @@ struct BakeOff
       {
          using backend_t = decltype(backend);
          const auto ifd0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
-         const auto ofd0 = std::vector<FieldDescriptor> {{Q, &qfct}};
+         const auto ofd0 = std::vector<FieldDescriptor> {{Q, &vqspace}};
          DifferentiableOperator dSetup(ifd0, ofd0, pmesh);
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dSetup.AddDomainIntegrator<backend_t>(setup_qf,
@@ -1042,7 +1044,7 @@ struct BakeOff
          MultiVector N{nodes}, D{qfct};
          dSetup.Mult(N, D);
 
-         const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qfct}};
+         const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &vqspace}};
          const auto ofd1 = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd1, ofd1, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
