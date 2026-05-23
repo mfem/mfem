@@ -72,18 +72,24 @@ struct LocalQFLOBackend
       static_assert(RNK == 1 || RNK == 2);
       if constexpr (RNK == 1)
       {
-         ker::LoadDofs3d(e, d, XE, s.M[0]);
-         ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
+         if constexpr (SDIM == DIM)
+         {
+            ker::LoadDofs3d(e, d, XE, s.M[0]);
+            ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+         }
       }
       if constexpr (RNK == 2)
       {
-         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
          static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
-         static_assert(SDIM == DIM, "LO backend expects 3D spatial gradients");
-         for (int c = 0; c < VDIM; c++)
+         if constexpr (SDIM == DIM)
          {
-            ker::LoadDofs3d(e, d, c, XE, s.M[0]);
-            ker::VectorGrad3d<VDIM, SDIM, MQ1>(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+            static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+            for (int c = 0; c < VDIM; c++)
+            {
+               ker::LoadDofs3d(e, d, c, XE, s.M[0]);
+               ker::VectorGrad3d<VDIM, SDIM, MQ1>(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+            }
          }
       }
    }
@@ -447,7 +453,8 @@ struct LocalQFLOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int MQ1, typename ArgRegT, typename YE_T>
+   template<int RNK, int MQ1, typename ArgRegT, typename YE_T,
+            typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
    void WriteGradient(Shared<MQ1> &s,
                       const int e, const int d, const int q, const int,
@@ -456,8 +463,32 @@ struct LocalQFLOBackend
    {
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
-      ker::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
-      ker::WriteGradDofs3d(d, 0, e, rarg, YE);
+      static_assert(RNK == 1 || RNK == 2);
+      if constexpr (RNK == 1)
+      {
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
+         if constexpr (SDIM == DIM)
+         {
+            ker::GradTranspose3d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
+            ker::WriteGradDofs3d(d, 0, e, rarg, YE);
+         }
+      }
+      else if constexpr (RNK == 2)
+      {
+         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         if constexpr (SDIM == DIM)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               auto &sM0 = s.M[0];
+               auto &sM1 = s.M[1];
+               ker::VectorGradTranspose3d(d, q, c, s.B, s.G, sM0, sM1, rarg);
+               ker::WriteGradDofs3d(d, c, e, rarg, YE);
+            }
+         }
+      }
+      else { static_assert(false, "Unsupported"); }
    }
 };
 

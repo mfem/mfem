@@ -12,14 +12,11 @@
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
+#ifdef MFEM_USE_ENZYME
 #include "../linalg/test_same_matrices.hpp"
+#endif
 
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
-using LocalQFDefaultBackend = mfem::future::LocalQFBackend;
-#include "../fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using LocalQFKernelsBackend = mfem::future::LocalQFKernelsBackend;
-
-#include <utility>
 
 #ifdef MFEM_USE_MPI
 
@@ -96,7 +93,7 @@ template <int DIM> struct VectorDiffusion
    };
 };
 
-template <int DIM, typename QFBackend>
+template <int DIM, typename QFBackend = LocalQFBackend>
 void diffusion(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -129,8 +126,6 @@ void diffusion(const char *filename, int p)
 
    SECTION("Scalar")
    {
-#undef DFEM_RUN_SCALAR_DIFFUSION_TESTS
-#ifdef DFEM_RUN_SCALAR_DIFFUSION_TESTS
       ParFiniteElementSpace pfes(&pmesh, &fec);
 
       ParGridFunction x(&pfes), y(&pfes), z(&pfes);
@@ -157,7 +152,7 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -203,7 +198,7 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename Diffusion<DIM>::PASetup pa_setup_qf;
-         setupPAData.AddDomainIntegrator<LocalQFBackend>(
+         setupPAData.AddDomainIntegrator<QFBackend>(
             pa_setup_qf,
             tuple{Gradient<Coords>{}, Weight{}},
             tuple{Identity<QData>{}},
@@ -225,7 +220,7 @@ void diffusion(const char *filename, int p)
             {U, &pfes}
          }, pmesh);
          typename Diffusion<DIM>::PAApply pa_apply_qf;
-         applyPAData.AddDomainIntegrator<LocalQFBackend>(
+         applyPAData.AddDomainIntegrator<QFBackend>(
             pa_apply_qf,
             tuple{ Gradient<U>{}, Identity<QData>{} },
             tuple{ Gradient<U>{} },
@@ -252,54 +247,13 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
-      // derivative action with native-dual LocalQFKernelsBackend (3D)
-      if constexpr (DIM == 3 && std::is_same_v<QFBackend, LocalQFKernelsBackend>)
-      {
-         DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-         typename Diffusion<DIM>::MFApply mf_apply_qf;
-         const auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFKernelsBackend>(
-            mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
-            *ir, all_domain_attr, derivatives);
-
-         Vector nodestv;
-         nodes->GetTrueDofs(nodestv);
-
-         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-         MultiVector X{xtvec, nodestv};
-         auto ddop = dop_mf.GetDerivative(U, X);
-
-         xtvec.Randomize(567);
-         x.SetFromTrueDofs(xtvec);
-
-         Vector dztvec(ztvec.Size());
-         MultiVector DZ{dztvec};
-         ddop->Mult(X[0], DZ);
-
-         blf_fa.Mult(x, y);
-         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-
-         ytvec -= dztvec;
-
-         real_t norm_global = 0.0;
-         real_t norm_local = ytvec.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         dbg("Derivative Action with native-dual LocalQFKernelsBackend");
-         REQUIRE(norm_global == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
-
       SECTION("Action Linearized")
       {
 #ifdef MFEM_USE_ENZYME
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -343,7 +297,7 @@ void diffusion(const char *filename, int p)
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -371,7 +325,7 @@ void diffusion(const char *filename, int p)
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -401,12 +355,11 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
 #endif // MFEM_USE_ENZYME
       }
-#endif // DFEM_RUN_SCALAR_DIFFUSION_TESTS
    }
 
    SECTION("Vector")
    {
-#define DFEM_RUN_VECTOR_DIFFUSION_TESTS
+#undef DFEM_RUN_VECTOR_DIFFUSION_TESTS
 #ifdef DFEM_RUN_VECTOR_DIFFUSION_TESTS
 
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
@@ -429,7 +382,7 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
             tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
             tuple{ Gradient<U>{} },
@@ -477,7 +430,7 @@ void diffusion(const char *filename, int p)
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
          const auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
             tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
             tuple{ Gradient<U>{} },
@@ -528,7 +481,7 @@ void diffusion(const char *filename, int p)
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
          const auto derivatives = std::integer_sequence<size_t, U> {};
-         dop_mf.AddDomainIntegrator<LocalQFBackend>(
+         dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
             tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
             tuple{ Gradient<U>{} },
@@ -561,27 +514,18 @@ void diffusion(const char *filename, int p)
    }
 }
 
-// TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
-// {
-//    const auto all_tests = launch_all_non_regression_tests;
-//    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-//    const auto mesh2d =
-//       GENERATE("../../data/star.mesh",
-//                "../../data/star-q3.mesh",
-//                "../../data/rt-2d-q3.mesh",
-//                "../../data/inline-quad.mesh",
-//                "../../data/periodic-square.mesh");
-
-//    SECTION("LocalQF Default")
-//    {
-//       diffusion<2, LocalQFDefaultBackend>(mesh2d, p);
-//    }
-
-//    // SECTION("LocalQF Kernels")
-//    // {
-//    //    diffusion<2, LocalQFKernelsBackend>(mesh2d, p);
-//    // }
-// }
+TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto mesh2d =
+      GENERATE("../../data/star.mesh",
+               "../../data/star-q3.mesh",
+               "../../data/rt-2d-q3.mesh",
+               "../../data/inline-quad.mesh",
+               "../../data/periodic-square.mesh");
+   diffusion<2>(mesh2d, p);
+}
 
 TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
 {
@@ -593,16 +537,7 @@ TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
                "../../data/inline-hex.mesh",
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
-
-   // SECTION("LocalQF Default")
-   // {
-   //    diffusion<3, LocalQFDefaultBackend>(mesh3d, p);
-   // }
-
-   SECTION("LocalQF Kernels")
-   {
-      diffusion<3, LocalQFKernelsBackend>(mesh3d, p);
-   }
+   diffusion<3>(mesh3d, p);
 }
 
 #endif // MFEM_USE_MPI

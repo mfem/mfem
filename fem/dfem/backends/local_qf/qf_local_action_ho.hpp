@@ -190,7 +190,7 @@ template<int T_DIM>
 struct LocalQFHOBackend
 {
    //////////////////////////////////////////////////////////////////
-   static constexpr int DIM = T_DIM, MQ1 = 16;
+   static constexpr int DIM = T_DIM, MQ1 = 20;
 
    //////////////////////////////////////////////////////////////////
    static inline ThreadBlocks thread_blocks(const int q1d)
@@ -288,7 +288,8 @@ struct LocalQFHOBackend
    }
 
    //////////////////////////////////////////////////////////////////
-   template<int MQ1, typename ArgRegT, typename YE_T>
+   template<int RNK, int MQ1, typename ArgRegT, typename YE_T,
+            typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
    void WriteGradient(Shared<MQ1> &s,
                       const int e, const int d, const int q, const int,
@@ -297,8 +298,18 @@ struct LocalQFHOBackend
    {
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
-      typename backend_t<MQ1>::template del_reg_t<1, backend_t<MQ1>::DIM> dofs;
-      backend_t<MQ1>::write_gradient(d, q, e, s, rarg, dofs, YE);
+      if constexpr (RNK == 1)
+      {
+         typename backend_t<MQ1>::template del_reg_t<1, backend_t<MQ1>::DIM> dofs;
+         backend_t<MQ1>::write_gradient(d, q, e, s, rarg, dofs, YE);
+      }
+      else
+      {
+         static constexpr int e0 = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int e1 = qf_param_shape<FieldParamT>::extents[1];
+         typename backend_t<MQ1>::template del_reg_t<e0, e1> dofs;
+         backend_t<MQ1>::write_gradient(d, q, e, s, rarg, dofs, YE);
+      }
    }
 };
 
