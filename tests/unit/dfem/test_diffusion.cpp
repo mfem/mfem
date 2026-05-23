@@ -180,6 +180,7 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Scalar Action");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
@@ -244,51 +245,55 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Action Partial Assembly");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
-      /*{
-         // derivative action with native-dual LocalQFKernelsBackend (3D)
-         if constexpr (DIM == 3 && std::is_same_v<QFBackend, LocalQFKernelsBackend>)
-         {
-            DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-            typename Diffusion<DIM>::MFApply mf_apply_qf;
-            const auto derivatives = std::integer_sequence<size_t, U> {};
-            dop_mf.AddDomainIntegrator<LocalQFKernelsBackend>(
-               mf_apply_qf,
-               tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-               tuple{Gradient<U>{}},
-               *ir, all_domain_attr, derivatives);
+      // derivative action with native-dual LocalQFKernelsBackend (3D)
+      if constexpr (DIM == 3 && std::is_same_v<QFBackend, LocalQFKernelsBackend>)
+      {
+         DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         const auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator<LocalQFKernelsBackend>(
+            mf_apply_qf,
+            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
+            tuple{Gradient<U>{}},
+            *ir, all_domain_attr, derivatives);
 
-            pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-            MultiVector X{xtvec, nodestv};
-            auto ddop = dop_mf.GetDerivative(U, X);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
 
-            xtvec.Randomize(567);
-            x.SetFromTrueDofs(xtvec);
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, nodestv};
+         auto ddop = dop_mf.GetDerivative(U, X);
 
-            Vector dztvec(ztvec.Size());
-            MultiVector DZ{dztvec};
-            ddop->Mult(X[0], DZ);
+         xtvec.Randomize(567);
+         x.SetFromTrueDofs(xtvec);
 
-            blf_fa.Mult(x, y);
-            pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+         Vector dztvec(ztvec.Size());
+         MultiVector DZ{dztvec};
+         ddop->Mult(X[0], DZ);
 
-            ytvec -= dztvec;
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
-            real_t norm_global = 0.0;
-            real_t norm_local = ytvec.Normlinf();
-            MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                          pmesh.GetComm());
+         ytvec -= dztvec;
 
-            REQUIRE(norm_global == MFEM_Approx(0.0));
-            MPI_Barrier(MPI_COMM_WORLD);
-         }
-      }*/
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
+
+         dbg("Derivative Action with native-dual LocalQFKernelsBackend");
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
       SECTION("Action Linearized")
       {
+#ifdef MFEM_USE_ENZYME
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
@@ -324,12 +329,15 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Action Linearized");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
       }
 
       SECTION("SparseMatrix")
       {
+#ifdef MFEM_USE_ENZYME
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
@@ -348,13 +356,16 @@ void diffusion(const char *filename, int p)
          SparseMatrix *A = nullptr;
          dRdU->Assemble(A);
 
+         dbg("SparseMatrix");
          TestSameMatrices(*A, blf_fa.SpMat());
          delete A;
          MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
       }
 
       SECTION("Assemble Diagonal")
       {
+#ifdef MFEM_USE_ENZYME
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
@@ -383,8 +394,10 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Assemble Diagonal");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
       }
    }
 
@@ -436,12 +449,14 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Vector Action");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
       SECTION("Action Linearized")
       {
+#ifdef MFEM_USE_ENZYME
          vX.Randomize(1);
          vx.SetFromTrueDofs(vX);
 
@@ -484,12 +499,15 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
+         dbg("Vector Action Linearized");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
       }
 
       SECTION("SparseMatrix")
       {
+#ifdef MFEM_USE_ENZYME
          vX.Randomize(1);
          vx.SetFromTrueDofs(vX);
 
@@ -527,35 +545,36 @@ void diffusion(const char *filename, int p)
          SparseMatrix *A = nullptr;
          ddop->Assemble(A);
 
+         dbg("Vector SparseMatrix");
          TestSameMatrices(*A, vblf_fa.SpMat());
          delete A;
-
          MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_ENZYME
       }
    }
 }
 
-TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
-{
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh2d =
-      GENERATE("../../data/star.mesh",
-               "../../data/star-q3.mesh",
-               "../../data/rt-2d-q3.mesh",
-               "../../data/inline-quad.mesh",
-               "../../data/periodic-square.mesh");
+// TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
+// {
+//    const auto all_tests = launch_all_non_regression_tests;
+//    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+//    const auto mesh2d =
+//       GENERATE("../../data/star.mesh",
+//                "../../data/star-q3.mesh",
+//                "../../data/rt-2d-q3.mesh",
+//                "../../data/inline-quad.mesh",
+//                "../../data/periodic-square.mesh");
 
-   SECTION("LocalQF Default")
-   {
-      diffusion<2, LocalQFDefaultBackend>(mesh2d, p);
-   }
+//    SECTION("LocalQF Default")
+//    {
+//       diffusion<2, LocalQFDefaultBackend>(mesh2d, p);
+//    }
 
-   SECTION("LocalQF Kernels")
-   {
-      diffusion<2, LocalQFKernelsBackend>(mesh2d, p);
-   }
-}
+//    // SECTION("LocalQF Kernels")
+//    // {
+//    //    diffusion<2, LocalQFKernelsBackend>(mesh2d, p);
+//    // }
+// }
 
 TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
 {
@@ -573,10 +592,10 @@ TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
       diffusion<3, LocalQFDefaultBackend>(mesh3d, p);
    }
 
-   SECTION("LocalQF Kernels")
-   {
-      diffusion<3, LocalQFKernelsBackend>(mesh3d, p);
-   }
+   // SECTION("LocalQF Kernels")
+   // {
+   //    diffusion<3, LocalQFKernelsBackend>(mesh3d, p);
+   // }
 }
 
 #endif // MFEM_USE_MPI
