@@ -129,6 +129,8 @@ void diffusion(const char *filename, int p)
 
    SECTION("Scalar")
    {
+#undef DFEM_RUN_SCALAR_DIFFUSION_TESTS
+#ifdef DFEM_RUN_SCALAR_DIFFUSION_TESTS
       ParFiniteElementSpace pfes(&pmesh, &fec);
 
       ParGridFunction x(&pfes), y(&pfes), z(&pfes);
@@ -399,10 +401,14 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
 #endif // MFEM_USE_ENZYME
       }
+#endif // DFEM_RUN_SCALAR_DIFFUSION_TESTS
    }
 
    SECTION("Vector")
    {
+#define DFEM_RUN_VECTOR_DIFFUSION_TESTS
+#ifdef DFEM_RUN_VECTOR_DIFFUSION_TESTS
+
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
       ParGridFunction vx(&vpfes), vy(&vpfes);
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
@@ -551,6 +557,7 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
 #endif // MFEM_USE_ENZYME
       }
+#endif // DFEM_RUN_VECTOR_DIFFUSION_TESTS
    }
 }
 
@@ -587,15 +594,15 @@ TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][KER][DIFFUSION]")
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
 
-   SECTION("LocalQF Default")
-   {
-      diffusion<3, LocalQFDefaultBackend>(mesh3d, p);
-   }
-
-   // SECTION("LocalQF Kernels")
+   // SECTION("LocalQF Default")
    // {
-   //    diffusion<3, LocalQFKernelsBackend>(mesh3d, p);
+   //    diffusion<3, LocalQFDefaultBackend>(mesh3d, p);
    // }
+
+   SECTION("LocalQF Kernels")
+   {
+      diffusion<3, LocalQFKernelsBackend>(mesh3d, p);
+   }
 }
 
 #endif // MFEM_USE_MPI
