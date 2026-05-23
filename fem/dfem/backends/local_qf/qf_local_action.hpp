@@ -416,7 +416,11 @@ public:
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
-               backend_t::template WriteGradient<MQ1>
+               using YE_t = decltype(YE);
+               using rarg_t = decltype(rarg);
+               using qf_param_t = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+               backend_t::template WriteGradient<RNK, MQ1, rarg_t, YE_t, qf_param_t>
                (smem, e, d, q, q1d, B, G, YE, rarg);
             }
             else if constexpr (is_identity_fop_v<FOP>)

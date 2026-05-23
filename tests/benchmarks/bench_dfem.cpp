@@ -280,10 +280,10 @@ template<typename qfunction_t, int DIM>
 constexpr bool mass_qf =
    std::disjunction_v<
    std::is_same<qfunction_t, MF_Mass_global_qf<DIM>>,
-   std::is_same<qfunction_t, PA_Mass_Setup_global_qf<DIM>>,
+   // std::is_same<qfunction_t, PA_Mass_Setup_global_qf<DIM>>,
    std::is_same<qfunction_t, PA_Mass_Apply_global_qf<DIM>>,
    std::is_same<qfunction_t, MF_Mass_local_qf<DIM>>,
-   std::is_same<qfunction_t, PA_Mass_Setup_local_qf<DIM>>,
+   // std::is_same<qfunction_t, PA_Mass_Setup_local_qf<DIM>>,
    std::is_same<qfunction_t, PA_Mass_Apply_local_qf<DIM>>>;
 
 template<typename qfunction_t, int DIM, int U>

@@ -276,13 +276,13 @@ public:
          {
             constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
-            const int d = in_d1d[i], q = in_q1d[i];
+            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;;
             const real_t *B = in_B[i], *G = in_G[i];
             auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<MQ1>(smem, e, d, q, q1d, B, XE, rarg);
+               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -380,7 +380,7 @@ public:
          for_constexpr<n_outputs>([&](auto ic)
          {
             constexpr size_t i = ic.value, o = n_inputs + i;
-            const int d = out_d1d[i], q = out_q1d[i];
+            const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
             const auto B = out_B[i], G = out_G[i];
             const auto &YE = out_YE[i];
             auto &rarg = get<o>(rargs);
@@ -397,7 +397,7 @@ public:
                using qf_param_t = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
                backend_t::template WriteGradient<RNK, MQ1, rarg_t, YE_t, qf_param_t>
-               (smem, e, d, q, q1d, B, G, YE, rarg);
+               (smem, e, d, q, Q1D, B, G, YE, rarg);
             }
             else if constexpr (is_identity_fop_v<FOP>)
             {
