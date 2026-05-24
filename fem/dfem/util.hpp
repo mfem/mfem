@@ -2267,16 +2267,15 @@ get_shmem_info(
    offsets[SharedMemory::Index::TEMP] = total_size;
    constexpr int num_temp = 6;
    std::array<int, num_temp> temp_sizes = {0};
-   // TODO-bug: this assumes q1d >= d1d
    const int q1d = max_dtq_qps;
-   [[maybe_unused]] const int d1d = max_dtq_dofs;
+   const int d1d = max_dtq_dofs;
+   // Tensor-product map/interpolate scratch
+   const int temp_per_array = std::max(q1d * q1d * q1d, d1d * d1d * d1d);
 
-   // TODO-bug: this depends on the dimension
    constexpr int hardcoded_temp_num = 6;
    for (std::size_t i = 0; i < hardcoded_temp_num; i++)
    {
-      // TODO-bug: over-allocates if q1d <= d1d
-      temp_sizes[i] = q1d * q1d * q1d;
+      temp_sizes[i] = temp_per_array;
    }
    total_size += std::accumulate(
                     std::begin(temp_sizes), std::end(temp_sizes), 0);

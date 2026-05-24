@@ -4,6 +4,7 @@
 #include "../../integrator_ctx.hpp"
 #include "../../integrate.hpp"
 #include "../../interpolate.hpp"
+#include "../../qfunction_apply.hpp"
 
 #include <array>
 #include <numeric>
@@ -129,7 +130,23 @@ struct DerivativeApply
                   "Derivative ID not found in dependency map");
       input_is_dependent = it->second;
 
-      // Reuse same shared memory structure as DerivativeAction
+      // Determine the trial op dim for each input
+      inputs_trial_op_dim.SetSize(ninputs);
+      inputs_trial_op_dim.UseDevice(true);
+      for_constexpr<ninputs>([&](auto i)
+      {
+         if (input_is_dependent[i])
+         {
+            inputs_trial_op_dim[i] =
+               get<i>(this->inputs).size_on_qp / get<i>(this->inputs).vdim;
+         }
+         else
+         {
+            inputs_trial_op_dim[i] = 0;
+         }
+      });
+
+      // Reuse same memory structure as DerivativeAction
       shmem_info = get_shmem_info<Entity::Element, nfields, ninputs, noutputs>(
                       input_dtq_maps, output_dtq_maps, ctx.unionfds, num_entities,
                       this->inputs, num_qp, input_size_on_qp,
@@ -299,6 +316,7 @@ struct DerivativeApply
                                     out_vdim[oo - 1] * out_op_dim[oo - 1] * num_qp;
       }
       const auto out_flat_offsets_local = out_flat_offsets_arr;
+      const auto itod_dev = inputs_trial_op_dim.Read();
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
       {
@@ -338,39 +356,16 @@ struct DerivativeApply
             auto output_buf = Reshape(resid_base + out_flat_o, test_vdim_o,
                                       test_op_dim_o, num_qp_local);
 
-            MFEM_FOREACH_THREAD(q, x, num_qp_local)
-            {
-               for (int i = 0; i < test_vdim_o; i++)
-               {
-                  for (int k = 0; k < test_op_dim_o; k++)
-                  {
-                     real_t sum = 0.0;
-                     for (int j = 0; j < trial_vdim_local; j++)
-                     {
-                        int m_offset = 0;
-                        for_constexpr<ninputs>([&](auto s)
-                        {
-                           if (!input_is_dependent_local[s]) { return; }
-                           const int input_vdim = get<s>(inputs_local).vdim;
-                           const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+            const int cache_base =
+            out_offset_o * trial_vdim_local * total_trial_op_dim_local;
+            auto qpdc = Reshape(&cache_tensor(cache_base, 0, e),
+                                total_trial_op_dim_local, trial_vdim_local,
+                                test_op_dim_o, test_vdim_o, num_qp_local);
+            const auto itod = Reshape(itod_dev, ninputs);
 
-                           for (int m = 0; m < trial_op_dim; m++)
-                           {
-                              const int cache_idx =
-                                 (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
-                                 total_trial_op_dim_local +
-                                 j * total_trial_op_dim_local + (m + m_offset);
-
-                              const real_t dir_val = shadow_shmem[s](j + input_vdim * m, q);
-                              sum += cache_tensor(cache_idx, q, e) * dir_val;
-                           }
-                           m_offset += trial_op_dim;
-                        });
-                     }
-                     output_buf(i, k, q) = sum;
-                  }
-               }
-            }
+            apply_qpdc<ninputs>(output_buf, shadow_shmem, qpdc, itod,
+                                q1d_local, dimension_local,
+                                use_sum_factorization_local);
             MFEM_SYNC_THREAD;
 
             const int ndof = out_num_dof_local[o];
@@ -415,6 +410,7 @@ struct DerivativeApply
    std::array<int, noutputs> out_num_dof;
 
    std::vector<int> input_size_on_qp;
+   Vector inputs_trial_op_dim;
 
    SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;
    mutable Vector shmem_cache;

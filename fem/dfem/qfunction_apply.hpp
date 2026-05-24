@@ -392,9 +392,10 @@ void apply_qpdc(
    const DeviceTensor<1, const real_t> &itod,
    const int &q)
 {
-   const int test_vdim = qpdc.GetShape()[0];
-   const int test_op_dim = qpdc.GetShape()[1];
-   const int trial_vdim = qpdc.GetShape()[2];
+   // [total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, num_qp]
+   const int test_vdim = qpdc.GetShape()[3];
+   const int test_op_dim = qpdc.GetShape()[2];
+   const int trial_vdim = qpdc.GetShape()[1];
    const int num_qp = qpdc.GetShape()[4];
    const size_t num_inputs = itod.GetShape()[0];
 
@@ -417,7 +418,7 @@ void apply_qpdc(
             {
                for (int m = 0; m < trial_op_dim; m++)
                {
-                  sum += qpdc(i, k, j, m + m_offset, q) * d_qp(j, m, q);
+                  sum += qpdc(m + m_offset, j, k, i, q) * d_qp(j, m, q);
                }
             }
             m_offset += trial_op_dim;

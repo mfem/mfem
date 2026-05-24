@@ -12,7 +12,9 @@
 #include <memory>
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
+
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
@@ -166,7 +168,7 @@ struct massqflocal
    }
 };
 
-TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
+TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
