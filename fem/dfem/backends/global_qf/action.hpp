@@ -1,3 +1,13 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include "../util.hpp"
@@ -53,10 +63,7 @@ struct Action
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets, Device::GetMemoryType());
-      xq.UseDevice(true);
-      xq = 0.0; // verify this is necessary
-      xq.SyncToBlocks();
+      InitBlockVector(xq, xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -66,10 +73,7 @@ struct Action
          yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets, Device::GetMemoryType());
-      yq.UseDevice(true);
-      yq = 0.0; // verify this is necessary
-      yq.SyncToBlocks();
+      InitBlockVector(yq, yq_offsets);
    }
 
    void operator()(
