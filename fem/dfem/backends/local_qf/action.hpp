@@ -10,13 +10,12 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "qf_local_action_lo.hpp"
-#include "qf_local_action_ho.hpp"
+#include "kernels_lo.hpp"
+#include "kernels_ho.hpp"
+#include "util.hpp"
 
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
-
-#include "qf_local_util.hpp"
 
 namespace mfem::future::LocalQFImpl
 {

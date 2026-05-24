@@ -24,14 +24,10 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
 
 #include "fem/dfem/backends/global_qf/prelude.hpp"
-using global_default_backend = mfem::future::GlobalQFBackend;
-#include "fem/dfem/backends/global_qf/qf_global_kernels.hpp"
-using global_kernels_backend = mfem::future::GlobalQFKernelsBackend;
+using global_backend = mfem::future::GlobalQFBackend;
 
 #include "fem/dfem/backends/local_qf/prelude.hpp"
-using local_default_backend = mfem::future::LocalQFBackend;
-#include "fem/dfem/backends/local_qf/qf_local_kernels.hpp"
-using local_kernels_backend = mfem::future::LocalQFKernelsBackend;
+using local_backend = mfem::future::LocalQFBackend;
 
 #include "fem/dfem/tuple.hpp"
 using future::tuple;
@@ -69,16 +65,12 @@ void info()
    mfem::out << "version  0: 🟢 PA std" << std::endl;
    mfem::out << "version  1: 🟠 MF HO reg" << std::endl;
    mfem::out << "version  2: 🟢 PA HO reg" << std::endl;
-   // dFEM global QF default/kernels versions
+   // dFEM global QF versions
    mfem::out << "version  3: 🟠 MF global default" << std::endl;
-   mfem::out << "version  4: 🟠 MF global kernels" << std::endl;
-   mfem::out << "version  5: 🟢 PA global default" << std::endl;
-   mfem::out << "version  6: 🟢 PA global kernels" << std::endl;
-   // dFEM local QF default/kernels versions
-   mfem::out << "version  7: 🟠 MF local default" << std::endl;
-   mfem::out << "version  8: 🟠 MF local kernels" << std::endl;
-   mfem::out << "version  9: 🟢 PA local default" << std::endl;
-   mfem::out << "version 10: 🟢 PA local kernels" << std::endl;
+   mfem::out << "version  4: 🟢 PA global default" << std::endl;
+   // dFEM local QF versions
+   mfem::out << "version  5: 🟠 MF local default" << std::endl;
+   mfem::out << "version  6: 🟢 PA local default" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -89,16 +81,12 @@ enum class Version
    PA_mfem_std,
    MF_mfem_ker,
    PA_mfem_ker,
-   // dFEM global QF default/kernels versions
+   // dFEM global QF versions
    MF_dfem_global,
-   MF_dfem_global_ker,
    PA_dfem_global,
-   PA_dfem_global_ker,
-   // dFEM local QF default/kernels versions
+   // dFEM local QF versions
    MF_dfem_local,
-   MF_dfem_local_ker,
    PA_dfem_local,
-   PA_dfem_local_ker,
 };
 
 constexpr int version_int(Version v) noexcept
@@ -1067,42 +1055,22 @@ struct BakeOff
          /// dFEM Global versions /////////////////////////////////////////////
          else if constexpr (VER == Version::MF_dfem_global)
          {
-            dMFSetup(global_default_backend{}, MF_Mass_global_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::MF_dfem_global_ker)
-         {
-            dMFSetup(global_kernels_backend{}, MF_Mass_global_qf<DIM> {});
+            dMFSetup(global_backend{}, MF_Mass_global_qf<DIM> {});
          }
          else if constexpr (VER == Version::PA_dfem_global)
          {
-            dPASetup(global_default_backend{},
-                     PA_Mass_Setup_global_qf<DIM> {},
-                     PA_Mass_Apply_global_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::PA_dfem_global_ker)
-         {
-            dPASetup(global_kernels_backend{},
+            dPASetup(global_backend{},
                      PA_Mass_Setup_global_qf<DIM> {},
                      PA_Mass_Apply_global_qf<DIM> {});
          }
          /// dFEM Local versions //////////////////////////////////////////////
          else if constexpr (VER == Version::MF_dfem_local)
          {
-            dMFSetup(local_default_backend{}, MF_Mass_local_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::MF_dfem_local_ker)
-         {
-            dMFSetup(local_kernels_backend{}, MF_Mass_local_qf<DIM> {});
+            dMFSetup(local_backend{}, MF_Mass_local_qf<DIM> {});
          }
          else if constexpr (VER == Version::PA_dfem_local)
          {
-            dPASetup(local_default_backend{},
-                     PA_Mass_Setup_local_qf<DIM> {},
-                     PA_Mass_Apply_local_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::PA_dfem_local_ker)
-         {
-            dPASetup(local_kernels_backend{},
+            dPASetup(local_backend{},
                      PA_Mass_Setup_local_qf<DIM> {},
                      PA_Mass_Apply_local_qf<DIM> {});
          }
@@ -1130,42 +1098,22 @@ struct BakeOff
          /// dFEM Global versions /////////////////////////////////////////////
          else if constexpr (VER == Version::MF_dfem_global)
          {
-            dMFSetup(global_default_backend{}, MF_Diffusion_global_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::MF_dfem_global_ker)
-         {
-            dMFSetup(global_kernels_backend{}, MF_Diffusion_global_qf<DIM> {});
+            dMFSetup(global_backend{}, MF_Diffusion_global_qf<DIM> {});
          }
          else if constexpr (VER == Version::PA_dfem_global)
          {
-            dPASetup(global_default_backend{},
-                     PA_Diffusion_Setup_global_qf<DIM> {},
-                     PA_Diffusion_Apply_global_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::PA_dfem_global_ker)
-         {
-            dPASetup(global_kernels_backend{},
+            dPASetup(global_backend{},
                      PA_Diffusion_Setup_global_qf<DIM> {},
                      PA_Diffusion_Apply_global_qf<DIM> {});
          }
          /// dFEM Local versions //////////////////////////////////////////////
          else if constexpr (VER == Version::MF_dfem_local)
          {
-            dMFSetup(local_default_backend{}, MF_Diffusion_local_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::MF_dfem_local_ker)
-         {
-            dMFSetup(local_kernels_backend{}, MF_Diffusion_local_qf<DIM> {});
+            dMFSetup(local_backend{}, MF_Diffusion_local_qf<DIM> {});
          }
          else if constexpr (VER == Version::PA_dfem_local)
          {
-            dPASetup(local_default_backend{},
-                     PA_Diffusion_Setup_local_qf<DIM> {},
-                     PA_Diffusion_Apply_local_qf<DIM> {});
-         }
-         else if constexpr (VER == Version::PA_dfem_local_ker)
-         {
-            dPASetup(local_kernels_backend{},
+            dPASetup(local_backend{},
                      PA_Diffusion_Setup_local_qf<DIM> {},
                      PA_Diffusion_Apply_local_qf<DIM> {});
          }
@@ -1256,14 +1204,10 @@ static void Benchmark(bm::State& state) noexcept
 REGISTER(BP, 1, PA_mfem_std);
 
 REGISTER(BP, 1, MF_dfem_global);
-REGISTER(BP, 1, MF_dfem_global_ker);
 REGISTER(BP, 1, PA_dfem_global);
-REGISTER(BP, 1, PA_dfem_global_ker);
 
 REGISTER(BP, 1, MF_dfem_local);
-REGISTER(BP, 1, MF_dfem_local_ker);
 REGISTER(BP, 1, PA_dfem_local);
-REGISTER(BP, 1, PA_dfem_local_ker);
 
 /// BP3 /////////////////////////////////////////////////////////////////////
 REGISTER(BP, 3, PA_mfem_std);
@@ -1271,14 +1215,10 @@ REGISTER(BP, 3, MF_mfem_ker);
 REGISTER(BP, 3, PA_mfem_ker);
 
 REGISTER(BP, 3, MF_dfem_global);
-REGISTER(BP, 3, MF_dfem_global_ker);
 REGISTER(BP, 3, PA_dfem_global);
-REGISTER(BP, 3, PA_dfem_global_ker);
 
 REGISTER(BP, 3, MF_dfem_local);
-REGISTER(BP, 3, MF_dfem_local_ker);
 REGISTER(BP, 3, PA_dfem_local);
-REGISTER(BP, 3, PA_dfem_local_ker);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])

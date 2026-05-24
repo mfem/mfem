@@ -39,21 +39,18 @@ struct LocalQFBackend
       return LocalQFImpl::Action<Args...>(ctx, args...);
    }
 
-
-   template<
-      int derivative_id,
-      typename qfunc_t,
-      typename inputs_t,
-      typename outputs_t>
-   static auto MakeDerivativeAction(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs)
+   /**
+    * @brief Make a derivative action for a local Q-function backend.
+    *
+    * @tparam derivative_id The id of the derivative.
+    * @param ctx The integrator context.
+    * @param args The arguments to the derivative action.
+    * @return The derivative action.
+    */
+   template<int id, typename... Args>
+   static auto MakeDerivativeAction(const IntegratorContext &ctx, Args... args)
    {
-      return LocalQFImpl::DerivativeAction<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs);
+      return LocalQFImpl::DerivativeAction<id, Args...>(ctx, args...);
    }
 
    template<
