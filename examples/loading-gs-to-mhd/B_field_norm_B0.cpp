@@ -2,7 +2,6 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
-#include <limits>
 #include <string>
 #include "vec_coeffs.hpp"
 
@@ -117,21 +116,22 @@ GridFunction computeBTor(GridFunction &gg,
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "mesh/2d_mesh.mesh";
+   const char *mesh_file = "mesh/new_2d_mesh_iter.mesh";
    bool visualization = true;
    bool mixed_bilinear_form = false;
    bool from_psi = false;
-   double B0 = -1.0;
    double r_ma = 0.0;
    double z_ma = 0.0;
+   bool scale_p = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&B0, "-B0", "--B0",
-                  "Target B0. If negative, scale from |B| at (r_ma, z_ma).");
    args.AddOption(&r_ma, "-r_ma", "--r_ma",
-                  "Radial coordinate used when B0 is negative.");
+                  "Radial coordinate of the magnetic axis.");
    args.AddOption(&z_ma, "-z_ma", "--z_ma",
-                  "Axial coordinate used when B0 is negative.");
+                  "Axial coordinate of the magnetic axis.");
+   args.AddOption(&scale_p, "-scale-p", "--scale-pressure", "-no-scale-p",
+                  "--no-scale-pressure",
+                  "Read and normalize pressure at the magnetic axis.");
    args.Parse();
    args.PrintOptions(cout);
 
@@ -156,29 +156,21 @@ int main(int argc, char *argv[])
    GridFunction B_tor = computeBTor(gg, scalar_fespace, mixed_bilinear_form, from_psi);
 
    FindPointsGSLIBOneByOne finder(&psi);
-   double B_scale = B0;
+   MFEM_VERIFY(dim >= 2, "r_ma and z_ma require a 2D mesh with axes 0 and 1.");
+   Vector scale_point(dim);
+   scale_point = 0.0;
+   scale_point(0) = r_ma;
+   scale_point(1) = z_ma;
+
    Vector B_tor_at_scale(1);
    Vector B_pol_at_scale(dim);
-   if (B_scale < 0.0)
-   {
-      MFEM_VERIFY(dim >= 2, "r_ma and z_ma require a 2D mesh with axes 0 and 1.");
-      Vector scale_point(dim);
-      scale_point = 0.0;
-      scale_point(0) = r_ma;
-      scale_point(1) = z_ma;
-      finder.InterpolateOneByOne(scale_point, B_tor, B_tor_at_scale, Ordering::byNODES);
-      finder.InterpolateOneByOne(scale_point, B_pol, B_pol_at_scale, Ordering::byNODES);
-      cout << "B_tor(r_ma, z_ma) = " << B_tor_at_scale(0) << endl;
-      cout << "B_pol(r_ma, z_ma) = ";
-      B_pol_at_scale.Print(cout, dim);
-      B_scale = std::sqrt(B_tor_at_scale(0) * B_tor_at_scale(0) +
-                          B_pol_at_scale * B_pol_at_scale);
-   }
-   else
-   {
-      cout << "Using provided B0 = " << B_scale << endl;
-   }
-   // precision 8
+   finder.InterpolateOneByOne(scale_point, B_tor, B_tor_at_scale, Ordering::byNODES);
+   finder.InterpolateOneByOne(scale_point, B_pol, B_pol_at_scale, Ordering::byNODES);
+   cout << "B_tor(r_ma, z_ma) = " << B_tor_at_scale(0) << endl;
+   cout << "B_pol(r_ma, z_ma) = ";
+   B_pol_at_scale.Print(cout, dim);
+   const double B_scale = std::sqrt(B_tor_at_scale(0) * B_tor_at_scale(0) +
+                                    B_pol_at_scale * B_pol_at_scale);
    cout << "B scale = " << std::setprecision(8) << B_scale << endl;
    MFEM_VERIFY(B_scale > 0.0, "B scale must be positive; cannot normalize psi and gg.");
 
@@ -192,6 +184,27 @@ int main(int argc, char *argv[])
       if (dot == string::npos) { return filename + "_s"; }
       return filename.substr(0, dot) + "_s" + filename.substr(dot);
    };
+
+   if (scale_p)
+   {
+      const string p_log_filename = "input/new_p_iter.gf";
+      ifstream p_log(p_log_filename);
+      GridFunction p(&mesh, p_log);
+
+      Vector p_at_scale(1);
+      finder.InterpolateOneByOne(scale_point, p, p_at_scale, Ordering::byNODES);
+      const double p_scale = p_at_scale(0);
+      cout << "p(r_ma, z_ma) = " << p_scale << endl;
+      cout << "p scale = " << std::setprecision(8) << p_scale << endl;
+      MFEM_VERIFY(p_scale > 0.0, "Pressure scale must be positive; cannot normalize p.");
+      p *= 1.0 / p_scale;
+
+      const string p_scaled_filename = scaled_filename(p_log_filename);
+      ofstream p_scaled_ofs(p_scaled_filename);
+      p_scaled_ofs.precision(8);
+      p.Save(p_scaled_ofs);
+   }
+
    const string psi_scaled_filename = scaled_filename(psi_log_filename);
    const string gg_scaled_filename = scaled_filename(gg_log_filename);
    ofstream psi_scaled_ofs(psi_scaled_filename);
