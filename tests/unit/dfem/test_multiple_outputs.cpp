@@ -87,7 +87,7 @@ public:
    }
 };
 
-struct massqf
+struct mass_global_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
@@ -106,7 +106,7 @@ struct massqf
    }
 };
 
-struct mass_diffusion_qdata_qf
+struct mass_diffusion_global_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
@@ -118,7 +118,7 @@ struct mass_diffusion_qdata_qf
       [[maybe_unused]] tensor_array<const real_t> &dummy_parameter,
       tensor_array<real_t> &out1,
       tensor_array<real_t, DIM> &out2,
-      [[maybe_unused]] tensor_array<real_t, DIM, DIM> &out3) const
+      tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -152,7 +152,7 @@ struct mass_diffusion_qdata_qf
    }
 };
 
-struct massqflocal
+struct mass_local_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
@@ -333,7 +333,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
          dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
          auto derivatives = std::integer_sequence<size_t, U> {};
-         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         auto mass_diffusion_qfunc = mass_diffusion_global_qf{};
          dop.AddDomainIntegrator(
             mass_diffusion_qfunc,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
@@ -390,7 +390,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
 
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
-         auto mass_qfunclocal = massqflocal{};
+         auto mass_qfunclocal = mass_local_qf{};
          dop.AddDomainIntegrator<LocalQFBackend>(
             mass_qfunclocal,
             tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},

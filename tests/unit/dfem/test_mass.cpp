@@ -120,15 +120,14 @@ void mass_action(const char *filename, int p)
    }
 
    // Test boundary
+#if 0 // TODO: Boundary tests 
    // This ensures that we're not trying to test on fully periodic meshes
-   /*if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
+   if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
          (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
    {
       constexpr int BDIM = DIM - 1;
-      // SECTION("boundary")
+      SECTION("boundary")
       {
-         const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
-
          Array<int> all_bdr_attr;
          if (pmesh.bdr_attributes.Size() > 0)
          {
@@ -174,11 +173,9 @@ void mass_action(const char *filename, int p)
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
 
-         // Vector N;
-         // nodes->GetTrueDofs(N);
-         // MultiVector MX{X, N}, MZ{Z};
-         // auto dRdU = dop.GetDerivative(U, MX);
-         // dRdU->Mult(MX, MZ);
+         nodes->GetTrueDofs(N);
+         auto dRdU = dop.GetDerivative(U, MX);
+         dRdU->Mult(MX[0], MZ);
 
          pfes.GetProlongationMatrix()->MultTranspose(y, Y);
          Y -= Z;
@@ -187,7 +184,8 @@ void mass_action(const char *filename, int p)
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
-   }*/
+   }
+#endif // TODO: Boundary tests 
 }
 
 template <int DIM, typename QFBackend = LocalQFBackend>
@@ -301,15 +299,16 @@ void mass_mat_mixed(const char* filename, int p)
    }
 
    // hypre parallel mat
+   // Warning: "derivative can't be assembled into a HypreParMatrix"
    {
-#ifdef MFEM_USE_ENZYME
-      // HypreParMatrix *Amfem = blf.ParallelAssemble();
+#if defined(MFEM_USE_ENZYME) && 0 // TODO
+      HypreParMatrix *Amfem = blf.ParallelAssemble();
 
-      // HypreParMatrix *Adfem;
-      // ddopdu->Assemble(Adfem);
-      // TestSameMatrices(*Adfem, *Amfem);
-      // delete Amfem;
-      // delete Adfem;
+      HypreParMatrix *Adfem;
+      ddopdu->Assemble(Adfem);
+      TestSameMatrices(*Adfem, *Amfem);
+      delete Amfem;
+      delete Adfem;
 #endif // MFEM_USE_ENZYME
    }
 }
@@ -324,24 +323,8 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS]")
                "../../data/rt-2d-q3.mesh",
                "../../data/inline-quad.mesh",
                "../../data/periodic-square.mesh");
-
    mass_action<2>(mesh2d, p);
-
-   // Avoiding failing 'hypre parallel mat' section
-#ifndef MFEM_USE_CUDA_OR_HIP
-#ifdef MFEM_USE_ENZYME
-   SECTION("2D Mixed Default")
-   {
-      mass_mat_mixed<2>(mesh2d, p);
-   }
-#else
-   SECTION("2D Mixed Kernels")
-   {
-      // 2D not supported yet
-      // mass_mat_mixed<2, LocalQFKernelsBackend>(mesh2d, p);
-   }
-#endif // MFEM_USE_ENZYME
-#endif // MFEM_USE_CUDA_OR_HIP
+   mass_mat_mixed<2>(mesh2d, p);
 }
 
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS]")
@@ -354,24 +337,8 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS]")
                "../../data/inline-hex.mesh",
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
-
    mass_action<3>(mesh3d, p);
-
-
-   // Avoiding failing 'hypre parallel mat' section
-#ifndef MFEM_USE_CUDA_OR_HIP
-#ifdef MFEM_USE_ENZYME
-   SECTION("3D Mixed Default")
-   {
-      mass_mat_mixed<3>(mesh3d, p);
-   }
-#else
-   SECTION("3D Mixed Kernels")
-   {
-      mass_mat_mixed<3>(mesh3d, p);
-   }
-#endif // MFEM_USE_ENZYME
-#endif // MFEM_USE_CUDA_OR_HIP
+   mass_mat_mixed<3>(mesh3d, p);
 }
 
 #endif // MFEM_USE_MPI

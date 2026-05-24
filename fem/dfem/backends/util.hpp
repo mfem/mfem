@@ -97,7 +97,6 @@ inline FieldBasis FromQS()
    {
       [](const Vector &xe, Vector &xq)
       {
-         // xq = xe;
          xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
       },
       [](const Vector &yq, Vector &ye) { ye = yq; }
