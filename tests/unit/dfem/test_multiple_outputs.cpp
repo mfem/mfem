@@ -352,7 +352,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
 
-
          auto ddop = dop.GetDerivative(U, X);
 
          ddop->Mult(X[0], Z);

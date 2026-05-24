@@ -1,14 +1,10 @@
 #pragma once
 
-#include "../../../quadinterpolator.hpp"
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 #include <utility>
 
-namespace mfem::future
-{
-
-namespace GlobalQFImpl
+namespace mfem::future::GlobalQFImpl
 {
 
 template<
@@ -22,11 +18,11 @@ struct DerivativeActionEnzyme
 {
    DerivativeActionEnzyme(
       IntegratorContext ctx,
-      qfunc_t &qfunc,
+      qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs) :
       ctx(ctx),
-      qfunc(qfunc),
+      qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs)
    {
@@ -53,7 +49,7 @@ struct DerivativeActionEnzyme
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
+      InitBlockVector(xq, xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -63,23 +59,26 @@ struct DerivativeActionEnzyme
          yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
+      InitBlockVector(yq, yq_offsets);
 
-      // For each dependent input in the dependency map we create a shadow
-      // memory variable at the quadrature point level.
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs);
-      shadow_xq_offsets.SetSize(ninputs + 1);
-      shadow_xq_offsets = 0;
-      constexpr_for<0, ninputs>([&](auto i)
+      // Shadow blocks use the same offsets as xq so tensor_array views
+      // in Enzyme match call_qfunc layout (inactive inputs stay zero)
+      shadow_xq_offsets.SetSize(xq_offsets.Size());
+      shadow_xq_offsets = xq_offsets;
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
+
+      dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
+      for (size_t i = 0; i < ctx.infds.size(); i++)
       {
-         if (activity_map[i])
+         if (static_cast<int>(ctx.infds[i].id) == derivative_id)
          {
-            shadow_xq_offsets[i + 1] =
-               xq_offsets[i + 1] - xq_offsets[i];;
+            direction_fd = ctx.infds[i];
+            break;
          }
-      });
-      shadow_xq_offsets.PartialSum();
-      shadow_xq.Update(shadow_xq_offsets);
+      }
+      MFEM_ASSERT(direction_fd.id != SIZE_MAX,
+                  "derivative direction field not found in infds");
    }
 
    void operator()(
@@ -91,16 +90,32 @@ struct DerivativeActionEnzyme
       // E -> Q
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs);
-      interpolate(input_to_infd, input_bases, xe, shadow_xq, activity_map);
+      constexpr auto input_active =
+         detail::make_activity_map<derivative_id>(inputs_t {});
 
-      // Q -> Q
+      MFEM_ASSERT(de != nullptr, "derivative direction vector is null");
+      restriction<Entity::Element>(direction_fd, *de, direction_e, dof_ordering);
+
+      shadow_xq = 0.0;
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         if (!input_active[i]) { return; }
+         input_bases[i].forward(direction_e, shadow_xq.GetBlock(i));
+      });
+
       static_assert(
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
 
-      detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-         qfunc, xq, shadow_xq, yq, gnqp, input_qlayouts, output_qlayouts,
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         if (!input_active[i]) { return; }
+         xq.GetBlock(i) = shadow_xq.GetBlock(i);
+      });
+
+      yq = 0.0;
+      detail::call_qfunc(
+         qfunc, xq, yq, gnqp, input_qlayouts, output_qlayouts,
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
@@ -109,7 +124,7 @@ struct DerivativeActionEnzyme
    }
 
    IntegratorContext ctx;
-   qfunc_t &qfunc;
+   mutable qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;
 
@@ -125,7 +140,10 @@ struct DerivativeActionEnzyme
    int gnqp = 0;
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
+
+   FieldDescriptor direction_fd;
+   ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   mutable Vector direction_e;
 };
 
-}
-}
+} // namespace mfem::future::GlobalQFImpl

@@ -55,7 +55,11 @@ struct DerivativeSetup
          xq_offsets[i + 1] = nqp * get<i>(inputs).size_on_qp * nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
+      InitBlockVector(xq, xq_offsets);
+
+      shadow_xq_offsets.SetSize(xq_offsets.Size());
+      shadow_xq_offsets = xq_offsets;
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -64,20 +68,7 @@ struct DerivativeSetup
          yq_offsets[o + 1] = nqp * get<o>(outputs).size_on_qp * nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
-
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
-      shadow_xq_offsets.SetSize(ninputs + 1);
-      shadow_xq_offsets = 0;
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         if (activity_map[i])
-         {
-            shadow_xq_offsets[i + 1] = xq_offsets[i + 1] - xq_offsets[i];
-         }
-      });
-      shadow_xq_offsets.PartialSum();
-      shadow_xq.Update(shadow_xq_offsets);
+      InitBlockVector(yq, yq_offsets);
 
       total_out_size_on_qp = 0;
       constexpr_for<0, noutputs>([&](auto o)
@@ -87,16 +78,16 @@ struct DerivativeSetup
          out_op_dim[o] = get<o>(outputs).size_on_qp / get<o>(outputs).vdim;
       });
 
+      activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
+
       trial_vdim = 0;
       total_trial_op_dim = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
-         if (activity_map[i])
-         {
-            const auto inp = get<i>(inputs);
-            trial_vdim = inp.vdim;
-            total_trial_op_dim += inp.size_on_qp / inp.vdim;
-         }
+         if (!activity_map[i]) { return; }
+         const auto inp = get<i>(inputs);
+         trial_vdim = inp.vdim;
+         total_trial_op_dim += inp.size_on_qp / inp.vdim;
       });
 
       constexpr_for<0, ninputs>([&](auto i)
@@ -113,9 +104,8 @@ struct DerivativeSetup
    {
       if (ctx.attr.Size() == 0) { return; }
 
+      qp_cache = 0.0;
       interpolate(input_to_infd, input_bases, xe, xq);
-
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
 
       const int gnqp_local = gnqp;
       const int trial_vdim_local = trial_vdim;
@@ -151,6 +141,7 @@ struct DerivativeSetup
                   input_qlayouts, output_qlayouts,
                   std::make_index_sequence<ninputs> {},
                   std::make_index_sequence<noutputs> {});
+               yq.SyncToBlocks();
 
                // Write yq into the cache column (j, m + m_offset).
                // Both yq block and cache use [size, gnqp] column-major (byVDIM),
@@ -174,9 +165,11 @@ struct DerivativeSetup
                         for (int k = 0; k < test_op_dim_o; k++)
                         {
                            const int c_out = i * test_op_dim_o + k;
+                           // Match LocalQF DerivativeApply qpdc(m, j, k, i, q) layout.
                            const int cache_idx =
-                              (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
+                              (out_offset_o + i * test_op_dim_o) * trial_vdim_local *
                               total_trial_op_dim_local +
+                              k * trial_vdim_local * total_trial_op_dim_local +
                               j_cur * total_trial_op_dim_local +
                               m_global;
                            cache_ptr[cache_idx + residual_size_local * gq] =
@@ -222,6 +215,7 @@ struct DerivativeSetup
    std::array<int, noutputs> out_vdim {};
    std::array<int, noutputs> out_op_dim {};
    std::array<int, ninputs>  input_size_on_qp_arr {};
+   std::array<bool, ninputs> activity_map {};
 };
 
 } // namespace GlobalQFImpl

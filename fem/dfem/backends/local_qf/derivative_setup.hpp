@@ -414,6 +414,26 @@ struct DerivativeSetup
       auto cache_tensor = DeviceTensor<3>(qp_cache.ReadWrite(), residual_size_on_qp,
                                           num_qp_local, num_entities_local);
 
+      std::array<int, noutputs> out_offsets_arr{};
+      out_offsets_arr[0] = 0;
+      for (size_t oo = 1; oo < noutputs; oo++)
+      {
+         out_offsets_arr[oo] = out_offsets_arr[oo - 1]
+                               + out_vdim[oo - 1] * out_op_dim[oo - 1];
+      }
+      const auto out_offsets_local = out_offsets_arr;
+
+      // Row offsets into residual_shmem [output_size_on_qp, num_qp].
+      std::array<int, noutputs> out_row_offsets_arr{};
+      out_row_offsets_arr[0] = 0;
+      for (size_t oo = 1; oo < noutputs; oo++)
+      {
+         out_row_offsets_arr[oo] = out_row_offsets_arr[oo - 1] +
+                                   out_vdim[oo - 1] * out_op_dim[oo - 1];
+      }
+      const auto out_row_offsets_local = out_row_offsets_arr;
+      const auto out_qp_size_arr = out_qp_size;
+
       const int direction_field_idx_local = direction_field_idx;
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
@@ -468,6 +488,7 @@ struct DerivativeSetup
                   // Compute derivative
                   call_qfunction_fwddiff<qf_param_ts>(
                      qfunc_local, input_shmem, shadow_shmem, residual_shmem,
+                     out_row_offsets_local, out_qp_size_arr,
                      num_qp_local, q1d_local, dimension_local, use_sum_factorization_local);
 
                   // Store in cache: qpdc(i, k, j, m + m_offset, q)
@@ -475,9 +496,11 @@ struct DerivativeSetup
                   {
                      const int test_vdim = out_vdim_local[o];
                      const int test_op_dim = out_op_dim_local[o];
+                     const int out_offset_o = out_offsets_local[o];
+                     const int out_row_o = out_row_offsets_local[o];
 
-                     auto output_shmem = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim,
-                                                 num_qp_local);
+                     auto output_shmem = Reshape(&residual_shmem(out_row_o, 0), test_vdim,
+                                                 test_op_dim, num_qp_local);
 
                      MFEM_FOREACH_THREAD(q, x, num_qp_local)
                      {
@@ -485,9 +508,9 @@ struct DerivativeSetup
                         {
                            for (int k = 0; k < test_op_dim; k++)
                            {
-                              // qpdc(i, k, j, m + m_offset, q)
                               const int cache_idx =
-                                 i * test_op_dim * trial_vdim * total_trial_op_dim +
+                                 (out_offset_o + i * test_op_dim) * trial_vdim *
+                                 total_trial_op_dim +
                                  k * trial_vdim * total_trial_op_dim +
                                  j * total_trial_op_dim +
                                  (m + m_offset);
@@ -512,6 +535,8 @@ struct DerivativeSetup
       const std::array<DeviceTensor<2>, ninputs> &input_shmem,
       const std::array<DeviceTensor<2>, ninputs> &shadow_shmem,
       DeviceTensor<2> &residual_shmem,
+      const std::array<int, noutputs> &out_row_offsets,
+      const std::array<int, noutputs> &out_qp_sizes,
       const int &num_qp,
       const int &q1d,
       const int &dimension,
@@ -541,7 +566,8 @@ struct DerivativeSetup
                for_constexpr<noutputs>([&](auto o)
                {
                   constexpr std::size_t arg_idx = ninputs + o;
-                  auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                  auto out_q = Reshape(&residual_shmem(out_row_offsets[o], q),
+                                       out_qp_sizes[o]);
                   process_qf_result(out_q, get<arg_idx>(shadow_args));
                });
             }
@@ -570,7 +596,8 @@ struct DerivativeSetup
                   for_constexpr<noutputs>([&](auto o)
                   {
                      constexpr std::size_t arg_idx = ninputs + o;
-                     auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                     auto out_q = Reshape(&residual_shmem(out_row_offsets[o], q),
+                                          out_qp_sizes[o]);
                      process_qf_result(out_q, get<arg_idx>(shadow_args));
                   });
                }
@@ -603,7 +630,8 @@ struct DerivativeSetup
                      for_constexpr<noutputs>([&](auto o)
                      {
                         constexpr std::size_t arg_idx = ninputs + o;
-                        auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+                        auto out_q = Reshape(&residual_shmem(out_row_offsets[o], q),
+                                             out_qp_sizes[o]);
                         process_qf_result(out_q, get<arg_idx>(shadow_args));
                      });
                   }
@@ -638,7 +666,8 @@ struct DerivativeSetup
             for_constexpr<noutputs>([&](auto o)
             {
                constexpr std::size_t arg_idx = ninputs + o;
-               auto out_q = Reshape(&residual_shmem(0, q), residual_shmem.GetShape()[0]);
+               auto out_q = Reshape(&residual_shmem(out_row_offsets[o], q),
+                                    out_qp_sizes[o]);
                process_qf_result(out_q, get<arg_idx>(shadow_args));
             });
          }

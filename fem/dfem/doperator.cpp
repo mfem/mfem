@@ -110,56 +110,27 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_diag_cbs = it_diag->second;
    }
 
-   // If setup callbacks are available, run them to populate the cache
-   if (derivative_setup_callbacks.find(derivative_id) !=
-       derivative_setup_callbacks.end())
+   // If derivative setup callbacks are available, run them to populate the cache
+   std::vector<derivative_setup_t> derivative_setup_cbs;
+   auto it_setup = derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != derivative_setup_callbacks.end())
    {
-      // Get the direction field from x
-      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
-                  "x needs to be a BlockVector");
-      const auto &bx = static_cast<const BlockVector &>(x);
-
-      // Prolong to L-space
-      prolongation(infds, bx, infields_l);
-
-      // Restrict to element space
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-
-      // Run all setup callbacks to populate the cache
-      for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
-      {
-         setup_callback(infields_e);
-      }
-
-      return std::make_shared<DerivativeOperator>(
-                height,
-                GetTrueVSize(infds[dfidx]),
-                derivative_apply_callbacks[derivative_id],
-                transpose_callbacks,
-                infds[dfidx],
-                x,
-                infds,
-                outfds,
-                assemble_sparse_cbs,
-                assemble_hypre_cbs,
-                assemble_diag_cbs);
+      derivative_setup_cbs = it_setup->second;
    }
-   else
-   {
-      // Fallback to old behavior (direct action callbacks)
-      return std::make_shared<DerivativeOperator>(
-                height,
-                GetTrueVSize(infds[dfidx]),
-                derivative_action_callbacks[derivative_id],
-                transpose_callbacks,
-                infds[dfidx],
-                x,
-                infds,
-                outfds,
-                assemble_sparse_cbs,
-                assemble_hypre_cbs,
-                assemble_diag_cbs);
-   }
+
+   return std::make_shared<DerivativeOperator>(
+             height,
+             GetTrueVSize(infds[dfidx]),
+             derivative_action_callbacks[derivative_id],
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             outfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             derivative_setup_cbs);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -202,55 +173,26 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_diag_cbs = it_diag->second;
    }
 
-   // If setup callbacks are available, run them to populate the cache
-   if (derivative_setup_callbacks.find(derivative_id) !=
-       derivative_setup_callbacks.end())
+   std::vector<derivative_setup_t> derivative_setup_cbs;
+   auto it_setup = derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != derivative_setup_callbacks.end())
    {
-      // Prolong to L-space
-      prolongation(infds, x, infields_l);
-
-      // Get the direction field
-      Vector direction_l(GetVSize(infds[dfidx]));
-      prolongation(infds[dfidx], x[dfidx], direction_l);
-
-      // Restrict to element space
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-
-      // Run all setup callbacks to populate the cache
-      for (const auto &setup_callback : derivative_setup_callbacks[derivative_id])
-      {
-         setup_callback(infields_e);
-      }
-
-      return std::make_shared<DerivativeOperator>(
-                height,
-                GetTrueVSize(infds[dfidx]),
-                derivative_apply_callbacks[derivative_id],
-                transpose_callbacks,
-                infds[dfidx],
-                x,
-                infds,
-                outfds,
-                assemble_sparse_cbs,
-                assemble_hypre_cbs,
-                assemble_diag_cbs);
+      derivative_setup_cbs = it_setup->second;
    }
-   else
-   {
-      // Fallback to old behavior
-      return std::make_shared<DerivativeOperator>(
-                height,
-                GetTrueVSize(infds[dfidx]),
-                derivative_action_callbacks[derivative_id],
-                transpose_callbacks,
-                infds[dfidx],
-                x,
-                infds,
-                outfds,
-                assemble_sparse_cbs,
-                assemble_hypre_cbs,
-                assemble_diag_cbs);
-   }
+
+   return std::make_shared<DerivativeOperator>(
+             height,
+             GetTrueVSize(infds[dfidx]),
+             derivative_action_callbacks[derivative_id],
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             outfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             derivative_setup_cbs);
 }
 
 #endif // MFEM_USE_MPI

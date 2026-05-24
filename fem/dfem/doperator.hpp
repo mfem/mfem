@@ -13,7 +13,8 @@
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "../fespace.hpp"
+#include <memory>
+
 #include "../../linalg/multivector.hpp"
 
 #include "util.hpp"
@@ -92,7 +93,8 @@ public:
       const std::vector<assemble_derivative_hypreparmatrix_callback_t>
       &assemble_hypreparmatrix_callbacks = {},
       const std::vector<assemble_diagonal_callback_t>
-      &assemble_diagonal_cbs = {}) :
+      &assemble_diagonal_callbacks = {},
+      const std::vector<derivative_setup_t> &derivative_setup_callbacks = {}) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
@@ -101,7 +103,8 @@ public:
       derivative_actions_transpose(derivative_actions_transpose),
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
-      assemble_diagonal_callbacks(assemble_diagonal_cbs)
+      assemble_diagonal_callbacks(assemble_diagonal_callbacks),
+      derivative_setup_callbacks(derivative_setup_callbacks)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -191,6 +194,7 @@ public:
    {
       MFEM_ASSERT(!derivative_actions_transpose.empty(),
                   "derivative can't be used in transpose mode");
+      EnsureQpCache();
 
       // Prolong each output field from T-space to L-space into the
       // pre-allocated concat buffer.
@@ -247,6 +251,7 @@ public:
    {
       MFEM_ASSERT(!assemble_derivative_sparsematrix_callbacks.empty(),
                   "derivative can't be assembled into a SparseMatrix");
+      EnsureQpCache();
 
       for (const auto &f : assemble_derivative_sparsematrix_callbacks)
       {
@@ -262,6 +267,7 @@ public:
    {
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a HypreParMatrix");
+      EnsureQpCache();
 
       for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
@@ -276,6 +282,7 @@ public:
    {
       MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
                   "derivative can't assemble diagonal");
+      EnsureQpCache();
       MFEM_ASSERT(outfds.size() == 1,
                   "AssembleDiagonal currently requires a single output field");
 
@@ -341,6 +348,26 @@ private:
 
    /// Callbacks that assemble the diagonal of derivatives into an L-vector.
    std::vector<assemble_diagonal_callback_t> assemble_diagonal_callbacks;
+
+   /// Callbacks per-integrator qp caches
+   std::vector<derivative_setup_t> derivative_setup_callbacks;
+   mutable bool qp_cache_filled = false;
+
+   /// @brief Ensure the qp cache is filled.
+   ///
+   /// This function ensures the qp cache is filled by calling the derivative
+   /// setup callbacks.
+   void EnsureQpCache() const
+   {
+      if (qp_cache_filled || derivative_setup_callbacks.empty()) { return; }
+
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+      for (const auto &setup_callback : derivative_setup_callbacks)
+      {
+         setup_callback(infields_e);
+      }
+      qp_cache_filled = true;
+   }
 };
 
 /// Class representing a differentiable operator which acts on solution and
@@ -584,7 +611,9 @@ private:
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
-   std::map<size_t, Vector> derivative_qp_caches;
+   // One qp_cache per integrator, useful to support multiple
+   // split integrators that register the same derivative field.
+   std::vector<std::unique_ptr<Vector>> integrator_qp_caches;
 
    std::map<size_t, size_t> assembled_vector_sizes;
 
@@ -742,40 +771,37 @@ void DifferentiableOperator::AddIntegrator(
    for_constexpr([&](auto i)
    {
 #ifdef MFEM_USE_ENZYME
-      // Initialize the cache for this derivative if not already done
-      if (derivative_qp_caches.find(i) == derivative_qp_caches.end())
-      {
-         derivative_qp_caches[i] = Vector();
-      }
-
       if constexpr (backend_t::has_cached_derivative)
       {
+         integrator_qp_caches.emplace_back(std::make_unique<Vector>());
+         Vector &qp_cache = *integrator_qp_caches.back();
+
          // Create setup callback that populates the cache
          derivative_setup_callbacks[i].push_back(
-            backend_t::template MakeDerivativeSetup<i>(ctx, qfunc, inputs, outputs,
-                                                       derivative_qp_caches[i]));
+            backend_t::template MakeDerivativeSetup<i>(
+               ctx, qfunc, inputs, outputs, qp_cache));
 
          // Create apply callback that uses the cache
          derivative_apply_callbacks[i].push_back(
             backend_t::template MakeDerivativeApply<i>(
-               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+               ctx, qfunc, inputs, outputs, qp_cache));
 
          // Create transpose apply callback (J^T) using the same cache
          daction_transpose_callbacks[i].push_back(
             backend_t::template MakeDerivativeApplyTranspose<i>(
-               ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+               ctx, qfunc, inputs, outputs, qp_cache));
 
          if (!disable_assemble)
          {
             // Create assemble callback for sparse matrix assembly
             assemble_derivative_sparsematrix_callbacks[i].push_back(
                backend_t::template MakeDerivativeAssemble<i>(
-                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+                  ctx, qfunc, inputs, outputs, qp_cache));
 
             // Create assemble callback for diagonal assembly
             assemble_diagonal_callbacks[i].push_back(
                backend_t::template MakeDerivativeAssembleDiagonal<i>(
-                  ctx, qfunc, inputs, outputs, derivative_qp_caches[i]));
+                  ctx, qfunc, inputs, outputs, qp_cache));
          }
       }
 
@@ -785,10 +811,11 @@ void DifferentiableOperator::AddIntegrator(
 #else
       derivative_action_callbacks[i].push_back(
          backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
-#endif
+#endif // MFEM_USE_ENZYME
    }, derivative_ids);
 }
 
 } // namespace mfem::future
-#endif
+
+#endif // MFEM_USE_MPI
 

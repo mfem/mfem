@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../quadinterpolator.hpp"
-#include "../integrator_ctx.hpp"
 #include "../util.hpp"
 #include "../../../general/enzyme.hpp"
 
@@ -29,6 +28,14 @@ template <size_t N>
 constexpr std::array<bool, N> all_true()
 {
    return all_true_impl<N>(std::make_index_sequence<N> {});
+}
+
+inline void InitBlockVector(BlockVector &v, Array<int> &offsets)
+{
+   v.Update(offsets, Device::GetMemoryType());
+   v.UseDevice(true);
+   v = 0.0;
+   v.SyncToBlocks();
 }
 
 struct FieldBasis
@@ -252,8 +259,6 @@ inline void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   for (auto v : ye) { *v = 0.0; }
-
    constexpr_for<0, noutputs>([&](auto i)
    {
       output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
@@ -555,7 +560,7 @@ inline void enzyme_fwddiff(
    using qf_param_ts  = typename qf_signature::parameter_ts;
    using qf_return_t  = typename qf_signature::return_t;
 
-   constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t{});
+   constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t {});
    static_assert(activity_map.size() == ninputs, "activity map size mismatch");
 
    auto inputs = std::make_tuple(
@@ -568,8 +573,15 @@ inline void enzyme_fwddiff(
                      typename tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
+   // forward action: evaluate the QF at the current quadrature data,
+   // used to populate the primal_storage vector.
+   call_qfunc(qfunc, xq, yq, gnqp, in_layouts, out_layouts,
+              std::make_index_sequence<ninputs> {},
+              std::make_index_sequence<noutputs> {});
+
    std::array<Vector, noutputs> primal_storage;
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
+   ((primal_storage[Os] = yq.GetBlock(Os)), ...);
 
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
