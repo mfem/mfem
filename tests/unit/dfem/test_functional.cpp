@@ -186,16 +186,17 @@ void functional(const char *filename, int p)
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
-
    pmesh.EnsureNodes();
    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
-   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
+   smesh.Clear();
 
    H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace fes(&pmesh, &fec);
 
-   const IntegrationRule &ir =
-      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   const auto ir = IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    Vector u(fes.GetTrueVSize());
    Vector du(fes.GetTrueVSize());

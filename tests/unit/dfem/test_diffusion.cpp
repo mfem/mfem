@@ -111,7 +111,6 @@ void diffusion(const char *filename, int p)
    smesh.Clear();
 
    p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
-   const int q = 2 * p;
 
    Array<int> all_domain_attr;
    if (pmesh.attributes.Size() > 0)
@@ -121,7 +120,7 @@ void diffusion(const char *filename, int p)
    }
 
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
-   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    H1_FECollection fec(p, DIM);
 
