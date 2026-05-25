@@ -248,10 +248,9 @@ void TestRedistribute(Ordering::Type ordering)
    ParMesh pmesh(MPI_COMM_WORLD, m);
    pmesh.EnsureNodes();
 
-   // NOTE: This test could fail if a point falls on an element boundary
    SECTION(std::string("Ordering: ") +
            (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
-
+   {
       // Add the particles uniquely to each rank particleset
       ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
                        NumTags, ordering);
@@ -317,7 +316,7 @@ void TestRedistribute(Ordering::Type ordering)
             wrong_particle_count++;
          }
       }
-      MPI_Allreduce(MPI_IN_PLACE, &wrong_proc_count, 1, MPI_INT, MPI_SUM,
+      MPI_Allreduce(MPI_IN_PLACE, &wrong_particle_count, 1, MPI_INT, MPI_SUM,
                     MPI_COMM_WORLD);
       CHECK(wrong_particle_count == 0);
    }
