@@ -199,18 +199,19 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
 
    const int ndof_el = d * d;
    const int nqp_el = q * q;
-   const int ALC_stride = nqp_el * NE;
    const int ALF_stride = ndof_el * NE;
 
-   const bool const_coeff = false;
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
    const real_t *ALC_all = PA.ALC.Read();
    const real_t *ALFmF0_all = PA.ALFmF0.Read();
-
    real_t energy = 0.0;
    for (int c = 0; c < nal; c++)
    {
       const real_t delta_max = PA.ALD(c);
-      const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, NE);
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
       TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
                                 ALFmF0, E, d, q);

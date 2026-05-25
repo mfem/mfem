@@ -201,12 +201,15 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
 
    // All are constant or not specified.
-   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && PA.ALC.Size() <= 1) { return; }
+   const int nal = PA.nal;
+   const bool alc_is_qvec = (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne)
+                                      : false;
+   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && !alc_is_qvec) { return; }
 
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
    PA.C0.HostWrite();
-   PA.ALC.HostWrite();
+   if (alc_is_qvec) { PA.ALC.HostWrite(); }
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -231,9 +234,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
          }
       }
 
-      if (PA.ALC.Size() > 1)
+      if (alc_is_qvec)
       {
-         const int nal = PA.nal;
          MFEM_VERIFY(nal == adapt_lim_coeff.Size(), "internal error");
          for (int c = 0; c < nal; c++)
          {
@@ -362,19 +364,45 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.AL_grads_assembled = false;
    PA.nal = nal;
 
-   // adapt_lim_coeff -> PA.ALC (Q-vector).
-   PA.ALC.UseDevice(true);
-   PA.ALC.SetSize(nal * PA.nq * PA.ne, Device::GetMemoryType());
-   real_t *ALC_all = PA.ALC.HostWrite();
+   // adapt_lim_coeff -> PA.ALC
+   // Keep the ConstantCoefficient fast-path: when all coefficients are constant,
+   // store one scalar per adaptive-limiting term.
+   bool all_const = true;
    for (int c = 0; c < nal; c++)
    {
-      real_t *ALC_c = ALC_all + c * PA.nq * PA.ne;
-      for (int e = 0; e < PA.ne; ++e)
+      if (!dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]))
       {
-         ElementTransformation &T = *PA.fes->GetElementTransformation(e);
-         for (int q = 0; q < PA.ir->GetNPoints(); ++q)
+         all_const = false;
+         break;
+      }
+   }
+
+   PA.ALC.UseDevice(true);
+   if (all_const)
+   {
+      PA.ALC.SetSize(nal, Device::GetMemoryType());
+      real_t *ALC_all = PA.ALC.HostWrite();
+      for (int c = 0; c < nal; c++)
+      {
+         auto *cc = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]);
+         MFEM_VERIFY(cc, "internal error");
+         ALC_all[c] = cc->constant;
+      }
+   }
+   else
+   {
+      PA.ALC.SetSize(nal * PA.nq * PA.ne, Device::GetMemoryType());
+      real_t *ALC_all = PA.ALC.HostWrite();
+      for (int c = 0; c < nal; c++)
+      {
+         real_t *ALC_c = ALC_all + c * PA.nq * PA.ne;
+         for (int e = 0; e < PA.ne; ++e)
          {
-            ALC_c[q + e * PA.nq] = adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
+            ElementTransformation &T = *PA.fes->GetElementTransformation(e);
+            for (int q = 0; q < PA.ir->GetNPoints(); ++q)
+            {
+               ALC_c[q + e * PA.nq] = adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
+            }
          }
       }
    }

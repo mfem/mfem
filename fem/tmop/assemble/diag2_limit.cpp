@@ -192,12 +192,12 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
 
    const int ndof_el = d * d;
    const int nqp_el = q * q;
-   const int ALC_stride = nqp_el * NE;
    const int ALF_stride = ndof_el * NE;
    const int ALFG_stride = 2 * nqp_el * NE;
    const int ALFH_stride = 2 * 2 * nqp_el * NE;
 
-   const bool const_coeff = false;
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
    const real_t *ALC_all = PA.ALC.Read();
    const real_t *ALFmF0_all = PA.ALFmF0.Read();
    const real_t *ALFG_all = PA.ALFG.Read();
@@ -205,7 +205,9 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
    for (int c = 0; c < nal; c++)
    {
       const real_t delta_max = ALD[c];
-      const auto ALC = Reshape(ALC_all + c * ALC_stride, q, q, NE);
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
       const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
       const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 2, 2, q, q, NE);
