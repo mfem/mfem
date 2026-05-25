@@ -38,7 +38,6 @@
 #include "../../linalg/vector.hpp"
 #include "../../linalg/tensor.hpp"
 #include "../quadinterpolator.hpp"
-#include "../bilininteg.hpp"
 #include "../coefficient.hpp"
 #include "../qfunction.hpp"
 
@@ -133,7 +132,7 @@ void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
 /// @param[in] mu Quadrature function for second Lame param.
 /// @param[in] geom Geometric factors corresponding to fespace.
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param QVec Scratch Q-Vector. nQuad x dim x dim x dim x dim x numEls.
+/// @param QVec Scratch Q-Vector. nQuad x dim x dim x dim x numEls.
 /// @param[out] diag diagonal of A. nDofs x dim x numEls.
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const CoefficientVector &lambda,
