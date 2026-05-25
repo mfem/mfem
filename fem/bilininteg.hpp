@@ -2651,14 +2651,22 @@ public:
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
+   // PA AddMultPA kernels
    using VectorMassAddMultPAType =
       void(*)(const int,  const int,
               const Array<real_t>&, const Vector&,
               const Vector&, Vector&, const int, const int);
-
    MFEM_REGISTER_KERNELS(VectorMassAddMultPA,
                          VectorMassAddMultPAType,
                          (int, int, int));
+
+   // PA DiagonalPA kernels
+   using VectorMassAssembleDiagonalPAType =
+      void(*)(const int, const int, const int,
+              const real_t*, const real_t*, real_t*);
+   MFEM_REGISTER_KERNELS(VectorMassAssembleDiagonalPA,
+                         VectorMassAssembleDiagonalPAType,
+                         (int /*dim*/, int /*q1d*/));
 };
 
 
