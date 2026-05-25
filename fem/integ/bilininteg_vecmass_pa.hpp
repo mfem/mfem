@@ -232,7 +232,7 @@ static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
    });
 }
 
-template <int T_Q1D = 0, int T_MDQ = 16>
+template <int T_Q1D = 0, int T_MDQ = 12>
 static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
                                                const int d1d,
                                                const int q1d,
