@@ -180,7 +180,7 @@ TEST_CASE("Get Particle Reference", "[ParticleSet]")
 
 }
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+#if defined(MFEM_USE_MPI)
 
 static constexpr int N_e = 10;
 
@@ -251,7 +251,7 @@ void TestRedistribute(Ordering::Type ordering)
    // NOTE: This test could fail if a point falls on an element boundary
    SECTION(std::string("Ordering: ") +
            (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
-   {
+
       // Add the particles uniquely to each rank particleset
       ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
                        NumTags, ordering);
@@ -329,4 +329,4 @@ TEST_CASE("Particle Redistribution", "[ParticleSet][Parallel]")
    TestRedistribute(Ordering::byVDIM);
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+#endif // MFEM_USE_MPI
