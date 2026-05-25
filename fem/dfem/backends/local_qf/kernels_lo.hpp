@@ -22,10 +22,11 @@ namespace ker = mfem::kernels::internal;
 namespace mfem::future
 {
 
+template<int T_DIM = 3>
 struct LocalQFLOBackend
 {
    //////////////////////////////////////////////////////////////////
-   static constexpr int DIM = 3, MQ1 = 8;
+   static constexpr int DIM = T_DIM, MQ1 = 8;
 
    //////////////////////////////////////////////////////////////////
    static inline ThreadBlocks thread_blocks(const int q1d)
@@ -42,7 +43,7 @@ struct LocalQFLOBackend
    template<int MQ1>
    struct Shared
    {
-      real_t M[2][MQ1][MQ1][MQ1][3];
+      real_t M[2][MQ1][MQ1][MQ1][DIM];
       real_t B[MQ1][MQ1], G[MQ1][MQ1];
    };
 

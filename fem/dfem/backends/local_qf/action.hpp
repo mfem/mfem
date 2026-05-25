@@ -159,7 +159,7 @@ public:
    }
 
    ////////////////////////////////////////////////////////
-   template<typename backend_t = LocalQFLOBackend, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend<>, int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
                                // inputs: idx, B, G, vdim, d1d, q1d
@@ -418,7 +418,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
    static_assert(DIM == 3 && Q1D <= 8);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend, Q1D>;
+   return action_t::template action_callback<LocalQFLOBackend<DIM>, Q1D>;
 }
 
 template <
@@ -432,7 +432,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
                "Unsupported dimension: " << dim <<
                " and/or quadrature order: " << q1d);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend>;
+   return action_t::template action_callback<LocalQFLOBackend<3>>;
 }
 
 // High Order backend

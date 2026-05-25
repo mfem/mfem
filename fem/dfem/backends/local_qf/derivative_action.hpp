@@ -199,7 +199,7 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename backend_t = LocalQFLOBackend, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend<>, int T_Q1D = 0>
    static void derivative_action_callback(const IntegratorContext &ctx,
                                           const qfunc_t &qfunc,
                                           // inputs: idx, B, G, vdim, d1d, q1d
@@ -613,7 +613,7 @@ DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionL
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::template
-          derivative_action_callback<LocalQFLOBackend, Q1D>;
+          derivative_action_callback<LocalQFLOBackend<DIM>, Q1D>;
 }
 
 template <
@@ -631,7 +631,7 @@ DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionL
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::template
-          derivative_action_callback<LocalQFLOBackend>;
+          derivative_action_callback<LocalQFLOBackend<3>>;
 }
 
 // High Order backend
