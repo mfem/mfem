@@ -31,7 +31,7 @@ namespace mfem{
     while(n > 1){
         nl = (n+1)/2;
         bh = bl + nl;
-        send_hi = (id < nl) ? true : false;
+        send_hi = (id < bh);
         Move(ranks, int_data, real_data, bh, send_hi, send_ranks, send_int_data, send_real_data);
 
         /* overflow check, deal with later
