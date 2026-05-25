@@ -347,7 +347,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ga1 from __constant__ memory on GPU, whose host shadow is not
    // initialized when running on the host backend.
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       PADiffusionApplyTriangle<T_D1D, T_Q1D>(
          NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
@@ -356,6 +356,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       return;
    }
 
+#if MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
@@ -374,7 +375,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    constexpr int BZ_RAW = 128 / BLK;
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST
    // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPADiffTriGa1Init<T_D1D, T_Q1D>)
    {
@@ -873,7 +873,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                  "SmemPADiffusionApplyTetrahedron requires compile-time D1D and Q1D");
 
    // Host backend: dispatch to the (correct, non-Smem) fallback.
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       PADiffusionApplyTetrahedron<T_D1D, T_Q1D>(
          NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
@@ -882,6 +882,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       return;
    }
 
+#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
@@ -903,7 +904,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST
    // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPADiffTetGa1Init<T_D1D, T_Q1D>)
    {

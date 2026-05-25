@@ -294,7 +294,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
 
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       PAMassApplyTriangle<T_D1D, T_Q1D>(
          NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
@@ -303,6 +303,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       return;
    }
 
+#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
@@ -318,7 +319,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
    constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
    constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
    // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPAMassTriBa1Init<T_D1D, T_Q1D>)
    {
@@ -747,7 +747,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       PAMassApplyTetrahedron<T_D1D, T_Q1D>(
          NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
@@ -756,6 +756,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       return;
    }
 
+#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
@@ -773,7 +774,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
    // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPAMassTetBa1Init<T_D1D, T_Q1D>)
    {
