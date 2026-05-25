@@ -15,6 +15,10 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added NVIDIA cuDSS library interface. Implementation examples have been 
+  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more 
+  details. Supported versions >= 0.6.0.
+
 - Extend FindPointsGSLIB to support surface meshes.
 
 - Replaced legacy simplex quadrature rules with symmetric positive-weight
