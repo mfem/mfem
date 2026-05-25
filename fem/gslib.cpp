@@ -3400,18 +3400,36 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fes(mesh, &fec, ncomp,
-                             field_in.FESpace()->GetOrdering());
-      GridFunction field_in_h1(&fes);
-      field_in_h1.UseDevice(false);
+
+      std::unique_ptr<FiniteElementSpace> fes;
+      std::unique_ptr<GridFunction> field_in_h1;
+#ifdef MFEM_USE_MPI
+      if (auto *pmesh = dynamic_cast<ParMesh*>(mesh))
+      {
+         fes = std::make_unique<ParFiniteElementSpace>(
+                  pmesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
+
+         field_in_h1 = std::make_unique<ParGridFunction>(
+                          static_cast<ParFiniteElementSpace*>(fes.get()));
+      }
+      else
+#endif
+      {
+         fes = std::make_unique<FiniteElementSpace>(
+                  mesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
+
+         field_in_h1 = std::make_unique<GridFunction>(fes.get());
+      }
+
+      field_in_h1->UseDevice(false);
 
       if (avgtype == AvgType::ARITHMETIC)
       {
-         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+         field_in_h1->ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
       }
       else if (avgtype == AvgType::HARMONIC)
       {
-         field_in_h1.ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
+         field_in_h1->ProjectDiscCoefficient(field_in_dg, GridFunction::HARMONIC);
       }
       else
       {
@@ -3420,11 +3438,11 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       if (gf_order_h1 == mesh_order) // basis is GaussLobatto by default
       {
-         InterpolateH1(field_in_h1, field_out_l2, field_out_ordering);
+         InterpolateH1(*field_in_h1, field_out_l2, field_out_ordering);
       }
       else
       {
-         InterpolateGeneral(field_in_h1, field_out_l2, field_out_ordering);
+         InterpolateGeneral(*field_in_h1, field_out_l2, field_out_ordering);
       }
 
       // Copy interpolated values for the points on element border
