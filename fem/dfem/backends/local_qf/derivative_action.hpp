@@ -130,14 +130,14 @@ public:
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
 
 #ifndef MFEM_DEBUG
-      // 2D kernels
-      DerivativeActionHO::template Specialization<2, 2>::Add();
-      DerivativeActionHO::template Specialization<2, 3>::Add();
-      DerivativeActionHO::template Specialization<2, 4>::Add();
-      DerivativeActionHO::template Specialization<2, 5>::Add();
-      DerivativeActionHO::template Specialization<2, 6>::Add();
+      // 2D LO kernels
+      DerivativeActionLO::template Specialization<2, 2>::Add();
+      DerivativeActionLO::template Specialization<2, 3>::Add();
+      DerivativeActionLO::template Specialization<2, 4>::Add();
+      DerivativeActionLO::template Specialization<2, 5>::Add();
+      DerivativeActionLO::template Specialization<2, 6>::Add();
 
-      // 3D kernels
+      // 3D LO kernels
       DerivativeActionLO::template Specialization<3, 2>::Add();
       DerivativeActionLO::template Specialization<3, 3>::Add();
       DerivativeActionLO::template Specialization<3, 4>::Add();
@@ -154,11 +154,11 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   template <typename Kernels>
+   template <typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye) const
    {
-      Kernels::Run(
+      Backend::Run(
          dim, q1d,
          // arguments
          ctx, qfunc,
@@ -187,8 +187,7 @@ public:
 
       restriction<Entity::Element>(direction_fd, *direction_l, direction_e,
                                    ElementDofOrdering::LEXICOGRAPHIC);
-
-      if (dim == 3 && q1d <= 8)
+      if (q1d <= 8)
       {
          run_kernels<DerivativeActionLO>(xe, ye);
       }
@@ -199,7 +198,7 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   template<typename backend_t = LocalQFLOBackend<>, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void derivative_action_callback(const IntegratorContext &ctx,
                                           const qfunc_t &qfunc,
                                           // inputs: idx, B, G, vdim, d1d, q1d
@@ -599,7 +598,7 @@ public:
    MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int));
 };
 
-// Low Order backend
+// Low Order kernels
 template <
    int derivative_id,
    typename qfunc_t,
@@ -609,13 +608,14 @@ template <int DIM, int Q1D>
 typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Kernel()
 {
-   static_assert(DIM == 3 && Q1D <= 8);
+   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::template
           derivative_action_callback<LocalQFLOBackend<DIM>, Q1D>;
 }
 
+// Low Order fallback
 template <
    int derivative_id,
    typename qfunc_t,
@@ -625,16 +625,23 @@ typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::Derivati
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Fallback
 (int dim, int q1d)
 {
-   MFEM_VERIFY(dim == 3 && q1d <= 8,
-               "Unsupported dimension: " << dim <<
-               " and/or quadrature order: " << q1d);
+   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return derivative_action_t::template
-          derivative_action_callback<LocalQFLOBackend<3>>;
+   if (dim == 2)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFLOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFLOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// High Order backend
+// High Order kernels
 template <
    int derivative_id,
    typename qfunc_t,
@@ -650,6 +657,7 @@ DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionH
           derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
 }
 
+// High Order fallback
 template <
    int derivative_id,
    typename qfunc_t,

@@ -14,7 +14,6 @@
 namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
-
 #include "util.hpp"
 
 namespace mfem::future
@@ -48,7 +47,8 @@ struct ho_qreg<KerOps, T, 2>
 template<typename KerOps, typename T>
 using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
 
-namespace ho_qp_detail
+///////////////////////////////////////////////////////////////////////////////
+namespace hok
 {
 
 /// Load one quadrature-point value
@@ -185,7 +185,7 @@ MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
    }
 }
 
-/// Pull primal/tangent pair into a dual q-function argument (HO registers)
+/// Pull primal/tangent pair into a dual q-function argument
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
                                               int qx, int qy, int qz,
@@ -273,8 +273,9 @@ MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
    }
 }
 
-} // namespace ho_qp_detail
+} // namespace hok
 
+///////////////////////////////////////////////////////////////////////////////
 /// HO tensor-product kernels
 template<int T_DIM, int MQ1>
 struct ho_ker_backend
@@ -294,8 +295,14 @@ struct ho_ker_backend
    static MFEM_HOST_DEVICE void load_dofs(const int e, const int d,
                                           const XE_t &XE, Dofs &dofs)
    {
-      if constexpr (DIM == 2) { ker::LoadDofs2d(e, d, XE, dofs); }
-      else { ker::LoadDofs3d(e, d, XE, dofs); }
+      if constexpr (DIM == 2)
+      {
+         ker::LoadDofs2d(e, d, XE, dofs);
+      }
+      else
+      {
+         ker::LoadDofs3d(e, d, XE, dofs);
+      }
    }
 
    template<int VDIM, int SDIM, typename XE_t, typename Dofs>
@@ -312,7 +319,7 @@ struct ho_ker_backend
    {
       if constexpr (DIM == 2)
       {
-         ker::Eval2d<1, MQ1>(d, q, s.M, s.B, dofs, rarg);
+         ker::Eval2d(d, q, s.M, s.B, dofs, rarg);
       }
       else
       {
@@ -327,7 +334,7 @@ struct ho_ker_backend
       static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
       if constexpr (DIM == 2)
       {
-         ker::Grad2d<VDIM, SDIM, MQ1>(d, q, s.M, s.B, s.G, dofs, rarg);
+         ker::Grad2d(d, q, s.M, s.B, s.G, dofs, rarg);
       }
       else
       {
@@ -343,7 +350,7 @@ struct ho_ker_backend
    {
       if constexpr (DIM == 2)
       {
-         ker::EvalTranspose2d<1, MQ1>(d, q, s.M, s.B, rarg, dofs);
+         ker::EvalTranspose2d(d, q, s.M, s.B, rarg, dofs);
          ker::WriteDofs2d(e, d, dofs, YE);
       }
       else
@@ -353,15 +360,14 @@ struct ho_ker_backend
       }
    }
 
-   template<int VDIM, int SDIM, typename Smem, typename Dofs, typename ArgReg,
-            typename YE_t>
+   template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
    static MFEM_HOST_DEVICE void write_gradient_2d(const int d, const int q,
                                                   const int e, Smem &s,
                                                   ArgReg &rarg, Dofs &dofs,
                                                   YE_t &YE)
    {
-      ker::GradTranspose2d<VDIM, SDIM, MQ1>(d, q, s.M, s.B, s.G, rarg, dofs);
-      ker::WriteDofs2d<VDIM, SDIM, MQ1>(e, d, dofs, YE);
+      ker::GradTranspose2d(d, q, s.M, s.B, s.G, rarg, dofs);
+      ker::WriteDofs2d(e, d, dofs, YE);
    }
 
    template<typename Smem, typename Dofs, typename ArgReg, typename YE_t>
@@ -384,7 +390,7 @@ struct ho_ker_backend
       static_assert(SDIM == DIM, "gradient spatial dim must match kernel DIM");
       if constexpr (DIM == 2)
       {
-         write_gradient_2d<VDIM, SDIM>(d, q, e, s, rarg, dofs, YE);
+         write_gradient_2d(d, q, e, s, rarg, dofs, YE);
       }
       else
       {
@@ -399,11 +405,12 @@ struct LocalQFHOBackend
 {
    //////////////////////////////////////////////////////////////////
    static constexpr int DIM = T_DIM, MQ1 = 20;
+   static_assert(DIM == 2 || DIM == 3);
 
    //////////////////////////////////////////////////////////////////
    static inline ThreadBlocks thread_blocks(const int q1d)
    {
-      MFEM_ASSERT(q1d <= MQ1, "q1d must be less than or equal to MQ1:" << MQ1);
+      MFEM_ASSERT(q1d <= MQ1, "q1d must be <= MQ1:" << MQ1);
       return {q1d, q1d, 1};
    }
 
@@ -470,7 +477,7 @@ struct LocalQFHOBackend
    static MFEM_HOST_DEVICE inline
    auto qp_pull(QReg<T, MQ1> &reg, int qx, int qy, int qz)
    {
-      return ho_qp_detail::load_at<DIM, T>(reg, qx, qy, qz);
+      return hok::load_at<DIM, T>(reg, qx, qy, qz);
    }
 
    //////////////////////////////////////////////////////////////////
@@ -478,7 +485,7 @@ struct LocalQFHOBackend
    static MFEM_HOST_DEVICE inline
    void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
-      ho_qp_detail::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
+      hok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
    }
 
    //////////////////////////////////////////////////////////////////
@@ -487,8 +494,8 @@ struct LocalQFHOBackend
    auto qp_pull_directional(QReg<T, MQ1> &preg, QReg<T, MQ1> &sreg,
                             int qx, int qy, int qz, bool dependent)
    {
-      return ho_qp_detail::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
-                                                    dependent);
+      return hok::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
+                                           dependent);
    }
 
    //////////////////////////////////////////////////////////////////
@@ -496,8 +503,9 @@ struct LocalQFHOBackend
    static MFEM_HOST_DEVICE inline
    void qp_push_tangent(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
    {
-      ho_qp_detail::store_at<DIM, T, decltype(reg), qf_param_uses_dual_v<T>>
-                                                                          (reg, qx, qy, qz, out);
+      hok::store_at<DIM, T, decltype(reg),
+          qf_param_uses_dual_v<T>>
+          (reg, qx, qy, qz, out);
    }
 
    //////////////////////////////////////////////////////////////////

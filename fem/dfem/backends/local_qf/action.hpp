@@ -104,11 +104,11 @@ public:
                   "LocalQFBackend: unionfds size mismatch");
 #ifndef MFEM_DEBUG
       // 2D kernels
-      ActionHO::template Specialization<2, 2>::Add();
-      ActionHO::template Specialization<2, 3>::Add();
-      ActionHO::template Specialization<2, 4>::Add();
-      ActionHO::template Specialization<2, 5>::Add();
-      ActionHO::template Specialization<2, 6>::Add();
+      ActionLO::template Specialization<2, 2>::Add();
+      ActionLO::template Specialization<2, 3>::Add();
+      ActionLO::template Specialization<2, 4>::Add();
+      ActionLO::template Specialization<2, 5>::Add();
+      ActionLO::template Specialization<2, 6>::Add();
 
       // 3D kernels
       ActionLO::template Specialization<3, 2>::Add();
@@ -126,11 +126,11 @@ public:
 #endif
    }
 
-   template <typename Kernels>
+   template <typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye) const
    {
-      Kernels::Run(
+      Backend::Run(
          dim, q1d,
          // arguments
          ctx, qfunc,
@@ -148,7 +148,7 @@ public:
       const std::vector<Vector *> &xe,
       std::vector<Vector *> &ye) const
    {
-      if (dim == 3 && q1d <= 8)
+      if (q1d <= 8)
       {
          run_kernels<ActionLO>(xe, ye);
       }
@@ -159,7 +159,7 @@ public:
    }
 
    ////////////////////////////////////////////////////////
-   template<typename backend_t = LocalQFLOBackend<>, int T_Q1D = 0>
+   template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void action_callback(const IntegratorContext &ctx,
                                const qfunc_t &qfunc,
                                // inputs: idx, B, G, vdim, d1d, q1d
@@ -407,7 +407,7 @@ public:
    MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int));
 };
 
-// Low Order backend
+// Low Order kernels
 template <
    typename qfunc_t,
    typename inputs_t,
@@ -416,11 +416,12 @@ template <int DIM, int Q1D>
 typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
-   static_assert(DIM == 3 && Q1D <= 8);
+   static_assert(Q1D <= 8);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    return action_t::template action_callback<LocalQFLOBackend<DIM>, Q1D>;
 }
 
+// Low Order fallback
 template <
    typename qfunc_t,
    typename inputs_t,
@@ -428,14 +429,20 @@ template <
 typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(dim == 3 && q1d <= 8,
-               "Unsupported dimension: " << dim <<
-               " and/or quadrature order: " << q1d);
+   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend<3>>;
+   if (dim == 2)
+   {
+      return action_t::template action_callback<LocalQFLOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return action_t::template action_callback<LocalQFLOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// High Order backend
+// High Order kernels
 template <
    typename qfunc_t,
    typename inputs_t,
@@ -448,6 +455,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
    return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
 }
 
+// High Order fallback
 template <
    typename qfunc_t,
    typename inputs_t,

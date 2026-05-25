@@ -13,10 +13,10 @@
 #include "action.hpp"
 #include "derivative_action_enzyme.hpp"
 #include "derivative_setup.hpp"
-#include "../local_qf/derivative_apply.hpp"
-#include "../local_qf/derivative_apply_transpose.hpp"
-#include "../local_qf/derivative_assemble.hpp"
-#include "../local_qf/derivative_assemble_diagonal.hpp"
+// #include "../local_qf/derivative_apply.hpp"
+// #include "../local_qf/derivative_apply_transpose.hpp"
+// #include "../local_qf/derivative_assemble.hpp"
+// #include "../local_qf/derivative_assemble_diagonal.hpp"
 
 namespace mfem::future
 {
@@ -83,9 +83,11 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      return LocalQFImpl::DerivativeApply<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+      // return LocalQFImpl::DerivativeApply<
+      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
+      //           ctx, qfunc, inputs, outputs, qp_cache);
+      MFEM_ABORT("DerivativeApply is not implemented for GlobalQFBackend");
+      return nullptr;
    }
 
    template<
@@ -100,9 +102,11 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      return LocalQFImpl::DerivativeApplyTranspose<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+      // return LocalQFImpl::DerivativeApplyTranspose<
+      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
+      //           ctx, qfunc, inputs, outputs, qp_cache);
+      MFEM_ABORT("DerivativeApplyTranspose is not implemented for GlobalQFBackend");
+      return nullptr;
    }
 
    template<
@@ -117,9 +121,11 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      return LocalQFImpl::DerivativeAssemble<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+      // return LocalQFImpl::DerivativeAssemble<
+      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
+      //           ctx, qfunc, inputs, outputs, qp_cache);
+      MFEM_ABORT("DerivativeAssemble is not implemented for GlobalQFBackend");
+      return nullptr;
    }
 
    template<
@@ -134,11 +140,12 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      return LocalQFImpl::DerivativeAssembleDiagonal<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+      // return LocalQFImpl::DerivativeAssembleDiagonal<
+      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
+      //           ctx, qfunc, inputs, outputs, qp_cache);
+      MFEM_ABORT("DerivativeAssembleDiagonal is not implemented for GlobalQFBackend");
+      return nullptr;
    }
-
 };
 
-}
+} // namespace mfem::future

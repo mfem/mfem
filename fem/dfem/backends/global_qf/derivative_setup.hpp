@@ -172,7 +172,7 @@ struct DerivativeSetup
                         for (int k = 0; k < test_op_dim_o; k++)
                         {
                            const int c_out = i * test_op_dim_o + k;
-                           // Match LocalQF DerivativeApply qpdc(m, j, k, i, q) layout.
+                           // Row layout for cached Jacobian (LocalQF apply / assemble).
                            const int cache_idx =
                               (out_offset_o + i * test_op_dim_o) * trial_vdim_local *
                               total_trial_op_dim_local +

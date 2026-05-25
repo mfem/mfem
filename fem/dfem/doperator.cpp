@@ -118,10 +118,25 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_cbs = it_setup->second;
    }
 
+#ifdef MFEM_USE_ENZYME
+   // Prefer cached Enzyme apply callbacks (match assembly / transpose paths).
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+   auto it_apply = derivative_apply_callbacks.find(derivative_id);
+   if (it_apply != derivative_apply_callbacks.end() &&
+       !it_apply->second.empty())
+   {
+      mult_callbacks = &it_apply->second;
+   }
+#else
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+#endif
+
    return std::make_shared<DerivativeOperator>(
              height,
              GetTrueVSize(infds[dfidx]),
-             derivative_action_callbacks[derivative_id],
+             *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
@@ -180,10 +195,24 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_cbs = it_setup->second;
    }
 
+#ifdef MFEM_USE_ENZYME
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+   auto it_apply = derivative_apply_callbacks.find(derivative_id);
+   if (it_apply != derivative_apply_callbacks.end() &&
+       !it_apply->second.empty())
+   {
+      mult_callbacks = &it_apply->second;
+   }
+#else
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+#endif
+
    return std::make_shared<DerivativeOperator>(
              height,
              GetTrueVSize(infds[dfidx]),
-             derivative_action_callbacks[derivative_id],
+             *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
