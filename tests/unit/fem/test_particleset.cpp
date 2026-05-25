@@ -180,7 +180,7 @@ TEST_CASE("Get Particle Reference", "[ParticleSet]")
 
 }
 
-#if defined(MFEM_USE_MPI)
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 static constexpr int N_e = 10;
 
@@ -328,4 +328,4 @@ TEST_CASE("Particle Redistribution", "[ParticleSet][Parallel]")
    TestRedistribute(Ordering::byVDIM);
 }
 
-#endif // MFEM_USE_MPI
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
