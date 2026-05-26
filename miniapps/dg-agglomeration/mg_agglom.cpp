@@ -554,7 +554,6 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
 
    // Initialize B
-   std::cout << "construct B0 " << std::endl;
    int num_samp = ncoarse*ncoarse; // 16 if 2-dimensional, 64 if 3-dimensional.
    DenseMatrix B(nnodes, num_samp); 
    std::random_device rd;
@@ -672,7 +671,7 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       }
 
       // Initialize matrix P, and fill in values using Parr
-      SparseMatrix *P = new SparseMatrix(prev_dof_idx.Last(), curr_dof_idx.Last());
+      std::unique_ptr<SparseMatrix> P(new SparseMatrix(prev_dof_idx.Last(), curr_dof_idx.Last()));
       for (int pidx = 0; pidx < Parr.size(); pidx++)
       {
          Vector P_v = Parr[pidx];
@@ -682,7 +681,8 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       P->Finalize();
 
       // Construct the prolongation matrix, T, by computing T= (I - \tilde{A}^{-1} A)P
-      SparseMatrix A_til_inv_A_mat = *mfem::Mult(A_tilde_inv, A_prev); // \tilde{A}^{-1} A
+      std::unique_ptr<SparseMatrix> A_til_inv_A_mat_ptr(mfem::Mult(A_tilde_inv, A_prev));
+      SparseMatrix A_til_inv_A_mat = *A_til_inv_A_mat_ptr; // \tilde{A}^{-1} A
       Vector ones(A_prev.Height());
       ones = 1.0;
       SparseMatrix Id(ones);
@@ -704,7 +704,9 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       // performs the action of multiplying with A_tilde_inv.
       smoothers[k+1] = new BlockJacobi(*operators[k+1], A_tilde_inv);
 
-      B = *mfem::Mult(*Pt, B); // Initialize B for next level 
+      DenseMatrix *B_new = mfem::Mult(*Pt, B); // Initialize B for next level 
+      B = *B_new;
+      delete B_new;
       prev_dof_idx = curr_dof_idx; // set prev_dof_idx for next level 
    }
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
