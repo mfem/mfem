@@ -60,12 +60,15 @@ class CubitBlock;
 }
 #endif
 
+namespace gmsh { class GmshReader; }
+
 /// Mesh data type
 class Mesh
 {
    friend class NCMesh;
    friend class NURBSExtension;
    friend class NCNURBSExtension;
+   friend class gmsh::GmshReader;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
@@ -362,7 +365,7 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
                       bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+   void ReadGmshMesh(std::istream &input);
 
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
@@ -3206,10 +3209,22 @@ public:
 
 
 /// Extrude a 1D mesh
+/**
+ * @param mesh      1D mesh
+ * @param ny        number of transverse elements of the extruded mesh
+ * @param sy        physical size in the direction of extrusion
+ * @param closed    if false, only the original boundaries are extruded,
+ *                  otherwise boundaries are generated all around the domain
+ */
 Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
                 const bool closed = false);
 
 /// Extrude a 2D mesh
+/**
+ * @param mesh      2D mesh
+ * @param nz        number of transverse elements of the extruded mesh
+ * @param sz        physical size in the direction of extrusion
+ */
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
 
 /** @brief Constructs the smallest possible [0,1]^dim serial mesh that can be

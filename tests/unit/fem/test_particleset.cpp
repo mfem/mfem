@@ -296,7 +296,7 @@ void TestRedistribute(Ordering::Type ordering)
       int wrong_proc_count = 0;
       for (int i = 0; i < procs.Size(); i++)
       {
-         if (rank != procs[i])
+         if (static_cast<unsigned>(rank) != procs[i])
          {
             wrong_proc_count++;
          }
