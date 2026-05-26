@@ -1297,7 +1297,7 @@ int main (int argc, char *argv[])
       common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
                              "Zeta0(1) - final mesh", 600, 600, 300, 300);
       common::VisualizeField(vis2, "localhost", 19916, adapt_lim_gf0_2,
-                             "Zet0(2) - final mesh", 600, 900, 300, 300);
+                             "Zeta0(2) - final mesh", 600, 900, 300, 300);
    }
 
    // Visualize the mesh displacement.
