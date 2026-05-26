@@ -449,7 +449,6 @@ int main(int argc, char *argv[])
 
          L2ZZErrorEstimator(flux_integrator, x,
                             smooth_flux_fes, flux_fes, errors, norm_p);
-
       }
 
       real_t local_max_err = errors.Max();

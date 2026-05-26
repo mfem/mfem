@@ -225,7 +225,6 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
-      cout << "Resizing ess_bdr to : " << pmesh.bdr_attributes.Max() << endl;
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
    }
@@ -351,11 +350,10 @@ int main(int argc, char *argv[])
          pmesh.GetCharacteristics(min_elem_size, max_elem_size,
                                   kappa_min, kappa_max);
       }
-      cout << myid << ": done with width calc" << endl;
 
       // Obtain the global number of degrees of freedom
       int prob_size = fespace.GlobalTrueVSize();
-      cout << myid << ": done with size calc" << endl;
+
       // Send the solution to VisIt if enabled.
       if (visit)
       {
@@ -379,7 +377,6 @@ int main(int argc, char *argv[])
                      << min_elem_size << '\t' << max_elem_size << '\t'
                      << width << endl;
       }
-      cout << myid << ": done with gnuplot output" << endl;
 
       // Send the solution by socket to a GLVis server if enabled.
       if (visualization)
@@ -394,7 +391,6 @@ int main(int argc, char *argv[])
          }
          sol_sock << flush;
       }
-      cout << myid << ": done with GLVis output" << endl;
 
       if (Mpi::Root())
       {
@@ -435,27 +431,23 @@ int main(int argc, char *argv[])
       }
 
       // Estimate element errors using the Zienkiewicz-Zhu error estimator.
-      cout << myid << ": allocating errors vector of size " << pmesh.GetNE() << endl;
       Vector errors(pmesh.GetNE());
       {
          if (Mpi::Root()) { cout << "Estimating error..." << endl; }
-         cout << myid << ": 0" << endl;
          DiffusionIntegrator flux_integrator(anisoDiffCoef);
          L2_FECollection flux_fec(order, dim);
          ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, 2);
-         cout << myid << ": 1" << endl;
+
          // Space for the smoothed (conforming) flux
          int norm_p = 1;
          RT_FECollection smooth_flux_fec(order-1, dim);
          ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
-         cout << myid << ": 2" << endl;
+
          L2ZZErrorEstimator(flux_integrator, x,
                             smooth_flux_fes, flux_fes, errors, norm_p);
-         cout << myid << ": 3" << endl;
       }
 
       real_t local_max_err = errors.Max();
-      cout << myid << ": Local error: " << local_max_err << endl;
       real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MFEM_MPI_REAL_T, MPI_MAX, pmesh.GetComm());
