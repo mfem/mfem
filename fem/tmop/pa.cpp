@@ -202,8 +202,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
    // All are constant or not specified.
    const int nal = PA.nal;
-   const bool alc_is_qvec = (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne)
-                                      : false;
+   const bool alc_is_qvec =
+      (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne) : false;
    if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && !alc_is_qvec) { return; }
 
    // Coefficients are always evaluated on the CPU for now.
@@ -365,8 +365,8 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.nal = nal;
 
    // adapt_lim_coeff -> PA.ALC
-   // Keep the ConstantCoefficient fast-path: when all coefficients are constant,
-   // store one scalar per adaptive-limiting term.
+   // Keep the ConstantCoefficient fast-path: when all coefficients are
+   // constant, store one scalar per adaptive-limiting term.
    bool all_const = true;
    for (int c = 0; c < nal; c++)
    {
