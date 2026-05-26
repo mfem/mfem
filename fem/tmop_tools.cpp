@@ -68,6 +68,9 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
       }
    }
 
+   // Without this, the next remap would start from the initial mesh, i.e.,
+   // every consecutive remap would be more expensive, as it would have to
+   // transport the solution through bigger displacements.
    field0 = new_field;
    nodes0 = new_mesh_nodes;
 }

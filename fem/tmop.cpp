@@ -3844,6 +3844,7 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
    MFEM_VERIFY(sfes->GetVDim() == 1, "Expects scalar input GridFunctions.");
    const int ndofs = sfes->GetVSize();
    Mesh *mesh = sfes->GetMesh();
+   MFEM_VERIFY(mesh->GetNodes(), "EnableAdaptiveLimiting requires mesh Nodes.");
    for (int i = 0; i < z0.Size(); i++)
    {
       MFEM_VERIFY(z0[i], "NULL GridFunction pointer.");
@@ -3854,23 +3855,24 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
       MFEM_VERIFY(coeff[i], "NULL Coefficient pointer.");
    }
 
-   // Reset any previously enabled adaptive limiting data.
+   // Delete previos adaptive limiting data.
    for (int i = 0; i < adapt_lim_gf.Size(); i++) { delete adapt_lim_gf[i]; }
    for (int i = 0; i < adapt_lim_gf0.Size(); i++) { delete adapt_lim_gf0[i]; }
-   adapt_lim_gf.SetSize(0);
-   adapt_lim_gf0.SetSize(0);
-   adapt_lim_init_nodes.SetSize(0);
-   adapt_lim_coeff.SetSize(0);
 
    adapt_lim_coeff.SetSize(coeff.Size());
    for (int i = 0; i < coeff.Size(); i++) { adapt_lim_coeff[i] = coeff[i]; }
    adapt_lim_eval = &ae;
    adapt_lim_delta_max = delta_max;
-
-   // Cache the initial mesh nodes (ldofs) so we can re-set the evaluator's
-   // source field for each component as needed.
-   MFEM_VERIFY(mesh->GetNodes(), "EnableAdaptiveLimiting requires mesh Nodes.");
    adapt_lim_init_nodes = *mesh->GetNodes();
+
+   // Use one internal vector field (vdim = #fields) so remapping can be done in
+   // one call and incremental remap state (when provided by the evaluator) is
+   // preserved across TMOP iterations.
+   //
+   // Use Ordering::byNODES for the packed vector field so packing / unpacking
+   // can be done with contiguous sub-vector copies (device-friendly).
+   const int nal = z0.Size();
+   const Ordering::Type packed_ord = Ordering::byNODES;
 
    // Setup the evaluator.
 #ifdef MFEM_USE_MPI
@@ -3878,12 +3880,14 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
    {
       auto *pm = pfes->GetParMesh();
       MFEM_VERIFY(pm, "Invalid ParMesh.");
-      adapt_lim_eval->SetParMetaInfo(*pm, *pfes);
+      ParFiniteElementSpace vfes(pm, pfes->FEColl(), nal, packed_ord);
+      adapt_lim_eval->SetParMetaInfo(*pm, vfes);
    }
    else
 #endif
    {
-      adapt_lim_eval->SetSerialMetaInfo(*mesh, *sfes);
+      FiniteElementSpace vfes(mesh, sfes->FEColl(), nal, packed_ord);
+      adapt_lim_eval->SetSerialMetaInfo(*mesh, vfes);
    }
 
    // Copy the initial fields; remapped fields are initialized to the same data.
@@ -3895,9 +3899,17 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
       adapt_lim_gf[i]  = new GridFunction(*z0[i]);
    }
 
-   // Initialize the evaluator with the first field; the source field will be
-   // switched as needed when remapping multiple fields.
-   adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[0]);
+   // Initialize the evaluator with the packed vector field.
+   Vector init_field_vec;
+   init_field_vec.SetSize(nal * ndofs, *adapt_lim_gf0[0]);
+   init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
+   for (int c = 0; c < nal; c++)
+   {
+      Vector init_c;
+      init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
+      init_c = *adapt_lim_gf0[c];
+   }
+   adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
 }
 
 #ifdef MFEM_USE_MPI
@@ -4236,8 +4248,25 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
 
       Mesh *mesh = adapt_lim_gf[0]->FESpace()->GetMesh();
 
-      adapt_lim_eval->SetSerialMetaInfo(*mesh, *adapt_lim_gf[0]->FESpace());
-      adapt_lim_eval->SetInitialField(*mesh->GetNodes(), *adapt_lim_gf0[0]);
+      // Same setup as in EnableAdaptiveLimiting().
+      const int nal = adapt_lim_coeff.Size();
+      const Ordering::Type packed_ord = Ordering::byNODES;
+      FiniteElementSpace vfes(mesh, adapt_lim_gf[0]->FESpace()->FEColl(), nal,
+                              packed_ord);
+      adapt_lim_eval->SetSerialMetaInfo(*mesh, vfes);
+
+      adapt_lim_init_nodes = *mesh->GetNodes();
+      const int ndofs = adapt_lim_gf0[0]->Size();
+      Vector init_field_vec;
+      init_field_vec.SetSize(nal * ndofs, *adapt_lim_gf0[0]);
+      init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
+      for (int c = 0; c < nal; c++)
+      {
+         Vector init_c;
+         init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
+         init_c = *adapt_lim_gf0[c];
+      }
+      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
 }
 
@@ -4249,12 +4278,28 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
       for (int i = 0; i < adapt_lim_gf0.Size(); i++) { adapt_lim_gf0[i]->Update(); }
       for (int i = 0; i < adapt_lim_gf.Size(); i++) { adapt_lim_gf[i]->Update(); }
 
+      // Same setup as in EnableAdaptiveLimiting().
       auto *pfes = dynamic_cast<ParFiniteElementSpace *>(adapt_lim_gf[0]->FESpace());
       MFEM_VERIFY(pfes, "internal error");
       ParMesh *pmesh = pfes->GetParMesh();
 
-      adapt_lim_eval->SetParMetaInfo(*pmesh, *pfes);
-      adapt_lim_eval->SetInitialField(*pmesh->GetNodes(), *adapt_lim_gf0[0]);
+      const int nal = adapt_lim_coeff.Size();
+      const Ordering::Type packed_ord = Ordering::byNODES;
+      ParFiniteElementSpace vfes(pmesh, pfes->FEColl(), nal, packed_ord);
+      adapt_lim_eval->SetParMetaInfo(*pmesh, vfes);
+
+      adapt_lim_init_nodes = *pmesh->GetNodes();
+      const int ndofs = adapt_lim_gf0[0]->Size();
+      Vector init_field_vec;
+      init_field_vec.SetSize(nal * ndofs, *adapt_lim_gf0[0]);
+      init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
+      for (int c = 0; c < nal; c++)
+      {
+         Vector init_c;
+         init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
+         init_c = *adapt_lim_gf0[c];
+      }
+      adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
 }
 #endif
@@ -5796,11 +5841,18 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf.Size() > 0)
    {
+      // All adapt_lim_gf are remapped as a multi-component vector.
       const int nal = adapt_lim_coeff.Size();
+      const int ndofs = adapt_lim_gf0[0]->Size();
+      Vector new_field_vec;
+      new_field_vec.SetSize(nal * ndofs, *adapt_lim_gf[0]);
+      new_field_vec.UseDevice(adapt_lim_gf[0]->UseDevice());
+      adapt_lim_eval->ComputeAtNewPosition(x_loc, new_field_vec, ordering);
       for (int c = 0; c < nal; c++)
       {
-         adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, *adapt_lim_gf0[c]);
-         adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf[c], ordering);
+         Vector new_c;
+         new_c.MakeRef(new_field_vec, c * ndofs, ndofs);
+         *adapt_lim_gf[c] = new_c;
       }
 
       if (PA.enabled)
