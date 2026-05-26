@@ -721,7 +721,7 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Ginkgo may have additional
-  requirements and dependencies of specific modules, see the webpage below.
+  requirements and module-specific dependencies; see the webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
