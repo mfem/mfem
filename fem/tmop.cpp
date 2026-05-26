@@ -5867,7 +5867,6 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
          const FiniteElementSpace *alfes = adapt_lim_gf[0]->FESpace();
          const Operator *alf_R = alfes->GetElementRestriction(ord);
 
-         const int ndofs = alfes->GetVSize();
          const int Esize = alf_R->Height();
          Vector ALFc;
          for (int c = 0; c < nal; c++)
