@@ -4933,10 +4933,6 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    }
    if (print_interfaces && Dim > 1)
    {
-      // FIXME: If an interface face is also a shared face, we don't need to
-      //        double it -- the other processor will create the second face.
-      // FIXME: Double the faces also in 2D to get the boundaries when we shrink
-      //        the materials in GLVis?
       // in 3D we print two oriented copies for each material interface face
       num_bdr_elems += (Dim == 3 ? 2 : 1) * interface_faces.Size();
    }
@@ -4973,19 +4969,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       {
          const int f = interface_faces[i];
          const int *fv = faces[f]->GetVertices();
-         // FIXME: Print the interface faces with the attribute of the material?
          if (Dim == 2)
          {
-            // FIXME: Double the edges also in 2D to get the boundaries when we
-            //        shrink the materials in GLVis?
             Segment seg(fv, interface_bdr_attr);
             PrintElement(&seg, os);
          }
          else // Dim == 3
          {
-            // FIXME: If an interface face is also a shared face, we don't need
-            //        to double it -- the other processor will create the second
-            //        face.
             const Geometry::Type geom = faces[f]->GetGeometryType();
             if (geom == Geometry::TRIANGLE)
             {
@@ -5249,10 +5239,6 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
    if (print_interfaces && Dim > 1)
    {
-      // FIXME: If an interface face is also a shared face, we don't need to
-      //        double it -- the other processor will create the second face.
-      // FIXME: Double the faces also in 2D to get the boundaries when we shrink
-      //        the materials in GLVis?
       // In 3D we print two oriented copies for each material interface face:
       ne += (Dim == 3 ? 2 : 1) * interface_faces.Size();
    }
@@ -5345,19 +5331,13 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       {
          const int f = interface_faces[i];
          const int *fv = faces[f]->GetVertices();
-         // FIXME: Print the interface faces with the attribute of the material?
          if (Dim == 2)
          {
-            // FIXME: Double the edges also in 2D to get the boundaries when we
-            //        shrink the materials in GLVis?
             Segment seg(fv, interface_bdr_attr);
             dump_element_with_attr(&seg, ints); ne++;
          }
          else // Dim == 3
          {
-            // FIXME: If an interface face is also a shared face, we don't need
-            //        to double it -- the other processor will create the second
-            //        face.
             const Geometry::Type geom = faces[f]->GetGeometryType();
             if (geom == Geometry::TRIANGLE)
             {
