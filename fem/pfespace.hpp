@@ -345,7 +345,7 @@ public:
        of size GetVSize() if HaveDofSigns() is true. If HaveDofSigns() is false,
        this method is no-op and returns immediately. */
    void ApplyDofSigns(real_t *h_data) const;
-   int GetDofSign(int i)
+   int GetDofSign(int i) const
    { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
 
    HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }

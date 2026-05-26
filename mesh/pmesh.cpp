@@ -5100,8 +5100,8 @@ void ParMesh::FindInterface(Array<int> &interface) const
       else
       {
          // Shared face: element 2 is a face-neighbor element with index
-         // -1-Elem2No (see Mesh::FaceInfo).
-         const int nbr_el = -1 - faces_info[f].Elem2No;
+         // -1-Elem2No, i.e. FlipIndexSign(Elem2No) (see Mesh::FaceInfo).
+         const int nbr_el = FlipIndexSign(faces_info[f].Elem2No);
          MFEM_ASSERT(0 <= nbr_el && nbr_el < face_nbr_elements.Size(),
                      "ParMesh::Print: invalid face-neighbor index");
          a2 = face_nbr_elements[nbr_el]->GetAttribute();
@@ -5268,12 +5268,14 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
    if (print_shared && !pncmesh)
    {
+      // Attribute for visualized shared faces on parallel interfaces:
+      constexpr int shared_attribute = 1;
       switch (Dim)
       {
          case 1:
             for (i = 0; i < svert_lvert.Size(); i++)
             {
-               ints.Append(1); // attribute
+               ints.Append(shared_attribute);
                ints.Append(Geometry::POINT);
                ints.Append(svert_lvert[i]);
                ne++;
@@ -5290,14 +5292,14 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
          case 3:
             for (i = 0; i < shared_trias.Size(); i++)
             {
-               ints.Append(1); // attribute
+               ints.Append(shared_attribute);
                ints.Append(Geometry::TRIANGLE);
                ints.Append(shared_trias[i].v, 3);
                ne++;
             }
             for (i = 0; i < shared_quads.Size(); i++)
             {
-               ints.Append(1); // attribute
+               ints.Append(shared_attribute);
                ints.Append(Geometry::SQUARE);
                ints.Append(shared_quads[i].v, 4);
                ne++;

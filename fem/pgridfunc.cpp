@@ -1084,6 +1084,11 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
 void ParGridFunction::Save(std::ostream &os) const
 {
+   // We use const_cast + HostRead (instead of HostReadWrite) because we only
+   // need to change the host data temporarily and this way we do not invalidate
+   // the data if it is on device. If we use HostReadWrite here, later calls to
+   // Read or ReadWrite will need to copy the data from host to device. With the
+   // approach used here, the host-to-device copy is avoided.
    real_t *h_data = const_cast<real_t*>(HostRead());
    pfes->ApplyDofSigns(h_data);
 
@@ -1260,6 +1265,11 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
+   // We use const_cast + HostRead (instead of HostReadWrite) because we only
+   // need to change the host data temporarily and this way we do not invalidate
+   // the data if it is on device. If we use HostReadWrite here, later calls to
+   // Read or ReadWrite will need to copy the data from host to device. With the
+   // approach used here, the host-to-device copy is avoided.
    real_t * h_data = const_cast<real_t *>(this->HostRead());
    pfes->ApplyDofSigns(h_data);  // temporarily flip the dof signs
 
