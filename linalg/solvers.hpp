@@ -1042,6 +1042,22 @@ private:
 };
 
 
+class BlockJacobi : public Solver
+{
+public:
+   BlockJacobi(const Operator &op, SparseMatrix &Block_Diag_Mat);
+
+   void SetOperator(const Operator &op);
+
+   void Mult(const Vector &b, Vector &x) const;
+
+   void MultTranspose(const Vector &b, Vector &x) const;
+
+
+private:
+   SparseMatrix Block_Diag_Mat;
+};
+
 class Blockl1Jacobi : public Solver
 {
 public:

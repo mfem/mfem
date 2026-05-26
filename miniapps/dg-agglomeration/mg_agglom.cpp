@@ -438,24 +438,75 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       }
    }
 }
-
-real_t AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
+/** Construct Block Jacobi Smoother
+ *  Extracts the block diagonal of A, given a block size. Then inverts the matrix by inverting
+ *  each of the blocks.
+ */
+SparseMatrix ExtractBlockDiagonalInverse(SparseMatrix &A, int blocksize)
 {
-   // SparseMatrix &A = static_cast<SparseMatrix&>(op);
+   SparseMatrix Block_Diag_Mat(A.Height(), A.Width());
+   const int nblockrows = A.Height() / blocksize;
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      DenseMatrix Block(blocksize, blocksize);
+      Block = 0.0;
+      // Extract the block from the matrix A
+      for (int bi = 0; bi < blocksize; ++bi)
+      {
+         int i = iblock * blocksize + bi;
+         for (int k = I[i]; k < I[i+1]; ++k)
+         {
+            const int j = J[k];
+            real_t val = V[k];
+            if (j >= iblock*blocksize && j < (iblock + 1)*blocksize)
+            {
+               const int bj = j - iblock*blocksize;
+               Block(bi, bj) = val;
+            }
+         }
+      }
+      // Invert the block
+      Block.Invert();
+      // Insert the inverted block into the block diagonal matrix
+      for (int r = 0; r < blocksize; r++)
+      {
+         for(int c = 0; c < blocksize; c++)
+         {
+            int row_idx = blocksize*iblock + r;
+            int col_idx = blocksize*iblock + c;
+            Block_Diag_Mat.Set(row_idx, col_idx, Block(r, c));
+         }
+      }
+   }
+   Block_Diag_Mat.Finalize();
+   return Block_Diag_Mat;
+}
+
+/** Adaptive Smoother
+ *  Returns the block Jacobi Smoother with appropriate damping coefficient. In addition, also smooths
+ *  the columns of the matrix B.
+ */
+SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_random, DenseMatrix &B)
+{
+   // Find optimal damping coefficient through power iteration.
    Vector PinvAx = x_random;
-   BlockGS *smoother = new BlockGS(op, blocksize);
+   SparseMatrix smoother = ExtractBlockDiagonalInverse(A, blocksize);
    for(int i = 0; i < 4; i++)
    {
       Vector Ax(PinvAx.Size());
       A.Mult(PinvAx, Ax);
-      smoother->Mult(Ax, PinvAx);
+      smoother.Mult(Ax, PinvAx);
       if (i != 3){PinvAx /= PinvAx.Norml2();}
    }
    real_t rho = PinvAx.Norml2();
    real_t w = 4.0/3.0/rho;
-   real_t w_recip = 1.0 / w;
-   smoother->SetDamping(1.0 / w);
-   real_t tol = 1 + 0.03;
+   smoother *= w;
+
+   // Smooth the columns of B.
+   real_t tol = 1.03;
    int num_B_cols = B.Width();
    int num_B_rows = B.Height();
    for(int j = 0; j < num_B_cols; j++)
@@ -472,7 +523,7 @@ real_t AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_
       {
          b_prev = b;
          A.Mult(b, Ab);
-         smoother->Mult(Ab, b);
+         smoother.Mult(Ab, b);
          b *= -1.0;
          b += b_prev;
          real_t norm = b.Norml2();
@@ -480,14 +531,14 @@ real_t AdaptiveSmoother(Operator &op, SparseMatrix &A, int blocksize, Vector &x_
          norm_prev = norm;
          it += 1;
       }
-      while(ratio > tol && it < 80);
+      while(ratio >= tol && it < 80);
 
       for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
    }
-   return w_recip;
+   return smoother;
 }
 
-SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels)
+SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels, bool paraview_vis)
 {
    Mesh &mesh = *fes.GetMesh();
    int vdim = fes.GetVDim();
@@ -502,10 +553,10 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    // Create the mesh hierarchy.
    auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
 
-   // Construct matrix B1
+   // Initialize B
    std::cout << "construct B0 " << std::endl;
-   int num_samp = (dim == 2) ? 16: 64;
-   DenseMatrix B(nnodes, num_samp); // make number of columns a median
+   int num_samp = ncoarse*ncoarse; // 16 if 2-dimensional, 64 if 3-dimensional.
+   DenseMatrix B(nnodes, num_samp); 
    std::random_device rd;
    std::mt19937 gen(rd()); 
    std::normal_distribution<double> dist(0.0, 1.0);
@@ -535,40 +586,47 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    }
    ownedOperators[num_levels-1] = false;
    ownedSmoothers[num_levels-1] = true;
-   // Populate the arrays: prolongations, ownedProlongations from the Multigrid
-   // class. All prolongations are owned.
-   // Create the prolongations using 'E' using the SparseMatrix class
    operators[num_levels - 1] = &Af;
+
+   // prev_dof_idx is an array initialized to be of length num_elements in fine mesh + 1.
+   // prev_dof_idx[i]:prev_dof_idx[i+1]-1 is range containing indices for dofs in element i.
+   // curr_dof_idx (see below) is similar in structure, but prev_dof_idx is for the "previous" level
+   // and curr_dof_idx is for the "current" level.
    Array<int> prev_dof_idx(ne+1);
    prev_dof_idx = 0;
-   std::cout << "form first prev dof array " << std::endl;
    for (int i = 0; i<ne; i++)
    {
       const FiniteElement *fe = fes.GetFE(i);
       int num_nodes = fe->GetDof();
       prev_dof_idx[i+1] = prev_dof_idx[i]+num_nodes;
    }
+
    for (int k = num_levels - 2; k >= 0; --k)
    {
-      std::cout << "level k: " << k << std::endl;
-      // Estimate Spactra Norm 
-      // generate random vector x
       SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[k + 1]);
-      std::cout << "num non zero A: "<< A_prev.NumNonZeroElems() << std::endl;
+
+      // Generate a random vector, x, to initialize power iteration.
       Vector x_random(A_prev.Height());
       for (int i = 0; i < x_random.Size(); i++){x_random(i) = dist(gen);}
       x_random /= x_random.Norml2();
-      std::cout << "adaptive smoother: " << std::endl;
-      int block_size_in = (k == num_levels-2) ? 4 : n_cut;
-      real_t damping_factor = AdaptiveSmoother(*operators[k + 1], A_prev, block_size_in, x_random, B);
-      std::cout << "damping_factor "  << damping_factor << std::endl;
+
+
+      // Find the damping coefficient. Smooth columns of B.
+      int block_size_in = (k == num_levels-2) ? ncoarse : n_cut;
+      SparseMatrix A_tilde_inv = AdaptiveSmoother(*operators[k + 1], A_prev, block_size_in, x_random, B);
+
       int num_el_part = E[k].size()+1;
+
       Array<int> curr_dof_idx(num_el_part);
       curr_dof_idx = 0;
-      std::cout << "forming P: "  << std::endl;
-      std::vector<Vector> Parr; 
+
+      // Parr is a vector, members of which are size-3 mfem Vectors. These mfem vectors contain
+      // the column idx, the row idx, and value for cells in the matrix P.
+      std::vector<Vector> Parr;
+      // Loop over elements in current level
       for (int j = 0; j < num_el_part - 1; j++)
       {
+         // Get relevant dofs for current coarse element.
          std::vector<int> indices;
          for (int i = 0; i < E[k+1].size(); i++) 
          {
@@ -580,91 +638,76 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
                }
             }
          }
+
+         // Get relevant submatrix of B
          DenseMatrix B_sub(indices.size(), B.Width());
          for (int i = 0; i < indices.size(); i++)
          {
             for (int c = 0; c <  B.Width(); c++)
             {
-               // val = (B(indices[i], c) > 1e-6) ? B(indices[i], c) : 0;
                B_sub(i, c) = B(indices[i], c);
             }
          }
+
+         // Perform SVD on the B submatrix. Grab the left singular vectors.
          DenseMatrixSVD Bsvd(B_sub, 'A', 'A'); 
          Bsvd.Eval(B_sub);
-         int num_keep = indices.size()/n_cut + (indices.size() % n_cut != 0);
          DenseMatrix U = Bsvd.LeftSingularvectors(); 
+
+         // Fill in Parr. 
+         int num_keep = indices.size()/n_cut + (indices.size() % n_cut != 0);
          for (int r = 0; r < U.Height(); r++)
          {
             for (int c = 0; c < num_keep; c++)
             {
-               // real_t val = (std::abs(U(r,c)) > 1e-6) ? U(r,c) : 0;
                real_t val = U(r,c);
                Vector P_val(3);
                P_val(0) = indices[r]; P_val(1) = curr_dof_idx[j] + c; P_val(2) = val;
                Parr.push_back(P_val);
-               // P->Set(indices[r], curr_dof_idx[j] + c, val);
             }
          }
+
+         // update curr_dof_idx
          curr_dof_idx[j+1] = curr_dof_idx[j] + num_keep; 
       }
+
+      // Initialize matrix P, and fill in values using Parr
       SparseMatrix *P = new SparseMatrix(prev_dof_idx.Last(), curr_dof_idx.Last());
-      std::cout << "P height: "  << P->Height() << std::endl;
-      std::cout << "P width: "  << P->Width() << std::endl;
       for (int pidx = 0; pidx < Parr.size(); pidx++)
       {
          Vector P_v = Parr[pidx];
          int ri = P_v(0); int ci = P_v(1); real_t value = P_v(2);
          P -> Set(ri, ci, value);
       }
-      std::cout << "P is formed"  << std::endl;
-      int block_size = (k == num_levels-2) ? 4 : n_cut;
-      BlockGS *A_tilde = new BlockGS(*operators[k+1], block_size, damping_factor);
       P->Finalize();
-      ProductOperator A_til_inv_A(A_tilde, &A_prev, false, false);
-      SparseMatrix A_til_inv_A_mat(A_prev.Height(), A_prev.Width());
-      Vector basis_vec(A_prev.Height());
-      basis_vec = 0.0;
-      for (int j = 0; j < A_prev.Width(); j++)
-      {
-         Vector A_inv_A_col(A_prev.Height());
-         basis_vec(j) = 1.0;
-         A_til_inv_A.Mult(basis_vec, A_inv_A_col);
-         for (int i = 0; i < A_prev.Height(); i++)
-         {
-            if (i == j)
-            {
-               A_til_inv_A_mat.Set(i,j,1 - A_inv_A_col(i));
-            }
-            else
-            {
-               real_t val = (std::abs(A_inv_A_col(i))> 1e-6) ? A_inv_A_col(i) : 0;
-               A_til_inv_A_mat.Set(i,j, -val);
-            }
-         } 
-         basis_vec(j) = 0.0;
-      }    
-      A_til_inv_A_mat.Finalize();
-      std::cout << "S height: "  << A_til_inv_A_mat.Height() << std::endl;
-      std::cout << "S width: "  << A_til_inv_A_mat.Width() << std::endl;
-      SparseMatrix *T = mfem::Mult(A_til_inv_A_mat, *P);
-      //T = mfem::Mult(A_inv_A, *P);
+
+      // Construct the prolongation matrix, T, by computing T= (I - \tilde{A}^{-1} A)P
+      SparseMatrix A_til_inv_A_mat = *mfem::Mult(A_tilde_inv, A_prev); // \tilde{A}^{-1} A
+      Vector ones(A_prev.Height());
+      ones = 1.0;
+      SparseMatrix Id(ones);
+      A_til_inv_A_mat *= -1; // -\tilde{A}^{-1} A
+      A_til_inv_A_mat.Add(1.0, Id); // I - \tilde{A}^{-1} A
+      SparseMatrix *T = mfem::Mult(A_til_inv_A_mat, *P); // T = (I - \tilde{A}^{-1} A)P
       T->Threshold(1e-6, false);
-      std::cout << "T is formed"  << std::endl;
-      // T->Finalize();
       prolongations[k] = T;
+
+      // Get the coarse operator by perfoming R A T, with R = T^T
       unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *T));
       unique_ptr<SparseMatrix> Pt(Transpose(*T));
       SparseMatrix *Anew = mfem::Mult(*Pt, *AP);
       Anew->Threshold(1e-6, false);
-      std::cout << "A height: "  << Anew->Height() << std::endl;
-      std::cout << "A width: "  << Anew->Width() << std::endl;
       operators[k] = Anew;
-      smoothers[k+1] = A_tilde;
-      B = *mfem::Mult(*Pt, B);
-      prev_dof_idx = curr_dof_idx;
+
+      // Set the smoother. Note: I would get an error when assigning the SparseMatrix A_tilde_inv
+      // to smoothers[k+1]. So, I created a "dummy" solver object BlockJacobi which takes in A_tilde_inv and essentially
+      // performs the action of multiplying with A_tilde_inv.
+      smoothers[k+1] = new BlockJacobi(*operators[k+1], A_tilde_inv);
+
+      B = *mfem::Mult(*Pt, B); // Initialize B for next level 
+      prev_dof_idx = curr_dof_idx; // set prev_dof_idx for next level 
    }
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
-   std::cout << "Num Non Zero Ac: " << Ac.NumNonZeroElems()  << std::endl;
    smoothers[0] = new UMFPackSolver(Ac);
 }
 } // namespace mfem

@@ -37,7 +37,7 @@ public:
 class SmoothedAggregationGMG : public Multigrid
 {
    public:
-   SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels);
+   SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels, bool paraview_vis);
 };
 } // namespace mfem
 

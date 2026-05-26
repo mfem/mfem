@@ -3002,6 +3002,43 @@ void Blockl1Jacobi::MultTranspose(const Vector &b, Vector &x) const
    x *= damping;
 }
 
+BlockJacobi::BlockJacobi(const Operator &op, SparseMatrix &Block_Diag_Mat_)
+   : Solver(0),
+     Block_Diag_Mat(Block_Diag_Mat_)
+{
+   SetOperator(op);
+}
+
+void BlockJacobi::SetOperator(const Operator &op)
+{
+   const SparseMatrix *A = NULL;
+   if (A == NULL)
+   {
+      A = dynamic_cast<const SparseMatrix *>(&op);
+      if (A == NULL)
+      {
+         MFEM_ABORT("BlockJacobi must be created with a SparseMatrix or HypreParMatrix");
+      }
+   }
+   height = op.Height();
+   width = op.Width();
+   MFEM_VERIFY(A->Finalized(), "Matrix must be finalized.");
+   // CreateBlockPatternAndFactorize(*A);
+}
+
+
+void BlockJacobi::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "BlockJacobi preconditioner is not constructed");
+   Block_Diag_Mat.Mult(b, x);
+}
+
+void BlockJacobi::MultTranspose(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "BlockJacobi preconditioner is not constructed");
+   Block_Diag_Mat.MultTranspose(b, x);
+}
+
 BlockGS::BlockGS(const Operator &op, int block_size_, real_t damping_)
    : Solver(0),
      block_size(block_size_),
