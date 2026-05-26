@@ -74,7 +74,7 @@
 //
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0
-//     mesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 2.0 -pa
+//     mesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -nor -vl 1 -alc 2.0 -pa
 //   Adaptive limiting through the L-BFGS solver:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //
@@ -908,9 +908,11 @@ int main(int argc, char *argv[])
       tmop_integ->EnableAdaptiveLimiting(z0, coeff, *adapt_lim_eval, delta_max);
       if (visualization)
       {
-         socketstream vis1;
+         socketstream vis1, vis2;
          common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
                                 "Zeta0(1) - initial mesh", 300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, adapt_lim_gf0_2,
+                                "Zeta0(2) - initial mesh", 300, 900, 300, 300);
       }
    }
 
@@ -1239,9 +1241,11 @@ int main(int argc, char *argv[])
 
    if (adapt_lim_const > 0.0 && visualization)
    {
-      socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0_1,
+      socketstream vis1, vis2;
+      common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
                              "Zeta0(1) - final mesh", 600, 600, 300, 300);
+      common::VisualizeField(vis2, "localhost", 19916, adapt_lim_gf0_2,
+                             "Zeta0(2) - final mesh", 600, 900, 300, 300);
    }
 
    // Visualize the mesh displacement.
