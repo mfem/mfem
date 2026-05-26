@@ -38,9 +38,9 @@
 // Blade - bound on Jacobian + tangential relaxation
 // make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -bnd -bdropt 1 -bound
 // curvilinear surfaces
-// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 2  -ni 400 -bnd -transform 1
-// make tangential-relaxation -j4 &&  mpirun -np 3 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1
-// * mpirun -np 12 tangential-relaxation -m cube.mesh -o 2 -qo 12 -vis -mid 303 -tid 1 -rs 1 -ni 1000 -bnd -transform 1 -bdropt 3
+// make tangential-relaxation -j4 &&  mpirun -np 4 tangential-relaxation -m square01.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 2  -ni 400 -bnd -transform 1
+// make tangential-relaxation -j4 &&  mpirun -np 4 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1
+// * mpirun -np 4 tangential-relaxation -m cube.mesh -o 2 -qo 12 -vis -mid 303 -tid 1 -rs 1 -ni 1000 -bnd -transform 1 -bdropt 3
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
