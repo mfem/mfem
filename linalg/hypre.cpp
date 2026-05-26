@@ -5144,7 +5144,7 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    int myid;
    HYPRE_Int time_index = 0;
-   HYPRE_Int num_iterations;
+   int num_iterations;
    real_t final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
