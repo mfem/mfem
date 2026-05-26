@@ -1,7 +1,7 @@
 # MFEM Pull Request Review Agent Guide
 
 ## Purpose and scope
-Review MFEM PRs for correctness, maintainability, performance, portability, test coverage, and MFEM consistency. Assume access to the diff, PR context, tests, CI, and source files. Follow `CONTRIBUTING.md`, especially Developer Guidelines, PR rules, checklist, and testing.
+Review MFEM PRs for correctness, maintainability, performance, portability, test coverage, and MFEM consistency. Use the diff and PR context; reference source files, tests, and CI results when available. Follow `CONTRIBUTING.md`, especially Developer Guidelines, PR rules, checklist, and testing.
 
 ## Critical review pillars
 - Correctness and numerical behavior
