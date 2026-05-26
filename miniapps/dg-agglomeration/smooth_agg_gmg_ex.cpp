@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
-   int ncoarse = pow(2, dim); 
+   int ncoarse = pow(2, dim);
    int ref_levels = num_levels;
 
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
    const real_t sigma = -1.0;
-   const real_t kappa = num_levels*kappa_0 * (order + 1) * (order + 1) / 2;
+   const real_t kappa = kappa_0 * (order + 1) * (order + 1) / 2;
 
    // Array<int> ess_bdr(mesh.bdr_attributes.Max());
    // ess_bdr = 0;
@@ -83,8 +83,38 @@ int main(int argc, char *argv[])
 
    //std::string file_name = "A_nl" + std::to_string(num_levels)+".mtx";
    // std::ofstream ofs1(file_name);
-   // A.PrintMM(ofs1); 
+   // A.PrintMM(ofs1);
    // ofs1.close();
+
+   {
+      std::ofstream f("A.txt");
+      A.PrintMatlab(f);
+   }
+   {
+      const auto &e2e = mesh.ElementToElementTable();
+      Array<int> fn;
+
+      std::ofstream f("t2t.txt");
+      for (int e = 0; e < mesh.GetNE(); ++e)
+      {
+         e2e.GetRow(e, fn);
+         int i = 0;
+         for (; i < fn.Size(); ++i)
+         {
+            if (fn[i] != e)
+            {
+               f << (fn[i] + 1) << " ";
+            }
+         }
+         const int nf = dim == 2 ? Geometry::NumEdges[mesh.GetElementGeometry(e)]
+                        : Geometry::NumFaces[mesh.GetElementGeometry(e)];
+         for (; i < nf; ++i)
+         {
+            f << -1 << " ";
+         }
+         f << '\n';
+      }
+   }
 
    SmoothedAggregationGMG mg(fespace, A, ncoarse, num_levels, false);
    mg.SetCycleType(mfem::MultigridBase::CycleType::VCYCLE, 3, 3);
