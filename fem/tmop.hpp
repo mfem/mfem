@@ -2597,9 +2597,8 @@ public:
                                        const FiniteElementSpace &fes);
 
 
-   /// Enable determinant bounding with given refinement factor. Used to enforce
-   /// line-search constraints (if enabled in the TMOPNewtonSolver) and to compute
-   /// the determinant barrier in TMOP_WorstCaseUntangleOptimizer_Metric.
+   /// Enable determinant bounding with given refinement factor for line-search
+   /// validity checks in TMOPNewtonSolver.
    void EnableDeterminantPLBounds(GridFunction *det_gf_, int ref_factor,
                                   int max_recursion_depth = 0)
    {

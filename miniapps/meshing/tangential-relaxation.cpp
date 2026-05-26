@@ -21,6 +21,17 @@
 // selected boundary nodes to lower-dimensional reference meshes constructed
 // from the initial geometry.
 //
+// Note about boundary attribute requirement:
+// Tangential relaxation identifies sliding boundary surfaces, edges, and
+// vertices from the mesh boundary attributes. Adjacent boundary surfaces that
+// are expected to slide independently must therefore use different attributes;
+// otherwise the miniapp cannot correctly classify the face- and edge-based
+// boundary nodes used by the relaxation step.
+//
+// See the following SIAM IMR 2026 paper, Mittal et al., "High-Order Mesh
+// r-Adaptivity with Tangential Relaxation and Guaranteed Mesh Validity",
+// arXiv. https://doi.org/10.48550/arXiv.2601.17708 for technical details.
+//
 // Compile with: make tangential-relaxation
 //
 // Sample runs:
@@ -130,7 +141,8 @@ int main (int argc, char *argv[])
    args.AddOption(&vis, "-vis", "--vis", "-no-vis", "--no-vis",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&bdr_opt_case, "-bdropt", "--bdr-opt",
-                  "Boundary attribute for tangential relaxation");
+                  "Boundary-attribute case for tangential relaxation. "
+                  "See the boundary-attribute note in the file header.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries."
@@ -175,13 +187,17 @@ int main (int argc, char *argv[])
    const int dim = pmesh->Dimension();
 
    // Helper for encoding pairs of boundary attributes in 3D edge cases.
-   auto setTwoBits = [](int j, int k)
+   auto setEdgeBits = [](int j, int k)
    {
       return (1 << (j-1)) | (1 << (k-1));
    };
 
    // Select the boundary attributes that will participate in tangential
-   // relaxation and build the corresponding lower-dimensional meshes.
+   // relaxation and build the corresponding lower-dimensional meshes. See the
+   // boundary-attribute note in the file header: adjacent sliding surfaces
+   // must use distinct attributes so face, edge, and vertex dofs can be
+   // classified correctly. This helps preserve the geometry during tangential
+   // relaxation.
    Array<ParMesh *> surf_mesh_arr;
    Array<int> surf_mesh_attr, surf_mesh_edge_attr;
    if (bdr_opt_case == 1) //blade
@@ -204,9 +220,9 @@ int main (int argc, char *argv[])
       surf_mesh_attr[1] = 2;
       surf_mesh_attr[2] = 3;
       surf_mesh_edge_attr.SetSize(3);
-      surf_mesh_edge_attr[0] = setTwoBits(1,2);
-      surf_mesh_edge_attr[1] = setTwoBits(2,3);
-      surf_mesh_edge_attr[2] = setTwoBits(1,3);
+      surf_mesh_edge_attr[0] = setEdgeBits(1,2); // Edges between faces 1 and 2.
+      surf_mesh_edge_attr[1] = setEdgeBits(2,3); // Edges between faces 2 and 3.
+      surf_mesh_edge_attr[2] = setEdgeBits(1,3); // Edges between faces 1 and 3.
 
       surf_mesh_arr.SetSize(surf_mesh_attr.Size()+surf_mesh_edge_attr.Size());
    }

@@ -4271,9 +4271,8 @@ void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
       a.FormLinearSystem(ess_tdof_list, ucomp, b, A, X, B);
 
       HypreBoomerAMG *amg = new HypreBoomerAMG;
-      amg->SetSystemsOptions(dim);
       amg->SetPrintLevel(0);
-      HyprePCG pcg(MPI_COMM_WORLD);
+      HyprePCG pcg(pfes->GetComm());
       pcg.SetTol(1e-12);
       pcg.SetMaxIter(2000);
       pcg.SetPrintLevel(-1);
@@ -6087,9 +6086,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = (det_gf != nullptr) ?
-                        GetDeterminantLowerBound(d, fes, true) :
-                        ComputeMinDetT(x_loc, fes);
+      real_t min_detT = ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
