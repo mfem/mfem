@@ -128,6 +128,70 @@ extern "C" {
 namespace mfem
 {
 
+// Static helper to map device-side find-points outputs to MFEM reference-space
+// data. nvcc does not allow lambdas in non-public members.
+static void FindPointsDeviceSetCode(int pts_cnt,
+                                    int ddim,
+                                    real_t rbtol,
+                                    real_t bdr_t,
+                                    unsigned int *d_gsl_code,
+                                    const real_t *d_gsl_ref,
+                                    const real_t *d_gsl_dist,
+                                    const unsigned int *d_gsl_elem,
+                                    real_t *d_gsl_mfem_ref,
+                                    unsigned int *d_gsl_mfem_elem)
+{
+   MFEM_FORALL(index, pts_cnt,
+   {
+      if (d_gsl_code[index] == CODE_NOT_FOUND)
+      {
+         return;
+      }
+      d_gsl_mfem_elem[index] = d_gsl_elem[index];
+
+      bool internal = true;
+      for (int d = 0; d < ddim; d++)
+      {
+         const real_t r_val = d_gsl_ref[index * ddim + d];
+         const real_t val = 0.5 * (r_val + 1.0);
+         d_gsl_mfem_ref[index * ddim + d] = val;
+         if (val < rbtol || val > 1.0 - rbtol)
+         {
+            internal = false;
+         }
+      }
+
+      const int setcode = internal ? CODE_INTERNAL : CODE_BORDER;
+      d_gsl_code[index] = (setcode == CODE_BORDER &&
+                           d_gsl_dist[index] > bdr_t)
+                          ? CODE_NOT_FOUND : setcode;
+   });
+}
+
+// Static helper: scatter interpolated values back into field_out.
+// nvcc does not allow lambdas in non-public members.
+static void InterpolateDeviceScatter(int nlocal,
+                                     const int *d_index_temp,
+                                     const real_t *d_interp_vals,
+                                     real_t *d_field_out,
+                                     int interp_offset,
+                                     int ncomp,
+                                     int pts_cnt,
+                                     int ordering)
+{
+   MFEM_FORALL(j, nlocal,
+   {
+      const int pt_index = d_index_temp[j];
+      for (int i = 0; i < ncomp; i++)
+      {
+         const int idx = (ordering == Ordering::byNODES) ?
+         pt_index + i*pts_cnt :
+         pt_index*ncomp + i;
+         d_field_out[idx] = d_interp_vals[j + interp_offset*i];
+      }
+   });
+}
+
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
@@ -1346,33 +1410,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       const int pts_cnt = points_cnt;
       const double bdr_t = bdr_tol;
 
-      // Set gsl_mfem_elem using gsl_elem, gsl_mfem_ref using gsl_ref,
-      // and gsl_code using element type, gsl_mfem_ref, and gsl_dist.
-      MFEM_FORALL(index, pts_cnt,
-      {
-         if (d_gsl_code[index] == CODE_NOT_FOUND)
-         {
-            return;
-         }
-         d_gsl_mfem_elem[index] = d_gsl_elem[index];
-
-         bool internal = true;
-         for (int d = 0; d < ddim; d++)
-         {
-            double r_val = d_gsl_ref[index * ddim + d];
-            double val = 0.5 * (r_val + 1.0);
-            d_gsl_mfem_ref[index * ddim + d] = val;
-            if (val < rbtol || val > 1.0 - rbtol)
-            {
-               internal = false;
-            }
-         }
-
-         int setcode = internal ? CODE_INTERNAL : CODE_BORDER;
-         d_gsl_code[index] = (setcode == CODE_BORDER &&
-                              d_gsl_dist[index] > bdr_t)
-                             ? CODE_NOT_FOUND : setcode;
-      });
+      FindPointsDeviceSetCode(pts_cnt, ddim, rbtol, bdr_t, d_gsl_code,
+                              d_gsl_ref, d_gsl_dist, d_gsl_elem,
+                              d_gsl_mfem_ref, d_gsl_mfem_elem);
       return;
    }
 
@@ -1804,16 +1844,9 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       const int interp_Offset = interp_vals.Size()/ncomp;
       const int pts_cnt = points_cnt;
 
-      MFEM_FORALL(j, nlocal,
-      {
-         int pt_index = d_index_temp[j];
-         for (int i = 0; i < ncomp; i++)
-         {
-            int idx = (ordering == Ordering::byNODES) ? pt_index + i*pts_cnt :
-            pt_index*ncomp + i;
-            d_field_out[idx] = d_interp_vals[j + interp_Offset*i];
-         }
-      });
+      InterpolateDeviceScatter(nlocal, d_index_temp, d_interp_vals,
+                               d_field_out, interp_Offset, ncomp, pts_cnt,
+                               ordering);
    }
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
@@ -2342,31 +2375,6 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
 #endif
 }
 
-// Static helper: scatter interpolated values back into field_out. nvcc does
-// not allow lambdas in non-public members, so this is a separate function
-// (instead of a lambda in InterpolateSurfBase).
-static void InterpolateSurfScatter(int nlocal,
-                                   const int *d_index_temp,
-                                   const real_t *d_interp_vals,
-                                   real_t *d_field_out,
-                                   int interp_offset,
-                                   int ncomp,
-                                   int pts_cnt,
-                                   int field_out_ordering)
-{
-   MFEM_FORALL(j, nlocal,
-   {
-      const int pt_index = d_index_temp[j];
-      for (int i = 0; i < ncomp; i++)
-      {
-         const int idx = (field_out_ordering == Ordering::byNODES) ?
-         pt_index + i*pts_cnt :
-         pt_index*ncomp + i;
-         d_field_out[idx] = d_interp_vals[j + interp_offset*i];
-      }
-   });
-}
-
 void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
                                           Vector &field_out,
                                           const int nel,
@@ -2465,9 +2473,9 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       auto d_index_temp  = index_temp.Read(use_dev);
       auto d_field_out   = field_out.ReadWrite(use_dev); // no-op
       const int interp_offset = interp_vals.Size()/ncomp;
-      InterpolateSurfScatter(nlocal, d_index_temp, d_interp_vals, d_field_out,
-                             interp_offset, ncomp, points_cnt,
-                             field_out_ordering);
+      InterpolateDeviceScatter(nlocal, d_index_temp, d_interp_vals,
+                               d_field_out, interp_offset, ncomp, points_cnt,
+                               field_out_ordering);
    }
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);

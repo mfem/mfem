@@ -456,7 +456,7 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts << " out of "
            << npt_total_face
            << "\nMax interp error:     " << max_error
-           << "\nMax dist (of found):  " << max_dist
+           << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
 
