@@ -3855,7 +3855,7 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
       MFEM_VERIFY(coeff[i], "NULL Coefficient pointer.");
    }
 
-   // Delete previos adaptive limiting data.
+   // Delete previous adaptive limiting data.
    for (int i = 0; i < adapt_lim_gf.Size(); i++) { delete adapt_lim_gf[i]; }
    for (int i = 0; i < adapt_lim_gf0.Size(); i++) { delete adapt_lim_gf0[i]; }
 
