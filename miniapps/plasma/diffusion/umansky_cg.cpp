@@ -86,6 +86,9 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
    bool visit = false;
+   bool gnuplot = false;
+   const char *gnuplot_dat = "umansky_cg.dat";
+   const char *gnuplot_inp = "gnuplot_umansky_cg.inp";
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -127,6 +130,8 @@ int main(int argc, char *argv[])
                   "Enable or disable ParaView (paraview.org) visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
+                  "Enable or disable GnuPlot visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -265,6 +270,29 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("solution", &x);
    }
 
+   // Prepare GnuPlot output file if needed
+   ofstream gnuplot_ofs;
+   if (myid == 0 && gnuplot)
+   {
+      gnuplot_ofs.open(gnuplot_inp);
+      gnuplot_ofs << "set multiplot layout 3,1 "
+                  << "title 'Continuous Galerkin (CG)';\n";
+      gnuplot_ofs << "set ylabel 'Profile Width';\n"
+                  << "set xlabel 'AMR Iteration';\n"
+                  << "plot '" << gnuplot_dat << "' using 1:5 w l"
+                  << " t 'A_k = " << Ak << ", tan(θ_m) = " << h/w << "';\n";
+      gnuplot_ofs << "set xlabel 'Number of DoFs';\n"
+                  << "plot '" << gnuplot_dat << "' using 2:5 w l"
+                  << " t 'A_k = " << Ak << ", tan(θ_m) = " << h/w << "';\n";
+      gnuplot_ofs << "set xlabel '1/min(element size)';\n"
+                  << "plot '" << gnuplot_dat << "' using (1/$3):5 w l"
+                  << " t 'A_k = " << Ak << ", tan(θ_m) = " << h/w << "';\n";
+      gnuplot_ofs << "unset multiplot" << endl;
+      gnuplot_ofs.close();
+
+      gnuplot_ofs.open(gnuplot_dat);
+   }
+
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
    // the elements with the largest estimated error and update all objects to
@@ -288,7 +316,6 @@ int main(int argc, char *argv[])
       a.Assemble();
       a.Finalize();
 
-      cout << "calling project bdr coef " << ess_bdr.Size() << endl;
       x.ProjectBdrCoefficient(unitStepCoef, ess_bdr);
 
       OperatorPtr A;
@@ -316,9 +343,19 @@ int main(int argc, char *argv[])
       // Determine the apparent width of the transition
       real_t width = umansky::CalcWidth(x);
 
-      // Obtain the number of degrees of freedom
-      int prob_size = fespace.GetTrueVSize();
+      // Determine the approximate bounds on the element sizes
+      real_t min_elem_size;
+      real_t max_elem_size;
+      {
+         real_t kappa_min, kappa_max;
+         pmesh.GetCharacteristics(min_elem_size, max_elem_size,
+                                  kappa_min, kappa_max);
+      }
+      cout << myid << ": done with width calc" << endl;
 
+      // Obtain the global number of degrees of freedom
+      int prob_size = fespace.GlobalTrueVSize();
+      cout << myid << ": done with size calc" << endl;
       // Send the solution to VisIt if enabled.
       if (visit)
       {
@@ -335,19 +372,29 @@ int main(int argc, char *argv[])
          paraview_dc->Save();
       }
 
+      // Write data to GnuPlot file is enabled
+      if (myid == 0 && gnuplot)
+      {
+         gnuplot_ofs << it << '\t' << prob_size << '\t'
+                     << min_elem_size << '\t' << max_elem_size << '\t'
+                     << width << endl;
+      }
+      cout << myid << ": done with gnuplot output" << endl;
+
       // Send the solution by socket to a GLVis server if enabled.
       if (visualization)
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << pmesh << x
-                  << " window_title 'Number of DoFs: " << prob_size << "'";
+                  << " window_title 'Number of CG DoFs: " << prob_size << "'";
          if (it == 1)
          {
             sol_sock << " keys 'mmjR'\n";
          }
          sol_sock << flush;
       }
+      cout << myid << ": done with GLVis output" << endl;
 
       if (Mpi::Root())
       {
@@ -388,23 +435,27 @@ int main(int argc, char *argv[])
       }
 
       // Estimate element errors using the Zienkiewicz-Zhu error estimator.
+      cout << myid << ": allocating errors vector of size " << pmesh.GetNE() << endl;
       Vector errors(pmesh.GetNE());
       {
+         if (Mpi::Root()) { cout << "Estimating error..." << endl; }
+         cout << myid << ": 0" << endl;
          DiffusionIntegrator flux_integrator(anisoDiffCoef);
          L2_FECollection flux_fec(order, dim);
          ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, 2);
-
+         cout << myid << ": 1" << endl;
          // Space for the smoothed (conforming) flux
          int norm_p = 1;
          RT_FECollection smooth_flux_fec(order-1, dim);
          ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
-
+         cout << myid << ": 2" << endl;
          L2ZZErrorEstimator(flux_integrator, x,
                             smooth_flux_fes, flux_fes, errors, norm_p);
-
+         cout << myid << ": 3" << endl;
       }
 
       real_t local_max_err = errors.Max();
+      cout << myid << ": Local error: " << local_max_err << endl;
       real_t global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MFEM_MPI_REAL_T, MPI_MAX, pmesh.GetComm());
@@ -447,6 +498,12 @@ int main(int argc, char *argv[])
       {
          break;
       }
+   }
+
+   // Finalize the GnuPlot output
+   if (myid == 0 && gnuplot)
+   {
+      gnuplot_ofs.close();
    }
 
    // Free the used memory.
