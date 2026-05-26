@@ -91,15 +91,15 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const CoefficientVector &lambda,
                                   const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
+                                  const DofToQuad &maps, const IntegrationRule &ir, Vector &diag)
 {
    switch (dim)
    {
       case 2:
-         ElasticityAssembleDiagonalPA_<2>(nDofs, lambda, mu, geom, maps, QVec, diag);
+         ElasticityAssembleDiagonalPA_<2>(nDofs, lambda, mu, geom, maps, ir, diag);
          break;
       case 3:
-         ElasticityAssembleDiagonalPA_<3>(nDofs, lambda, mu, geom, maps, QVec, diag);
+         ElasticityAssembleDiagonalPA_<3>(nDofs, lambda, mu, geom, maps, ir, diag);
          break;
       default:
          MFEM_ABORT("Only dimensions 2 and 3 supported.");
