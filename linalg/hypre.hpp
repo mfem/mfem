@@ -1471,19 +1471,12 @@ public:
    void SetAbsTol(real_t atol);
    real_t GetAbsTol() const;
    void SetMaxIter(int max_iter);
-#ifdef HYPRE_MIXED_PRECISION
-   void SetMaxIter(int max_iter, HYPRE_Precision precision);
-#endif
    int GetMaxIter() const;
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
 
    /// Set the hypre solver to be used as a preconditioner
    void SetPreconditioner(HypreSolver &precond);
-
-#ifdef HYPRE_MIXED_PRECISION
-   void SetPreconditioner(HypreSolver &precond_, HYPRE_Precision precision);
-#endif
 
    /** Use the L2 norm of the residual for measuring PCG convergence, plus
        (optionally) 1) periodically recompute true residuals from scratch; and

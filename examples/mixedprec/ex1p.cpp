@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    }
 
 #ifndef HYPRE_MIXED_PRECISION
-   MFEM_ABORT("This version of ex1p requires hypre to be built with mixed"
+   MFEM_ABORT("This version of ex1p requires hypre to be built with mixed "
               "precision");
 #endif
 
@@ -199,8 +199,10 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
+   MFEM_VERIFY(!Device::IsEnabled(),
+               "This mixed-precision example currently requires -d cpu.");
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 4. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);

@@ -54,7 +54,7 @@ PARALLEL_NAME := Mixed precision ex1p
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
-	$(error The MFEM library is not build)
+	$(error The MFEM library is not built)
 
 clean: clean-build clean-exec
 
