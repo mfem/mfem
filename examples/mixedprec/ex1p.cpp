@@ -67,79 +67,10 @@ using namespace std;
 using namespace mfem;
 
 #ifdef HYPRE_MIXED_PRECISION
-static void CheckHypreError(HYPRE_Int ierr, const char *where)
-{
-   MFEM_VERIFY(ierr == 0, where << " failed with hypre error code " << ierr);
-}
-
-static void SetSinglePrecisionBoomerAMGOptions(HYPRE_Solver amg)
-{
-   int coarsen_type, agg_levels, interp_type, pmax, relax_type, relax_sweeps,
-       print_level, max_levels;
-   real_t theta;
-
-   if (!HypreUsingGPU())
-   {
-      coarsen_type = 10;
-      agg_levels = 1;
-      theta = 0.25;
-      interp_type = 6;
-      pmax = 4;
-      relax_type = 8;
-      relax_sweeps = 1;
-      print_level = 1;
-      max_levels = 25;
-   }
-   else
-   {
-      coarsen_type = 8;
-      agg_levels = 0;
-      theta = 0.25;
-      interp_type = 6;
-      pmax = 4;
-      relax_type = 18;
-      relax_sweeps = 1;
-      print_level = 1;
-      max_levels = 25;
-   }
-
-   const HYPRE_Precision precision = HYPRE_REAL_SINGLE;
-   CheckHypreError(HYPRE_BoomerAMGSetCoarsenType_pre(
-                      precision, amg, coarsen_type),
-                   "HYPRE_BoomerAMGSetCoarsenType_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetAggNumLevels_pre(
-                      precision, amg, agg_levels),
-                   "HYPRE_BoomerAMGSetAggNumLevels_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetRelaxType_pre(
-                      precision, amg, relax_type),
-                   "HYPRE_BoomerAMGSetRelaxType_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetNumSweeps_pre(
-                      precision, amg, relax_sweeps),
-                   "HYPRE_BoomerAMGSetNumSweeps_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetStrongThreshold_pre(
-                      precision, amg, theta),
-                   "HYPRE_BoomerAMGSetStrongThreshold_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetInterpType_pre(
-                      precision, amg, interp_type),
-                   "HYPRE_BoomerAMGSetInterpType_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetPMaxElmts_pre(precision, amg, pmax),
-                   "HYPRE_BoomerAMGSetPMaxElmts_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetPrintLevel_pre(
-                      precision, amg, print_level),
-                   "HYPRE_BoomerAMGSetPrintLevel_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetMaxLevels_pre(
-                      precision, amg, max_levels),
-                   "HYPRE_BoomerAMGSetMaxLevels_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetMaxIter_pre(precision, amg, 1),
-                   "HYPRE_BoomerAMGSetMaxIter_pre");
-   CheckHypreError(HYPRE_BoomerAMGSetTol_pre(precision, amg, 0.0),
-                   "HYPRE_BoomerAMGSetTol_pre");
-}
-
-static void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
-                                       const HypreParVector &b_single,
-                                       real_t tol,
-                                       HypreParVector &x_single)
+void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
+                                const HypreParVector &b_single,
+                                real_t tol,
+                                HypreParVector &x_single)
 {
    const HYPRE_Precision precision = HYPRE_REAL_SINGLE;
 
@@ -150,52 +81,19 @@ static void SolveSinglePrecisionSystem(const HypreParMatrix &A_single,
    MFEM_VERIFY(x_single.GetHyprePrecision() == precision,
                "x_single must be a single-precision hypre vector");
 
-   HYPRE_Solver pcg = NULL;
-   HYPRE_Solver amg = NULL;
-   CheckHypreError(HYPRE_ParCSRPCGCreate_pre(
-                      precision, A_single.GetComm(), &pcg),
-                   "HYPRE_ParCSRPCGCreate_pre");
-   CheckHypreError(HYPRE_BoomerAMGCreate_pre(precision, &amg),
-                   "HYPRE_BoomerAMGCreate_pre");
+   HyprePCG pcg(A_single);
+   HypreBoomerAMG amg(A_single);
 
-   SetSinglePrecisionBoomerAMGOptions(amg);
-
-   CheckHypreError(HYPRE_ParCSRPCGSetTol_pre(precision, pcg, tol),
-                   "HYPRE_ParCSRPCGSetTol_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetMaxIter_pre(precision, pcg, 2000),
-                   "HYPRE_ParCSRPCGSetMaxIter_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetPrintLevel_pre(precision, pcg, 1),
-                   "HYPRE_ParCSRPCGSetPrintLevel_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetPrecond_pre(
-                      precision, pcg,
-                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_flt,
-                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_flt,
-                      amg),
-                   "HYPRE_ParCSRPCGSetPrecond_pre");
+   pcg.SetTol(tol);
+   pcg.SetMaxIter(2000);
+   pcg.SetPrintLevel(1);
+   pcg.SetPreconditioner(amg);
 
    x_single = 0.0;
-   b_single.HypreRead();
-   x_single.HypreRead();
-
-   HYPRE_ParCSRMatrix A_hyp =
-      (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) A_single;
-   HYPRE_ParVector b_hyp = (HYPRE_ParVector)(hypre_ParVector *) b_single;
-   HYPRE_ParVector x_hyp = (HYPRE_ParVector)(hypre_ParVector *) x_single;
-
-   CheckHypreError(HYPRE_ParCSRPCGSetup_pre(
-                      precision, pcg, A_hyp, b_hyp, x_hyp),
-                   "HYPRE_ParCSRPCGSetup_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSolve_pre(
-                      precision, pcg, A_hyp, b_hyp, x_hyp),
-                   "HYPRE_ParCSRPCGSolve_pre");
-
-   CheckHypreError(HYPRE_BoomerAMGDestroy_pre(precision, amg),
-                   "HYPRE_BoomerAMGDestroy_pre");
-   CheckHypreError(HYPRE_ParCSRPCGDestroy_pre(precision, pcg),
-                   "HYPRE_ParCSRPCGDestroy_pre");
+   pcg.Mult(b_single, x_single);
 }
 
-static void SolveDoublePrecisionSystemWithSinglePrecisionAMG(
+void SolveDoublePrecisionSystemWithSinglePrecisionAMG(
    const HypreParMatrix &A_double,
    const HypreParMatrix &A_single,
    const HypreParVector &b_double,
@@ -214,55 +112,16 @@ static void SolveDoublePrecisionSystemWithSinglePrecisionAMG(
    MFEM_VERIFY(x_double.GetHyprePrecision() == pcg_precision,
                "x_double must be a double-precision hypre vector");
 
-   HYPRE_Solver pcg = NULL;
-   HYPRE_Solver amg = NULL;
-   CheckHypreError(HYPRE_ParCSRPCGCreate_pre(
-                      pcg_precision, A_double.GetComm(), &pcg),
-                   "HYPRE_ParCSRPCGCreate_pre");
-   CheckHypreError(HYPRE_BoomerAMGCreate_pre(amg_precision, &amg),
-                   "HYPRE_BoomerAMGCreate_pre");
+   HyprePCG pcg(A_double);
+   HypreBoomerAMG amg(A_single);
 
-   SetSinglePrecisionBoomerAMGOptions(amg);
-
-   CheckHypreError(HYPRE_ParCSRPCGSetTol_pre(pcg_precision, pcg, tol),
-                   "HYPRE_ParCSRPCGSetTol_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetMaxIter_pre(pcg_precision, pcg, 2000),
-                   "HYPRE_ParCSRPCGSetMaxIter_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetPrintLevel_pre(pcg_precision, pcg, 1),
-                   "HYPRE_ParCSRPCGSetPrintLevel_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSetPrecond_pre(
-                      pcg_precision, pcg,
-                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_mp,
-                      (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_mp,
-                      amg),
-                   "HYPRE_ParCSRPCGSetPrecond_pre");
-
-   HYPRE_ParCSRMatrix A_single_hyp =
-      (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) A_single;
-   CheckHypreError(HYPRE_PCGSetPrecondMatrix_pre(
-                      pcg_precision, pcg, (HYPRE_Matrix) A_single_hyp),
-                   "HYPRE_PCGSetPrecondMatrix_pre");
+   pcg.SetTol(tol);
+   pcg.SetMaxIter(2000);
+   pcg.SetPrintLevel(1);
+   pcg.SetPreconditioner(amg);
 
    x_double = 0.0;
-   b_double.HypreRead();
-   x_double.HypreReadWrite();
-
-   HYPRE_ParCSRMatrix A_double_hyp =
-      (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) A_double;
-   HYPRE_ParVector b_hyp = (HYPRE_ParVector)(hypre_ParVector *) b_double;
-   HYPRE_ParVector x_hyp = (HYPRE_ParVector)(hypre_ParVector *) x_double;
-
-   CheckHypreError(HYPRE_ParCSRPCGSetup_pre(
-                      pcg_precision, pcg, A_double_hyp, b_hyp, x_hyp),
-                   "HYPRE_ParCSRPCGSetup_pre");
-   CheckHypreError(HYPRE_ParCSRPCGSolve_pre(
-                      pcg_precision, pcg, A_double_hyp, b_hyp, x_hyp),
-                   "HYPRE_ParCSRPCGSolve_pre");
-
-   CheckHypreError(HYPRE_BoomerAMGDestroy_pre(amg_precision, amg),
-                   "HYPRE_BoomerAMGDestroy_pre");
-   CheckHypreError(HYPRE_ParCSRPCGDestroy_pre(pcg_precision, pcg),
-                   "HYPRE_ParCSRPCGDestroy_pre");
+   pcg.Mult(b_double, x_double);
 }
 #endif
 
