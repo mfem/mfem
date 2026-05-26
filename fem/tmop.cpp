@@ -5887,9 +5887,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = (det_gf != nullptr) ?
-                        GetDeterminantLowerBound(d, fes, true) :
-                        ComputeMinDetT(x_loc, fes);
+      real_t min_detT = ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)

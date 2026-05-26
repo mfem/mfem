@@ -335,7 +335,8 @@ int main (int argc, char *argv[])
                   "2 - PMean.");
    args.AddOption(&detj_bound, "-db", "--detj-bound",
                   "-no-db", "--no-detj-bound",
-                  "Enable or disable determinant of Jacobian bounds.");
+                  "Enable or disable determinant of Jacobian bounds. Used "
+                  "in line search to guarantee mesh validity.");
    args.Parse();
    if (!args.Good())
    {
@@ -605,8 +606,8 @@ int main (int argc, char *argv[])
       }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
                                                                     2,
-                                                                    detj_bound ? 1.0 : 1.5,
-                                                                    detj_bound ? 1e-2 : 1e-4,//0.01 for pseudo barrier
+                                                                    1.5,
+                                                                    1e-4,
                                                                     0.001,
                                                                     btype,
                                                                     wctype);
@@ -1227,6 +1228,11 @@ int main (int argc, char *argv[])
                           n_hr_iter, n_h_iter);
    hr_solver.AddGridFunctionForUpdate(&x0);
    hr_solver.AddFESpaceForUpdate(&pfes_h1);
+   if (detj_bound)
+   {
+      hr_solver.AddGridFunctionForUpdate(detgf.get());
+      hr_solver.AddFESpaceForUpdate(detgf->ParFESpace());
+   }
    if (adapt_lim_const > 0.)
    {
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);

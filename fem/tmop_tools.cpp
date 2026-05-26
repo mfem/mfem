@@ -491,10 +491,19 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       return scale;
    }
 
+   real_t wideal_det = 1.0;
+   if (detj_bound) {
+      const Mesh *mesh = fes->GetMesh();
+      const DenseMatrix &Wideal =
+         Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
+      wideal_det = Wideal.Det();
+   }
+
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const real_t min_detT_in = detj_bound ?
-                              GetDeterminantLowerBound(d_loc, *fes, true) :
+                              GetDeterminantLowerBound(d_loc, *fes, true)/
+                              wideal_det :
                               ComputeMinDet(d_loc, *fes);
 
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
@@ -548,7 +557,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
       // Check the changes in detJ.
       min_detT_out = detj_bound ?
-                     GetDeterminantLowerBound(d_loc, *fes, true) :
+                     GetDeterminantLowerBound(d_loc, *fes, true)/wideal_det :
                      ComputeMinDet(d_loc, *fes);
 
       if (untangling == false && min_detT_out <= min_detJ_limit)
