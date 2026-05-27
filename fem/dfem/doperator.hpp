@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../config/config.hpp"
+#include "../../config/config.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_MPI
 #include <memory>
@@ -21,7 +21,7 @@
 #include "integrator_ctx.hpp"
 
 #include "backends/global_qf/prelude.hpp"
-#include "backends/local_qf/prelude.hpp"
+#include "backends/local_qf/prelude.hpp" // IWYU pragma: keep
 
 namespace mfem::future
 {
@@ -290,7 +290,7 @@ public:
 
       const auto *test_pf =
          std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
-      MFEM_ASSERT(test_pf && *test_pf,
+      MFEM_VERIFY(test_pf && *test_pf,
                   "AssembleDiagonal: test field must be a ParFiniteElementSpace");
 
       prepare_residual<Entity::Element>(outfds, daction_e);
