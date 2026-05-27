@@ -71,6 +71,18 @@ public:
                                    const Array<int> &domain_attributes);
 
    /**
+    * @brief Create a domain SubMesh from its parent.
+    *
+    * The SubMesh object expects the parent Mesh object to be valid for the
+    * entire object lifetime.
+    *
+    * @param[in] parent Parent Mesh
+    * @param[in] element_list Domain element ids to extract
+    */
+   static SubMesh CreateFromElements(const Mesh &parent,
+                                     const Array<int> &element_list);
+
+   /**
    * @brief Create a surface SubMesh from its parent.
    *
    * The SubMesh object expects the parent Mesh object to be valid for the
@@ -83,6 +95,19 @@ public:
    */
    static SubMesh CreateFromBoundary(const Mesh &parent,
                                      const Array<int> &boundary_attributes);
+
+   /**
+   * @brief Create a surface SubMesh from its parent.
+   *
+   * The SubMesh object expects the parent Mesh object to be valid for the
+   * entire object lifetime.
+   *
+   * @param[in] parent Parent Mesh
+   * @param[in] element_list Boundary element ids to extract
+   */
+   static SubMesh CreateFromBdrElements(const Mesh &parent,
+                                        const Array<int> &element_list);
+
 
    ///Get the parent Mesh object
    const Mesh* GetParent() const
@@ -241,7 +266,8 @@ public:
 
 private:
    /// Private constructor
-   SubMesh(const Mesh &parent, From from, const Array<int> &attributes);
+   SubMesh(const Mesh &parent, From from, const Array<int> &attributes,
+           const Array<int> &element_list = {});
 
    /// The parent Mesh. Not owned.
    const Mesh *parent_;
@@ -256,6 +282,10 @@ private:
    /// Attributes on the parent ParMesh on which the ParSubMesh is created.
    /// Could either be domain or boundary attributes (determined by from_).
    Array<int> attributes_;
+
+   /// Element ids of the parent Mesh from which the submesh is created.
+   /// Contains either element or boundary element ids.
+   Array<int> element_list_;
 
    /// Mapping from submesh element ids (index of the array), to the parent
    /// element ids.

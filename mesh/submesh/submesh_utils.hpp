@@ -64,6 +64,7 @@ struct UniqueIndexGenerator
 std::tuple< Array<int>, Array<int> >
 AddElementsToMesh(const Mesh& parent,
                   Mesh& mesh, const Array<int> &attributes,
+                  const Array<int> &element_list,
                   bool from_boundary = false);
 
 /**
