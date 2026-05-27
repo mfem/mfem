@@ -772,19 +772,18 @@ void DifferentiableOperator::AddIntegrator(
 
    for_constexpr([&](auto i)
    {
-#ifdef MFEM_USE_ENZYME
       if constexpr (backend_t::has_cached_derivative)
       {
          integrator_qp_caches.emplace_back(std::make_unique<Vector>());
          Vector &qp_cache = *integrator_qp_caches.back();
 
-         // Create setup callback that populates the cache
          derivative_setup_callbacks[i].push_back(
             backend_t::template MakeDerivativeSetup<i>(
                ctx, qfunc, inputs, outputs, qp_cache));
 
          if constexpr (std::is_same_v<backend_t, LocalQFBackend>)
          {
+#ifdef MFEM_USE_ENZYME
             derivative_apply_callbacks[i].push_back(
                backend_t::template MakeDerivativeApply<i>(
                   ctx, qfunc, inputs, outputs, qp_cache));
@@ -803,16 +802,16 @@ void DifferentiableOperator::AddIntegrator(
                   backend_t::template MakeDerivativeAssembleDiagonal<i>(
                      ctx, qfunc, inputs, outputs, qp_cache));
             }
+#else
+            daction_transpose_callbacks[i].push_back(
+               backend_t::template MakeDerivativeApplyTranspose<i>(
+                  ctx, qfunc, inputs, outputs, qp_cache));
+#endif // MFEM_USE_ENZYME
          }
       }
 
-      // Keep the old action callback for backwards compatibility
       derivative_action_callbacks[i].push_back(
          backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
-#else
-      derivative_action_callbacks[i].push_back(
-         backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
-#endif // MFEM_USE_ENZYME
    }, derivative_ids);
 }
 

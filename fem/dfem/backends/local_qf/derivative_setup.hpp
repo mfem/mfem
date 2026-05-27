@@ -539,6 +539,34 @@ struct DerivativeSetup
       shmem_cache.ReadWrite());
    }
 
+   /// Native dual forward-mode at one QP; Jacobian tangents from dual output args.
+   template <typename qf_param_ts>
+   MFEM_HOST_DEVICE static void native_dual_fwddiff_at_qp(
+      const qfunc_t &qfunc,
+      const std::array<DeviceTensor<2>, ninputs> &input_shmem,
+      const std::array<DeviceTensor<2>, ninputs> &shadow_shmem,
+      DeviceTensor<2> &residual_shmem,
+      const std::array<int, noutputs> &out_row_offsets,
+      const std::array<int, noutputs> &out_qp_sizes,
+      const int q)
+   {
+      auto dual_args = decay_tuple<qf_param_ts> {};
+
+      for_constexpr<ninputs>([&](auto i)
+      {
+         process_qf_arg(input_shmem[i], shadow_shmem[i], get<i>(dual_args), q);
+      });
+
+      call_qfunc_no_move(qfunc, dual_args);
+
+      for_constexpr<noutputs>([&](auto o)
+      {
+         constexpr std::size_t arg_idx = ninputs + o;
+         auto out_q = Reshape(&residual_shmem(out_row_offsets[o], q), out_qp_sizes[o]);
+         process_derivative_from_native_dual(out_q, get<arg_idx>(dual_args));
+      });
+   }
+
    template <typename qf_param_ts>
    MFEM_HOST_DEVICE static void call_qfunction_fwddiff(
       const qfunc_t &qfunc,
@@ -558,6 +586,7 @@ struct DerivativeSetup
          {
             MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
             {
+#ifdef MFEM_USE_ENZYME
                auto primal_args = decay_tuple<qf_param_ts> {};
                auto shadow_args = decay_tuple<qf_param_ts> {};
 
@@ -580,6 +609,11 @@ struct DerivativeSetup
                                        out_qp_sizes[o]);
                   process_qf_result(out_q, get<arg_idx>(shadow_args));
                });
+#else
+               native_dual_fwddiff_at_qp<qf_param_ts>(
+                  qfunc, input_shmem, shadow_shmem, residual_shmem,
+                  out_row_offsets, out_qp_sizes, q);
+#endif
             }
          }
          else if (dimension == 2)
@@ -589,6 +623,7 @@ struct DerivativeSetup
                MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
                {
                   const int q = qx + q1d * qy;
+#ifdef MFEM_USE_ENZYME
                   auto primal_args = decay_tuple<qf_param_ts> {};
                   auto shadow_args = decay_tuple<qf_param_ts> {};
                   for_constexpr<ninputs>([&](auto i)
@@ -610,6 +645,11 @@ struct DerivativeSetup
                                           out_qp_sizes[o]);
                      process_qf_result(out_q, get<arg_idx>(shadow_args));
                   });
+#else
+                  native_dual_fwddiff_at_qp<qf_param_ts>(
+                     qfunc, input_shmem, shadow_shmem, residual_shmem,
+                     out_row_offsets, out_qp_sizes, q);
+#endif
                }
             }
          }
@@ -622,6 +662,7 @@ struct DerivativeSetup
                   MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                   {
                      const int q = qx + q1d * (qy + q1d * qz);
+#ifdef MFEM_USE_ENZYME
                      auto primal_args = decay_tuple<qf_param_ts> {};
                      auto shadow_args = decay_tuple<qf_param_ts> {};
 
@@ -644,6 +685,11 @@ struct DerivativeSetup
                                              out_qp_sizes[o]);
                         process_qf_result(out_q, get<arg_idx>(shadow_args));
                      });
+#else
+                     native_dual_fwddiff_at_qp<qf_param_ts>(
+                        qfunc, input_shmem, shadow_shmem, residual_shmem,
+                        out_row_offsets, out_qp_sizes, q);
+#endif
                   }
                }
             }
@@ -658,6 +704,7 @@ struct DerivativeSetup
       {
          MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
          {
+#ifdef MFEM_USE_ENZYME
             auto primal_args = decay_tuple<qf_param_ts> {};
             auto shadow_args = decay_tuple<qf_param_ts> {};
 
@@ -680,6 +727,11 @@ struct DerivativeSetup
                                     out_qp_sizes[o]);
                process_qf_result(out_q, get<arg_idx>(shadow_args));
             });
+#else
+            native_dual_fwddiff_at_qp<qf_param_ts>(
+               qfunc, input_shmem, shadow_shmem, residual_shmem,
+               out_row_offsets, out_qp_sizes, q);
+#endif
          }
          MFEM_SYNC_THREAD;
       }
