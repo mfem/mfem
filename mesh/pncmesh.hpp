@@ -510,7 +510,7 @@ protected: // implementation
    public:
       void AddRefinement(int elem, const Refinement &ref)
       {
-         NeighborRefinement data;
+         NeighborRefinement data{};
          data.ref_type = ref.GetType();
          for (int i = 0; i < 3; i++)
          {

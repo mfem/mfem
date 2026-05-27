@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   TestAnisoRefRandom(num_refs, tdim, pmesh, myid, myid);
+   TestAnisoRefRandom(num_refs, dim, pmesh, myid, myid);
 
    // 4. Define a parallel H1 finite element space and report its global size.
    H1_FECollection fec(order, dim);
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
    {
       cout << "Error of H1 continuity: " << h1err << endl;
    }
-   MFEM_VERIFY(h1err < 1.0e-7, "");
+   MFEM_VERIFY(h1err < 1.0e-7, "H1 discontinuity found");
 
    // 7. Save the refined mesh and the solution in parallel. This output can
    //    be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
