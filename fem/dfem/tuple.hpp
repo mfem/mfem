@@ -60,7 +60,8 @@ struct tuple_leaf
 
    /// Construct from value
    template <typename U>
-   MFEM_HOST_DEVICE constexpr explicit tuple_leaf(U&& v) : value(std::forward<U>(v)) {}
+   MFEM_HOST_DEVICE constexpr explicit tuple_leaf(U&& v) :
+      value(std::forward<U>(v)) {}
 };
 
 /**
