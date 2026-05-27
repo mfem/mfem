@@ -35,8 +35,8 @@ real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
    real_t a = y0;
    real_t b = y1;
 
-   real_t ua = 0.0 - u_target;
-   real_t ub = 1.0 - u_target;
+   real_t ua = 1.0 - u_target;
+   real_t ub = 0.0 - u_target;
    real_t uc = 0.5 - u_target;
 
    const int nmax = 20;
@@ -113,7 +113,7 @@ real_t CalcWidth(ParGridFunction &u)
    real_t y25 = FindYVal(u, 0.25, xMid, y0, y1);
    real_t y75 = FindYVal(u, 0.75, xMid, y0, y1);
 
-   return y75 - y25;
+   return y25 - y75;
 }
 
 }

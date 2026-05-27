@@ -20,8 +20,8 @@ namespace umansky
 {
 
 /** The boundary values for the test problem defined in the Umansky
-    paper are set to zero on the y=0 and x=w sides of the rectangular
-    domain and zero to 1 on the x=0 and y=h sides. In order to improve
+    paper are set to one on the y=0 and x=w sides of the rectangular
+    domain and to zero on the x=0 and y=h sides. In order to improve
     the symmetry of solutions we also define boundary values at the
     points (0,0) and (w,h) to be equal to 0.5.
  */
@@ -46,11 +46,11 @@ public:
       }
       else if (w_ * x[1] > h_ * x[0])
       {
-         return 1.0;
+         return 0.0;
       }
       else
       {
-         return 0.0;
+         return 1.0;
       }
    }
 
