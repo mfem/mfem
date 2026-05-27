@@ -85,8 +85,9 @@ struct tensor<T, N0, N1, Rest...>
    static constexpr int first_dim = N0;
 
    static constexpr bool is_zero_dim = (N0 == 0);
+   static constexpr int storage_size = is_zero_dim ? 1 : N0;
    using storage_type =
-      std::conditional_t<is_zero_dim, sub_tensor, sub_tensor[N0]>;
+      std::conditional_t<is_zero_dim, sub_tensor, sub_tensor[storage_size]>;
    storage_type values;
 
    MFEM_HOST_DEVICE sub_tensor& operator[](int i)
