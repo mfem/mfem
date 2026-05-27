@@ -5073,6 +5073,7 @@ void ParMesh::FindInterface(Array<int> &interface) const
    // are on material interfaces.
    const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
 
+   interface.SetSize(0); // clear 'interface' since we Append to it
    const int nf = GetNumFaces();
    for (int f = 0; f < nf; f++)
    {
@@ -5093,7 +5094,7 @@ void ParMesh::FindInterface(Array<int> &interface) const
          // -1-Elem2No, i.e. FlipIndexSign(Elem2No) (see Mesh::FaceInfo).
          const int nbr_el = FlipIndexSign(faces_info[f].Elem2No);
          MFEM_ASSERT(0 <= nbr_el && nbr_el < face_nbr_elements.Size(),
-                     "ParMesh::FindInterface: invalid face-neighbor index");
+                     "invalid face-neighbor index");
          a2 = face_nbr_elements[nbr_el]->GetAttribute();
       }
 
