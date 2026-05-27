@@ -49,7 +49,7 @@ runs:
         par: ${{inputs.par}}
         sanitizer: ${{inputs.sanitizer}}
 
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: build-${{inputs.par}}-${{inputs.sanitizer}}
         path: mfem/build
