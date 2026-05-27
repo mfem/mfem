@@ -5093,7 +5093,7 @@ void ParMesh::FindInterface(Array<int> &interface) const
          // -1-Elem2No, i.e. FlipIndexSign(Elem2No) (see Mesh::FaceInfo).
          const int nbr_el = FlipIndexSign(faces_info[f].Elem2No);
          MFEM_ASSERT(0 <= nbr_el && nbr_el < face_nbr_elements.Size(),
-                     "ParMesh::Print: invalid face-neighbor index");
+                     "ParMesh::FindInterface: invalid face-neighbor index");
          a2 = face_nbr_elements[nbr_el]->GetAttribute();
       }
 
