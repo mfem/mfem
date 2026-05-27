@@ -3905,9 +3905,9 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
    init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
    for (int c = 0; c < nal; c++)
    {
-      Vector init_c;
-      init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
-      init_c = *adapt_lim_gf0[c];
+      const real_t *src = adapt_lim_gf0[c]->Read();
+      real_t *dst = init_field_vec.Write() + c * ndofs;
+      mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
    }
    adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
 }
@@ -4262,9 +4262,9 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
       init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
       for (int c = 0; c < nal; c++)
       {
-         Vector init_c;
-         init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
-         init_c = *adapt_lim_gf0[c];
+         const real_t *src = adapt_lim_gf0[c]->Read();
+         real_t *dst = init_field_vec.Write() + c * ndofs;
+         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
       }
       adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
@@ -4295,9 +4295,9 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
       init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
       for (int c = 0; c < nal; c++)
       {
-         Vector init_c;
-         init_c.MakeRef(init_field_vec, c * ndofs, ndofs);
-         init_c = *adapt_lim_gf0[c];
+         const real_t *src = adapt_lim_gf0[c]->Read();
+         real_t *dst = init_field_vec.Write() + c * ndofs;
+         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
       }
       adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
@@ -5850,9 +5850,9 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       adapt_lim_eval->ComputeAtNewPosition(x_loc, new_field_vec, ordering);
       for (int c = 0; c < nal; c++)
       {
-         Vector new_c;
-         new_c.MakeRef(new_field_vec, c * ndofs, ndofs);
-         *adapt_lim_gf[c] = new_c;
+         const real_t *src = new_field_vec.Read() + c * ndofs;
+         real_t *dst = adapt_lim_gf[c]->Write();
+         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
       }
 
       if (PA.enabled)
