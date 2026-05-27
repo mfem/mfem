@@ -91,13 +91,21 @@ struct tensor<T, N0, N1, Rest...>
 
    MFEM_HOST_DEVICE sub_tensor& operator[](int i)
    {
-      if constexpr (is_zero_dim) { return values; }
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
       else { return values[i]; }
    }
 
    MFEM_HOST_DEVICE const sub_tensor& operator[](int i) const
    {
-      if constexpr (is_zero_dim) { return values; }
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
       else { return values[i]; }
    }
 
