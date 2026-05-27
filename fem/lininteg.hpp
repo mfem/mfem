@@ -575,12 +575,16 @@ public:
 /** Class for boundary integration of the linear form:
     $ \frac{\alpha}{2} \langle (u \cdot n) f, w \rangle - \beta \langle |u \cdot n| f, w \rangle $
     where $f$ and $u$ are given scalar and vector coefficients, respectively,
-    and $w$ is the scalar test function. */
+    and $w$ is the scalar test function. Alternatively, vector coefficient $vf$
+    can ber provided to calculate $f = vf \cdot n / |u \cdot n|$, which allows
+    to integrate a vector boundary flux with upwinding given by a different
+    field. */
 class BoundaryFlowIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient *f;
-   VectorCoefficient *u;
+   Coefficient *f = nullptr;
+   VectorCoefficient *vf = nullptr;
+   VectorCoefficient *u = nullptr;
    real_t alpha, beta;
 
    Vector shape;
@@ -593,6 +597,14 @@ public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
+
+   BoundaryFlowIntegrator(VectorCoefficient &vf_, VectorCoefficient &u_,
+                          real_t a)
+   { vf = &vf_; u = &u_; alpha = a; beta = 0.5*a; }
+
+   BoundaryFlowIntegrator(VectorCoefficient &vf_, VectorCoefficient &u_,
+                          real_t a, real_t b)
+   { vf = &vf_; u = &u_; alpha = a; beta = b; }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

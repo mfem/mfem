@@ -1031,7 +1031,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
    dim  = el.GetDim();
    ndof = el.GetDof();
-   Vector vu(vu_data, dim), nor(nor_data, dim);
+   Vector vu(vu_data, dim), nor(nor_data, dim), vvf(dim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1075,7 +1075,16 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
-      w *= ip.weight*f->Eval(Tr, ip);
+      if (f)
+      {
+         w *= f->Eval(Tr, ip);
+      }
+      else if (vf && un != 0.)
+      {
+         vf->Eval(vvf, Tr, ip);
+         w *= (vvf * nor) / fabs(un);
+      }
+      w *= ip.weight;
       elvect.Add(w, shape);
    }
 }
