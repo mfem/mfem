@@ -114,7 +114,7 @@ void ConduitDataCollection::Save()
                                          n_mesh["fields"][name]);
    }
 
-   // TODO: in parallel, we need to call ParFiniteELementSpace::ApplyDofSigns
+   // TODO: in parallel, we need to call ParFiniteElementSpace::ApplyDofSigns
    // for all ParGridFunction objects before and after saving, see
    // ParGridFunction::Save.
 
