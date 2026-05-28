@@ -939,12 +939,6 @@ static Array<int> BdrElementsWithAttribute(const Mesh &mesh, int attr)
    return ids;
 }
 
-/// Return true for FEC types whose GridFunction requires a VectorCoefficient.
-static bool IsVectorFEC(FECType fec_type)
-{
-   return fec_type == FECType::ND || fec_type == FECType::RT;
-}
-
 /// Project the appropriate scalar or vector coefficient onto @a gf.
 static void ProjectSmoothCoeff(GridFunction &gf, int sdim)
 {
