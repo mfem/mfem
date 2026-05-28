@@ -316,8 +316,6 @@ matd_t<DIM> qdata_setup(
 
       if (viscosity_type == 2)
       {
-         MFEM_ABORT("works only in 2D!");
-
          // Default Laghos viscosity.
          // auto symdvdx = sym(dvdxi * invJ);
          // auto [eigvals, eigvecs] = eig(symdvdx);
@@ -2654,12 +2652,12 @@ int main(int argc, char *argv[])
 
    const char *mesh_file = "./rectangle01_quad.mesh";
 
+   int dim = 2;
    int refinements = 0;
    int order_v = 2;
    int order_e = 1;
    int order_q = -1;
    real_t t_final = 0.0;
-   real_t blast_energy = 0.25;
    real_t blast_position[] = {0.0, 0.0, 0.0};
    int ode_solver_type = 4;
    bool fd_gradient = false;
@@ -2703,6 +2701,7 @@ int main(int argc, char *argv[])
    }
 
    OptionsParser args(argc, argv);
+   args.AddOption(&dim, "-dim", "--dimension", "Dimension of the problem.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&refinements, "-rs", "--ref", "");
@@ -2749,6 +2748,8 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
+   real_t blast_energy = (dim == 2) ? 0.25 : 0.125;
+
    const bool use_petsc = petsc_opts_provided;
    if (use_petsc)
    {
@@ -2781,7 +2782,6 @@ int main(int argc, char *argv[])
    }
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
-   int dim = serial_mesh.Dimension();
 
    if ((dim == 2) && (problem == 0 || problem == 1))
    {
@@ -2792,6 +2792,18 @@ int main(int argc, char *argv[])
       {
          Element *bel = serial_mesh.GetBdrElement(b);
          const int attr = (b < NBE/2) ? 2 : 1;
+         bel->SetAttribute(attr);
+      }
+   }
+   if (dim == 3 && (problem == 0 || problem == 1))
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON,
+                                               true));
+      const int NBE = serial_mesh.GetNBE();
+      for (int b = 0; b < NBE; b++)
+      {
+         Element *bel = serial_mesh.GetBdrElement(b);
+         const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
          bel->SetAttribute(attr);
       }
    }
@@ -3202,7 +3214,6 @@ int main(int argc, char *argv[])
                      out << "writing viz for non converged newton step " << ti
                          << " at time=" << t << "\n";
                   }
-                  // vizcb(ti+100, t+100.0);
                }
 
                dt *= 0.85;
@@ -3213,7 +3224,6 @@ int main(int argc, char *argv[])
                if (Mpi::Root())
                {
                   out << "Repeating step " << ti << " with dt: " << dt << "." << std::endl;
-                  //out << "Reason: " << min_detJ << std::endl;
                   if (!hydro->newton_converged)
                   {
                      if (use_petsc)
@@ -3350,6 +3360,16 @@ int main(int argc, char *argv[])
       hydro->DensityScatter();
    }
 
+   if (problem == 0 && dim == 3)
+   {
+      mesh.SaveAsOne("tgreen.mesh");
+      v_gf.SaveAsOne("tgreen.gf");
+   }
+   if (problem == 1 && dim == 3)
+   {
+      mesh.SaveAsOne("sedov.mesh");
+      rho_gf.SaveAsOne("sedov.gf");
+   }
    if (problem == 3)
    {
       mesh.SaveAsOne("3point.mesh");
