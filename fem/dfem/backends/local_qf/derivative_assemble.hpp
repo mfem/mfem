@@ -481,9 +481,9 @@ template <
    std::size_t num_inputs,
    typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
-   const DeviceTensor<4, real_t> &A,
-   const DeviceTensor<3, real_t> &fhat,
-   const DeviceTensor<5, const real_t> &qpdc,
+   const DeviceTensor<5, real_t> &A,
+   const DeviceTensor<6, const real_t> &qpdc,
+   const int e,
    const DeviceTensor<1, const real_t> &itod,
    const input_fop_ts &inputs,
    const output_fop_t &output,
@@ -493,12 +493,21 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const int td1d)
 {
    static constexpr int DIM = backend_t::DIM;
+   static constexpr int MQ1_CAP = T_Q1D ? T_Q1D : backend_t::MQ1;
+   static constexpr int MAX_NQ =
+      (DIM == 2) ? MQ1_CAP * MQ1_CAP : MQ1_CAP * MQ1_CAP * MQ1_CAP;
+   static constexpr int FHAT_COMP_MAX = 32;
+   static constexpr int FHAT_CAP = MAX_NQ * FHAT_COMP_MAX;
    static_assert(DIM == 2 || DIM == 3);
 
    const int test_vdim = qpdc.GetShape()[3];
    const int test_op_dim = qpdc.GetShape()[2];
    const int trial_vdim = qpdc.GetShape()[1];
    const int num_test_dof = A.GetShape()[0];
+   const int nq = qpdc.GetShape()[4];
+
+   MFEM_SHARED real_t fhat_storage[FHAT_CAP];
+   auto fhat = Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
 
    [[maybe_unused]] const auto &inputs_ref = inputs;
 
@@ -549,7 +558,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         for (int k = 0; k < test_op_dim; k++)
                         {
-                           const real_t f = qpdc(m + m_offset, j, k, i, q);
+                           const real_t f = qpdc(m + m_offset, j, k, i, q, e);
                            fhat(i, k, q) += f * w;
                         }
                      }
@@ -572,7 +581,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         for (int k = 0; k < test_op_dim; k++)
                         {
-                           const real_t f = qpdc(m + m_offset, j, k, i, q);
+                           const real_t f = qpdc(m + m_offset, j, k, i, q, e);
                            fhat(i, k, q) += f * w;
                         }
                      }
@@ -590,7 +599,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
             m_offset += trial_op_dim;
          });
 
-         auto bvtfhat = Reshape(&A(0, 0, J, j), num_test_dof, test_vdim);
+         auto bvtfhat = Reshape(&A(0, 0, J, j, e), num_test_dof, test_vdim);
          assemble_detail::map_quadrature_data_to_fields<backend_t, T_Q1D>(
             bvtfhat, fhat, output, output_dtqmap);
       }
@@ -635,11 +644,8 @@ class DerivativeAssemble
    const int dim, ne, nq, q1d;
    const int num_trial_dof_1d;
    const int total_trial_op_dim;
-   const int residual_size_on_qp;
-   const int fhat_size_on_elem;
    mutable Vector inputs_trial_op_dim;
    mutable Vector Ae_mem;
-   mutable Vector integrate_workspace;
 
 public:
    DerivativeAssemble() = delete;
@@ -732,11 +738,8 @@ public:
       get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {});
       return compute_total_trial_op_dim(inputs, input_is_dependent, in_qp_sizes);
    }()),
-   residual_size_on_qp(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim),
-   fhat_size_on_elem(test_vdim * test_op_dim * nq),
    inputs_trial_op_dim(),
-   Ae_mem(),
-   integrate_workspace()
+   Ae_mem()
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
@@ -762,9 +765,6 @@ public:
       Ae_mem.UseDevice(true);
       Ae_mem = 0.0;
 
-      integrate_workspace.SetSize(fhat_size_on_elem);
-      integrate_workspace.UseDevice(true);
-
 #ifndef MFEM_DEBUG
       DerivativeAssembleLO::template Specialization<2, 2>::Add();
       DerivativeAssembleLO::template Specialization<2, 3>::Add();
@@ -785,12 +785,12 @@ public:
    {
       Backend::Run(
          dim, q1d,
-         ctx, qp_cache, Ae_mem, integrate_workspace,
+         ctx, qp_cache, Ae_mem,
          inputs, outputs, input_dtq_maps, output_dtq_maps[0],
          inputs_trial_op_dim,
          test_vdim, test_op_dim, num_test_dof, num_trial_dof, num_trial_dof_1d,
-         trial_vdim, total_trial_op_dim, residual_size_on_qp,
-         fhat_size_on_elem, nq, ne, q1d, dim);
+         trial_vdim, total_trial_op_dim,
+         nq, ne, q1d, dim);
    }
 
    void operator()(SparseMatrix *&A) const
@@ -880,7 +880,6 @@ public:
       const IntegratorContext &ctx,
       const Vector &qp_cache,
       Vector &Ae_mem,
-      Vector &integrate_workspace,
       const inputs_t &inputs,
       const outputs_t &outputs,
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
@@ -893,8 +892,6 @@ public:
       const int num_trial_dof_1d,
       const int trial_vdim,
       const int total_trial_op_dim,
-      const int residual_size_on_qp,
-      const int fhat_size_on_elem,
       const int nq,
       const int ne,
       const int q1d,
@@ -903,38 +900,37 @@ public:
       NVTX_MARK_FUNCTION;
       static constexpr int DIM = backend_t::DIM;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
+      static constexpr int MAX_NQ =
+         (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
+      static constexpr int FHAT_COMP_MAX = 32;
+      static constexpr int FHAT_CAP = MAX_NQ * FHAT_COMP_MAX;
       MFEM_VERIFY(dim == DIM, "DerivativeAssemble: mesh dim does not match backend");
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
+      MFEM_VERIFY(nq <= MAX_NQ,
+                  "DerivativeAssemble: nq exceeds backend quadrature capacity");
+      MFEM_VERIFY(test_vdim * test_op_dim * nq <= FHAT_CAP,
+                  "DerivativeAssemble: fhat size exceeds shared-memory capacity");
       if (ctx.attr.Size() == 0) { return; }
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      auto cache_tensor = DeviceTensor<3, const real_t>(
-         qp_cache.Read(), residual_size_on_qp, nq, ne);
       auto Ae = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim,
                         num_trial_dof, trial_vdim, ne);
+      auto qpdc = Reshape(qp_cache.Read(), total_trial_op_dim, trial_vdim,
+                          test_op_dim, test_vdim, nq, ne);
       auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 
-      forall([=] MFEM_HOST_DEVICE (const int e, void *shmem)
+      forall([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         real_t *ws = static_cast<real_t *>(shmem);
-         auto fhat_e = Reshape(ws, test_vdim, test_op_dim, nq);
-
-         auto Aee = Reshape(&Ae(0, 0, 0, 0, e), num_test_dof, test_vdim,
-                            num_trial_dof, trial_vdim);
-         auto qpdc = Reshape(&cache_tensor(0, 0, e), total_trial_op_dim,
-                             trial_vdim, test_op_dim, test_vdim, nq);
-
          assemble_element_mat_sumfact<backend_t, T_Q1D>(
-            Aee, fhat_e, qpdc, itod, inputs, get<0>(outputs),
+            Ae, qpdc, e, itod, inputs, get<0>(outputs),
             input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
-      }, ne, backend_t::thread_blocks(q1d),
-         fhat_size_on_elem, integrate_workspace.ReadWrite());
+      }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }
 
    using AssembleKernelType =
