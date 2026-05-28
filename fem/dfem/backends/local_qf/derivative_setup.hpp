@@ -63,7 +63,7 @@ class DerivativeSetup
    const std::array<int, n_outputs> out_row_offsets;
    // transpose / setup metadata
    const std::array<bool, n_inputs> input_is_dependent;
-   const std::vector<int> input_size_on_qp;
+   const std::array<int, n_inputs> input_size_on_qp;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -130,8 +130,8 @@ public:
    out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
    out_row_offsets(compute_out_row_offsets(out_vdim, out_op_dim)),
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
-   input_size_on_qp(
-      get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
+   input_size_on_qp(get_input_size_on_qp(inputs,
+                                         std::make_index_sequence<n_inputs> {})),
    output_size_on_qp([&]
    {
       int s = 0;
@@ -244,20 +244,20 @@ public:
    static void derivative_setup_callback(
       const IntegratorContext &ctx,
       const qfunc_t &qfunc,
-      const inputs_t &inputs_local,
-      const std::array<DofToQuadMap, n_inputs> &input_dtq_maps_local,
-      const std::array<size_t, n_inputs> &input_to_field_local,
-      const std::vector<int> &input_size_on_qp_local,
+      const inputs_t &inputs,
+      const std::array<DofToQuadMap, n_inputs> &input_dtq_map,
+      const std::array<size_t, n_inputs> &input_to_field,
+      const std::array<int, n_inputs> &input_size_on_qp,
       const std::array<bool, n_inputs> &input_dep,
-      const std::array<int, n_outputs> &out_qp_size_local,
-      const std::array<int, n_outputs> &out_vdim_local,
-      const std::array<int, n_outputs> &out_op_dim_local,
-      const std::array<int, n_outputs> &out_offsets_local,
-      const std::array<int, n_outputs> &out_row_offsets_local,
-      const int trial_vdim_local,
-      const int total_trial_op_dim_local,
-      const int output_size_on_qp_local,
-      const bool use_sum_factorization_local,
+      const std::array<int, n_outputs> &out_qp_size,
+      const std::array<int, n_outputs> &out_vdim,
+      const std::array<int, n_outputs> &out_op_dim,
+      const std::array<int, n_outputs> &out_offsets,
+      const std::array<int, n_outputs> &out_row_offsets,
+      const int trial_vdim,
+      const int total_trial_op_dim,
+      const int output_size_on_qp,
+      const bool use_sum_factorization,
       const std::array<DeviceTensor<2>, nfields> &wrapped_fields_e,
       DeviceTensor<3, real_t> &cache_tensor,
       Vector &input_at_qp_host,
@@ -278,7 +278,7 @@ public:
       const int input_qp_size_on_elem = [&]
       {
          int s = 0;
-         for (int sz : input_size_on_qp_local) { s += sz; }
+         for (int sz : input_size_on_qp) { s += sz; }
          return s;
       }();
 
@@ -300,6 +300,7 @@ public:
          field_sizes_local[uf] = wrapped_fields_e[uf].GetShape()[0];
       }
 
+      // ──────────────────────────────────────────────────────────────────────
       dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
@@ -316,7 +317,7 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            const int sz = input_size_on_qp_local[i];
+            const int sz = input_size_on_qp[i];
             input_at_qp[i] =
                Reshape(d_input_at_qp + static_cast<size_t>(e) * input_qp_size_on_elem * nq +
                        in_qp_offset * nq, sz, nq);
@@ -326,9 +327,10 @@ public:
             in_qp_offset += sz;
          });
 
-         auto residual_at_qp = Reshape(
-                                  d_residual_at_qp + static_cast<size_t>(e) * output_size_on_qp_local * nq,
-                                  output_size_on_qp_local, nq);
+         auto residual_at_qp =
+            Reshape(
+               d_residual_at_qp + static_cast<size_t>(e) * output_size_on_qp * nq,
+               output_size_on_qp, nq);
 
          real_t *elem_scratch =
             d_map_scratch + static_cast<size_t>(e) * 6 * scratch_buf_size;
@@ -340,19 +342,19 @@ public:
          }
 
          map_fields_to_quadrature_data(
-            input_at_qp, fields_e, input_dtq_maps_local, input_to_field_local,
-            inputs_local, ir_weights, scratch_bufs, dim, use_sum_factorization_local);
+            input_at_qp, fields_e, input_dtq_map, input_to_field,
+            inputs, ir_weights, scratch_bufs, dim, use_sum_factorization);
          MFEM_SYNC_THREAD;
 
-         for (int j = 0; j < trial_vdim_local; j++)
+         for (int j = 0; j < trial_vdim; j++)
          {
             int m_offset = 0;
             for_constexpr<n_inputs>([&](auto s)
             {
                if (!input_dep[s]) { return; }
 
-               const int input_vdim = get<s>(inputs_local).vdim;
-               const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+               const int input_vdim = get<s>(inputs).vdim;
+               const int trial_op_dim = input_size_on_qp[s] / input_vdim;
 
                for (int m = 0; m < trial_op_dim; m++)
                {
@@ -367,20 +369,21 @@ public:
 
                   call_qfunction_fwddiff<qf_param_ts>(
                      qfunc, input_at_qp, shadow_at_qp, residual_at_qp,
-                     out_row_offsets_local, out_qp_size_local,
-                     nq, q1d, dim, use_sum_factorization_local);
+                     out_row_offsets, out_qp_size,
+                     nq, q1d, dim, use_sum_factorization);
                   MFEM_SYNC_THREAD;
 
                   for_constexpr<n_outputs>([&](auto o)
                   {
                      constexpr size_t oc = o;
-                     const int test_vdim = out_vdim_local[oc];
-                     const int test_op_dim = out_op_dim_local[oc];
-                     const int out_offset_o = out_offsets_local[oc];
-                     const int out_row_o = out_row_offsets_local[oc];
+                     const int test_vdim = out_vdim[oc];
+                     const int test_op_dim = out_op_dim[oc];
+                     const int out_offset_o = out_offsets[oc];
+                     const int out_row_o = out_row_offsets[oc];
 
-                     auto output_qp = Reshape(&residual_at_qp(out_row_o, 0), test_vdim,
-                                              test_op_dim, nq);
+                     auto output_qp =
+                        Reshape(&residual_at_qp(out_row_o, 0), test_vdim,
+                                test_op_dim, nq);
 
                      MFEM_FOREACH_THREAD(q, x, nq)
                      {
@@ -389,10 +392,10 @@ public:
                            for (int k = 0; k < test_op_dim; k++)
                            {
                               const int cache_idx =
-                                 (out_offset_o + i * test_op_dim) * trial_vdim_local *
-                                 total_trial_op_dim_local +
-                                 k * trial_vdim_local * total_trial_op_dim_local +
-                                 j * total_trial_op_dim_local +
+                                 (out_offset_o + i * test_op_dim) * trial_vdim *
+                                 total_trial_op_dim +
+                                 k * trial_vdim * total_trial_op_dim +
+                                 j * total_trial_op_dim +
                                  (m + m_offset);
 
                               cache_tensor(cache_idx, q, e) = output_qp(i, k, q);
@@ -644,7 +647,7 @@ private:
    static int compute_total_trial_op_dim(
       const inputs_t &ins,
       const std::array<bool, n_inputs> &dep,
-      const std::vector<int> &size_on_qp)
+      const std::array<int, n_inputs> &size_on_qp)
    {
       int total = 0;
       for_constexpr<n_inputs>([&](auto i)

@@ -2086,9 +2086,9 @@ struct DofToQuadMap
 /// @brief Get the size on quadrature point for a given set of inputs.
 ///
 /// @param inputs the inputs tuple.
-/// @returns a vector containing the size on quadrature point for each input.
+/// @returns an array containing the size on quadrature point for each input.
 template <typename input_t, std::size_t... i>
-std::vector<int> get_input_size_on_qp(
+std::array<int, sizeof...(i)> get_input_size_on_qp(
    const input_t &inputs,
    std::index_sequence<i...>)
 {
@@ -2134,7 +2134,7 @@ get_shmem_info(
    const int &num_entities,
    const input_t &,
    const int &num_qp,
-   const std::vector<int> &input_size_on_qp,
+   const std::array<int, num_inputs> &input_size_on_qp,
    const int &residual_size_on_qp,
    const ElementDofOrdering &dof_ordering,
    const int &derivative_action_field_idx = -1)

@@ -419,7 +419,7 @@ struct DerivativeApply
    std::array<int, noutputs> out_op_dim;
    std::array<int, noutputs> out_num_dof;
 
-   std::vector<int> input_size_on_qp;
+   std::array<int, ninputs> input_size_on_qp;
    Vector inputs_trial_op_dim;
 
    SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;

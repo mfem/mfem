@@ -81,7 +81,7 @@ class DerivativeApplyTranspose
    const std::array<bool, n_inputs> input_is_dependent;
    const int output_size_on_qp;
    const bool use_sum_factorization;
-   const std::vector<int> input_size_on_qp;
+   const std::array<int, n_inputs> input_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
    const size_t deriv_infd_idx; // infds index for derivative_id
@@ -357,7 +357,7 @@ public:
       const std::array<int, n_outputs> &out_q1d,
       const std::array<int, n_outputs> &out_qp_size_local,
       const std::array<int, n_outputs> &out_elem_dof_size_local,
-      const std::vector<int> &input_size_on_qp_local,
+      const std::array<int, n_inputs> &input_size_on_qp_local,
       const std::array<bool, n_inputs> &input_dep,
       const std::array<int, n_outputs> &out_vdim,
       const std::array<int, n_outputs> &out_op_dim,
@@ -595,7 +595,7 @@ private:
    static int compute_total_trial_op_dim(
       const inputs_t &ins,
       const std::array<bool, n_inputs> &dep,
-      const std::vector<int> &size_on_qp)
+      const std::array<int, n_inputs> &size_on_qp)
    {
       int total = 0;
       for_constexpr<n_inputs>([&](auto i)

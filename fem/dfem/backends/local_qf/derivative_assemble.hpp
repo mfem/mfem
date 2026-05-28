@@ -12,8 +12,6 @@
 
 #include "../util.hpp"
 #include "../../integrator_ctx.hpp"
-#include "../../interpolate.hpp"
-#include "../../integrate.hpp"
 #include "../../assemble.hpp"
 
 #include <array>
@@ -254,7 +252,6 @@ struct DerivativeAssemble
       const auto inputs_local = inputs;
       const auto shmem_info_local = shmem_info;
       const int dimension_local = dimension;
-      const int num_entities_local = num_entities;
       const int num_qp_local = num_qp;
       const int q1d_local = q1d;
       const int test_vdim_local = test_vdim;
@@ -406,7 +403,7 @@ struct DerivativeAssemble
    std::array<int, noutputs> out_vdim;
    std::array<int, noutputs> out_op_dim;
 
-   std::vector<int> input_size_on_qp;
+   std::array<int, ninputs> input_size_on_qp;
 
    SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;
    mutable Vector shmem_cache;
