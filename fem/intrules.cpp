@@ -577,7 +577,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
             // this seems to cause trouble if we try std::abs(dz) < 1e-16
 #else
          MFEM_ABORT("Floating point type undefined");
-         if (std::abs(dz) < 1e-16)
+         // if (std::abs(dz) < 1e-16)
 #endif
          {
             done = true;
@@ -597,7 +597,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
 
 #else // MFEM_USE_MPFR is defined
 
-   MFEM_ABORT("MPFR implemented of Gauss-Jacobi quadrature not defined yet")
+   MFEM_ABORT("MPFR implementation of Gauss-Jacobi quadrature not defined yet");
 
 #endif // MFEM_USE_MPFR
 

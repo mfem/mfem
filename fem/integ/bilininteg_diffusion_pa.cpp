@@ -142,7 +142,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (stroud)
    {
       maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
-      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    }
    else
    {
