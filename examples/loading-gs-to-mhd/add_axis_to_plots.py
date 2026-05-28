@@ -43,7 +43,7 @@ def add_axes_to_png(png_path):
     ax.tick_params(labelsize=10)
     fig.patch.set_facecolor("white")
 
-    fig.savefig(str(png_path).replace(".png", ".pdf"), dpi=100, bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(str(png_path).replace(".png", "_ax.pdf"), dpi=100, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     print(f"Wrote {png_path}  bounds={[round(b, 3) for b in bounds]}")
 
