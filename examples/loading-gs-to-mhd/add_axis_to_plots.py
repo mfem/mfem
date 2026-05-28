@@ -75,7 +75,7 @@ def add_axes_to_png(png_path):
     fig.subplots_adjust(left=0.12, right=0.98, bottom=0.10, top=0.98)
 
     out_path = png_path.with_name(png_path.stem + "_ax.pdf")
-    fig.savefig(out_path, dpi=dpi)
+    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     print(
         f"Wrote {out_path}  size={FIG_WIDTH_IN}x{FIG_HEIGHT_IN} in  dpi={dpi}  "
