@@ -12,9 +12,11 @@
 
 // Compile-time quadrature argument metadata for local q-functions
 
+#include "../../integrator_ctx.hpp"
 #include "../../util.hpp"
 #include "linalg/tensor.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <type_traits>
@@ -234,6 +236,147 @@ constexpr auto get_Q1D(const Tuple& fields)
    {
       return std::array<int, sizeof...(f)> {f.B.GetShape()[0]...};
    }, fields);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Per-output FOP layout metadata (shared by derivative setup / apply kernels).
+
+template<typename outputs_t>
+constexpr auto compute_out_qp_size(const outputs_t &outs)
+{
+   constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+   std::array<int, n_outputs> sizes{};
+   for_constexpr<n_outputs>([&](auto o) { sizes[o] = get<o>(outs).size_on_qp; });
+   return sizes;
+}
+
+template<typename outputs_t>
+constexpr auto compute_out_op_dim(const outputs_t &outs)
+{
+   constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+   std::array<int, n_outputs> op{};
+   for_constexpr<n_outputs>([&](auto o)
+   {
+      op[o] = get<o>(outs).size_on_qp / get<o>(outs).vdim;
+   });
+   return op;
+}
+
+template<std::size_t N>
+constexpr std::array<int, N> compute_out_offsets(
+   const std::array<int, N> &vdim,
+   const std::array<int, N> &op_dim)
+{
+   std::array<int, N> offsets{};
+   offsets[0] = 0;
+   for (std::size_t o = 1; o < N; o++)
+   {
+      offsets[o] = offsets[o - 1] + vdim[o - 1] * op_dim[o - 1];
+   }
+   return offsets;
+}
+
+template<std::size_t N>
+constexpr std::array<int, N> compute_out_flat_offsets(
+   const std::array<int, N> &vdim,
+   const std::array<int, N> &op_dim,
+   const int num_qp)
+{
+   std::array<int, N> offsets{};
+   offsets[0] = 0;
+   for (std::size_t o = 1; o < N; o++)
+   {
+      offsets[o] = offsets[o - 1] + vdim[o - 1] * op_dim[o - 1] * num_qp;
+   }
+   return offsets;
+}
+
+template<typename inputs_t>
+constexpr auto compute_input_is_dependent(const inputs_t &ins, int deriv_id)
+{
+   auto dependency_map = make_dependency_map(ins);
+   auto it = dependency_map.find(deriv_id);
+   MFEM_ASSERT(it != dependency_map.end(),
+               "Derivative ID not found in dependency map");
+   return it->second;
+}
+
+template<typename inputs_t>
+constexpr int compute_trial_vdim(const inputs_t &ins, int deriv_id)
+{
+   constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   int v = 1;
+   for_constexpr<n_inputs>([&](auto i)
+   {
+      if (get<i>(ins).GetFieldId() == deriv_id) { v = get<i>(ins).vdim; }
+   });
+   return v;
+}
+
+template<typename inputs_t>
+constexpr int compute_total_trial_op_dim(
+   const inputs_t &ins,
+   const std::array<bool, tuple_size<inputs_t>::value> &dep,
+   const std::array<int, tuple_size<inputs_t>::value> &size_on_qp)
+{
+   constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   int total = 0;
+   for_constexpr<n_inputs>([&](auto i)
+   {
+      if (dep[i]) { total += size_on_qp[i] / get<i>(ins).vdim; }
+   });
+   return total;
+}
+
+inline size_t find_union_field_index(const IntegratorContext &ctx, int field_id)
+{
+   for (size_t uf = 0; uf < ctx.unionfds.size(); uf++)
+   {
+      if (static_cast<int>(ctx.unionfds[uf].id) == field_id) { return uf; }
+   }
+   return SIZE_MAX;
+}
+
+inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
+{
+   for (size_t i = 0; i < ctx.infds.size(); i++)
+   {
+      if (static_cast<int>(ctx.infds[i].id) == field_id) { return i; }
+   }
+   return SIZE_MAX;
+}
+
+template<typename entity_t = Entity::Element>
+inline int compute_element_dof_sz(
+   const FieldDescriptor &fd,
+   int num_entities,
+   ElementDofOrdering ordering)
+{
+   auto R = get_restriction<entity_t>(fd, ordering);
+   MFEM_ASSERT(R != nullptr, "LocalQF: missing element restriction");
+   return num_entities ? (R->Height() / num_entities) : 0;
+}
+
+template<std::size_t N_in, std::size_t N_out>
+inline int compute_map_scratch_buf_size(
+   const std::array<DofToQuadMap, N_in> &in_dtq,
+   const std::array<DofToQuadMap, N_out> &out_dtq,
+   int dimension)
+{
+   int max_qp = 0;
+   int max_dof = 0;
+   const auto update = [&](const DofToQuadMap &map)
+   {
+      const auto shape = map.B.GetShape();
+      max_qp = std::max(max_qp, shape[0]);
+      max_dof = std::max(max_dof, shape[2]);
+   };
+   for (const auto &map : in_dtq) { update(map); }
+   for (const auto &map : out_dtq) { update(map); }
+   const int q1d_map = max_qp;
+   const int d1d_map = max_dof;
+   return std::max(q1d_map * q1d_map * ((dimension == 2) ? 1 : q1d_map),
+                   d1d_map * d1d_map * ((dimension == 2) ? 1 : d1d_map));
 }
 
 } // namespace mfem::future

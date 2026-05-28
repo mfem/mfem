@@ -150,13 +150,15 @@ public:
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim(
       compute_total_trial_op_dim(inputs, input_is_dependent, input_size_on_qp)),
-   deriv_infd_idx(find_deriv_infd_idx(ctx, derivative_id)),
+   deriv_infd_idx(find_infd_index(ctx, derivative_id)),
    // other constants
    dim(ctx.mesh.Dimension()),
    ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
    q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5))),
-   deriv_in_elem_sz(compute_deriv_in_elem_sz(ctx, deriv_infd_idx, ne))
+   deriv_in_elem_sz(compute_element_dof_sz(
+                       ctx.infds[deriv_infd_idx], ne,
+                       ElementDofOrdering::LEXICOGRAPHIC))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
@@ -167,13 +169,8 @@ public:
       int total_dir_e_size = 0;
       for_constexpr<n_outputs>([&](auto o)
       {
-         const size_t outfd = output_idx[o];
-         const auto &fd = ctx.outfds[outfd];
-         auto R = get_restriction<Entity::Element>(fd,
-                                                   ElementDofOrdering::LEXICOGRAPHIC);
-         MFEM_ASSERT(R != nullptr,
-                     "LocalQFBackend: missing element restriction for output");
-         const int elem_sz = ne ? (R->Height() / ne) : 0;
+         const int elem_sz = compute_element_dof_sz(
+            ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
          out_elem_dof_size[o] = elem_sz;
          total_dir_e_size += elem_sz;
       });
@@ -537,86 +534,6 @@ public:
                                                                            int));
    MFEM_REGISTER_KERNELS(DerivativeApplyTransposeHO, TransposeKernelType, (int,
                                                                            int));
-
-private:
-   static int compute_deriv_in_elem_sz(const IntegratorContext &ctx,
-                                       const size_t deriv_infd_idx,
-                                       const int ne)
-   {
-      const auto &fd = ctx.infds[deriv_infd_idx];
-      auto R = get_restriction<Entity::Element>(fd,
-                                                ElementDofOrdering::LEXICOGRAPHIC);
-      return ne ? (R->Height() / ne) : 0;
-   }
-
-   static std::array<int, n_outputs> compute_out_qp_size(const outputs_t &outs)
-   {
-      std::array<int, n_outputs> sizes{};
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         sizes[o] = get<o>(outs).size_on_qp;
-      });
-      return sizes;
-   }
-
-   static std::array<int, n_outputs> compute_out_op_dim(const outputs_t &outs)
-   {
-      std::array<int, n_outputs> op{};
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         op[o] = get<o>(outs).size_on_qp / get<o>(outs).vdim;
-      });
-      return op;
-   }
-
-   static std::array<bool, n_inputs> compute_input_is_dependent(
-      const inputs_t &ins, int deriv_id)
-   {
-      auto dependency_map = make_dependency_map(ins);
-      auto it = dependency_map.find(deriv_id);
-      MFEM_ASSERT(it != dependency_map.end(),
-                  "Derivative ID not found in dependency map");
-      return it->second;
-   }
-
-   static int compute_trial_vdim(const inputs_t &ins, int deriv_id)
-   {
-      int v = 1;
-      for_constexpr<n_inputs>([&](auto i)
-      {
-         if (get<i>(ins).GetFieldId() == deriv_id)
-         {
-            v = get<i>(ins).vdim;
-         }
-      });
-      return v;
-   }
-
-   static int compute_total_trial_op_dim(
-      const inputs_t &ins,
-      const std::array<bool, n_inputs> &dep,
-      const std::array<int, n_inputs> &size_on_qp)
-   {
-      int total = 0;
-      for_constexpr<n_inputs>([&](auto i)
-      {
-         if (dep[i])
-         {
-            total += size_on_qp[i] / get<i>(ins).vdim;
-         }
-      });
-      return total;
-   }
-
-   static size_t find_deriv_infd_idx(const IntegratorContext &ctx, int deriv_id)
-   {
-      for (size_t i = 0; i < ctx.infds.size(); i++)
-      {
-         if (static_cast<int>(ctx.infds[i].id) == deriv_id) { return i; }
-      }
-      return SIZE_MAX;
-   }
-
 };
 
 template <

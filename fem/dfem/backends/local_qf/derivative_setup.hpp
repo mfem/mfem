@@ -128,7 +128,7 @@ public:
    out_vdim(get_vdim(outputs)),
    out_op_dim(compute_out_op_dim(outputs)),
    out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
-   out_row_offsets(compute_out_row_offsets(out_vdim, out_op_dim)),
+   out_row_offsets(compute_out_offsets(out_vdim, out_op_dim)),
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    input_size_on_qp(get_input_size_on_qp(inputs,
                                          std::make_index_sequence<n_inputs> {})),
@@ -559,11 +559,8 @@ private:
       std::array<int, nfields> sizes{};
       for (size_t uf = 0; uf < ctx.unionfds.size(); uf++)
       {
-         const auto &fd = ctx.unionfds[uf];
-         auto R = get_restriction<Entity::Element>(fd,
-                                                   ElementDofOrdering::LEXICOGRAPHIC);
-         const int ne = ctx.nentities;
-         sizes[uf] = ne ? (R->Height() / ne) : 0;
+         sizes[uf] = compute_element_dof_sz(
+            ctx.unionfds[uf], ctx.nentities, ElementDofOrdering::LEXICOGRAPHIC);
       }
       return sizes;
    }
@@ -584,81 +581,6 @@ private:
       return map;
    }
 
-   static std::array<int, n_outputs> compute_out_qp_size(const outputs_t &outs)
-   {
-      std::array<int, n_outputs> sizes{};
-      for_constexpr<n_outputs>([&](auto o) { sizes[o] = get<o>(outs).size_on_qp; });
-      return sizes;
-   }
-
-   static std::array<int, n_outputs> compute_out_op_dim(const outputs_t &outs)
-   {
-      std::array<int, n_outputs> op{};
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         op[o] = get<o>(outs).size_on_qp / get<o>(outs).vdim;
-      });
-      return op;
-   }
-
-   static std::array<int, n_outputs> compute_out_offsets(
-      const std::array<int, n_outputs> &vdim,
-      const std::array<int, n_outputs> &op_dim)
-   {
-      std::array<int, n_outputs> offsets{};
-      offsets[0] = 0;
-      for (size_t o = 1; o < n_outputs; o++)
-      {
-         offsets[o] = offsets[o - 1] + vdim[o - 1] * op_dim[o - 1];
-      }
-      return offsets;
-   }
-
-   static std::array<int, n_outputs> compute_out_row_offsets(
-      const std::array<int, n_outputs> &vdim,
-      const std::array<int, n_outputs> &op_dim)
-   {
-      return compute_out_offsets(vdim, op_dim);
-   }
-
-   static std::array<bool, n_inputs> compute_input_is_dependent(
-      const inputs_t &ins, int deriv_id)
-   {
-      auto dependency_map = make_dependency_map(ins);
-      auto it = dependency_map.find(deriv_id);
-      MFEM_ASSERT(it != dependency_map.end(),
-                  "Derivative ID not found in dependency map");
-      return it->second;
-   }
-
-   static int compute_trial_vdim(const inputs_t &ins, int deriv_id)
-   {
-      int v = 1;
-      for_constexpr<n_inputs>([&](auto i)
-      {
-         if (get<i>(ins).GetFieldId() == deriv_id)
-         {
-            v = get<i>(ins).vdim;
-         }
-      });
-      return v;
-   }
-
-   static int compute_total_trial_op_dim(
-      const inputs_t &ins,
-      const std::array<bool, n_inputs> &dep,
-      const std::array<int, n_inputs> &size_on_qp)
-   {
-      int total = 0;
-      for_constexpr<n_inputs>([&](auto i)
-      {
-         if (dep[i])
-         {
-            total += size_on_qp[i] / get<i>(ins).vdim;
-         }
-      });
-      return total;
-   }
 };
 
 template <
