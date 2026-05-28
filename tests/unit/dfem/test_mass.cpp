@@ -13,10 +13,7 @@
 
 #include "mfem.hpp"
 #include "../../../fem/dfem/doperator.hpp"
-
-#ifdef MFEM_USE_ENZYME
 #include "../linalg/test_same_matrices.hpp"
-#endif
 
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
@@ -323,12 +320,10 @@ void mass_mat_mixed(const char* filename, int p)
 
    // spmat
    {
-#ifdef MFEM_USE_ENZYME
       SparseMatrix *A;
       ddopdu->Assemble(A);
       TestSameMatrices(*A, blf.SpMat());
       delete A;
-#endif // MFEM_USE_ENZYME
    }
 
    // hypre parallel mat
