@@ -325,12 +325,12 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
          dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
-         auto derivatives = std::integer_sequence<size_t, U> {};
+         auto derivatives = Derivatives<U> {};
          auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
          dop.AddDomainIntegrator(
             mass_diffusion_qfunc,
-            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
-            tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+            Inputs<Value<U>, Gradient<U>, Gradient<COORDINATES>, Identity<S>, Weight, Value<L>> {},
+            Outputs<Value<V>, Gradient<V>, Identity<S>> {},
             *ir, all_domain_attr, derivatives);
 
          fes.GetRestrictionMatrix()->Mult(x, xtvec);
