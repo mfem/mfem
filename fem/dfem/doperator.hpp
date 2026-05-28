@@ -783,7 +783,6 @@ void DifferentiableOperator::AddIntegrator(
 
          if constexpr (std::is_same_v<backend_t, LocalQFBackend>)
          {
-#ifdef MFEM_USE_ENZYME
             derivative_apply_callbacks[i].push_back(
                backend_t::template MakeDerivativeApply<i>(
                   ctx, qfunc, inputs, outputs, qp_cache));
@@ -802,11 +801,6 @@ void DifferentiableOperator::AddIntegrator(
                   backend_t::template MakeDerivativeAssembleDiagonal<i>(
                      ctx, qfunc, inputs, outputs, qp_cache));
             }
-#else
-            daction_transpose_callbacks[i].push_back(
-               backend_t::template MakeDerivativeApplyTranspose<i>(
-                  ctx, qfunc, inputs, outputs, qp_cache));
-#endif // MFEM_USE_ENZYME
          }
       }
 

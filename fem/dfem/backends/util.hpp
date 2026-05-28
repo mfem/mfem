@@ -13,6 +13,7 @@
 #include "../../quadinterpolator.hpp"
 #include "../util.hpp"
 #include "../../../general/enzyme.hpp"
+#include "../../../linalg/dual.hpp"
 
 #define DFEM_USE_OWN_TUPLE
 #ifndef DFEM_USE_OWN_TUPLE
@@ -406,38 +407,6 @@ struct supports_tensor_array_qfunc
       OutputsOk(std::make_index_sequence<noutputs> {});
 };
 
-template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
-inline void call_qfunc(
-   const qfunc_t &qfunc,
-   const BlockVector &xq,
-   BlockVector &yq,
-   int gnqp,
-   const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
-   const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
-   std::index_sequence<Is...>,
-   std::index_sequence<Os...>)
-{
-   constexpr std::size_t ninputs = sizeof...(Is);
-
-   using qf_signature = typename get_function_signature<qfunc_t>::type;
-   using qf_param_ts = typename qf_signature::parameter_ts;
-
-   auto inputs = std::make_tuple(
-                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    typename tuple_element<Is, qf_param_ts>::type>>>(
-                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
-
-   auto outputs = std::make_tuple(
-                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                        yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
-
-   std::apply([&](auto&&... args)
-   {
-      qfunc(args...);
-   }, std::tuple_cat(inputs, outputs));
-}
-
 template <typename func_t, typename... arg_ts>
 MFEM_HOST_DEVICE inline
 auto qfunction_wrapper(const func_t &f, arg_ts...args)
@@ -469,6 +438,232 @@ constexpr auto make_activity_map(inputs_t)
 {
    return make_activity_map_impl<derivative_id, inputs_t>(
              std::make_index_sequence<tuple_size<inputs_t>::value> {});
+}
+
+template <typename T>
+struct qp_type_uses_dual : std::false_type {};
+
+template <typename V, typename G>
+struct qp_type_uses_dual<dual<V, G>> : std::true_type {};
+
+template <typename S, int... Is>
+struct qp_type_uses_dual<tensor<S, Is...>> : qp_type_uses_dual<S> {};
+
+template <typename S, int ndims, int... Is>
+struct qp_type_uses_dual<tensor_ndarray<S, ndims, Is...>>
+   : qp_type_uses_dual<std::remove_cv_t<S>> {};
+
+template <typename T>
+inline constexpr bool qp_type_uses_dual_v =
+   qp_type_uses_dual<std::remove_cv_t<std::remove_reference_t<T>>>::value;
+
+inline void pack_dual_from_primal_shadow(
+   const real_t *primal,
+   const real_t *shadow,
+   dual<real_t, real_t> *out,
+   const int n,
+   const bool active)
+{
+   for (int i = 0; i < n; i++)
+   {
+      out[i].value = primal[i];
+      out[i].gradient = active ? shadow[i] : real_t(0);
+   }
+}
+
+template <bool unpack_primal_values>
+inline void unpack_dual_to_real(
+   const dual<real_t, real_t> *dual_out,
+   real_t *yq,
+   const int n)
+{
+   for (int i = 0; i < n; i++)
+   {
+      yq[i] = unpack_primal_values ? dual_out[i].value : dual_out[i].gradient;
+   }
+}
+
+template <typename decay_t, std::size_t I>
+decltype(auto) make_native_dual_input(
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   std::vector<dual<real_t, real_t>> &dual_storage,
+   const std::vector<int> &layout,
+   const int gnqp,
+   const bool active)
+{
+   if constexpr (qp_type_uses_dual_v<decay_t>)
+   {
+      const int sz = xq.GetBlock(I).Size();
+      dual_storage.resize(sz);
+      pack_dual_from_primal_shadow(
+         xq.GetBlock(I).Read(), shadow_xq.GetBlock(I).Read(),
+         dual_storage.data(), sz, active);
+      return make_tensor_array<decay_t>(dual_storage.data(), &layout, gnqp);
+   }
+   else
+   {
+      return make_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout, gnqp);
+   }
+}
+
+template <typename decay_t, std::size_t O>
+decltype(auto) make_native_dual_output(
+   BlockVector &yq,
+   std::vector<dual<real_t, real_t>> &dual_storage,
+   const std::vector<int> &layout,
+   const int gnqp)
+{
+   if constexpr (qp_type_uses_dual_v<decay_t>)
+   {
+      const int sz = yq.GetBlock(O).Size();
+      dual_storage.resize(sz);
+      return make_tensor_array<decay_t>(dual_storage.data(), &layout, gnqp);
+   }
+   else
+   {
+      return make_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout, gnqp);
+   }
+}
+
+template <bool unpack_primal_values, typename decay_t, std::size_t O>
+void finish_native_dual_output(
+   BlockVector &yq,
+   std::vector<dual<real_t, real_t>> &dual_storage)
+{
+   if constexpr (qp_type_uses_dual_v<decay_t>)
+   {
+      unpack_dual_to_real<unpack_primal_values>(
+         dual_storage.data(), yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
+   }
+}
+
+template <typename T>
+using qf_param_decay_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+template <typename qf_param_ts, std::size_t... Is>
+constexpr bool qf_signature_uses_dual_impl(std::index_sequence<Is...>)
+{
+   return (qp_type_uses_dual_v<qf_param_decay_t<
+              typename tuple_element<Is, qf_param_ts>::type>> || ...);
+}
+
+template <typename qf_param_ts>
+inline constexpr bool qf_signature_uses_dual_v =
+   qf_signature_uses_dual_impl<qf_param_ts>(
+      std::make_index_sequence<tuple_size<qf_param_ts>::value> {});
+
+template <
+   bool unpack_primal_values,
+   typename qfunc_t,
+   std::size_t... Is,
+   std::size_t... Os>
+inline void native_dual_evaluate_qfunc(
+   const qfunc_t &qfunc,
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   BlockVector &yq,
+   int gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   const std::array<bool, sizeof...(Is)> *input_active,
+   std::index_sequence<Is...>,
+   std::index_sequence<Os...>)
+{
+   constexpr std::size_t ninputs = sizeof...(Is);
+   constexpr std::size_t noutputs = sizeof...(Os);
+
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+
+   std::array<std::vector<dual<real_t, real_t>>, ninputs> dual_inputs {};
+   std::array<std::vector<dual<real_t, real_t>>, noutputs> dual_outputs {};
+
+   using input_decay_ts = std::tuple<qf_param_decay_t<
+      typename tuple_element<Is, qf_param_ts>::type>...>;
+   using output_decay_ts = std::tuple<qf_param_decay_t<
+      typename tuple_element<ninputs + Os, qf_param_ts>::type>...>;
+
+   auto inputs = std::make_tuple(
+                    make_native_dual_input<
+                       std::tuple_element_t<Is, input_decay_ts>, Is>(
+                       xq, shadow_xq, dual_inputs[Is], in_layouts[Is], gnqp,
+                       input_active ? (*input_active)[Is] : false)...);
+
+   auto outputs = std::make_tuple(
+                     make_native_dual_output<
+                        std::tuple_element_t<Os, output_decay_ts>, Os>(
+                        yq, dual_outputs[Os], out_layouts[Os], gnqp)...);
+
+   std::apply([&](auto &&...args) { qfunc(args...); },
+              std::tuple_cat(inputs, outputs));
+
+   constexpr_for<0, noutputs>([&](auto o)
+   {
+      finish_native_dual_output<unpack_primal_values,
+         std::tuple_element_t<o, output_decay_ts>, o>(yq, dual_outputs[o]);
+   });
+}
+
+template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
+inline void call_qfunc(
+   const qfunc_t &qfunc,
+   const BlockVector &xq,
+   BlockVector &yq,
+   int gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::index_sequence<Is...> is,
+   std::index_sequence<Os...> os)
+{
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+
+   if constexpr (qf_signature_uses_dual_v<qf_param_ts>)
+   {
+      native_dual_evaluate_qfunc<true, qfunc_t>(
+         qfunc, xq, xq, yq, gnqp, in_layouts, out_layouts, nullptr, is, os);
+   }
+   else
+   {
+      constexpr std::size_t ninputs = sizeof...(Is);
+
+      auto inputs = std::make_tuple(
+                       make_tensor_array<qf_param_decay_t<
+                          typename tuple_element<Is, qf_param_ts>::type>>(
+                          xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+
+      auto outputs = std::make_tuple(
+                        make_tensor_array<qf_param_decay_t<
+                           typename tuple_element<ninputs + Os, qf_param_ts>::type>>(
+                           yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+
+      std::apply([&](auto &&...args) { qfunc(args...); },
+                 std::tuple_cat(inputs, outputs));
+   }
+}
+
+template <
+   size_t derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t... Is,
+   std::size_t... Os>
+inline void native_dual_fwddiff(
+   const qfunc_t &qfunc,
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   BlockVector &yq,
+   const int &gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::index_sequence<Is...> is,
+   std::index_sequence<Os...> os)
+{
+   constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t {});
+   native_dual_evaluate_qfunc<false, qfunc_t>(
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, &activity_map, is, os);
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -546,12 +741,11 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
 }
 
 } // namespace enzyme_detail
-#endif // MFEM_USE_ENZYME
 
 template <size_t derivative_id, typename qfunc_t, typename inputs_t, typename outputs_t,
           std::size_t... Is, std::size_t... Os>
 inline void enzyme_fwddiff(
-   qfunc_t &qfunc,
+   const qfunc_t &qfunc,
    const BlockVector &xq,
    const BlockVector &shadow_xq,
    BlockVector &yq,
@@ -561,7 +755,6 @@ inline void enzyme_fwddiff(
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
-#ifdef MFEM_USE_ENZYME
    constexpr std::size_t ninputs  = sizeof...(Is);
    constexpr std::size_t noutputs = sizeof...(Os);
 
@@ -624,15 +817,34 @@ inline void enzyme_fwddiff(
      primals_out, derivs_out,
      enzyme_const, &qfunc // seed: qfunc is always inactive
     );
+}
+
+#endif // MFEM_USE_ENZYME
+
+template <
+   size_t derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t... Is,
+   std::size_t... Os>
+inline void fwddiff(
+   const qfunc_t &qfunc,
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   BlockVector &yq,
+   const int &gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::index_sequence<Is...> is,
+   std::index_sequence<Os...> os)
+{
+#ifdef MFEM_USE_ENZYME
+   enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #else
-   MFEM_CONTRACT_VAR(qfunc);
-   MFEM_CONTRACT_VAR(xq);
-   MFEM_CONTRACT_VAR(shadow_xq);
-   MFEM_CONTRACT_VAR(yq);
-   MFEM_CONTRACT_VAR(gnqp);
-   MFEM_CONTRACT_VAR(in_layouts);
-   MFEM_CONTRACT_VAR(out_layouts);
-   MFEM_ABORT("enzyme_fwddiff requires MFEM_USE_ENZYME");
+   native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #endif
 }
 

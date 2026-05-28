@@ -38,7 +38,7 @@ struct CubicH1Functional
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -86,7 +86,7 @@ public:
       }
 
       dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, mesh);
-      CubicH1Functional<real_t, dim> apply;
+      CubicH1Functional<dscalar_t, dim> apply;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop->AddDomainIntegrator<LocalQFBackend>(
          apply,
@@ -248,13 +248,11 @@ void functional(const char *filename, int p)
    MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, pmesh.GetComm());
    REQUIRE(diff.Normlinf() / scale < 1e-5);
-
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
           "[Parallel][dFEM][functional]")
 {
-#ifdef MFEM_USE_ENZYME
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
    SECTION("2d")
@@ -282,7 +280,6 @@ TEST_CASE("dFEM functional derivative action matches finite differences",
          );
       functional<3>(f, p);
    }
-#endif // MFEM_USE_ENZYME
 }
 
 #endif // MFEM_USE_MPI

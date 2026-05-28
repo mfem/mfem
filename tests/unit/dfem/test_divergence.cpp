@@ -124,7 +124,6 @@ void vectordivergence(const char *filename, int p)
 
    SECTION("Derivative Action")
    {
-#ifdef MFEM_USE_ENZYME
       Vector nodestv;
       nodes->GetTrueDofs(nodestv);
       MultiVector X{Xv, nodestv};
@@ -142,12 +141,10 @@ void vectordivergence(const char *filename, int p)
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-#endif // MFEM_USE_ENZYME
    }
 
    SECTION("Derivative Transpose Action")
    {
-#ifdef MFEM_USE_ENZYME
       Vector nodestv;
       nodes->GetTrueDofs(nodestv);
 
@@ -177,7 +174,6 @@ void vectordivergence(const char *filename, int p)
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-#endif // MFEM_USE_ENZYME
    }
 }
 

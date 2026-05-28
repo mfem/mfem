@@ -507,6 +507,46 @@ struct LocalQFLOBackend
    //////////////////////////////////////////////////////////////////
    template<typename DT, typename YE_T>
    static MFEM_HOST_DEVICE inline
+   void identity_qp_write_value(YE_T &YE, int qx, int qy, int qz, int e,
+                                const DT &qout)
+   {
+      constexpr int RNK = qf_param_shape<DT>::rank;
+      if constexpr (qf_param_uses_dual_v<DT>)
+      {
+         if constexpr (RNK == 0)
+         {
+            YE(0, qx, qy, qz, e) = qf_store_value(qout);
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
+            {
+               YE(dd, qx, qy, qz, e) = qf_store_value(qout(dd));
+            }
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  YE(i + e0 * j, qx, qy, qz, e) = qf_store_value(qout(i, j));
+               }
+            }
+         }
+         else { static_assert(false, "Unsupported"); }
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename DT, typename YE_T>
+   static MFEM_HOST_DEVICE inline
    void identity_qp_write_tangent(YE_T &YE, int qx, int qy, int qz, int e,
                                   const DT &qout)
    {

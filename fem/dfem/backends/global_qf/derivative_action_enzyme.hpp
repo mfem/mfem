@@ -117,18 +117,25 @@ struct DerivativeActionEnzyme
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
 
+      // Q -> Q
+      yq = 0.0;
+#ifdef MFEM_USE_ENZYME
       constexpr_for<0, ninputs>([&](auto i)
       {
          if (!input_active[i]) { return; }
          xq.GetBlock(i) = shadow_xq.GetBlock(i);
       });
-
-      // Q -> Q
-      yq = 0.0;
       detail::call_qfunc(
          qfunc, xq, yq, gnqp, input_qlayouts, output_qlayouts,
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
+#else
+      detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+         qfunc, xq, shadow_xq, yq, gnqp,
+         input_qlayouts, output_qlayouts,
+         std::make_index_sequence<ninputs> {},
+         std::make_index_sequence<noutputs> {});
+#endif
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);

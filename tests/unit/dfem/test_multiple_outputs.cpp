@@ -91,11 +91,11 @@ struct mass_global_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      tensor_array<const real_t> &u,
+      tensor_array<const dscalar_t> &u,
       tensor_array<const real_t, DIM, DIM> &J,
       tensor_array<const real_t> &w,
-      tensor_array<real_t> &out1,
-      tensor_array<real_t> &out2) const
+      tensor_array<dscalar_t> &out1,
+      tensor_array<dscalar_t> &out2) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -110,14 +110,14 @@ struct mass_diffusion_global_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      tensor_array<const real_t> &u,
-      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const dscalar_t> &u,
+      tensor_array<const dscalar_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
       [[maybe_unused]] tensor_array<const real_t, DIM, DIM> &qdata,
       tensor_array<const real_t> &w,
       [[maybe_unused]] tensor_array<const real_t> &dummy_parameter,
-      tensor_array<real_t> &out1,
-      tensor_array<real_t, DIM> &out2,
+      tensor_array<dscalar_t> &out1,
+      tensor_array<dscalar_t, DIM> &out2,
       tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
@@ -137,10 +137,10 @@ struct mass_diffusion_global_qf
    // change the argument number.
    //__attribute__((annotate("jit", 5)))
    void jit_bounds(
-      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const dscalar_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
       tensor_array<const real_t> &w,
-      tensor_array<real_t, DIM> &out1,
+      tensor_array<dscalar_t, DIM> &out1,
       size_t NQ) const
    {
       for (size_t q = 0; q < NQ; q++)
@@ -156,11 +156,11 @@ struct mass_local_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor<real_t> &u,
+      const dscalar_t &u,
       const tensor<real_t, DIM, DIM> &J,
-      const tensor<real_t> &w,
-      tensor<real_t> &out1,
-      tensor<real_t> &out2) const
+      const real_t &w,
+      dscalar_t &out1,
+      dscalar_t &out2) const
    {
       const auto v = u * det(J) * w;
       out1 = v;
@@ -301,7 +301,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
-#ifdef MFEM_USE_ENZYME
       {
          MultiVector X{xtvec, nodestvec, qdata, dpf};
          MultiVector Z{ytvec, yqdata};
@@ -364,7 +363,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][OUTPUTS]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
-#endif // MFEM_USE_ENZYME
 
       {
          static constexpr int W = 0;

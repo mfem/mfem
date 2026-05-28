@@ -324,7 +324,16 @@ public:
                      using ARG = typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
-                        qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                        using DT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                        if constexpr (qf_param_uses_dual_v<DT>)
+                        {
+                           qarg = backend_t::template identity_qp_pull_dual<DT>(
+                                     false, XE, XE, qx, qy, qz, e);
+                        }
+                        else
+                        {
+                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                        }
                      }
                      else if constexpr (is_weight_fop_v<FOP>)
                      {
@@ -355,7 +364,16 @@ public:
                      using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
-                        as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                        using DT = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                        if constexpr (qf_param_uses_dual_v<DT>)
+                        {
+                           backend_t::identity_qp_write_value(
+                              YE, qx, qy, qz, e, qarg);
+                        }
+                        else
+                        {
+                           as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                        }
                      }
                      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
                      {

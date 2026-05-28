@@ -118,8 +118,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_cbs = it_setup->second;
    }
 
-#ifdef MFEM_USE_ENZYME
-   // Prefer cached Enzyme apply callbacks (match assembly / transpose paths).
+   // Prefer cached apply when setup filled qp_cache
    const std::vector<derivative_action_t> *mult_callbacks =
       &derivative_action_callbacks[derivative_id];
    auto it_apply = derivative_apply_callbacks.find(derivative_id);
@@ -128,10 +127,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    {
       mult_callbacks = &it_apply->second;
    }
-#else
-   const std::vector<derivative_action_t> *mult_callbacks =
-      &derivative_action_callbacks[derivative_id];
-#endif
 
    return std::make_shared<DerivativeOperator>(
              height,
@@ -195,7 +190,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_cbs = it_setup->second;
    }
 
-#ifdef MFEM_USE_ENZYME
+   // Prefer cached apply when setup filled qp_cache
    const std::vector<derivative_action_t> *mult_callbacks =
       &derivative_action_callbacks[derivative_id];
    auto it_apply = derivative_apply_callbacks.find(derivative_id);
@@ -204,10 +199,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    {
       mult_callbacks = &it_apply->second;
    }
-#else
-   const std::vector<derivative_action_t> *mult_callbacks =
-      &derivative_action_callbacks[derivative_id];
-#endif
 
    return std::make_shared<DerivativeOperator>(
              height,

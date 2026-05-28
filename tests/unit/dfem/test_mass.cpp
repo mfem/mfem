@@ -259,13 +259,10 @@ void mass_mat_mixed(const char* filename, int p)
    fes1.GetRestrictionMatrix()->Mult(ugf, xtvec);
    MultiVector X{xtvec, nodestv};
 
-#ifdef MFEM_USE_ENZYME
    auto ddopdu = dop.GetDerivative(U, X);
-#endif // MFEM_USE_ENZYME
 
    // Action linearized
    {
-#ifdef MFEM_USE_ENZYME
       xtvec.Randomize(567);
       ugf.SetFromTrueDofs(xtvec);
 
@@ -285,7 +282,6 @@ void mass_mat_mixed(const char* filename, int p)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-#endif // MFEM_USE_ENZYME
    }
 
    // spmat

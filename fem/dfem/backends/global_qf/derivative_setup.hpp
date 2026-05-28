@@ -143,7 +143,7 @@ struct DerivativeSetup
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
                }
 
-               detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+               detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
                   qfunc, xq, shadow_xq, yq, gnqp,
                   input_qlayouts, output_qlayouts,
                   std::make_index_sequence<ninputs> {},
