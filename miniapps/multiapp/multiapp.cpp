@@ -26,7 +26,7 @@ void Field::GetDerivative(Field* x, Vector &x0, Vector &dydx)
         return;
     }
 
-    if(IsSource() || IsTarget())
+    if(IsSourceOrTarget())
     {
         GraphNode *op = GetSourceNode();
         MFEM_ASSERT(op != nullptr, "Field: " << GetID()

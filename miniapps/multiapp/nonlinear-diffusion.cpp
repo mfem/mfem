@@ -185,9 +185,8 @@ public:
       dshapedxt.SetSize(dof, dim);
       grad_du.SetSize(dim);
 
-      // grad(psi) k(u0) grad(u) + grad(psi) k'(u0) grad(u0) u 
-      // k and dk can be set to 0 or non-zero to assemble either 
-      // term or both terms in the gradient.
+      // f = grad(psi) * k(u) * grad(T(u))
+      // df/du = grad(psi) k(u0) * T'(u0) * grad(u) + grad(psi) * ( k'(u0) * grad(u0) +  k(u0) * grad(T'(u0)) ) * u
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
@@ -203,34 +202,28 @@ public:
          k0  = k ? k->Eval(Tr, ip) : 0.0;
          dk0 = dk ? dk->Eval(Tr, ip) : 0.0;
          
-         if(k0 != 0.0 && du0 != 0.0) // grad(psi) k(u0) dT/du grad(u)
+         if(k0 != 0.0 && du0 != 0.0) // grad(psi) * k(u0) * T'(u0) * grad(u)
          {
             real_t kdu = w*k0*du0;
             AddMult_a_AAt(kdu, dshapedxt, elmat);
          }
 
-         if(dk0 != 0.0) // grad(psi) (dk(u0) grad(u0)) u
+         if(dk0 != 0.0) // grad(psi) * (k'(u0) * grad(u0)) * u
          {
             dk0 = w*dk->Eval(Tr, ip);
             dshapedxt.MultTranspose(elfun, u); // grad(u0) in physical space
-            u *= dk0; // k'(u0) grad(u0)
-            dshapedxt.Mult(u, vec); // grad(psi) k'(u0) grad(u0)
-            AddMultVWt(vec, shape, elmat); // grad(psi) k'(u0) grad(u0) u
+            u *= dk0; // k'(u0) * grad(u0)
+            dshapedxt.Mult(u, vec); // grad(psi) * k'(u0) * grad(u0)
+            AddMultVWt(vec, shape, elmat); // grad(psi) * k'(u0) * grad(u0) * u
          }
 
-         if(du) // grad(psi) (k0 grad(dT/du)) u
+         if(du) // grad(psi) * k(u0) * grad(T'(u0)) * u
          {
-            du->GetGradient(Tr, grad_du); // grad(dT/du) in physical space
-            grad_du *= (w * k0); // k(u0) grad(dT/du)
-            dshapedxt.Mult(grad_du, vec); // grad(psi) k(u0) grad(dT/du)
-            AddMultVWt(vec, shape, elmat); // grad(psi) k(u0) grad(dT/du) u
+            du->GetGradient(Tr, grad_du); // grad(T'(u0)) in physical space
+            grad_du *= (w * k0); // k(u0) * grad(T'(u0))
+            dshapedxt.Mult(grad_du, vec); // grad(psi) * k(u0) * grad(T'(u0))
+            AddMultVWt(vec, shape, elmat); // grad(psi) * k(u0) * grad(T'(u0)) * u
          }
-
-         // if(k) // grad(psi) k(u0) grad(u)
-         // {
-         //    k0 = w*k->Eval(Tr, ip);
-         //    AddMult_a_AAt(k0, dshapedxt, elmat);
-         // }
       }
    }
 };
@@ -257,8 +250,8 @@ public:
    {
       k = 0.0;
       T = 0.0;
-      // fields.AddSourceField("k(T)", &kdof); // TODO: This shoud work but doesn't?
-      fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
+      fields.AddSourceField("k(T)", &kdof); // Either works (pass a Vector* or a Field*)
+      // fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
       fields.AddField("T", &tdof);
       k.ProjectCoefficient(*kc);
       k.GetTrueDofs(kdof);
@@ -387,18 +380,7 @@ public:
          for (size_t i = 0; i < x_gf.size(); i++)
          {
             std::string x_name = "x" + std::to_string(i);
-
-            // auto x_src = Fields(x_name)->GetSource();
-            // MFEM_ASSERT(x_src != nullptr, "Target field: " << x_name
-            //             << " does not have an associated source field.");
-
-            // auto x_op = x_src->GetNode();
-            // MFEM_ASSERT(x_op != nullptr, "Source field: " << x_src->GetID() 
-            //             << " for target field: " << x_name 
-            //             << " does not have an associated GraphNode.");
-
-            // x_op->GetDerivative(Fields(x_name), x, x0, dx); // Get dx_i/dx
-            Fields(x_name)->GetDerivative(x,x0, dx); // Get dx_i/dx for i-th term in the product
+            Fields(x_name)->GetDerivative(x,x0, dx); // Get dx_i/dx
             x_gf[i]->SetFromTrueDofs(dx); // Set x_i = dx_i/dx for i-th term in the product
 
             y_gf.ProjectCoefficient(prod_coeff); // Recompute product with x_i replaced by dx_i/dx
@@ -477,7 +459,6 @@ public:
 
       fields.AddField("T",&tdofs);
       fields.AddField("k",&kdofs);
-      // fields.AddField("dk/dT",&dk_dofs); // Field not used in forming graph edges
 
       bform.AddDomainIntegrator(new DomainLFIntegrator(one_coeff));
       Nform.AddDomainIntegrator(new NonlinearDiffusionIntegrator(&k_gfc, &dk_gfc, &dT));
@@ -570,21 +551,10 @@ public:
 
    [[nodiscard]] bool GetDerivative(Field *y, Vector &x, Operator* &dydx) override
    {
-      // f = Div(k(y) grad(T))
-      // [df/dq](T0,q0) = Div(dk/dq grad(T0)) + Div(k(q0) grad(q')dT/dq)
-      // T0,q0 are from the forward pass. If q = T, dT/dq = I, and if q != T, dT/dq = 0. So,
-      // we can disable terms in the Jacobian and assembling the Jacobian with only the relevant 
-      // terms depending on whether we are differentiating w.r.t. T or or some other field.
 
-      // auto k_src = Fields("k")->GetSource();
-      // MFEM_ASSERT(k_src != nullptr, "Target field: k does not have an associated source field!");
-
-      // auto k_op = k_src->GetNode();
-      // MFEM_ASSERT(k_op != nullptr, "Source field: " << k_src->GetID() 
-      //             << " for target field: k does not have an associated GraphNode.");
-
-      // k_op->GetDerivative(Fields("k"), y, x, dk_dofs); // Get dk/dy
-      // dk.SetFromTrueDofs(dk_dofs);
+      // Set k0 and T0 from cached forward pass
+      T.SetFromTrueDofs(tdofs);
+      k.SetFromTrueDofs(kdofs);
 
       Fields("k")->GetDerivative(y, x, dk_dofs); // Get dk/dy
       dk.SetFromTrueDofs(dk_dofs);
@@ -592,26 +562,9 @@ public:
       Fields("T")->GetDerivative(y, x, dT_dofs); // Get dT/dy
       dT.SetFromTrueDofs(dT_dofs);
 
-      // if(y->GetID() == Fields("T")->GetID())
-      // {
-      //    // Set k(q0) for the second term in the product rule
-      //    k.SetFromTrueDofs(kdofs);
-      // }
-      // else
-      // {
-      //    // If not differentiating w.r.t. T, then disable the
-      //    // second term in the product rule by setting k(y0) = 0
-      //    // Here we have assumed that dT/dy = 0. Techinically, we should do
-      //    // include this by requesting dT/dy from the source operator and
-      //    // including it in the Jacobian, but for this case we assume dT/dy = 0 for y != T.
-      //    k = 0.0;
-      // }
-
-      // Get the Jacobain with either/both terms in product rule...
-      // depending on whether dk/dy and k are zero or non-zero.
+      // Form Jacobian with appropriate dk/dx and dT/dx
       Operator* grad = &Nform.GetGradient(tdofs);
-      dydx = new HypreParMatrix(const_cast<const HypreParMatrix&>(
-                                dynamic_cast<const HypreParMatrix&>(*grad)));
+      dydx = new HypreParMatrix(dynamic_cast<const HypreParMatrix&>(*grad)); // deep copy
 
       bool ownership = true; // Caller is responsible for deleting the operator
       return ownership;

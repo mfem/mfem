@@ -125,6 +125,7 @@ public:
 
     bool IsSource() const {return (type == Type::SOURCE);}
     bool IsTarget() const {return (type == Type::TARGET); }
+    bool IsSourceOrTarget() const { return (type != Type::DEFAULT); }
 
     virtual ~Field() = default;
 
@@ -134,7 +135,7 @@ protected:
 
     void SetType(Type t)
     {
-        if (type != t && (IsSource() || IsTarget()))
+        if (type != t && (IsSourceOrTarget()))
         { // Warn changing source/target to other or default
             MFEM_WARNING("Changing field type from " << (IsSource() ? "SOURCE" : "TARGET")
                          << " to " << (t == Type::SOURCE ? "SOURCE" : (t == Type::TARGET ? "TARGET" : "DEFAULT"))
@@ -432,12 +433,20 @@ public:
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
-            LinkedFields *lf = new LinkedFields(src);
+            lf = new LinkedFields(src);
             linked_fields.Register(src_name, lf, true);
-            fields.Register(src_name, lf->GetSource(), false);
-            return;
         }
-        lf->SetSource(src);
+        else
+        {
+            lf->SetSource(src);
+        }
+
+        Field *src_field = lf->GetSource();
+        if(src_field->GetNode() == nullptr)
+        {
+            src_field->SetNode(src_op);
+        }
+
         fields.Register(src_name, lf->GetSource(), false);
     }
 
@@ -451,7 +460,7 @@ public:
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
-            LinkedFields *lf = new LinkedFields(src, own);
+            lf = new LinkedFields(src, own);
             linked_fields.Register(src_name, lf, true);
             return;
         }
