@@ -24,8 +24,6 @@ namespace mfem::future
 
 struct LocalQFBackend
 {
-   static constexpr bool has_cached_derivative = true;
-
    /**
     * @brief Make an action for a local Q-function backend.
     *
