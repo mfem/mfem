@@ -20,6 +20,8 @@ Options used:
    --bc-neumann
    --no-reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --nonlinear
    --no-nonlinear-flux
    --no-nonlinear-pot
@@ -43,11 +45,11 @@ dim(V) = 1896
 dim(W) = 896
 dim(V+W) = 2792
 ***********************************************************
-Assembly took 0.0166809s.
-Preconditioner took 7.697e-06s.
+Assembly took 0.0297213s.
+Preconditioner took 6.397e-06s.
 Newton iteration  0 : ||r|| = 0.0942937
-Newton iteration  1 : ||r|| = 3.94186e-09, ||r||/||r_0|| = 4.18041e-08
-Newton+GMRES+HypreAMG converged in 1 iterations with a residual norm of 3.94186e-09.
-solver took 0.512596s.
-|| q_h - q_ex || / || q_ex || = 6.20993e-07
-|| t_h - t_ex || / || t_ex || = 1.02807e-06
+Newton iteration  1 : ||r|| = 5.86974e-09, ||r||/||r_0|| = 6.22495e-08
+Newton+GMRES+HypreAMG converged in 1 iterations with a residual norm of 5.86974e-09.
+solver took 0.880105s.
+|| q_h - q_ex || / || q_ex || = 1.36845e-07
+|| t_h - t_ex || / || t_ex || = 1.85029e-08

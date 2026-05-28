@@ -46,33 +46,35 @@ dim(V) = 1660
 dim(W) = 800
 dim(V+W) = 2460
 ***********************************************************
-Assembly took 0.150622s.
-Preconditioner took 0.00196794s.
-   Pass :  1   Iteration :   0  ||B r|| = 1.82869
-   Pass :  1   Iteration :   1  ||B r|| = 1.74995
-   Pass :  1   Iteration :   2  ||B r|| = 0.24182
-   Pass :  1   Iteration :   3  ||B r|| = 0.241757
-   Pass :  1   Iteration :   4  ||B r|| = 0.0414839
-   Pass :  1   Iteration :   5  ||B r|| = 0.0252512
-   Pass :  1   Iteration :   6  ||B r|| = 0.00609912
-   Pass :  1   Iteration :   7  ||B r|| = 0.00444183
-   Pass :  1   Iteration :   8  ||B r|| = 0.00218583
-   Pass :  1   Iteration :   9  ||B r|| = 0.00103373
-   Pass :  1   Iteration :  10  ||B r|| = 0.00102009
-   Pass :  1   Iteration :  11  ||B r|| = 0.000411074
-   Pass :  1   Iteration :  12  ||B r|| = 0.000270268
-   Pass :  1   Iteration :  13  ||B r|| = 0.00021963
-   Pass :  1   Iteration :  14  ||B r|| = 8.8232e-05
-   Pass :  1   Iteration :  15  ||B r|| = 7.7279e-05
-   Pass :  1   Iteration :  16  ||B r|| = 4.80116e-05
-   Pass :  1   Iteration :  17  ||B r|| = 2.16099e-05
-   Pass :  1   Iteration :  18  ||B r|| = 2.12936e-05
-   Pass :  1   Iteration :  19  ||B r|| = 9.24985e-06
-   Pass :  1   Iteration :  20  ||B r|| = 5.0779e-06
-   Pass :  1   Iteration :  21  ||B r|| = 5.0376e-06
-   Pass :  1   Iteration :  22  ||B r|| = 2.2081e-06
-   Pass :  1   Iteration :  23  ||B r|| = 1.42953e-06
-GMRES+HypreAMG converged in 23 iterations with a residual norm of 1.42953e-06.
-solver took 0.137362s.
-|| q_h - q_ex || / || q_ex || = 1.7157e-06
-|| t_h - t_ex || / || t_ex || = 7.16928e-07
+Assembly took 0.161388s.
+Preconditioner took 0.00339932s.
+   Pass :  1   Iteration :   0  ||B r|| = 1.8133
+   Pass :  1   Iteration :   1  ||B r|| = 1.66909
+   Pass :  1   Iteration :   2  ||B r|| = 0.434073
+   Pass :  1   Iteration :   3  ||B r|| = 0.203651
+   Pass :  1   Iteration :   4  ||B r|| = 0.12056
+   Pass :  1   Iteration :   5  ||B r|| = 0.0573757
+   Pass :  1   Iteration :   6  ||B r|| = 0.0270521
+   Pass :  1   Iteration :   7  ||B r|| = 0.0117685
+   Pass :  1   Iteration :   8  ||B r|| = 0.005167
+   Pass :  1   Iteration :   9  ||B r|| = 0.00217352
+   Pass :  1   Iteration :  10  ||B r|| = 0.00217108
+   Pass :  1   Iteration :  11  ||B r|| = 0.000964532
+   Pass :  1   Iteration :  12  ||B r|| = 0.000477299
+   Pass :  1   Iteration :  13  ||B r|| = 0.000411307
+   Pass :  1   Iteration :  14  ||B r|| = 0.000174281
+   Pass :  1   Iteration :  15  ||B r|| = 0.000102022
+   Pass :  1   Iteration :  16  ||B r|| = 8.21298e-05
+   Pass :  1   Iteration :  17  ||B r|| = 3.32509e-05
+   Pass :  1   Iteration :  18  ||B r|| = 2.9372e-05
+   Pass :  1   Iteration :  19  ||B r|| = 1.92949e-05
+   Pass :  1   Iteration :  20  ||B r|| = 7.63053e-06
+   Pass :  1   Iteration :  21  ||B r|| = 7.49836e-06
+   Pass :  1   Iteration :  22  ||B r|| = 4.13098e-06
+   Pass :  1   Iteration :  23  ||B r|| = 2.46419e-06
+   Pass :  1   Iteration :  24  ||B r|| = 2.26647e-06
+   Pass :  1   Iteration :  25  ||B r|| = 1.01385e-06
+GMRES+HypreAMG converged in 25 iterations with a residual norm of 1.01385e-06.
+solver took 0.147226s.
+|| q_h - q_ex || / || q_ex || = 8.92028e-07
+|| t_h - t_ex || / || t_ex || = 2.29793e-07

@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (bnlconv && !nonlinear)
+   if (bnlconv && !nonlinear_pot)
    {
       cerr << "Nonlinear convection can only work in the nonlinear regime" << endl;
       return 1;
@@ -915,7 +915,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      hform.reset(new LinearForm());
+      hform = make_unique<ParLinearForm>();
       hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
