@@ -11,12 +11,8 @@
 #pragma once
 
 #include "action.hpp"
-#include "derivative_action_enzyme.hpp"
+#include "derivative_action.hpp"
 #include "derivative_setup.hpp"
-// #include "../local_qf/derivative_apply.hpp"
-// #include "../local_qf/derivative_apply_transpose.hpp"
-// #include "../local_qf/derivative_assemble.hpp"
-// #include "../local_qf/derivative_assemble_diagonal.hpp"
 
 namespace mfem::future
 {
@@ -77,15 +73,12 @@ struct GlobalQFBackend
       typename inputs_t,
       typename outputs_t>
    auto static MakeDerivativeApply(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs,
-      const Vector &qp_cache)
+      const IntegratorContext &,
+      qfunc_t,
+      inputs_t,
+      outputs_t,
+      const Vector &)
    {
-      // return LocalQFImpl::DerivativeApply<
-      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
-      //           ctx, qfunc, inputs, outputs, qp_cache);
       MFEM_ABORT("DerivativeApply is not implemented for GlobalQFBackend");
       return nullptr;
    }
@@ -96,15 +89,12 @@ struct GlobalQFBackend
       typename inputs_t,
       typename outputs_t>
    auto static MakeDerivativeApplyTranspose(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs,
-      const Vector &qp_cache)
+      const IntegratorContext &,
+      qfunc_t,
+      inputs_t,
+      outputs_t,
+      const Vector &)
    {
-      // return LocalQFImpl::DerivativeApplyTranspose<
-      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
-      //           ctx, qfunc, inputs, outputs, qp_cache);
       MFEM_ABORT("DerivativeApplyTranspose is not implemented for GlobalQFBackend");
       return nullptr;
    }
@@ -115,15 +105,12 @@ struct GlobalQFBackend
       typename inputs_t,
       typename outputs_t>
    auto static MakeDerivativeAssemble(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs,
-      const Vector &qp_cache)
+      const IntegratorContext &,
+      qfunc_t,
+      inputs_t,
+      outputs_t,
+      const Vector &)
    {
-      // return LocalQFImpl::DerivativeAssemble<
-      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
-      //           ctx, qfunc, inputs, outputs, qp_cache);
       MFEM_ABORT("DerivativeAssemble is not implemented for GlobalQFBackend");
       return nullptr;
    }
@@ -134,15 +121,12 @@ struct GlobalQFBackend
       typename inputs_t,
       typename outputs_t>
    auto static MakeDerivativeAssembleDiagonal(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs,
-      const Vector &qp_cache)
+      const IntegratorContext &,
+      qfunc_t,
+      inputs_t,
+      outputs_t,
+      const Vector &)
    {
-      // return LocalQFImpl::DerivativeAssembleDiagonal<
-      //        derivative_id, qfunc_t, inputs_t, outputs_t>(
-      //           ctx, qfunc, inputs, outputs, qp_cache);
       MFEM_ABORT("DerivativeAssembleDiagonal is not implemented for GlobalQFBackend");
       return nullptr;
    }
