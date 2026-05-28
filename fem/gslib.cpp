@@ -353,7 +353,7 @@ static struct gslib::dbl_range dbl_range_expand(struct gslib::dbl_range b,
    return m;
 }
 
-MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
+static MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
    const int tri_id, const double u, const double v, double &tx, double &ty)
 {
    const double N0 = (1.0-u)*(1.0-v);
@@ -381,8 +381,8 @@ MFEM_HOST_DEVICE inline void MapSplitTriangleQuadToTriangle(
         + N2*vy[tri_id][2] + N3*vy[tri_id][3];
 }
 
-void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
-                         const int sd)
+static void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
+                                const int sd)
 {
    if (!aabb_sz_inc) { return; }
 
@@ -392,8 +392,9 @@ void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
                "expected 1, NE, SpaceDim, or NE*SpaceDim.");
 }
 
-double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
-                  const uint nel, const int sd, const uint e, const int d)
+static double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
+                         const uint nel, const int sd, const uint e,
+                         const int d)
 {
    if (!aabb_sz_inc) { return 0.0; }
 
