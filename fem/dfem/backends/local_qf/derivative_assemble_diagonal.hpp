@@ -203,8 +203,8 @@ struct DerivativeAssembleDiagonal
 
       if (!(use_sum_factorization && (dimension == 2 || dimension == 3)))
       {
-         MFEM_ABORT_KERNEL("DerivativeAssembleDiagonal optimized path is implemented "
-                           "for tensor-product 2D/3D elements only");
+         MFEM_ABORT("DerivativeAssembleDiagonal optimized path is implemented "
+                    "for tensor-product 2D/3D elements only");
          return;
       }
       MFEM_VERIFY(num_test_dof_1d == num_trial_dof_1d,
