@@ -725,6 +725,8 @@ int main(int argc, char *argv[])
 
    if(use_exact)
    {
+      MFEM_ASSERT(!ctx.coupled, "Exact gradient is only implemented for uncoupled solves in this example");
+
       diffusion_op.SetMode(DiffusionOperator::Mode::EXACT);
       newton_solver.SetOperator(diffusion_op);
       newton_solver.Mult(xb.GetBlock(do_id), yb.GetBlock(do_id));
