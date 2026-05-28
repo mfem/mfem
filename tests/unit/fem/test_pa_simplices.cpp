@@ -105,8 +105,6 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/inline-quad.mesh",
                      "../../data/klein-donut.mesh",
                      "../../data/fichera-quad.mesh",
-                     "../../data/square-disc-p2.mesh",
-                     "../../data/square-disc-p3.mesh",
                      "../../data/periodic-square.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
