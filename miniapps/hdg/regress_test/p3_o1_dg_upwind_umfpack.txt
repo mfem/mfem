@@ -44,14 +44,14 @@ dim(V) = 3200
 dim(W) = 1600
 dim(V+W) = 4800
 ***********************************************************
-Assembly took 0.0974933s.
-Preconditioner took 0.00589123s.
+Assembly took 0.0907888s.
+Preconditioner took 0.00731199s.
    Pass :  1   Iteration :   0  ||B r|| = 17.0812
-   Pass :  1   Iteration :   1  ||B r|| = 0.000813635
-   Pass :  1   Iteration :   2  ||B r|| = 0.000806468
-   Pass :  1   Iteration :   3  ||B r|| = 0.000367589
-   Pass :  1   Iteration :   4  ||B r|| = 2.9956e-06
-GMRES+UMFPack converged in 4 iterations with a residual norm of 2.9956e-06.
-solver took 0.00446683s.
-|| q_h - q_ex || / || q_ex || = 0.470657
-|| t_h - t_ex || / || t_ex || = 0.0520593
+   Pass :  1   Iteration :   1  ||B r|| = 0.000943681
+   Pass :  1   Iteration :   2  ||B r|| = 0.000940715
+   Pass :  1   Iteration :   3  ||B r|| = 0.000449846
+   Pass :  1   Iteration :   4  ||B r|| = 2.55888e-06
+GMRES+UMFPack converged in 4 iterations with a residual norm of 2.55888e-06.
+solver took 0.00410749s.
+|| q_h - q_ex || / || q_ex || = 0.338256
+|| t_h - t_ex || / || t_ex || = 0.0520618

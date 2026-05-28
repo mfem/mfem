@@ -20,6 +20,8 @@ Options used:
    --no-bc-neumann
    --reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
    --no-nonlinear-flux
    --no-nonlinear-pot
@@ -37,15 +39,15 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.00106888s.
+Reduction init took 0.000688556s.
 ***********************************************************
 dim(W) = 1792
 ***********************************************************
-Assembly took 0.211508s.
-Preconditioner took 0.0117714s.
+Assembly took 0.260619s.
+Preconditioner took 0.0070623s.
    Pass :  1   Iteration :   0  ||B r|| = 2.84277
-   Pass :  1   Iteration :   1  ||B r|| = 9.40538e-15
-GMRES+UMFPack converged in 1 iterations with a residual norm of 9.40538e-15.
-solver took 0.00212987s.
-|| q_h - q_ex || / || q_ex || = 3.48538e-06
-|| t_h - t_ex || / || t_ex || = 1.32625e-06
+   Pass :  1   Iteration :   1  ||B r|| = 1.77155e-14
+GMRES+UMFPack converged in 1 iterations with a residual norm of 1.77155e-14.
+solver took 0.00150429s.
+|| q_h - q_ex || / || q_ex || = 3.25676e-06
+|| t_h - t_ex || / || t_ex || = 1.43985e-06

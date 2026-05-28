@@ -39,15 +39,15 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.000233753s.
+Reduction init took 0.00486813s.
 ***********************************************************
 dim(W) = 1600
 ***********************************************************
-Assembly took 0.0951153s.
-Preconditioner took 0.00555419s.
+Assembly took 0.0932439s.
+Preconditioner took 0.00485237s.
    Pass :  1   Iteration :   0  ||B r|| = 17.0824
-   Pass :  1   Iteration :   1  ||B r|| = 1.27979e-14
-GMRES+UMFPack converged in 1 iterations with a residual norm of 1.27979e-14.
-solver took 0.00153495s.
-|| q_h - q_ex || / || q_ex || = 0.471098
-|| t_h - t_ex || / || t_ex || = 0.0520593
+   Pass :  1   Iteration :   1  ||B r|| = 4.22175e-14
+GMRES+UMFPack converged in 1 iterations with a residual norm of 4.22175e-14.
+solver took 0.00102825s.
+|| q_h - q_ex || / || q_ex || = 0.330042
+|| t_h - t_ex || / || t_ex || = 0.0520619

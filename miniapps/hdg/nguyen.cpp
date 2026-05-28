@@ -583,15 +583,13 @@ int main(int argc, char *argv[])
       if (upwinded)
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(ccoeff, -1., +0.5)));
-         // we must follow the upwinding of the convective term at the boundary
-         // to form Neumann BC for the total flux
+                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1., -0.5)), bdr_is_neumann);
+                                                            ccoeff, -1.)), bdr_is_neumann);
          if (hybridization && trace_ess_bc)
          {
             B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                               ccoeff, -1., +0.5)), bdr_is_dirichlet);
+                                                               ccoeff, -1.)), bdr_is_dirichlet);
          }
       }
       else
@@ -873,13 +871,15 @@ int main(int argc, char *argv[])
       if (dg || brt)
       {
          if (upwinded)
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
-                                        bdr_is_neumann);
+         {
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(qcoeff, nccoeff, +1.,
+                                                                   -0.5), bdr_is_neumann);
+         }
          else
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +2., 0.),
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +2., 0.),
                                         bdr_is_neumann);
       }
-      else if (bconv)
+      if (bconv)
       {
          if (upwinded)
             fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
