@@ -271,18 +271,17 @@ public:
       }
    }
 
-   template<typename outputs_local_t>
    MFEM_HOST_DEVICE static void map_output_directions_at_elem(
       const int e,
-      const outputs_local_t &outputs_local,
+      const outputs_t &outputs,
       const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
-      const std::array<int, n_outputs> &out_qp_size_local,
-      const std::array<int, n_outputs> &out_elem_dof_size_local,
+      const std::array<int, n_outputs> &out_qp_size,
+      const std::array<int, n_outputs> &out_elem_dof_size,
       const std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_outputs> &dir_XE,
       DeviceTensor<2, real_t> &dir_at_qp_e,
       const int num_qp,
-      const int dimension_local,
-      const bool use_sum_factorization_local,
+      const int dim,
+      const bool use_sum_factorization,
       const DeviceTensor<1, const real_t> &ir_weights,
       real_t *scratch_base,
       const int scratch_buf_size)
@@ -300,38 +299,38 @@ public:
          constexpr size_t o = oc.value;
          const auto &XE = dir_XE[o];
          auto dir_o_e = DeviceTensor<1>(
-                           const_cast<real_t *>(&XE(0, 0, 0, 0, e)), out_elem_dof_size_local[o]);
+                           const_cast<real_t *>(&XE(0, 0, 0, 0, e)), out_elem_dof_size[o]);
          auto dir_qp_o = Reshape(&dir_at_qp_e(0, 0) + qp_offset,
-                                 out_qp_size_local[o], num_qp);
+                                 out_qp_size[o], num_qp);
 
-         if (use_sum_factorization_local)
+         if (use_sum_factorization)
          {
-            if (dimension_local == 1)
+            if (dim == 1)
             {
                map_field_to_quadrature_data_tensor_product_1d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs_local),
+                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
                   ir_weights, scratch_bufs);
             }
-            else if (dimension_local == 2)
+            else if (dim == 2)
             {
                map_field_to_quadrature_data_tensor_product_2d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs_local),
+                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
                   ir_weights, scratch_bufs);
             }
-            else if (dimension_local == 3)
+            else if (dim == 3)
             {
                map_field_to_quadrature_data_tensor_product_3d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs_local),
+                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
                   ir_weights, scratch_bufs);
             }
          }
          else
          {
             map_field_to_quadrature_data(
-               dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs_local),
+               dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
                ir_weights);
          }
-         qp_offset += out_qp_size_local[o] * num_qp;
+         qp_offset += out_qp_size[o] * num_qp;
       });
    }
 
@@ -342,8 +341,8 @@ public:
       const Vector &qp_cache,
       const Vector &dir_e,
       Vector &ye_deriv,
-      const inputs_t &inputs_local,
-      const outputs_t &outputs_local,
+      const inputs_t &inputs,
+      const outputs_t &outputs,
       // inputs: dtq, d1d, vdim
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
       // outputs: dtq, d1d, q1d, vdim
@@ -352,21 +351,20 @@ public:
       const std::array<int, n_inputs> &in_vdim,
       const std::array<int, n_outputs> &out_d1d,
       const std::array<int, n_outputs> &out_q1d,
-      const std::array<int, n_outputs> &out_qp_size_local,
-      const std::array<int, n_outputs> &out_elem_dof_size_local,
-      const std::array<int, n_inputs> &input_size_on_qp_local,
+      const std::array<int, n_outputs> &out_qp_size,
+      const std::array<int, n_outputs> &out_elem_dof_size,
+      const std::array<int, n_inputs> &input_size_on_qp,
       const std::array<bool, n_inputs> &input_dep,
       const std::array<int, n_outputs> &out_vdim,
       const std::array<int, n_outputs> &out_op_dim,
       const int trial_vdim,
       const int total_trial_op_dim,
-      const int deriv_in_elem_sz_local,
-      const int output_size_on_qp_local,
-      const bool use_sum_factorization_local,
+      const int deriv_in_elem_sz,
+      const int output_size_on_qp,
+      const bool use_sum_factorization,
       Vector &dir_at_qp,
-      Vector &result_at_qp_host,
-      Vector &map_scratch_host,
-      // fallback arguments
+      Vector &result_at_qp,
+      Vector &map_scratch,
       const int dim, const int q1d)
    {
       NVTX_MARK_FUNCTION;
@@ -385,12 +383,12 @@ public:
       // CACHE: qp_cache from DerivativeSetup
       // --------------------------------------------------
       const int residual_size_on_qp =
-         output_size_on_qp_local * trial_vdim * total_trial_op_dim;
+         output_size_on_qp * trial_vdim * total_trial_op_dim;
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), residual_size_on_qp, nq, ne);
       real_t *d_dir_at_qp = dir_at_qp.ReadWrite();
-      real_t *d_result_at_qp = result_at_qp_host.ReadWrite();
-      real_t *d_map_scratch = map_scratch_host.ReadWrite();
+      real_t *d_result_at_qp = result_at_qp.ReadWrite();
+      real_t *d_map_scratch = map_scratch.ReadWrite();
       const int result_stride = trial_vdim * total_trial_op_dim * nq;
       const auto ir_weights =
          Reshape(ctx.ir.GetWeights().Read(), ctx.ir.GetNPoints());
@@ -441,15 +439,15 @@ public:
          // Map output test direction to quadrature points
          // -----------------------------------------------
          auto dir_at_qp_e =
-            Reshape(d_dir_at_qp + static_cast<size_t>(e) * output_size_on_qp_local * nq,
-                    output_size_on_qp_local, nq);
+            Reshape(d_dir_at_qp + static_cast<size_t>(e) * output_size_on_qp * nq,
+                    output_size_on_qp, nq);
          real_t *elem_scratch =
             d_map_scratch + static_cast<size_t>(e) * 6 * scratch_buf_size;
 
          map_output_directions_at_elem(
-            e, outputs_local, output_dtq_maps, out_qp_size_local,
-            out_elem_dof_size_local, dir_XE, dir_at_qp_e, nq,
-            dim, use_sum_factorization_local, ir_weights,
+            e, outputs, output_dtq_maps, out_qp_size,
+            out_elem_dof_size, dir_XE, dir_at_qp_e, nq,
+            dim, use_sum_factorization, ir_weights,
             elem_scratch, scratch_buf_size);
          MFEM_SYNC_THREAD;
 
@@ -458,7 +456,7 @@ public:
          // -----------------------------------------------
          auto result_dof =
             Reshape(&ye_XE(0, 0, 0, 0, e),
-                    deriv_in_elem_sz_local / trial_vdim, trial_vdim);
+                    deriv_in_elem_sz / trial_vdim, trial_vdim);
 
          int result_offset = 0;
          for_constexpr<n_inputs>([&](auto ic)
@@ -466,8 +464,8 @@ public:
             constexpr size_t s = ic.value;
             if (!input_dep[s]) { return; }
 
-            const int input_vdim = get<s>(inputs_local).vdim;
-            const int trial_op_dim = input_size_on_qp_local[s] / input_vdim;
+            const int input_vdim = get<s>(inputs).vdim;
+            const int trial_op_dim = input_size_on_qp[s] / input_vdim;
             auto result_at_qp_slice =
                Reshape(d_result_at_qp + static_cast<size_t>(e) * result_stride +
                        result_offset * input_vdim,
@@ -502,7 +500,7 @@ public:
                                      dir_at_qp_e(dir_test_flat, q);
                            }
                         }
-                        out_offset += out_qp_size_local[o];
+                        out_offset += out_qp_size[o];
                      });
                      result_at_qp_slice(j, m, q) = sum;
                   }
@@ -519,8 +517,8 @@ public:
                   Reshape(elem_scratch + sb * scratch_buf_size, scratch_buf_size);
             }
             map_quadrature_data_to_fields(
-               result_dof, fhat, get<s>(inputs_local), input_dtq_maps[s],
-               scratch_bufs, dim, use_sum_factorization_local);
+               result_dof, fhat, get<s>(inputs), input_dtq_maps[s],
+               scratch_bufs, dim, use_sum_factorization);
             MFEM_SYNC_THREAD;
 
             result_offset += trial_op_dim;
