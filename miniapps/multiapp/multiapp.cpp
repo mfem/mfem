@@ -16,533 +16,221 @@
 namespace mfem
 {
 
-GridFunctionTransfer* GridFunctionTransfer::Select(Type type,
-                                                   ParFiniteElementSpace *src,
-                                                   ParFiniteElementSpace *tar)
+void Field::GetDerivative(Field* x, Vector &x0, Vector &dydx)
 {
-    switch (type)
+    // If y = x, dy/dx = 1, the identity operator
+    if(GetID() == x->GetID())
     {
-        case Type::SUBMESH:
-            return new SubMeshTransfer(src, tar);
-        // case Type::GSLIB:
-        //     return new GSLibTransfer(src, tar);
-        default:
-            MFEM_ABORT("Unknown GridFunctionTransfer scheme: " << static_cast<int>(type));
-    }
-}
-
-
-void SubMeshTransfer::Transfer(const Field &src, Field &tar)
-{
-    // Use GetField() to get the underlying Vector and ParGridFunction objects
-    const ParGridFunction &src_gf = dynamic_cast<const ParGridFunction&>(*src.GetField());
-    ParGridFunction &tar_gf = dynamic_cast<ParGridFunction&>(*tar.GetField());
-    transfer_map->Transfer(src_gf, tar_gf);
-}
-
-
-OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op, 
-                                         Scheme scheme)
-{
-    switch (scheme)
-    {
-        case Scheme::MONOLITHIC:
-        {
-            real_t fd_eps = 1e-6;
-            return new JacobianFreeFullCoupler(op, fd_eps);
-        }
-        case Scheme::ADDITIVE_SCHWARZ:
-            return new AdditiveSchwarzCoupler(op);
-        case Scheme::ALTERNATING_SCHWARZ:
-            return new AlternatingSchwarzCoupler(op);
-        case Scheme::NONE:
-            return nullptr;
-        default:
-            MFEM_ABORT("Unknown coupling scheme: " << static_cast<int>(scheme));
-    }
-}
-
-CoupledOperator::~CoupledOperator()
-{
-    if(solver && own_solver) delete solver;
-    if(op_coupler && own_op_coupler) delete op_coupler;
-
-    for(int i=0; i < nops; i++)
-    {
-        if(operators_owned[i] && operators[i]) delete operators[i];
-    }
-}
-
-void CoupledOperator::SetOperatorCoupler(OperatorCoupler* op, bool own)
-{
-    if(op_coupler && own_op_coupler) delete op_coupler;
-    op_coupler = op;
-    own_op_coupler = own;
-    coupler_type = op_coupler->GetType();
-}
-
-void CoupledOperator::Initialize(bool do_ops)
-{
-    if (do_ops)
-    {
-        for (auto &op : operators)
-        {
-            op->Initialize();
-        }
-    }
-}
-
-void CoupledOperator::Assemble(bool do_ops)
-{
-    if (do_ops)
-    {
-        for (auto &op : operators)
-        {
-            op->Assemble();
-        }
+        dydx.SetSize(Data()->Size());
+        dydx = 1.0;
+        return;
     }
 
-    // Check block offsets against operator size
-    Array<int> true_offsets(Size()+1);
-    bool offset_consistent = true;
-    true_offsets = 0;
-    int max_size = 0;
-
-    for (int i=0; i < nops; i++)
+    if(IsSource() || IsTarget())
     {
-        auto op = GetOperator(i);
-        int block_size = offsets[i+1]-offsets[i];
-        true_offsets[i+1] = true_offsets[i] + op->Width();
-        if (block_size != op->Width())
-        {
-            offset_consistent = false;
-        }
-    }
-    if (!offset_consistent)
-    {
-        MFEM_WARNING("Block offsets inconsistent with operator sizes."
-                        "Using default offsets.");
-        offsets = true_offsets;
-        max_op_size = max_size;
-    }
-
-    if(op_coupler && own_op_coupler) delete op_coupler;
-    op_coupler = OperatorCoupler::Select(this, coupler_type);
-    if(solver) solver->SetOperator(*op_coupler);
-}
-
-void CoupledOperator::Finalize(bool do_ops)
-{
-    if (do_ops)
-    {
-        for (auto &op : operators)
-        {
-            op->Finalize();
-        }
-    }
-}
-
-void CoupledOperator::PreProcess(Vector &x, bool do_ops) 
-{
-    if (do_ops)
-    {
-        BlockVector xb(x.GetData(), offsets);
-        for (int i=0; i < nops; i++)
-        {
-            Vector &xi = xb.GetBlock(i);
-            operators[i]->PreProcess(xi);
-        }
-    }
-}
-
-void CoupledOperator::PostProcess(Vector &x, bool do_ops) 
-{
-    if (do_ops)
-    {
-        BlockVector xb(x.GetData(), offsets);
-        for (int i=0; i < nops; i++)
-        {
-            Vector &xi = xb.GetBlock(i);
-            operators[i]->PostProcess(xi);
-        }
-    }
-}
-
-void CoupledOperator::SetOperationID(OperationID id, bool do_ops)
-{
-    Application::SetOperationID(id);
-    if (do_ops)
-    {
-        for (auto &op : operators)
-        {
-            op->SetOperationID(id);
-        }
-    }
-}
-
-void CoupledOperator::SetTime(const real_t t_) 
-{
-    TimeDependentOperator::SetTime(t_);
-    if(op_coupler) op_coupler->SetTime(t_);
-    for (auto &op : operators)
-    {
-        op->SetTime(t_);
-    }
-}
-
-void CoupledOperator::Transfer(const Vector &x)
-{
-    BlockVector xb(x.GetData(), offsets);
-    for (int i=0; i < nops; i++)
-    {
-        operators[i]->Transfer(xb.GetBlock(i));
-    }
-}
-
-void CoupledOperator::Transfer(const Vector &u, const Vector &k, real_t dt)
-{
-    BlockVector ub(u.GetData(), offsets);
-    BlockVector kb(k.GetData(), offsets);
-    for (int i=0; i < nops; i++)
-    {
-        operators[i]->Transfer(ub.GetBlock(i), kb.GetBlock(i), dt);
-    }
-}
-
-void CoupledOperator::Mult(const Vector &x, Vector &y) const
-{
-    if(op_coupler && coupler_type != Scheme::NONE)
-    {
-        if(solver) {
-            op_coupler->SetOperationID(OperationID::MULT);
-            op_coupler->SetInput(&x);
-            solver->Mult(b,y);
-        }
-        else {
-            op_coupler->Mult(x,y);
-        }
+        GraphNode *op = GetSourceNode();
+        MFEM_ASSERT(op != nullptr, "Field: " << GetID()
+                    << " does not have an associated source GraphNode.");
+        op->GetDerivative(this, x, x0, dydx);
     }
     else
     {
-        BlockVector xb(x.GetData(), offsets);
-        BlockVector yb(y.GetData(), offsets);
-
-        for (int i=0; i < nops; i++)
-        {
-            operators[i]->SetOperationID(OperationID::MULT);
-            operators[i]->Mult(xb.GetBlock(i), yb.GetBlock(i));
-        }
+        MFEM_ABORT("Field::GetDerivative() not implemented for fields that "
+                   << "are neither Field::Type::SOURCE nor Field::Type::TARGET."
+                   << " Field IDs: " << GetID() << " and " << x->GetID());
     }
 }
 
-void CoupledOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
-
-    if(op_coupler && coupler_type != Scheme::NONE)
+DAGraph::~DAGraph()
+{
+    for(int i=0; i < nnodes; i++)
     {
-        if(solver) {
-            op_coupler->SetOperationID(OperationID::IMPLICIT_SOLVE); ///< OperatorCoupler::Mult() -> OperatorCoupler::ImplicitSolve() 
-            op_coupler->SetTimeStep(dt);
-            op_coupler->SetInput(&x);
-            solver->Mult(b,k);
+        if(nodes_owned[i] && nodes[i]) delete nodes[i];
+    }
+    if(grad) delete grad;
+}
+
+void DAGraph::Mult(const Vector &x, Vector &y) const
+{
+    BlockVector xb(x.GetData(), in_offsets);
+    BlockVector yb(y.GetData(), out_offsets);
+
+    int i_in = 0, i_out = 0;
+    for (int i=0; i < nnodes; i++)
+    {
+        bool has_input = (nodes[i]->Height() > 0);
+        bool has_output = (nodes[i]->Width() > 0);
+
+        auto in_field = fields.GetLinkedFields("x" + std::to_string(i));
+        if (in_field && has_input)
+        {   // Update the field with the input data for this operator
+            in_field->GetSource()->SetData(&xb.GetBlock(i_in));
+            in_field->UpdateTargets();
+            i_in++;
         }
-        else {
-            op_coupler->ImplicitSolve(dt,x,k);
-        }                
+
+        auto out_field = nodes[i]->LinkedField("output");
+        if (out_field && has_output)
+        {   // Update the output field with the output data for this operator
+            out_field->GetSource()->SetData(&yb.GetBlock(i_out));
+            out_field->UpdateTargets();
+            i_out++;
+        }
+    }
+
+    i_in = 0;
+    i_out = 0;
+    for (int i=0; i < nnodes; i++)
+    {
+        bool has_input = (nodes[i]->Height() > 0);
+        bool has_output = (nodes[i]->Width() > 0);
+
+        Vector &xi = (has_input) ? xb.GetBlock(i_in) : tmp;
+        Vector &yi = (has_output) ? yb.GetBlock(i_out) : tmp;
+        i_in += has_input;
+        i_out += has_output;
+
+        nodes[i]->Mult(xi, yi);
+    }
+}
+
+void DAGraph::Execute(const Vector &x, Vector &y)
+{
+    BlockVector xb(x.GetData(), in_offsets);
+    BlockVector yb(y.GetData(), out_offsets);
+
+    int i_in = 0, i_out = 0;
+    for (int i=0; i < nnodes; i++)
+    {
+        bool has_input = (nodes[i]->Height() > 0);
+        bool has_output = (nodes[i]->Width() > 0);
+
+        auto in_field = fields.GetLinkedFields("x" + std::to_string(i));
+        if (in_field && has_input)
+        {   // Update the field with the input data for this operator
+            in_field->GetSource()->SetData(&xb.GetBlock(i_in));
+            in_field->UpdateTargets();
+            i_in++;
+        }
+
+        auto out_field = nodes[i]->LinkedField("output");
+        if (out_field && has_output)
+        {   // Update the output field with the output data for this operator
+            out_field->GetSource()->SetData(&yb.GetBlock(i_out));
+            out_field->UpdateTargets();
+            i_out++;
+        }
+    }
+
+    i_in = 0;
+    i_out = 0;
+    for (int i=0; i < nnodes; i++)
+    {
+        bool has_input = (nodes[i]->Height() > 0);
+        bool has_output = (nodes[i]->Width() > 0);
+
+        Vector &xi = (has_input) ? xb.GetBlock(i_in) : tmp;
+        Vector &yi = (has_output) ? yb.GetBlock(i_out) : tmp;
+        i_in += has_input;
+        i_out += has_output;
+
+        nodes[i]->Execute(xi, yi);
+    }
+}
+
+Operator& DAGraph::GetGradient(const Vector &x) const
+{
+    if(grad_mode == GradMode::FD)
+    {
+        if(!grad)
+        {
+            grad = new future::FDJacobian(*this, x, 1e-6);
+        }
+        else
+        {
+            auto *fdj = dynamic_cast<future::FDJacobian*>(grad);
+            fdj->Update(x);
+        }
+        return *grad;
+    }
+
+    BlockVector xb(x.GetData(), in_offsets);
+    BlockOperator *block_grad;
+
+    if(!grad)
+    {
+        block_grad = new BlockOperator(out_offsets, in_offsets);
+        grad = block_grad;
     }
     else
     {
-        BlockVector xb(x.GetData(), offsets);
-        BlockVector kb(k.GetData(), offsets);
+        block_grad = dynamic_cast<BlockOperator*>(grad);
+    }
 
-        for (int i=0; i < nops; i++)
+    // Forward pass to to populate (intermediate) fields for differentiation
+    tmp.SetSize(out_offsets.Last());
+    Mult(x, tmp);
+
+    block_grad->owns_blocks = OwnsGradientOperators();
+    int i_in = 0, i_out = 0;
+    for (int i = 0; i < nnodes; i++)
+    {
+        std::string out_name = "y" + std::to_string(i);
+        auto yfield = fields.GetField(out_name);
+        if(yfield)
         {
-            Vector &xi = xb.GetBlock(i);
-            Vector &ki = kb.GetBlock(i);
-            operators[i]->SetOperationID(OperationID::IMPLICIT_SOLVE);
-            operators[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+            auto yfield_src = yfield->GetSource();
+            if(yfield_src) // Has a source field
+            {
+                auto y_node = yfield_src->GetNode(); // Get node for src field
+
+                MFEM_ASSERT(y_node != nullptr, "Source field: " << yfield_src->GetID() 
+                            << " for target field: " << out_name 
+                            << " does not have an associated GraphNode.");
+
+                i_in = 0;
+                for (int j = 0; j < nnodes; j++)
+                {
+                    std::string in_name = "x" + std::to_string(j);
+                    auto x_lf = fields.GetLinkedFields(in_name);
+                    bool has_targets = (x_lf) ? x_lf->HasTargets() : false;
+                    
+                    if(x_lf && has_targets) // Has a linked field with at least one target
+                    {
+                        auto xfield = x_lf->GetSource(); // Get source field for this input
+
+                        MFEM_ASSERT(xfield != nullptr, "LinkedFields:" << in_name 
+                                    << " has target fields but no source field!");
+
+                        // Differentiate y_node with respect to xfield (dy/dx)
+                        Operator *dydx = nullptr;
+                        bool ownership = y_node->GetDerivative(xfield, xb.GetBlock(i_in), dydx);
+                        if(dydx)
+                        {
+                            block_grad->SetBlock(i_out,i_in,dydx);
+                            // block_grad->BlockOwnership(i_out,i_in) = ownership; // Set ownership flag for this block
+                        }
+                        i_in++;
+                    }
+                }
+                i_out++;
+            }
         }
     }
+    return *grad;
 }
 
-void CoupledOperator::Step(Vector &x, real_t &t, real_t &dt)
+void DAGraph::GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx)
 {
-    if(op_coupler && coupler_type != Scheme::NONE)
-    {
-        if(solver) {
-            op_coupler->SetOperationID(OperationID::STEP); ///< OperatorCoupler::Mult() -> OperatorCoupler::Mult() 
-            op_coupler->SetTimeStep(dt); ///< Set the time step for the ODE Solver
-            op_coupler->SetTime(t);
-            op_coupler->SetInput(&x);
-            solver->Mult(b,x);
-        }
-        else {
-            op_coupler->Step(x,t,dt);
-        }                
-    }
-    else
-    {
-        BlockVector xb(x.GetData(), offsets);
-        for (int i=0; i < nops; i++)
-        {
-            real_t t0 = t;   ///< Store the current time
-            real_t dt0 = dt; ///< Store the current time step
-            Vector &xi = xb.GetBlock(i);
-            operators[i]->SetOperationID(OperationID::STEP);
-            operators[i]->Step(xi,t0,dt0); ///< Advance the time step for application
-        }
-        t += dt; ///< Update the time after all applications have been stepped forward
-                 ///< NOTE: does not work for adaptive time-stepping
-    }
-}
-
-void CoupledOperator::ImplicitMult(const Vector &u, const Vector &k, Vector &v) const 
-{
-    BlockVector ub(u.GetData(), offsets);
-    BlockVector kb(k.GetData(), offsets);
-    BlockVector vb(v.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &ui = ub.GetBlock(i);
-        Vector &ki = kb.GetBlock(i);
-        Vector &vi = vb.GetBlock(i);
-        operators[i]->SetOperationID(OperationID::IMPLICIT_MULT);
-        operators[i]->ImplicitMult(ui,ki,vi); ///< Solve the implicit system for the application
-    }
-}
-
-void CoupledOperator::ExplicitMult(const Vector &u, Vector &v) const
-{
-    BlockVector ub(u.GetData(), offsets);
-    BlockVector vb(v.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &ui = ub.GetBlock(i);
-        Vector &vi = vb.GetBlock(i);
-        operators[i]->SetOperationID(OperationID::EXPLICIT_MULT);
-        operators[i]->ExplicitMult(ui,vi); ///< Solve the implicit system for the application
-    }
-}
-
-
-
-
-// AdditiveSchwarzCoupler methods
-void AdditiveSchwarzCoupler::Mult(const Vector &x, Vector &y) const
-{
-    /// This is use to call either ImplicitSolve or Step when Solver::Mult()
-    /// calls Solver.Operator::Mult()
-    if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
-    {
-        y=x; // input vector passed as initial guess for k in ImpliicitSolve
-        ImplicitSolve(timestep,*input,y);
+    if(y->GetSourceNode()->GetID() == x->GetSourceNode()->GetID())
+    {   
+        // Fields are sources (i.e., input to graph) and independent, so dy/dx = 0
+        dydx.SetSize(y->Data()->Size());
+        dydx = 0.0;
         return;
     }
-    else if(GetOperationID() == OperationID::STEP)
-    {
-        y=x; // input vector passed as initial condition in Step
-        real_t t_ = t, dt = timestep; 
-        Step(y,t_,dt);
-        return;
-    }    
-
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-    BlockVector yb(y.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &yi = yb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->Transfer(xi,yi,0.0);
-    }
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &yi = yb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::MULT);
-        
-        op->PreProcess(xi); ///< Postprocess the data for the application
-        op->Mult(xi,yi);
-        op->PostProcess(yi); ///< Postprocess the data for the application
-    }
+    y->GetDerivative(x, x0, dydx);
 }
 
-void AdditiveSchwarzCoupler::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const
-{
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-    BlockVector kb(k.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &ki = kb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->Transfer(xi,ki,dt);
-    }
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &ki = kb.GetBlock(i);
-
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::IMPLICIT_SOLVE);
-
-        op->PreProcess(xi);
-        op->ImplicitSolve(dt,xi,ki);
-        op->PostProcess(ki);
-    }
-}
-
-void AdditiveSchwarzCoupler::Step(Vector &x, real_t &t_, real_t &dt) const
-{
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->Transfer(xi);
-    }
-
-    // TODO: Add time-interpolation to enable different time step for each operator; 
-    //       currently, all operators are stepped forward with the same time step
-    for (int i=0; i < nops; i++)
-    {
-        real_t ti = t_;  ///< Store the current time
-        real_t dti = dt; ///< Store the current time step
-
-        Vector &xi = xb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::STEP);
-        
-        op->PreProcess(xi);
-        op->Step(xi,ti,dti);
-        op->PostProcess(xi);
-    }
-
-    t_ += dt; ///< Update the time after all applications have been stepped forward
-               ///< NOTE: does not work for adaptive time-stepping
-}
-
-
-// AlternatingSchwarzCoupler methods
-void AlternatingSchwarzCoupler::Mult(const Vector &x, Vector &y) const
-{
-    /// This is use to call either ImplicitSolve or Step when Solver::Mult()
-    /// calls Solver.Operator::Mult()
-    if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
-    {
-        y=x; // input vector passed as initial guess for k in ImpliicitSolve
-        ImplicitSolve(timestep,*input,y);
-        return;
-    }
-    else if(GetOperationID() == OperationID::STEP)
-    {
-        y=x; // input vector passed as initial condition in Step
-        real_t t_ = t, dt = timestep; 
-        Step(y,t_,dt);
-        return;
-    }
-
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-    BlockVector yb(y.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &yi = yb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::MULT);
-
-        op->PreProcess(xi);
-        op->Mult(xi,yi);
-        op->PostProcess(yi);
-        op->Transfer(xi,yi,0.0);
-    }
-}
-
-void AlternatingSchwarzCoupler::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const
-{
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-    BlockVector kb(k.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &ki = kb.GetBlock(i);
-
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::IMPLICIT_SOLVE);
-
-        op->PreProcess(xi);
-        op->ImplicitSolve(dt,xi,ki);
-        op->PostProcess(ki);
-        op->Transfer(xi,ki,dt);
-    }
-}
-
-void AlternatingSchwarzCoupler::Step(Vector &x, real_t &t_, real_t &dt) const
-{
-    int nops = coupled_op->Size();
-    const Array<int> offsets = coupled_op->GetBlockOffsets();
-
-    BlockVector xb(x.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        real_t ti = t_;   ///< Store the current time
-        real_t dti = dt;  ///< Store the current time step
-
-        Vector &xi = xb.GetBlock(i);
-        auto op = coupled_op->GetOperator(i);
-        op->SetOperationID(OperationID::STEP);
-
-        op->PreProcess(xi);
-        op->Step(xi,ti,dti);
-        op->PostProcess(xi);
-        op->Transfer(xi);
-    }
-
-    t_ += dt; ///< Update the time after all applications have been stepped forward
-               ///< NOTE: does not work for adaptive time-stepping
-}
-
-
-
-// JacobianFreeFullCoupler methods
-void JacobianFreeFullCoupler::Mult(const Vector &k, Vector &y) const
-{
-    add(1.0,*input,timestep,k,u); // u = u + dt*k
-    coupled_op->Transfer(u);
-    coupled_op->ImplicitMult(u,k,y); //compute residual y = f(u,k,t)
-}
-
-Operator& JacobianFreeFullCoupler::GetGradient(const Vector &k) const
-{
-    grad.Update(k);
-    return const_cast<future::FDJacobian&>(grad);
-}
-
-}
-
+} // namespace mfem
 #endif // MFEM_USE_MPI

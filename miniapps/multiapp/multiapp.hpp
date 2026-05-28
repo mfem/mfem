@@ -21,286 +21,197 @@ namespace mfem
 {
 
 /// Forward declarations needed below
-class FieldTransfer;
 class Field;
+class FieldEdge;
 class LinkedFields;
-class LinkedFieldsCollection;
+class FieldCollection;
+class GraphNode;
 class Application;
-class CoupledOperator;
-class OperatorCoupler;
 
 
 
-/**
-   @brief Base class for transfering fields. The extension should
-   implement the Transfer(const Vector&, Vector&).
- */
-class FieldTransfer
-{
-public:
-    /**
-       @brief Construct a abstract FieldTransfer object
-     */
-    FieldTransfer() {}
 
-    virtual void Transfer(const Vector &src, Vector &tar)
-    {
-        MFEM_ABORT("FieldTransfer::Transfer(const Vector&, Vector&) not implemented");
-    }
-
-    virtual void Transfer(const Field &src, Field &tar)
-    {
-        MFEM_ABORT("FieldTransfer::Transfer(const Field&, Field&) not implemented");
-    }
-
-    virtual ~FieldTransfer() {}
-};
-
-
-/**
-   @brief Base class for transfering fields on meshes. The extension should also
-   implement the Transfer(const ParGridFunction&, ParGridFunction&).
- */
-class GridFunctionTransfer : public FieldTransfer
-{
-protected:
-    ParGridFunction *src_gf = nullptr, *tar_gf = nullptr;
-    ParFiniteElementSpace *src_fes = nullptr, *tar_fes = nullptr;
-
-public:
-    /// Flag to determine the type of transfer
-    enum Type {
-        SUBMESH,    ///< Native MFEM transfer using SubMesh ParTransferMap
-        GSLIB       ///< GSLIB-based transfer using FindPointsGSLIB
-    };
-
-    GridFunctionTransfer() : FieldTransfer() {}
-
-    /**
-       @brief Construct a abstract GridFunctionTransfer object
-
-       @param src Source @a ParFiniteElementSpace
-       @param tar Target @a ParFiniteElementSpace
-     */
-    GridFunctionTransfer(ParFiniteElementSpace *src, ParFiniteElementSpace *tar) :
-                         FieldTransfer(), src_fes(src), tar_fes(tar) {}
-
-    GridFunctionTransfer(ParGridFunction *src, ParGridFunction *tar) : FieldTransfer(),
-                         src_gf(src), tar_gf(tar), src_fes(src->ParFESpace()),
-                         tar_fes(tar->ParFESpace()) {}
-
-    using FieldTransfer::Transfer;
-    virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar)
-    {
-        MFEM_ABORT("GridFunctionTransfer::Transfer(const ParGridFunction&, "
-                   "ParGridFunction&) not implemented");
-    }
-
-    void Transfer(const Vector &src, Vector &tar) override
-    {
-        MFEM_ASSERT(src_gf != nullptr && tar_gf != nullptr,
-                    "Source and target GridFunctions must be set.");
-        if(src.Size() == src_gf->ParFESpace()->GetTrueVSize() )
-        {
-            src_gf->SetFromTrueDofs(src);
-        }
-        Transfer(*src_gf, *tar_gf);
-        if(tar.Size() == tar_gf->ParFESpace()->GetTrueVSize() )
-        {
-            tar_gf->GetTrueDofs(tar);
-        }
-    }
-
-    virtual ~GridFunctionTransfer() {}
-
-    /// Function for selecting the desired FieldTransfer scheme
-    /// Returns a pointer to the selected FieldTransfer object
-    /// Caller gets ownership is responsible for its deletion
-    static MFEM_EXPORT GridFunctionTransfer* Select(Type type,
-                                                    ParFiniteElementSpace *src,
-                                                    ParFiniteElementSpace *tar);
-};
-
-/**
-   @brief MFEM SubMesh transfer between two FiniteElementSpaces 
-   using ParTransferMap.
- */
-class SubMeshTransfer : public GridFunctionTransfer
-{
-protected:
-    ParTransferMap *transfer_map = nullptr;
-    bool own_map = false;
-
-public:
-    /**
-       @brief Construct a new SubMeshTransfer between 
-       two @a ParFiniteElementSpace.
-       
-       @param src Source @a ParFiniteElementSpace
-       @param tar Target @a ParFiniteElementSpace
-     */
-    SubMeshTransfer(ParFiniteElementSpace *src,
-                    ParFiniteElementSpace *tar) :
-                    GridFunctionTransfer(src, tar),
-                    transfer_map(new ParTransferMap(src, tar)), own_map(true) {}
-
-    /**
-       @brief Construct a new SubMeshTransfer between
-       @a ParFiniteElementSpace of two @a ParGridFunction.
-       @param src Source @a ParGridFunction
-       @param tar Target @a ParGridFunction
-     */
-    SubMeshTransfer(ParGridFunction *src, ParGridFunction *tar) :
-                    SubMeshTransfer(src->ParFESpace(), tar->ParFESpace()){}
-
-    void SetTransferMap(ParTransferMap *map, bool own=false)
-    {
-        if(own_map && transfer_map) delete transfer_map;
-        transfer_map = map;
-        own_map = own;
-    }
-
-    void Transfer(const Field &src, Field &tar) override;
-
-    /**
-       @brief Transfer from source to target ParGridFunction.
-       @param src Source @a ParGridFunction
-       @param tar Target @a ParGridFunction
-     */
-    virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar) override
-    {
-        transfer_map->Transfer(src, tar);
-    }
-};
-
-/**
-   @brief GSLib-based FindPoints transfer.
- */
-class GSLibTransfer : public GridFunctionTransfer
-{
-public:
-    GSLibTransfer() : GridFunctionTransfer() {}
-};
-
-/// @brief Base class for storing fields (GridFunctions) and distinguishing
-/// between types of fields (e.g., source vs target).
+/// @brief Base class for storing data (Vector) and distinguishing
+/// fields variables
 class Field
 {
+public:
+    enum Type
+    {
+        SOURCE, ///< Source field
+        TARGET, ///< Target field
+        DEFAULT ///< Any field
+    };
+
+    friend class GraphNode;
+    friend class LinkedFields;
+
 private:
-    MPI_Comm comm = MPI_COMM_NULL;
-    bool is_source = false;
-    bool is_target = false;
-    // static int next_id;
+    Type type = Type::DEFAULT;
     inline static int next_id = 0;
+    // static int next_id;
 
 protected:
-    Vector *field = nullptr;
-    Application *app = nullptr;
-    FieldTransfer *transfer_map = nullptr;
-    bool own_map = false;
+    Vector *data = nullptr;
+    GraphNode *node = nullptr;
     int id = -1; // initialized to invalid id
+
     Field *source = nullptr; // source field for this target field, if applicable
+    LinkedFields *linked_fields = nullptr; // LinkedFields for this source field, if applicable
 
 public:
-    Field(Vector *field_, bool is_src, bool is_tar, int id_ = -1) :
-          is_source(is_src), is_target(is_tar), field(field_), id(id_) { }
 
     ///@brief Constructor for a Source field
-    Field(Vector *field_, int id_ = -1) : field(field_)
+    Field(Vector *field, int id_ = -1) : type(Type::SOURCE), data(field)
     {
         id = id_;
         if(id < 0) id = next_id++;
-        MakeSource();
     }
 
-    ///@brief Constructor for a Target field with an associated FieldTransfer
-    Field(Vector *field_, FieldTransfer *map, bool own=false, int id_ = -1) :
-          field(field_), transfer_map(map), own_map(own)
+    ///@brief Constructor for a Field of type Type
+    Field(Vector *field, Type type, int id_ = -1) : type(type), data(field)
     {
         id = id_;
         if(id < 0) id = next_id++;
-        MakeTarget();
     }
 
-    ///@brief Get the stored internally stored field pointer
-    virtual Vector* GetField() const { return field; }
+    ///@brief Get the stored internally stored data pointer
+    virtual Vector* Data() const { return data; }
 
-    ///@brief Set the internally stored field pointer
-    virtual void SetField(Vector *field_) { field = field_; }
+    ///@brief Set the internally stored data pointer
+    virtual void SetData(Vector *field) { data = field; }
 
-    virtual void SetParentApp(Application *app_) { app = app_; }
-    virtual Application* GetParentApp() const { return app; }
+    virtual void SetNode(GraphNode *op) { node = op; }
+    virtual GraphNode* GetNode() const { return node; }
 
     ///@brief Update the stored field with new values
-    // virtual void Update(const Vector &f) { *field = f; }
     virtual void Update(const Vector &f) { }
-
-    ///@brief Get the FieldTransfer associated with this target field
-    virtual FieldTransfer* GetTransferMap() const { return transfer_map; }
-    virtual void SetTransferMap(FieldTransfer *map, bool own=false)
-    {
-        if(own_map && transfer_map) delete transfer_map;
-        transfer_map = map;
-        own_map = own;
-    }
-    void SetTransferMapOwnership(bool own) { own_map = own; }
 
     void SetID(int id_) { id = id_; }
     int GetID() const { return id; }
+
     void SetSource(Field *src) { source = src; }
     Field* GetSource() const { return source; }
-
-    bool IsSource() const { return is_source; }
-    bool IsTarget() const { return is_target; }
-    virtual ~Field()
+    
+    virtual GraphNode* GetSourceNode() const
     {
-        if(own_map && transfer_map) delete transfer_map;
+        if(IsSource())
+        {
+            MFEM_VERIFY(node != nullptr, "Source field: " << GetID()
+                        << " does not have an associated GraphNode.");
+            return node;
+        }
+        else
+        {
+            MFEM_VERIFY(source != nullptr, "Field: " << GetID()
+                        << " does not have an associated source field.");
+            MFEM_VERIFY(source->GetNode() != nullptr, "Source field: "
+                        << source->GetID() << " for field: " << GetID()
+                        << " does not have an associated GraphNode.");
+            return source->GetNode();
+        }
+        return node;
     }
 
+    void SetLinkedFields(LinkedFields *lf)
+    {
+        MFEM_ASSERT(IsSource(), "LinkedFields only associated with source fields. "
+                    << "Field ID: " << id << " is not a source field.");
+        linked_fields = lf;
+    }
+    LinkedFields* GetLinkedFields() const { return linked_fields; }
+
+    virtual void GetDerivative(Field* x, Vector &x0, Vector &dydx);
+
+    bool IsSource() const {return (type == Type::SOURCE);}
+    bool IsTarget() const {return (type == Type::TARGET); }
+
+    virtual ~Field() = default;
+
 protected:
-    virtual void MakeSource() { is_source = true; is_target = false; }
-    virtual void MakeTarget() { is_target = true; is_source = false; }
+    virtual void MakeSource() { type = Type::SOURCE; }
+    virtual void MakeTarget() { type = Type::TARGET; }
+
+    void SetType(Type t)
+    {
+        if (type != t && (IsSource() || IsTarget()))
+        { // Warn changing source/target to other or default
+            MFEM_WARNING("Changing field type from " << (IsSource() ? "SOURCE" : "TARGET")
+                         << " to " << (t == Type::SOURCE ? "SOURCE" : (t == Type::TARGET ? "TARGET" : "DEFAULT"))
+                         << " for field ID: " << GetID());
+        }
+        // TODO: If SOURCE -> else; nullify linked fields; if else -> SOURCE, nullify source field.
+        type = t;
+    }
 };
 
 
-/**
-   @brief A class to handle variables and transfers between sources and multiple
-   target ParGridFunctions.
- */
-class LinkedFields 
+class FieldEdge 
 {
-public:
-    using Type = GridFunctionTransfer::Type;
-    using Pair = std::pair<Field*, bool>;
-    Type default_transfer_type = Type::SUBMESH;
+protected:
+    inline static int next_id = 0;
+    int id = -1;
 
+public:
+    FieldEdge(int id_ = -1)
+    {
+        id = id_;
+        if(id < 0) id = next_id++;
+    }
+
+    virtual void Execute(const Vector &x, Vector &y) 
+    {
+        MFEM_ABORT("FieldEdge::Execute() not implemented");
+    }
+
+    void SetID(int id_) { id = id_; }
+    int GetID() const { return id; }
+
+    virtual ~FieldEdge() = default;
+};
+
+/**
+   @brief A class to link sources and multiple target fields.
+   TODO: Fold this into FieldEdge
+ */
+class LinkedFields : public FieldEdge
+{
 protected:
 
     Field *source = nullptr;
     bool own_source = false;
-
-    std::vector<Pair> targets;
+    std::vector<Field*> targets;
+    std::vector<bool> targets_owned;
     int ndest = 0;
 
 public:
 
-    LinkedFields() = default;
+    LinkedFields(int id_ = -1) : FieldEdge(id_) {}
 
     /**
        @brief Constructor given a source @a Vector.
 
        @param src Source @a Vector
      */
-    LinkedFields(Vector *src)
+    LinkedFields(Vector *src): FieldEdge(-1)
     {
-        source = new Field(src);
+        source = new Field(src, Field::Type::SOURCE);
         own_source = true;
+        source->SetLinkedFields(this);
     }
 
     /**
      * @brief Construct a new LinkedFields with only a source and empty target
      */
-    LinkedFields(Field *src, bool own=false) : source(src), own_source(own) { }
+    LinkedFields(Field *src, bool own=false) : FieldEdge(-1),
+                 source(src), own_source(own)
+    {
+        if(source)
+        {
+            source->SetLinkedFields(this);
+            source->SetType(Field::Type::SOURCE);
+        }
+    }
 
 
     /**
@@ -308,12 +219,10 @@ public:
 
        @param src Source  @a Vector
        @param tar Target  @a Vector
-       @param transfer_map  @a FieldTransfer from src to tar (not owned)
      */
-    LinkedFields(Vector *src, Vector *tar, 
-                 FieldTransfer *transfer_map = nullptr) : LinkedFields(src)
+    LinkedFields(Vector *src, Vector *tar) : LinkedFields(src)
     {
-        AddTarget(tar, transfer_map);
+        AddTarget(tar);
     }
 
     /**
@@ -326,142 +235,118 @@ public:
         if(own_source && source) delete source;
         source = src;
         own_source = own;
+        if(source)
+        {
+            source->SetLinkedFields(this);
+            source->SetType(Field::Type::SOURCE);
+        }
     }
 
     ///@brief Set the source @a Vector (does not own).
     void SetSource(Vector *src)
     {
         if(own_source && source) delete source;
-        source = new Field(src);
+        source = new Field(src, Field::Type::SOURCE);
         own_source = true;
+        source->SetLinkedFields(this);
     }
 
     ///@brief Get the source @a Field
     Field* GetSource() const { return source; }
 
-    /**
-       @brief Adds the @a Vector, @a tar, with a specified 
-       FieldTransfer operator, @a transfer_map, to the list of targets
-     */
-    void AddTarget(Vector *tar, FieldTransfer *transfer_map = nullptr, bool own_map=false)
-    {
-        Field *target = new Field(tar, transfer_map, own_map);
-        AddTarget(target, true);
-    }
-
     ///@brief Adds the target @a Field, @a tar, to the list of targets
     void AddTarget(Field *tar, bool own=false)
     {
-        targets.push_back(std::make_pair(tar, own));
+        tar->SetType(Field::Type::TARGET);
+        targets.push_back(tar);
+        targets_owned.push_back(own);
         if(source)
         {
             tar->SetID(source->GetID());
             tar->SetSource(source);
+            Vector *srcv = source->Data();
+            Vector *tarv = tar->Data();
+            if(srcv && tarv)
+            {
+                tarv->SetSize(srcv->Size());
+                tarv->MakeRef(*srcv,0);
+            }
         }
         ndest++;
     }
 
-    ///@brief Get all target fields
-    const std::vector<Pair>& GetTargets() const { return targets; }
-
     /**
-       @brief Transfer from source to all the @a idest destination. 
-
-       @param srcf the vector used to update the source field before transfer;
-       @param idest the index of the destination to transfer to;
-       if <0 (default) transfer to all targets.
+       @brief Adds the @a Vector, @a tar to the list of targets
      */
-    virtual void Transfer(const Vector &srcf, const int idest=-1)
+    void AddTarget(Vector *tar)
     {
-        source->Update(srcf);
-        Transfer(idest);
+        Field *target = new Field(tar, Field::Type::TARGET);
+        AddTarget(target, true);
     }
 
-    /**
-       @brief Transfer internally stored Field from source to all the
-       @a idest destination; if @a idest <0 (default) transfer to all targets
-     */
-    virtual void Transfer(const int idest = -1)
+    void UpdateTargets()
     {
-        MFEM_VERIFY(idest < ndest, "Invalid destination index "
-                    << idest << " >= " << ndest);
-
-        // Vector *srcf = source->GetField();
-        if(idest >= 0)
+        for (size_t i=0; i < targets.size(); i++)
         {
-            auto [target, owned] = targets[idest];
-            FieldTransfer *transfer_map = target->GetTransferMap();
-            if(!transfer_map)
+            Field *tar = targets[i];
+            if(source)
             {
-                MFEM_WARNING("No transfer map associated with target field "
-                             << target->GetID() << " for destination index "
-                             << idest << ". Skipping transfer.");
-                return;
-            }
-            transfer_map->Transfer(*source,*target);
-            // Vector *tarf = target->GetField();
-            // transfer_map->Transfer(*srcf,*tarf);
-        }
-        else
-        {
-            for (auto &destination : targets)
-            {
-                auto [target, owned] = destination;
-                FieldTransfer *transfer_map = target->GetTransferMap();
-                if(!transfer_map)
+                tar->SetID(source->GetID());
+                tar->SetSource(source);
+                Vector *srcv = source->Data();
+                Vector *tarv = tar->Data();
+                if(srcv && tarv)
                 {
-                    MFEM_WARNING("No transfer map associated with target field "
-                                 << target->GetID() << " for destination index "
-                                 << idest << ". Skipping transfer.");
-                    continue;
+                    tarv->SetSize(srcv->Size());
+                    tarv->MakeRef(*srcv,0);
                 }
-                transfer_map->Transfer(*source,*target);
             }
         }
     }
+
+    ///@brief Get all target fields
+    std::vector<Field*>& GetTargets() { return targets; }
+
+    bool HasTargets() const { return !targets.empty(); }
 
     virtual ~LinkedFields()
     {
-        for (auto &dest : targets)
+        for (size_t i=0; i < targets.size(); i++)
         {
-            auto [target, owned] = dest;
-            if(owned) delete target;
+            if(targets_owned[i] && targets[i]) delete targets[i];
         }
         if(own_source && source) delete source;
     }
 };
 
-/// @brief A collection of LinkedFields, each identified by a name
-class LinkedFieldsCollection
+
+
+/// @brief A collection of Fields and LinkedFields, each identified by a name
+class FieldCollection
 {
 private:
-   MPI_Comm comm = MPI_COMM_NULL;
-
     std::string name; /// Name of the collection
-    Application *src_op = nullptr; /// Source Application (not owned)
+    GraphNode *src_op = nullptr; /// Source Application (not owned)
 
     /// Fields for source Application. Contains all source fields and fields that
     /// may be targets of other applications.
     NamedFieldsMap<Field> fields;
 
     /// LinkedFields for source Application.
-    NamedFieldsMap<LinkedFields> linked_fields;
+    NamedFieldsMap<mfem::LinkedFields> linked_fields;
 
 public:
-    LinkedFieldsCollection(MPI_Comm comm_, std::string collection_name = "",
-                           Application *src = nullptr) : name(collection_name),
-                           src_op(src) {comm = comm_;}
 
-    LinkedFieldsCollection() = default;
+    FieldCollection() = default;
 
     /// @brief Constructor with collection name and optional source Application
-    LinkedFieldsCollection(std::string collection_name,
-                           Application *op = nullptr):
-                           name(collection_name), 
-                           src_op(op){}
+    FieldCollection(std::string collection_name,
+                    GraphNode *op = nullptr):
+                    name(collection_name), 
+                    src_op(op){}
 
     /// @brief Constructor with source Application
-    LinkedFieldsCollection(Application *src):src_op(src){}
+    FieldCollection(GraphNode *src):src_op(src){}
 
     /// @brief Get the number of linked fields in the collection
     int Size() const { return linked_fields.NumFields(); }
@@ -473,10 +358,10 @@ public:
     std::string GetName() const { return name; }
 
     /// @brief Set the source Application
-    void SetSourceOperator(Application *op){ src_op = op; }
+    void SetSourceOperator(GraphNode *op){ src_op = op; }
 
     /// @brief Get the source Application
-    const Application* GetSourceOperator() const { return src_op; }
+    const GraphNode* GetSourceOperator() const { return src_op; }
 
     /// @brief Get the ParGridFunction for a given source name
     Field *GetSourceField(const std::string &src_name) const
@@ -484,7 +369,7 @@ public:
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
-            // MFEM_WARNING("LinkedFieldsCollection::GetSourceField: Source field "
+            // MFEM_WARNING("FieldCollection::GetSourceField: Source field "
             //              + src_name + " not found!");
             return nullptr;
         }
@@ -497,18 +382,27 @@ public:
         return fields.Get(field_name);
     }
 
+    LinkedFields* GetLinkedFields(const std::string &src_name) const
+    {
+        return linked_fields.Get(src_name);
+    }
+
     /// @brief Add a ParGridFunction as a field (does not specify source or target)
     void AddField(const std::string &field_name,
-                  Field *field)
+                  Field *field, bool own = false)
     {
-        fields.Register(field_name, field, false);
+        fields.Register(field_name, field, own);
+        if(field->GetNode() == nullptr)
+        {
+            field->SetNode(src_op);
+        }
     }
 
     void AddField(const std::string &field_name,
                   Vector *field)
     {
-        Field *f = new Field(field);
-        f->SetParentApp(src_op);
+        Field *f = new Field(field, Field::Type::DEFAULT);
+        f->SetNode(src_op);
         fields.Register(field_name, f, true);
     }
 
@@ -519,9 +413,11 @@ public:
         LinkedFields *lf_exist = linked_fields.Get(src_name);
         if(lf_exist)
         {
-            for (auto &dest : lf->GetTargets()) {
-                auto [target, owned] = dest;
-                lf_exist->AddTarget(target, owned);
+            auto targets = lf->GetTargets();
+            for (auto &dest : targets) {
+                // auto [target, owned] = dest;
+                // lf_exist->AddTarget(target, owned);
+                MFEM_ABORT("TO DO")
             }
             return;
         }
@@ -548,6 +444,10 @@ public:
     void AddSourceField(const std::string &src_name, Field *src, bool own=false)
     {
         fields.Register(src_name, src, false);
+        if(src->GetNode() == nullptr)
+        {
+            src->SetNode(src_op);
+        }
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
@@ -558,13 +458,11 @@ public:
         lf->SetSource(src, own);
     }
 
-    /// @brief Add a target ParGridFunction (with an optional FieldTransfer) 
+    /// @brief Add a target field
     /// to the source named src_name. If src_name does not exist, a new 
     /// LinkedFields is created and owned.
     void AddTargetField(const std::string &src_name,
-                        Vector *tar,
-                        FieldTransfer *transfer_map = nullptr,
-                        bool own_map = false)
+                        Vector *tar)
     {
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
@@ -572,7 +470,7 @@ public:
             lf = new LinkedFields();
             linked_fields.Register(src_name, lf, true);
         }
-        lf->AddTarget(tar, transfer_map, own_map);
+        lf->AddTarget(tar);
     }
 
     void AddTargetField(const std::string &src_name,
@@ -588,72 +486,209 @@ public:
         lf->AddTarget(tar, own);
     }
 
-    /// @brief Transfer from source named src_nameto target named tar_name. The source 
-    /// GridFunction is set from vsrc. If src_name is empty and there is only one
-    /// source in the collection, it is used.
-    void Transfer(const std::string &src_name, const Vector &vsrc,
-                  const std::string &tar_name = "")
-    {
-        std::string sname = src_name;
-        if(sname.empty() && Size()>1)
-        {
-            MFEM_ABORT("LinkedFieldsCollection::Transfer: Source name is empty "
-                       "and there are multiple source fields! Specify source name.");
-        }
-        else if(sname.empty() && Size()==1)
-        {
-            sname = linked_fields.begin()->first;
-        }
-
-        LinkedFields *lf = linked_fields.Get(sname);
-        if(!lf)
-        {
-            MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
-                         + sname + " in collection " + name + " not found!");
-        }
-        lf->Transfer(vsrc);
-    }
-
-    /// @brief Transfer from source named src_name to target named tar_name. If
-    /// src_name is empty, transfer from all sources, with internally stored 
-    /// GridFunctions, to all targets.
-    void Transfer(const std::string &src_name = "",
-                  const std::string &tar_name = "")
-    {
-        if(src_name.empty())
-        {
-            for (auto &field : linked_fields)
-            {
-                auto [name, lf] = field;
-                lf->Transfer();
-            }
-        }
-        else
-        {
-            LinkedFields *lf = linked_fields.Get(src_name);
-            if(!lf)
-            {
-                MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
-                            + src_name + " in collection " + name + " not found!");
-            }
-            // lf->Transfer(tar_name=="" ? -1 : linked_fields.GetIndex(tar_name));
-            lf->Transfer();
-        }
-    }
-
     Field* operator[](const std::string &field_name) const
     {
         return GetField(field_name);
     }
 
-    ~LinkedFieldsCollection(){}
+    NamedFieldsMap<Field> &GetFields() { return fields; }
+    NamedFieldsMap<LinkedFields> &GetLinkedFields() { return linked_fields; }
 
+    virtual void Save (std::ostream &out) const
+    {
+        out << "\"Fields\":\n";
+        out << "{\n";
+        for (auto f = fields.begin(); f != fields.end(); ++f)
+        {
+            std::string f_name = f->first;
+            Field *f_obj = f->second;
+            // out << "  " << f_name << ": ID " << f_obj->GetID() << ",\n";
+            // out << f_obj->GetID() << ": " << f_name << ",\n";
+            out << '\"' << f_obj->GetID() << "\": \"" << f_name << "\"";
+            if(f != std::prev(fields.end())) out << ",";
+            out << "\n";
+        }
+        out << "},\n";
+        out << "\"LinkedFields\":\n";
+        out << "{\n";
+        for (auto lf = linked_fields.begin(); lf != linked_fields.end(); ++lf)
+        {
+            std::string lf_name = lf->first;
+            LinkedFields *lf_obj = lf->second;
+            // out << "  " << lf_name << ": ID " << lf_obj->GetID() << ",\n";
+            out << '\"' << lf_obj->GetSource()->GetID() << "\": \"" << lf_name << "\"";
+            if(lf != std::prev(linked_fields.end())) out << ",";
+            out << "\n";
+        }
+        out << "}\n";
+    }
+
+    Field* HasField(const Field &field) const
+    {
+        // Field *f = HasField(field.GetID());
+        // return (f == &field) ? f : nullptr;
+        for (auto f = fields.begin(); f != fields.end(); ++f)
+        {
+            if(f->second == &field)
+            {
+                return f->second;
+            }
+        }
+        return nullptr;
+    }
+
+    Field* HasField(const std::string &field_name) const
+    {
+        return fields.Get(field_name);
+    }
+
+    Field* HasField(const int id) const
+    {
+        for (auto f = fields.begin(); f != fields.end(); ++f)
+        {
+            if(f->second->GetID() == id)
+            {
+                return f->second;
+            }
+        }
+        return nullptr;
+    }
+
+    ~FieldCollection(){}
+
+};
+
+
+class GraphNode : public Operator
+{
+protected:
+    inline static int next_id = 0;
+    int id = -1;
+    int node_index = std::numeric_limits<int>::min();
+    int input_index = std::numeric_limits<int>::min(); // Input to node in graph
+    int output_index = std::numeric_limits<int>::min(); // Output from node in graph
+
+    std::string name;
+    FieldCollection fields; // Collection of fields associated with this node
+    std::vector<GraphNode*> dependencies; // GraphNodes that this node depends on
+    std::vector<GraphNode*> dependents;   // GraphNodes that depend on this node
+
+public:
+
+    GraphNode(int s = 0) : Operator(s), fields(this)
+    {
+        id = next_id++;
+    }
+
+    GraphNode(int h, int w) : Operator(h,w), fields(this)
+    {
+        id = next_id++;
+    }
+
+    virtual void Execute(const Vector &x, Vector &y)
+    {
+        MFEM_ABORT("GraphNode::Execute() not implemented");
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const override
+    {
+        MFEM_ABORT("GraphNode::Mult() not implemented");
+    }
+
+    virtual Operator* GetDerivative(Field *y, Vector &x)
+    {
+        MFEM_ABORT("GraphNode::GetDerivative not implemented");
+    }
+
+    // TODO: Consider returning bool to indicate ownership of dydx operator
+    [[nodiscard]] virtual bool GetDerivative(Field* y, Vector &x, Operator* &dydx)
+    {
+        MFEM_ABORT("GraphNode::GetDerivative not implemented");
+    }
+
+    [[nodiscard]] virtual bool GetDerivative(Field* y, Field* x, Vector &x0, Operator *dydx)
+    {
+        MFEM_ABORT("GraphNode::GetDerivative not implemented");
+    }
+
+    virtual void GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx)
+    {
+        MFEM_ABORT("GraphNode::GetDerivative not implemented");
+    }
+
+    void SetNodeIndex(int index){ node_index = index; }
+    int GetNodeIndex() const { return node_index; }
+
+    int GetInputIndex() const { return input_index; }
+    void SetInputIndex(int index) { input_index = index; }
+
+    int GetOutputIndex() const { return output_index; }
+    void SetOutputIndex(int index) { output_index = index; }
+
+    void SetName(const std::string &name_) { name = name_; }
+    std::string GetName() const { return name; }
+
+    // WIP
+    void AddDependency(GraphNode *node)
+    {
+        dependencies.push_back(node);
+        node->dependents.push_back(this);
+    }
+    // WIP
+    void AddDependent(GraphNode *node)
+    {
+        dependents.push_back(node);
+        node->dependencies.push_back(this);
+    }
+
+    const std::vector<GraphNode*>& GetDependencies() const { return dependencies; }
+    const std::vector<GraphNode*>& GetDependents() const { return dependents; }
+
+    void SetID(int id_) { id = id_; }
+    int GetID() const { return id; }
+
+    FieldCollection& Fields() { return fields; }
+    const FieldCollection& Fields() const { return fields; }
+
+    Field* Fields(const std::string &field_name) const 
+    { return fields.GetField(field_name); }
+
+    Field* Fields(const std::string &field_name)
+    { return fields.GetField(field_name); }
+
+    LinkedFields* LinkedField(const std::string &src_name) const
+    { return fields.GetLinkedFields(src_name); }
+
+    LinkedFields* LinkedField(const std::string &src_name)
+    { return fields.GetLinkedFields(src_name); }
+
+    void AddField(const std::string &field_name, Field *field)
+    {
+        fields.AddField(field_name, field);
+    }
+
+    /// @brief Add a LinkedFields to the collection with name src_name
+    void AddLinkedFields(const std::string &src_name, LinkedFields *field)
+    {
+        fields.AddLinkedFields(src_name, field);
+    }
+
+    virtual void Save (std::ostream &out) const
+    {
+        out << "\"Node-" << id << "\" : " << std::endl;
+        out << "{\n";
+        out << "\"Name\": \"" << name << "\",\n";
+        fields.Save(out);
+        out << "}";
+    }
+
+    virtual ~GraphNode() = default;
 };
 
 
 /** @brief This class is used to define the interface for applications and miniapps.
  */
-class Application : public TimeDependentOperator
+class Application : public GraphNode
 {
 public: 
     /**
@@ -664,94 +699,25 @@ public:
         MFEM_TDO,       ///< MFEM TimeDependentOperator
         MFEM_SOLVER,    ///< MFEM Solver
         MFEM_ODESOLVER, ///< MFEM ODESolver
-        NOT_MFEM_OBJECT ///< Object is not derived from an MFEM class 
+        NOT_MFEM_OBJECT ///< Object is not derived from an MFEM class
     };
-
-    /**
-       @brief Used to determine which operation shoudl be performed by 
-       PerformOperation(const int, const Vector &, Vector&).
-     */
-    struct Operations
-    {
-        enum OperationID {
-            MULT, IMPLICIT_SOLVE, STEP, 
-            IMPLICIT_MULT, EXPLICIT_MULT,
-            SOLVE, DEFAULT, NONE
-        };
-    };
-    using OperationID = Operations::OperationID;
 
 protected:
-
-    std::string name;
-    int oper_index = std::numeric_limits<int>::max();
     OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
-    OperationID operation_id = OperationID::NONE;        ///< Current operation ID
-    bool is_coupled = false;
-
-    std::function<void (Vector&)> pre_process_func; ///< Pre-process function
-    std::function<void (Vector&)> post_process_func; ///< Post-process function
-
-    LinkedFieldsCollection field_collection; ///< Collection of linked fields
 
 public:
     /**
        @brief Construct a new Application object.
        @param n Size of the operator
      */
-    Application(int n=0) : TimeDependentOperator(n) {}
+    Application(int n=0) : GraphNode(n) {}
 
     /**
        @brief Construct a new Application object.
        @param h Height of the operator
        @param w Width of the operator
      */
-    Application(int h, int w) : TimeDependentOperator(h,w) {}
-
-    /**
-       @brief Initialize the operator.
-     */
-    virtual void Initialize()
-    {
-        mfem_error("Application::Initialize() is not overridden!");
-    }
-
-    /**
-       @brief Assemble the operator.
-     */
-    virtual void Assemble()
-    {
-        mfem_error("Application::Assemble() is not overridden!");
-    }
-
-    /**
-       @brief Finalize the operator.
-     */
-    virtual void Finalize()
-    {
-        mfem_error("Application::Finalize() is not overridden!");
-    }
-
-    /**
-       @brief Set the index of the operator.
-     */
-    void SetOperatorIndex(int index){ oper_index = index; }
-
-    /**
-       @brief Get the index of the operator.
-     */
-    int GetOperatorIndex() const { return oper_index; }
-
-    /**
-       @brief Set the Operation ID to call the appropriate operation
-       from Mult().
-     */
-    virtual void SetOperationID(OperationID id){ operation_id = id; }
-
-    /**
-       @brief Get the current OperationID.
-     */
-    OperationID GetOperationID() const { return operation_id; }
+    Application(int h, int w) : GraphNode(h,w) {}
 
     /**
        @brief Set the Operator Type object. 
@@ -763,77 +729,6 @@ public:
      */
     OperatorType GetOperatorType() const { return operator_type; }
 
-    /**
-       @brief Returns true if Application is coupled.
-     */
-    virtual bool IsCoupled() const {return is_coupled;}
-
-    /**
-       @brief Set whether the Application is coupled.
-     */
-    virtual void SetCoupled(bool coupled) {is_coupled = coupled;}
-
-    /**
-       @brief Set the pre-processing function.
-
-       @param func Pre-processing function
-
-       @note This is primarily used for type-erased objects
-     */
-    virtual void SetPreProcessFunction(std::function<void (Vector&)> func)
-    {
-        pre_process_func = std::move(func);
-    }
-
-    /**
-       @brief Set the post-processing function.
-       
-       @param func Post-processing function
-       
-       @note This is primarily used for type-erased objects
-     */
-    virtual void SetPostProcessFunction(std::function<void (Vector&)> func)
-    {
-        post_process_func = std::move(func);
-    }
-
-    /**
-       @brief Pre-process the input vector @a x before performing operations such as
-       Mult, Solve, ImplicitSolve, Step, etc. when coupled with other operators.
-       
-       @note This method is always called before the main operation is performed, but must
-       be either overridden or a pre-processing lambda shoudl be set, to have an effect.
-       Currently, it does nothing.
-     */
-    virtual void PreProcess(Vector &x){
-        if(pre_process_func) pre_process_func(x);
-    }
-
-    /**
-       @brief Post-process the input vector @a x after performing operations such as
-       Mult, Solve, ImplicitSolve, Step, etc. when coupled with other operators.
-       
-       @note This method is always called before the main operation is performed, but must
-       be either overridden or a post-processing lambda shoudl be set, to have an effect.
-       Currently, it does nothing.
-     */
-    virtual void PostProcess(Vector &x){
-        if(post_process_func) post_process_func(x);
-    }
-
-    /**
-       @brief Solve the problem defined by the operator, given an input @a x 
-       and return the solution in @a y.
-     */
-    virtual void Solve(const Vector &x, Vector &y) const
-    {
-        MFEM_ABORT("Not implemented for this Application.");
-    };
-
-    /**
-       @brief Apply the operator the vector @a x and return the result in @a y.
-       For @a TimeDependentOperator, this computes (u,t) -> k(u,t).
-     */
     virtual void Mult(const Vector &x, Vector &y) const override
     {
         MFEM_ABORT("Not implemented for this Application.");
@@ -845,87 +740,6 @@ public:
     virtual void Update()
     {
         mfem_error("Application::Update() is not overridden!");
-    }
-    
-    /**
-       @brief Perform an operation index by @a id on the vector
-       @a x and return the result in @a y.
-     */
-    virtual void PerformOperation(const int id, const Vector &x, Vector &y)
-    {
-        mfem_error("Application::PerformOperation() is not overridden!");
-    }
-
-    /**
-       @brief Get the LinkedFieldsCollection for this Application.
-     */
-    LinkedFieldsCollection& Fields() { return field_collection; }
-
-    mfem::Field* Field(const std::string &field_name)
-    {
-        return field_collection.GetField(field_name);
-    }
-
-    /**
-       @brief Add a LinkedField @a field to the operator.
-
-       @note The source field in the @a LinkedField should
-       be from the current operator.
-     */
-    virtual void AddLinkedFields(const std::string &src_name, LinkedFields *field)
-    {
-        field_collection.AddLinkedFields(src_name, field);
-    }
-
-    /**
-       @brief Perform a time step from time @a t [in] to time @a t [out] based
-       on the requested step size @a dt [in].
-       
-       @note This function is called if the operator acts as an ODE Solver.
-       
-       @param x Approximate initial solution
-       @param t Time associated with the approximate solution @a x
-       @param dt Time step size
-     */
-    virtual void Step(Vector &x, real_t &t, real_t &dt)
-    {
-        mfem_error("Application::Step() is not overridden!");
-    }
-
-    /**
-       @brief Transfer the internally stored data defined in the LinkedFields
-       for current operator.
-     */
-    virtual void Transfer()
-    {
-        field_collection.Transfer();
-    }
-
-    /**
-       @brief Transfer the data defined in the LinkedFields for current operator.
-
-       @param x Information to transfer, e.g., current solution vector, stage update, etc.
-     */
-    virtual void Transfer(const Vector &x)
-    {
-        if(field_collection.Size() == 1)
-        {
-            field_collection.Transfer("", x);
-        }
-        else
-        {
-            Application::Transfer();
-        }
-    }
-
-    /**
-       @brief Transfer the stage 'u' and 'k' from multistage methods. Can be
-       used to transfer the stage-updated solution, e.g., un = ui + dt*ki,
-       to other applications.
-     */
-    virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0)
-    {
-        Application::Transfer(u);
     }
 };
 
@@ -946,18 +760,17 @@ protected:
     class CheckMember{
         private:
 
-        /// @brief A type trait to check if the erased class has the functions Step, Mult, and ImplicitSolve
+        /// @brief A type trait to check if the erased class has the functions Execute and Mult
         /// with the needed signatures.
         template<class T>
-        using Step = decltype(std::declval<T&>().Step(std::declval<Vector&>(),
-                                                      std::declval<real_t&>(),
-                                                      std::declval<real_t&>()));
+        using Execute = decltype(std::declval<T&>().Execute(std::declval<const Vector&>(),
+                                                            std::declval<Vector&>()));
 
         template<class T>
-        using StepPtr = decltype(std::declval<T&>().Step(std::declval<const int>(),
-                                                         std::declval<real_t*>(),
-                                                         std::declval<real_t&>(),
-                                                         std::declval<real_t&>()));
+        using ExecutePtr = decltype(std::declval<T&>().Execute(std::declval<const int>(),
+                                                               std::declval<const real_t*>(),
+                                                               std::declval<const int>(),
+                                                               std::declval<real_t*>()));
 
         template<class T>
         using Mult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),
@@ -968,19 +781,6 @@ protected:
                                                          std::declval<const real_t*>(),
                                                          std::declval<const int>(),
                                                          std::declval<real_t*>()));
-
-        template<class T>
-        using ImplicitSolve = decltype(std::declval<T&>().ImplicitSolve(std::declval<const real_t>(),
-                                                                        std::declval<const Vector&>(),
-                                                                        std::declval<Vector&>()));
-
-        template<class T>
-        using ImplicitSolvePtr = decltype(std::declval<T&>().ImplicitSolve(std::declval<const real_t>(),
-                                                                           std::declval<const int>(),
-                                                                           std::declval<const real_t*>(),
-                                                                           std::declval<const int>(),
-                                                                           std::declval<real_t*>()));
-
         // ---------------------------------------------------------------------
         
         template <typename T, template<typename> typename Func, typename R>
@@ -990,47 +790,53 @@ protected:
         static constexpr std::false_type Check(...);
 
         // --- Check for the existence of the member functions
+        typedef decltype(Check<C,Execute,void>(0)) Has_Execute;
         typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
-        typedef decltype(Check<C,Step,void>(0)) Has_Step;
-        typedef decltype(Check<C,ImplicitSolve,void>(0)) Has_ImplicitSolve;
 
+        typedef decltype(Check<C,ExecutePtr,void>(0)) Has_ExecutePtr;
         typedef decltype(Check<C,MultPtr,void>(0)) Has_MultPtr;
-        typedef decltype(Check<C,StepPtr,void>(0)) Has_StepPtr;
-        typedef decltype(Check<C,ImplicitSolvePtr,void>(0)) Has_ImplicitSolvePtr;
-
     public:
+        static constexpr bool HasExecute  = Has_Execute::value;
         static constexpr bool HasMult  = Has_Mult::value;
-        static constexpr bool HasStep  = Has_Step::value;
-        static constexpr bool HasImplicitSolve  = Has_ImplicitSolve::value;
+        static constexpr bool HasExecutePtr  = Has_ExecutePtr::value;
         static constexpr bool HasMultPtr  = Has_MultPtr::value;
-        static constexpr bool HasStepPtr  = Has_StepPtr::value;
-        static constexpr bool HasImplicitSolvePtr  = Has_ImplicitSolvePtr::value;
-    };    
+    };
 
     OpType *op;  ///< Pointer to the operator
-    Application *nested_op = nullptr; ///< Pointer to the nested operator, if any
 
 public:
 
+    constexpr bool HasExecute(){return CheckMember<OpType>::HasStep;}
     constexpr bool HasMult(){return CheckMember<OpType>::HasMult;}
-    constexpr bool HasStep(){return CheckMember<OpType>::HasStep;}
-    constexpr bool HasImplicitSolve(){return CheckMember<OpType>::HasImplicitSolve;}
+
 
     /// @brief Constructor for the type-erased AbstractOperator class
     AbstractOperator(OpType *op_, int h, int w) : Application(h,w), op(op_)
-    {
-        // If the operator is an ODESolver, we need access to its time-dependent operator 
-        if constexpr (std::is_base_of<ODESolver, OpType>::value)
-        {
-            TimeDependentOperator* tdo = op->GetTimeDependentOperator();
-            this->height = tdo->Height();
-            this->width  = tdo->Width();
-            nested_op = dynamic_cast<Application*>(tdo);
-        }
-    }
+    { }
 
     /// @brief Constructor for the type-erased AbstractOperator class.
     AbstractOperator(OpType *op_, int s = 0) : AbstractOperator(op_,s,s) {}
+
+    /**
+       @brief Perform Mult operation with the stored operator, if it exists.
+     */
+    void Execute(const Vector &x, Vector &y) override
+    {
+        if constexpr (CheckMember<OpType>::HasExecute)
+        {
+            op->Execute(x,y);
+        }
+        else if constexpr (CheckMember<OpType>::HasExecutePtr)
+        {
+            op->Execute(x.Size(), x.GetData(), y.Size(), y.GetData());
+        }
+        else
+        {
+            MFEM_ABORT("The AbstractOperator does not have the function, "
+                       "Execute(const Vector&, Vector&) or "
+                       "Execute(int, double*, int, double*).");
+        }
+    }
 
     /**
        @brief Perform Mult operation with the stored operator, if it exists.
@@ -1052,159 +858,53 @@ public:
                        "Mult(int, double*, int, double*).");
         }
     }
-
-    /**
-       @brief Perform Step operation with the stored operator, if it exists.
-     */
-    void Step(Vector &x, real_t &t, real_t &dt) override
-    {
-        if constexpr (CheckMember<OpType>::HasStep)
-        {
-            op->Step(x,t,dt);
-        }
-        else if constexpr (CheckMember<OpType>::HasStepPtr)
-        {
-            op->Step(x.Size(), x.GetData(), t, dt);
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, "
-                       "Step(Vector&, real_t&, real_t&) or "
-                       "Step(int, double*, double&, double&).");
-        }
-    }
-
-    /**
-       @brief Perform ImplicitSolve operation with the stored operator, if it exists.
-     */
-    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
-    {
-        if constexpr (CheckMember<OpType>::HasImplicitSolve)
-        {
-            op->ImplicitSolve(dt,x,k);
-        }
-        else if constexpr (CheckMember<OpType>::HasImplicitSolvePtr)
-        {
-            op->ImplicitSolve(dt,x.Size(),x.GetData(),k.Size(),k.GetData());
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, "
-                       "ImplicitSolve(const real_t , const Vector&, Vector&) or "
-                       "ImplicitSolve(const real_t , int, double*, int, double*).");
-        }
-    }
-
-    /**
-       @brief Set the Operation ID to call the appropriate operation.
-     */
-    void SetOperationID(OperationID id) override
-    {
-        Application::SetOperationID(id);
-        if (nested_op) nested_op->SetOperationID(id);
-    }
-
-    /**
-       @brief Transfer the data defined in the LinkedFields for current operator.
-
-       @param x Information to transfer, e.g., current solution vector, stage update, etc.
-     */
-    void Transfer(const Vector &x) override
-    {
-        if (nested_op && (field_collection.Size() == 0))
-        {   // If this app does not have it's own linked_fields
-            // call the nested_op's transfer
-            nested_op->Transfer(x);
-        }
-        else
-        {
-            Application::Transfer(x);
-        }
-    }
-
-    /**
-       @brief Transfer the stage 'u' and 'k' from multistage methods. Can be used to transfer
-       the stage-updated solution, e.g., un = ui + dt*ki, to other applications.
-     */
-    void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
-    {
-        if (nested_op && (field_collection.Size() == 0)) 
-        {   // If this app does not have it's own linked_fields
-            // call the nested_op's transfer
-            nested_op->Transfer(u,k,dt);
-        }
-        else
-        {
-            Application::Transfer(u,k,dt);
-        }
-    }
-
-    void Transfer() override
-    {
-        if (nested_op && (field_collection.Size() == 0)) 
-        {   // If this app does not have it's own linked_fields
-            // call the nested_op's transfer
-            nested_op->Transfer();
-        }
-        else
-        {
-            Application::Transfer();
-        }
-    }
 };
+
 
 
 /**
    @brief A class to store and coupled multiple operators together.
  */
-class CoupledOperator : public Application
+class DAGraph : public GraphNode
 {
 public:
-    /**
-       @brief Flags to to define the coupling type between operators
-     */
-    struct CouplingTypes
+    enum GradMode
     {
-        enum class Types
-        {
-            NONE,                ///< No coupling, solve each operator independently
-            MONOLITHIC,          ///< Solve all operators simultaneously
-            ADDITIVE_SCHWARZ,    ///< Jacobi-type coupling
-            ALTERNATING_SCHWARZ  ///< Gauss-Seidel-type coupling
-        };
+        FD, // Finite difference Jacobian
+        FORWARD,
+        BACKWARD
     };
-    using Scheme = CouplingTypes::Types;
 
 protected:
-    std::vector<Application*> operators;  ///< List of individual operators
-    Array<bool> operators_owned; ///< Whether the operators are owned
-    Array<int> offsets;  ///< Block offsets for each operator
-    int max_op_size=0;   ///< Largest operator size
-    int nops = 0;        ///< The number of applications
+    std::vector<GraphNode*> nodes;  ///< Vector of individual operators
+    Array<bool> nodes_owned; ///< Whether the operators are owned
 
-    /// Operator for coupling type
-    Scheme coupler_type = Scheme::NONE; ///< Current coupling type
-    OperatorCoupler *op_coupler = nullptr;
-    bool own_op_coupler = true;
+    Array<int> in_offsets;  ///< Block offsets for input fields
+    Array<int> out_offsets; ///< Block offsets for output fields
+    int max_width=0;        ///< Largest operator width
+    int max_height=0;       ///< Largest operator height
+    int nnodes = 0;         ///< The number of applications
     
-    /// Solver for the coupling operator - For example: FPISolver for 
-    /// partitioned and Newton/Krylov for monolithic
-    Solver *solver = nullptr; 
-    bool own_solver = false;
+    mutable Operator *grad = nullptr; ///< Jacobain operator
+    GradMode grad_mode = GradMode::FD;
+    bool own_blocks = false; ///< Whether the BlockOperator owns the individual blocks
 
-    mutable Vector b;
+    mutable Vector tmp; ///< Temporary vector (used in forward pass in gradient computations)
 
 public:
     /**
        @brief Construct a new CoupledOperator object.
        @param nop Total number of operators to couple
      */
-    CoupledOperator(const int nop) : Application()
+    DAGraph(const int nop) : GraphNode()
     {
-        operators.reserve(nop);
-        offsets.Reserve(nop+1);
-        offsets.Prepend(0);
-        operators_owned.Reserve(nop);
+        nodes.reserve(nop);
+        nodes_owned.Reserve(nop);
+
+        in_offsets.Reserve(nop+1);
+        out_offsets.Reserve(nop+1);
+        in_offsets.Prepend(0);
+        out_offsets.Prepend(0);
     }
 
     /**
@@ -1212,7 +912,7 @@ public:
        abstract non/mfem operator.
      */
     template <class OpType>
-    CoupledOperator(const OpType &op) : CoupledOperator(1)
+    DAGraph(const OpType &op) : DAGraph(1)
     {
         AddOperator(op);
     }
@@ -1222,188 +922,123 @@ public:
        return pointer to it. Not owned unless it's not derived from Application.
      */
     template <class OpType>
-    Application* AddOperator(OpType *op_, int h, int w)
+    GraphNode* AddOperator(OpType *op_, int h, int w)
     {
         // Add operator to list of operators
-        if constexpr(std::is_base_of<Application, OpType>::value)
+        if constexpr(std::is_base_of<GraphNode, OpType>::value)
         {
-            operators.push_back(op_);
-            operators_owned.Append(false);
+            nodes.push_back(op_);
+            nodes_owned.Append(false);
         } 
         else
         {
-            operators.push_back(new AbstractOperator<OpType>(op_,h,w));
-            operators_owned.Append(true);
+            nodes.push_back(new AbstractOperator<OpType>(op_,h,w));
+            nodes_owned.Append(true);
         }
-        nops++;
+        nnodes++;
+
+        // Add an input and output field for the operator; nullptr will be populated later
+        std::string input_name = "x" + std::to_string(nnodes-1);
+        fields.AddSourceField(input_name,
+                              new Field(nullptr, Field::Type::SOURCE), true);
+
+        std::string output_name = "y" + std::to_string(nnodes-1);
+        fields.AddField(output_name,
+                        new Field(nullptr, Field::Type::DEFAULT), true);
 
         // Update size of the coupled operator and the block offsets
-        Application* op = operators.back();
-        op->SetOperatorIndex(nops-1); // Set the index of the operator
+        GraphNode* op = nodes.back();
+        op->SetNodeIndex(nnodes-1); // Set the index of the operator
 
-        int sum = offsets.Last();
-        offsets.Append(sum + op->Width());
+        auto input_field = op->Fields("input");
+        if(input_field)
+        {
+            fields.AddTargetField(input_name, input_field);
+        }
 
-        this->width  += op->Width();
-        this->height += op->Height();
+        auto output_field = op->LinkedField("output");
+        if(output_field)
+        {
+            output_field->AddTarget(Fields(output_name), false);
+        }
 
-        max_op_size = std::max(max_op_size, op->Width()); // Largest operator
+        int ht = op->Height();
+        int wt = op->Width();
+
+        if (wt > 0)
+        {
+            op->SetInputIndex(in_offsets.Size()-1);
+            in_offsets.Append(in_offsets.Last() + wt);
+        }
+        if (ht > 0)
+        {
+            op->SetOutputIndex(out_offsets.Size()-1);
+            out_offsets.Append(out_offsets.Last() + ht);
+        }
+
+        this->width  += wt;
+        this->height += ht;
+
+        max_width = std::max(max_width, wt);
+        max_height = std::max(max_height, ht);
 
         return op;
     }
 
     /// @brief Add an operator to the list of coupled operator and return pointer to it.
     template <class OpType>
-    Application* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
+    GraphNode* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
     /// @brief Get the number of coupled operators
-    int Size(){return nops;}
+    int Size(){return nnodes;}
 
     /// @brief Get the size of the largest operator
-    int Max(){return max_op_size;}
+    int MaxWidth(){return max_width;}
+    int MaxHeight(){return max_height;}
 
     /// @brief Get the operator at index @a i
-    Application* GetOperator(const int i) { return operators[i]; }
+    GraphNode* GetNode(const int i) { return nodes[i]; }
 
     /// @brief Specify whether the operator at index @a i is owned.
-    void OwnOperator(const int i, bool own = true)
+    void OwnNode(const int i, bool own = true)
     {
-        MFEM_ASSERT(i >= 0 && i < nops,
-               "index [" << i << "] is out of range [0," << nops << ")");
-        operators_owned[i] = own;
+        MFEM_ASSERT(i >= 0 && i < nnodes,
+               "index [" << i << "] is out of range [0," << nnodes << ")");
+        nodes_owned[i] = own;
     }
 
-    /**
-       @brief Set the operator coupling type.
-       @note Currently supported options are provided in enum Scheme
-     */
-    virtual void SetCouplingScheme(Scheme type_) { coupler_type = type_; }
-
-
-    /// @brief Get the current operator coupling type.
-    Scheme GetCouplingScheme() const { return coupler_type; }
-
-    /**
-       @brief Set the offset used by BlockVector for the coupled operator.
-       Checks if block offsets are consistent with operator sizes.
-
-       @param off_sets Array of block offsets
-     */
-    void SetBlockOffsets(Array<int> off_sets)
+    /// @brief Specify whether the gradient operator is owned. Used for
+    /// each block in the block Jacobain (BlockOperator)
+    void OwnGradientOperators(bool own = true)
     {
-        bool same_size  = (off_sets.Size() == static_cast<int>(operators.size()));
-        bool consistent = !same_size ? false : std::equal(
-                                               operators.begin(), operators.end(), off_sets.begin(), 
-                                               [](Application *a, int b){ return a->Width() == b;} 
-                                               );
-        if(!consistent)
+        own_blocks = own;
+        if(grad) { delete grad; grad = nullptr; }
+    }
+
+    /// @brief Return whether the gradient operators are owned.
+    bool OwnsGradientOperators() const { return own_blocks; }
+
+    /// @brief Set the gradient mode for the coupled operator
+    void SetGradientMode(GradMode mode)
+    {
+        if(mode != grad_mode)
         {
-            // MFEM_WARNING("Inconsistent block offsets provided "
-            //              "to CoupledOperator::SetBlockOffsets(). "
-            //              "Using default offsets.");
-            return;
-        }
-        this->offsets = off_sets;
-    }
-
-    /// @brief Return the offset used by BlockVector for the coupled operator.
-    const Array<int> GetBlockOffsets(){ return offsets; }
-
-    /**
-       @brief Set the solver used for fixed point iterations or Newton solver in
-       the implicit solve.
-
-       @param own If 'true', own @a s
-     */
-    void SetSolver(Solver *s, bool own = false)
-    { 
-        if(own_solver && solver) delete solver;
-        solver = s; own_solver = own;
-    }
-
-    /// @brief Get the current OperatorCoupler.
-    const OperatorCoupler* GetOperatorCoupler(){ return op_coupler; }
-
-    /**
-       @brief Set the OperatorCoupler corresponding to the coupling type.
-
-       @param op OperatorCoupler to use
-       @param own If 'true', own @a op
-     */
-    void SetOperatorCoupler(OperatorCoupler* op, bool own=false);
-
-    /**
-       @brief Initialize the CoupledOperator.
-
-       @param do_ops If 'true', call Initialize on all operator
-     */
-    virtual void Initialize(bool do_ops);
-    void Initialize() override { Initialize(true); }
-
-    /**
-       @brief Assemble the CoupledOperator.
-
-       @param do_ops If 'true', call Assemble on all operator
-     */
-    virtual void Assemble(bool do_ops);
-    void Assemble() override { Assemble(true); }
-
-    /**
-       @brief Finalize the CoupledOperator.
-
-       @param do_ops If 'true', call Finalize on all operator
-     */
-    virtual void Finalize(bool do_ops);
-    void Finalize() override { Finalize(true); }
-
-    /**
-       @brief Pre-process the Vector @a x before an operation
-       (e.g., Mult, ImplictSolve, etc.)
-       
-       @note See Application::PreProcess(Vector&) for when this can be used
-       
-       @param do_ops If 'true', call PreProcess for all operators
-     */
-    virtual void PreProcess(Vector &x, bool do_ops);
-    void PreProcess(Vector &x) override { PreProcess(x, true); }
-
-    /**
-       @brief Post-process the Vector @a x after an operation
-       (e.g., Mult, ImplictSolve, etc.)
-       
-       @note See Application::PostProcess(Vector&) for when this can be used
-       
-       @param do_ops If 'true', call PostProcess for all operators
-     */
-    virtual void PostProcess(Vector &x, bool do_ops);
-    void PostProcess(Vector &x) override { PostProcess(x, true); }
-
-    /// @brief Set the OperationID 
-    virtual void SetOperationID(OperationID id, bool do_ops);
-    void SetOperationID(OperationID id) override { SetOperationID(id, true); }
-
-    /// @brief Transfer Vector @a x to operators via LinkedFields    
-    virtual void Transfer(const Vector &x) override;
-
-    /**
-       @brief Transfer the stage 'u' and 'k' from multistage methods. Can be used 
-       to transfer the stage-updated solution, e.g., un=ui+dt*ki, to other applications.
-     */
-    virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override;
-
-    /// @brief Set the time for each operator.
-    void SetTime(const real_t t_) override;
-
-    /**
-       @brief Perform operation, defined by @a op, on @a x and return in @a y.
-       @note @a id is typically selected from enum Appliction::OperationID
-     */
-    void PerformOperation(const int id, const Vector &x, Vector &y)
-    {
-        for (auto &op : operators) {
-            op->PerformOperation(id, x, y);
+            if(grad) { delete grad; grad = nullptr; }
+            grad_mode = mode;
         }
     }
+
+    /// @brief Return the input offsets for block starts.
+    Array<int>& InputOffsets() { return in_offsets; }
+
+    /// @brief Read only access to the input offsets for block starts.
+    const Array<int>& InputOffsets() const { return in_offsets; }
+
+    /// @brief Return the output offsets for block starts.
+    Array<int>& OutputOffsets() { return out_offsets; }
+
+    /// @brief Read only access to the output offsets for block starts.
+    const Array<int>& OutputOffsets() const { return out_offsets; }
 
     /**
        @brief Apply the operator to the vector @a x 
@@ -1411,271 +1046,110 @@ public:
      */
     virtual void Mult(const Vector &x, Vector &y) const override;
 
-    /**
-       @brief Advance the time step for each operator. \Phi_i(x_i; t, dt) = x_i(t) -> x_i(t+dt).
-       @note This is used when the operator to be coupled are of type ODESolver.
-     */
-    void Step(Vector &x, real_t &t, real_t &dt) override;
+    virtual void Execute(const Vector &x, Vector &y) override;
 
-    /**
-       @brief Solve for the unknown k, at the current time t, the following 
-       equation: F(u + gamma k, k, t) = G(u + gamma k, t). The solution procedure 
-       is determinied by the coupling type.
-     */
-    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override;
+    virtual void Save (std::ostream &out) const
+    {
+        out << "\"DAGraph\":\n";
+        out << "{\n";
+        // out << "\"nodes\" : " << nnodes << ",\n";
+        out << "\"Nodes\":\n";
+        out << "{\n";
+        for (size_t i = 0; i < nodes.size(); i++)
+        {
+            nodes[i]->Save(out);
+            if(i != nodes.size()-1) out << ",";
+            out << "\n";
+        }
+        out << "},\n"; // End of Nodes
+        fields.Save(out);
+        out << "}\n";
+    }
 
-    /**
-       @brief Perform the action of the implicit part of all operators, 
-       F_i: v_i = F(u_i, k_i, t), where t is the current time. This function 
-       performs an implicit solve for the monolithic system
-     */
-    void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const override;
+    Operator& GetGradient(const Vector &x) const override;
 
-    /**
-       @brief Perform the action of the explicit part of all operators, 
-       G_i: v_i = G(u_i, t), where t is the current time.
-     */
-    void ExplicitMult(const Vector &u, Vector &v) const override;
-    
-    
+    virtual void GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx) override;
+
     /// @brief Destroy the Coupled Application object
-    ~CoupledOperator();
+    ~DAGraph();
 };
 
 
 
-/**
-   @brief Base class for coupling schemes between multiple operators.
- */
-class OperatorCoupler : public TimeDependentOperator
-{
-public:
-    using OperationID = Application::Operations::OperationID;
-    using Scheme = CoupledOperator::CouplingTypes::Types;
-private:
-    Scheme type_ = Scheme::NONE;
 
+
+
+/**
+   @brief MFEM SubMesh transfer between two FiniteElementSpaces 
+   using ParTransferMap.
+   NOT USED YET
+ */
+class SubMeshTransfer : public GraphNode
+{
 protected:
-    mutable CoupledOperator *coupled_op;
-    mutable const Vector *input = nullptr; ///< Pointer to the input vector, used in ImplicitSolve()
-    mutable real_t timestep = 0.0;               ///< Time step size, used for time-dependent applications
-    OperationID operation_id = OperationID::NONE;  ///< Current operation ID
+    ParFiniteElementSpace *src_fes = nullptr, *tar_fes = nullptr;
+    ParTransferMap *transfer_map = nullptr;
+    bool own_map = false;
 
 public:
     /**
-       @brief Construct a new OperatorCoupler.
-       @param op Pointer to the CoupledOperator; does not own the pointer.
+       @brief Construct a new SubMeshTransfer between 
+       two @a ParFiniteElementSpace.
+       
+       @param src Source @a ParFiniteElementSpace
+       @param tar Target @a ParFiniteElementSpace
      */
-    OperatorCoupler(CoupledOperator *op) : TimeDependentOperator(op->Height(),op->Width()),
-                                              coupled_op(op){}
+    SubMeshTransfer(ParFiniteElementSpace *src,
+                    ParFiniteElementSpace *tar) : GraphNode(),
+                    src_fes(src), tar_fes(tar),
+                    transfer_map(new ParTransferMap(src_fes, tar_fes)), own_map(true) {}
 
     /**
-       @brief Set the time step size, @a dt, used in ImplicitSolve and Step methods.
+       @brief Construct a new SubMeshTransfer between
+       @a ParFiniteElementSpace of two @a ParGridFunction.
+       @param src Source @a ParGridFunction
+       @param tar Target @a ParGridFunction
      */
-    virtual void SetTimeStep(real_t dt){ timestep = dt;}
+    SubMeshTransfer(ParGridFunction *src, ParGridFunction *tar) :
+                    SubMeshTransfer(src->ParFESpace(), tar->ParFESpace()) {}
 
-    /**
-       @brief Set the input vector, @a inp, used in ImplicitSolve(dt,x,k) method.
-       This is used when OperatorCoupler::Mult() const is called from Solver::Mult() to
-       solver for @a k. Does not own the pointer.
-     */
-    virtual void SetInput(const Vector *x){input = x;}
-
-    /**
-       @brief Set the Operation ID to call the appropriate operation
-       from Mult().
-     */
-    virtual void SetOperationID(OperationID id){ operation_id = id; }
-
-    /**
-       @brief Get the current OperationID.
-     */
-    OperationID GetOperationID() const { return operation_id; }
-
-    /**
-       @brief Implements the coupling scheme for function Application::Mult()
-     */
-    virtual void Mult(const Vector &x, Vector &y) const override {
-        MFEM_ABORT("OperatorCoupler::Mult() const is not overridden!"
-                   "Scheme may not be supported for this operation.");
+    void SetTransferMap(ParTransferMap *map, bool own=false)
+    {
+        if(own_map && transfer_map) delete transfer_map;
+        transfer_map = map;
+        own_map = own;
     }
 
-    /**
-       @brief Implements the coupling scheme for function Application::Mult().
-       This is a non-const version that calls the const version by default.
-     */
-    virtual void Mult(const Vector &x, Vector &y) {
-        std::as_const(*this).Mult(x,y);
+    void Execute(const Vector &src, Vector &tar) override
+    {
+        MFEM_ASSERT(transfer_map != nullptr, "SubMeshTransfer::Execute: transfer map not set!");
+
+        // Loop through all the linked fields and perform the operator
+        NamedFieldsMap<LinkedFields> &linked_fields = Fields().GetLinkedFields();
+        for (auto lf = linked_fields.begin(); lf != linked_fields.end(); ++lf)
+        {
+            std::string lf_name = lf->first;
+            LinkedFields *lf_obj = lf->second;
+            ParGridFunction &src_gf = dynamic_cast<ParGridFunction&>(*lf_obj->GetSource()->Data());
+
+            // Loop through all the targets for this source field and perform the transfer
+            auto &targets = lf_obj->GetTargets();
+            for (auto &target : targets)
+            {
+                ParGridFunction &tar_gf = dynamic_cast<ParGridFunction&>(*target->Data());
+                transfer_map->Transfer(src_gf, tar_gf);
+            }
+        }
     }
 
-    /**
-       @brief Implements the coupling scheme for function Application::ImplicitSolve()
-     */
-    virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const {
-        MFEM_ABORT("OperatorCoupler::ImplicitSolve() const is not overridden!"
-                   "Scheme may not be supported for this operation.");
+    ~SubMeshTransfer()
+    {
+        if(own_map && transfer_map) delete transfer_map;
     }
-
-    /**
-       @brief Implements the coupling scheme for function Application::ImplicitSolve().
-       This is a non-const version that calls the const version by default, and preserves
-       const-correctness when the function is called from Mult() const.
-     */
-    virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override {
-        std::as_const(*this).ImplicitSolve(dt,x,k);
-    }
-
-    /**
-       @brief Implements the coupling scheme for function Application::Step()
-     */
-    virtual void Step(Vector &x, real_t &t, real_t &dt) const {
-        MFEM_ABORT("OperatorCoupler::Step() const is not overridden!"
-                   "Scheme may not be supported for this operation.");
-    }
-
-    /**
-       @brief Implements the coupling scheme for function Application::Step().
-       This is a non-const version that calls the const version by default, and
-       preserves const-correctness when the function is called from Mult() const.
-     */
-    virtual void Step(Vector &x, real_t &t, real_t &dt){
-        std::as_const(*this).Step(x,t,dt);
-    }
-
-    virtual Scheme GetType() const { return type_; }
-    
-    /**
-     * @brief Function for selecting the desired OperatorCoupler for coupling @a op
-     * based on the specified coupling @a type. The called gets ownership of the
-     * returned pointer and is responsible for deleting it.
-     */
-    static MFEM_EXPORT OperatorCoupler* Select(CoupledOperator *op, Scheme type);
-
-};
-
-/**
-   @brief Base class for partitioned coupling schemes.
- */
-class PartitionedOperatorCoupler : public OperatorCoupler
-{
-public:
-    PartitionedOperatorCoupler(CoupledOperator *op) : OperatorCoupler(op){}
-};
-
-/**
-   @brief Base class for monolithic coupling schemes.
- */
-class MonolithicOperatorCoupler : public OperatorCoupler
-{
-public:
-    MonolithicOperatorCoupler(CoupledOperator *op) : OperatorCoupler(op){}
-};
-
-/**
-   @brief Additive Schwarz coupling, a Jacobi-type fixed-point scheme, between
-   multiple operators.
- */
-class AdditiveSchwarzCoupler : public PartitionedOperatorCoupler
-{
-private:
-    Scheme type_ = Scheme::ADDITIVE_SCHWARZ;
-public:
-    /**
-       @brief Construct a new Additive Schwarz coupler
-     */
-    AdditiveSchwarzCoupler(CoupledOperator *op) : PartitionedOperatorCoupler(op){}
-
-    /**
-       @brief Implements the coupling scheme for function Application::Mult()
-       When called from Solver::Mult(), this can operate on ImplicitSolve or Step
-       when OperationID is set appropriately.
-     */
-    void Mult(const Vector &x, Vector &y) const override;
-
-    /**
-       @brief Implements the coupling scheme for function Application::ImplicitSolve()
-     */
-    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const override;
-
-    /**
-       @brief Implements the coupling scheme for function Application::Step()
-     */
-    void Step(Vector &x, real_t &t, real_t &dt) const override;
-
-    Scheme GetType() const override { return type_; }    
-};
-
-/**
-   @brief Alternating Schwarz coupling, a Gauss-Seidel-type fixed-point scheme,
-   between multiple operators.
- */
-class AlternatingSchwarzCoupler : public PartitionedOperatorCoupler
-{
-private:
-    Scheme type_ = Scheme::ALTERNATING_SCHWARZ;
-public:
-    /**
-       @brief Construct a new Alternating Schwarz coupler
-     */
-    AlternatingSchwarzCoupler(CoupledOperator *op) : PartitionedOperatorCoupler(op){}
-
-    /**
-       @brief Implements the coupling scheme for function Application::Mult()
-       When called from Solver::Mult(), this can operate on ImplicitSolve or Step
-       when OperationID is set appropriately.
-     */
-    void Mult(const Vector &ki, Vector &k) const override;
-
-    /**
-       @brief Implements the coupling scheme for function Application::ImplicitSolve()
-     */
-    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const override;
-
-    /**
-       @brief Implements the coupling scheme for function Application::Step()
-     */
-    void Step(Vector &x, real_t &t, real_t &dt) const override;
-
-    Scheme GetType() const override { return type_; }
 };
 
 
-/**
-   @brief Inexact, monolithic coupling between multiple operators using
-   Jacobian-free Newton-Krylov methods.
- */
-class JacobianFreeFullCoupler : public MonolithicOperatorCoupler
-{
-private:
-    Scheme type_ = Scheme::MONOLITHIC;
-protected:
-    mutable future::FDJacobian grad;
-    mutable Vector u;
 
-public:
-    /**
-       @brief Construct a new Inexact Full Coupler
-       @param eps Finite difference perturbation size
-     */
-    JacobianFreeFullCoupler(CoupledOperator *op, real_t eps=1.0e-6) : 
-                            MonolithicOperatorCoupler(op),
-                            grad(*this,eps), u(Width()) {}
-
-    /**
-       @brief Computes the action of the implicit, monolithic operator on vector x.
-              ImplicitMult assumes ODE of the form F(u,k,t) = M*k - g(u,t), G(u,t) = 0
-              For fully implicit, monolithic solver, we take F(u+dt*k,k,t) = M*k - g(u+dt*k,t)
-     */
-    void Mult(const Vector &x, Vector &y) const override;
-
-    /**
-       @brief Update the current state/point of linearization for the nonlinear operator. For
-              Jacobian-free methods, i.e. J(k)*v = (F(k+eps*v) - F(k))/eps, this sets the F(k)
-     */
-    Operator& GetGradient(const Vector &k) const override;
-
-    Scheme GetType() const override { return type_; }
-};
 
 
 } //mfem namespace

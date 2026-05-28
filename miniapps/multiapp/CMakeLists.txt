@@ -40,11 +40,23 @@ set(MULTIAPP_COMMON_FILES
 
 # Parallel apps.
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(cht-BFS
-    MAIN cht-BFS.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../fluids/navier/navier_solver.hpp ../fluids/navier/navier_solver.cpp
+  add_mfem_miniapp(nonlinear-diffusion
+    MAIN nonlinear-diffusion.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
     LIBRARIES mfem-common)
-  add_dependencies(cht-BFS copy_miniapps_multiapp_data)
+  add_dependencies(nonlinear-diffusion copy_miniapps_multiapp_data)
+
+  # add_mfem_miniapp(fsi-dag
+  #   MAIN fsi-dag.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(fsi-dag copy_miniapps_multiapp_data)
+
+  # add_mfem_miniapp(cht-BFS
+  #   MAIN cht-BFS.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../fluids/navier/navier_solver.hpp ../fluids/navier/navier_solver.cpp
+  #   LIBRARIES mfem-common)
+  # add_dependencies(cht-BFS copy_miniapps_multiapp_data)
 
   # add_mfem_miniapp(fsi
   #   MAIN fsi.cpp
