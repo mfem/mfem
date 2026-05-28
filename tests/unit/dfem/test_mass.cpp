@@ -71,32 +71,34 @@ void mass_action(const char *filename, int p)
 
    ConstantCoefficient one(1.0);
 
-   // Action matrix free
+   ParBilinearForm blf(&pfes);
+   blf.AddDomainIntegrator(new MassIntegrator(one, ir));
+   blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf.Assemble();
+
+   static constexpr int U = 0, Coords = 1;
+   const auto in_fds = std::vector
    {
-      ParBilinearForm blf(&pfes);
-      blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-      blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      blf.Assemble();
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, mfes }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   const auto mf_mass_qf =
+      [] MFEM_HOST_DEVICE(const dscalar_t &u,
+                          const tensor<real_t, DIM, DIM> &J,
+                          const real_t &w,
+                          dscalar_t &v)
+   {
+      v = u * w * det(J);
+   };
+
+   SECTION("Action")
+   {
       blf.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      static constexpr int U = 0, Coords = 1;
-      const auto in_fds = std::vector
-      {
-         FieldDescriptor{ U, &pfes },
-         FieldDescriptor{ Coords, mfes }
-      };
-      const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
-
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
-      const auto mf_mass_qf =
-         [] MFEM_HOST_DEVICE(const real_t &u,
-                             const tensor<real_t, DIM, DIM> &J,
-                             const real_t &w,
-                             real_t &v)
-      {
-         v = u * w * det(J);
-      };
       dop.AddDomainIntegrator<QFBackend>(
          mf_mass_qf,
          tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
@@ -115,6 +117,41 @@ void mass_action(const char *filename, int p)
       real_t norm_local = Y.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   SECTION("Assemble Diagonal")
+   {
+      DifferentiableOperator dop(in_fds, out_fds, pmesh);
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dop.AddDomainIntegrator<QFBackend>(
+         mf_mass_qf,
+         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+         tuple{ Value<U>{} },
+         *ir, all_domain_attr, derivatives);
+
+      Vector N;
+      nodes->GetTrueDofs(N);
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      MultiVector MX{X, N};
+
+      auto dRdU = dop.GetDerivative(U, MX);
+
+      Vector dfem_diagonal(pfes.GetTrueVSize());
+      dRdU->AssembleDiagonal(dfem_diagonal);
+
+      Vector mfem_diagonal(pfes.GetTrueVSize());
+      blf.AssembleDiagonal(mfem_diagonal);
+
+      dfem_diagonal -= mfem_diagonal;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = dfem_diagonal.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      dbg("Assemble Diagonal");
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }

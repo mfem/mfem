@@ -321,7 +321,6 @@ void diffusion(const char *filename, int p)
 
       SECTION("Assemble Diagonal")
       {
-#ifdef MFEM_USE_ENZYME
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          auto derivatives = std::integer_sequence<size_t, U> {};
@@ -353,7 +352,6 @@ void diffusion(const char *filename, int p)
          dbg("Assemble Diagonal");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
-#endif // MFEM_USE_ENZYME
       }
    }
 
