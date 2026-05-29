@@ -574,7 +574,7 @@ CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
 RAJA_DIR = @MFEM_DIR@/../raja
-RAJA_OPT = -I$(RAJA_DIR)/include -DCAMP_USE_PLATFORM_DEFAULT_STREAM
+RAJA_OPT = -I$(RAJA_DIR)/include -DCAMP_USE_PLATFORM_DEFAULT_STREAM=1
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
