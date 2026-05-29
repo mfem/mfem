@@ -25,21 +25,10 @@ namespace mfem
 
 namespace internal
 {
-
-// On CUDA/HIP, store the small 1D "Ga1" basis (used by the
-// SmemPADiffusionApply{Triangle,Tetrahedron} kernels) in device __constant__
-// memory: it is broadcast-read by every thread, so the constant cache is
-// faster than shared memory and the kernel saves a few registers per
-// thread. On builds without a GPU toolchain the symbol is a regular
-// global - the Smem kernels dispatch to the non-Smem fallback on the host
-// backend and never actually access it at runtime.
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
-#define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL cudaMemcpyToSymbol
-#define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D       cudaMemcpyDeviceToDevice
-// Variadic so a templated symbol like `S<A, B>` is captured as one arg.
-#elif defined(MFEM_USE_HIP) && defined(__HIPCC__)
-#define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL hipMemcpyToSymbol
-#define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D       hipMemcpyDeviceToDevice
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cuda_or_hip(stub) cu##stub
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cuda_or_hip(stub) hip##stub
 #endif
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
@@ -368,11 +357,11 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPADiffTriGa1Init<T_D1D, T_Q1D>)
    {
-      MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL(
+      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTriGa1<T_D1D, T_Q1D>), 0,
-                        MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D));
+                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
       SmemPADiffTriGa1Init<T_D1D, T_Q1D> = true;
    }
 
@@ -899,11 +888,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPADiffTetGa1Init<T_D1D, T_Q1D>)
    {
-      MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL(
+      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTetGa1<T_D1D, T_Q1D>), 0,
-                        MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D));
+                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
       SmemPADiffTetGa1Init<T_D1D, T_Q1D> = true;
    }
 

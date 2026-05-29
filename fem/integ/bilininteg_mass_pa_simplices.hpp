@@ -24,21 +24,10 @@ namespace mfem
 
 namespace internal
 {
-
-// On CUDA/HIP, store the small 1D "Ba1" basis (used by the
-// SmemPAMassApply{Triangle,Tetrahedron} kernels) in device __constant__
-// memory: broadcast-read by every thread, the constant cache is faster
-// than shared memory for these accesses. The two kernels use distinct
-// symbols because triangle and tetrahedron use different first-dimension
-// 1D quadrature rules in Stroud's construction. On non-GPU builds the
-// symbol is a regular global; the host-side kernel body falls through
-// to the shared-memory copy loaded cooperatively.
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
-#define MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL cudaMemcpyToSymbol
-#define MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D       cudaMemcpyDeviceToDevice
-#elif defined(MFEM_USE_HIP) && defined(__HIPCC__)
-#define MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL hipMemcpyToSymbol
-#define MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D       hipMemcpyDeviceToDevice
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cuda_or_hip(stub) cu##stub
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cuda_or_hip(stub) hip##stub
 #endif
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
@@ -312,11 +301,11 @@ inline void SmemPAMassApplyTriangle(const int NE,
    // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPAMassTriBa1Init<T_D1D, T_Q1D>)
    {
-      MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL(
+      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTriBa1<T_D1D, T_Q1D>), 0,
-                        MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D));
+                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
       SmemPAMassTriBa1Init<T_D1D, T_Q1D> = true;
    }
 
@@ -769,11 +758,11 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
    if (!SmemPAMassTetBa1Init<T_D1D, T_Q1D>)
    {
-      MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL(
+      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTetBa1<T_D1D, T_Q1D>), 0,
-                        MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D));
+                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
       SmemPAMassTetBa1Init<T_D1D, T_Q1D> = true;
    }
 
