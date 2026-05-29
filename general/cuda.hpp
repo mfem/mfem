@@ -43,6 +43,8 @@ constexpr bool mfem_use_gpu = true;
 // Define the MFEM inner threading macros
 #if defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
+#define MFEM_DEVICE_CONST __const__
+#define MFEM_DEVICE_SYMBOL(...) (__VA_ARGS__)
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k

@@ -43,6 +43,9 @@ constexpr bool mfem_use_gpu = true;
 // Define the MFEM inner threading macros
 #if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
+#define MFEM_DEVICE_CONST __const__
+// Per the HIP docs, hipMemcpyToSymbol must wrap the symbol in HIP_SYMBOL().
+#define MFEM_DEVICE_SYMBOL(...) HIP_SYMBOL((__VA_ARGS__))
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k

@@ -34,31 +34,21 @@ namespace internal
 // symbol is a regular global; the host-side kernel body falls through
 // to the shared-memory copy loaded cooperatively.
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
-#define MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST 1
-#define MFEM_PA_SIMPLEX_MASS_DEVICE_CONST __constant__
 #define MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL cudaMemcpyToSymbol
 #define MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D       cudaMemcpyDeviceToDevice
-#define MFEM_PA_SIMPLEX_MASS_SYMBOL(...) (__VA_ARGS__)
 #elif defined(MFEM_USE_HIP) && defined(__HIPCC__)
-#define MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST 1
-#define MFEM_PA_SIMPLEX_MASS_DEVICE_CONST __constant__
 #define MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL hipMemcpyToSymbol
 #define MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D       hipMemcpyDeviceToDevice
-// Per the HIP docs, hipMemcpyToSymbol must wrap the symbol in HIP_SYMBOL().
-#define MFEM_PA_SIMPLEX_MASS_SYMBOL(...) HIP_SYMBOL((__VA_ARGS__))
-#else
-#define MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST 0
-#define MFEM_PA_SIMPLEX_MASS_DEVICE_CONST
 #endif
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template<int T_D1D, int T_Q1D>
-MFEM_PA_SIMPLEX_MASS_DEVICE_CONST real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
+MFEM_DEVICE_CONST real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
 template<int T_D1D, int T_Q1D>
 bool SmemPAMassTriBa1Init = false;
 
 template<int T_D1D, int T_Q1D>
-MFEM_PA_SIMPLEX_MASS_DEVICE_CONST real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
+MFEM_DEVICE_CONST real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
 template<int T_D1D, int T_Q1D>
 bool SmemPAMassTetBa1Init = false;
 #endif
@@ -294,7 +284,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
 
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
       PAMassApplyTriangle<T_D1D, T_Q1D>(
          NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
@@ -303,7 +293,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       return;
    }
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
@@ -323,7 +313,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
    if (!SmemPAMassTriBa1Init<T_D1D, T_Q1D>)
    {
       MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL(
-                        MFEM_PA_SIMPLEX_MASS_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
+                        MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTriBa1<T_D1D, T_Q1D>), 0,
                         MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D));
@@ -476,6 +466,8 @@ inline void SmemPAMassApplyTriangle(const int NE,
          }
       }
    });
+#else
+   MFEM_ASSERT(false, "Unreachable code");
 #endif
 }
 
@@ -747,7 +739,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
 
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
       PAMassApplyTetrahedron<T_D1D, T_Q1D>(
          NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
@@ -756,7 +748,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       return;
    }
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
@@ -778,7 +770,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    if (!SmemPAMassTetBa1Init<T_D1D, T_Q1D>)
    {
       MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_MASS_MEMCPY_TO_SYMBOL(
-                        MFEM_PA_SIMPLEX_MASS_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
+                        MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTetBa1<T_D1D, T_Q1D>), 0,
                         MFEM_PA_SIMPLEX_MASS_MEMCPY_D2D));
@@ -1011,6 +1003,8 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
          }
       }
    });
+#else
+   MFEM_ASSERT(false, "Unreachable code");
 #endif
 }
 

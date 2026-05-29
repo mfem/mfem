@@ -34,36 +34,26 @@ namespace internal
 // global - the Smem kernels dispatch to the non-Smem fallback on the host
 // backend and never actually access it at runtime.
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
-#define MFEM_PA_SIMPLEX_DIFFUSION_DEVICE_CONST __constant__
-#define MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST 1
 #define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL cudaMemcpyToSymbol
 #define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D       cudaMemcpyDeviceToDevice
 // Variadic so a templated symbol like `S<A, B>` is captured as one arg.
-#define MFEM_PA_SIMPLEX_DIFFUSION_SYMBOL(...) (__VA_ARGS__)
 #elif defined(MFEM_USE_HIP) && defined(__HIPCC__)
-#define MFEM_PA_SIMPLEX_DIFFUSION_DEVICE_CONST __constant__
-#define MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST 1
 #define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL hipMemcpyToSymbol
 #define MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D       hipMemcpyDeviceToDevice
-// Per the HIP docs, hipMemcpyToSymbol must wrap the symbol in HIP_SYMBOL().
-#define MFEM_PA_SIMPLEX_DIFFUSION_SYMBOL(...) HIP_SYMBOL((__VA_ARGS__))
-#else
-#define MFEM_PA_SIMPLEX_DIFFUSION_DEVICE_CONST
-#define MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST 0
 #endif
 
-#if MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
 // Triangle and tetrahedron use different first-dimension 1D quadrature
 // rules (Gauss-Jacobi(1,0) vs (2,0) in Stroud's construction), so the
 // Ga1 values differ and need distinct symbols.
 template<int T_D1D, int T_Q1D>
-MFEM_PA_SIMPLEX_DIFFUSION_DEVICE_CONST real_t
+MFEM_DEVICE_CONST real_t
 SmemPADiffTriGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
 template<int T_D1D, int T_Q1D>
 bool SmemPADiffTriGa1Init = false;
 
 template<int T_D1D, int T_Q1D>
-MFEM_PA_SIMPLEX_DIFFUSION_DEVICE_CONST real_t
+MFEM_DEVICE_CONST real_t
 SmemPADiffTetGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
 template<int T_D1D, int T_Q1D>
 bool SmemPADiffTetGa1Init = false;
@@ -347,7 +337,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    // Host backend: dispatch to the non-Smem fallback. The Smem kernel
    // reads Ga1 from __constant__ memory on GPU, whose host shadow is not
    // initialized when running on the host backend.
-   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
       PADiffusionApplyTriangle<T_D1D, T_Q1D>(
          NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
@@ -356,7 +346,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       return;
    }
 
-#if MFEM_PA_SIMPLEX_DIFFUSION_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
@@ -379,7 +369,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    if (!SmemPADiffTriGa1Init<T_D1D, T_Q1D>)
    {
       MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL(
-                        MFEM_PA_SIMPLEX_DIFFUSION_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
+                        MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTriGa1<T_D1D, T_Q1D>), 0,
                         MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D));
@@ -553,6 +543,8 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          }
       }
    });
+#else
+   MFEM_ASSERT(false, "Unreachable code");
 #endif
 }
 
@@ -873,7 +865,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                  "SmemPADiffusionApplyTetrahedron requires compile-time D1D and Q1D");
 
    // Host backend: dispatch to the (correct, non-Smem) fallback.
-   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
       PADiffusionApplyTetrahedron<T_D1D, T_Q1D>(
          NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
@@ -882,7 +874,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       return;
    }
 
-#if MFEM_PA_SIMPLEX_MASS_HAS_DEVICE_CONST
+#if defined(MFEM_USE_CUDA_OR_HIP)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
@@ -908,7 +900,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    if (!SmemPADiffTetGa1Init<T_D1D, T_Q1D>)
    {
       MFEM_GPU_CHECK(MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_TO_SYMBOL(
-                        MFEM_PA_SIMPLEX_DIFFUSION_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
+                        MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTetGa1<T_D1D, T_Q1D>), 0,
                         MFEM_PA_SIMPLEX_DIFFUSION_MEMCPY_D2D));
@@ -1257,6 +1249,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
    });
+#else
+   MFEM_ASSERT(false, "Unreachable code");
 #endif
 }
 } // namespace internal
