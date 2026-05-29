@@ -21,6 +21,7 @@
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #define MFEM_USE_CUDA_OR_HIP
 constexpr bool mfem_use_gpu = true;
+#define MFEM_DEVICE_CONSTANT __constant__
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__
@@ -43,7 +44,6 @@ constexpr bool mfem_use_gpu = true;
 // Define the MFEM inner threading macros
 #if defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
-#define MFEM_DEVICE_CONST __const__
 #define MFEM_DEVICE_SYMBOL(...) (__VA_ARGS__)
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) blockIdx.k

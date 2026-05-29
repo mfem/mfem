@@ -47,13 +47,13 @@ namespace internal
 // rules (Gauss-Jacobi(1,0) vs (2,0) in Stroud's construction), so the
 // Ga1 values differ and need distinct symbols.
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONST real_t
+MFEM_DEVICE_CONSTANT real_t
 SmemPADiffTriGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
 template<int T_D1D, int T_Q1D>
 bool SmemPADiffTriGa1Init = false;
 
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONST real_t
+MFEM_DEVICE_CONSTANT real_t
 SmemPADiffTetGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
 template<int T_D1D, int T_Q1D>
 bool SmemPADiffTetGa1Init = false;

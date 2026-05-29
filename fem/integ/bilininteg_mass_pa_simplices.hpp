@@ -43,12 +43,12 @@ namespace internal
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONST real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
+MFEM_DEVICE_CONSTANT real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
 template<int T_D1D, int T_Q1D>
 bool SmemPAMassTriBa1Init = false;
 
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONST real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
+MFEM_DEVICE_CONSTANT real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
 template<int T_D1D, int T_Q1D>
 bool SmemPAMassTetBa1Init = false;
 #endif
