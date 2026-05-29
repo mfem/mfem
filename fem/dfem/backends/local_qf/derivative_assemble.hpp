@@ -319,13 +319,17 @@ public:
       static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr int MAX_NQ =
          (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-      static constexpr int FHAT_COMP_MAX = 32;
-      static constexpr int FHAT_CAP = MAX_NQ * FHAT_COMP_MAX;
+      static constexpr int FHAT_VDIM_MAX = 8;
+      static constexpr int FHAT_CAP = MAX_NQ * DIM * FHAT_VDIM_MAX;
       MFEM_VERIFY(dim == DIM, "DerivativeAssemble: mesh dim does not match backend");
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MAX_NQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
+      MFEM_VERIFY(test_vdim <= FHAT_VDIM_MAX,
+                  "DerivativeAssemble: test_vdim exceeds fhat vector capacity");
+      MFEM_VERIFY(test_op_dim <= DIM,
+                  "DerivativeAssemble: test_op_dim exceeds spatial DIM");
       MFEM_VERIFY(test_vdim * test_op_dim * nq <= FHAT_CAP,
                   "DerivativeAssemble: fhat size exceeds shared-memory capacity");
       if (ctx.attr.Size() == 0) { return; }

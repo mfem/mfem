@@ -155,31 +155,37 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
    const DofToQuadMap &dtq,
    Shared &s,
    ForeachQp &&foreach_qp,
-   ForeachDof &&foreach_dof)
+   ForeachDof &&foreach_dof,
+   const int tv_dof = -1)
 {
    using output_fop_t = std::decay_t<output_t>;
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
+   const bool f_slab = (tv_dof >= 0);
+   const int vdim = output.vdim;
+   const int vd_begin = f_slab ? tv_dof : 0;
+   const int vd_end = f_slab ? tv_dof + 1 : vdim;
 
    if constexpr (is_value_fop<output_fop_t>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       MFEM_CONTRACT_VAR(unused);
-      const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
       MFEM_CONTRACT_VAR(test_dim);
+      const int f_vdim = f_slab ? 1 : vdim;
 
       if constexpr (DIM == 2)
       {
-         auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = vd_begin; vd < vd_end; vd++)
          {
+            const int fi = f_slab ? 0 : vd;
             ker::s_regs2d_t<MQ1> f_qp {};
             foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
             {
                MFEM_CONTRACT_VAR(qz);
-               f_qp[qx][qy] = fqp(vd, 0, qx, qy);
+               f_qp[qx][qy] = fqp(fi, 0, qx, qy);
             });
             MFEM_SYNC_THREAD;
             contract_value_qp_to_dof2d<MQ1>(
@@ -192,15 +198,16 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
       }
       else
       {
-         auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
          ker::LoadMatrix(d1d, q1d, B, s.B);
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = vd_begin; vd < vd_end; vd++)
          {
+            const int fi = f_slab ? 0 : vd;
             ker::s_regs3d_t<MQ1> f_qp {};
             foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
             {
-               f_qp[qz][qy][qx] = fqp(vd, 0, qx, qy, qz);
+               f_qp[qz][qy][qx] = fqp(fi, 0, qx, qy, qz);
             });
             MFEM_SYNC_THREAD;
             ker::s_regs3d_t<MQ1> Y {};
@@ -218,26 +225,27 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
    {
       const auto [q1d, unused, d1d] = G.GetShape();
       MFEM_CONTRACT_VAR(unused);
-      const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
+      const int f_vdim = f_slab ? 1 : vdim;
 
       ker::LoadMatrix(d1d, q1d, B, s.B);
       ker::LoadMatrix(d1d, q1d, G, s.G);
 
       if constexpr (DIM == 2)
       {
-         auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
          ker::vd_regs2d_t<1, DIM, MQ1> f_op {};
          ker::vd_regs2d_t<1, DIM, MQ1> Y {};
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = vd_begin; vd < vd_end; vd++)
          {
+            const int fi = f_slab ? 0 : vd;
             foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
             {
                MFEM_CONTRACT_VAR(qz);
                for (int k = 0; k < test_dim; k++)
                {
-                  f_op[0][k][qy][qx] = fqp(vd, k, qx, qy);
+                  f_op[0][k][qy][qx] = fqp(fi, k, qx, qy);
                }
             });
             MFEM_SYNC_THREAD;
@@ -258,17 +266,18 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
       }
       else
       {
-         auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
          ker::vd_regs3d_t<1, DIM, MQ1> f_op {};
          ker::vd_regs3d_t<1, DIM, MQ1> Y {};
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = vd_begin; vd < vd_end; vd++)
          {
+            const int fi = f_slab ? 0 : vd;
             foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
             {
                for (int k = 0; k < test_dim; k++)
                {
-                  f_op[0][k][qz][qy][qx] = fqp(vd, k, qx, qy, qz);
+                  f_op[0][k][qz][qy][qx] = fqp(fi, k, qx, qy, qz);
                }
             });
             MFEM_SYNC_THREAD;
@@ -291,29 +300,33 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
       MFEM_CONTRACT_VAR(unused);
       MFEM_CONTRACT_VAR(d1d);
 
+      const int f_sq = f_slab ? 1 : output.size_on_qp;
+      const int sq_begin = f_slab ? tv_dof : 0;
+      const int sq_end = f_slab ? tv_dof + 1 : output.size_on_qp;
+
       if constexpr (DIM == 2)
       {
-         auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_sq, q1d, q1d);
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
-         for (int sq = 0; sq < output.size_on_qp; sq++)
+         for (int sq = sq_begin; sq < sq_end; sq++)
          {
             foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
             {
                MFEM_CONTRACT_VAR(qz);
-               yqp(sq, qx, qy) = fqp(sq, qx, qy);
+               yqp(sq, qx, qy) = fqp(0, qx, qy);
             });
             MFEM_SYNC_THREAD;
          }
       }
       else
       {
-         auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);
+         auto fqp = Reshape(&f(0, 0, 0), f_sq, q1d, q1d, q1d);
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);
-         for (int sq = 0; sq < output.size_on_qp; sq++)
+         for (int sq = sq_begin; sq < sq_end; sq++)
          {
             foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
             {
-               yqp(sq, qx, qy, qz) = fqp(sq, qx, qy, qz);
+               yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz);
             });
             MFEM_SYNC_THREAD;
          }
@@ -345,8 +358,8 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    ForeachDof &&foreach_dof)
 {
    static constexpr int MAX_NQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-   static constexpr int FHAT_COMP_MAX = 32;
-   static constexpr int FHAT_CAP = MAX_NQ * FHAT_COMP_MAX;
+   static constexpr int FHAT_VDIM_MAX = 8;
+   static constexpr int FHAT_CAP = MAX_NQ * DIM * FHAT_VDIM_MAX;
 
    const int test_vdim = qpdc.GetShape()[3];
    const int test_op_dim = qpdc.GetShape()[2];
@@ -354,6 +367,14 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const int num_test_dof = A.GetShape()[0];
    const int nq = qpdc.GetShape()[4];
    MFEM_CONTRACT_VAR(nq);
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+   MFEM_VERIFY(test_vdim <= FHAT_VDIM_MAX,
+               "DerivativeAssemble: test_vdim exceeds fhat vector capacity");
+   MFEM_VERIFY(test_op_dim <= DIM,
+               "DerivativeAssemble: test_op_dim exceeds spatial DIM");
+   MFEM_VERIFY(test_vdim * test_op_dim * nq <= FHAT_CAP,
+               "DerivativeAssemble: fhat size exceeds shared-memory capacity");
+#endif
 
    MFEM_SHARED real_t fhat_storage[FHAT_CAP];
    auto fhat = Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
