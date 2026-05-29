@@ -154,6 +154,121 @@ using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       tuple_size<inputs_t>::value>::type;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Flat component access for a q-function argument (scalar / dual / tensor).
+///
+/// Components are addressed column-major as `c = i_vdim + extents[0]*i_opdim`,
+/// matching the byVDIM layout used by `process_qf_arg` / `process_qf_result`.
+/// These let the cached derivative setup/apply seed trial directions and gather
+/// Jacobian rows directly through the register driver, without an intermediate
+/// per-quadrature-point buffer or `map_scratch`.
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_value(const ARG &a, int c)
+{
+   if constexpr (std::is_same_v<ARG, real_t> || is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return qf_store_value(a);
+   }
+   else
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return qf_store_value(a(0)); }
+      else if constexpr (RNK == 1) { return qf_store_value(a(c)); }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return qf_store_value(a(c % e0, c / e0));
+      }
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_gradient(const ARG &a, int c)
+{
+   if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient;
+   }
+   else if constexpr (qf_param_uses_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient; }
+      else if constexpr (RNK == 1) { return a(c).gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient;
+      }
+   }
+   else
+   {
+      // Non-dual argument carries no tangent: its derivative contribution is 0.
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
+{
+   if constexpr (std::is_same_v<ARG, real_t>) { MFEM_CONTRACT_VAR(c); a = v; }
+   else if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.value = v;
+   }
+   else
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      constexpr bool D = qf_param_uses_dual_v<ARG>;
+      if constexpr (RNK == 0)
+      {
+         if constexpr (D) { a(0).value = v; } else { a(0) = v; }
+      }
+      else if constexpr (RNK == 1)
+      {
+         if constexpr (D) { a(c).value = v; } else { a(c) = v; }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         if constexpr (D) { a(c % e0, c / e0).value = v; }
+         else { a(c % e0, c / e0) = v; }
+      }
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
+{
+   if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.gradient = v;
+   }
+   else if constexpr (qf_param_uses_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).gradient = v; }
+      else if constexpr (RNK == 1) { a(c).gradient = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).gradient = v;
+      }
+   }
+   else
+   {
+      // Non-dual argument (e.g. Weight): never an active trial direction.
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      MFEM_CONTRACT_VAR(v);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
 template<typename C, typename T>
 const auto create_union_field_map_for_dtq(C& ctx, T& io)

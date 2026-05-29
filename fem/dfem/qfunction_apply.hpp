@@ -427,6 +427,59 @@ void apply_qpdc(
       }
    }
 }
+
+/// @brief Strided qpdc contraction for one output of a multi-output operator.
+///
+/// @a qpdc4 is the full per-element cache viewed as
+/// [total_trial_op_dim, trial_vdim, output_size_on_qp, num_qp], so that the
+/// per-quadrature stride spans all outputs (matching the DerivativeSetup
+/// layout). @a row_offset selects this output's rows (out_offsets[o]) and
+/// @a test_vdim / @a test_op_dim are this output's shape.
+template <size_t num_fields>
+MFEM_HOST_DEVICE inline
+void apply_qpdc(
+   DeviceTensor<3> &fhat,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const DeviceTensor<4, const real_t> &qpdc4,
+   const DeviceTensor<1, const real_t> &itod,
+   const int test_vdim,
+   const int test_op_dim,
+   const int row_offset,
+   const int &q)
+{
+   const int trial_vdim = qpdc4.GetShape()[1];
+   const int num_qp = qpdc4.GetShape()[3];
+   const size_t num_inputs = itod.GetShape()[0];
+
+   for (int i = 0; i < test_vdim; i++)
+   {
+      for (int k = 0; k < test_op_dim; k++)
+      {
+         const int row = row_offset + i * test_op_dim + k;
+         real_t sum = 0.0;
+         int m_offset = 0;
+         for (size_t s = 0; s < num_inputs; s++)
+         {
+            const int trial_op_dim = static_cast<int>(itod(s));
+            if (trial_op_dim == 0)
+            {
+               continue;
+            }
+            const auto d_qp =
+               Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+            for (int j = 0; j < trial_vdim; j++)
+            {
+               for (int m = 0; m < trial_op_dim; m++)
+               {
+                  sum += qpdc4(m + m_offset, j, row, q) * d_qp(j, m, q);
+               }
+            }
+            m_offset += trial_op_dim;
+         }
+         fhat(i, k, q) = sum;
+      }
+   }
+}
 }
 
 /// @brief Apply the quadrature point data cache (qpdc) to a vector
@@ -502,6 +555,79 @@ void apply_qpdc(
       MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+      }
+   }
+}
+
+/// @brief Apply the quadrature point data cache (qpdc) to a vector for a single
+/// output of a multi-output operator.
+///
+/// @a qpdc4 is the full per-element cache viewed as
+/// [total_trial_op_dim, trial_vdim, output_size_on_qp, num_qp]; @a row_offset,
+/// @a test_vdim and @a test_op_dim select this output's slice.
+template <size_t num_fields>
+MFEM_HOST_DEVICE inline
+void apply_qpdc(
+   DeviceTensor<3> &fhat,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const DeviceTensor<4, const real_t> &qpdc4,
+   const DeviceTensor<1, const real_t> &itod,
+   const int test_vdim,
+   const int test_op_dim,
+   const int row_offset,
+   const int &q1d,
+   const int &dimension,
+   const bool &use_sum_factorization)
+{
+   if (use_sum_factorization)
+   {
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+         {
+            detail::apply_qpdc(fhat, shadow_shmem, qpdc4, itod,
+                               test_vdim, test_op_dim, row_offset, q);
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               const int q = qx + q1d * qy;
+               detail::apply_qpdc(fhat, shadow_shmem, qpdc4, itod,
+                                  test_vdim, test_op_dim, row_offset, q);
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  detail::apply_qpdc(fhat, shadow_shmem, qpdc4, itod,
+                                     test_vdim, test_op_dim, row_offset, q);
+               }
+            }
+         }
+      }
+      else
+      {
+         MFEM_ABORT_KERNEL("unsupported dimension");
+      }
+   }
+   else
+   {
+      const int num_qp = qpdc4.GetShape()[3];
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+      {
+         detail::apply_qpdc(fhat, shadow_shmem, qpdc4, itod,
+                            test_vdim, test_op_dim, row_offset, q);
       }
    }
 }

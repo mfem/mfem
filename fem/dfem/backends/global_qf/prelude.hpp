@@ -80,12 +80,19 @@ struct GlobalQFBackend
       qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      Vector &qp_cache)
+      Vector & /*qp_cache*/)
    {
       dbg();
-      return LocalQFImpl::DerivativeApply<
+      // The local forward apply now uses the register-based tensor-product
+      // driver, which requires the q-function's compile-time tensor shapes.
+      // The global (tensor_array) q-functions are not register-compatible, so
+      // the global backend recomputes the forward derivative with its Enzyme
+      // action instead of the cached local apply. The cached transpose /
+      // assemble / assemble-diagonal paths remain q-function agnostic and are
+      // still reused below.
+      return GlobalQFImpl::DerivativeActionEnzyme<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc, inputs, outputs);
    }
 
    template<
