@@ -263,8 +263,8 @@ namespace mfem {
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
  * - <a class="el" href="anisodiff_8cpp_source.html">HDG anisotropic diffusion</a>: (Hybridized) mixed formulation of anisotropic problems
  * - <a class="el" href="mfem-logo_8cpp_source.html">MFEM logo</a>: (Hybridized) mixed solution of convection-diffusion problem with MFEM logo
- * - <a class="el" href="nguyen_8cpp_source.html">HDG convection-diffusion</a>: (Hybridized) mixed solution of convection-diffusion test problems
- * - <a class="el" href="pnguyen_8cpp_source.html">HDG convection-diffusion (parallel)</a>: Parallel (hybridized) mixed solution of convection-diffusion test problems
+ * - <a class="el" href="convdiff_8cpp_source.html">HDG convection-diffusion</a>: (Hybridized) mixed solution of convection-diffusion test problems
+ * - <a class="el" href="pconvdiff_8cpp_source.html">HDG convection-diffusion (parallel)</a>: Parallel (hybridized) mixed solution of convection-diffusion test problems
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */

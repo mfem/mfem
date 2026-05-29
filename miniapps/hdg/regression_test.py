@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This is the regression testing script for (p)nguyen
+# This is the regression testing script for (p)convdiff
 # The reference cases are stored in the regress_test(_par) folder
 
 import os
@@ -104,9 +104,9 @@ for i, filename in enumerate(filenames):
 
 	# Construct the command line
 	if parallel:
-		command_line = "mpirun -np 2 ./pnguyen -no-vis"
+		command_line = "mpirun -np 2 ./pconvdiff -no-vis"
 	else:
-		command_line = "./nguyen -no-vis"
+		command_line = "./convdiff -no-vis"
 
 	if nx > 0:
 		command_line += f" -nx {nx}"
