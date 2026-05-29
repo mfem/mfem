@@ -15,6 +15,7 @@ namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
 #include "../util.hpp" // for as_tensor
+#include "assemble_detail.hpp"
 #include "util.hpp"
 
 namespace mfem::future
@@ -465,7 +466,86 @@ struct LocalQFLOBackend
       }
    }
 
-   //////////////////////////////////////////////////////////////////
+   /// Iterate element dofs. LO uses a full 3D thread block on (x,y,z).
+   template<typename Body>
+   static MFEM_HOST_DEVICE inline void ForeachDof(const int d1d, Body &&body)
+   {
+      if constexpr (DIM == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d) { body(dx, dy, 0); }
+         }
+      }
+      else
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d) { body(dx, dy, dz); }
+            }
+         }
+      }
+   }
+
+   /// Iterate quadrature points. LO uses a full 3D thread block, so every
+   /// quadrature axis (including z) is mapped to a thread. `body(qx,qy,qz)`.
+   template<typename Body>
+   static MFEM_HOST_DEVICE inline void ForeachQp(const int q1d, Body &&body)
+   {
+      if constexpr (DIM == 2)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d) { body(qx, qy, 0); }
+         }
+      }
+      else
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD(qz, z, q1d) { body(qx, qy, qz); }
+            }
+         }
+      }
+   }
+
+   /// Tensor sum-factorized element Jacobian assembly (Shared M/B/G + qp registers).
+   template <
+      int T_Q1D,
+      typename input_fop_ts,
+      std::size_t num_inputs,
+      typename output_fop_t>
+   static MFEM_HOST_DEVICE void AssembleElementMatSumfact(
+      const DeviceTensor<5, real_t> &A,
+      const DeviceTensor<6, const real_t> &qpdc,
+      const int e,
+      const DeviceTensor<1, const real_t> &itod,
+      const input_fop_ts &inputs,
+      const output_fop_t &output,
+      const std::array<DofToQuadMap, num_inputs> &input_dtqmaps,
+      const DofToQuadMap &output_dtqmap,
+      const int q1d,
+      const int td1d)
+   {
+      static constexpr int MQ1_CAP = T_Q1D ? T_Q1D : MQ1;
+      MFEM_SHARED typename backend_t<MQ1_CAP>::Shared s;
+      namespace ad = mfem::future::LocalQFImpl::assemble_detail;
+      ad::assemble_element_mat_sumfact<DIM, MQ1_CAP>(
+         A, qpdc, e, itod, inputs, output, input_dtqmaps, output_dtqmap, q1d, td1d, s,
+         [](const int q1d_in, auto &&body)
+      {
+         ForeachQp(q1d_in, std::forward<decltype(body)>(body));
+      },
+         [](const int d1d_in, auto &&body)
+      {
+         ForeachDof(d1d_in, std::forward<decltype(body)>(body));
+      });
+   }
+
    template<typename T, int MQ1>
    using QReg = lo_qreg_t<backend_t<MQ1>, T>;
 
