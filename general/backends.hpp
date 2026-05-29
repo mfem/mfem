@@ -45,6 +45,7 @@
 
 #if !defined(MFEM_USE_CUDA_OR_HIP)
 constexpr bool mfem_use_gpu = false;
+#define MFEM_DEVICE_CONSTANT
 #define MFEM_DEVICE
 #define MFEM_HOST
 #define MFEM_LAMBDA
@@ -59,7 +60,6 @@ constexpr bool mfem_use_gpu = false;
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
       (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
-#define MFEM_DEVICE_CONSTANT
 #define MFEM_DEVICE_SYMBOL(...) (__VA_ARGS__)
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
