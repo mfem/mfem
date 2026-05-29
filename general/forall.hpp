@@ -606,17 +606,6 @@ struct RajaHipWrap<1, MAX_THREADS_PER_BLOCK>
 };
 
 template <>
-struct RajaHipWrap<2>
-{
-   template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaHipWrap2D(N, d_body, X, Y, Z);
-   }
-};
-
-template <>
 struct RajaHipWrap<2, 0>
 {
    template <typename DBODY>
