@@ -268,7 +268,6 @@ public:
 
       static constexpr bool B2D = backend_t::DIM == 2;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
-      static constexpr int MD1 = DofQuadLimits::MAX_D1D;
       static constexpr int MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
 
       const auto d_attr = ctx.attr.Read();
@@ -291,25 +290,24 @@ public:
                              trial_vdim, total_trial_op_dim,
                              nq);
 
-         // Sum-factorized diagonal assembly; 2D uses z = 0 (QDD[..., 0] only)
+         // Test-basis factor along a spatial axis
          const auto eval_test = [=] MFEM_HOST_DEVICE (
-                                   const DofToQuadMap &dtq,
-                                   const int k, const int axis, const int q, const int d)
+                                   const int k, const int axis,
+                                   const int q, const int d)
          {
             if constexpr (is_value_fop<test_fop_t>::value)
             {
-               return (k == 0) ? dtq.B(q, 0, d) : 0.0;
+               return (k == 0) ? output_dtq.B(q, 0, d) : 0.0;
             }
             else if constexpr (is_gradient_fop<test_fop_t>::value)
             {
-               return (k == axis) ? dtq.G(q, 0, d) : dtq.B(q, 0, d);
+               return (k == axis) ? output_dtq.G(q, 0, d) : output_dtq.B(q, 0, d);
             }
             else { return 0.0; }
          };
 
-         MFEM_SHARED real_t QQD[MQ1][MQ1][MD1];
-         MFEM_SHARED real_t QDD[MQ1][MD1][MD1];
-         MFEM_SHARED real_t smem[MQ1][MQ1];
+         // Backend-owned shared scratch for the sum-factorized contraction.
+         MFEM_SHARED typename backend_t::template DiagShared<MQ1> s_diag;
          const int nz_dof = B2D ? 1 : num_test_dof_1d;
 
          for (int vd = 0; vd < test_vdim; vd++)
@@ -329,6 +327,8 @@ public:
             }
             MFEM_SYNC_THREAD;
 
+            // Accumulate every (test op k, dependent input s, trial op m) block
+            // of the cached Jacobian into the diagonal via the backend driver.
             for (int k = 0; k < test_op_dim; k++)
             {
                int m_offset = 0;
@@ -338,130 +338,35 @@ public:
                   const int trial_op_dim = inputs_trial_op_dim[static_cast<int>(s)];
                   if (trial_op_dim == 0) { return; }
 
+                  const auto &in_dtq = input_dtq_maps[s];
                   const auto eval_input = [=] MFEM_HOST_DEVICE (
-                                             const DofToQuadMap &dtq,
-                                             const int kin, const int axis, const int q,
-                                             const int d)
+                                             const int m, const int axis,
+                                             const int q, const int d)
                   {
                      if constexpr (is_value_fop<fop_t>::value)
                      {
-                        return (kin == 0) ? dtq.B(q, 0, d) : 0.0;
+                        return (m == 0) ? in_dtq.B(q, 0, d) : 0.0;
                      }
                      else if constexpr (is_gradient_fop<fop_t>::value)
                      {
-                        return (kin == axis) ? dtq.G(q, 0, d) : dtq.B(q, 0, d);
+                        return (m == axis) ? in_dtq.G(q, 0, d) : in_dtq.B(q, 0, d);
                      }
                      else { return 0.0; }
                   };
 
                   for (int m = 0; m < trial_op_dim; m++)
                   {
-                     if constexpr (B2D)
-                     {
-                        // y-quadrature → QDD[qx][dy][0]
-                        for (int dy = 0; dy < num_test_dof_1d; dy++)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(qy_t, y, q1d)
-                           {
-                              MFEM_FOREACH_THREAD_DIRECT(qx_t, x, q1d)
-                              {
-                                 real_t u = 0.0;
-                                 for (int qy = 0; qy < q1d; qy++)
-                                 {
-                                    const int q = qx_t + qy * q1d;
-                                    u += eval_test(output_dtq, k, 1, qy, dy) *
-                                         eval_input(input_dtq_maps[s], m, 1, qy, dy) *
-                                         qpdc(vd, k, vd, m_offset + m, q);
-                                 }
-                                 QDD[qx_t][dy][0] = u;
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-                        }
-                     }
-                     else
-                     {
-                        // z-quadrature → QQD, then y → QDD
-                        for (int dz = 0; dz < num_test_dof_1d; dz++)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(qy_t, y, q1d)
-                           {
-                              MFEM_FOREACH_THREAD_DIRECT(qx_t, x, q1d)
-                              {
-                                 real_t u = 0.0;
-                                 for (int qz = 0; qz < q1d; qz++)
-                                 {
-                                    const int q = qx_t + (qy_t + qz * q1d) * q1d;
-                                    u += eval_test(output_dtq, k, 2, qz, dz) *
-                                         eval_input(input_dtq_maps[s], m, 2, qz, dz) *
-                                         qpdc(vd, k, vd, m_offset + m, q);
-                                 }
-                                 QQD[qx_t][qy_t][dz] = u;
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-                        }
-
-                        for (int dz = 0; dz < num_test_dof_1d; dz++)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(qy_t, y, q1d)
-                           {
-                              MFEM_FOREACH_THREAD_DIRECT(qx_t, x, q1d)
-                              {
-                                 smem[qy_t][qx_t] = QQD[qx_t][qy_t][dz];
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           for (int dy = 0; dy < num_test_dof_1d; dy++)
-                           {
-                              MFEM_FOREACH_THREAD_DIRECT(qy_t, y, q1d)
-                              {
-                                 MFEM_FOREACH_THREAD_DIRECT(qx_t, x, q1d)
-                                 {
-                                    real_t u = 0.0;
-                                    for (int qy = 0; qy < q1d; qy++)
-                                    {
-                                       u += eval_test(output_dtq, k, 1, qy, dy) *
-                                            eval_input(input_dtq_maps[s], m, 1, qy, dy) *
-                                            smem[qy][qx_t];
-                                    }
-                                    QDD[qx_t][dy][dz] = u;
-                                 }
-                              }
-                              MFEM_SYNC_THREAD;
-                           }
-                        }
-                     }
-
-                     // x-quadrature → Y (z = 0 in 2D)
-                     for (int dz = 0; dz < nz_dof; dz++)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(dy_t, y, num_test_dof_1d)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(qx_t, x, q1d)
-                           {
-                              smem[dy_t][qx_t] = QDD[qx_t][dy_t][dz];
-                           }
-                        }
-                        MFEM_SYNC_THREAD;
-
-                        MFEM_FOREACH_THREAD_DIRECT(dy_t, y, num_test_dof_1d)
-                        {
-                           MFEM_FOREACH_THREAD_DIRECT(dx_t, x, num_test_dof_1d)
-                           {
-                              real_t u = 0.0;
-                              for (int qx = 0; qx < q1d; qx++)
-                              {
-                                 u += eval_test(output_dtq, k, 0, qx, dx_t) *
-                                      eval_input(input_dtq_maps[s], m, 0, qx, dx_t) *
-                                      smem[dy_t][qx];
-                              }
-                              Y(dx_t, dy_t, dz) += u;
-                           }
-                        }
-                        MFEM_SYNC_THREAD;
-                     }
+                     const int col = m_offset + m;
+                     backend_t::template DiagContract<MQ1>(
+                        s_diag, num_test_dof_1d, q1d, nz_dof,
+                        [=] MFEM_HOST_DEVICE (int axis, int q, int d)
+                     { return eval_test(k, axis, q, d); },
+                     [=] MFEM_HOST_DEVICE (int axis, int q, int d)
+                     { return eval_input(m, axis, q, d); },
+                     [=] MFEM_HOST_DEVICE (int q)
+                     { return qpdc(vd, k, vd, col, q); },
+                     [=] MFEM_HOST_DEVICE (int dx, int dy, int dz, real_t u)
+                     { Y(dx, dy, dz) += u; });
                   }
                   m_offset += trial_op_dim;
                });

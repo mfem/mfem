@@ -374,6 +374,98 @@ struct LocalQFLOBackend
    using Shared = typename backend_t<MQ1>::Shared;
 
    //////////////////////////////////////////////////////////////////
+   template<int MQ1>
+   using DiagShared = Shared<MQ1>;
+
+   template<int MQ1, typename WT, typename WI, typename Cache, typename AddY>
+   static MFEM_HOST_DEVICE inline
+   void DiagContract(DiagShared<MQ1> &s,
+                     const int num_dof_1d, const int q1d, const int nz_dof,
+                     WT wt, WI wi, Cache cache, AddY add_y)
+   {
+      MFEM_CONTRACT_VAR(nz_dof);
+      real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
+      auto s0 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base);
+
+      if constexpr (DIM == 3)
+      {
+         auto s1 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base + MQ1 * MQ1 * MQ1);
+
+         // reduce qz → dz : s0[dz][qy][qx]
+         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            for (int qz = 0; qz < q1d; qz++)
+            {
+               const int q = qx + (qy + qz * q1d) * q1d;
+               u += wt(2, qz, dz) * wi(2, qz, dz) * cache(q);
+            }
+            s0[dz][qy][qx] = u;
+         }
+         MFEM_SYNC_THREAD;
+
+         // reduce qy → dy : s1[dz][dy][qx]
+         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
+         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               u += wt(1, qy, dy) * wi(1, qy, dy) * s0[dz][qy][qx];
+            }
+            s1[dz][dy][qx] = u;
+         }
+         MFEM_SYNC_THREAD;
+
+         // reduce qx → dx : Y(dx,dy,dz)
+         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
+         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         {
+            real_t u = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               u += wt(0, qx, dx) * wi(0, qx, dx) * s1[dz][dy][qx];
+            }
+            add_y(dx, dy, dz, u);
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         // reduce qy → dy : s0[0][dy][qx]
+         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               const int q = qx + qy * q1d;
+               u += wt(1, qy, dy) * wi(1, qy, dy) * cache(q);
+            }
+            s0[0][dy][qx] = u;
+         }
+         MFEM_SYNC_THREAD;
+
+         // reduce qx → dx : Y(dx,dy,0)
+         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         {
+            real_t u = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               u += wt(0, qx, dx) * wi(0, qx, dx) * s0[0][dy][qx];
+            }
+            add_y(dx, dy, 0, u);
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
    template<typename T, int MQ1>
    using QReg = lo_qreg_t<backend_t<MQ1>, T>;
 
