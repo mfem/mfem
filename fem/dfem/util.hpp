@@ -480,6 +480,17 @@ struct get_function_signature<T, void_t<decltype(&T::operator())>>
    using type = typename create_function_signature<decltype(&T::operator())>::type;
 };
 
+// Helper to create tuples for e.g. FieldOperators
+template <class... Ops>
+using Inputs = tuple<Ops...>;
+
+template <class... Ops>
+using Outputs = tuple<Ops...>;
+
+// Convenience wrapper to encode Derivatives as integer sequence
+template <size_t... FieldIds>
+using Derivatives = std::integer_sequence<size_t, FieldIds...>;
+
 template <typename T>
 constexpr int GetFieldId()
 {
