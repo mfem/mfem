@@ -308,8 +308,14 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.BilinearForm::operator=(0.0);
    M.Assemble();
 
-   HypreParVector *RHS = rhs.ParallelAssemble();
-   HypreParVector X(K.ParFESpace());
+   Vector RHS;
+   RHS.SetSize(M.ParFESpace()->GetTrueVSize(), ind);
+   RHS.UseDevice(ind.UseDevice());
+   rhs.ParallelAssemble(RHS);
+
+   Vector X;
+   X.SetSize(M.ParFESpace()->GetTrueVSize(), ind);
+   X.UseDevice(ind.UseDevice());
    X = 0.0;
 
    OperatorHandle Mop;
@@ -338,10 +344,8 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    lin_solver.SetRelTol(rtol); lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
-   lin_solver.Mult(*RHS, X);
+   lin_solver.Mult(RHS, X);
    K.ParFESpace()->GetProlongationMatrix()->Mult(X, di_dt);
-
-   delete RHS;
    delete prec;
 }
 #endif
