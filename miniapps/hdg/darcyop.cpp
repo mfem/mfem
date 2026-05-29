@@ -24,6 +24,9 @@ namespace hdg
 
 void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 {
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = (pdarcy)?(pdarcy->ParFluxFESpace()->GetComm()):(MPI_COMM_NULL);
+#endif
    IterativeSolver *lin_solver = NULL;
    switch (solver_type)
    {
@@ -33,7 +36,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            solver.reset(new LBFGSSolver(MPI_COMM_WORLD));
+            solver.reset(new LBFGSSolver(comm));
          }
          else
 #endif
@@ -45,7 +48,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            solver.reset(new LBBSolver(MPI_COMM_WORLD));
+            solver.reset(new LBBSolver(comm));
          }
          else
 #endif
@@ -56,7 +59,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            lin_solver = new GMRESSolver(MPI_COMM_WORLD);
+            lin_solver = new GMRESSolver(comm);
          }
          else
 #endif
@@ -65,7 +68,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            solver.reset(new NewtonSolver(MPI_COMM_WORLD));
+            solver.reset(new NewtonSolver(comm));
          }
          else
 #endif
@@ -77,7 +80,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            lin_solver = new GMRESSolver(MPI_COMM_WORLD);
+            lin_solver = new GMRESSolver(comm);
          }
          else
 #endif
@@ -86,7 +89,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            solver.reset(new KINSolver(MPI_COMM_WORLD, KIN_PICARD));
+            solver.reset(new KINSolver(comm, KIN_PICARD));
          }
          else
 #endif
@@ -213,7 +216,8 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
 #ifdef MFEM_USE_MPI
    if (pdarcy)
    {
-      solver.reset(new GMRESSolver(MPI_COMM_WORLD));
+      MPI_Comm comm = pdarcy->ParFluxFESpace()->GetComm();
+      solver.reset(new GMRESSolver(comm));
    }
    else
 #endif
@@ -1112,7 +1116,8 @@ DarcyOperator::ParSolutionController::ParSolutionController(
 void DarcyOperator::ParSolutionController::ReduceValues(real_t vals[],
                                                         int num) const
 {
-   MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Comm comm = pdarcy.ParFluxFESpace()->GetComm();
+   MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, comm);
 }
 
 void DarcyOperator::ParSolutionController::MonitorSolution(
