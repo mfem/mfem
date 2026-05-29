@@ -153,8 +153,8 @@ void diffusion(const char *filename, int p)
          typename Diffusion<DIM>::MFApply mf_apply_qf;
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
             *ir, all_domain_attr);
 
          Vector nodestv;
@@ -199,8 +199,8 @@ void diffusion(const char *filename, int p)
          typename Diffusion<DIM>::PASetup pa_setup_qf;
          setupPAData.AddDomainIntegrator<QFBackend>(
             pa_setup_qf,
-            tuple{Gradient<Coords>{}, Weight{}},
-            tuple{Identity<QData>{}},
+            Inputs<Gradient<Coords>, Weight> {},
+            Outputs<Identity<QData>> {},
             *ir, all_domain_attr);
 
          {
@@ -221,8 +221,8 @@ void diffusion(const char *filename, int p)
          typename Diffusion<DIM>::PAApply pa_apply_qf;
          applyPAData.AddDomainIntegrator<QFBackend>(
             pa_apply_qf,
-            tuple{ Gradient<U>{}, Identity<QData>{} },
-            tuple{ Gradient<U>{} },
+            Inputs<Gradient<U>, Identity<QData>> {},
+            Outputs<Gradient<U>> {},
             *ir, all_domain_attr);
 
          {
@@ -250,12 +250,12 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         auto derivatives = std::integer_sequence<size_t, U> {};
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
-            *ir, all_domain_attr, derivatives);
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
          pfes.GetRestrictionMatrix()->Mult(x, xtvec);
          Vector nodestv;
@@ -292,12 +292,12 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         auto derivatives = std::integer_sequence<size_t, U> {};
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
-            *ir, all_domain_attr, derivatives);
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
          pfes.GetRestrictionMatrix()->Mult(x, xtvec);
          Vector nodestv;
@@ -318,12 +318,12 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         auto derivatives = std::integer_sequence<size_t, U> {};
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_apply_qf,
-            tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Gradient<U>{}},
-            *ir, all_domain_attr, derivatives);
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
          pfes.GetRestrictionMatrix()->Mult(x, xtvec);
          Vector nodestv;
@@ -374,8 +374,8 @@ void diffusion(const char *filename, int p)
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
-            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-            tuple{ Gradient<U>{} },
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
             *ir, all_domain_attr);
 
          Vector nodestv;
@@ -418,12 +418,12 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-         const auto derivatives = std::integer_sequence<size_t, U> {};
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
-            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-            tuple{ Gradient<U>{} },
-            *ir, all_domain_attr, derivatives);
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
          Vector nodestv;
          nodes->GetTrueDofs(nodestv);
@@ -467,12 +467,12 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-         const auto derivatives = std::integer_sequence<size_t, U> {};
          dop_mf.AddDomainIntegrator<QFBackend>(
             mf_vector_diffusion_qf,
-            tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-            tuple{ Gradient<U>{} },
-            *ir, all_domain_attr, derivatives);
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
          Vector nodestv;
          nodes->GetTrueDofs(nodestv);
