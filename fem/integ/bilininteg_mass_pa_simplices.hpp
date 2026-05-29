@@ -25,7 +25,7 @@ namespace mfem
 namespace internal
 {
 #if defined(MFEM_USE_CUDA)
-#define MFEM_cuda_or_hip(stub) cu##stub
+#define MFEM_cuda_or_hip(stub) cuda##stub
 #elif defined(MFEM_USE_HIP)
 #define MFEM_cuda_or_hip(stub) hip##stub
 #endif
