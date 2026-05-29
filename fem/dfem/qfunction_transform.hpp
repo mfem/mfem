@@ -28,7 +28,7 @@ template <typename T>
 MFEM_HOST_DEVICE
 void process_qf_arg(
    const DeviceTensor<1, T> &u,
-   const DeviceTensor<1, T> &v,
+   const DeviceTensor<1, T> &/*v*/,
    T &arg)
 {
    arg = u(0);
@@ -331,7 +331,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_qf_arg(
    const DeviceTensor<1, T> &u,
-   const DeviceTensor<1, T> &v,
+   const DeviceTensor<1, T> &/*v*/,
    tensor<T, n, m> &arg)
 {
    for (int i = 0; i < m; i++)

@@ -227,6 +227,7 @@ inline void check_consistency(
       }
       else if constexpr (is_weight_fop<input_t>::value)
       {
+         MFEM_CONTRACT_VAR(fd);
       }
       else if constexpr (is_value_fop<input_t>::value)
       {
@@ -451,7 +452,7 @@ struct qp_type_uses_dual<tensor<S, Is...>> : qp_type_uses_dual<S> {};
 
 template <typename S, int ndims, int... Is>
 struct qp_type_uses_dual<tensor_ndarray<S, ndims, Is...>>
-   : qp_type_uses_dual<std::remove_cv_t<S>> {};
+                                                          : qp_type_uses_dual<std::remove_cv_t<S>> {};
 
 template <typename T>
 inline constexpr bool qp_type_uses_dual_v =
@@ -545,7 +546,7 @@ template <typename qf_param_ts, std::size_t... Is>
 constexpr bool qf_signature_uses_dual_impl(std::index_sequence<Is...>)
 {
    return (qp_type_uses_dual_v<qf_param_decay_t<
-              typename tuple_element<Is, qf_param_ts>::type>> || ...);
+           typename tuple_element<Is, qf_param_ts>::type>> || ...);
 }
 
 template <typename qf_param_ts>
@@ -580,28 +581,31 @@ inline void native_dual_evaluate_qfunc(
    std::array<std::vector<dual<real_t, real_t>>, noutputs> dual_outputs {};
 
    using input_decay_ts = std::tuple<qf_param_decay_t<
-      typename tuple_element<Is, qf_param_ts>::type>...>;
+                          typename tuple_element<Is, qf_param_ts>::type>...>;
    using output_decay_ts = std::tuple<qf_param_decay_t<
-      typename tuple_element<ninputs + Os, qf_param_ts>::type>...>;
+                           typename tuple_element<ninputs + Os, qf_param_ts>::type>...>;
 
-   auto inputs = std::make_tuple(
-                    make_native_dual_input<
-                       std::tuple_element_t<Is, input_decay_ts>, Is>(
-                       xq, shadow_xq, dual_inputs[Is], in_layouts[Is], gnqp,
-                       input_active ? (*input_active)[Is] : false)...);
+   auto inputs =
+      std::make_tuple(
+         make_native_dual_input<
+         std::tuple_element_t<Is, input_decay_ts>, Is>(
+            xq, shadow_xq, dual_inputs[Is], in_layouts[Is], gnqp,
+            input_active ? (*input_active)[Is] : false)...);
 
-   auto outputs = std::make_tuple(
-                     make_native_dual_output<
-                        std::tuple_element_t<Os, output_decay_ts>, Os>(
-                        yq, dual_outputs[Os], out_layouts[Os], gnqp)...);
+   auto outputs =
+      std::make_tuple(
+         make_native_dual_output<
+         std::tuple_element_t<Os, output_decay_ts>, Os>(
+            yq, dual_outputs[Os], out_layouts[Os], gnqp)...);
 
    std::apply([&](auto &&...args) { qfunc(args...); },
-              std::tuple_cat(inputs, outputs));
+   std::tuple_cat(inputs, outputs));
 
    constexpr_for<0, noutputs>([&](auto o)
    {
-      finish_native_dual_output<unpack_primal_values,
-         std::tuple_element_t<o, output_decay_ts>, o>(yq, dual_outputs[o]);
+      finish_native_dual_output<
+      unpack_primal_values,
+      std::tuple_element_t<o, output_decay_ts>, o>(yq, dual_outputs[o]);
    });
 }
 
@@ -628,18 +632,20 @@ inline void call_qfunc(
    {
       constexpr std::size_t ninputs = sizeof...(Is);
 
-      auto inputs = std::make_tuple(
-                       make_tensor_array<qf_param_decay_t<
-                          typename tuple_element<Is, qf_param_ts>::type>>(
-                          xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+      auto inputs =
+         std::make_tuple(
+            make_tensor_array<qf_param_decay_t<
+            typename tuple_element<Is, qf_param_ts>::type>>(
+               xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
-      auto outputs = std::make_tuple(
-                        make_tensor_array<qf_param_decay_t<
-                           typename tuple_element<ninputs + Os, qf_param_ts>::type>>(
-                           yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+      auto outputs =
+         std::make_tuple(
+            make_tensor_array<qf_param_decay_t<
+            typename tuple_element<ninputs + Os, qf_param_ts>::type>>(
+               yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
       std::apply([&](auto &&...args) { qfunc(args...); },
-                 std::tuple_cat(inputs, outputs));
+      std::tuple_cat(inputs, outputs));
    }
 }
 
@@ -731,11 +737,18 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
       }
       else
       {
+         // Inactive inputs are passed as enzyme_dup with their (zeroed) shadow,
+         // NOT as enzyme_const. Enzyme_const is unsafe here: when an inactive
+         // tensor_array is read through its copying accessor (e.g. J(q) ->
+         // get_tensor copies into a local tensor, then det(J)), Enzyme fails to
+         // zero the shadow of that local copy and propagates a primal-valued
+         // tangent (effectively dJ = J), injecting a spurious derivative term.
          process_inputs<wrapper_fn, qf_return_t, CurI + 1, NI, ActivityMap...>(
             inputs, shadows, primals, derivs,
             acc...,
-            enzyme_const,
-            &std::get<CurI>(inputs));
+            enzyme_dup,
+            &std::get<CurI>(inputs),
+            &std::get<CurI>(shadows));
       }
    }
 }

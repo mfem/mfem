@@ -370,7 +370,7 @@ void map_field_to_quadrature_data_tensor_product_1d(
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
    const DeviceTensor<1, const real_t> &integration_weights,
-   const std::array<DeviceTensor<1>, 6> &scratch_mem)
+   const std::array<DeviceTensor<1>, 6> &/*scratch_mem*/)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;

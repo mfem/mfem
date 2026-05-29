@@ -65,7 +65,7 @@ public:
    /// It should not be used by a user.
    ///
    /// returns identity by default that is lazy evaluated.
-   virtual const Operator* GetElementRestriction(ElementDofOrdering o) const
+   virtual const Operator* GetElementRestriction(ElementDofOrdering) const
    {
       if (!elem_restr)
       {

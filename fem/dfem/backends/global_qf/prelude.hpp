@@ -14,8 +14,9 @@
 #include "derivative_action.hpp"
 #include "derivative_setup.hpp"
 
+#include "derivative_apply_transpose.hpp"
+
 #include "../local_qf/derivative_apply.hpp"
-#include "../local_qf/derivative_apply_transpose.hpp"
 #include "../local_qf/derivative_assemble.hpp"
 #include "../local_qf/derivative_assemble_diagonal.hpp"
 
@@ -108,7 +109,12 @@ struct GlobalQFBackend
       const Vector &qp_cache)
    {
       dbg();
-      return LocalQFImpl::DerivativeApplyTranspose<
+      // The local transposed apply uses the register-based tensor-product
+      // driver, which needs the q-function's compile-time tensor shapes. The
+      // global (tensor_array) q-functions are not register-compatible, so the
+      // global backend uses its own shape-agnostic cache-contraction transpose,
+      // which is a faithful Jᵀ (correct for non-symmetric operators too).
+      return GlobalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc, inputs, outputs, qp_cache);
    }

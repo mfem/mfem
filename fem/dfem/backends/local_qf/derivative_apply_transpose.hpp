@@ -11,18 +11,18 @@
 #pragma once
 
 #include "../../integrator_ctx.hpp"
-#include "../../integrate.hpp"
-#include "../../interpolate.hpp"
 
 #include "kernels_lo.hpp"
 #include "kernels_ho.hpp"
 #include "util.hpp"
 
 #include <array>
+#include <cmath>
 
 namespace mfem::future::LocalQFImpl
 {
 
+// Cached transposed Jacobian apply: Jᵀ·w from the qp_cache
 template<
    int derivative_id,
    typename qfunc_t,
@@ -43,7 +43,7 @@ class DerivativeApplyTranspose
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
-   // Input tuple slot differentiated w.r.t. derivative_id (compile-time).
+   // Input tuple slot referencing the derivative field (compile-time)
    static constexpr size_t deriv_input_idx_ct = []() constexpr
    {
       size_t idx = SIZE_MAX;
@@ -51,10 +51,7 @@ class DerivativeApplyTranspose
       {
          constexpr size_t i = ic.value;
          using FOP = tuple_element_t<i, inputs_t>;
-         if (FOP::GetFieldId() == derivative_id)
-         {
-            idx = i;
-         }
+         if (FOP::GetFieldId() == derivative_id) { idx = i; }
       });
       return idx;
    }();
@@ -66,33 +63,30 @@ class DerivativeApplyTranspose
    const IntegratorContext ctx;
    const Vector &qp_cache; // Jacobian cache from DerivativeSetup
    const std::vector<const DofToQuad*> dtqs;
-   // inputs: dtq, d1d, vdim
+   // inputs: dtq, B, G, d1d, q1d, vdim (trial / derivative fields)
    const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<int, n_inputs> input_d1d, input_vdim;
-   // outputs: dtq, idx, d1d, q1d, vdim (test / cotangent fields)
+   const std::array<const real_t*, n_inputs> input_B, input_G;
+   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
+   // outputs: dtq, idx, B, G, d1d, q1d, vdim (test / cotangent fields)
    const std::array<DofToQuadMap, n_outputs> output_dtq;
-   const std::array<size_t, n_outputs> output_idx; // output to field
-   const std::array<int, n_outputs> output_d1d, output_q1d;
-   const std::array<int, n_outputs> out_vdim;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_qp_size;
-   std::array<int, n_outputs> out_elem_dof_size;
-   // transpose metadata
+   const std::array<size_t, n_outputs> output_idx;
+   const std::array<const real_t*, n_outputs> output_B, output_G;
+   const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
+   // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
-   const int output_size_on_qp;
-   const bool use_sum_factorization;
    const std::array<int, n_inputs> input_size_on_qp;
+   const std::array<int, n_outputs> out_op_dim;
+   const std::array<int, n_outputs> out_offsets;
+   const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
-   const size_t deriv_infd_idx; // infds index for derivative_id
+   const int residual_size_on_qp;
    // other constants
    const int dim, ne, nq, q1d;
-   const int deriv_in_elem_sz;
-   // workspace (blocked by element)
+   const size_t deriv_infd_idx; // index of the derivative field in ye
+   // output cotangent restriction workspace (blocked by element)
+   std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
-   mutable Vector dir_at_qp;
-   mutable Vector result_at_qp;
-   mutable Vector map_scratch;
 
 public:
    //////////////////////////////////////////////////////////////////
@@ -109,124 +103,82 @@ public:
       ctx(ctx),
       qp_cache(qp_cache),
       dtqs(make_dtqs(ctx)),
-      // inputs: dtq, d1d, vdim
       input_dtq(create_dtq_maps<Entity::Element>(
                    inputs, dtqs,
                    create_union_field_map_for_dtq(ctx, inputs),
                    ctx.unionfds, ctx.ir)),
+      input_B(get_B(input_dtq)),
+      input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)),
+      input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
-      // outputs: dtq, idx, d1d, q1d, vdim
       output_dtq(create_dtq_maps<Entity::Element>(
                     outputs, dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
                     ctx.unionfds, ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
+      output_B(get_B(output_dtq)),
+      output_G(get_G(output_dtq)),
       output_d1d(get_D1D(output_dtq)),
       output_q1d(get_Q1D(output_dtq)),
-      out_vdim(get_vdim(outputs)),
-      out_op_dim(compute_out_op_dim(outputs)),
-      out_qp_size(compute_out_qp_size(outputs)),
-      out_elem_dof_size{},
+      output_vdim(get_vdim(outputs)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
-      output_size_on_qp([&]
+      input_size_on_qp(get_input_size_on_qp(inputs,
+                                            std::make_index_sequence<n_inputs> {})),
+                                             out_op_dim(compute_out_op_dim(outputs)),
+                                             out_offsets(compute_out_offsets(output_vdim, out_op_dim)),
+                                             output_size_on_qp([&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         s += get<o>(outputs).size_on_qp;
-      });
+      for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
-   use_sum_factorization([&]
-   {
-      const Element::Type etype =
-      Element::TypeFromGeometry(ctx.mesh.GetTypicalElementGeometry());
-      return (etype == Element::QUADRILATERAL ||
-              etype == Element::HEXAHEDRON);
-   }()),
-   input_size_on_qp(
-      get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim(
       compute_total_trial_op_dim(inputs, input_is_dependent, input_size_on_qp)),
-   deriv_infd_idx(find_infd_index(ctx, derivative_id)),
-   // other constants
+   residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(ctx.mesh.Dimension()),
    ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
    q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5))),
-   deriv_in_elem_sz(compute_element_dof_sz(
-                       ctx.infds[deriv_infd_idx], ne,
-                       ElementDofOrdering::LEXICOGRAPHIC))
+   deriv_infd_idx(find_infd_index(ctx, derivative_id)),
+   out_elem_dof_size{}
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
       MFEM_ASSERT(deriv_infd_idx != SIZE_MAX,
                   "DerivativeApplyTranspose: derivative field not found in infds");
 
-      // Restrict output test-direction(s) to element vectors; size workspace.
+      // Size the workspace that holds the output cotangent(s) in element layout.
       int total_dir_e_size = 0;
       for_constexpr<n_outputs>([&](auto o)
       {
          const int elem_sz = compute_element_dof_sz(
-                                ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
+            ctx.outfds[output_idx[o]], ne,
+            ElementDofOrdering::LEXICOGRAPHIC);
          out_elem_dof_size[o] = elem_sz;
          total_dir_e_size += elem_sz;
       });
       dir_out_e.SetSize(total_dir_e_size * ne);
       dir_out_e.UseDevice(true);
-      dir_at_qp.SetSize(output_size_on_qp * nq * ne);
-      dir_at_qp.UseDevice(true);
-      result_at_qp.SetSize(trial_vdim * total_trial_op_dim * nq * ne);
-      result_at_qp.UseDevice(true);
-      {
-         const int scratch_buf =
-            q1d * q1d * ((dim == 2) ? 1 : q1d);
-         map_scratch.SetSize(6 * scratch_buf * ne);
-         map_scratch.UseDevice(true);
-      }
-
-#ifndef MFEM_DEBUG
-      // 2D LO kernels
-      // DerivativeApplyTransposeLO::template Specialization<2, 2>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<2, 3>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<2, 4>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<2, 5>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<2, 6>::Add();
-
-      // 3D LO kernels
-      // DerivativeApplyTransposeLO::template Specialization<3, 2>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<3, 3>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<3, 4>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<3, 5>::Add();
-      // DerivativeApplyTransposeLO::template Specialization<3, 6>::Add();
-
-      // 3D HO kernels
-      // DerivativeApplyTransposeHO::template Specialization<3, 10>::Add();
-      // DerivativeApplyTransposeHO::template Specialization<3, 12>::Add();
-      // DerivativeApplyTransposeHO::template Specialization<3, 14>::Add();
-      // DerivativeApplyTransposeHO::template Specialization<3, 16>::Add();
-      // DerivativeApplyTransposeHO::template Specialization<3, 18>::Add();
-#endif
    }
 
    //////////////////////////////////////////////////////////////////
    template <typename Backend>
-   void run_kernels(Vector &ye_deriv) const
+   void run_kernels(std::vector<Vector *> &ye) const
    {
       Backend::Run(
          dim, q1d,
-         // arguments
-         ctx,
-         qp_cache, dir_out_e, ye_deriv,
-         inputs, outputs, input_dtq, output_dtq,
-         input_d1d, input_vdim, output_d1d, output_q1d,
-         out_qp_size, out_elem_dof_size, input_size_on_qp,
-         input_is_dependent, out_vdim, out_op_dim,
-         trial_vdim, total_trial_op_dim, deriv_in_elem_sz,
-         output_size_on_qp, use_sum_factorization, dir_at_qp, result_at_qp,
-         map_scratch,
+         ctx, qp_cache, dir_out_e,
+         // inputs (integration target metadata)
+         input_B, input_G, input_vdim, input_d1d, input_q1d,
+         input_size_on_qp, input_is_dependent,
+         // outputs (direction interpolation metadata)
+         output_B, output_G, output_vdim, output_d1d, output_q1d,
+         out_op_dim, out_offsets,
+         trial_vdim, total_trial_op_dim, residual_size_on_qp, output_size_on_qp,
+         deriv_infd_idx,
+         ye,
          // fallback arguments
          dim, q1d);
    }
@@ -260,78 +212,14 @@ public:
          e_offset += elem_sz * ne;
       });
 
-      Vector &ye_deriv = *ye[deriv_infd_idx];
       if (q1d <= 8)
       {
-         run_kernels<DerivativeApplyTransposeLO>(ye_deriv);
+         run_kernels<DerivativeApplyTransposeLO>(ye);
       }
       else
       {
-         run_kernels<DerivativeApplyTransposeHO>(ye_deriv);
+         run_kernels<DerivativeApplyTransposeHO>(ye);
       }
-   }
-
-   MFEM_HOST_DEVICE static void map_output_directions_at_elem(
-      const int e,
-      const outputs_t &outputs,
-      const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
-      const std::array<int, n_outputs> &out_qp_size,
-      const std::array<int, n_outputs> &out_elem_dof_size,
-      const std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_outputs> &dir_XE,
-      DeviceTensor<2, real_t> &dir_at_qp_e,
-      const int num_qp,
-      const int dim,
-      const bool use_sum_factorization,
-      const DeviceTensor<1, const real_t> &ir_weights,
-      real_t *scratch_base,
-      const int scratch_buf_size)
-   {
-      std::array<DeviceTensor<1>, 6> scratch_bufs;
-      for (int sb = 0; sb < 6; sb++)
-      {
-         scratch_bufs[sb] =
-            Reshape(scratch_base + sb * scratch_buf_size, scratch_buf_size);
-      }
-
-      int qp_offset = 0;
-      for_constexpr<n_outputs>([&](auto oc)
-      {
-         constexpr size_t o = oc.value;
-         const auto &XE = dir_XE[o];
-         auto dir_o_e = DeviceTensor<1>(
-                           const_cast<real_t *>(&XE(0, 0, 0, 0, e)), out_elem_dof_size[o]);
-         auto dir_qp_o = Reshape(&dir_at_qp_e(0, 0) + qp_offset,
-                                 out_qp_size[o], num_qp);
-
-         if (use_sum_factorization)
-         {
-            if (dim == 1)
-            {
-               map_field_to_quadrature_data_tensor_product_1d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
-                  ir_weights, scratch_bufs);
-            }
-            else if (dim == 2)
-            {
-               map_field_to_quadrature_data_tensor_product_2d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
-                  ir_weights, scratch_bufs);
-            }
-            else if (dim == 3)
-            {
-               map_field_to_quadrature_data_tensor_product_3d(
-                  dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
-                  ir_weights, scratch_bufs);
-            }
-         }
-         else
-         {
-            map_field_to_quadrature_data(
-               dir_qp_o, output_dtq_maps[o], dir_o_e, get<o>(outputs),
-               ir_weights);
-         }
-         qp_offset += out_qp_size[o] * num_qp;
-      });
    }
 
    //////////////////////////////////////////////////////////////////
@@ -339,32 +227,30 @@ public:
    static void derivative_apply_transpose_callback(
       const IntegratorContext &ctx,
       const Vector &qp_cache,
-      const Vector &dir_e,
-      Vector &ye_deriv,
-      const inputs_t &inputs,
-      const outputs_t &outputs,
-      // inputs: dtq, d1d, vdim
-      const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
-      // outputs: dtq, d1d, q1d, vdim
-      const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
-      const std::array<int, n_inputs> &in_d1d,
+      const Vector &dir_e, // restricted, concatenated output cotangents
+      // inputs (integration target metadata)
+      const std::array<const real_t*, n_inputs> in_B,
+      const std::array<const real_t*, n_inputs> in_G,
       const std::array<int, n_inputs> &in_vdim,
+      const std::array<int, n_inputs> &in_d1d,
+      const std::array<int, n_inputs> &in_q1d,
+      const std::array<int, n_inputs> &in_size_on_qp,
+      const std::array<bool, n_inputs> &input_dep,
+      // outputs (direction interpolation metadata)
+      const std::array<const real_t*, n_outputs> out_B,
+      const std::array<const real_t*, n_outputs> out_G,
+      const std::array<int, n_outputs> &out_vdim,
       const std::array<int, n_outputs> &out_d1d,
       const std::array<int, n_outputs> &out_q1d,
-      const std::array<int, n_outputs> &out_qp_size,
-      const std::array<int, n_outputs> &out_elem_dof_size,
-      const std::array<int, n_inputs> &input_size_on_qp,
-      const std::array<bool, n_inputs> &input_dep,
-      const std::array<int, n_outputs> &out_vdim,
       const std::array<int, n_outputs> &out_op_dim,
+      const std::array<int, n_outputs> &out_offsets,
       const int trial_vdim,
       const int total_trial_op_dim,
-      const int deriv_in_elem_sz,
+      const int residual_size_on_qp,
       const int output_size_on_qp,
-      const bool use_sum_factorization,
-      Vector &dir_at_qp,
-      Vector &result_at_qp,
-      Vector &map_scratch,
+      const size_t deriv_infd_idx,
+      std::vector<Vector *> &ye,
+      // fallback arguments
       const int dim, const int q1d)
    {
       NVTX_MARK_FUNCTION;
@@ -372,156 +258,209 @@ public:
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
 
       const int ne = ctx.nentities;
       const int nq = ctx.ir.GetNPoints();
+      MFEM_CONTRACT_VAR(output_size_on_qp);
+      MFEM_CONTRACT_VAR(in_q1d);
 
       constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
 
       // --------------------------------------------------
-      // CACHE: qp_cache from DerivativeSetup
+      // DIRECTION (test cotangent): out_XE_dir, concatenated per output
       // --------------------------------------------------
-      const int residual_size_on_qp =
-         output_size_on_qp * trial_vdim * total_trial_op_dim;
-      auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
-      real_t *d_dir_at_qp = dir_at_qp.ReadWrite();
-      real_t *d_result_at_qp = result_at_qp.ReadWrite();
-      real_t *d_map_scratch = map_scratch.ReadWrite();
-      const int result_stride = trial_vdim * total_trial_op_dim * nq;
-      const auto ir_weights =
-         Reshape(ctx.ir.GetWeights().Read(), ctx.ir.GetNPoints());
-      const int scratch_buf_size =
-         q1d * q1d * ((dim == 2) ? 1 : q1d);
-
-      // --------------------------------------------------
-      // DIRECTION: dir_XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
-      // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_outputs> dir_XE;
+      const auto d_dir = dir_e.Read();
+      std::array<DeviceTensor<3+1+1, const real_t>, n_outputs> out_XE_dir;
       int e_offset = 0;
       for_constexpr<n_outputs>([&](auto oc)
       {
          constexpr size_t o = oc.value;
          const int d = out_d1d[o], q = out_q1d[o], v = out_vdim[o];
          using FOP = tuple_element_t<o, outputs_t>;
-         if constexpr (is_identity_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
-            dir_XE[o] = Reshape(dir_e.Read() + e_offset, v, q, q, B2D ? 1 : q, ne);
-            e_offset += k_dim(q) * v * ne;
-         }
-         else
-         {
-            dir_XE[o] = Reshape(dir_e.Read() + e_offset, d, d, B2D ? 1 : d, v, ne);
+            out_XE_dir[o] = Reshape(d_dir + e_offset, d, d, B2D ? 1 : d, v, ne);
             e_offset += k_dim(d) * v * ne;
          }
+         else if constexpr (is_identity_fop_v<FOP>)
+         {
+            out_XE_dir[o] = Reshape(d_dir + e_offset, v, q, q, B2D ? 1 : q, ne);
+            e_offset += k_dim(q) * v * ne;
+         }
+         else { static_assert(false, "Unsupported"); }
       });
 
       // --------------------------------------------------
-      // DERIVATIVE INPUT: ye_XE (accumulates J^T v)
+      // DERIVATIVE TRIAL FIELD: ye_XE (accumulates Jᵀ w)
       // --------------------------------------------------
       const int d_in = in_d1d[deriv_input_idx_ct];
       const int v_in = in_vdim[deriv_input_idx_ct];
+      auto ye_XE = Reshape(ye[deriv_infd_idx]->ReadWrite(),
+                           d_in, d_in, B2D ? 1 : d_in, v_in, ne);
+
+      auto cache_tensor = DeviceTensor<3, const real_t>(
+                             qp_cache.Read(), residual_size_on_qp, nq, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      real_t *d_ye = ye_deriv.ReadWrite();
-
       dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         auto ye_XE = Reshape(d_ye, d_in, d_in, B2D ? 1 : d_in, v_in, ne);
+         // -----------------------------------------------
+         // Output cotangent (direction) registers live in the output slots;
+         // the trial integration data is pushed into the input slots.
+         // -----------------------------------------------
+         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         MFEM_SHARED typename backend_t::template Shared<MQ1> smem;
 
          // -----------------------------------------------
-         // Map output test direction to quadrature points
+         // Interpolate the test cotangent to quadrature points (output slots)
          // -----------------------------------------------
-         auto dir_at_qp_e =
-            Reshape(d_dir_at_qp + static_cast<size_t>(e) * output_size_on_qp * nq,
-                    output_size_on_qp, nq);
-         real_t *elem_scratch =
-            d_map_scratch + static_cast<size_t>(e) * 6 * scratch_buf_size;
-
-         map_output_directions_at_elem(
-            e, outputs, output_dtq_maps, out_qp_size,
-            out_elem_dof_size, dir_XE, dir_at_qp_e, nq,
-            dim, use_sum_factorization, ir_weights,
-            elem_scratch, scratch_buf_size);
+         for_constexpr<n_outputs>([&](auto oc)
+         {
+            constexpr size_t o = oc.value, ao = n_inputs + o;
+            using FOP = tuple_element_t<o, outputs_t>;
+            const auto &XE = out_XE_dir[o];
+            const int d = out_d1d[o], q = out_q1d[o], Q1D = q1d;
+            const real_t *B = out_B[o], *G = out_G[o];
+            auto &oarg = get<ao>(rargs);
+            if constexpr (is_value_fop_v<FOP>)
+            {
+               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, oarg);
+            }
+            else if constexpr (is_gradient_fop_v<FOP>)
+            {
+               constexpr auto RNK = qf_param_slot<qfunc_t, ao>::extents.size();
+               using FieldParamT = typename qf_param_slot<qfunc_t, ao>::qf_decay_param_t;
+               backend_t::template LoadGradient<RNK, MQ1, decltype(oarg), decltype(XE),
+                                                FieldParamT>(smem, e, d, q, Q1D, B, G, XE, oarg);
+            }
+            else if constexpr (is_identity_fop_v<FOP>)
+            {
+               // identity cotangent is read directly at qp from out_XE_dir
+            }
+            else { static_assert(false, "Unsupported"); }
+         });
          MFEM_SYNC_THREAD;
 
          // -----------------------------------------------
-         // Contract cache with test direction
+         // Contract the transposed cached Jacobian with the test cotangent at
+         // each quadrature point and push the trial result into the dependent
+         // input registers.
          // -----------------------------------------------
-         auto result_dof =
-            Reshape(&ye_XE(0, 0, 0, 0, e),
-                    deriv_in_elem_sz / trial_vdim, trial_vdim);
-
-         int result_offset = 0;
-         for_constexpr<n_inputs>([&](auto ic)
+         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
          {
-            constexpr size_t s = ic.value;
-            if (!input_dep[s]) { return; }
-
-            const int input_vdim = get<s>(inputs).vdim;
-            const int trial_op_dim = input_size_on_qp[s] / input_vdim;
-            auto result_at_qp_slice =
-               Reshape(d_result_at_qp + static_cast<size_t>(e) * result_stride +
-                       result_offset * input_vdim,
-                       input_vdim, trial_op_dim, nq);
-
-            MFEM_FOREACH_THREAD(q, x, nq)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               for (int j = 0; j < input_vdim; j++)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
-                  for (int m = 0; m < trial_op_dim; m++)
+                  const int q = qx + q1d * (qy + q1d * qz);
+
+                  int m_offset = 0;
+                  for_constexpr<n_inputs>([&](auto sc)
                   {
-                     real_t sum = 0.0;
-                     int out_offset = 0;
-                     for_constexpr<n_outputs>([&](auto oc)
+                     constexpr size_t s = sc.value;
+                     if (!input_dep[s]) { return; }
+                     using SARG = typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                     const int vdim_s = in_vdim[s];
+                     const int op_dim_s = in_size_on_qp[s] / vdim_s;
+
+                     SARG fhat {};
+                     for (int j = 0; j < trial_vdim; j++)
                      {
-                        constexpr size_t o = oc.value;
-                        const int test_vdim_o = out_vdim[o];
-                        const int test_op_dim_o = out_op_dim[o];
-                        for (int i = 0; i < test_vdim_o; i++)
+                        for (int m = 0; m < op_dim_s; m++)
                         {
-                           for (int k = 0; k < test_op_dim_o; k++)
+                           const int col = j * total_trial_op_dim + (m + m_offset);
+                           real_t sum = 0.0;
+                           for_constexpr<n_outputs>([&](auto oc)
                            {
-                              const int cache_test_flat =
-                                 out_offset + i * test_op_dim_o + k;
-                              const int dir_test_flat =
-                                 out_offset + i + test_vdim_o * k;
-                              const int cache_idx =
-                                 cache_test_flat * trial_vdim *
-                                 total_trial_op_dim +
-                                 j * total_trial_op_dim + (m + result_offset);
-                              sum += cache_tensor(cache_idx, q, e) *
-                                     dir_at_qp_e(dir_test_flat, q);
-                           }
+                              constexpr size_t o = oc.value, ao = n_inputs + o;
+                              using OFOP = tuple_element_t<o, outputs_t>;
+                              using OARG =
+                                 typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
+                              const int tv = out_vdim[o], to = out_op_dim[o];
+                              if constexpr (is_value_fop_v<OFOP> ||
+                                            is_gradient_fop_v<OFOP>)
+                              {
+                                 const auto wvec =
+                                    backend_t::template qp_pull<OARG, MQ1>(
+                                       get<ao>(rargs), qx, qy, qz);
+                                 for (int i = 0; i < tv; i++)
+                                 {
+                                    for (int k = 0; k < to; k++)
+                                    {
+                                       const int row = out_offsets[o] + i * to + k;
+                                       const int cache_idx =
+                                          row * trial_vdim * total_trial_op_dim + col;
+                                       sum += cache_tensor(cache_idx, q, e) *
+                                              qf_flat_value(wvec, i + tv * k);
+                                    }
+                                 }
+                              }
+                              else if constexpr (is_identity_fop_v<OFOP>)
+                              {
+                                 const auto &XEo = out_XE_dir[o];
+                                 for (int i = 0; i < tv; i++)
+                                 {
+                                    for (int k = 0; k < to; k++)
+                                    {
+                                       const int row = out_offsets[o] + i * to + k;
+                                       const int cache_idx =
+                                          row * trial_vdim * total_trial_op_dim + col;
+                                       sum += cache_tensor(cache_idx, q, e) *
+                                              XEo(i + tv * k, qx, qy, qz, e);
+                                    }
+                                 }
+                              }
+                           });
+                           qf_set_flat_value(fhat, j + vdim_s * m, sum);
                         }
-                        out_offset += out_qp_size[o];
-                     });
-                     result_at_qp_slice(j, m, q) = sum;
-                  }
+                     }
+                     backend_t::template qp_push<SARG, MQ1>(
+                        get<s>(rargs), qx, qy, qz, fhat);
+                     m_offset += op_dim_s;
+                  });
                }
             }
-            MFEM_SYNC_THREAD;
+         }
+         MFEM_SYNC_THREAD;
 
-            auto fhat = Reshape(&result_at_qp_slice(0, 0, 0),
-                                input_vdim, trial_op_dim, nq);
-            std::array<DeviceTensor<1>, 6> scratch_bufs;
-            for (int sb = 0; sb < 6; sb++)
+         // -----------------------------------------------
+         // Integrate the trial result into the derivative field dofs. Multiple
+         // dependent input slots (e.g. value and gradient of the same field)
+         // accumulate into ye_XE via the writers' '+=' semantics.
+         // -----------------------------------------------
+         for_constexpr<n_inputs>([&](auto sc)
+         {
+            constexpr size_t s = sc.value;
+            if (!input_dep[s]) { return; }
+            using FOP = tuple_element_t<s, inputs_t>;
+            const int d = in_d1d[s], q = in_q1d[s], Q1D = q1d;
+            const real_t *B = in_B[s], *G = in_G[s];
+            auto &sarg = get<s>(rargs);
+            auto &YE = ye_XE;
+            if constexpr (is_value_fop_v<FOP>)
             {
-               scratch_bufs[sb] =
-                  Reshape(elem_scratch + sb * scratch_buf_size, scratch_buf_size);
+               backend_t::template WriteValue<MQ1>(smem, e, d, q, Q1D, B, YE, sarg);
             }
-            map_quadrature_data_to_fields(
-               result_dof, fhat, get<s>(inputs), input_dtq_maps[s],
-               scratch_bufs, dim, use_sum_factorization);
-            MFEM_SYNC_THREAD;
-
-            result_offset += trial_op_dim;
+            else if constexpr (is_gradient_fop_v<FOP>)
+            {
+               using YE_t = decltype(YE);
+               using rarg_t = decltype(sarg);
+               using qf_param_t = typename qf_param_slot<qfunc_t, s>::qf_decay_param_t;
+               constexpr auto RNK = qf_param_slot<qfunc_t, s>::extents.size();
+               backend_t::template WriteGradient<RNK, MQ1, rarg_t, YE_t, qf_param_t>
+               (smem, e, d, q, Q1D, B, G, YE, sarg);
+            }
+            else
+            {
+               // identity / weight derivative targets are not produced here
+            }
          });
       }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }

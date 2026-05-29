@@ -18,10 +18,7 @@ using namespace mfem;
 using namespace mfem::future;
 
 #include "../../../fem/dfem/doperator.hpp"
-
-#ifdef NVTX_DBG_FMT
-#include NVTX_DBG_FMT // IWYU pragma: keep
-#endif
+#include "../../../linalg/tensor_arrays.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -42,10 +39,92 @@ using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
 
 // ────────────────────────────────────────────────────────────────────────────
 static constexpr int U = 0, V = 1, 𝚵 = 2;
-constexpr auto U_V_derivatives = std::make_index_sequence<2> {};
 
 // ────────────────────────────────────────────────────────────────────────────
+template <int DIM> struct global_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      tensor_array<const dreal_t> &x,
+      tensor_array<const dreal_t> &y,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t> &w,
+      tensor_array<dreal_t> &z) const
+   {
+      for (size_t q = 0; q < x.size(); q++)
+      {
+         const dreal_t xq = x(q), yq = y(q);
+         const real_t wq = w(q);
+         z(q) = (xq * yq + sin(xq) * cos(yq)) * wq * det(J(q));
+      }
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM> struct local_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(const dreal_t &x,
+                   const dreal_t &y,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w,
+                   dreal_t &z) const
+   {
+      z = (x * y + sin(x)*cos(y)) * w * det(J);
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Shared forward-tangent / adjoint consistency check on an operator whose
+// domain integrator has already been added. Verifies
+//   <bar_z, J·δ> == <Jᵀ·bar_z, δ>
+// for the derivatives with respect to U and V.
 template <int DIM>
+static void RunTangentAdjointConsistency(DifferentiableOperator &F,
+                                         ParFiniteElementSpace &fes,
+                                         ParGridFunction &nodes)
+{
+   F.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+
+   // Forward pass state
+   ParGridFunction x(&fes), y(&fes), z(&fes);
+   x.Randomize(0x9e3779b9);
+   y.Randomize(0x9e3779b1);
+   z = M_PI;
+   MultiVector state{x, y, nodes}, mz{z};
+
+   // Forward tangent (sensitivities δz)
+   ParGridFunction δx(&fes), δy(&fes), δz(&fes), δw(&fes);
+   δx.Randomize(0x01000193);
+   δy.Randomize(0x1b873593);
+   δz = 0.0;
+
+   auto ∂Fu = F.GetDerivative(U, state);
+   auto ∂Fv = F.GetDerivative(V, state);
+
+   MultiVector mδx{δx}, mδy{δy}, mδz{δz}, mδw{δw};
+
+   ∂Fu->Mult(δx, mδz); // δz  = ∂F/∂x * δx
+   ∂Fv->Mult(δy, mδw); // δz += ∂F/∂y * δy
+   δz += δw;
+
+   // Adjoint pass (MultTranspose from seed)
+   ParGridFunction bar_x(&fes), bar_y(&fes), bar_z(&fes);
+   bar_z.Randomize(0x7ed55d16);
+
+   MultiVector bar_mx{bar_x}, bar_my{bar_y}, bar_mz{bar_z};
+   ∂Fu->MultTranspose(bar_mz, bar_mx); // \bar{x} = (∂F/∂x)^T * \bar{z}
+   ∂Fv->MultTranspose(bar_mz, bar_my); // \bar{y} = (∂F/∂y)^T * \bar{z}
+
+   // Tangent-Adjoint consistency
+   const real_t left = InnerProduct(bar_z, δz);
+   const real_t right = InnerProduct(bar_x, δx) + InnerProduct(bar_y, δy);
+   REQUIRE(left == MFEM_Approx(right));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tangent-adjoint consistency test
+template <int DIM, typename backend_t, template<int> class qf_tt>
 void TangentAdjointConsistencyTest(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -75,70 +154,18 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
    const auto geom = pmesh.GetTypicalElementGeometry();
    const auto ir = &IntRules.Get(geom, 2 * p + 1);
 
-   // ───────────────────────────────────────────────────────────────
-   // Setup differentiable operator
    const vfds_t in_fds = { {U, &fes}, {V, &fes}, {𝚵, nfes} };
    const vfds_t out_fds = { {U, &fes} };
    DifferentiableOperator F(in_fds, out_fds, pmesh);
-   const auto q_fn = [] (const dreal_t &x,
-                         const dreal_t &y,
-                         const tensor<real_t, DIM, DIM> &J,
-                         const real_t &w,
-                         dreal_t &z)
-   {
-      z = (x * y + sin(x)*cos(y)) * w * det(J);
-   };
-   F.AddDomainIntegrator<LocalQFBackend>(
+
+   qf_tt<DIM> q_fn {};
+   F.AddDomainIntegrator<backend_t>(
       q_fn,
-      tuple{ Value<U>{}, Value<V>{}, Gradient<𝚵>{}, Weight{}},
-      tuple{ Value<U>{} },
-      *ir, all_domain_attr,
-      U_V_derivatives);
-   F.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+      Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},
+      Outputs<Value<U>> {},
+      *ir, all_domain_attr, Derivatives<U, V> {});
 
-   // ───────────────────────────────────────────────────────────────
-   // Forward pass
-   ParGridFunction x(&fes), y(&fes), z(&fes);
-   x.Randomize(0x9e3779b9);
-   y.Randomize(0x9e3779b1);
-   z = M_PI;
-
-   MultiVector state{x, y, *nodes}, mz{z};
-   // F.Mult(state, mz);
-
-   // ───────────────────────────────────────────────────────────────
-   // Forward tangent (sensitivities δz)
-   ParGridFunction δx(&fes), δy(&fes), δz(&fes), δw(&fes);
-   δx.Randomize(0x01000193);
-   δy.Randomize(0x1b873593);
-   δz = 0.0;
-
-   auto ∂Fu = F.GetDerivative(U, state);
-   auto ∂Fv = F.GetDerivative(V, state);
-
-   MultiVector mδx{δx}, mδy{δy}, mδz{δz}, mδw{δw};
-
-   // δz = ∂F/∂x * δx
-   ∂Fu->Mult(δx, mδz);
-
-   // δz += ∂F/∂y * δy
-   ∂Fv->Mult(δy, mδw);
-   δz += δw;
-
-   // ───────────────────────────────────────────────────────────────
-   // Adjoint pass (MultTranspose from seed)
-   ParGridFunction bar_x(&fes), bar_y(&fes), bar_z(&fes);
-   bar_z.Randomize(0x7ed55d16);
-
-   MultiVector bar_mx{bar_x}, bar_my{bar_y}, bar_mz{bar_z};
-   ∂Fu->MultTranspose(bar_mz, bar_mx); // \bar{x} = (∂F/∂x)^T * \bar{z}
-   ∂Fv->MultTranspose(bar_mz, bar_my); // \bar{y} = (∂F/∂y)^T * \bar{z}
-
-   // ───────────────────────────────────────────────────────────────
-   // Tangent-Adjoint Consistency Test
-   const real_t left = bar_z * δz;
-   const real_t right = (bar_x * δx) + (bar_y * δy);
-   REQUIRE(left == MFEM_Approx(right));
+   RunTangentAdjointConsistency<DIM>(F, fes, *nodes);
 }
 
 TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
@@ -152,7 +179,8 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
                "../../data/rt-2d-q3.mesh",
                "../../data/inline-quad.mesh",
                "../../data/periodic-square.mesh");
-   TangentAdjointConsistencyTest<2>(mesh, p);
+   TangentAdjointConsistencyTest<2, LocalQFBackend, local_qf>(mesh, p);
+   TangentAdjointConsistencyTest<2, GlobalQFBackend, global_qf>(mesh, p);
 }
 
 TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
@@ -166,7 +194,8 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
                "../../data/inline-hex.mesh",
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
-   TangentAdjointConsistencyTest<3>(mesh, p);
+   TangentAdjointConsistencyTest<3, LocalQFBackend, local_qf>(mesh, p);
+   TangentAdjointConsistencyTest<3, GlobalQFBackend, global_qf>(mesh, p);
 }
 
 #endif // MFEM_USE_MPI

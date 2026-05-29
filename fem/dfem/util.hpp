@@ -29,7 +29,6 @@
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
-#include "../qfunction.hpp"
 #include "../quadinterpolator.hpp"
 
 #include "../../general/forall.hpp"
