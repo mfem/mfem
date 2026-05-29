@@ -1091,13 +1091,13 @@ int main(int argc, char *argv[])
       }
 
       // 13. Save the mesh and the solution. This output can be viewed later using
-      //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-      //     sol_t.gf".
+      //     GLVis: "glvis -m pconvdiff.mesh -g sol_q.gf" or "glvis -m
+      //     pconvdiff.mesh -g sol_t.gf".
       if (mfem)
       {
          stringstream ss;
          ss.str("");
-         ss << "ex5." << setfill('0') << setw(6) << myid;
+         ss << "pconvdiff." << setfill('0') << setw(6) << myid;
          if (btime) { ss << "_" << ti; }
          ss << ".mesh";
          ofstream mesh_ofs(ss.str());
@@ -1124,7 +1124,7 @@ int main(int argc, char *argv[])
       // 14. Save data in the VisIt format
       if (visit)
       {
-         static VisItDataCollection visit_dc("Example5-Parallel", &pmesh);
+         static VisItDataCollection visit_dc("Pconvdiff", &pmesh);
          if (ti == 0)
          {
             visit_dc.RegisterField("heat flux", &q_vh);
@@ -1146,7 +1146,7 @@ int main(int argc, char *argv[])
       // 15. Save data in the ParaView format
       if (paraview)
       {
-         static ParaViewDataCollection paraview_dc("Example5P", &pmesh);
+         static ParaViewDataCollection paraview_dc("Pconvdiff", &pmesh);
          if (ti == 0)
          {
             paraview_dc.SetPrefixPath("ParaView");

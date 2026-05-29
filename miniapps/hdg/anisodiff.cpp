@@ -807,13 +807,13 @@ int main(int argc, char *argv[])
       t_a.ProjectCoefficient(tcoeff);
 
       // 13. Save the mesh and the solution. This output can be viewed later using
-      //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-      //     sol_t.gf".
+      //     GLVis: "glvis -m anisodiff.mesh -g sol_q.gf" or "glvis -m
+      //     anisodiff.mesh -g sol_t.gf".
       if (mfem)
       {
          stringstream ss;
          ss.str("");
-         ss << "ex5";
+         ss << "anisodiff";
          if (amr_nrefs > 0) { ss << "_" << amr_it; }
          ss << ".mesh";
          ofstream mesh_ofs(ss.str());
@@ -840,7 +840,7 @@ int main(int argc, char *argv[])
       // 14. Save data in the VisIt format
       if (visit)
       {
-         static VisItDataCollection visit_dc("Example5", &mesh);
+         static VisItDataCollection visit_dc("Anisodiff", &mesh);
          if (amr_it == 0)
          {
             visit_dc.RegisterField("heat flux", &q_vh);
@@ -858,7 +858,7 @@ int main(int argc, char *argv[])
       // 15. Save data in the ParaView format
       if (paraview)
       {
-         static ParaViewDataCollection paraview_dc("Example5", &mesh);
+         static ParaViewDataCollection paraview_dc("Anisodiff", &mesh);
          if (amr_it == 0)
          {
             paraview_dc.SetPrefixPath("ParaView");

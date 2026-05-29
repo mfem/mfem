@@ -496,8 +496,8 @@ int main(int argc, char *argv[])
    }
 
    // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-   //     sol_t.gf".
+   //     GLVis: "glvis -m mfem-logo.mesh -g sol_q.gf" or "glvis -m
+   //     mfem-logo.mesh -g sol_t.gf".
    if (mfem)
    {
       stringstream ss;
@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
    // 14. Save data in the VisIt format
    if (visit)
    {
-      static VisItDataCollection visit_dc("Example5", &mesh);
+      static VisItDataCollection visit_dc("Mfem-logo", &mesh);
       visit_dc.RegisterField("heat flux", &q_vh);
       visit_dc.RegisterField("temperature", &t_h);
       visit_dc.Save();
@@ -535,7 +535,7 @@ int main(int argc, char *argv[])
    // 15. Save data in the ParaView format
    if (paraview)
    {
-      static ParaViewDataCollection paraview_dc("Example5", &mesh);
+      static ParaViewDataCollection paraview_dc("Mfem-logo", &mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
