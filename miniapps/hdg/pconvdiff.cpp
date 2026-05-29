@@ -62,10 +62,10 @@ using namespace mfem;
 using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
-typedef std::function<real_t(const Vector &, real_t)> TFunc;
-typedef std::function<void(const Vector &, Vector &)> VecFunc;
-typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
-typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
+typedef function<real_t(const Vector &, real_t)> TFunc;
+typedef function<void(const Vector &, Vector &)> VecFunc;
+typedef function<void(const Vector &, real_t, Vector &)> VecTFunc;
+typedef function<real_t(real_t f, const Vector &x)> KFunc;
 
 enum Problem
 {
@@ -775,7 +775,7 @@ int main(int argc, char *argv[])
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
       chrono.Stop();
-      if (verbose) { std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
+      if (verbose) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
    }
    else if (reduction)
    {
@@ -792,12 +792,12 @@ int main(int argc, char *argv[])
       }
       else
       {
-         std::cerr << "No possible reduction!" << std::endl;
+         cerr << "No possible reduction!" << endl;
          return 1;
       }
 
       chrono.Stop();
-      if (verbose) { std::cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
+      if (verbose) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -809,28 +809,28 @@ int main(int argc, char *argv[])
 
    if (verbose)
    {
-      std::cout << "***********************************************************\n";
+      cout << "***********************************************************\n";
       if (!reduction || (reduction && !dg && !brt))
       {
-         std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+         cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
       }
       if (!reduction || (reduction && (dg || brt)))
       {
-         std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+         cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
       }
       if (!reduction)
       {
          if (hybridization)
          {
-            std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-            std::cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
+            cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+            cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
          }
          else
          {
-            std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+            cout << "dim(V+W) = " << block_offsets.Last() << "\n";
          }
       }
-      std::cout << "***********************************************************\n";
+      cout << "***********************************************************\n";
    }
 
    // 11. Allocate memory (x, rhs) for the analytical solution and the right hand

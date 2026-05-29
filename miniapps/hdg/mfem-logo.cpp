@@ -45,9 +45,9 @@ using namespace mfem;
 using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
-typedef std::function<real_t(const Vector &, real_t)> TFunc;
-typedef std::function<void(const Vector &, Vector &)> VecFunc;
-typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
+typedef function<real_t(const Vector &, real_t)> TFunc;
+typedef function<void(const Vector &, Vector &)> VecFunc;
+typedef function<void(const Vector &, DenseMatrix &)> MatFunc;
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
@@ -229,35 +229,35 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   std::unique_ptr<FiniteElementCollection> V_coll;
-   std::unique_ptr<FiniteElementCollection> V_coll_dg;
+   unique_ptr<FiniteElementCollection> V_coll;
+   unique_ptr<FiniteElementCollection> V_coll_dg;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      V_coll = std::make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
+      V_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      V_coll = std::make_unique<BrokenRT_FECollection>(order, dim);
-      V_coll_dg = std::make_unique<L2_FECollection>(order+1, dim);
+      V_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      V_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
-      V_coll = std::make_unique<RT_FECollection>(order, dim);
+      V_coll = make_unique<RT_FECollection>(order, dim);
    }
-   auto W_coll = std::make_unique<L2_FECollection>(order, dim,
-                                                   BasisType::GaussLobatto);
+   auto W_coll = make_unique<L2_FECollection>(order, dim,
+                                              BasisType::GaussLobatto);
 
-   auto V_space = std::make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
-                                                       (dg)?(dim):(1));
-   auto V_space_dg = V_coll_dg ? std::make_unique<FiniteElementSpace>(
+   auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
+                                                  (dg)?(dim):(1));
+   auto V_space_dg = V_coll_dg ? make_unique<FiniteElementSpace>(
                         &mesh, V_coll_dg.get(), dim)
                      : nullptr;
-   auto W_space = std::make_unique<FiniteElementSpace>(&mesh, W_coll.get());
+   auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
-   auto darcy = std::make_unique<DarcyForm>(V_space.get(), W_space.get());
+   auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; //base temperature
@@ -365,8 +365,8 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   std::unique_ptr<FiniteElementCollection> trace_coll;
-   std::unique_ptr<FiniteElementSpace> trace_space;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
 
 
    if (hybridization)
@@ -376,20 +376,20 @@ int main(int argc, char *argv[])
 
       if (trace_h1)
       {
-         trace_coll = std::make_unique<H1_Trace_FECollection>(max(order, 1), dim);
-         trace_space = std::make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
+         trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
       }
       else
       {
-         trace_coll = std::make_unique<DG_Interface_FECollection>(order, dim);
-         trace_space = std::make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+         trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
       }
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
 
       chrono.Stop();
-      std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
+      cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
    }
    else if (reduction)
    {
@@ -402,12 +402,12 @@ int main(int argc, char *argv[])
       }
       else
       {
-         std::cerr << "No possible reduction!" << std::endl;
+         cerr << "No possible reduction!" << endl;
          return 1;
       }
 
       chrono.Stop();
-      std::cout << "Reduction init took " << chrono.RealTime() << "s.\n";
+      cout << "Reduction init took " << chrono.RealTime() << "s.\n";
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -417,28 +417,28 @@ int main(int argc, char *argv[])
    //    of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
-   std::cout << "***********************************************************\n";
+   cout << "***********************************************************\n";
    if (!reduction || (reduction && !dg && !brt))
    {
-      std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+      cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
    }
    if (!reduction || (reduction && (dg || brt)))
    {
-      std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+      cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
    }
    if (!reduction)
    {
       if (hybridization)
       {
-         std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-         std::cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
+         cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+         cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
       }
       else
       {
-         std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+         cout << "dim(V+W) = " << block_offsets.Last() << "\n";
       }
    }
-   std::cout << "***********************************************************\n";
+   cout << "***********************************************************\n";
 
    // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
