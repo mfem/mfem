@@ -512,7 +512,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    [[maybe_unused]] const auto &inputs_ref = inputs;
 
    assemble_detail::foreach_trial_dof<DIM>(td1d,
-   [&](const int Jx, const int Jy, const int Jz, const int J)
+                                           [&](const int Jx, const int Jy, const int Jz, const int J)
    {
       for (int j = 0; j < trial_vdim; j++)
       {
@@ -521,7 +521,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
             for (int tod = 0; tod < test_op_dim; tod++)
             {
                assemble_detail::foreach_qp_thread<DIM>(q1d,
-               [&](const int qx, const int qy, const int qz)
+                                                       [&](const int qx, const int qy, const int qz)
                {
                   const int q =
                      assemble_detail::tensor_q_index<DIM>(qx, qy, qz, q1d);
@@ -545,7 +545,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
             if constexpr (is_value_fop<fop_t>::value)
             {
                assemble_detail::foreach_qp_thread<DIM>(q1d,
-               [&](const int qx, const int qy, const int qz)
+                                                       [&](const int qx, const int qy, const int qz)
                {
                   const int q =
                      assemble_detail::tensor_q_index<DIM>(qx, qy, qz, q1d);
@@ -568,7 +568,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
             else if constexpr (is_gradient_fop<fop_t>::value)
             {
                assemble_detail::foreach_qp_thread<DIM>(q1d,
-               [&](const int qx, const int qy, const int qz)
+                                                       [&](const int qx, const int qy, const int qz)
                {
                   const int q =
                      assemble_detail::tensor_q_index<DIM>(qx, qy, qz, q1d);
@@ -692,7 +692,7 @@ public:
    test_fes([&]
    {
       const auto *fes = std::get_if<const ParFiniteElementSpace *>(
-                           &ctx_in.unionfds[test_field_uf].data);
+         &ctx_in.unionfds[test_field_uf].data);
       MFEM_ASSERT(fes != nullptr && *fes != nullptr,
                   "LocalQFBackend: test space is not a ParFiniteElementSpace");
       return *fes;
@@ -700,7 +700,7 @@ public:
    trial_fes([&]
    {
       const auto *fes = std::get_if<const ParFiniteElementSpace *>(
-                           &ctx_in.unionfds[trial_field_uf].data);
+         &ctx_in.unionfds[trial_field_uf].data);
       MFEM_ASSERT(fes != nullptr && *fes != nullptr,
                   "LocalQFBackend: trial space is not a ParFiniteElementSpace");
       return *fes;
@@ -730,7 +730,7 @@ public:
                                     1.0 / static_cast<real_t>(dim)) + 0.5))),
    num_trial_dof_1d((dim > 0)
                     ? static_cast<int>(std::floor(
-                          std::pow(num_trial_dof, 1.0 / dim) + 0.5))
+                                          std::pow(num_trial_dof, 1.0 / dim) + 0.5))
                     : 0),
    total_trial_op_dim([&]
    {
@@ -766,17 +766,17 @@ public:
       Ae_mem = 0.0;
 
 #ifndef MFEM_DEBUG
-      DerivativeAssembleLO::template Specialization<2, 2>::Add();
-      DerivativeAssembleLO::template Specialization<2, 3>::Add();
-      DerivativeAssembleLO::template Specialization<2, 4>::Add();
-      DerivativeAssembleLO::template Specialization<2, 5>::Add();
-      DerivativeAssembleLO::template Specialization<2, 6>::Add();
+      // DerivativeAssembleLO::template Specialization<2, 2>::Add();
+      // DerivativeAssembleLO::template Specialization<2, 3>::Add();
+      // DerivativeAssembleLO::template Specialization<2, 4>::Add();
+      // DerivativeAssembleLO::template Specialization<2, 5>::Add();
+      // DerivativeAssembleLO::template Specialization<2, 6>::Add();
 
-      DerivativeAssembleLO::template Specialization<3, 2>::Add();
-      DerivativeAssembleLO::template Specialization<3, 3>::Add();
-      DerivativeAssembleLO::template Specialization<3, 4>::Add();
-      DerivativeAssembleLO::template Specialization<3, 5>::Add();
-      DerivativeAssembleLO::template Specialization<3, 6>::Add();
+      // DerivativeAssembleLO::template Specialization<3, 2>::Add();
+      // DerivativeAssembleLO::template Specialization<3, 3>::Add();
+      // DerivativeAssembleLO::template Specialization<3, 4>::Add();
+      // DerivativeAssembleLO::template Specialization<3, 5>::Add();
+      // DerivativeAssembleLO::template Specialization<3, 6>::Add();
 #endif
    }
 

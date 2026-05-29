@@ -170,7 +170,7 @@ public:
       for_constexpr<n_outputs>([&](auto o)
       {
          const int elem_sz = compute_element_dof_sz(
-            ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
+                                ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
          out_elem_dof_size[o] = elem_sz;
          total_dir_e_size += elem_sz;
       });
@@ -189,18 +189,18 @@ public:
 
 #ifndef MFEM_DEBUG
       // 2D LO kernels
-      DerivativeApplyTransposeLO::template Specialization<2, 2>::Add();
-      DerivativeApplyTransposeLO::template Specialization<2, 3>::Add();
-      DerivativeApplyTransposeLO::template Specialization<2, 4>::Add();
-      DerivativeApplyTransposeLO::template Specialization<2, 5>::Add();
-      DerivativeApplyTransposeLO::template Specialization<2, 6>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<2, 2>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<2, 3>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<2, 4>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<2, 5>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<2, 6>::Add();
 
       // 3D LO kernels
-      DerivativeApplyTransposeLO::template Specialization<3, 2>::Add();
-      DerivativeApplyTransposeLO::template Specialization<3, 3>::Add();
-      DerivativeApplyTransposeLO::template Specialization<3, 4>::Add();
-      DerivativeApplyTransposeLO::template Specialization<3, 5>::Add();
-      DerivativeApplyTransposeLO::template Specialization<3, 6>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<3, 2>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<3, 3>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<3, 4>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<3, 5>::Add();
+      // DerivativeApplyTransposeLO::template Specialization<3, 6>::Add();
 
       // 3D HO kernels
       // DerivativeApplyTransposeHO::template Specialization<3, 10>::Add();

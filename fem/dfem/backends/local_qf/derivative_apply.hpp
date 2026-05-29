@@ -192,17 +192,17 @@ public:
       });
 
 #ifndef MFEM_DEBUG
-      DerivativeApplyLO::template Specialization<2, 2>::Add();
-      DerivativeApplyLO::template Specialization<2, 3>::Add();
-      DerivativeApplyLO::template Specialization<2, 4>::Add();
-      DerivativeApplyLO::template Specialization<2, 5>::Add();
-      DerivativeApplyLO::template Specialization<2, 6>::Add();
+      // DerivativeApplyLO::template Specialization<2, 2>::Add();
+      // DerivativeApplyLO::template Specialization<2, 3>::Add();
+      // DerivativeApplyLO::template Specialization<2, 4>::Add();
+      // DerivativeApplyLO::template Specialization<2, 5>::Add();
+      // DerivativeApplyLO::template Specialization<2, 6>::Add();
 
-      DerivativeApplyLO::template Specialization<3, 2>::Add();
-      DerivativeApplyLO::template Specialization<3, 3>::Add();
-      DerivativeApplyLO::template Specialization<3, 4>::Add();
-      DerivativeApplyLO::template Specialization<3, 5>::Add();
-      DerivativeApplyLO::template Specialization<3, 6>::Add();
+      // DerivativeApplyLO::template Specialization<3, 2>::Add();
+      // DerivativeApplyLO::template Specialization<3, 3>::Add();
+      // DerivativeApplyLO::template Specialization<3, 4>::Add();
+      // DerivativeApplyLO::template Specialization<3, 5>::Add();
+      // DerivativeApplyLO::template Specialization<3, 6>::Add();
 #endif
    }
 

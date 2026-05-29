@@ -292,7 +292,7 @@ constexpr std::array<int, N> compute_out_flat_offsets(
 }
 
 template<typename inputs_t>
-constexpr auto compute_input_is_dependent(const inputs_t &ins, int deriv_id)
+const auto compute_input_is_dependent(const inputs_t &ins, int deriv_id)
 {
    auto dependency_map = make_dependency_map(ins);
    auto it = dependency_map.find(deriv_id);

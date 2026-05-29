@@ -183,19 +183,19 @@ public:
       }
 
 #ifndef MFEM_DEBUG
-      // 2D LO kernels
-      DerivativeSetupLO::template Specialization<2, 2>::Add();
-      DerivativeSetupLO::template Specialization<2, 3>::Add();
-      DerivativeSetupLO::template Specialization<2, 4>::Add();
-      DerivativeSetupLO::template Specialization<2, 5>::Add();
-      DerivativeSetupLO::template Specialization<2, 6>::Add();
+      // // 2D LO kernels
+      // DerivativeSetupLO::template Specialization<2, 2>::Add();
+      // DerivativeSetupLO::template Specialization<2, 3>::Add();
+      // DerivativeSetupLO::template Specialization<2, 4>::Add();
+      // DerivativeSetupLO::template Specialization<2, 5>::Add();
+      // DerivativeSetupLO::template Specialization<2, 6>::Add();
 
-      // 3D LO kernels
-      DerivativeSetupLO::template Specialization<3, 2>::Add();
-      DerivativeSetupLO::template Specialization<3, 3>::Add();
-      DerivativeSetupLO::template Specialization<3, 4>::Add();
-      DerivativeSetupLO::template Specialization<3, 5>::Add();
-      DerivativeSetupLO::template Specialization<3, 6>::Add();
+      // // 3D LO kernels
+      // DerivativeSetupLO::template Specialization<3, 2>::Add();
+      // DerivativeSetupLO::template Specialization<3, 3>::Add();
+      // DerivativeSetupLO::template Specialization<3, 4>::Add();
+      // DerivativeSetupLO::template Specialization<3, 5>::Add();
+      // DerivativeSetupLO::template Specialization<3, 6>::Add();
 #endif
    }
 
@@ -560,7 +560,7 @@ private:
       for (size_t uf = 0; uf < ctx.unionfds.size(); uf++)
       {
          sizes[uf] = compute_element_dof_sz(
-            ctx.unionfds[uf], ctx.nentities, ElementDofOrdering::LEXICOGRAPHIC);
+                        ctx.unionfds[uf], ctx.nentities, ElementDofOrdering::LEXICOGRAPHIC);
       }
       return sizes;
    }

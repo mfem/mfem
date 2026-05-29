@@ -185,17 +185,17 @@ public:
       }
 
 #ifndef MFEM_DEBUG
-      DerivativeAssembleDiagonalLO::template Specialization<2, 2>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<2, 3>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<2, 4>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<2, 5>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<2, 6>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<2, 2>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<2, 3>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<2, 4>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<2, 5>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<2, 6>::Add();
 
-      DerivativeAssembleDiagonalLO::template Specialization<3, 2>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<3, 3>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<3, 4>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<3, 5>::Add();
-      DerivativeAssembleDiagonalLO::template Specialization<3, 6>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<3, 2>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<3, 3>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<3, 4>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<3, 5>::Add();
+      // DerivativeAssembleDiagonalLO::template Specialization<3, 6>::Add();
 #endif
    }
 

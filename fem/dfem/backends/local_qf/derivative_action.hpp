@@ -131,18 +131,18 @@ public:
 
 #ifndef MFEM_DEBUG
       // 2D LO kernels
-      DerivativeActionLO::template Specialization<2, 2>::Add();
-      DerivativeActionLO::template Specialization<2, 3>::Add();
-      DerivativeActionLO::template Specialization<2, 4>::Add();
-      DerivativeActionLO::template Specialization<2, 5>::Add();
-      DerivativeActionLO::template Specialization<2, 6>::Add();
+      // DerivativeActionLO::template Specialization<2, 2>::Add();
+      // DerivativeActionLO::template Specialization<2, 3>::Add();
+      // DerivativeActionLO::template Specialization<2, 4>::Add();
+      // DerivativeActionLO::template Specialization<2, 5>::Add();
+      // DerivativeActionLO::template Specialization<2, 6>::Add();
 
       // 3D LO kernels
-      DerivativeActionLO::template Specialization<3, 2>::Add();
-      DerivativeActionLO::template Specialization<3, 3>::Add();
-      DerivativeActionLO::template Specialization<3, 4>::Add();
-      DerivativeActionLO::template Specialization<3, 5>::Add();
-      DerivativeActionLO::template Specialization<3, 6>::Add();
+      // DerivativeActionLO::template Specialization<3, 2>::Add();
+      // DerivativeActionLO::template Specialization<3, 3>::Add();
+      // DerivativeActionLO::template Specialization<3, 4>::Add();
+      // DerivativeActionLO::template Specialization<3, 5>::Add();
+      // DerivativeActionLO::template Specialization<3, 6>::Add();
 
       // 3D HO kernels
       // DerivativeActionHO::template Specialization<3, 10>::Add();

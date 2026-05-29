@@ -760,7 +760,7 @@ void DifferentiableOperator::AddIntegrator(
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
    // Check if any ouptut is a VectorQuadratureSpace
-   [[maybe_unused]] bool disable_assemble = false;
+   bool disable_assemble = false;
    for_constexpr([&](auto i)
    {
       if constexpr (is_identity_fop<
@@ -775,32 +775,35 @@ void DifferentiableOperator::AddIntegrator(
       integrator_qp_caches.emplace_back(std::make_unique<Vector>());
       Vector &qp_cache = *integrator_qp_caches.back();
 
+      // Setup the qp cache for the derivative
       derivative_setup_callbacks[i].push_back(
          backend_t::template MakeDerivativeSetup<i>(
             ctx, qfunc, inputs, outputs, qp_cache));
 
-      if constexpr (std::is_same_v<backend_t, LocalQFBackend>)
+      // Apply the derivative to the qp cache
+      derivative_apply_callbacks[i].push_back(
+         backend_t::template MakeDerivativeApply<i>(
+            ctx, qfunc, inputs, outputs, qp_cache));
+
+      // Apply the transpose of the derivative to the qp cache
+      daction_transpose_callbacks[i].push_back(
+         backend_t::template MakeDerivativeApplyTranspose<i>(
+            ctx, qfunc, inputs, outputs, qp_cache));
+
+      if (!disable_assemble)
       {
-         derivative_apply_callbacks[i].push_back(
-            backend_t::template MakeDerivativeApply<i>(
+         // Assemble the derivative into a SparseMatrix
+         assemble_derivative_sparsematrix_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAssemble<i>(
                ctx, qfunc, inputs, outputs, qp_cache));
 
-         daction_transpose_callbacks[i].push_back(
-            backend_t::template MakeDerivativeApplyTranspose<i>(
+         // Assemble the diagonal of the derivative into an L-vector
+         assemble_diagonal_callbacks[i].push_back(
+            backend_t::template MakeDerivativeAssembleDiagonal<i>(
                ctx, qfunc, inputs, outputs, qp_cache));
-
-         if (!disable_assemble)
-         {
-            assemble_derivative_sparsematrix_callbacks[i].push_back(
-               backend_t::template MakeDerivativeAssemble<i>(
-                  ctx, qfunc, inputs, outputs, qp_cache));
-
-            assemble_diagonal_callbacks[i].push_back(
-               backend_t::template MakeDerivativeAssembleDiagonal<i>(
-                  ctx, qfunc, inputs, outputs, qp_cache));
-         }
       }
 
+      // Apply the derivative
       derivative_action_callbacks[i].push_back(
          backend_t::template MakeDerivativeAction<i>(ctx, qfunc, inputs, outputs));
    }, derivative_ids);
