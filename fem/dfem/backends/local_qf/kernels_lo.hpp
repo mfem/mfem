@@ -15,7 +15,6 @@ namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
 #include "../util.hpp" // for as_tensor
-#include "assemble_detail.hpp"
 #include "util.hpp"
 
 namespace mfem::future
@@ -511,39 +510,6 @@ struct LocalQFLOBackend
             }
          }
       }
-   }
-
-   /// Tensor sum-factorized element Jacobian assembly (Shared M/B/G + qp registers).
-   template <
-      int T_Q1D,
-      typename input_fop_ts,
-      std::size_t num_inputs,
-      typename output_fop_t>
-   static MFEM_HOST_DEVICE void AssembleElementMatSumfact(
-      const DeviceTensor<5, real_t> &A,
-      const DeviceTensor<6, const real_t> &qpdc,
-      const int e,
-      const DeviceTensor<1, const real_t> &itod,
-      const input_fop_ts &inputs,
-      const output_fop_t &output,
-      const std::array<DofToQuadMap, num_inputs> &input_dtqmaps,
-      const DofToQuadMap &output_dtqmap,
-      const int q1d,
-      const int td1d)
-   {
-      static constexpr int MQ1_CAP = T_Q1D ? T_Q1D : MQ1;
-      MFEM_SHARED typename backend_t<MQ1_CAP>::Shared s;
-      namespace ad = mfem::future::LocalQFImpl::assemble_detail;
-      ad::assemble_element_mat_sumfact<DIM, MQ1_CAP>(
-         A, qpdc, e, itod, inputs, output, input_dtqmaps, output_dtqmap, q1d, td1d, s,
-         [](const int q1d_in, auto &&body)
-      {
-         ForeachQp(q1d_in, std::forward<decltype(body)>(body));
-      },
-         [](const int d1d_in, auto &&body)
-      {
-         ForeachDof(d1d_in, std::forward<decltype(body)>(body));
-      });
    }
 
    template<typename T, int MQ1>
