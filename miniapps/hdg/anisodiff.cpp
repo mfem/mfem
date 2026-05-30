@@ -98,9 +98,7 @@ constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 struct ProblemParams
 {
    Problem prob;
-   int nx, ny;
    real_t x0, y0, sx, sy;
-   int order;
    real_t k, ks, ka;
    real_t t_0;
    real_t a;
@@ -123,20 +121,19 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "";
+   int nx = 0;
+   int ny = 0;
    int ref_levels = -1;
    real_t dr = 0.;
+   int order = 1;
    bool dg = false;
    bool brt = false;
    int iproblem = Problem::SteadyDiffusion;
    ProblemParams pars;
-   pars.nx = 0;
-   pars.ny = 0;
    pars.x0 = 0.;
    pars.y0 = 0.;
    pars.sx = 1.;
    pars.sy = 1.;
-   pars.order = 1;
-   const int &order = pars.order;
    pars.k = 1.;
    pars.ks = 1.;
    pars.ka = 0.;
@@ -168,15 +165,15 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&dr, "-dr", "--delta-random",
                   "Relative random displacement of the mesh nodes.");
-   args.AddOption(&pars.nx, "-nx", "--ncells-x",
+   args.AddOption(&nx, "-nx", "--ncells-x",
                   "Number of cells in x.");
-   args.AddOption(&pars.ny, "-ny", "--ncells-y",
+   args.AddOption(&ny, "-ny", "--ncells-y",
                   "Number of cells in y.");
    args.AddOption(&pars.sx, "-sx", "--size-x",
                   "Size along x axis.");
    args.AddOption(&pars.sy, "-sy", "--size-y",
                   "Size along y axis.");
-   args.AddOption(&pars.order, "-o", "--order",
+   args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
@@ -296,9 +293,9 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   if (pars.ny <= 0)
+   if (ny <= 0)
    {
-      pars.ny = pars.nx;
+      ny = nx;
    }
 
    Mesh mesh;
@@ -315,7 +312,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = Mesh::MakeCartesian2D(pars.nx, pars.ny,
+      mesh = Mesh::MakeCartesian2D(nx, ny,
                                    Element::QUADRILATERAL, false,
                                    pars.sx, pars.sy);
    }
