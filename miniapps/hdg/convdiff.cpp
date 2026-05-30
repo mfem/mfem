@@ -82,12 +82,22 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
-TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecFunc GetCFun(Problem prob, real_t c);
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
-unique_ptr<FluxFunction> GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-unique_ptr<MixedFluxFunction> GetHeatFluxFun(Problem prob, real_t k, int dim);
+struct ProblemParams
+{
+   Problem prob;
+   real_t k;
+   real_t t_0;
+   real_t c;
+};
+
+TFunc GetTFun(const ProblemParams &params);
+VecTFunc GetQFun(const ProblemParams &params);
+VecFunc GetCFun(const ProblemParams &params);
+TFunc GetFFun(const ProblemParams &params);
+unique_ptr<FluxFunction> GetFluxFun(const ProblemParams &params,
+                                    VectorCoefficient &ccoeff);
+unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
+                                             int dim);
 
 int main(int argc, char *argv[])
 {
@@ -106,11 +116,12 @@ int main(int argc, char *argv[])
    bool brt = false;
    bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
+   ProblemParams pars;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
-   real_t k = 1.;
-   real_t c = 1.;
+   pars.k = 1.;
+   pars.c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
    bool reduction = false;
@@ -173,9 +184,9 @@ int main(int argc, char *argv[])
                   "Number of time steps.");
    args.AddOption(&ode, "-ode", "--ode-solver",
                   "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
-   args.AddOption(&k, "-k", "--kappa",
+   args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
-   args.AddOption(&c, "-c", "--velocity",
+   args.AddOption(&pars.c, "-c", "--velocity",
                   "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
@@ -235,7 +246,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Set the problem options
-   Problem problem = (Problem)iproblem;
+   pars.prob = (Problem)iproblem;
+   const Problem &problem = pars.prob;
    bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
    switch (problem)
    {
@@ -423,23 +435,23 @@ int main(int argc, char *argv[])
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
-   const real_t t_0 = 1.; //base temperature
+   pars.t_0 = 1.; //base temperature
 
-   ConstantCoefficient kcoeff(k); //conductivity
-   ConstantCoefficient ikcoeff(1./k); //inverse conductivity
+   ConstantCoefficient kcoeff(pars.k); //conductivity
+   ConstantCoefficient ikcoeff(1./pars.k); //inverse conductivity
 
-   auto cFun = GetCFun(problem, c);
+   auto cFun = GetCFun(pars);
    VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
    NormalizedVectorCoefficient nccoeff(ccoeff); //normalized velocity
 
-   auto tFun = GetTFun(problem, t_0, k, c);
+   auto tFun = GetTFun(pars);
    FunctionCoefficient tcoeff(tFun); //temperature
    SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
 
-   auto fFun = GetFFun(problem, t_0, k, c);
+   auto fFun = GetFFun(pars);
    FunctionCoefficient fcoeff(fFun); //temperature rhs
 
-   auto qFun = GetQFun(problem, t_0, k, c);
+   auto qFun = GetQFun(pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
    ConstantCoefficient one;
    VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
@@ -490,7 +502,7 @@ int main(int argc, char *argv[])
    {
       //nonlinear diffusion
       BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
-      HeatFluxFun = GetHeatFluxFun(problem, k, dim);
+      HeatFluxFun = GetHeatFluxFun(pars, dim);
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
@@ -684,7 +696,7 @@ int main(int argc, char *argv[])
    unique_ptr<NumericalFlux> FluxSolver;
    if (bnlconv && nonlinear_pot)
    {
-      FluxFun = GetFluxFun(problem, ccoeff);
+      FluxFun = GetFluxFun(pars, ccoeff);
       switch (hdg_scheme)
       {
          case 1: FluxSolver = make_unique<HDGFlux>(*FluxFun, HDGFlux::HDGScheme::HDG_1);
@@ -1222,8 +1234,13 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c)
+TFunc GetTFun(const ProblemParams &params)
 {
+   const Problem &prob = params.prob;
+   const real_t &k = params.k;
+   const real_t &t_0 = params.t_0;
+   const real_t &c = params.c;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1315,8 +1332,13 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c)
+VecTFunc GetQFun(const ProblemParams &params)
 {
+   const Problem &prob = params.prob;
+   const real_t &k = params.k;
+   const real_t &t_0 = params.t_0;
+   const real_t &c = params.c;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1442,8 +1464,11 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c)
    return VecTFunc();
 }
 
-VecFunc GetCFun(Problem prob, real_t c)
+VecFunc GetCFun(const ProblemParams &params)
 {
+   const Problem &prob = params.prob;
+   const real_t &c = params.c;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1510,8 +1535,13 @@ VecFunc GetCFun(Problem prob, real_t c)
    return VecFunc();
 }
 
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
+TFunc GetFFun(const ProblemParams &params)
 {
+   const Problem &prob = params.prob;
+   const real_t &k = params.k;
+   const real_t &t_0 = params.t_0;
+   const real_t &c = params.c;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1607,8 +1637,11 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-unique_ptr<FluxFunction> GetFluxFun(Problem prob, VectorCoefficient &ccoef)
+unique_ptr<FluxFunction> GetFluxFun(const ProblemParams &params,
+                                    VectorCoefficient &ccoef)
 {
+   const Problem &prob = params.prob;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1629,8 +1662,12 @@ unique_ptr<FluxFunction> GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return nullptr;
 }
 
-unique_ptr<MixedFluxFunction> GetHeatFluxFun(Problem prob, real_t k, int dim)
+unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
+                                             int dim)
 {
+   const Problem &prob = params.prob;
+   const real_t &k = params.k;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
