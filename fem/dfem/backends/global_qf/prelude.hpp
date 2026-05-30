@@ -105,7 +105,6 @@ struct GlobalQFBackend
       outputs_t outputs,
       Vector & /*unused*/)
    {
-      dbg();
       // The local forward apply now uses the register-based tensor-product
       // driver, which requires the q-function's compile-time tensor shapes.
       // The global (tensor_array) q-functions are not register-compatible, so
@@ -131,11 +130,6 @@ struct GlobalQFBackend
       const Vector &qp_cache)
    {
       dbg();
-      // The local transposed apply uses the register-based tensor-product
-      // driver, which needs the q-function's compile-time tensor shapes. The
-      // global (tensor_array) q-functions are not register-compatible, so the
-      // global backend uses its own shape-agnostic cache-contraction transpose,
-      // which is a faithful Jᵀ (correct for non-symmetric operators too).
       return GlobalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc_t{}, inputs, outputs, qp_cache);
