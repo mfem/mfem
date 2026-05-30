@@ -20,18 +20,18 @@
 namespace mfem::future::GlobalQFImpl
 {
 
-// Q-function-shape-agnostic cached transpose apply (Jᵀ·w)
+// Q-function-shape-agnostic cached forward apply (J·v)
 template<
    int derivative_id,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t>
-struct DerivativeApplyTranspose
+struct DerivativeApply
 {
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
-   DerivativeApplyTranspose(
+   DerivativeApply(
       IntegratorContext ctx,
       qfunc_t /*qfunc*/,
       inputs_t inputs,
@@ -56,25 +56,25 @@ struct DerivativeApplyTranspose
       gnqp = nqp * ne;
 
       // Precompute Q-space BlockVector layouts
-      dir_q_offsets.SetSize(n_outputs + 1);
+      dir_q_offsets.SetSize(n_inputs + 1);
       dir_q_offsets[0] = 0;
-      constexpr_for<0, n_outputs>([&](auto i)
+      constexpr_for<0, n_inputs>([&](auto i)
       {
          dir_q_offsets[i + 1] =
-            dir_q_offsets[i] + get<i>(this->outputs).size_on_qp * nqp * ne;
+            dir_q_offsets[i] + get<i>(this->inputs).size_on_qp * nqp * ne;
       });
       InitBlockVector(dir_q_local, dir_q_offsets);
 
-      result_q_offsets.SetSize(n_inputs + 1);
+      result_q_offsets.SetSize(n_outputs + 1);
       result_q_offsets[0] = 0;
-      constexpr_for<0, n_inputs>([&](auto i)
+      constexpr_for<0, n_outputs>([&](auto i)
       {
          result_q_offsets[i + 1] =
-            result_q_offsets[i] + get<i>(this->inputs).size_on_qp * nqp * ne;
+            result_q_offsets[i] + get<i>(this->outputs).size_on_qp * nqp * ne;
       });
       InitBlockVector(result_q_local, result_q_offsets);
 
-      // Cache layout metadata
+      // Cache layout metadata (must match DerivativeSetup)
       residual_size_on_qp = 0;
       trial_vdim = 0;
       total_trial_op_dim = 0;
@@ -103,18 +103,41 @@ struct DerivativeApplyTranspose
       if (ctx.attr.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
-                  "Global DerivativeApplyTranspose: direction vector is null");
+                  "Global DerivativeApply: direction vector is null");
 
-      // Re-zero the pre-allocated Q temporaries
+      // Re-zero pre-allocated Q temporaries
       dir_q_local = 0.0;
       result_q_local = 0.0;
       dir_q_local.SyncToBlocks();
       result_q_local.SyncToBlocks();
 
-      // Bring test cotangent to quadrature points
-      pull_output_cotangents_to_q(direction_l, dir_q_local);
+      // Restrict trial direction from the derivative field
+      size_t in_fd = SIZE_MAX;
+      constexpr_for<0, n_inputs>([&](auto i)
+      {
+         if (get<i>(inputs).GetFieldId() == derivative_id)
+         {
+            in_fd = input_to_infd[i.value];
+         }
+      });
+      MFEM_ASSERT(in_fd != SIZE_MAX,
+                  "DerivativeApply: derivative field not found among inputs");
 
-      // Contract qp_cache with test directions at quadrature points
+      const auto &fd = ctx.infds[in_fd];
+
+      Vector dir_e;
+      restriction<Entity::Element>(
+         fd, *direction_l, dir_e, ElementDofOrdering::LEXICOGRAPHIC);
+
+      // Forward the trial direction into active input Q block
+      constexpr_for<0, n_inputs>([&](auto s)
+      {
+         if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
+         input_bases[s.value].forward(dir_e, dir_q_local.GetBlock(s.value));
+      });
+      dir_q_local.SyncToBlocks();
+
+      // Contract qp_cache with trial direction at Q
       const real_t *cache_ptr = qp_cache.Read();
       const int res_sz = residual_size_on_qp;
 
@@ -130,54 +153,55 @@ struct DerivativeApplyTranspose
             return off;
          }();
 
-         const real_t *dir_o = dir_q_local.GetBlock(o.value).Read();
+         real_t *res_o = result_q_local.GetBlock(o.value).ReadWrite();
 
+         int m_offset = 0;
          constexpr_for<0, n_inputs>([&](auto s)
          {
             if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
 
-            real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
+            const int tv = get<s>(inputs).vdim;
+            const int to = get<s>(inputs).size_on_qp / tv;
+            const real_t *dir_s = dir_q_local.GetBlock(s.value).Read();
 
             for (int gq = 0; gq < gnqp; ++gq)
             {
-               for (int i = 0; i < tv_o; ++i)
+               for (int j = 0; j < tv; ++j)
                {
-                  for (int k = 0; k < to_o; ++k)
+                  for (int m = 0; m < to; ++m)
                   {
-                     const int out_comp = out_base + i * to_o + k;
-                     const int size_o = get<o>(outputs).size_on_qp;
-                     const real_t w = dir_o[(i * to_o + k) + size_o * gq];
+                     const real_t v = dir_s[(j * to + m) + (tv * to) * gq];
+                     const int m_global = m + m_offset;
 
-                     for (int j = 0; j < trial_vdim; ++j)
+                     for (int i = 0; i < tv_o; ++i)
                      {
-                        for (int m = 0; m < total_trial_op_dim; ++m)
+                        for (int k = 0; k < to_o; ++k)
                         {
+                           const int out_comp = out_base + i * to_o + k;
+
                            const int cache_idx =
                               out_comp * trial_vdim * total_trial_op_dim +
-                              j * total_trial_op_dim + m;
+                              j * total_trial_op_dim + m_global;
 
                            const real_t c = cache_ptr[cache_idx + res_sz * gq];
-                           const int size_s = get<s>(inputs).size_on_qp;
-                           res_s[(j * total_trial_op_dim + m) + size_s * gq] +=
-                              c * w;
+                           res_o[(i * to_o + k) + (tv_o * to_o) * gq] += c * v;
                         }
                      }
                   }
                }
             }
+            m_offset += to;
          });
       });
 
-      // Map result Q back to the trial (input) fields
       result_q_local.SyncToBlocks();
 
-      constexpr_for<0, n_inputs>([&](auto s)
+      // Map result Q back to output fields
+      constexpr_for<0, n_outputs>([&](auto o)
       {
-         if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
-
-         const size_t in_fd = input_to_infd[s.value];
-         input_bases[s.value].transpose(
-            result_q_local.GetBlock(s.value), *ye[in_fd]);
+         const size_t out_fd = output_to_outfd[o.value];
+         output_bases[o.value].transpose(result_q_local.GetBlock(o.value),
+                                         *ye[out_fd]);
       });
    }
 
@@ -195,52 +219,14 @@ private:
 
    int gnqp = 0;
 
-   // Pre-allocated Q-space temporaries
    Array<int> dir_q_offsets;
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
 
-   // Pre-allocated owning storage for output cotangent temporaries
-   mutable std::array<Vector, n_outputs> dir_out_l_owned;
-   mutable std::array<Vector, n_outputs> dir_out_e_owned;
-
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
    int total_trial_op_dim = 0;
-
-   /// Pull output cotangents from L-space into the pre-allocated Q BlockVector
-   void pull_output_cotangents_to_q(const Vector *direction_l,
-                                    BlockVector &dir_q) const
-   {
-      std::vector<Vector *> dir_out_l(n_outputs);
-      std::vector<Vector *> dir_out_e(n_outputs);
-
-      int l_offset = 0;
-      constexpr_for<0, n_outputs>([&](auto i)
-      {
-         const size_t outfd = output_to_outfd[i];
-         const auto &fd = ctx.outfds[outfd];
-         const int l_size = GetVSize(fd);
-
-         dir_out_l_owned[i] = Vector(
-                                 const_cast<real_t *>(direction_l->GetData()) + l_offset, l_size);
-         dir_out_e_owned[i].SetSize(0);
-         dir_out_e_owned[i].UseDevice(true);
-
-         dir_out_l[i] = &dir_out_l_owned[i];
-         dir_out_e[i] = &dir_out_e_owned[i];
-         l_offset += l_size;
-      });
-
-      restriction<Entity::Element>(ctx.outfds, dir_out_l, dir_out_e);
-
-      constexpr_for<0, n_outputs>([&](auto i)
-      {
-         output_bases[i.value].forward(*dir_out_e[i], dir_q.GetBlock(i.value));
-      });
-      dir_q.SyncToBlocks();
-   }
 };
 
 } // namespace mfem::future::GlobalQFImpl

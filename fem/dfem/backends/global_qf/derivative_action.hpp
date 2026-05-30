@@ -24,17 +24,14 @@ template<
    typename outputs_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
-struct DerivativeActionEnzyme
+struct DerivativeAction
 {
-   DerivativeActionEnzyme(
+   DerivativeAction(
       IntegratorContext ctx,
       qfunc_t qfunc,
       inputs_t inputs,
-      outputs_t outputs) :
-      ctx(ctx),
-      qfunc(std::move(qfunc)),
-      inputs(inputs),
-      outputs(outputs)
+      outputs_t outputs):
+      ctx(ctx), qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
@@ -43,7 +40,8 @@ struct DerivativeActionEnzyme
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases(
+         outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
@@ -72,7 +70,6 @@ struct DerivativeActionEnzyme
       InitBlockVector(yq, yq_offsets);
 
       // Shadow blocks use the same offsets as xq so tensor_array views
-      // in Enzyme match call_qfunc layout (inactive inputs stay zero)
       shadow_xq_offsets.SetSize(xq_offsets.Size());
       shadow_xq_offsets = xq_offsets;
       InitBlockVector(shadow_xq, shadow_xq_offsets);
@@ -97,14 +94,16 @@ struct DerivativeActionEnzyme
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
+
       // E -> Q
       interpolate(input_to_infd, input_bases, xe, xq);
 
       constexpr auto input_active =
-         detail::make_activity_map<derivative_id>(inputs_t {});
+         detail::make_activity_map<derivative_id>(inputs_t{});
 
       MFEM_ASSERT(de != nullptr, "derivative direction vector is null");
-      restriction<Entity::Element>(direction_fd, *de, direction_e, dof_ordering);
+      restriction<Entity::Element>(
+         direction_fd, *de, direction_e, dof_ordering);
 
       shadow_xq = 0.0;
       constexpr_for<0, ninputs>([&](auto i)
@@ -113,15 +112,21 @@ struct DerivativeActionEnzyme
          input_bases[i].forward(direction_e, shadow_xq.GetBlock(i));
       });
 
-      static_assert(
-         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
-         "qfunc signature not supported by default backend Action");
+      static_assert(detail::supports_tensor_array_qfunc<qfunc_t,
+                    inputs_t,
+                    outputs_t>::value,
+                    "qfunc signature not supported by default backend Action");
 
       // Q -> Q
       yq = 0.0;
       detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-         qfunc, xq, shadow_xq, yq, gnqp,
-         input_qlayouts, output_qlayouts,
+         qfunc,
+         xq,
+         shadow_xq,
+         yq,
+         gnqp,
+         input_qlayouts,
+         output_qlayouts,
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
@@ -140,7 +145,7 @@ struct DerivativeActionEnzyme
    std::array<FieldBasis, ninputs> input_bases;
    std::array<FieldBasis, noutputs> output_bases;
 
-   std::array<std::vector<int>, ninputs>  input_qlayouts;
+   std::array<std::vector<int>, ninputs> input_qlayouts;
    std::array<std::vector<int>, noutputs> output_qlayouts;
 
    int gnqp = 0;

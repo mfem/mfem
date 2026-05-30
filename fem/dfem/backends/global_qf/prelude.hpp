@@ -12,6 +12,7 @@
 
 #include "action.hpp"
 #include "derivative_action.hpp"
+#include "derivative_apply.hpp"
 #include "derivative_setup.hpp"
 
 #include "derivative_apply_transpose.hpp"
@@ -63,7 +64,7 @@ struct GlobalQFBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return GlobalQFImpl::DerivativeActionEnzyme<
+      return GlobalQFImpl::DerivativeAction<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc, inputs, outputs);
    }
@@ -100,21 +101,15 @@ struct GlobalQFBackend
       typename outputs_t>
    auto static MakeDerivativeApply(
       const IntegratorContext &ctx,
-      qfunc_t qfunc,
+      qfunc_t /*unused*/,
       inputs_t inputs,
       outputs_t outputs,
-      Vector & /*unused*/)
+      const Vector &qp_cache)
    {
-      // The local forward apply now uses the register-based tensor-product
-      // driver, which requires the q-function's compile-time tensor shapes.
-      // The global (tensor_array) q-functions are not register-compatible, so
-      // the global backend recomputes the forward derivative with its Enzyme
-      // action instead of the cached local apply. The cached transpose /
-      // assemble / assemble-diagonal paths remain q-function agnostic and are
-      // still reused below.
-      return GlobalQFImpl::DerivativeActionEnzyme<
+      dbg();
+      return GlobalQFImpl::DerivativeApply<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs);
+                ctx, qfunc_t{}, inputs, outputs, qp_cache);
    }
 
    template<

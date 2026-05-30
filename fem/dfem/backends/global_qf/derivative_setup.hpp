@@ -134,8 +134,7 @@ struct DerivativeSetup
             {
                shadow_xq = 0.0;
 
-               // Set component (j + input_vdim_s * m) to 1 at all QPs.
-               // shadow block layout: [input_size_s, gnqp] column-major (byVDIM).
+               // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s).HostReadWrite();
                for (int gq = 0; gq < gnqp_local; gq++)
@@ -150,9 +149,7 @@ struct DerivativeSetup
                   std::make_index_sequence<noutputs> {});
                yq.SyncToBlocks();
 
-               // Write yq into the cache column (j, m + m_offset).
-               // Both yq block and cache use [size, gnqp] column-major (byVDIM),
-               // so gq = e * num_qp + q is the shared stride index.
+               // Write yq into the cache column
                const int m_global = m + m_offset;
                const int j_cur    = j;
                int out_offset = 0;
@@ -172,11 +169,9 @@ struct DerivativeSetup
                         for (int k = 0; k < test_op_dim_o; k++)
                         {
                            const int c_out = i * test_op_dim_o + k;
-                           // Row layout for cached Jacobian (LocalQF apply / assemble).
+                           const int out_comp = out_offset_o + c_out;
                            const int cache_idx =
-                              (out_offset_o + i * test_op_dim_o) * trial_vdim_local *
-                              total_trial_op_dim_local +
-                              k * trial_vdim_local * total_trial_op_dim_local +
+                              out_comp * trial_vdim_local * total_trial_op_dim_local +
                               j_cur * total_trial_op_dim_local +
                               m_global;
                            cache_ptr[cache_idx + residual_size_local * gq] =
