@@ -30,7 +30,38 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-template <int DIM, typename QFBackend = LocalQFBackend>
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM> struct global_mf_mass_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      tensor_array<const dscalar_t> &u,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t> &w,
+      tensor_array<dscalar_t> &v) const
+   {
+      for (size_t q = 0; q < u.size(); q++)
+      {
+         const dscalar_t uq = u(q);
+         v(q) = uq * w(q) * det(J(q));
+      }
+   }
+};
+
+template <int DIM> struct local_mf_mass_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(const dscalar_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w,
+                   dscalar_t &v) const
+   {
+      v = u * w * det(J);
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM>
 void mass_action(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -69,6 +100,8 @@ void mass_action(const char *filename, int p)
    ConstantCoefficient one(1.0);
 
    ParBilinearForm blf(&pfes);
+   // Add two mass integrators as we use both local and global QF backends
+   blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
@@ -81,25 +114,25 @@ void mass_action(const char *filename, int p)
    };
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   const auto mf_mass_qf =
-      [] MFEM_HOST_DEVICE(const dscalar_t &u,
-                          const tensor<real_t, DIM, DIM> &J,
-                          const real_t &w,
-                          dscalar_t &v)
-   {
-      v = u * w * det(J);
-   };
-
    SECTION("Action")
    {
       blf.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
-      dop.AddDomainIntegrator<QFBackend>(
-         mf_mass_qf,
-         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ Value<U>{} },
+
+      local_mf_mass_qf<DIM> qf_lfn;
+      dop.AddDomainIntegrator<LocalQFBackend>(
+         qf_lfn,
+         Inputs<Value<U>, Gradient<Coords>, Weight> {},
+         Outputs<Value<U>> {},
+         *ir, all_domain_attr);
+
+      global_mf_mass_qf<DIM> qf_gfn;
+      dop.AddDomainIntegrator<GlobalQFBackend>(
+         qf_gfn,
+         Inputs<Value<U>, Gradient<Coords>, Weight> {},
+         Outputs<Value<U>> {},
          *ir, all_domain_attr);
 
       Vector N;
@@ -121,12 +154,20 @@ void mass_action(const char *filename, int p)
    SECTION("Assemble Diagonal")
    {
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      dop.AddDomainIntegrator<QFBackend>(
-         mf_mass_qf,
-         tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ Value<U>{} },
-         *ir, all_domain_attr, derivatives);
+
+      local_mf_mass_qf<DIM> qf_lfn;
+      dop.AddDomainIntegrator<LocalQFBackend>(
+         qf_lfn,
+         Inputs<Value<U>, Gradient<Coords>, Weight> {},
+         Outputs<Value<U>> {},
+         *ir, all_domain_attr, Derivatives<U> {});
+
+      global_mf_mass_qf<DIM> qf_gfn;
+      dop.AddDomainIntegrator<GlobalQFBackend>(
+         qf_gfn,
+         Inputs<Value<U>, Gradient<Coords>, Weight> {},
+         Outputs<Value<U>> {},
+         *ir, all_domain_attr, Derivatives<U> {});
 
       Vector N;
       nodes->GetTrueDofs(N);
@@ -222,7 +263,7 @@ void mass_action(const char *filename, int p)
 #endif // TODO: Boundary tests 
 }
 
-template <int DIM, typename QFBackend = LocalQFBackend>
+template <int DIM>
 void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -261,21 +302,13 @@ void mass_mat_mixed(const char* filename, int p)
    DifferentiableOperator dop(
    /* inputs  */ {{ U, &fes1 }, { Coords, nodes->ParFESpace() }},
    /* outputs */ {{ P, &fes0 }}, pmesh);
-   const auto mf_mass_qf = [] MFEM_HOST_DEVICE(
-                              const dscalar_t& u,
-                              const tensor<real_t, DIM, DIM>& J,
-                              const real_t& w,
-                              dscalar_t& p)
-   {
-      p = u * w * det(J);
-   };
-   const auto derivatives = std::integer_sequence<size_t, U> {};
-   dop.AddDomainIntegrator<QFBackend>(
-      mf_mass_qf,
-      tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
-      tuple{Value<P>{}},
-      *ir, all_domain_attr, derivatives);
-
+   local_mf_mass_qf<DIM> qf_lfn;
+   dop.AddDomainIntegrator<LocalQFBackend>(
+      qf_lfn,
+      Inputs<Value<U>, Gradient<Coords>, Weight> {},
+      Outputs<Value<P>> {},
+      *ir, all_domain_attr,
+      Derivatives<U> {});
 
    ParGridFunction ugf(&fes1);
    ugf = 0.0;
@@ -326,10 +359,9 @@ void mass_mat_mixed(const char* filename, int p)
       delete A;
    }
 
+#if 0 // TODO HypreParMatrix
    // hypre parallel mat
-   // Warning: "derivative can't be assembled into a HypreParMatrix"
    {
-#if defined(MFEM_USE_ENZYME) && 0 // TODO
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
       HypreParMatrix *Adfem;
@@ -337,8 +369,8 @@ void mass_mat_mixed(const char* filename, int p)
       TestSameMatrices(*Adfem, *Amfem);
       delete Amfem;
       delete Adfem;
-#endif // MFEM_USE_ENZYME
    }
+#endif // TODO
 }
 
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS]")
