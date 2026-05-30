@@ -16,7 +16,6 @@
 
 #include "derivative_apply_transpose.hpp"
 
-#include "../local_qf/derivative_apply.hpp"
 #include "../local_qf/derivative_assemble.hpp"
 #include "../local_qf/derivative_assemble_diagonal.hpp"
 
@@ -25,6 +24,13 @@ namespace mfem::future
 
 struct GlobalQFBackend
 {
+   /**
+    * @brief Make an action for a global Q-function.
+    *
+    * @param ctx The integrator context.
+    * @param args The arguments to the action.
+    * @return The action.
+    */
    template<
       typename qfunc_t,
       typename inputs_t,
@@ -38,6 +44,38 @@ struct GlobalQFBackend
       return GlobalQFImpl::Action(ctx, qfunc, inputs, outputs);
    }
 
+   /**
+    * @brief Make a derivative action for a global Q-function.
+    *
+    * @tparam derivative_id The id of the derivative.
+    * @param ctx The integrator context.
+    * @param args The arguments to the derivative action.
+    * @return The derivative action.
+    */
+   template<
+      int derivative_id,
+      typename qfunc_t,
+      typename inputs_t,
+      typename outputs_t>
+   auto static MakeDerivativeAction(
+      const IntegratorContext &ctx,
+      qfunc_t qfunc,
+      inputs_t inputs,
+      outputs_t outputs)
+   {
+      return GlobalQFImpl::DerivativeActionEnzyme<
+             derivative_id, qfunc_t, inputs_t, outputs_t>(
+                ctx, qfunc, inputs, outputs);
+   }
+
+   /**
+    * @brief Make a derivative setup for a global Q-function.
+    *
+    * @tparam derivative_id The id of the derivative.
+    * @param ctx The integrator context.
+    * @param args The arguments to the derivative setup.
+    * @return The derivative setup.
+    */
    template<
       int derivative_id,
       typename qfunc_t,
@@ -60,28 +98,12 @@ struct GlobalQFBackend
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
-   auto static MakeDerivativeAction(
-      const IntegratorContext &ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs)
-   {
-      return GlobalQFImpl::DerivativeActionEnzyme<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs);
-   }
-
-   template<
-      int derivative_id,
-      typename qfunc_t,
-      typename inputs_t,
-      typename outputs_t>
    auto static MakeDerivativeApply(
       const IntegratorContext &ctx,
       qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      Vector & /*qp_cache*/)
+      Vector & /*unused*/)
    {
       dbg();
       // The local forward apply now uses the register-based tensor-product
@@ -103,7 +125,7 @@ struct GlobalQFBackend
       typename outputs_t>
    auto static MakeDerivativeApplyTranspose(
       const IntegratorContext &ctx,
-      qfunc_t qfunc,
+      qfunc_t /*unused*/,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache)
@@ -116,7 +138,7 @@ struct GlobalQFBackend
       // which is a faithful Jᵀ (correct for non-symmetric operators too).
       return GlobalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc_t{}, inputs, outputs, qp_cache);
    }
 
    template<
@@ -126,7 +148,7 @@ struct GlobalQFBackend
       typename outputs_t>
    auto static MakeDerivativeAssemble(
       const IntegratorContext &ctx,
-      qfunc_t qfunc,
+      qfunc_t /*unused*/,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache)
@@ -134,7 +156,7 @@ struct GlobalQFBackend
       dbg();
       return LocalQFImpl::DerivativeAssemble<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc_t{}, inputs, outputs, qp_cache);
    }
 
    template<
@@ -144,7 +166,7 @@ struct GlobalQFBackend
       typename outputs_t>
    auto static MakeDerivativeAssembleDiagonal(
       const IntegratorContext &ctx,
-      qfunc_t qfunc,
+      qfunc_t /*unused*/,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache)
@@ -152,7 +174,7 @@ struct GlobalQFBackend
       dbg();
       return LocalQFImpl::DerivativeAssembleDiagonal<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc_t{}, inputs, outputs, qp_cache);
    }
 };
 
