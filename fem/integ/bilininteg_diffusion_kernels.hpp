@@ -201,7 +201,7 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
       MFEM_SHARED real_t BG[2][MQ1*MD1];
       real_t (*B)[MD1] = (real_t (*)[MD1]) (BG+0);
       real_t (*G)[MD1] = (real_t (*)[MD1]) (BG+1);
-      MFEM_SHARED real_t QD[3][NBZ][MD1][MQ1];
+      MFEM_SHARED real_t QD[3][NBZ][MQ1][MD1];
       real_t (*QD0)[MD1] = (real_t (*)[MD1])(QD[0] + tidz);
       real_t (*QD1)[MD1] = (real_t (*)[MD1])(QD[1] + tidz);
       real_t (*QD2)[MD1] = (real_t (*)[MD1])(QD[2] + tidz);
@@ -769,8 +769,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                u += Gt[dx][qx] * QQ0[qy][qx];
                v += Bt[dx][qx] * QQ1[qy][qx];
             }
-            DQ0[qy][dx] = u;
-            DQ1[qy][dx] = v;
+            DQ0[dx][qy] = u;
+            DQ1[dx][qy] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -782,8 +782,8 @@ inline void SmemPADiffusionApply2D(const int NE,
             real_t v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               v += DQ1[qy][dx] * Gt[dy][qy];
+               u += DQ0[dx][qy] * Bt[dy][qy];
+               v += DQ1[dx][qy] * Gt[dy][qy];
             }
             Y(dx,dy,e) += (u + v);
          }
@@ -1004,13 +1004,16 @@ inline void SmemPADiffusionApply3D(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_VERIFY(D1D <= Q1D, "THREAD_DIRECT requires D1D <= Q1D");
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+
+   mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE,
+                                      Q1D, Q1D, Q1D,
+                                      [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

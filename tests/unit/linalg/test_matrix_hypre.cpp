@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "unit_tests.hpp"
 
 namespace mfem

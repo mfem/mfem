@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
    mesh.NURBSext->GetPatches(patches);
 
    mesh.NURBSext->PhysicalSpacing(*mesh.GetNodes());
-   mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes());
+   mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes(), 2);
 
    mesh.NURBSext->ConvertToPatches(*mesh.GetNodes());
    mesh.NURBSext->GetPatches(patches);

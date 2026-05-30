@@ -11,7 +11,6 @@
 
 #include "mfem.hpp"
 #include "discrete_divergence.hpp"
-#include "../../general/forall.hpp"
 
 namespace mfem
 {

@@ -150,15 +150,7 @@ protected:
                     int elem, int start, int end, const int fverts[][N]);
 
    void GetGhostFaceTransformation(
-      FaceElementTransformations &FElTr, Element::Type face_type,
-      Geometry::Type face_geom) const;
-   void GetGhostFaceTransformation(
-      FaceElementTransformations *FElTr, Element::Type face_type,
-      Geometry::Type face_geom) const
-   {
-      MFEM_ASSERT(FElTr, "Missing FaceElementTransformations object!");
-      GetGhostFaceTransformation(*FElTr, face_type, face_geom);
-   }
+      int FaceNo, FaceElementTransformations &FElTr) const;
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -790,7 +782,7 @@ public:
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr=false) override;
+                 bool bdr_elements=false) override;
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,
