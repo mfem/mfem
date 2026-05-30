@@ -1075,7 +1075,7 @@ int main(int argc, char *argv[])
       if (V_space_dg)
       {
          VectorGridFunctionCoefficient coeff(&q_h);
-         q_vh.SetSpace(static_cast<ParFiniteElementSpace*>(V_space_dg.get()));
+         q_vh.SetSpace(V_space_dg.get());
          q_vh.ProjectCoefficient(coeff);
       }
       else
@@ -1087,10 +1087,10 @@ int main(int argc, char *argv[])
 
       static ParGridFunction q_a, qt_a, t_a, c_gf;
 
-      q_a.SetSpace(V_space.get());
+      q_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
       q_a.ProjectCoefficient(qcoeff);
 
-      qt_a.SetSpace(V_space.get());
+      qt_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
       qt_a.ProjectCoefficient(qtcoeff);
 
       t_a.SetSpace(W_space.get());
@@ -1098,7 +1098,7 @@ int main(int argc, char *argv[])
 
       if (bconv)
       {
-         c_gf.SetSpace(V_space.get());
+         c_gf.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
          c_gf.ProjectCoefficient(ccoeff);
       }
 

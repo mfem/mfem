@@ -927,7 +927,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      hform = make_unique<ParLinearForm>();
+      hform = make_unique<LinearForm>();
       hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
@@ -1051,10 +1051,10 @@ int main(int argc, char *argv[])
 
       static GridFunction q_a, qt_a, t_a, c_gf;
 
-      q_a.SetSpace((V_space_dg.get())?(V_space_dg.get()):(V_space.get()));
+      q_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
       q_a.ProjectCoefficient(qcoeff);
 
-      qt_a.SetSpace((V_space_dg.get())?(V_space_dg.get()):(V_space.get()));
+      qt_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
       qt_a.ProjectCoefficient(qtcoeff);
 
       t_a.SetSpace(W_space.get());
