@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
+   bool trace_ess_bc = false;
    bool nonlinear = false;
    bool nonlinear_diff = false;
    int solver_type = (int)DarcyOperator::SolverType::LBFGS;
@@ -209,6 +210,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
+   args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
+                  "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
    args.AddOption(&nonlinear_diff, "-nld", "--nonlinear-diffusion", "-no-nld",
@@ -274,6 +277,18 @@ int main(int argc, char *argv[])
          return 1;
    }
 
+   if (trace_ess_bc && !dg && !brt)
+   {
+      cerr << "Essential trace BC does not work with continuous elements" << endl;
+      return 1;
+   }
+
+   if (trace_ess_bc && nonlinear)
+   {
+      cerr << "Essential trace BC is not implemented for non-linear forms" << endl;
+      return 1;
+   }
+
    if (bnldiff && reduction)
    {
       cerr << "Reduction is not possible with non-linear diffusion" << endl;
@@ -312,16 +327,17 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = Mesh::MakeCartesian2D(nx, ny,
-                                   Element::QUADRILATERAL, false,
+      mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
                                    pars.sx, pars.sy);
    }
 
    int dim = mesh.Dimension();
 
    // Mark boundary conditions
-   Array<int> bdr_is_dirichlet(mesh.bdr_attributes.Max());
-   Array<int> bdr_is_neumann(mesh.bdr_attributes.Max());
+   const int bdr_attrs = mesh.bdr_attributes.Size() > 0 ?
+                         mesh.bdr_attributes.Max() : 1;
+   Array<int> bdr_is_dirichlet(bdr_attrs);
+   Array<int> bdr_is_neumann(bdr_attrs);
    bdr_is_dirichlet = 0;
    bdr_is_neumann = 0;
 
@@ -389,14 +405,12 @@ int main(int argc, char *argv[])
    {
       V_coll = make_unique<RT_FECollection>(order, dim);
    }
-   auto W_coll = make_unique<L2_FECollection>(order, dim,
-                                              BasisType::GaussLobatto);
+   auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
    auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
                                                   (dg)?(dim):(1));
-   auto V_space_dg = V_coll_dg ? make_unique<FiniteElementSpace>(
-                        &mesh, V_coll_dg.get(), dim)
-                     : nullptr;
+   auto V_space_dg = (V_coll_dg)?(make_unique<FiniteElementSpace>(
+                                     &mesh, V_coll_dg.get(), dim)):(nullptr);
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
@@ -405,9 +419,6 @@ int main(int argc, char *argv[])
    pars.t_0 = 1.; //base temperature
 
    ConstantCoefficient acoeff(pars.a); //heat capacity
-
-   constexpr unsigned int seed = 0;
-   srand(seed);// init random number generator
 
    auto kFun = GetKFun(pars);
    MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
@@ -422,6 +433,7 @@ int main(int argc, char *argv[])
 
    auto qFun = GetQFun(pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
+   ConstantCoefficient one;
 
    // 7. Assemble the finite element matrices for the Darcy operator
    //
@@ -471,10 +483,18 @@ int main(int argc, char *argv[])
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
+         Mnl->AddInteriorFaceIntegrator(new MixedConductionNLFIntegrator(
+                                           *HeatFluxFun, td));
+         Mnl->AddBdrFaceIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun, td),
+                                   bdr_is_neumann);
       }
       else
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
+         if (brt)
+         {
+            MFEM_ABORT("Not implemented");
+         }
       }
    }
 
@@ -494,6 +514,11 @@ int main(int argc, char *argv[])
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                      bdr_is_neumann);
+            if (trace_ess_bc)
+            {
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                        bdr_is_dirichlet);
+            }
          }
          else
          {
@@ -522,7 +547,12 @@ int main(int argc, char *argv[])
       B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                       new DGNormalTraceIntegrator(-1.)));
       B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                         -1.)), bdr_is_neumann);
+                                                         -2.)), bdr_is_neumann);
+      if (hybridization && trace_ess_bc)
+      {
+         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                            -2.)), bdr_is_dirichlet);
+      }
    }
 
    //inertial term
@@ -552,7 +582,6 @@ int main(int argc, char *argv[])
    unique_ptr<FiniteElementCollection> trace_coll;
    unique_ptr<FiniteElementSpace> trace_space;
 
-
    if (hybridization)
    {
       chrono.Clear();
@@ -570,7 +599,11 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-
+      // set essential BC
+      if (trace_ess_bc)
+      {
+         darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+      }
       chrono.Stop();
       cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
    }
@@ -582,6 +615,10 @@ int main(int argc, char *argv[])
       if (dg || brt)
       {
          darcy->EnableFluxReduction();
+      }
+      else if (pars.a > 0.)
+      {
+         darcy->EnablePotentialReduction(ess_flux_tdofs_list);
       }
       else
       {
@@ -646,31 +683,44 @@ int main(int argc, char *argv[])
                                       bdr_is_neumann);   //essential Neumann BC
    }
 
-   unique_ptr<LinearForm> gform(new LinearForm);
-   gform->Update(V_space.get(), rhs.GetBlock(0), 0);
-   if (dg)
+   if (hybridization && trace_ess_bc)
    {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_is_dirichlet);
-   }
-   else if (brt)
-   {
-      gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_is_dirichlet);
-   }
-   else
-   {
-      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                   bdr_is_dirichlet);
+      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
    }
 
+   // flux rhs
+   unique_ptr<LinearForm> gform(new LinearForm);
+   gform->Update(V_space.get(), rhs.GetBlock(0), 0);
+
+   // Dirichlet
+   if (!hybridization || !trace_ess_bc)
+   {
+      if (dg)
+      {
+         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
+                                     bdr_is_dirichlet);
+      }
+      else if (brt)
+      {
+         gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                     bdr_is_dirichlet);
+      }
+      else
+      {
+         gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                      bdr_is_dirichlet);
+      }
+   }
+
+   // potential rhs
    unique_ptr<LinearForm> fform(new LinearForm);
    fform->Update(W_space.get(), rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+
+   //Neumann
    if (!hybridization)
    {
-      static ConstantCoefficient one;
-      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +1., 0.),
+      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +2., 0.),
                                   bdr_is_neumann);
    }
 
@@ -910,7 +960,7 @@ int main(int argc, char *argv[])
                //tr_h.Update();
             }
 
-            block_offsets = move(DarcyOperator::ConstructOffsets(*darcy));
+            block_offsets = DarcyOperator::ConstructOffsets(*darcy);
             x.Update(block_offsets, mt);
             rhs.Update(block_offsets, mt);
 
@@ -935,12 +985,22 @@ int main(int argc, char *argv[])
                                                bdr_is_neumann);   //essential Neumann BC
             }
 
+            if (hybridization && trace_ess_bc)
+            {
+               tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
+            }
+
             darcy->Update();
             if (hybridization)
             {
                darcy->EnableHybridization(trace_space.get(),
                                           new NormalTraceJumpIntegrator(),
                                           ess_flux_tdofs_list);
+               // set essential BC
+               if (trace_ess_bc)
+               {
+                  darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+               }
             }
 
             op.Update();
