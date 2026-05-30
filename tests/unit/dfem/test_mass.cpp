@@ -33,18 +33,16 @@ using dscalar_t = dual<real_t, real_t>;
 // ────────────────────────────────────────────────────────────────────────────
 template <int DIM> struct global_mf_mass_qf
 {
-   inline MFEM_HOST_DEVICE
-   void operator()(
-      tensor_array<const dscalar_t> &u,
-      tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t> &w,
-      tensor_array<dscalar_t> &v) const
+   void operator()(tensor_array<const dscalar_t> &u,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dscalar_t> &v) const
    {
-      for (size_t q = 0; q < u.size(); q++)
+      mfem::forall(u.size(), [&] MFEM_HOST_DEVICE (int q)
       {
          const dscalar_t uq = u(q);
          v(q) = uq * w(q) * det(J(q));
-      }
+      });
    }
 };
 

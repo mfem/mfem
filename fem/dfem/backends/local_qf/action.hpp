@@ -103,26 +103,26 @@ public:
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
 #ifndef MFEM_DEBUG
-      // // 2D kernels
-      // ActionLO::template Specialization<2, 2>::Add();
-      // ActionLO::template Specialization<2, 3>::Add();
-      // ActionLO::template Specialization<2, 4>::Add();
-      // ActionLO::template Specialization<2, 5>::Add();
-      // ActionLO::template Specialization<2, 6>::Add();
+      // 2D kernels
+      ActionLO::template Specialization<2, 2>::Add();
+      ActionLO::template Specialization<2, 3>::Add();
+      ActionLO::template Specialization<2, 4>::Add();
+      ActionLO::template Specialization<2, 5>::Add();
+      ActionLO::template Specialization<2, 6>::Add();
 
-      // // 3D kernels
-      // ActionLO::template Specialization<3, 2>::Add();
-      // ActionLO::template Specialization<3, 3>::Add();
-      // ActionLO::template Specialization<3, 4>::Add();
-      // ActionLO::template Specialization<3, 5>::Add();
-      // ActionLO::template Specialization<3, 6>::Add();
+      // 3D kernels
+      ActionLO::template Specialization<3, 2>::Add();
+      ActionLO::template Specialization<3, 3>::Add();
+      ActionLO::template Specialization<3, 4>::Add();
+      ActionLO::template Specialization<3, 5>::Add();
+      ActionLO::template Specialization<3, 6>::Add();
 
-      // // 3D HO kernels
-      // // ActionHO::template Specialization<3, 10>::Add();
-      // // ActionHO::template Specialization<3, 12>::Add();
-      // // ActionHO::template Specialization<3, 14>::Add();
-      // // ActionHO::template Specialization<3, 16>::Add();
-      // // ActionHO::template Specialization<3, 18>::Add();
+      // 3D HO kernels
+      // ActionHO::template Specialization<3, 10>::Add();
+      // ActionHO::template Specialization<3, 12>::Add();
+      // ActionHO::template Specialization<3, 14>::Add();
+      // ActionHO::template Specialization<3, 16>::Add();
+      // ActionHO::template Specialization<3, 18>::Add();
 #endif
    }
 

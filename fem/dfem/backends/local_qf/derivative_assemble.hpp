@@ -221,7 +221,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             MFEM_SYNC_THREAD;
             contract_value_qp_to_dof2d<MQ1>(
                d1d, q1d, B, f_qp, contract_smem2d<MQ1>(s),
-               [=] MFEM_HOST_DEVICE (int dx, int dy, real_t acc)
+               [&] (int dx, int dy, real_t acc)
             {
                yd(dx, dy, vd) += acc;
             });
@@ -244,7 +244,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             ker::s_regs3d_t<MQ1> Y {};
             ker::Eval3d<MQ1, true>(d1d, q1d, contract_smem2d<MQ1>(s), s.B, f_qp, Y);
             MFEM_SYNC_THREAD;
-            foreach_dof(d1d, [=] MFEM_HOST_DEVICE (int dx, int dy, int dz)
+            foreach_dof(d1d, [&] (int dx, int dy, int dz)
             {
                yd(dx, dy, dz, vd) += Y[dz][dy][dx];
             });
@@ -315,7 +315,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             ker::GradTranspose3d<1, DIM, MQ1>(
                d1d, q1d, contract_smem2d<MQ1>(s), s.B, s.G, f_op, Y);
             MFEM_SYNC_THREAD;
-            foreach_dof(d1d, [=] MFEM_HOST_DEVICE (int dx, int dy, int dz)
+            foreach_dof(d1d, [&] (int dx, int dy, int dz)
             {
                real_t acc = 0.0;
                for (int d = 0; d < DIM; d++) { acc += Y[0][d][dz][dy][dx]; }
@@ -341,7 +341,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
          for (int sq = sq_begin; sq < sq_end; sq++)
          {
-            foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
+            foreach_qp(q1d, [&] (int qx, int qy, int qz)
             {
                MFEM_CONTRACT_VAR(qz);
                yqp(sq, qx, qy) = fqp(0, qx, qy);
@@ -355,7 +355,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);
          for (int sq = sq_begin; sq < sq_end; sq++)
          {
-            foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
+            foreach_qp(q1d, [&] (int qx, int qy, int qz)
             {
                yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz);
             });
@@ -792,17 +792,17 @@ public:
       Ae_mem = 0.0;
 
 #ifndef MFEM_DEBUG
-      // DerivativeAssembleLO::template Specialization<2, 2>::Add();
-      // DerivativeAssembleLO::template Specialization<2, 3>::Add();
-      // DerivativeAssembleLO::template Specialization<2, 4>::Add();
-      // DerivativeAssembleLO::template Specialization<2, 5>::Add();
-      // DerivativeAssembleLO::template Specialization<2, 6>::Add();
+      DerivativeAssembleLO::template Specialization<2, 2>::Add();
+      DerivativeAssembleLO::template Specialization<2, 3>::Add();
+      DerivativeAssembleLO::template Specialization<2, 4>::Add();
+      DerivativeAssembleLO::template Specialization<2, 5>::Add();
+      DerivativeAssembleLO::template Specialization<2, 6>::Add();
 
-      // DerivativeAssembleLO::template Specialization<3, 2>::Add();
-      // DerivativeAssembleLO::template Specialization<3, 3>::Add();
-      // DerivativeAssembleLO::template Specialization<3, 4>::Add();
-      // DerivativeAssembleLO::template Specialization<3, 5>::Add();
-      // DerivativeAssembleLO::template Specialization<3, 6>::Add();
+      DerivativeAssembleLO::template Specialization<3, 2>::Add();
+      DerivativeAssembleLO::template Specialization<3, 3>::Add();
+      DerivativeAssembleLO::template Specialization<3, 4>::Add();
+      DerivativeAssembleLO::template Specialization<3, 5>::Add();
+      DerivativeAssembleLO::template Specialization<3, 6>::Add();
 #endif
    }
 
@@ -829,8 +829,7 @@ public:
                     "for tensor-product 2D/3D elements only");
       }
 
-      // LO for low order (p < 2); HO from order 2 up (for testing)
-      if (q1d < 5)
+      if (q1d < 8)
       {
          run_kernels<DerivativeAssembleLO>();
       }
@@ -1064,12 +1063,12 @@ DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssem
    if (dim == 2)
    {
       return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<2>>;
+             derivative_assemble_callback<LocalQFHOBackend<2, 8>>;
    }
    else if (dim == 3)
    {
       return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<3>>;
+             derivative_assemble_callback<LocalQFHOBackend<3, 8>>;
    }
    else { MFEM_ABORT("Unsupported dimension"); }
 }

@@ -291,17 +291,19 @@ public:
                              nq);
 
          // Test-basis factor along a spatial axis
-         const auto eval_test = [=] MFEM_HOST_DEVICE (
-                                   const int k, const int axis,
-                                   const int q, const int d)
+         const auto eval_test =
+            [&] (const int k, const int axis,
+                 const int q, const int d)
          {
+            const auto &B = output_dtq.B;
+            const auto &G = output_dtq.G;
             if constexpr (is_value_fop<test_fop_t>::value)
             {
-               return (k == 0) ? output_dtq.B(q, 0, d) : 0.0;
+               return (k == 0) ? B(q, 0, d) : 0.0;
             }
             else if constexpr (is_gradient_fop<test_fop_t>::value)
             {
-               return (k == axis) ? output_dtq.G(q, 0, d) : output_dtq.B(q, 0, d);
+               return (k == axis) ? G(q, 0, d) : B(q, 0, d);
             }
             else { return 0.0; }
          };
@@ -339,9 +341,9 @@ public:
                   if (trial_op_dim == 0) { return; }
 
                   const auto &in_dtq = input_dtq_maps[s];
-                  const auto eval_input = [=] MFEM_HOST_DEVICE (
-                                             const int m, const int axis,
-                                             const int q, const int d)
+                  const auto eval_input =
+                     [&] (const int m, const int axis,
+                          const int q, const int d)
                   {
                      if constexpr (is_value_fop<fop_t>::value)
                      {
@@ -359,13 +361,12 @@ public:
                      const int col = m_offset + m;
                      backend_t::template DiagContract<MQ1>(
                         s_diag, num_test_dof_1d, q1d, nz_dof,
-                        [=] MFEM_HOST_DEVICE (int axis, int q, int d)
+                        [&] (int axis, int q, int d)
                      { return eval_test(k, axis, q, d); },
-                     [=] MFEM_HOST_DEVICE (int axis, int q, int d)
+                     [&] (int axis, int q, int d)
                      { return eval_input(m, axis, q, d); },
-                     [=] MFEM_HOST_DEVICE (int q)
-                     { return qpdc(vd, k, vd, col, q); },
-                     [=] MFEM_HOST_DEVICE (int dx, int dy, int dz, real_t u)
+                     [&] (int q) { return qpdc(vd, k, vd, col, q); },
+                     [&] (int dx, int dy, int dz, real_t u)
                      { Y(dx, dy, dz) += u; });
                   }
                   m_offset += trial_op_dim;

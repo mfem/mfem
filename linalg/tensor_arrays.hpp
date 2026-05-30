@@ -127,10 +127,10 @@ public:
    static constexpr std::size_t rank() { return ndims; }
 
    /// Array size in the @a k-th dynamic dimension.
-   std::size_t size(int k = 0) const { return dyn_sizes[k]; }
+   MFEM_HOST_DEVICE std::size_t size(int k = 0) const { return dyn_sizes[k]; }
 
    /// Returns the product of all sizes of the dynamic dimensions.
-   std::size_t total_size() const
+   MFEM_HOST_DEVICE std::size_t total_size() const
    {
       std::size_t t = 1;
       for (int d = 0; d < ndims; d++)

@@ -419,7 +419,8 @@ template <std::size_t derivative_id, std::size_t I, typename Tuple, std::size_t.
 constexpr std::array<bool, sizeof...(Is)>
 make_activity_array(std::index_sequence<Is...>)
 {
-   return { (std::decay_t<typename tuple_element<Is, Tuple>::type>::GetFieldId() == derivative_id)... };
+   return { (static_cast<int>(derivative_id) ==
+             std::decay_t<typename tuple_element<Is, Tuple>::type>::GetFieldId())... };
 }
 
 template <std::size_t derivative_id, typename inputs_t, std::size_t... Is>

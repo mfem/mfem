@@ -116,9 +116,9 @@ public:
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(get_input_size_on_qp(inputs,
                                             std::make_index_sequence<n_inputs> {})),
-      out_op_dim(compute_out_op_dim(outputs)),
-      out_offsets(compute_out_offsets(output_vdim, out_op_dim)),
-      output_size_on_qp([&]
+                                             out_op_dim(compute_out_op_dim(outputs)),
+                                             out_offsets(compute_out_offsets(output_vdim, out_op_dim)),
+                                             output_size_on_qp([&]
    {
       int s = 0;
       for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
@@ -147,7 +147,30 @@ public:
       }
       MFEM_ASSERT(direction_field_idx != -1,
                   "DerivativeApply: derivative direction field not found");
+
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
+#ifndef MFEM_DEBUG
+      // 2D kernels
+      DerivativeApplyLO::template Specialization<2, 2>::Add();
+      DerivativeApplyLO::template Specialization<2, 3>::Add();
+      DerivativeApplyLO::template Specialization<2, 4>::Add();
+      DerivativeApplyLO::template Specialization<2, 5>::Add();
+      DerivativeApplyLO::template Specialization<2, 6>::Add();
+
+      // 3D kernels
+      DerivativeApplyLO::template Specialization<3, 2>::Add();
+      DerivativeApplyLO::template Specialization<3, 3>::Add();
+      DerivativeApplyLO::template Specialization<3, 4>::Add();
+      DerivativeApplyLO::template Specialization<3, 5>::Add();
+      DerivativeApplyLO::template Specialization<3, 6>::Add();
+
+      // 3D HO kernels
+      // DerivativeApplyHO::template Specialization<3, 10>::Add();
+      // DerivativeApplyHO::template Specialization<3, 12>::Add();
+      // DerivativeApplyHO::template Specialization<3, 14>::Add();
+      // DerivativeApplyHO::template Specialization<3, 16>::Add();
+      // DerivativeApplyHO::template Specialization<3, 18>::Add();
+#endif
    }
 
    //////////////////////////////////////////////////////////////////
@@ -373,7 +396,7 @@ public:
                               const int vdim_s = in_vdim[s];
                               const int op_dim_s = in_size_on_qp[s] / vdim_s;
                               const auto dvec = backend_t::template qp_pull<SARG, MQ1>(
-                                                   get<s>(sargs), qx, qy, qz);
+                                 get<s>(sargs), qx, qy, qz);
                               for (int j = 0; j < trial_vdim; j++)
                               {
                                  for (int m = 0; m < op_dim_s; m++)
@@ -391,9 +414,9 @@ public:
                         }
                      }
 
+                     auto &YE = out_YE[o];
                      if constexpr (is_identity_fop_v<FOP>)
                      {
-                        auto &YE = out_YE[o];
                         for (int i = 0; i < tv; i++)
                         {
                            for (int k = 0; k < to; k++)

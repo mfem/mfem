@@ -108,7 +108,6 @@ struct mass_global_qf
 
 struct mass_diffusion_global_qf
 {
-   inline MFEM_HOST_DEVICE
    void operator()(
       tensor_array<const dscalar_t> &u,
       tensor_array<const dscalar_t, DIM> &dudxi,

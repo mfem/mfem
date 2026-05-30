@@ -33,20 +33,8 @@ using dreal_t = mfem::future::dual<real_t, real_t>;
 static constexpr int U = 0, V = 1, 𝚵 = 2;
 
 // ────────────────────────────────────────────────────────────────────────────
-inline auto qfn1 = [](auto x, auto y, auto J, auto w)
+template <int DIM> struct global_qf
 {
-   return (x * y + sin(x) * cos(y)) * w * det(J);
-};
-
-inline auto qfn2 = [](auto x, auto y, auto J, auto w)
-{
-   return x * y * (x + y) * w * det(J);
-};
-
-// ────────────────────────────────────────────────────────────────────────────
-template <int DIM, int QFN> struct global_qf
-{
-   inline MFEM_HOST_DEVICE
    void operator()(
       tensor_array<const dreal_t> &x,
       tensor_array<const dreal_t> &y,
@@ -58,20 +46,13 @@ template <int DIM, int QFN> struct global_qf
       {
          const dreal_t xq = x(q), yq = y(q);
          const real_t wq = w(q);
-         if constexpr (QFN == 1)
-         {
-            z(q) = qfn1(xq, yq, J(q), wq);
-         }
-         else if constexpr (QFN == 2)
-         {
-            z(q) = qfn2(xq, yq, J(q), wq);
-         }
+         z(q) = sin(xq) * cos(yq) * (xq + yq) * wq * det(J(q));
       }
    }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM, int QFN> struct local_qf
+template <int DIM> struct local_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(const dreal_t &x,
@@ -80,14 +61,7 @@ template <int DIM, int QFN> struct local_qf
                    const real_t &w,
                    dreal_t &z) const
    {
-      if constexpr (QFN == 1)
-      {
-         z = qfn1(x, y, J, w);
-      }
-      else if constexpr (QFN == 2)
-      {
-         z = qfn2(x, y, J, w);
-      }
+      z = sin(x) * cos(y) * (x + y) * w * det(J);
    }
 };
 
@@ -116,13 +90,13 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
    δy.Randomize(0x1b873593);
    δz = 0.0;
 
-   auto ∂Fu = F.GetDerivative(U, state);
-   auto ∂Fv = F.GetDerivative(V, state);
+   auto dFu = F.GetDerivative(U, state);
+   auto dFv = F.GetDerivative(V, state);
 
    MultiVector mδx{δx}, mδy{δy}, mδz{δz}, mδw{δw};
 
-   ∂Fu->Mult(δx, mδz); // δz  = ∂F/∂x * δx
-   ∂Fv->Mult(δy, mδw); // δz += ∂F/∂y * δy
+   dFu->Mult(δx, mδz); // δz  = ∂F/∂x * δx
+   dFv->Mult(δy, mδw); // δz += ∂F/∂y * δy
    δz += δw;
 
    // Adjoint pass (MultTranspose from seed)
@@ -130,8 +104,8 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
    bar_z.Randomize(0x7ed55d16);
 
    MultiVector bar_mx{bar_x}, bar_my{bar_y}, bar_mz{bar_z};
-   ∂Fu->MultTranspose(bar_mz, bar_mx); // \bar{x} = (∂F/∂x)^T * \bar{z}
-   ∂Fv->MultTranspose(bar_mz, bar_my); // \bar{y} = (∂F/∂y)^T * \bar{z}
+   dFu->MultTranspose(bar_mz, bar_mx); // \bar{x} = (∂F/∂x)^T * \bar{z}
+   dFv->MultTranspose(bar_mz, bar_my); // \bar{y} = (∂F/∂y)^T * \bar{z}
 
    // Tangent-Adjoint consistency
    const real_t left = InnerProduct(bar_z, δz);
@@ -141,7 +115,7 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tangent-adjoint consistency test
-template <int DIM, int QFN>// , typename backend_t, template<int, int> class qf_tt>
+template <int DIM>
 void TangentAdjointConsistencyTest(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -176,14 +150,14 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
    const vfds_t out_fds = { {U, &fes} };
    DifferentiableOperator F(in_fds, out_fds, pmesh);
 
-   global_qf<DIM, QFN> q_gfn {};
+   global_qf<DIM> q_gfn {};
    F.AddDomainIntegrator<GlobalQFBackend>(
       q_gfn,
       Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},
       Outputs<Value<U>> {},
       *ir, all_domain_attr, Derivatives<U, V> {});
 
-   local_qf<DIM, QFN> q_lfn {};
+   local_qf<DIM> q_lfn {};
    F.AddDomainIntegrator<LocalQFBackend>(
       q_lfn,
       Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},
@@ -204,8 +178,7 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
                "../../data/rt-2d-q3.mesh",
                "../../data/inline-quad.mesh",
                "../../data/periodic-square.mesh");
-   TangentAdjointConsistencyTest<2, 1>(mesh, p);
-   TangentAdjointConsistencyTest<2, 2>(mesh, p);
+   TangentAdjointConsistencyTest<2>(mesh, p);
 }
 
 TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
@@ -219,8 +192,7 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
                "../../data/inline-hex.mesh",
                "../../data/toroid-hex.mesh",
                "../../data/periodic-cube.mesh");
-   TangentAdjointConsistencyTest<3, 1>(mesh, p);
-   TangentAdjointConsistencyTest<3, 2>(mesh, p);
+   TangentAdjointConsistencyTest<3>(mesh, p);
 }
 
 #endif // MFEM_USE_MPI

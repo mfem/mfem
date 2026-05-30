@@ -384,6 +384,8 @@ public:
                               using OARG =
                                  typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
                               const int tv = out_vdim[o], to = out_op_dim[o];
+                              const auto offset_o = out_offsets[o];
+                              const auto &cache = cache_tensor;
                               if constexpr (is_value_fop_v<OFOP> ||
                                             is_gradient_fop_v<OFOP>)
                               {
@@ -394,10 +396,10 @@ public:
                                  {
                                     for (int k = 0; k < to; k++)
                                     {
-                                       const int row = out_offsets[o] + i * to + k;
+                                       const int row = offset_o + i * to + k;
                                        const int cache_idx =
                                           row * trial_vdim * total_trial_op_dim + col;
-                                       sum += cache_tensor(cache_idx, q, e) *
+                                       sum += cache(cache_idx, q, e) *
                                               qf_flat_value(wvec, i + tv * k);
                                     }
                                  }
@@ -409,10 +411,10 @@ public:
                                  {
                                     for (int k = 0; k < to; k++)
                                     {
-                                       const int row = out_offsets[o] + i * to + k;
+                                       const int row = offset_o + i * to + k;
                                        const int cache_idx =
                                           row * trial_vdim * total_trial_op_dim + col;
-                                       sum += cache_tensor(cache_idx, q, e) *
+                                       sum += cache(cache_idx, q, e) *
                                               XEo(i + tv * k, qx, qy, qz, e);
                                     }
                                  }
