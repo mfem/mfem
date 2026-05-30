@@ -4795,6 +4795,7 @@ Mesh::Mesh( const NURBSExtension& ext )
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
+      NURBSext->SetKnotsFromPatches();
       NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();

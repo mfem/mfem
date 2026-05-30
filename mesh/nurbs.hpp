@@ -171,6 +171,8 @@ public:
        coarse knots. */
    Vector GetFineKnots(const int cf) const;
 
+   int ElemIndex(int ki) const;
+
    /** @brief Return a new KnotVector with elevated degree by repeating the
        endpoints of the KnotVector. */
    /// @note The returned object should be deleted by the caller.
@@ -419,6 +421,8 @@ public:
 
    /// Copy the control points and weights from another NURBSPatch.
    void SetControlPoints(const NURBSPatch &p);
+
+   void DivideOutWeights();
 
    /// Compute the 2D rotation matrix @a T for angle @a angle.
    static void Get2DRotationMatrix(real_t angle, DenseMatrix &T);
@@ -747,10 +751,10 @@ protected:
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 private:
-   /// Get the degrees of freedom for the vertex @a vertex in @a dofs.
+   /// Get the degrees of freedom for patch topology vertex @a vertex in @a dofs.
    void GetVertexDofs(int vertex, Array<int> &dofs) const;
 
-   /// Get the degrees of freedom for the edge @a edge in @a dofs.
+   /// Get the degrees of freedom for patch topology edge @a edge in @a dofs.
    void GetEdgeDofs(int edge, Array<int> &dofs) const;
 
    // TODO: does this still need to be virtual?
@@ -1024,6 +1028,8 @@ public:
       patches[patch]->SetControlPoints(p);
    }
 
+   void SetCoarsePatchCP(int p, const Array2D<real_t> &cp);
+
    /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
 
@@ -1036,6 +1042,10 @@ public:
 
    /// Print control points for coarse patches.
    virtual void PrintCoarsePatches(std::ostream &os);
+
+   void PhysicalSpacing(const GridFunction &Nodes);
+
+   void SetNumCoarsePatches(int n);
 };
 
 

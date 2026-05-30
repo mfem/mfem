@@ -2918,6 +2918,8 @@ void NCNURBSExtension::RefineWithKVFactors(int rf,
    Refine(coarsened);
 }
 
+#define READING_OLD
+
 void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
 {
    input >> num_structured_patches;
@@ -2930,10 +2932,17 @@ void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
    const int ncp1D = maxOrder + 1;
    const int ncp = pow(ncp1D, Dimension());
 
-   patchCP.SetSize(num_structured_patches, ncp, Dimension());
-   for (int p=0; p<num_structured_patches; ++p)
-      for (int i=0; i<ncp; ++i)
-         for (int j=0; j<Dimension(); ++j) { input >> patchCP(p, i, j); }
+   patchCP.SetSize(num_structured_patches, ncp, Dimension() + 1);
+   for (int p = 0; p < num_structured_patches; ++p)
+      for (int i = 0; i < ncp; ++i)
+      {
+#ifdef READING_OLD
+         for (int j = 0; j < Dimension(); ++j) { input >> patchCP(p, i, j); }
+         patchCP(p, i, Dimension()) = 1.0;  // unit weight
+#else
+         for (int j = 0; j < Dimension() + 1; ++j) { input >> patchCP(p, i, j); }
+#endif
+      }
 }
 
 void NCNURBSExtension::PrintCoarsePatches(std::ostream &os)
@@ -2951,13 +2960,23 @@ void NCNURBSExtension::PrintCoarsePatches(std::ostream &os)
    const int ncp1D = maxOrder + 1;
    const int ncp = pow(ncp1D, Dimension());
 
+   MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
+
+   if (num_structured_patches > 0) // TODO: remove this!
+   {
+      if (patchCP.GetSize2() < ncp)
+      {
+         return;
+      }
+   }
+
    os << "\npatch_cp\n" << num_structured_patches << "\n";
    for (int p=0; p<num_structured_patches; ++p)
    {
       for (int i=0; i<ncp; ++i)
       {
          os << patchCP(p, i, 0);
-         for (int j=1; j<Dimension(); ++j)
+         for (int j = 1; j < Dimension() + 1; ++j)
          {
             os << ' ' << patchCP(p, i, j);
          }
