@@ -354,7 +354,7 @@ struct LocalQFLOBackend
    // ─────────────────────────────────────────────────────
    static inline ThreadBlocks thread_blocks(const int q1d)
    {
-      MFEM_VERIFY(q1d <= Q1D, "q1d must be <= " << Q1D);
+      MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
       return {q1d, q1d, (DIM == 2) ? 1 : q1d};
    }
 
@@ -456,53 +456,6 @@ struct LocalQFLOBackend
             add_y(dx, dy, 0, u);
          }
          MFEM_SYNC_THREAD;
-      }
-   }
-
-   // Iterate element dofs. LO uses a full 3D thread block on (x,y,z).
-   template<typename Body>
-   static MFEM_HOST_DEVICE inline void ForeachDof(const int d1d, Body &&body)
-   {
-      if constexpr (DIM == 2)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d) { body(dx, dy, 0); }
-         }
-      }
-      else
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d) { body(dx, dy, dz); }
-            }
-         }
-      }
-   }
-
-   // Iterate quadrature points. LO uses a full 3D thread block, so every
-   // quadrature axis (including z) is mapped to a thread. `body(qx,qy,qz)`.
-   template<typename Body>
-   static MFEM_HOST_DEVICE inline void ForeachQp(const int q1d, Body &&body)
-   {
-      if constexpr (DIM == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d) { body(qx, qy, 0); }
-         }
-      }
-      else
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d) { body(qx, qy, qz); }
-            }
-         }
       }
    }
 

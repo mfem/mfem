@@ -512,53 +512,6 @@ struct LocalQFHOBackend
       }
    }
 
-   // Iterate element dofs. HO thread block is (x,y) only; z is serial.
-   template<typename Body>
-   static MFEM_HOST_DEVICE inline void ForeachDof(const int d1d, Body &&body)
-   {
-      if constexpr (DIM == 2)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d) { body(dx, dy, 0); }
-         }
-      }
-      else
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-            {
-               for (int dz = 0; dz < d1d; dz++) { body(dx, dy, dz); }
-            }
-         }
-      }
-   }
-
-   // Iterate quadrature points. HO uses a 2D thread tile; the z axis is an
-   // in-thread serial loop (no z thread dimension). `body(qx,qy,qz)`.
-   template<typename Body>
-   static MFEM_HOST_DEVICE inline void ForeachQp(const int q1d, Body &&body)
-   {
-      if constexpr (DIM == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d) { body(qx, qy, 0); }
-         }
-      }
-      else
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               for (int qz = 0; qz < q1d; qz++) { body(qx, qy, qz); }
-            }
-         }
-      }
-   }
-
    // ─────────────────────────────────────────────────────
    template<typename T>
    using QReg = ho_qreg_t<backend_t, T>;
