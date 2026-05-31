@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cmath>
+#include <type_traits>
 
 namespace ker = mfem::kernels::internal;
 
@@ -146,6 +147,221 @@ MFEM_HOST_DEVICE inline void contract_value_qp_to_dof2d(
    MFEM_SYNC_THREAD;
 }
 
+/// LO backend Shared carries M[2][…][DIM]; HO Shared is a single M[MQ1][MQ1] tile.
+template <typename Shared, typename = void>
+struct lo_gradient_shared : std::false_type { };
+
+template <typename Shared>
+struct lo_gradient_shared<Shared, std::void_t<decltype(std::declval<Shared>().M[1][0][0][0])>>
+: std::true_type { };
+
+template <typename Shared>
+inline constexpr bool lo_gradient_shared_v = lo_gradient_shared<Shared>::value;
+
+/// Gradient test map qp→dof (2D), matching integrate.hpp contraction pattern.
+template <int MQ1, typename BT, typename GT, typename Fqp, typename AddYd,
+          typename Shared>
+MFEM_HOST_DEVICE inline void contract_gradient_qp_to_dof2d(
+   const int d1d, const int q1d, const BT &B, const GT &G, Fqp &&fqp,
+   Shared &s, AddYd &&add_y)
+{
+   if constexpr (lo_gradient_shared_v<Shared>)
+   {
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t uv0 = 0.0, uv1 = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               uv0 += fqp(0, qx, qy) * G(qx, 0, dx);
+               uv1 += fqp(1, qx, qy) * B(qx, 0, dx);
+            }
+            s.M[0][qy][dx][0] = uv0;
+            s.M[1][qy][dx][0] = uv1;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t uv0 = 0.0, uv1 = 0.0;
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               uv0 += s.M[0][qy][dx][0] * B(qy, 0, dy);
+               uv1 += s.M[1][qy][dx][0] * G(qy, 0, dy);
+            }
+            add_y(dx, dy, uv0 + uv1);
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else
+   {
+      real_t (&s0)[MQ1][MQ1] = contract_smem2d<MQ1>(s);
+      real_t (&s1)[MQ1][MQ1] = s.B;
+
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t uv0 = 0.0, uv1 = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               uv0 += fqp(0, qx, qy) * G(qx, 0, dx);
+               uv1 += fqp(1, qx, qy) * B(qx, 0, dx);
+            }
+            s0[qy][dx] = uv0;
+            s1[qy][dx] = uv1;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t uv0 = 0.0, uv1 = 0.0;
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               uv0 += s0[qy][dx] * B(qy, 0, dy);
+               uv1 += s1[qy][dx] * G(qy, 0, dy);
+            }
+            add_y(dx, dy, uv0 + uv1);
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+}
+
+/// Gradient test map qp→dof (3D), matching integrate.hpp contraction pattern.
+template <int MQ1, typename BT, typename GT, typename Fqp, typename AddYd,
+          typename Shared>
+MFEM_HOST_DEVICE inline void contract_gradient_qp_to_dof3d(
+   const int d1d, const int q1d, const BT &B, const GT &G, Fqp &&fqp,
+   Shared &s, AddYd &&add_y)
+{
+   if constexpr (lo_gradient_shared_v<Shared>)
+   {
+      MFEM_FOREACH_THREAD(qz, z, q1d)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               real_t uvw[3] = {0.0, 0.0, 0.0};
+               for (int qx = 0; qx < q1d; qx++)
+               {
+                  uvw[0] += fqp(0, qx, qy, qz) * G(qx, 0, dx);
+                  uvw[1] += fqp(1, qx, qy, qz) * B(qx, 0, dx);
+                  uvw[2] += fqp(2, qx, qy, qz) * B(qx, 0, dx);
+               }
+               for (int c = 0; c < 3; c++) { s.M[0][qz][qy][dx][c] = uvw[c]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(qz, z, q1d)
+      {
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               real_t uvw[3] = {0.0, 0.0, 0.0};
+               for (int qy = 0; qy < q1d; qy++)
+               {
+                  uvw[0] += s.M[0][qz][qy][dx][0] * B(qy, 0, dy);
+                  uvw[1] += s.M[0][qz][qy][dx][1] * G(qy, 0, dy);
+                  uvw[2] += s.M[0][qz][qy][dx][2] * B(qy, 0, dy);
+               }
+               for (int c = 0; c < 3; c++) { s.M[1][qz][dy][dx][c] = uvw[c]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(dz, z, d1d)
+      {
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               real_t uvw[3] = {0.0, 0.0, 0.0};
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  uvw[0] += s.M[1][qz][dy][dx][0] * B(qz, 0, dz);
+                  uvw[1] += s.M[1][qz][dy][dx][1] * B(qz, 0, dz);
+                  uvw[2] += s.M[1][qz][dy][dx][2] * G(qz, 0, dz);
+               }
+               add_y(dx, dy, dz, uvw[0] + uvw[1] + uvw[2]);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else
+   {
+      // HO Shared: reuse M, B, G tiles; outer loop over dx keeps intermediates in-bounds.
+      for (int dx = 0; dx < d1d; dx++)
+      {
+         MFEM_FOREACH_THREAD(qz, z, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               real_t uvw[3] = {0.0, 0.0, 0.0};
+               for (int qx = 0; qx < q1d; qx++)
+               {
+                  uvw[0] += fqp(0, qx, qy, qz) * G(qx, 0, dx);
+                  uvw[1] += fqp(1, qx, qy, qz) * B(qx, 0, dx);
+                  uvw[2] += fqp(2, qx, qy, qz) * B(qx, 0, dx);
+               }
+               s.M[qz][qy] = uvw[0];
+               s.B[qz][qy] = uvw[1];
+               s.G[qz][qy] = uvw[2];
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qz, z, q1d)
+         {
+            MFEM_FOREACH_THREAD(dy, y, d1d)
+            {
+               real_t uvw[3] = {0.0, 0.0, 0.0};
+               for (int qy = 0; qy < q1d; qy++)
+               {
+                  uvw[0] += s.M[qz][qy] * B(qy, 0, dy);
+                  uvw[1] += s.B[qz][qy] * G(qy, 0, dy);
+                  uvw[2] += s.G[qz][qy] * B(qy, 0, dy);
+               }
+               s.M[qz][dy] = uvw[0];
+               s.B[qz][dy] = uvw[1];
+               s.G[qz][dy] = uvw[2];
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz, z, d1d)
+         {
+            MFEM_FOREACH_THREAD(dy, y, d1d)
+            {
+               real_t acc = 0.0;
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  acc += s.M[qz][dy] * B(qz, 0, dz)
+                         + s.B[qz][dy] * B(qz, 0, dz)
+                         + s.G[qz][dy] * G(qz, 0, dz);
+               }
+               add_y(dx, dy, dz, acc);
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+}
+
 template <int DIM>
 MFEM_HOST_DEVICE inline real_t trial_basis_weight_gradient(
    const DeviceTensor<3, const real_t> &B,
@@ -259,69 +475,44 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
       const int test_dim = output.size_on_qp / vdim;
       const int f_vdim = f_slab ? 1 : vdim;
 
-      ker::LoadMatrix(d1d, q1d, B, s.B);
-      ker::LoadMatrix(d1d, q1d, G, s.G);
-
       if constexpr (DIM == 2)
       {
          auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
-         ker::vd_regs2d_t<1, DIM, MQ1> f_op {};
-         ker::vd_regs2d_t<1, DIM, MQ1> Y {};
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
+            contract_gradient_qp_to_dof2d<MQ1>(
+               d1d, q1d, B, G,
+               [=] (const int k, const int qx, const int qy)
             {
-               MFEM_CONTRACT_VAR(qz);
-               for (int k = 0; k < test_dim; k++)
-               {
-                  f_op[0][k][qy][qx] = fqp(fi, k, qx, qy);
-               }
+               return fqp(fi, k, qx, qy);
+            },
+            s,
+            [=] (const int dx, const int dy, const real_t acc)
+            {
+               yd(dx, dy, vd) += acc;
             });
-            MFEM_SYNC_THREAD;
-            ker::GradTranspose2d<1, DIM, MQ1>(
-               d1d, q1d, contract_smem2d<MQ1>(s), s.B, s.G, f_op, Y);
-            MFEM_SYNC_THREAD;
-            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-               {
-                  real_t acc = 0.0;
-                  for (int d = 0; d < DIM; d++) { acc += Y[0][d][dy][dx]; }
-                  yd(dx, dy, vd) += acc;
-               }
-            }
-            MFEM_SYNC_THREAD;
          }
       }
       else
       {
          auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
-         ker::vd_regs3d_t<1, DIM, MQ1> f_op {};
-         ker::vd_regs3d_t<1, DIM, MQ1> Y {};
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
+            contract_gradient_qp_to_dof3d<MQ1>(
+               d1d, q1d, B, G,
+               [=] (const int k, const int qx, const int qy, const int qz)
             {
-               for (int k = 0; k < test_dim; k++)
-               {
-                  f_op[0][k][qz][qy][qx] = fqp(fi, k, qx, qy, qz);
-               }
-            });
-            MFEM_SYNC_THREAD;
-            ker::GradTranspose3d<1, DIM, MQ1>(
-               d1d, q1d, contract_smem2d<MQ1>(s), s.B, s.G, f_op, Y);
-            MFEM_SYNC_THREAD;
-            foreach_dof(d1d, [=] (int dx, int dy, int dz)
+               return fqp(fi, k, qx, qy, qz);
+            },
+            s,
+            [=] (const int dx, const int dy, const int dz, const real_t acc)
             {
-               real_t acc = 0.0;
-               for (int d = 0; d < DIM; d++) { acc += Y[0][d][dz][dy][dx]; }
                yd(dx, dy, dz, vd) += acc;
             });
-            MFEM_SYNC_THREAD;
          }
       }
    }
@@ -391,8 +582,11 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    static constexpr int MAX_NQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
+   // Slab must hold full (test_vdim, test_op_dim, nq) fhat when it fits; the
+   // old MAX_NQ*DIM bound only covered scalar (test_vdim == 1) and forced vector
+   // fields onto the per-tv slab path incorrectly for moderate q1d.
    static constexpr int FHAT_SLAB_MAX =
-      (grad_out && !ident_out) ? MAX_NQ * DIM : MAX_NQ;
+      (grad_out && !ident_out) ? MAX_NQ * 8 : MAX_NQ;
 
    const int test_vdim = qpdc.GetShape()[3];
    const int test_op_dim = qpdc.GetShape()[2];
@@ -592,6 +786,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                m_offset += trial_op_dim;
             });
 
+            MFEM_SYNC_THREAD;
             map_quadrature_data_to_fields<DIM, MQ1>(
                bvtfhat, fhat, output, output_dtqmap, s, foreach_qp, foreach_dof);
          }
@@ -829,7 +1024,7 @@ public:
                     "for tensor-product 2D/3D elements only");
       }
 
-      if (q1d < 8)
+      if (q1d <= 8)
       {
          run_kernels<DerivativeAssembleLO>();
       }
@@ -981,9 +1176,20 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         DerivativeAssemble::template AssembleElementMatSumfact<backend_t, T_Q1D>(
-            Ae, qpdc, e, itod, inputs, get<0>(outputs),
-            input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
+         if constexpr (DIM == 3 && T_Q1D > 0 && T_Q1D < 8)
+         {
+            // Small-MQ1 3D specializations mis-assemble vector Jacobians; use
+            // the MQ1=8 shared tile layout (still valid when q1d <= T_Q1D).
+            DerivativeAssemble::template AssembleElementMatSumfact<backend_t, 8>(
+               Ae, qpdc, e, itod, inputs, get<0>(outputs),
+               input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
+         }
+         else
+         {
+            DerivativeAssemble::template AssembleElementMatSumfact<backend_t, T_Q1D>(
+               Ae, qpdc, e, itod, inputs, get<0>(outputs),
+               input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
+         }
       }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }
 
