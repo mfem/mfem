@@ -12,8 +12,7 @@
 
 #include "../../integrator_ctx.hpp"
 
-#include "kernels_lo.hpp"
-#include "kernels_ho.hpp"
+#include "kernels.hpp"
 #include "util.hpp"
 #include "fem/kernels.hpp"
 
@@ -1030,7 +1029,8 @@ public:
       }
       else
       {
-         run_kernels<DerivativeAssembleHO>();
+         MFEM_ABORT("DerivativeAssemble optimized path is implemented for q1d <= 8 only");
+         // run_kernels<DerivativeAssembleHO>();
       }
 
       A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
@@ -1113,7 +1113,7 @@ public:
    {
       static constexpr int DIM = backend_t::DIM;
       static constexpr int MQ1_CAP = T_Q1D ? T_Q1D : backend_t::MQ1;
-      MFEM_SHARED typename backend_t::template Shared<MQ1_CAP> s;
+      MFEM_SHARED typename backend_t::Shared s;
       derivative_assemble_detail::assemble_element_mat_sumfact<DIM, MQ1_CAP>(
          A, qpdc, e, itod, inputs, output, input_dtq_maps, output_dtq, q1d, td1d, s,
          [](const int q1d_in, auto &&body)
@@ -1176,11 +1176,13 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         if constexpr (DIM == 3 && T_Q1D > 0 && T_Q1D < 8)
+         static constexpr int EffectiveQ1D = T_Q1D ? T_Q1D : backend_t::Q1D;
+         if constexpr (DIM == 3 && EffectiveQ1D < 8)
          {
-            // Small-MQ1 3D specializations mis-assemble vector Jacobians; use
-            // the MQ1=8 shared tile layout (still valid when q1d <= T_Q1D).
-            DerivativeAssemble::template AssembleElementMatSumfact<backend_t, 8>(
+            // Small-Q1D 3D specializations mis-assemble vector Jacobians; use
+            // the Q1D=8 shared tile layout (still valid when q1d <= EffectiveQ1D).
+            using LargeBackend = LocalQFLOBackend<DIM, 8>;
+            DerivativeAssemble::template AssembleElementMatSumfact<LargeBackend, 8>(
                Ae, qpdc, e, itod, inputs, get<0>(outputs),
                input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
          }
@@ -1196,7 +1198,7 @@ public:
    using AssembleKernelType =
       decltype(&DerivativeAssemble::derivative_assemble_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeAssembleLO, AssembleKernelType, (int, int));
-   MFEM_REGISTER_KERNELS(DerivativeAssembleHO, AssembleKernelType, (int, int));
+   // MFEM_REGISTER_KERNELS(DerivativeAssembleHO, AssembleKernelType, (int, int));
 };
 
 template <
@@ -1212,7 +1214,7 @@ DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssem
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return assemble_t::template
-          derivative_assemble_callback<LocalQFLOBackend<DIM>, Q1D>;
+          derivative_assemble_callback<LocalQFLOBackend<DIM, Q1D>>;
 }
 
 template <
@@ -1240,43 +1242,43 @@ DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssem
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Kernel()
-{
-   using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return assemble_t::template
-          derivative_assemble_callback<LocalQFHOBackend<DIM>, Q1D>;
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// template <int DIM, int Q1D>
+// typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
+// DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Kernel()
+// {
+//    using assemble_t =
+//       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    return assemble_t::template
+//           derivative_assemble_callback<LocalQFHOBackend<DIM>, Q1D>;
+// }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Fallback(
-   int dim, int)
-{
-   using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   if (dim == 2)
-   {
-      return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<2, 8>>;
-   }
-   else if (dim == 3)
-   {
-      return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<3, 8>>;
-   }
-   else { MFEM_ABORT("Unsupported dimension"); }
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
+// DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Fallback(
+//    int dim, int)
+// {
+//    using assemble_t =
+//       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    if (dim == 2)
+//    {
+//       return assemble_t::template
+//              derivative_assemble_callback<LocalQFHOBackend<2, 8>>;
+//    }
+//    else if (dim == 3)
+//    {
+//       return assemble_t::template
+//              derivative_assemble_callback<LocalQFHOBackend<3, 8>>;
+//    }
+//    else { MFEM_ABORT("Unsupported dimension"); }
+// }
 
 } // namespace mfem::future::LocalQFImpl

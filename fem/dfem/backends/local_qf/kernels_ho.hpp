@@ -19,7 +19,7 @@ namespace ker = mfem::kernels::internal;
 namespace mfem::future
 {
 
-///////////////////////////////////////////////////////////////////////////////
+// ────────────────────────────────────────────────────────────────────────────
 /// Register type for one HO q-function parameter
 template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
 struct ho_qreg;
@@ -47,7 +47,7 @@ struct ho_qreg<KerOps, T, 2>
 template<typename KerOps, typename T>
 using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
 
-///////////////////////////////////////////////////////////////////////////////
+// ────────────────────────────────────────────────────────────────────────────
 namespace hok
 {
 
@@ -119,7 +119,7 @@ MFEM_HOST_DEVICE inline auto qp_store(const U &v)
    else { return qf_store_value(v); }
 }
 
-/// Store primal value or dual tangent at one quadrature point
+// Store primal value or dual tangent at one quadrature point
 template<int DIM, typename T, typename Reg, bool tangent>
 MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
                                       const T &out)
@@ -185,7 +185,7 @@ MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
    }
 }
 
-/// Pull primal/tangent pair into a dual q-function argument
+// Pull primal/tangent pair into a dual q-function argument
 template<int DIM, typename T, typename Reg>
 MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
                                               int qx, int qy, int qz,
@@ -275,7 +275,7 @@ MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
 
 } // namespace hok
 
-///////////////////////////////////////////////////////////////////////////////
+// ────────────────────────────────────────────────────────────────────────────
 /// HO tensor-product kernels
 template<int T_DIM, int MQ1>
 struct ho_ker_backend
@@ -290,6 +290,11 @@ struct ho_ker_backend
    template<int VDIM, int SDIM>
    using del_reg_t = std::conditional_t<(DIM == 2),
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>, ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
+
+   struct Shared
+   {
+      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
+   };
 
    template<typename XE_t, typename Dofs>
    static MFEM_HOST_DEVICE void load_dofs(const int e, const int d,
@@ -399,43 +404,37 @@ struct ho_ker_backend
    }
 };
 
-///////////////////////////////////////////////////////////////////////////////
+// ────────────────────────────────────────────────────────────────────────────
 template<int T_DIM, int T_MQ1 = 20>
 struct LocalQFHOBackend
 {
-   //////////////////////////////////////////////////////////////////
-   static constexpr int DIM = T_DIM, MQ1 = T_MQ1;
+   // ─────────────────────────────────────────────────────
+   static constexpr int DIM = T_DIM, MQ1 = T_MQ1, Q1D = T_MQ1;
    static_assert(DIM == 2 || DIM == 3);
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    static inline ThreadBlocks thread_blocks(const int q1d)
    {
-      MFEM_ASSERT(q1d <= MQ1, "q1d must be <= MQ1:" << MQ1);
+      MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
       return {q1d, q1d, 1};
    }
 
-   //////////////////////////////////////////////////////////////////
-   template <int Q1D> static inline
-   constexpr int MAX_THREADS_PER_BLOCK() { return Q1D * Q1D; }
-
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1>
-   struct Shared
+   // ─────────────────────────────────────────────────────
+   static inline constexpr int MAX_THREADS_PER_BLOCK()
    {
-      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
-   };
+      return Q1D * Q1D;
+   }
 
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1>
-   using backend_t = ho_ker_backend<DIM, MQ1>;
+   // ─────────────────────────────────────────────────────
+   using backend_t = ho_ker_backend<DIM, Q1D>;
 
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1>
-   using DiagShared = Shared<MQ1>;
+   // ─────────────────────────────────────────────────────
+   using Shared = typename backend_t::Shared;
 
+   // ─────────────────────────────────────────────────────
    template<int MQ1, typename WT, typename WI, typename Cache, typename AddY>
    static MFEM_HOST_DEVICE inline
-   void DiagContract(DiagShared<MQ1> &s,
+   void DiagContract(Shared &s,
                      const int num_dof_1d, const int q1d, const int nz_dof,
                      WT wt, WI wi, Cache cache, AddY add_y)
    {
@@ -513,7 +512,7 @@ struct LocalQFHOBackend
       }
    }
 
-   /// Iterate element dofs. HO thread block is (x,y) only; z is serial.
+   // Iterate element dofs. HO thread block is (x,y) only; z is serial.
    template<typename Body>
    static MFEM_HOST_DEVICE inline void ForeachDof(const int d1d, Body &&body)
    {
@@ -536,8 +535,8 @@ struct LocalQFHOBackend
       }
    }
 
-   /// Iterate quadrature points. HO uses a 2D thread tile; the z axis is an
-   /// in-thread serial loop (no z thread dimension). `body(qx,qy,qz)`.
+   // Iterate quadrature points. HO uses a 2D thread tile; the z axis is an
+   // in-thread serial loop (no z thread dimension). `body(qx,qy,qz)`.
    template<typename Body>
    static MFEM_HOST_DEVICE inline void ForeachQp(const int q1d, Body &&body)
    {
@@ -560,27 +559,28 @@ struct LocalQFHOBackend
       }
    }
 
-   template<typename T, int MQ1>
-   using QReg = ho_qreg_t<backend_t<MQ1>, T>;
+   // ─────────────────────────────────────────────────────
+   template<typename T>
+   using QReg = ho_qreg_t<backend_t, T>;
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    template<int MQ1, typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
-   void LoadValue(Shared<MQ1> &s,
+   void LoadValue(Shared &s,
                   const int e, const int d, const int q, const int,
                   const real_t *B, const XE_T &XE, ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      typename backend_t<MQ1>::template val_reg_t<1> dofs;
-      backend_t<MQ1>::load_dofs(e, d, XE, dofs);
-      backend_t<MQ1>::eval_value(d, q, s, dofs, rarg);
+      typename backend_t::template val_reg_t<1> dofs;
+      backend_t::load_dofs(e, d, XE, dofs);
+      backend_t::eval_value(d, q, s, dofs, rarg);
    }
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    template<int RNK, int MQ1, typename ArgRegT, typename XE_T,
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
-   void LoadGradient(Shared<MQ1> &s,
+   void LoadGradient(Shared &s,
                      const int e, const int d, const int q, const int,
                      const real_t *B, const real_t *G,
                      const XE_T &XE, ArgRegT &rarg)
@@ -595,50 +595,50 @@ struct LocalQFHOBackend
          : qf_param_shape<FieldParamT>::extents[1];
       if constexpr (SDIM == DIM)
       {
-         typename backend_t<MQ1>::template del_reg_t<VDIM, SDIM> dofs;
-         if constexpr (RNK == 1) { backend_t<MQ1>::load_dofs(e, d, XE, dofs); }
-         else { backend_t<MQ1>::template load_grad_dofs<VDIM, SDIM>(e, d, XE, dofs); }
-         backend_t<MQ1>::template grad<VDIM, SDIM>(d, q, s, dofs, rarg);
+         typename backend_t::template del_reg_t<VDIM, SDIM> dofs;
+         if constexpr (RNK == 1) { backend_t::load_dofs(e, d, XE, dofs); }
+         else { backend_t::template load_grad_dofs<VDIM, SDIM>(e, d, XE, dofs); }
+         backend_t::template grad<VDIM, SDIM>(d, q, s, dofs, rarg);
       }
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
+   // ─────────────────────────────────────────────────────
+   template<typename T>
    static MFEM_HOST_DEVICE inline
-   auto qp_pull(QReg<T, MQ1> &reg, int qx, int qy, int qz)
+   auto qp_pull(QReg<T> &reg, int qx, int qy, int qz)
    {
       return hok::load_at<DIM, T>(reg, qx, qy, qz);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
+   // ─────────────────────────────────────────────────────
+   template<typename T>
    static MFEM_HOST_DEVICE inline
-   void qp_push(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
    {
       hok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
+   // ─────────────────────────────────────────────────────
+   template<typename T>
    static MFEM_HOST_DEVICE inline
-   auto qp_pull_directional(QReg<T, MQ1> &preg, QReg<T, MQ1> &sreg,
+   auto qp_pull_directional(QReg<T> &preg, QReg<T> &sreg,
                             int qx, int qy, int qz, bool dependent)
    {
       return hok::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
                                            dependent);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<typename T, int MQ1>
+   // ─────────────────────────────────────────────────────
+   template<typename T>
    static MFEM_HOST_DEVICE inline
-   void qp_push_tangent(QReg<T, MQ1> &reg, int qx, int qy, int qz, const T &out)
+   void qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
    {
       hok::store_at<DIM, T, decltype(reg),
           qf_param_uses_dual_v<T>>
           (reg, qx, qy, qz, out);
    }
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    template<typename DT, typename XE_T>
    static MFEM_HOST_DEVICE inline
    DT identity_qp_pull_dual(bool dependent,
@@ -688,7 +688,7 @@ struct LocalQFHOBackend
       }
    }
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    template<typename DT, typename YE_T>
    static MFEM_HOST_DEVICE inline
    void identity_qp_write_value(YE_T &YE, int qx, int qy, int qz, int e,
@@ -731,7 +731,7 @@ struct LocalQFHOBackend
       }
    }
 
-   //////////////////////////////////////////////////////////////////
+   // ─────────────────────────────────────────────────────
    template<typename DT, typename YE_T>
    static MFEM_HOST_DEVICE inline
    void identity_qp_write_tangent(YE_T &YE, int qx, int qy, int qz, int e,
@@ -774,23 +774,23 @@ struct LocalQFHOBackend
       }
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<int MQ1, typename ArgRegT, typename YE_T>
+   // ─────────────────────────────────────────────────────
+   template<typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared<MQ1> &s,
+   void WriteValue(Shared &s,
                    const int e, const int d, const int q, const int,
                    const real_t *B, YE_T &YE, ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      typename backend_t<MQ1>::template val_reg_t<1> dofs;
-      backend_t<MQ1>::write_value(d, q, e, s, rarg, dofs, YE);
+      typename backend_t::template val_reg_t<1> dofs;
+      backend_t::write_value(d, q, e, s, rarg, dofs, YE);
    }
 
-   //////////////////////////////////////////////////////////////////
-   template<int RNK, int MQ1, typename ArgRegT, typename YE_T,
+   // ─────────────────────────────────────────────────────
+   template<int RNK, typename ArgRegT, typename YE_T,
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
-   void WriteGradient(Shared<MQ1> &s,
+   void WriteGradient(Shared &s,
                       const int e, const int d, const int q, const int,
                       const real_t *B, const real_t *G,
                       YE_T &YE, ArgRegT &rarg)
@@ -805,8 +805,8 @@ struct LocalQFHOBackend
          : qf_param_shape<FieldParamT>::extents[1];
       if constexpr (SDIM == DIM)
       {
-         typename backend_t<MQ1>::template del_reg_t<VDIM, SDIM> dofs;
-         backend_t<MQ1>::template write_gradient<VDIM, SDIM>
+         typename backend_t::template del_reg_t<VDIM, SDIM> dofs;
+         backend_t::template write_gradient<VDIM, SDIM>
          (d, q, e, s, rarg, dofs, YE);
       }
    }

@@ -131,7 +131,7 @@ template <
 struct build_args_reg_tuple_impl
 {
    using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
-   using R = typename backend_t::template QReg<qf_reg_param_t, MQ1>;
+   using R = typename backend_t::template QReg<qf_reg_param_t>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
          outputs_t, MQ1, K + 1, N, Acc..., R>::type;
 };
@@ -225,11 +225,13 @@ MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
       constexpr bool D = qf_param_uses_dual_v<ARG>;
       if constexpr (RNK == 0)
       {
-         if constexpr (D) { a(0).value = v; } else { a(0) = v; }
+         if constexpr (D) { a(0).value = v; }
+         else { a(0) = v; }
       }
       else if constexpr (RNK == 1)
       {
-         if constexpr (D) { a(c).value = v; } else { a(c) = v; }
+         if constexpr (D) { a(c).value = v; }
+         else { a(c) = v; }
       }
       else
       {

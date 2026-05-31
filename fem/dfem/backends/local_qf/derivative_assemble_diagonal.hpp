@@ -12,8 +12,7 @@
 
 #include "../../integrator_ctx.hpp"
 
-#include "kernels_lo.hpp"
-#include "kernels_ho.hpp"
+#include "kernels.hpp"
 #include "util.hpp"
 
 #include <array>
@@ -22,7 +21,8 @@
 namespace mfem::future::LocalQFImpl
 {
 
-// Assemble diagonal of cached Jacobian (square trial == test, tensor 2D/3D).
+// Assemble diagonal of cached Jacobian (square trial == test, tensor 2D/3D)
+
 template<
    int derivative_id,
    typename qfunc_t,
@@ -234,7 +234,8 @@ public:
       }
       else
       {
-         run_kernels<DerivativeAssembleDiagonalHO>();
+         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
+         // run_kernels<DerivativeAssembleDiagonalHO>();
       }
 
       diag_e += Ye_mem;
@@ -267,8 +268,7 @@ public:
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr bool B2D = backend_t::DIM == 2;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
-      static constexpr int MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
+      static constexpr int MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
@@ -309,7 +309,7 @@ public:
          };
 
          // Backend-owned shared scratch for the sum-factorized contraction.
-         MFEM_SHARED typename backend_t::template DiagShared<MQ1> s_diag;
+         MFEM_SHARED typename backend_t::Shared s_diag;
          const int nz_dof = B2D ? 1 : num_test_dof_1d;
 
          for (int vd = 0; vd < test_vdim; vd++)
@@ -359,7 +359,7 @@ public:
                   for (int m = 0; m < trial_op_dim; m++)
                   {
                      const int col = m_offset + m;
-                     backend_t::template DiagContract<MQ1>(
+                     backend_t::DiagContract(
                         s_diag, num_test_dof_1d, q1d, nz_dof,
                         [&] (int axis, int q, int d)
                      { return eval_test(k, axis, q, d); },
@@ -380,8 +380,8 @@ public:
       decltype(&DerivativeAssembleDiagonal::derivative_assemble_diagonal_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalLO, DiagonalKernelType, (int,
                                                                             int));
-   MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalHO, DiagonalKernelType, (int,
-                                                                            int));
+   // MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalHO, DiagonalKernelType, (int,
+   //                                                                          int));
 };
 
 template <
@@ -397,7 +397,7 @@ DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::Derivat
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return diag_t::template
-          derivative_assemble_diagonal_callback<LocalQFLOBackend<DIM>, Q1D>;
+          derivative_assemble_diagonal_callback<LocalQFLOBackend<DIM, Q1D>>;
 }
 
 template <
@@ -425,43 +425,43 @@ DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::Derivat
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
-DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Kernel()
-{
-   using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return diag_t::template
-          derivative_assemble_diagonal_callback<LocalQFHOBackend<DIM>, Q1D>;
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// template <int DIM, int Q1D>
+// typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
+// DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Kernel()
+// {
+//    using diag_t =
+//       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    return diag_t::template
+//           derivative_assemble_diagonal_callback<LocalQFHOBackend<DIM>, Q1D>;
+// }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
-DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Fallback(
-   int dim, int)
-{
-   using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   if (dim == 2)
-   {
-      return diag_t::template
-             derivative_assemble_diagonal_callback<LocalQFHOBackend<2>>;
-   }
-   else if (dim == 3)
-   {
-      return diag_t::template
-             derivative_assemble_diagonal_callback<LocalQFHOBackend<3>>;
-   }
-   else { MFEM_ABORT("Unsupported dimension"); }
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
+// DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Fallback(
+//    int dim, int)
+// {
+//    using diag_t =
+//       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    if (dim == 2)
+//    {
+//       return diag_t::template
+//              derivative_assemble_diagonal_callback<LocalQFHOBackend<2>>;
+//    }
+//    else if (dim == 3)
+//    {
+//       return diag_t::template
+//              derivative_assemble_diagonal_callback<LocalQFHOBackend<3>>;
+//    }
+//    else { MFEM_ABORT("Unsupported dimension"); }
+// }
 
 } // namespace mfem::future::LocalQFImpl

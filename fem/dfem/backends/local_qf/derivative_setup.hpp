@@ -12,8 +12,7 @@
 
 #include "../../integrator_ctx.hpp"
 
-#include "kernels_lo.hpp"
-#include "kernels_ho.hpp"
+#include "kernels.hpp"
 #include "util.hpp"
 
 #include <array>
@@ -22,12 +21,6 @@
 namespace mfem::future::LocalQFImpl
 {
 
-// Fills qp_cache with the per-quadrature-point Jacobian of the q-function with
-// respect to the derivative direction field. The primal inputs are interpolated
-// to quadrature points with the register-based tensor-product driver (the same
-// path as Action / DerivativeAction), so there is no intermediate quadrature
-// data buffer nor map_scratch: the trial seed is applied directly to the
-// q-function argument tuple at each quadrature point.
 template<
    int derivative_id,
    typename qfunc_t,
@@ -102,10 +95,10 @@ public:
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(get_input_size_on_qp(inputs,
                                             std::make_index_sequence<n_inputs> {})),
-      out_vdim(get_vdim(outputs)),
-      out_op_dim(compute_out_op_dim(outputs)),
-      out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
-      output_size_on_qp([&]
+                                             out_vdim(get_vdim(outputs)),
+                                             out_op_dim(compute_out_op_dim(outputs)),
+                                             out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
+                                             output_size_on_qp([&]
    {
       int s = 0;
       for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
@@ -142,7 +135,8 @@ public:
       }
       else
       {
-         run_kernels<DerivativeSetupHO>(xe, cache_tensor);
+         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
+         // run_kernels<DerivativeSetupHO>(xe, cache_tensor);
       }
    }
 
@@ -198,7 +192,7 @@ public:
 
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
-      static constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
+      static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const int ne = ctx.nentities;
       MFEM_CONTRACT_VAR(residual_size_on_qp);
@@ -245,7 +239,7 @@ public:
          // Inputs argument registers + shared memory
          // -----------------------------------------------
          args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
-         MFEM_SHARED typename backend_t::template Shared<MQ1> smem;
+         MFEM_SHARED typename backend_t::Shared smem;
 
          // -----------------------------------------------
          // Load primal inputs (rargs) once for this element
@@ -260,13 +254,13 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
+               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
                using FieldParamT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK, MQ1, decltype(rarg), decltype(XE),
+               backend_t::template LoadGradient<RNK, decltype(rarg), decltype(XE),
                                                 FieldParamT>(smem, e, d, q, Q1D, B, G, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
@@ -325,8 +319,8 @@ public:
                               else if constexpr (is_value_fop_v<FOP> ||
                                                  is_gradient_fop_v<FOP>)
                               {
-                                 parg = backend_t::template qp_pull<ARG, MQ1>(
-                                           get<i>(rargs), qx, qy, qz);
+                                 parg = backend_t::template qp_pull<ARG>(
+                                    get<i>(rargs), qx, qy, qz);
                               }
                               else { static_assert(false, "Unsupported"); }
                            });
@@ -368,7 +362,7 @@ public:
                                  if constexpr (qf_param_uses_dual_v<DT>)
                                  {
                                     qarg = backend_t::template identity_qp_pull_dual<DT>(
-                                              false, XE, XE, qx, qy, qz, e);
+                                       false, XE, XE, qx, qy, qz, e);
                                  }
                                  else
                                  {
@@ -382,8 +376,8 @@ public:
                               else if constexpr (is_value_fop_v<FOP> ||
                                                  is_gradient_fop_v<FOP>)
                               {
-                                 qarg = backend_t::template qp_pull<ARG, MQ1>(
-                                           get<i>(rargs), qx, qy, qz);
+                                 qarg = backend_t::template qp_pull<ARG>(
+                                    get<i>(rargs), qx, qy, qz);
                               }
                               else { static_assert(false, "Unsupported"); }
                            });
@@ -425,7 +419,7 @@ public:
    using SetupKernelType =
       decltype(&DerivativeSetup::derivative_setup_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeSetupLO, SetupKernelType, (int, int));
-   MFEM_REGISTER_KERNELS(DerivativeSetupHO, SetupKernelType, (int, int));
+   // MFEM_REGISTER_KERNELS(DerivativeSetupHO, SetupKernelType, (int, int));
 };
 
 template <
@@ -439,7 +433,7 @@ DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupLO:
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return setup_t::template derivative_setup_callback<LocalQFLOBackend<DIM>, Q1D>;
+   return setup_t::template derivative_setup_callback<LocalQFLOBackend<DIM, Q1D>>;
 }
 
 template <
@@ -464,38 +458,38 @@ DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupLO:
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupHO::Kernel()
-{
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return setup_t::template derivative_setup_callback<LocalQFHOBackend<DIM>, Q1D>;
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// template <int DIM, int Q1D>
+// typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::SetupKernelType
+// DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupHO::Kernel()
+// {
+//    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    return setup_t::template derivative_setup_callback<LocalQFHOBackend<DIM>, Q1D>;
+// }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupHO::Fallback
-(int dim, int)
-{
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   if (dim == 2)
-   {
-      return setup_t::template derivative_setup_callback<LocalQFHOBackend<2>>;
-   }
-   else if (dim == 3)
-   {
-      return setup_t::template derivative_setup_callback<LocalQFHOBackend<3>>;
-   }
-   else { MFEM_ABORT("Unsupported dimension"); }
-}
+// template <
+//    int derivative_id,
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::SetupKernelType
+// DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeSetupHO::Fallback
+// (int dim, int)
+// {
+//    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+//    if (dim == 2)
+//    {
+//       return setup_t::template derivative_setup_callback<LocalQFHOBackend<2>>;
+//    }
+//    else if (dim == 3)
+//    {
+//       return setup_t::template derivative_setup_callback<LocalQFHOBackend<3>>;
+//    }
+//    else { MFEM_ABORT("Unsupported dimension"); }
+// }
 
 } // namespace mfem::future::LocalQFImpl

@@ -65,6 +65,7 @@ set(SRCS
   dgmassinv.cpp
   doftrans.cpp
   dfem/doperator.cpp
+  dfem/backends/local_qf/kernels.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp

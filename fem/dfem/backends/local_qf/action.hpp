@@ -10,8 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "kernels_lo.hpp"
-#include "kernels_ho.hpp"
+#include "kernels.hpp"
 #include "util.hpp"
 
 #include "../../integrator_ctx.hpp"
@@ -102,28 +101,6 @@ public:
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
-#ifndef MFEM_DEBUG
-      // 2D kernels
-      ActionLO::template Specialization<2, 2>::Add();
-      ActionLO::template Specialization<2, 3>::Add();
-      ActionLO::template Specialization<2, 4>::Add();
-      ActionLO::template Specialization<2, 5>::Add();
-      ActionLO::template Specialization<2, 6>::Add();
-
-      // 3D kernels
-      ActionLO::template Specialization<3, 2>::Add();
-      ActionLO::template Specialization<3, 3>::Add();
-      ActionLO::template Specialization<3, 4>::Add();
-      ActionLO::template Specialization<3, 5>::Add();
-      ActionLO::template Specialization<3, 6>::Add();
-
-      // 3D HO kernels
-      // ActionHO::template Specialization<3, 10>::Add();
-      // ActionHO::template Specialization<3, 12>::Add();
-      // ActionHO::template Specialization<3, 14>::Add();
-      // ActionHO::template Specialization<3, 16>::Add();
-      // ActionHO::template Specialization<3, 18>::Add();
-#endif
    }
 
    template <typename Backend>
@@ -150,11 +127,42 @@ public:
    {
       if (q1d <= 8)
       {
+#ifndef MFEM_DEBUG
+         static const bool AddKernelLO =
+            (
+               // 2D kernels
+               ActionLO::template Specialization<2, 2>::Add(),
+               ActionLO::template Specialization<2, 3>::Add(),
+               ActionLO::template Specialization<2, 4>::Add(),
+               ActionLO::template Specialization<2, 5>::Add(),
+               ActionLO::template Specialization<2, 6>::Add(),
+               // 3D kernels
+               ActionLO::template Specialization<3, 2>::Add(),
+               ActionLO::template Specialization<3, 3>::Add(),
+               ActionLO::template Specialization<3, 4>::Add(),
+               ActionLO::template Specialization<3, 5>::Add(),
+               ActionLO::template Specialization<3, 6>::Add(),
+               true);
+         MFEM_CONTRACT_VAR(AddKernelLO);
+#endif // MFEM_DEBUG
          run_kernels<ActionLO>(xe, ye);
       }
       else
       {
-         run_kernels<ActionHO>(xe, ye);
+         // #ifndef MFEM_DEBUG
+         //          static const bool AddKernelHO =
+         //             (
+         //                // 3D HO kernels
+         //                ActionHO::template Specialization<3, 10>::Add(),
+         //                ActionHO::template Specialization<3, 12>::Add(),
+         //                ActionHO::template Specialization<3, 14>::Add(),
+         //                ActionHO::template Specialization<3, 16>::Add(),
+         //                ActionHO::template Specialization<3, 18>::Add(),
+         //                true);
+         // MFEM_CONTRACT_VAR(AddKernelHO);
+         // #endif // MFEM_DEBUG
+         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
+         // run_kernels<ActionHO>(xe, ye);
       }
    }
 
@@ -188,8 +196,8 @@ public:
 
       static constexpr auto DIM = backend_t::DIM;
       static constexpr auto B2D = backend_t::DIM == 2;
-      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
-      static constexpr auto MTPB = backend_t::template MAX_THREADS_PER_BLOCK<T_Q1D>();
+      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::Q1D;
+      static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const int ne = ctx.nentities;
 
@@ -262,7 +270,7 @@ public:
          // -----------------------------------------------
          // Shared memory
          // -----------------------------------------------
-         MFEM_SHARED typename backend_t::template Shared<MQ1> smem;
+         MFEM_SHARED typename backend_t::Shared smem;
 
          // -----------------------------------------------
          // Load inputs
@@ -277,7 +285,7 @@ public:
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::template LoadValue<MQ1>(smem, e, d, q, Q1D, B, XE, rarg);
+               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -285,7 +293,7 @@ public:
                using rarg_t = decltype(rarg);
                using qf_param_t = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               backend_t::template LoadGradient<RNK, MQ1, rarg_t, XE_t, qf_param_t>
+               backend_t::template LoadGradient<RNK, rarg_t, XE_t, qf_param_t>
                (smem, e, d, q, q1d, B, G, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
@@ -341,7 +349,7 @@ public:
                      }
                      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
                      {
-                        qarg = backend_t::template qp_pull<ARG, MQ1>
+                        qarg = backend_t::template qp_pull<ARG>
                         (get<i>(rargs), qx, qy, qz);
                      }
                      else { static_assert(false, "Unsupported"); }
@@ -378,7 +386,7 @@ public:
                      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
                      {
                         auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push<ARG, MQ1>(rarg, qx, qy, qz, qarg);
+                        backend_t::template qp_push<ARG>(rarg, qx, qy, qz, qarg);
                      }
                      else { static_assert(false, "Unsupported"); }
                   });
@@ -400,7 +408,7 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop_v<FOP>)
             {
-               backend_t::template WriteValue<MQ1>
+               backend_t::WriteValue
                (smem, e, d, q, q1d, B, YE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
@@ -409,7 +417,7 @@ public:
                using rarg_t = decltype(rarg);
                using qf_param_t = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, MQ1, rarg_t, YE_t, qf_param_t>
+               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>
                (smem, e, d, q, Q1D, B, G, YE, rarg);
             }
             else if constexpr (is_identity_fop_v<FOP>)
@@ -422,7 +430,7 @@ public:
    }
    using KernelType = decltype(&Action::action_callback<>);
    MFEM_REGISTER_KERNELS(ActionLO, KernelType, (int, int));
-   MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int));
+   // MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int));
 };
 
 // Low Order kernels
@@ -436,7 +444,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= 8);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend<DIM>, Q1D>;
+   return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
 }
 
 // Low Order fallback
@@ -460,37 +468,37 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// High Order kernels
-template <
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
-{
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
-}
+// // High Order kernels
+// template <
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// template <int DIM, int Q1D>
+// typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+// Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+// {
+//    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+//    return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
+// }
 
-// High Order fallback
-template <
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
-{
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   if (dim == 2)
-   {
-      return action_t::template action_callback<LocalQFHOBackend<2>>;
-   }
-   else if (dim == 3)
-   {
-      return action_t::template action_callback<LocalQFHOBackend<3>>;
-   }
-   else { MFEM_ABORT("Unsupported dimension"); }
-}
+// // High Order fallback
+// template <
+//    typename qfunc_t,
+//    typename inputs_t,
+//    typename outputs_t>
+// typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+// Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
+// {
+//    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+//    if (dim == 2)
+//    {
+//       return action_t::template action_callback<LocalQFHOBackend<2>>;
+//    }
+//    else if (dim == 3)
+//    {
+//       return action_t::template action_callback<LocalQFHOBackend<3>>;
+//    }
+//    else { MFEM_ABORT("Unsupported dimension"); }
+// }
 
 } // namespace mfem::future::LocalQFImpl
