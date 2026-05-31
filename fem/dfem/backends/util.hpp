@@ -459,6 +459,45 @@ template <typename T>
 inline constexpr bool qp_type_uses_dual_v =
    qp_type_uses_dual<std::remove_cv_t<std::remove_reference_t<T>>>::value;
 
+using native_dual_t = dual<real_t, real_t>;
+static_assert(sizeof(native_dual_t) == 2 * sizeof(real_t),
+              "native dual storage requires contiguous value/gradient layout");
+
+inline int native_dual_vector_size(const int dual_count)
+{
+   return dual_count * static_cast<int>(sizeof(native_dual_t) / sizeof(real_t));
+}
+
+inline void ensure_native_dual_vector(Vector &v, const int dual_count)
+{
+   const int size = native_dual_vector_size(dual_count);
+   if (v.Size() != size)
+   {
+      v.SetSize(size);
+      v.UseDevice(true);
+   }
+}
+
+inline native_dual_t *native_dual_vector_rw(Vector &v)
+{
+   return reinterpret_cast<native_dual_t *>(v.ReadWrite());
+}
+
+inline const native_dual_t *native_dual_vector_r(const Vector &v)
+{
+   return reinterpret_cast<const native_dual_t *>(v.Read());
+}
+
+inline native_dual_t *native_dual_vector_host_rw(Vector &v)
+{
+   return reinterpret_cast<native_dual_t *>(v.HostReadWrite());
+}
+
+inline const native_dual_t *native_dual_vector_host_r(const Vector &v)
+{
+   return reinterpret_cast<const native_dual_t *>(v.HostRead());
+}
+
 inline void pack_dual_from_primal_shadow(
    const real_t *primal,
    const real_t *shadow,
@@ -489,7 +528,7 @@ template <typename decay_t, std::size_t I>
 decltype(auto) make_native_dual_input(
    const BlockVector &xq,
    const BlockVector &shadow_xq,
-   std::vector<dual<real_t, real_t>> &dual_storage,
+   Vector &dual_storage,
    const std::vector<int> &layout,
    const int gnqp,
    const bool active)
@@ -497,11 +536,12 @@ decltype(auto) make_native_dual_input(
    if constexpr (qp_type_uses_dual_v<decay_t>)
    {
       const int sz = xq.GetBlock(I).Size();
-      dual_storage.resize(sz);
+      ensure_native_dual_vector(dual_storage, sz);
       pack_dual_from_primal_shadow(
-         xq.GetBlock(I).Read(), shadow_xq.GetBlock(I).Read(),
-         dual_storage.data(), sz, active);
-      return make_tensor_array<decay_t>(dual_storage.data(), &layout, gnqp);
+         xq.GetBlock(I).HostRead(), shadow_xq.GetBlock(I).HostRead(),
+         native_dual_vector_host_rw(dual_storage), sz, active);
+      return make_tensor_array<decay_t>(
+         native_dual_vector_rw(dual_storage), &layout, gnqp);
    }
    else
    {
@@ -512,15 +552,16 @@ decltype(auto) make_native_dual_input(
 template <typename decay_t, std::size_t O>
 decltype(auto) make_native_dual_output(
    BlockVector &yq,
-   std::vector<dual<real_t, real_t>> &dual_storage,
+   Vector &dual_storage,
    const std::vector<int> &layout,
    const int gnqp)
 {
    if constexpr (qp_type_uses_dual_v<decay_t>)
    {
       const int sz = yq.GetBlock(O).Size();
-      dual_storage.resize(sz);
-      return make_tensor_array<decay_t>(dual_storage.data(), &layout, gnqp);
+      ensure_native_dual_vector(dual_storage, sz);
+      return make_tensor_array<decay_t>(
+         native_dual_vector_rw(dual_storage), &layout, gnqp);
    }
    else
    {
@@ -531,12 +572,13 @@ decltype(auto) make_native_dual_output(
 template <bool unpack_primal_values, typename decay_t, std::size_t O>
 void finish_native_dual_output(
    BlockVector &yq,
-   std::vector<dual<real_t, real_t>> &dual_storage)
+   Vector &dual_storage)
 {
    if constexpr (qp_type_uses_dual_v<decay_t>)
    {
       unpack_dual_to_real<unpack_primal_values>(
-         dual_storage.data(), yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
+         native_dual_vector_host_r(dual_storage),
+         yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
    }
 }
 
@@ -578,8 +620,8 @@ inline void native_dual_evaluate_qfunc(
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   std::array<std::vector<dual<real_t, real_t>>, ninputs> dual_inputs {};
-   std::array<std::vector<dual<real_t, real_t>>, noutputs> dual_outputs {};
+   std::array<Vector, ninputs> dual_inputs {};
+   std::array<Vector, noutputs> dual_outputs {};
 
    using input_decay_ts = std::tuple<qf_param_decay_t<
                           typename tuple_element<Is, qf_param_ts>::type>...>;

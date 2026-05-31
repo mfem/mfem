@@ -221,7 +221,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             MFEM_SYNC_THREAD;
             contract_value_qp_to_dof2d<MQ1>(
                d1d, q1d, B, f_qp, contract_smem2d<MQ1>(s),
-               [&] (int dx, int dy, real_t acc)
+               [=] MFEM_HOST_DEVICE (int dx, int dy, real_t acc)
             {
                yd(dx, dy, vd) += acc;
             });
@@ -244,7 +244,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             ker::s_regs3d_t<MQ1> Y {};
             ker::Eval3d<MQ1, true>(d1d, q1d, contract_smem2d<MQ1>(s), s.B, f_qp, Y);
             MFEM_SYNC_THREAD;
-            foreach_dof(d1d, [&] (int dx, int dy, int dz)
+            foreach_dof(d1d, [=] MFEM_HOST_DEVICE (int dx, int dy, int dz)
             {
                yd(dx, dy, dz, vd) += Y[dz][dy][dx];
             });
@@ -315,7 +315,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             ker::GradTranspose3d<1, DIM, MQ1>(
                d1d, q1d, contract_smem2d<MQ1>(s), s.B, s.G, f_op, Y);
             MFEM_SYNC_THREAD;
-            foreach_dof(d1d, [&] (int dx, int dy, int dz)
+            foreach_dof(d1d, [=] MFEM_HOST_DEVICE (int dx, int dy, int dz)
             {
                real_t acc = 0.0;
                for (int d = 0; d < DIM; d++) { acc += Y[0][d][dz][dy][dx]; }
@@ -341,7 +341,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
          for (int sq = sq_begin; sq < sq_end; sq++)
          {
-            foreach_qp(q1d, [&] (int qx, int qy, int qz)
+            foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
             {
                MFEM_CONTRACT_VAR(qz);
                yqp(sq, qx, qy) = fqp(0, qx, qy);
@@ -355,7 +355,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);
          for (int sq = sq_begin; sq < sq_end; sq++)
          {
-            foreach_qp(q1d, [&] (int qx, int qy, int qz)
+            foreach_qp(q1d, [=] MFEM_HOST_DEVICE (int qx, int qy, int qz)
             {
                yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz);
             });

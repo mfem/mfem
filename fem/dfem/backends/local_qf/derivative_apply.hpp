@@ -149,28 +149,6 @@ public:
                   "DerivativeApply: derivative direction field not found");
 
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
-#ifndef MFEM_DEBUG
-      // 2D kernels
-      DerivativeApplyLO::template Specialization<2, 2>::Add();
-      DerivativeApplyLO::template Specialization<2, 3>::Add();
-      DerivativeApplyLO::template Specialization<2, 4>::Add();
-      DerivativeApplyLO::template Specialization<2, 5>::Add();
-      DerivativeApplyLO::template Specialization<2, 6>::Add();
-
-      // 3D kernels
-      DerivativeApplyLO::template Specialization<3, 2>::Add();
-      DerivativeApplyLO::template Specialization<3, 3>::Add();
-      DerivativeApplyLO::template Specialization<3, 4>::Add();
-      DerivativeApplyLO::template Specialization<3, 5>::Add();
-      DerivativeApplyLO::template Specialization<3, 6>::Add();
-
-      // 3D HO kernels
-      // DerivativeApplyHO::template Specialization<3, 10>::Add();
-      // DerivativeApplyHO::template Specialization<3, 12>::Add();
-      // DerivativeApplyHO::template Specialization<3, 14>::Add();
-      // DerivativeApplyHO::template Specialization<3, 16>::Add();
-      // DerivativeApplyHO::template Specialization<3, 18>::Add();
-#endif
    }
 
    //////////////////////////////////////////////////////////////////
