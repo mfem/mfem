@@ -561,6 +561,97 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
    }
 }
 
+template <int DIM, int MQ1, typename ForeachQp, typename Shared,
+          typename input_fop_ts, std::size_t num_inputs>
+MFEM_HOST_DEVICE void accumulate_fhat_3d_pingpong(
+   const DeviceTensor<6, const real_t> &qpdc,
+   const int e,
+   const DeviceTensor<1, const real_t> &itod,
+   const input_fop_ts &inputs,
+   const std::array<DofToQuadMap, num_inputs> &input_dtqmaps,
+   const int q1d,
+   const int trial_vdim,
+   const int test_vdim,
+   const int test_op_dim,
+   Shared &s,
+   ForeachQp &&foreach_qp,
+   real_t *fhat_out,
+   int Jx, int Jy, int Jz, int j,
+   int tv_base = 0)
+{
+   static_assert(DIM == 3,
+                 "accumulate_fhat_3d_pingpong is 3D-only for this simplification pass");
+
+   const int nq = q1d * q1d * q1d;
+
+   real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
+   auto s0 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base);
+   auto s1 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base + MQ1 * MQ1 * MQ1);
+   MFEM_CONTRACT_VAR(s0);
+   MFEM_CONTRACT_VAR(s1);
+
+   int out_idx = 0;
+   for (int tv_local = 0; tv_local < test_vdim; tv_local++)
+   {
+      const int tv = tv_base + tv_local;
+      for (int tod = 0; tod < test_op_dim; tod++)
+      {
+         foreach_qp(q1d, [&](int qx, int qy, int qz)
+         {
+            const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+            fhat_out[out_idx + q] = 0.0;
+         });
+
+         int m_offset = 0;
+         for_constexpr<num_inputs>([&](auto inp)
+         {
+            using fop_t = std::decay_t<decltype(get<inp>(inputs))>;
+
+            const int trial_op_dim = static_cast<int>(itod(static_cast<int>(inp)));
+            if (trial_op_dim == 0) { return; }
+
+            const auto &B = input_dtqmaps[inp].B;
+            const auto &G = input_dtqmaps[inp].G;
+
+            if constexpr (is_value_fop<fop_t>::value)
+            {
+               foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
+               {
+                  const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+                  const real_t w = trial_basis_weight_value<DIM>(B, qx, qy, qz, Jx, Jy, Jz);
+                  for (int m = 0; m < trial_op_dim; m++)
+                  {
+                     const real_t f = qpdc(m + m_offset, j, tod, tv, q, e);
+                     fhat_out[out_idx + q] += f * w;
+                  }
+               });
+            }
+            else if constexpr (is_gradient_fop<fop_t>::value)
+            {
+               foreach_qp(q1d, [&](const int qx, const int qy, const int qz)
+               {
+                  const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+                  for (int m = 0; m < trial_op_dim; m++)
+                  {
+                     const real_t w = trial_basis_weight_gradient<DIM>(
+                                         B, G, m, qx, qy, qz, Jx, Jy, Jz);
+                     const real_t f = qpdc(m + m_offset, j, tod, tv, q, e);
+                     fhat_out[out_idx + q] += f * w;
+                  }
+               });
+            }
+
+            m_offset += trial_op_dim;
+         });
+
+         out_idx += nq;
+      }
+   }
+
+   MFEM_CONTRACT_VAR(s);
+}
+
+
 template <int DIM, int MQ1, typename ForeachQp, typename ForeachDof, typename Shared,
           typename input_fop_ts, std::size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
@@ -584,8 +675,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    // Slab must hold full (test_vdim, test_op_dim, nq) fhat when it fits; the
    // old MAX_NQ*DIM bound only covered scalar (test_vdim == 1) and forced vector
    // fields onto the per-tv slab path incorrectly for moderate q1d.
-   static constexpr int FHAT_SLAB_MAX =
-      (grad_out && !ident_out) ? MAX_NQ * 8 : MAX_NQ;
+   static constexpr int FHAT_SLAB_MAX = MAX_NQ * 4;
 
    const int test_vdim = qpdc.GetShape()[3];
    const int test_op_dim = qpdc.GetShape()[2];
@@ -696,6 +786,36 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
          bvtfhat, f_slab, output, output_dtqmap, s, foreach_qp, foreach_dof, tv_dof);
       clear_contract_smem2d<MQ1>(s);
    };
+
+   if constexpr (DIM == 3)
+   {
+      foreach_trial_dof<DIM>(td1d,
+                             [&](const int Jx, const int Jy, const int Jz, const int J)
+      {
+         for (int j = 0; j < trial_vdim; j++)
+         {
+            if constexpr (grad_out && !ident_out)
+            {
+               for (int tv = 0; tv < test_vdim; tv++)
+               {
+                  accumulate_fhat_3d_pingpong<DIM, MQ1>(
+                     qpdc, e, itod, inputs, input_dtqmaps, q1d,
+                     trial_vdim, 1, test_op_dim,
+                     s, foreach_qp, &fhat_storage[0], Jx, Jy, Jz, j,
+                     /*tv_base=*/ tv);
+               }
+            }
+            else
+            {
+               accumulate_fhat_3d_pingpong<DIM, MQ1>(
+                  qpdc, e, itod, inputs, input_dtqmaps, q1d,
+                  trial_vdim, test_vdim, test_op_dim,
+                  s, foreach_qp, &fhat_storage[0], Jx, Jy, Jz, j,
+                  /*tv_base=*/ 0);
+            }
+         }
+      });
+   }
 
    foreach_trial_dof<DIM>(td1d,
                           [&](const int Jx, const int Jy, const int Jz, const int J)
@@ -1176,22 +1296,9 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         static constexpr int EffectiveQ1D = T_Q1D ? T_Q1D : backend_t::Q1D;
-         if constexpr (DIM == 3 && EffectiveQ1D < 8)
-         {
-            // Small-Q1D 3D specializations mis-assemble vector Jacobians; use
-            // the Q1D=8 shared tile layout (still valid when q1d <= EffectiveQ1D).
-            using LargeBackend = LocalQFLOBackend<DIM, 8>;
-            DerivativeAssemble::template AssembleElementMatSumfact<LargeBackend, 8>(
-               Ae, qpdc, e, itod, inputs, get<0>(outputs),
-               input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
-         }
-         else
-         {
-            DerivativeAssemble::template AssembleElementMatSumfact<backend_t, T_Q1D>(
-               Ae, qpdc, e, itod, inputs, get<0>(outputs),
-               input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
-         }
+         DerivativeAssemble::template AssembleElementMatSumfact<backend_t, T_Q1D>(
+            Ae, qpdc, e, itod, inputs, get<0>(outputs),
+            input_dtq_maps, output_dtq, q1d, num_trial_dof_1d);
       }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
    }
 
