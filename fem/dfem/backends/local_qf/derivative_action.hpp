@@ -101,7 +101,7 @@ public:
       dim(ctx.mesh.Dimension()),
       ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
-      q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5)))
+      q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");

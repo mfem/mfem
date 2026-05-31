@@ -122,13 +122,7 @@ public:
                   "LocalQFBackend: test space is not a ParFiniteElementSpace");
       return (*test_fes)->GetFE(0)->GetDof();
    }()),
-   num_test_dof_1d([&]
-   {
-      const int dimension = ctx_in.mesh.Dimension();
-      return (dimension > 0)
-      ? static_cast<int>(std::floor(std::pow(num_test_dof, 1.0 / dimension) + 0.5))
-      : 0;
-   }()),
+   num_test_dof_1d(tensor_1d_size(num_test_dof, ctx_in.mesh.Dimension())),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim([&]
    {
@@ -143,18 +137,13 @@ public:
       MFEM_ASSERT(trial_fes != nullptr && *trial_fes != nullptr,
                   "LocalQFBackend: trial space is not a ParFiniteElementSpace");
       const int num_trial_dof = (*trial_fes)->GetFE(0)->GetDof();
-      const int dimension = ctx_in.mesh.Dimension();
-      return (dimension > 0)
-      ? static_cast<int>(std::floor(std::pow(num_trial_dof, 1.0 / dimension) + 0.5))
-      : 0;
+      return tensor_1d_size(num_trial_dof, ctx_in.mesh.Dimension());
    }()),
    residual_size_on_qp(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim),
    dim(ctx_in.mesh.Dimension()),
    ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()),
-   q1d(static_cast<int>(std::floor(
-                           std::pow(static_cast<real_t>(nq),
-                                    1.0 / static_cast<real_t>(dim)) + 0.5))),
+   q1d(tensor_1d_size(nq, dim)),
    inputs_trial_op_dim([&]
    {
       std::array<int, n_inputs> itod{};

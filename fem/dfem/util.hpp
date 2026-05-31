@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <unordered_map>
@@ -42,6 +43,18 @@
 
 namespace mfem::future
 {
+
+/// Number of points along one axis of a tensor-product set: given `total`
+/// points (e.g. quadrature points or dofs) spread over `dim` dimensions,
+/// returns the rounded `dim`-th root, round(total^(1/dim)). Recovers q1d from
+/// the number of quadrature points, or d1d from the number of dofs.
+MFEM_HOST_DEVICE inline int tensor_1d_size(int total, int dim)
+{
+   if (dim <= 0) { return 0; }
+   return static_cast<int>(std::floor(
+                              std::pow(static_cast<real_t>(total),
+                                       1.0 / static_cast<real_t>(dim)) + 0.5));
+}
 
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
@@ -2942,8 +2955,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 
          int nqpt = ir.GetNPoints();
          int ndof = nqpt;
-         const int q1d = (int)floor(std::pow(ir.GetNPoints(),
-                                             1.0 / mesh_dimension) + 0.5);
+         const int q1d = tensor_1d_size(ir.GetNPoints(), mesh_dimension);
          nqpt = q1d;
          ndof = q1d;
 

@@ -139,7 +139,7 @@ public:
    dim(ctx.mesh.Dimension()),
    ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
-   q1d(static_cast<int>(std::floor(std::pow(nq, 1.0 / dim) + 0.5))),
+   q1d(tensor_1d_size(nq, dim)),
    deriv_infd_idx(find_infd_index(ctx, derivative_id)),
    out_elem_dof_size{}
    {
