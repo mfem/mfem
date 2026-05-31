@@ -42,7 +42,6 @@ protected:
    void pAllocMat();
 
    void AssembleSharedFaces(int skip_zeros = 1);
-   void SubMeshTolerantAssemble(int skip_zeros = 1);
 
 private:
    /// Copy construction is not supported; body is undefined.

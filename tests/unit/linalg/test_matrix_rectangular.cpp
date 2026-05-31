@@ -32,9 +32,79 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
+void check_submesh_trial_mixed_bilinear_form()
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Element *el = mesh.GetElement(i);
+      Array<int> vertices;
+      el->GetVertices(vertices);
+
+      real_t xavg = 0.0;
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         xavg += mesh.GetVertex(vertices[j])[0];
+      }
+      xavg /= vertices.Size();
+      el->SetAttribute((xavg < 0.5) ? 1 : 2);
+   }
+   mesh.SetAttributes();
+
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 2;
+   auto trial_submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+   const int dim = mesh.Dimension();
+   const int order = 2;
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace trial_fes(&trial_submesh, &fec);
+   FiniteElementSpace parent_trial_fes(&mesh, &fec);
+   FiniteElementSpace test_fes(&mesh, &fec);
+
+   FunctionCoefficient xcoeff([](const Vector &x)
+   {
+      return 1.0 + 2.0 * x(0) - x(1);
+   });
+
+   GridFunction trial_gf(&trial_fes);
+   trial_gf.ProjectCoefficient(xcoeff);
+
+   GridFunction parent_trial_gf(&parent_trial_fes);
+   parent_trial_gf = 0.0;
+   SubMesh::Transfer(trial_gf, parent_trial_gf);
+
+   ConstantCoefficient one(1.0);
+
+   MixedBilinearForm submesh_form(&trial_fes, &test_fes);
+   submesh_form.AddDomainIntegrator(new MassIntegrator(one));
+   submesh_form.Assemble();
+   submesh_form.Finalize();
+
+   Array<int> attr_marker(mesh.attributes.Max());
+   attr_marker = 0;
+   attr_marker[1] = 1;
+
+   MixedBilinearForm reference_form(&parent_trial_fes, &test_fes);
+   reference_form.AddDomainIntegrator(new MassIntegrator(one), attr_marker);
+   reference_form.Assemble();
+   reference_form.Finalize();
+
+   Vector submesh_result(test_fes.GetVSize());
+   Vector reference_result(test_fes.GetVSize());
+
+   submesh_form.Mult(trial_gf, submesh_result);
+   reference_form.Mult(parent_trial_gf, reference_result);
+
+   submesh_result -= reference_result;
+   REQUIRE(submesh_result.Norml2() == MFEM_Approx(0.0));
+}
+
 #ifdef MFEM_USE_MPI
 
-void check_submesh_trial_mixed_bilinear_form()
+void check_submesh_trial_mixed_bilinear_form_parallel()
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
 
@@ -112,6 +182,11 @@ void check_submesh_trial_mixed_bilinear_form()
 }
 
 #endif // MFEM_USE_MPI
+
+TEST_CASE("MixedBilinearFormSubMeshTrial", "[FormRectangularSystemMatrix]")
+{
+   check_submesh_trial_mixed_bilinear_form();
+}
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
@@ -193,7 +268,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 
 TEST_CASE("ParMixedBilinearFormSubMeshTrial", "[Parallel], [FormRectangularSystemMatrix]")
 {
-   check_submesh_trial_mixed_bilinear_form();
+   check_submesh_trial_mixed_bilinear_form_parallel();
 }
 
 #endif // MFEM_USE_MPI
