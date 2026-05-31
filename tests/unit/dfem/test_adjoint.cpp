@@ -85,7 +85,7 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
    MultiVector state{x, y, nodes}, mz{z};
 
    // Forward tangent (sensitivities δz)
-   ParGridFunction δx(&fes), δy(&fes), δz(&fes), δw(&fes);
+   ParGridFunction δx(&fes), δy(&fes), δz(&fes), δu(&fes), δv(&fes);
    δx.Randomize(0x01000193);
    δy.Randomize(0x1b873593);
    δz = 0.0;
@@ -93,11 +93,11 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
    auto dFu = F.GetDerivative(U, state);
    auto dFv = F.GetDerivative(V, state);
 
-   MultiVector mδx{δx}, mδy{δy}, mδz{δz}, mδw{δw};
+   MultiVector mδx{δx}, mδy{δy}, mδu{δu}, mδv{δv};
 
-   dFu->Mult(δx, mδz); // δz  = ∂F/∂x * δx
-   dFv->Mult(δy, mδw); // δz += ∂F/∂y * δy
-   δz += δw;
+   dFu->Mult(δx, mδu); // δu = ∂F/∂x * δx
+   dFv->Mult(δy, mδv); // δv = ∂F/∂y * δy
+   add(δu, δv, δz);
 
    // Adjoint pass (MultTranspose from seed)
    ParGridFunction bar_x(&fes), bar_y(&fes), bar_z(&fes);
@@ -167,27 +167,18 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
    const vfds_t out_fds = { {U, &fes} };
    DifferentiableOperator F(in_fds, out_fds, pmesh);
 
+   using ITS = Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>;
+   using OTS = Outputs<Value<U>>;
+   using DID = Derivatives<U, V>;
+
    global_qf<DIM> q_gfn {};
    F.AddDomainIntegrator<GlobalQFBackend>(
-      q_gfn,
-      Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},
-      Outputs<Value<U>> {},
-      *ir, all_domain_attr, Derivatives<U, V> {});
+      q_gfn, ITS {}, OTS {}, *ir, all_domain_attr, DID {});
 
    local_qf<DIM> q_lfn {};
-   AddLocalSpecializations<2, 4,
-                           decltype(q_lfn),
-                           Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>,
-                           Outputs<Value<U>>>();
-   AddLocalSpecializations<3, 4,
-                           decltype(q_lfn),
-                           Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>,
-                           Outputs<Value<U>>>();
+   AddLocalSpecializations<DIM, 3, local_qf<DIM>, ITS, OTS>();
    F.AddDomainIntegrator<LocalQFBackend>(
-      q_lfn,
-      Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},
-      Outputs<Value<U>> {},
-      *ir, all_domain_attr, Derivatives<U, V> {});
+      q_lfn, ITS {}, OTS {}, *ir, all_domain_attr, DID {});
 
    RunTangentAdjointConsistency<DIM>(F, fes, *nodes);
 }
