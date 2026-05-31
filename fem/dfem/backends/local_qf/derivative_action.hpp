@@ -164,24 +164,24 @@ public:
                                    ElementDofOrdering::LEXICOGRAPHIC);
       if (q1d <= 8)
       {
-#ifndef MFEM_DEBUG
-         static const bool AddKernelLO =
-            (
-               // 2D kernels
-               DerivativeActionLO::template Specialization<2, 2>::Add(),
-               DerivativeActionLO::template Specialization<2, 3>::Add(),
-               DerivativeActionLO::template Specialization<2, 4>::Add(),
-               DerivativeActionLO::template Specialization<2, 5>::Add(),
-               DerivativeActionLO::template Specialization<2, 6>::Add(),
-               // 3D kernels
-               DerivativeActionLO::template Specialization<3, 2>::Add(),
-               DerivativeActionLO::template Specialization<3, 3>::Add(),
-               DerivativeActionLO::template Specialization<3, 4>::Add(),
-               DerivativeActionLO::template Specialization<3, 5>::Add(),
-               DerivativeActionLO::template Specialization<3, 6>::Add(),
-               true);
-         MFEM_CONTRACT_VAR(AddKernelLO);
-#endif // MFEM_DEBUG
+         // #ifndef MFEM_DEBUG
+         //          static const bool AddKernelLO =
+         //             (
+         //                // 2D kernels
+         //                DerivativeActionLO::template Specialization<2, 2>::Add(),
+         //                DerivativeActionLO::template Specialization<2, 3>::Add(),
+         //                DerivativeActionLO::template Specialization<2, 4>::Add(),
+         //                DerivativeActionLO::template Specialization<2, 5>::Add(),
+         //                DerivativeActionLO::template Specialization<2, 6>::Add(),
+         //                // 3D kernels
+         //                DerivativeActionLO::template Specialization<3, 2>::Add(),
+         //                DerivativeActionLO::template Specialization<3, 3>::Add(),
+         //                DerivativeActionLO::template Specialization<3, 4>::Add(),
+         //                DerivativeActionLO::template Specialization<3, 5>::Add(),
+         //                DerivativeActionLO::template Specialization<3, 6>::Add(),
+         //                true);
+         //          MFEM_CONTRACT_VAR(AddKernelLO);
+         // #endif // MFEM_DEBUG
          run_kernels<DerivativeActionLO>(xe, ye);
       }
       else

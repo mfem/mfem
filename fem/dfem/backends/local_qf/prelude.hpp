@@ -137,4 +137,44 @@ struct LocalQFBackend
    }
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, typename QT, typename IT, typename OT>
+inline void AddActionLO()
+{
+   using ker = LocalQFImpl::Action<QT, IT, OT>;
+   ker::ActionLO::template Specialization<DIM, Q1D>::Add();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+inline void AddDerivativeActionLO()
+{
+   using ker = LocalQFImpl::DerivativeAction<DID, QT, IT, OT>;
+   ker::DerivativeActionLO::template Specialization<DIM, Q1D>::Add();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+inline void AddDerivativeSetupLO()
+{
+   using ker = LocalQFImpl::DerivativeSetup<DID, QT, IT, OT>;
+   ker::DerivativeSetupLO::template Specialization<DIM, Q1D>::Add();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+inline void AddDerivativeApplyLO()
+{
+   using ker = LocalQFImpl::DerivativeApply<DID, QT, IT, OT>;
+   ker::DerivativeApplyLO::template Specialization<DIM, Q1D>::Add();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+inline void AddDerivativeApplyTransposeLO()
+{
+   using ker = LocalQFImpl::DerivativeApplyTranspose<DID, QT, IT, OT>;
+   ker::DerivativeApplyTransposeLO::template Specialization<DIM, Q1D>::Add();
+}
+
 }

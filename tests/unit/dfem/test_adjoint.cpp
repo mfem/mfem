@@ -24,9 +24,9 @@ using namespace mfem::future;
 
 // ────────────────────────────────────────────────────────────────────────────
 #ifdef MFEM_USE_ENZYME
-using dreal_t = mfem::real_t;
+using dreal_t = real_t;
 #else
-using dreal_t = mfem::future::dual<real_t, real_t>;
+using dreal_t = dual<real_t, real_t>;
 #endif
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -114,6 +114,23 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, typename QT, typename IT, typename OT>
+inline void AddLocalSpecializations()
+{
+   AddActionLO<DIM, Q1D, QT, IT, OT>();
+
+   AddDerivativeActionLO<DIM, Q1D, U, QT, IT, OT>();
+   AddDerivativeSetupLO<DIM, Q1D, U, QT, IT, OT>();
+   AddDerivativeApplyLO<DIM, Q1D, U, QT, IT, OT>();
+   AddDerivativeApplyTransposeLO<DIM, Q1D, U, QT, IT, OT>();
+
+   AddDerivativeActionLO<DIM, Q1D, V, QT, IT, OT>();
+   AddDerivativeSetupLO<DIM, Q1D, V, QT, IT, OT>();
+   AddDerivativeApplyLO<DIM, Q1D, V, QT, IT, OT>();
+   AddDerivativeApplyTransposeLO<DIM, Q1D, V, QT, IT, OT>();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Tangent-adjoint consistency test
 template <int DIM>
 void TangentAdjointConsistencyTest(const char *filename, int p)
@@ -158,6 +175,14 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
       *ir, all_domain_attr, Derivatives<U, V> {});
 
    local_qf<DIM> q_lfn {};
+   AddLocalSpecializations<2, 4,
+                           decltype(q_lfn),
+                           Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>,
+                           Outputs<Value<U>>>();
+   AddLocalSpecializations<3, 4,
+                           decltype(q_lfn),
+                           Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>,
+                           Outputs<Value<U>>>();
    F.AddDomainIntegrator<LocalQFBackend>(
       q_lfn,
       Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight> {},

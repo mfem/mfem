@@ -985,19 +985,19 @@ public:
       Ae_mem.UseDevice(true);
       Ae_mem = 0.0;
 
-#ifndef MFEM_DEBUG
-      DerivativeAssembleLO::template Specialization<2, 2>::Add();
-      DerivativeAssembleLO::template Specialization<2, 3>::Add();
-      DerivativeAssembleLO::template Specialization<2, 4>::Add();
-      DerivativeAssembleLO::template Specialization<2, 5>::Add();
-      DerivativeAssembleLO::template Specialization<2, 6>::Add();
+      // #ifndef MFEM_DEBUG
+      //       DerivativeAssembleLO::template Specialization<2, 2>::Add();
+      //       DerivativeAssembleLO::template Specialization<2, 3>::Add();
+      //       DerivativeAssembleLO::template Specialization<2, 4>::Add();
+      //       DerivativeAssembleLO::template Specialization<2, 5>::Add();
+      //       DerivativeAssembleLO::template Specialization<2, 6>::Add();
 
-      DerivativeAssembleLO::template Specialization<3, 2>::Add();
-      DerivativeAssembleLO::template Specialization<3, 3>::Add();
-      DerivativeAssembleLO::template Specialization<3, 4>::Add();
-      DerivativeAssembleLO::template Specialization<3, 5>::Add();
-      DerivativeAssembleLO::template Specialization<3, 6>::Add();
-#endif
+      //       DerivativeAssembleLO::template Specialization<3, 2>::Add();
+      //       DerivativeAssembleLO::template Specialization<3, 3>::Add();
+      //       DerivativeAssembleLO::template Specialization<3, 4>::Add();
+      //       DerivativeAssembleLO::template Specialization<3, 5>::Add();
+      //       DerivativeAssembleLO::template Specialization<3, 6>::Add();
+      // #endif
    }
 
    template <typename Backend>
