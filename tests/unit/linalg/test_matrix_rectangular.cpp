@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <memory>
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
@@ -29,6 +31,87 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
+
+#ifdef MFEM_USE_MPI
+
+void check_submesh_trial_mixed_bilinear_form()
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Element *el = mesh.GetElement(i);
+      Array<int> vertices;
+      el->GetVertices(vertices);
+
+      real_t xavg = 0.0;
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         xavg += mesh.GetVertex(vertices[j])[0];
+      }
+      xavg /= vertices.Size();
+      el->SetAttribute((xavg < 0.5) ? 1 : 2);
+   }
+   mesh.SetAttributes();
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 2;
+   auto trial_submesh = ParSubMesh::CreateFromDomain(pmesh,
+                                                     subdomain_attributes);
+
+   const int dim = pmesh.Dimension();
+   const int order = 2;
+
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace trial_fes(&trial_submesh, &fec);
+   ParFiniteElementSpace parent_trial_fes(&pmesh, &fec);
+   ParFiniteElementSpace test_fes(&pmesh, &fec);
+
+   FunctionCoefficient xcoeff([](const Vector &x)
+   {
+      return 1.0 + 2.0 * x(0) - x(1);
+   });
+
+   ParGridFunction trial_gf(&trial_fes);
+   trial_gf.ProjectCoefficient(xcoeff);
+
+   ParGridFunction parent_trial_gf(&parent_trial_fes);
+   parent_trial_gf = 0.0;
+   ParSubMesh::Transfer(trial_gf, parent_trial_gf);
+
+   ConstantCoefficient one(1.0);
+
+   ParMixedBilinearForm submesh_form(&trial_fes, &test_fes);
+   submesh_form.AddDomainIntegrator(new MassIntegrator(one));
+   submesh_form.Assemble();
+   submesh_form.Finalize();
+   std::unique_ptr<HypreParMatrix> submesh_mat(submesh_form.ParallelAssemble());
+
+   Array<int> attr_marker(mesh.attributes.Max());
+   attr_marker = 0;
+   attr_marker[1] = 1;
+
+   ParMixedBilinearForm reference_form(&parent_trial_fes, &test_fes);
+   reference_form.AddDomainIntegrator(new MassIntegrator(one), attr_marker);
+   reference_form.Assemble();
+   reference_form.Finalize();
+   std::unique_ptr<HypreParMatrix> reference_mat(reference_form.ParallelAssemble());
+
+   std::unique_ptr<HypreParVector> trial_true(trial_gf.ParallelProject());
+   std::unique_ptr<HypreParVector> parent_trial_true(parent_trial_gf.ParallelProject());
+   std::unique_ptr<HypreParVector> submesh_result(test_fes.NewTrueDofVector());
+   std::unique_ptr<HypreParVector> reference_result(test_fes.NewTrueDofVector());
+
+   submesh_mat->Mult(*trial_true, *submesh_result);
+   reference_mat->Mult(*parent_trial_true, *reference_result);
+
+   *submesh_result -= *reference_result;
+   REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
+}
+
+#endif // MFEM_USE_MPI
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
@@ -105,6 +188,15 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("ParMixedBilinearFormSubMeshTrial", "[Parallel], [FormRectangularSystemMatrix]")
+{
+   check_submesh_trial_mixed_bilinear_form();
+}
+
+#endif // MFEM_USE_MPI
 
 #ifdef MFEM_USE_MPI
 
