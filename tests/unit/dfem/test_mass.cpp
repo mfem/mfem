@@ -101,12 +101,12 @@ void mass_action(const char *filename, int p)
    const int tvsize = pfes.GetTrueVSize();
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
-   Vector X(tvsize), Y(tvsize), Z(tvsize);
+   Vector X(tvsize), Y(tvsize), Z(tvsize), dZ(tvsize);
 
    X.Randomize(1);
    x.SetFromTrueDofs(X);
 
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient one(1.0), zero(0.0);
 
    ParBilinearForm blf(&pfes);
    // Add two mass integrators as we use both local and global QF backends
@@ -126,6 +126,10 @@ void mass_action(const char *filename, int p)
    Vector N;
    nodes->GetTrueDofs(N);
 
+   using IT = Inputs<Value<U>, Gradient<Coords>, Weight>;
+   using OT = Outputs<Value<U>>;
+   using DT = Derivatives<U>;
+
    SECTION("Action")
    {
       blf.Mult(x, y);
@@ -135,70 +139,64 @@ void mass_action(const char *filename, int p)
 
       local_mf_mass_qf<DIM> qf_lfn;
       dop.AddDomainIntegrator<LocalQFBackend>(
-         qf_lfn,
-         Inputs<Value<U>, Gradient<Coords>, Weight> {},
-         Outputs<Value<U>> {},
-         *ir, all_domain_attr);
+         qf_lfn, IT {}, OT {}, *ir, all_domain_attr);
 
       global_mf_mass_qf<DIM> qf_gfn;
       dop.AddDomainIntegrator<GlobalQFBackend>(
-         qf_gfn,
-         Inputs<Value<U>, Gradient<Coords>, Weight> {},
-         Outputs<Value<U>> {},
-         *ir, all_domain_attr);
-
-      pfes.GetRestrictionMatrix()->Mult(x, X); // needed ?
+         qf_gfn, IT {}, OT {}, *ir, all_domain_attr);
 
       MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
       Y -= Z;
 
-      real_t norm_global = 0.0;
-      real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+      y.SetFromTrueDofs(Y);
+      REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
    }
 
    SECTION("Action Linearized")
    {
+      // Randomize again s.t. the setup cache cannot
+      // trivially succeed by caching one direction only.
+      X.Randomize(0x9e3779b9);
+      x.SetFromTrueDofs(X);
+
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
       local_mf_mass_qf<DIM> mf_apply_lqf;
       dop.AddDomainIntegrator<LocalQFBackend>(
-         mf_apply_lqf,
-         Inputs<Value<U>, Gradient<Coords>, Weight> {},
-         Outputs<Value<U>> {},
-         *ir, all_domain_attr,
-         Derivatives<U> {});
+         mf_apply_lqf, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-      pfes.GetRestrictionMatrix()->Mult(x, X);
-      MultiVector MX{X, N}, MZ{Z};
-      auto ddop = dop.GetDerivative(U, MX);
+      global_mf_mass_qf<DIM> qf_gfn;
+      dop.AddDomainIntegrator<GlobalQFBackend>(
+         qf_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-      // Randomize again s.t. the PA setup like cache can't
-      // trivially succeed by caching one direction only.
-      X.Randomize(567);
+      MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
 
-      Vector DZ(tvsize);
-      MultiVector MDZ{DZ};
-      ddop->Mult(MX[0], MDZ);
+      // without cache
+      {
+         blf.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      x.SetFromTrueDofs(X);
-      blf.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+         auto ddop_nc = dop.GetDerivative(U, MX, false);
+         ddop_nc->Mult(MX[0], MdZ);
+         Y -= dZ;
 
-      Y -= DZ;
+         y.SetFromTrueDofs(Y);
+         REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
+      }
 
-      real_t norm_global = 0.0;
-      real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
+      // allow using the setup cache
+      // {
+      //    blf.Mult(x, y);
+      //    pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      dbg("Action Linearized");
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+      //    auto ddop_wc = dop.GetDerivative(U, MX, true);
+      //    ddop_wc->Mult(MX[0], MdZ);
+      //    Y -= dZ;
+
+      //    y.SetFromTrueDofs(Y);
+      //    REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
+      // }
    }
 
    // SECTION("Assemble Diagonal")
@@ -437,18 +435,18 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
    // mass_mat_mixed<2>(mesh2d, p);
 }
 
-// TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
-// {
-//    const auto all_tests = launch_all_non_regression_tests;
-//    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-//    const auto mesh3d =
-//       GENERATE("../../data/fichera.mesh",
-//                "../../data/fichera-q3.mesh",
-//                "../../data/inline-hex.mesh",
-//                "../../data/toroid-hex.mesh",
-//                "../../data/periodic-cube.mesh");
-//    mass_action<3>(mesh3d, p);
-//    mass_mat_mixed<3>(mesh3d, p);
-// }
+TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto mesh3d =
+      GENERATE("../../data/fichera.mesh",
+               "../../data/fichera-q3.mesh",
+               "../../data/inline-hex.mesh",
+               "../../data/toroid-hex.mesh",
+               "../../data/periodic-cube.mesh");
+   mass_action<3>(mesh3d, p);
+   // mass_mat_mixed<3>(mesh3d, p);
+}
 
 #endif // MFEM_USE_MPI

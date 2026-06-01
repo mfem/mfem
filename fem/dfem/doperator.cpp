@@ -144,7 +144,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
-   size_t derivative_id, const MultiVector &x)
+   size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
 {
    MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                derivative_action_callbacks.end(),
@@ -191,13 +191,17 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    // Prefer cached apply when setup filled qp_cache
+   // and use_cached_setup is true
    const std::vector<derivative_action_t> *mult_callbacks =
       &derivative_action_callbacks[derivative_id];
-   auto it_apply = derivative_apply_callbacks.find(derivative_id);
-   if (it_apply != derivative_apply_callbacks.end() &&
-       !it_apply->second.empty())
+   if (use_cached_setup)
    {
-      mult_callbacks = &it_apply->second;
+      auto it_apply = derivative_apply_callbacks.find(derivative_id);
+      if (it_apply != derivative_apply_callbacks.end() &&
+          !it_apply->second.empty())
+      {
+         mult_callbacks = &it_apply->second;
+      }
    }
 
    return std::make_shared<DerivativeOperator>(

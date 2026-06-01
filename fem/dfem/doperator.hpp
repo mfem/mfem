@@ -571,7 +571,8 @@ public:
       size_t derivative_id, const Vector &x);
 
    std::shared_ptr<DerivativeOperator> GetDerivative(
-      size_t derivative_id, const MultiVector &x);
+      size_t derivative_id, const MultiVector &x,
+      const bool use_cached_setup = true);
 
 private:
    const ParMesh &mesh;
