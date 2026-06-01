@@ -115,7 +115,7 @@ struct DerivativeApplyTranspose
       pull_output_cotangents_to_q(direction_l, dir_q_local);
 
       // Contract qp_cache with test directions at quadrature points
-      const real_t *cache_ptr = qp_cache.Read();
+      const real_t *cache_ptr = qp_cache.HostRead();
       const int res_sz = residual_size_on_qp;
 
       constexpr_for<0, n_outputs>([&](auto o)
@@ -130,13 +130,13 @@ struct DerivativeApplyTranspose
             return off;
          }();
 
-         const real_t *dir_o = dir_q_local.GetBlock(o.value).Read();
+         const real_t *dir_o = dir_q_local.GetBlock(o.value).HostRead();
 
          constexpr_for<0, n_inputs>([&](auto s)
          {
             if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
 
-            real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
+            real_t *res_s = result_q_local.GetBlock(s.value).HostReadWrite();
 
             for (int gq = 0; gq < gnqp; ++gq)
             {
@@ -169,8 +169,6 @@ struct DerivativeApplyTranspose
       });
 
       // Map result Q back to the trial (input) fields
-      result_q_local.SyncToBlocks();
-
       constexpr_for<0, n_inputs>([&](auto s)
       {
          if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
@@ -223,8 +221,8 @@ private:
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
 
-         dir_out_l_owned[i] = Vector(
-                                 const_cast<real_t *>(direction_l->GetData()) + l_offset, l_size);
+         dir_out_l_owned[i] =
+            Vector(*const_cast<Vector *>(direction_l), l_offset, l_size);
          dir_out_e_owned[i].SetSize(0);
          dir_out_e_owned[i].UseDevice(true);
 

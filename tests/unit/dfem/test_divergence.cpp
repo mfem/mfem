@@ -66,7 +66,8 @@ void vectordivergence(const char *filename, int p)
 
    MixedBilinearForm mblf_fa(&pvfes, &psfes);
    mblf_fa.AddDomainIntegrator(new VectorDivergenceIntegrator);
-   mblf_fa.Assemble(), mblf_fa.Finalize();
+   mblf_fa.Assemble();
+   mblf_fa.Finalize();
    mblf_fa.Mult(xv, ys);
 
    static constexpr int P = 0, V = 1, Coords = 2;
@@ -177,7 +178,7 @@ void vectordivergence(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM]")
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][DIV]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);

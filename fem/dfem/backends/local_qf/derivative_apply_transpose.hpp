@@ -16,7 +16,6 @@
 #include "util.hpp"
 
 #include <array>
-#include <cmath>
 
 namespace mfem::future::LocalQFImpl
 {
@@ -160,6 +159,7 @@ public:
       });
       dir_out_e.SetSize(total_dir_e_size * ne);
       dir_out_e.UseDevice(true);
+      dir_out_e.Read();
    }
 
    //////////////////////////////////////////////////////////////////
@@ -201,10 +201,9 @@ public:
          const size_t outfd = output_idx[o];
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
-         Vector dir_o_l(const_cast<real_t *>(direction_l->GetData()) + l_offset,
-                        l_size);
+         Vector dir_o_l(*const_cast<Vector *>(direction_l), l_offset, l_size);
          const int elem_sz = out_elem_dof_size[o];
-         Vector dir_o_e(dir_out_e.GetData() + e_offset, elem_sz * ne);
+         Vector dir_o_e(dir_out_e, e_offset, elem_sz * ne);
          restriction<Entity::Element>(fd, dir_o_l, dir_o_e,
                                       ElementDofOrdering::LEXICOGRAPHIC);
          l_offset += l_size;
@@ -300,8 +299,8 @@ public:
       auto ye_XE = Reshape(ye[deriv_infd_idx]->ReadWrite(),
                            d_in, d_in, B2D ? 1 : d_in, v_in, ne);
 
-      auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+      auto cache_tensor =
+         DeviceTensor<3, const real_t>(qp_cache.Read(), residual_size_on_qp, nq, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;

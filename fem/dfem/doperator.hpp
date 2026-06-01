@@ -205,7 +205,7 @@ public:
          for (size_t i = 0; i < outfds.size(); i++)
          {
             const int l_size = GetVSize(outfds[i]);
-            Vector dir_l_i(transpose_direction_l.GetData() + offset, l_size);
+            Vector dir_l_i(transpose_direction_l, offset, l_size);
             if constexpr (std::is_same_v<direction_t, MultiVector>)
             {
                prolongation(outfds[i], direction_mv[i], dir_l_i);

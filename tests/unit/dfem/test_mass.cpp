@@ -177,7 +177,8 @@ void mass_action(const char *filename, int p)
          blf.Mult(x, y);
          pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-         auto ddop_nc = dop.GetDerivative(U, MX, false);
+         const bool no_cache = false;
+         auto ddop_nc = dop.GetDerivative(U, MX, no_cache);
          ddop_nc->Mult(MX[0], MdZ);
          Y -= dZ;
 
@@ -186,17 +187,18 @@ void mass_action(const char *filename, int p)
       }
 
       // allow using the setup cache
-      // {
-      //    blf.Mult(x, y);
-      //    pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      {
+         blf.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      //    auto ddop_wc = dop.GetDerivative(U, MX, true);
-      //    ddop_wc->Mult(MX[0], MdZ);
-      //    Y -= dZ;
+         const bool use_cache = true;
+         auto ddop_wc = dop.GetDerivative(U, MX, use_cache);
+         ddop_wc->Mult(MX[0], MdZ);
+         Y -= dZ;
 
-      //    y.SetFromTrueDofs(Y);
-      //    REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
-      // }
+         y.SetFromTrueDofs(Y);
+         REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
+      }
    }
 
    // SECTION("Assemble Diagonal")

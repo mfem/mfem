@@ -1360,9 +1360,22 @@ inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
    const auto P = get_prolongation(field);
-   if (P == nullptr)
+   if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
    {
-      field_l = x;
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         int n = x.Size();
+         field_l.SetSize(n);
+         bool use_dev = false; // x.UseDevice();
+         field_l.UseDevice(use_dev);
+         const auto xr = x.Read(use_dev);
+         auto fw = field_l.ReadWrite(use_dev);
+         mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
+      }
+      else
+      {
+         field_l = x;
+      }
    }
    else
    {
@@ -1496,7 +1509,22 @@ void prolongation(
       // If nullptr, assume Identity.
       if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()))
       {
-         x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
+         if (Device::Allows(Backend::DEBUG_DEVICE))
+         {
+            int n = x[i].Size();
+            x_l[i]->SetSize(n);
+            bool use_dev = false; // x[i].UseDevice();
+            x_l[i]->UseDevice(use_dev);
+            const auto xr = x[i].Read(use_dev);
+            auto fw = x_l[i]->ReadWrite(use_dev);
+            mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
+         }
+         else
+         {
+            x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
+            x_l[i]->UseDevice(x[i].UseDevice());
+            x_l[i]->SyncMemory(x[i]);
+         }
       }
       else
       {
@@ -1740,7 +1768,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       {
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
-         MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
+         MPI_Allreduce(&local_sum, y.HostWrite(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
       };
       return PT;
    }

@@ -108,8 +108,6 @@ struct DerivativeApply
       // Re-zero pre-allocated Q temporaries
       dir_q_local = 0.0;
       result_q_local = 0.0;
-      dir_q_local.SyncToBlocks();
-      result_q_local.SyncToBlocks();
 
       // Restrict trial direction from the derivative field
       size_t in_fd = SIZE_MAX;
@@ -135,10 +133,11 @@ struct DerivativeApply
          if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
          input_bases[s.value].forward(dir_e, dir_q_local.GetBlock(s.value));
       });
-      dir_q_local.SyncToBlocks();
 
-      // Contract qp_cache with trial direction at Q
-      const real_t *cache_ptr = qp_cache.Read();
+      dir_q_local.SyncFromBlocks();
+      const real_t *dir_mono = dir_q_local.HostRead();
+      real_t *res_mono = result_q_local.HostReadWrite();
+      const real_t *cache_ptr = qp_cache.HostRead();
       const int res_sz = residual_size_on_qp;
 
       constexpr_for<0, n_outputs>([&](auto o)
@@ -153,7 +152,7 @@ struct DerivativeApply
             return off;
          }();
 
-         real_t *res_o = result_q_local.GetBlock(o.value).ReadWrite();
+         real_t *res_o = res_mono + result_q_offsets[o.value];
 
          int m_offset = 0;
          constexpr_for<0, n_inputs>([&](auto s)
@@ -162,7 +161,7 @@ struct DerivativeApply
 
             const int tv = get<s>(inputs).vdim;
             const int to = get<s>(inputs).size_on_qp / tv;
-            const real_t *dir_s = dir_q_local.GetBlock(s.value).Read();
+            const real_t *dir_s = dir_mono + dir_q_offsets[s.value];
 
             for (int gq = 0; gq < gnqp; ++gq)
             {

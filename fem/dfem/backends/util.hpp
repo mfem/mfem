@@ -541,11 +541,11 @@ decltype(auto) make_native_dual_input(
          xq.GetBlock(I).HostRead(), shadow_xq.GetBlock(I).HostRead(),
          native_dual_vector_host_rw(dual_storage), sz, active);
       return make_tensor_array<decay_t>(
-         native_dual_vector_rw(dual_storage), &layout, gnqp);
+                native_dual_vector_rw(dual_storage), &layout, gnqp);
    }
    else
    {
-      return make_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout, gnqp);
+      return make_tensor_array<decay_t>(xq.GetBlock(I).HostRead(), &layout, gnqp);
    }
 }
 
@@ -561,11 +561,12 @@ decltype(auto) make_native_dual_output(
       const int sz = yq.GetBlock(O).Size();
       ensure_native_dual_vector(dual_storage, sz);
       return make_tensor_array<decay_t>(
-         native_dual_vector_rw(dual_storage), &layout, gnqp);
+                native_dual_vector_rw(dual_storage), &layout, gnqp);
    }
    else
    {
-      return make_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout, gnqp);
+      return make_tensor_array<decay_t>(yq.GetBlock(O).HostReadWrite(), &layout,
+                                        gnqp);
    }
 }
 
