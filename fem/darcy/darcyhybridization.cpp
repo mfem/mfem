@@ -3430,7 +3430,6 @@ void DarcyHybridization::Reset()
 {
    Hybridization::Reset();
    bfin = false;
-   ess_tdof_list.DeleteAll();
    He.reset();
    pHe.Clear();
    Grad.reset();
