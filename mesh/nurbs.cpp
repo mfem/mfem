@@ -5821,8 +5821,6 @@ void NURBSExtension::RefineWithKVFactors(int rf,
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
 }
 
-//#define UNIFORM_U
-
 // Assumes 1 patch.
 void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
                                const Array3D<real_t> &grid)
@@ -5852,35 +5850,20 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
    {
       for (int i = 0; i < dim; ++i)
       {
-         // TODO: try other choices of points?
-         mesh.NURBSext->GetKnotVector(i)->FindMaxima(i_args[i], xi_args[i], ugrid[i]);
-         MFEM_VERIFY(i_args[i].Size() == ncps[i], "");
-      }
+         const KnotVector *kv_i = mesh.NURBSext->GetKnotVector(i);
+         mesh.NURBSext->GetKnotVector(i)->GetDemko(ugrid[i]);
+         MFEM_VERIFY(ugrid[i].Size() == ncps[i], "");
 
-#ifdef UNIFORM_U
-      // Use uniform points
-      const real_t hd = 1.0 / ((real_t) ned);
+         i_args[i].SetSize(ncps[i]);
+         xi_args[i].SetSize(ncps[i]);
 
-      for (int i = 0; i < dim; ++i)
-      {
-         MFEM_VERIFY((nel[i] * ned) + 1 == ncps[i], "");
-
-         for (int e=0; e<nel[i]; ++e)
+         for (int j=0; j<ncps[i]; ++j)
          {
-            for (int d=0; d<ned; ++d)
-            {
-               const int k = (e * ned) + d;
-               i_args[i][k] = e;
-               xi_args[i][k] = d * hd;
-               ugrid[i][k] = k * hd;
-            }
+            i_args[i][j] = kv_i->GetSpan(ugrid[i][j]);
+            xi_args[i][j] = kv_i->GetRefPoint(ugrid[i][j], i_args[i][j]);
          }
-
-         i_args[i][ncps[i] - 1] = nel[i] - 1;
-         xi_args[i][ncps[i] - 1] = 1.0;
-         ugrid[i][ncps[i] - 1] = 1.0;
       }
-#else
+
       // Convert i_args from knot-spans to element indices.
       for (int i = 0; i < dim; ++i)
       {
@@ -5888,11 +5871,10 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
          for (int cp=0; cp<ncps[i]; ++cp)
          {
             const int k_i = i_args[i][cp];
-            const int el_i = kv_i->ElemIndex(k_i + kv_i->GetOrder());
+            const int el_i = kv_i->ElemIndex(k_i);
             i_args[i][cp] = el_i;
          }
       }
-#endif
    }
 
    const int ncp2 = (ncps[0] - 2) * (ncps[1] - 2);
@@ -5996,7 +5978,7 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
 // to be refined to match the number of elements in mesh.
 void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
                           std::array<int, 2> nel, const Array3D<real_t> &grid,
-                          int dir, int side, int pid)
+                          int dir, int side)
 {
    Mesh mesh0(mesh0_);
    MFEM_VERIFY(mesh0.GetNE() == 1, "");
@@ -6195,12 +6177,12 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 
 // Assumes 1 patch.
 void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int ned,
-                           std::array<int, 2> nel, const Array3D<real_t> &grid, int pid)
+                           std::array<int, 2> nel, const Array3D<real_t> &grid)
 {
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 0, pid);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 1, pid);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 0, pid);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 1, pid);
+   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 0);
+   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 1);
+   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 0);
+   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 1);
 
    // Interpolate weights from boundary to the interior.
    // TODO: should we modify interior weights?
@@ -6269,33 +6251,17 @@ void GetUniformPatchGrid(Mesh &mesh, const SpacingFunction *s0,
       sample_u[d].SetSize(ncp[d]);
       sample_el[d].SetSize(ncp[d]);
 
-#ifdef UNIFORM_U
-      const real_t hre = 1.0 / ((real_t) ned);
-
-      for (int e=0; e<nel[d]; ++e)
-      {
-         for (int cp=0; cp<ned; ++cp)
-         {
-            const int dof = (e * ned) + cp;
-            sample_el[d][dof] = e;
-            sample_xi[d][dof] = cp * hre;
-         }
-      }
-
-      sample_el[d][ncp[d] - 1] = nel[d] - 1;
-      sample_xi[d][ncp[d] - 1] = 1.0;
-#else
-      Array<int> knot_spans;
       const KnotVector *kv = mesh.NURBSext->GetKnotVector(d);
-
-      kv->FindMaxima(knot_spans, sample_xi[d], sample_u[d]);
-      MFEM_VERIFY(knot_spans.Size() == ncp[d], "");
+      kv->GetDemko(sample_u[d]);
+      MFEM_VERIFY(sample_u[d].Size() == ncp[d], "");
+      sample_xi[d].SetSize(ncp[d]);
 
       for (int cp=0; cp<ncp[d]; ++cp)
       {
-         sample_el[d][cp] = kv->ElemIndex(knot_spans[cp] + kv->GetOrder());
+         const int knot_span = kv->GetSpan(sample_u[d][cp]);
+         sample_xi[d][cp] = kv->GetRefPoint(sample_u[d][cp], knot_span);
+         sample_el[d][cp] = kv->ElemIndex(knot_span);
       }
-#endif
 
       for (int cp=0; cp<ncp[d]; ++cp)
       {
@@ -6585,8 +6551,7 @@ Mesh GetQuadPatchMesh(int p, int degree, int ncp,
    return Mesh(ne);
 }
 
-void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel,
-                int pid)
+void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel)
 {
    MFEM_VERIFY(patch->GetNKV() == 2, "");
    MFEM_VERIFY(patch->GetKV(0)->GetNE() == nel[0], "");
@@ -6610,7 +6575,7 @@ void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel,
 
    //PrintGrid(grid);
 
-   SolvePhysicalGridBdry(mesh, mesh0, ned, nel, grid, pid);
+   SolvePhysicalGridBdry(mesh, mesh0, ned, nel, grid);
 
    /*
    {
@@ -6720,7 +6685,7 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes)
          mesh0.DegreeElevate(mOrder - mesh0.NURBSext->GetOrder());
       }
 
-      SpacePatch(patch, mesh0, ned, ne, p);
+      SpacePatch(patch, mesh0, ned, ne);
    }
 }
 
