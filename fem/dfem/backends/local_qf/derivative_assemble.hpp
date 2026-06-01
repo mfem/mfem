@@ -782,8 +782,6 @@ public:
       A->Finalize();
    }
 
-private:
-
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
    static void derivative_assemble_callback(
       const IntegratorContext &ctx,
@@ -877,19 +875,21 @@ template <
    typename outputs_t>
 typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
 DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Fallback
-(int dim, int /*q1d*/)
+(int dim, int q1d)
 {
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   MFEM_VERIFY(dim == 2 || dim == 3, "Unsupported dimension");
+   MFEM_VERIFY(q1d <= 8, "q1d must be <= 8");
    if (dim == 2)
    {
       return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<2>>;
+             derivative_assemble_callback<LocalQFHOBackend<2,8>>;
    }
    else if (dim == 3)
    {
       return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<3>>;
+             derivative_assemble_callback<LocalQFHOBackend<3,8>>;
    }
    else { MFEM_ABORT("Unsupported dimension"); }
 }

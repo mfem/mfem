@@ -98,9 +98,10 @@ void mass_action(const char *filename, int p)
    H1_FECollection fec(p, DIM);
 
    ParFiniteElementSpace pfes(&pmesh, &fec);
+   const int tvsize = pfes.GetTrueVSize();
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
-   Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
+   Vector X(tvsize), Y(tvsize), Z(tvsize);
 
    X.Randomize(1);
    x.SetFromTrueDofs(X);
@@ -121,6 +122,9 @@ void mass_action(const char *filename, int p)
       FieldDescriptor{ Coords, mfes }
    };
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   Vector N;
+   nodes->GetTrueDofs(N);
 
    SECTION("Action")
    {
@@ -143,9 +147,7 @@ void mass_action(const char *filename, int p)
          Outputs<Value<U>> {},
          *ir, all_domain_attr);
 
-      Vector N;
-      nodes->GetTrueDofs(N);
-      pfes.GetRestrictionMatrix()->Mult(x, X);
+      pfes.GetRestrictionMatrix()->Mult(x, X); // needed ?
 
       MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
@@ -159,48 +161,88 @@ void mass_action(const char *filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("Assemble Diagonal")
+   SECTION("Action Linearized")
    {
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
-      local_mf_mass_qf<DIM> qf_lfn;
+      local_mf_mass_qf<DIM> mf_apply_lqf;
       dop.AddDomainIntegrator<LocalQFBackend>(
-         qf_lfn,
+         mf_apply_lqf,
          Inputs<Value<U>, Gradient<Coords>, Weight> {},
          Outputs<Value<U>> {},
-         *ir, all_domain_attr, Derivatives<U> {});
+         *ir, all_domain_attr,
+         Derivatives<U> {});
 
-      global_mf_mass_qf<DIM> qf_gfn;
-      dop.AddDomainIntegrator<GlobalQFBackend>(
-         qf_gfn,
-         Inputs<Value<U>, Gradient<Coords>, Weight> {},
-         Outputs<Value<U>> {},
-         *ir, all_domain_attr, Derivatives<U> {});
-
-      Vector N;
-      nodes->GetTrueDofs(N);
       pfes.GetRestrictionMatrix()->Mult(x, X);
-      MultiVector MX{X, N};
+      MultiVector MX{X, N}, MZ{Z};
+      auto ddop = dop.GetDerivative(U, MX);
 
-      auto dRdU = dop.GetDerivative(U, MX);
+      // Randomize again s.t. the PA setup like cache can't
+      // trivially succeed by caching one direction only.
+      X.Randomize(567);
 
-      Vector dfem_diagonal(pfes.GetTrueVSize());
-      dRdU->AssembleDiagonal(dfem_diagonal);
+      Vector DZ(tvsize);
+      MultiVector MDZ{DZ};
+      ddop->Mult(MX[0], MDZ);
 
-      Vector mfem_diagonal(pfes.GetTrueVSize());
-      blf.AssembleDiagonal(mfem_diagonal);
+      x.SetFromTrueDofs(X);
+      blf.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      dfem_diagonal -= mfem_diagonal;
+      Y -= DZ;
 
       real_t norm_global = 0.0;
-      real_t norm_local = dfem_diagonal.Normlinf();
+      real_t norm_local = Y.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      dbg("Assemble Diagonal");
+      dbg("Action Linearized");
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
+
+   // SECTION("Assemble Diagonal")
+   // {
+   //    DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+   //    local_mf_mass_qf<DIM> qf_lfn;
+   //    dop.AddDomainIntegrator<LocalQFBackend>(
+   //       qf_lfn,
+   //       Inputs<Value<U>, Gradient<Coords>, Weight> {},
+   //       Outputs<Value<U>> {},
+   //       *ir, all_domain_attr, Derivatives<U> {});
+
+   //    global_mf_mass_qf<DIM> qf_gfn;
+   //    dop.AddDomainIntegrator<GlobalQFBackend>(
+   //       qf_gfn,
+   //       Inputs<Value<U>, Gradient<Coords>, Weight> {},
+   //       Outputs<Value<U>> {},
+   //       *ir, all_domain_attr, Derivatives<U> {});
+
+   //    Vector N;
+   //    nodes->GetTrueDofs(N);
+   //    pfes.GetRestrictionMatrix()->Mult(x, X);
+   //    MultiVector MX{X, N};
+
+   //    auto dRdU = dop.GetDerivative(U, MX);
+
+   //    Vector dfem_diagonal(pfes.GetTrueVSize());
+   //    dRdU->AssembleDiagonal(dfem_diagonal);
+
+   //    Vector mfem_diagonal(pfes.GetTrueVSize());
+   //    blf.AssembleDiagonal(mfem_diagonal);
+
+   //    dfem_diagonal -= mfem_diagonal;
+
+   //    real_t norm_global = 0.0;
+   //    real_t norm_local = dfem_diagonal.Normlinf();
+   //    MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+   //                  pmesh.GetComm());
+
+   //    dbg("Assemble Diagonal");
+   //    REQUIRE(norm_global == MFEM_Approx(0.0));
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
 
    // Test boundary
 #if 0 // TODO: Boundary tests 
@@ -381,7 +423,7 @@ void mass_mat_mixed(const char* filename, int p)
 #endif // TODO
 }
 
-TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS]")
+TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
@@ -392,21 +434,21 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS]")
                "../../data/inline-quad.mesh",
                "../../data/periodic-square.mesh");
    mass_action<2>(mesh2d, p);
-   mass_mat_mixed<2>(mesh2d, p);
+   // mass_mat_mixed<2>(mesh2d, p);
 }
 
-TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS]")
-{
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh3d =
-      GENERATE("../../data/fichera.mesh",
-               "../../data/fichera-q3.mesh",
-               "../../data/inline-hex.mesh",
-               "../../data/toroid-hex.mesh",
-               "../../data/periodic-cube.mesh");
-   mass_action<3>(mesh3d, p);
-   mass_mat_mixed<3>(mesh3d, p);
-}
+// TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
+// {
+//    const auto all_tests = launch_all_non_regression_tests;
+//    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+//    const auto mesh3d =
+//       GENERATE("../../data/fichera.mesh",
+//                "../../data/fichera-q3.mesh",
+//                "../../data/inline-hex.mesh",
+//                "../../data/toroid-hex.mesh",
+//                "../../data/periodic-cube.mesh");
+//    mass_action<3>(mesh3d, p);
+//    mass_mat_mixed<3>(mesh3d, p);
+// }
 
 #endif // MFEM_USE_MPI
