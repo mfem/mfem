@@ -48,6 +48,7 @@ void test_pa_simplices(const char *filename, int p)
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const auto order = 2 * fe.GetOrder() + Tr.OrderW();
    const auto *ir = &StroudIntRules.Get(fe.GetGeomType(), order);
+   const auto *ir1 = &StroudIntRules.Get(fe.GetGeomType(), 2*fe.GetOrder()-1);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &x)
@@ -55,17 +56,21 @@ void test_pa_simplices(const char *filename, int p)
 
    BilinearForm fa(&fes), pa(&fes);
    fa.AddDomainIntegrator(new MassIntegrator(ir));
+   fa.AddDomainIntegrator(new MassIntegrator(ir));
    fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
    fa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   fa.AddDomainIntegrator(new DiffusionIntegrator(ir1));
    fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
    fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
    fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
    fa.Assemble();
    fa.Finalize();
 
+   pa.AddDomainIntegrator(new MassIntegrator());
    pa.AddDomainIntegrator(new MassIntegrator(ir));
    pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
    pa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   pa.AddDomainIntegrator(new DiffusionIntegrator());
    pa.AddDomainIntegrator(new DiffusionIntegrator(ir));
    pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
    pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
