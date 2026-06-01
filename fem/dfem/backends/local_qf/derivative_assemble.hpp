@@ -28,35 +28,11 @@ namespace detail
 {
 
 template <int DIM>
-MFEM_HOST_DEVICE inline int tensor_j_dof_index(
-   const int Jx, const int Jy, const int Jz, const int td1d)
+MFEM_HOST_DEVICE inline int tensor_idx(int x, int y, int z, int N)
 {
    static_assert(DIM == 2 || DIM == 3);
-   if constexpr (DIM == 2)
-   {
-      MFEM_CONTRACT_VAR(Jz);
-      return Jy + Jx * td1d;
-   }
-   else
-   {
-      return Jx + td1d * (Jy + td1d * Jz);
-   }
-}
-
-template <int DIM>
-MFEM_HOST_DEVICE inline int tensor_q_index(
-   const int qx, const int qy, const int qz, const int q1d)
-{
-   static_assert(DIM == 2 || DIM == 3);
-   if constexpr (DIM == 2)
-   {
-      MFEM_CONTRACT_VAR(qz);
-      return qy + qx * q1d;
-   }
-   else
-   {
-      return qx + q1d * (qy + q1d * qz);
-   }
+   if constexpr (DIM == 2) { assert(z == 0); }
+   return x + N * (y + N * z);
 }
 
 template <int DIM>
@@ -66,24 +42,7 @@ MFEM_HOST_DEVICE inline real_t trial_basis_weight_value(
    const int Jx, const int Jy, const int Jz)
 {
    static_assert(DIM == 2 || DIM == 3);
-   if constexpr (DIM == 2)
-   {
-      MFEM_CONTRACT_VAR(qz);
-      MFEM_CONTRACT_VAR(Jz);
-      return B(qx, 0, Jx) * B(qy, 0, Jy);
-   }
-   else
-   {
-      return B(qx, 0, Jx) * B(qy, 0, Jy) * B(qz, 0, Jz);
-   }
-}
-
-template <int MQ1, typename Shared>
-MFEM_HOST_DEVICE inline void clear_smem_M(Shared &s)
-{
-   MFEM_FOREACH_THREAD(y, y, MQ1)
-   MFEM_FOREACH_THREAD(x, x, MQ1) { s.M[y][x] = 0.0; }
-   MFEM_SYNC_THREAD;
+   return B(qx, 0, Jx) * B(qy, 0, Jy) * ((DIM == 3) ? B(qz, 0, Jz) : 1.0);
 }
 
 template <int DIM>
@@ -99,9 +58,7 @@ MFEM_HOST_DEVICE inline real_t trial_basis_weight_gradient(
    if constexpr (DIM == 2)
    {
       MFEM_CONTRACT_VAR(qz & Jz);
-      return (m == 0)
-             ? B(qx, 0, Jx) * G(qy, 0, Jy)
-             : G(qx, 0, Jx) * B(qy, 0, Jy);
+      return (m == 0) ? Gx * By : Bx * Gy;
    }
    else
    {
@@ -142,10 +99,10 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
          ker::LoadMatrix(d1d, q1d, B, s.B);
+         ker::s_regs2d_t<MQ1> r_qp, Y;
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            ker::s_regs2d_t<MQ1> r_qp, Y;
             MFEM_FOREACH_THREAD(qy, y, q1d)
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
@@ -166,10 +123,10 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
          ker::LoadMatrix(d1d, q1d, B, s.B);
+         ker::s_regs3d_t<MQ1> f_qp, Y;
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            ker::s_regs3d_t<MQ1> f_qp {}, Y {};
             for (int qz = 0; qz < q1d; qz++)
             {
                MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -205,17 +162,15 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
          ker::LoadMatrix(d1d, q1d, B, s.B);
          ker::LoadMatrix(d1d, q1d, G, s.G);
+         ker::vd_regs2d_t<1, DIM, MQ1> X, Y;
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            ker::vd_regs2d_t<1, DIM, MQ1> X, Y;
             MFEM_FOREACH_THREAD(qx, x, q1d)
             MFEM_FOREACH_THREAD(qy, y, q1d)
+            for (int k = 0; k < DIM; k++)
             {
-               for (int k = 0; k < DIM; k++)
-               {
-                  X[0][k][qy][qx] = fqp(fi, k, qx, qy);
-               }
+               X[0][k][qy][qx] = fqp(fi, k, qx, qy);
             }
             MFEM_SYNC_THREAD;
             ker::Grad2d<1, DIM, MQ1, true>(d1d, q1d, s.M, s.B, s.G, X, Y);
@@ -235,19 +190,17 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
          ker::LoadMatrix(d1d, q1d, B, s.B);
          ker::LoadMatrix(d1d, q1d, G, s.G);
+         ker::vd_regs3d_t<1, DIM, MQ1> X, Y;
          for (int vd = vd_begin; vd < vd_end; vd++)
          {
             const int fi = f_slab ? 0 : vd;
-            ker::vd_regs3d_t<1, DIM, MQ1> X, Y;
             for (int qz = 0; qz < q1d; qz++)
             {
                MFEM_FOREACH_THREAD(qy, y, q1d)
                MFEM_FOREACH_THREAD(qx, x, q1d)
+               for (int k = 0; k < DIM; k++)
                {
-                  for (int k = 0; k < DIM; k++)
-                  {
-                     X[0][k][qz][qy][qx] = fqp(fi, k, qx, qy, qz);
-                  }
+                  X[0][k][qz][qy][qx] = fqp(fi, k, qx, qy, qz);
                }
             }
             MFEM_SYNC_THREAD;
@@ -379,7 +332,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    {
       foreach_qp([&](const int qx, const int qy, const int qz)
       {
-         const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+         const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
          for (int k = 0; k < n_comp; k++) { fhat_storage[k * nq + q] = 0.0; }
       });
       MFEM_SYNC_THREAD;
@@ -405,7 +358,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
          {
             foreach_qp([&](const int qx, const int qy, const int qz)
             {
-               const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+               const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                const real_t w =
                   trial_basis_weight_value<DIM>(B, qx, qy, qz, Jx, Jy, Jz);
                for (int m = 0; m < trial_op_dim; m++)
@@ -427,7 +380,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
          {
             foreach_qp([&](const int qx, const int qy, const int qz)
             {
-               const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+               const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                for (int m = 0; m < trial_op_dim; m++)
                {
                   const real_t w =
@@ -456,14 +409,13 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
       });
    };
 
-   const int td1d_z = (DIM == 2) ? 1 : num_trial_dof_1d;
-   for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
+   for (int Jz = 0; Jz < ((DIM == 2) ? 1 : num_trial_dof_1d); Jz++)
    {
       for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
       {
-         for (int Jz = 0; Jz < td1d_z; Jz++)
+         for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
          {
-            const int J = tensor_j_dof_index<DIM>(Jx, Jy, Jz, num_trial_dof_1d);
+            const int J = tensor_idx<DIM>(Jx, Jy, Jz, num_trial_dof_1d);
             for (int j = 0; j < trial_vdim; j++)
             {
                auto bvtfhat = Reshape(&Ae(0, 0, J, j, e), num_test_dof, test_vdim);
@@ -472,14 +424,13 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                if (fhat_size <= FHAT_SLAB_MAX)
                {
                   auto fhat = Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
-
                   for (int tv = 0; tv < test_vdim; tv++)
                   {
                      for (int tod = 0; tod < test_op_dim; tod++)
                      {
                         foreach_qp([&](const int qx, const int qy, const int qz)
                         {
-                           const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+                           const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                            fhat(tv, tod, q) = 0.0;
                         });
                      }
@@ -502,7 +453,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         foreach_qp([&](const int qx, const int qy, const int qz)
                         {
-                           const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+                           const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                            const real_t w =
                               trial_basis_weight_value<DIM>(B, qx, qy, qz, Jx, Jy, Jz);
                            for (int m = 0; m < trial_op_dim; m++)
@@ -522,7 +473,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         foreach_qp([&](const int qx, const int qy, const int qz)
                         {
-                           const int q = tensor_q_index<DIM>(qx, qy, qz, q1d);
+                           const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                            for (int m = 0; m < trial_op_dim; m++)
                            {
                               const real_t w =
@@ -547,7 +498,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      MFEM_SYNC_THREAD;
                      m_offset += trial_op_dim;
                   });
-
                   map_quadrature_data_to_fields<DIM, MQ1>(
                      bvtfhat, fhat, output, output_dtq, smem);
                }
@@ -562,7 +512,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      auto f_slab = Reshape(&fhat_storage[0], 1, 1, nq);
                      map_quadrature_data_to_fields<DIM, MQ1>(
                         bvtfhat, f_slab, output, output_dtq, smem, sq);
-                     clear_smem_M<MQ1>(smem);
                   }
                }
                else if constexpr (grad_out)
@@ -574,7 +523,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      auto f_slab = Reshape(&fhat_storage[0], 1, test_op_dim, nq);
                      map_quadrature_data_to_fields<DIM, MQ1>(
                         bvtfhat, f_slab, output, output_dtq, smem, tv);
-                     clear_smem_M<MQ1>(smem);
                   }
                }
                else
@@ -586,7 +534,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      auto f_slab = Reshape(&fhat_storage[0], 1, 1, nq);
                      map_quadrature_data_to_fields<DIM, MQ1>(
                         bvtfhat, f_slab, output, output_dtq, smem, tv);
-                     clear_smem_M<MQ1>(smem);
                   }
                }
             }
