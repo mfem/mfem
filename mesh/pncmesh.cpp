@@ -37,9 +37,8 @@ bool SameSplitScale(real_t a, real_t b)
 #else
    constexpr real_t rel_tol = 1.0e-5;
 #endif
-   return std::abs(a - b) <= rel_tol * std::max(real_t(1.0),
-                                                std::max(std::abs(a),
-                                                         std::abs(b)));
+   return std::abs(a - b) <= rel_tol *
+          std::max(real_t(1.0), std::max(std::abs(a), std::abs(b)));
 }
 
 real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
