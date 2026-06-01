@@ -451,21 +451,19 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    int nfields = GetNFields();
    int ntags = GetNTags();
 
-   // particles to be sent
-   Array<int> send_idxs;
+   // send_idxs: local indices of particles to be sent
+   // ranks: destination ranks of particles to be sent
+   Array<int> send_idxs, ranks;
    send_idxs.Reserve(N);
+   ranks.Reserve(N);
    for (int i = 0; i < N; i++){
-      if (rank != static_cast<int>(rank_list[i])){
+      int dest = static_cast<int>(rank_list[i]);
+      if (rank != dest){
          send_idxs.Append(i);
+         ranks.Append(dest);
       }
    }
    int nsend = send_idxs.Size();
-
-   // destination ranks for particles
-   Array<int> ranks(nsend);
-   for(int i = 0; i < nsend; i++){
-      ranks[i] = static_cast<int>(rank_list[send_idxs[i]]);
-   }
 
    // real components
    // reals stored in a 2d vector of arrays
