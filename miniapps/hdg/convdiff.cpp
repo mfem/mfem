@@ -937,13 +937,10 @@ int main(int argc, char *argv[])
 
    //construct the operator
 
-   Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
-                               (Coefficient*)&fcoeff,
-                               (Coefficient*)&qtcoeff});
-
-   DarcyOperator op(ess_flux_tdofs_list, darcy.get(), gform.get(), fform.get(),
-                    hform.get(), coeffs,
-                    (DarcyOperator::SolverType) solver_type, false, btime);
+   DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
+   {gform.get(), fform.get(),hform.get()},
+   {&gcoeff, &fcoeff, &qtcoeff},
+   (DarcyOperator::SolverType) solver_type, false, btime);
 
    //construct the time solver
 

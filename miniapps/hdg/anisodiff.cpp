@@ -742,13 +742,10 @@ int main(int argc, char *argv[])
 
    //construct the operator
 
-   Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
-                               (Coefficient*)&fcoeff,
-                               (Coefficient*)&qcoeff});
-
-   DarcyOperator op(ess_flux_tdofs_list, darcy.get(), gform.get(), fform.get(),
-                    hform.get(), coeffs,
-                    (DarcyOperator::SolverType) solver_type);
+   DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
+   {gform.get(), fform.get(), hform.get()},
+   {&gcoeff, &fcoeff, &qcoeff},
+   (DarcyOperator::SolverType) solver_type);
 
    op.SetTolerance(1e-8);
 

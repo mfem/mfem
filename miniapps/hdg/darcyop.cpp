@@ -263,22 +263,31 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
 }
 
 DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
-                             DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                             const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_u_,
-                             bool btime_p_)
+                             DarcyForm *darcy_,
+                             std::vector<LinearForm*> rhs,
+                             std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs_,
+                             SolverType stype_, bool btime_u_, bool btime_p_)
    : TimeDependentOperator(0, 0., IMPLICIT),
-     ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
+     ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_),
      coeffs(coeffs_), solver_type(stype_), btime_u(btime_u_), btime_p(btime_p_)
 {
    offsets = ConstructOffsets(*darcy);
    width = height = offsets.Last();
 
-   if (!g)
+   if (rhs.size() >= 1 && rhs[0])
+   {
+      g = rhs[0];
+   }
+   else
    {
       g = darcy->GetFluxRHS();
    }
 
-   if (!f)
+   if (rhs.size() >= 2 && rhs[1])
+   {
+      f = rhs[1];
+   }
+   else
    {
       f = darcy->GetPotentialRHS();
    }
@@ -286,6 +295,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    if (darcy->GetHybridization())
    {
       trace_space = darcy->GetHybridization()->ConstraintFESpace();
+      if (rhs.size() >= 3) { h = rhs[2]; }
    }
 
    if (btime_u || btime_p)
@@ -378,16 +388,19 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 
 #ifdef MFEM_USE_MPI
 DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list,
-                             ParDarcyForm *darcy_, ParLinearForm *g_, ParLinearForm *f_, ParLinearForm *h_,
-                             const Array<Coefficient *> &coeffs, SolverType stype, bool bflux_u,
-                             bool btime_p)
-   : DarcyOperator(ess_flux_tdofs_list, (DarcyForm*) darcy_, g_, f_, h_, coeffs,
+                             ParDarcyForm *darcy_,
+                             std::vector<ParLinearForm*> rhs,
+                             std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
+                             SolverType stype, bool bflux_u, bool btime_p)
+   : DarcyOperator(ess_flux_tdofs_list, (DarcyForm*) darcy_,
+                   std::vector<LinearForm*>(rhs.begin(), rhs.end()), coeffs,
                    stype, bflux_u, btime_p)
 {
    pdarcy = darcy_;
-   pg = g_;
-   pf = f_;
-   ph = h_;
+
+   pg = static_cast<ParLinearForm*>(g);
+   pf = static_cast<ParLinearForm*>(f);
+   ph = static_cast<ParLinearForm*>(h);
 }
 #endif //MFEM_USE_MPI
 
@@ -429,9 +442,16 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    //set time
 
-   for (Coefficient *coeff : coeffs)
+   for (const auto &coeff : coeffs)
    {
-      coeff->SetTime(t);
+      if (coeff.index() == 0)
+      {
+         std::get<0>(coeff)->SetTime(t);
+      }
+      else if (coeff.index() == 1)
+      {
+         std::get<1>(coeff)->SetTime(t);
+      }
    }
 
    //assemble rhs

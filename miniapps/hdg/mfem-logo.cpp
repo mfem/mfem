@@ -462,9 +462,8 @@ int main(int argc, char *argv[])
 
    //construct the operator
 
-   Array<Coefficient*> coeffs({(Coefficient*)&fcoeff});
-
-   DarcyOperator op(ess_flux_tdofs_list, darcy.get(), NULL, fform, NULL, coeffs);
+   DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
+   {nullptr, fform}, {&fcoeff});
 
    op.SetTolerance(1e-8);
 

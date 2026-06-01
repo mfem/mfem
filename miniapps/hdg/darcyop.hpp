@@ -14,6 +14,8 @@
 
 #include "mfem.hpp"
 #include "../../general/socketstream.hpp"
+#include <vector>
+#include <variant>
 
 namespace mfem
 {
@@ -74,14 +76,16 @@ private:
    Array<int> offsets;
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
-   LinearForm *g, *f, *h;
+   LinearForm *g{};
+   LinearForm *f{};
+   LinearForm *h{};
 #ifdef MFEM_USE_MPI
    ParDarcyForm *pdarcy {};
    ParLinearForm *pg{};
    ParLinearForm *pf{};
    ParLinearForm *ph{};
 #endif
-   const Array<Coefficient*> &coeffs;
+   const std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs;
    SolverType solver_type;
    bool btime_u, btime_p;
    real_t rtol{1e-6};
@@ -247,9 +251,7 @@ public:
    /// Constructor
    /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
        @param darcy                    discretization of the mixed system
-       @param g                        flux right hand side
-       @param f                        potential right hand side
-       @param h                        trace right hand side
+       @param rhs                      right hand sides
        @param coeffs                   array of time-dependent coefficients
                                        that need to be updated for assembly
                                        of the right-hand-side linear forms
@@ -258,7 +260,8 @@ public:
        @param btime_p                  flag for time evolving potential
     */
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
-                 LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
+                 std::vector<LinearForm*> rhs,
+                 std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
                  SolverType stype = SolverType::LBFGS,  bool btime_u = false,
                  bool btime_p = false);
 
@@ -266,9 +269,7 @@ public:
    /// Constructor (parallel)
    /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
        @param darcy                    discretization of the mixed system
-       @param g                        flux right hand side
-       @param f                        potential right hand side
-       @param h                        trace right hand side
+       @param rhs                      right hand side
        @param coeffs                   array of time-dependent coefficients
                                        that need to be updated for assembly
                                        of the right-hand-side linear forms
@@ -277,8 +278,8 @@ public:
        @param btime_p                  flag for time evolving potential
     */
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, ParDarcyForm *darcy,
-                 ParLinearForm *g, ParLinearForm *f, ParLinearForm *h,
-                 const Array<Coefficient*> &coeffs,
+                 std::vector<ParLinearForm*> rhs,
+                 std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
                  SolverType stype = SolverType::LBFGS,  bool btime_u = false,
                  bool btime_p = false);
 #endif
