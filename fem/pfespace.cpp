@@ -1193,14 +1193,14 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
    MFEM_VERIFY(IsVariableOrder() && R,
                "GetEssentialTrueDofsVar is only for variable-order spaces");
 
-   true_ess_dofs.SetSize(R->Height(), Device::GetDeviceMemoryType());
+   true_ess_dofs.SetSize(R->Height());
+   true_ess_dofs.HostWrite();
+   true_ess_dofs = 0;
 
    const int ntdofs = tdof2ldof.Size();
    MFEM_VERIFY(vdim * ntdofs == R->NumRows() &&
                vdim * ntdofs == true_ess_dofs.Size(), "");
    MFEM_VERIFY(ldof_ltdof.Size() == ndofs && ess_dofs.Size() == vdim * ndofs, "");
-
-   true_ess_dofs = 0;
 
    const bool bynodes = (ordering == Ordering::byNODES);
    const int vdim_factor = bynodes ? 1 : vdim;
