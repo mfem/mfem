@@ -38,11 +38,21 @@ template <int DIM> struct global_mf_mass_qf
                    tensor_array<const real_t> &w,
                    tensor_array<dscalar_t> &v) const
    {
+      // Forward-diff with Enzyme cannot propagate the
+      // seeded tangent through the mfem::forall dispatch
+#ifdef MFEM_USE_ENZYME
+      for (size_t q = 0; q < u.size(); q++)
+      {
+         const dscalar_t uq = u(q);
+         v(q) = uq * w(q) * det(J(q));
+      }
+#else
       mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const dscalar_t uq = u(q);
          v(q) = uq * w(q) * det(J(q));
       });
+#endif
    }
 };
 
