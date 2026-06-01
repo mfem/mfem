@@ -400,11 +400,12 @@ void RajaCuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_bounds_policy<LB>>(
-                                         LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-                                         [=] RAJA_DEVICE(LaunchContext ctx)
-   { loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body); });
-
+   launch<cuda_launch_bounds_policy<LB> >
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+    [=] RAJA_DEVICE(LaunchContext ctx)
+   {
+      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
+   });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
