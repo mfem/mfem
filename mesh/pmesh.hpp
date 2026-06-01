@@ -725,23 +725,29 @@ public:
        begin with '#'. */
    void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
-   // Enable Print() and PrintAsOne() to add the parallel interface as boundary
-   // (typically used for visualization purposes).
-   // In PrintAsOne(), this setting also controls what element and boundary
-   // attributes are printed:
-   // - if print == 0, use the real element and boundary attributes,
-   // - otherwise, processor rank + 1 is used for both, the element and boundary
-   //   attributes.
-   // The ParMesh object itself is not modified, this only affects file output
-   // for visualization.
-   // The default value of this flag is true.
+   /** @brief Enable Print() and PrintAsOne() to add the parallel interface as
+       boundary (typically used for visualization purposes).
+
+       In PrintAsOne(), this setting also controls what element and boundary
+       attributes are printed:
+       - if @a print == false, use the real element and boundary attributes,
+       - otherwise, processor rank + 1 is used for both, the element and
+         boundary attributes.
+
+      The ParMesh object itself is not modified, this only affects file output
+      for visualization.
+
+      The default value of this flag is true. */
    void SetPrintShared(bool print) { print_shared = print; }
 
-   // Enable Print() and PrintAsOne() to add material interfaces as boundary
-   // (typically used for visualization purposes).
-   // The ParMesh object itself is not modified, this only affects file output
-   // for visualization.
-   // The default value of this flag is false.
+   /** @brief Enable Print() and PrintAsOne() to add material interfaces, i.e.
+       intefaces between different mesh element attributes, as boundary
+       (typically used for visualization purposes).
+
+       The ParMesh object itself is not modified, this only affects file output
+       for visualization.
+
+       The default value of this flag is false. */
    void SetPrintInterfaces(bool print) { print_interfaces = print; }
 
    /** Print the part of the mesh in the calling processor using the mfem v1.0
@@ -776,8 +782,8 @@ public:
        the shared boundary is added to the actual boundary and both the element
        and boundary attributes are set to the processor number + 1.
 
-       If SetPrintInterfaces() is enabled, material interfaces (material ==
-       element attribute) are added as boundary as well.
+       If SetPrintInterfaces() is enabled, material interfaces, i.e. interfaces
+       between different mesh element attributes, are added as boundary as well.
 
        If @a comments is non-empty, it will be printed after the first line of
        the file, and each line should begin with '#'. */
