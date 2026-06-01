@@ -522,26 +522,20 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_bounds_policy<LB>>(
-                                        LaunchParams(Teams(G), Threads(X, Y, BZ)),
-                                        [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<hip_launch_bounds_policy<LB> >
+   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
+    [=] RAJA_DEVICE(LaunchContext ctx)
    {
-
       loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
       {
-
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
-
             const int k = n*BZ + tz;
             if (k >= N) { return; }
             d_body(k);
-
          });
-
       });
    });
-
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
