@@ -14,6 +14,9 @@
 #include "fem.hpp"
 #include "../general/device.hpp"
 #include "../mesh/submesh/submesh.hpp"
+#ifdef MFEM_USE_MPI
+#include "../mesh/submesh/psubmesh.hpp"
+#endif
 #include "../mesh/nurbs.hpp"
 #include <cmath>
 
@@ -1548,6 +1551,35 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
+static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
+                                   const Array<int> *&test_element_ids,
+                                   const Array<int> *&test_face_ids,
+                                   const Array<int> *&test_edge_ids,
+                                   const Array<int> *&test_vertex_ids)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      const SubMesh *trial_submesh = static_cast<const SubMesh *>(sub);
+      test_element_ids = &trial_submesh->GetParentElementIDMap();
+      test_face_ids = &trial_submesh->GetParentFaceIDMap();
+      test_edge_ids = &trial_submesh->GetParentEdgeIDMap();
+      test_vertex_ids = &trial_submesh->GetParentVertexIDMap();
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      const ParSubMesh *trial_submesh = static_cast<const ParSubMesh *>(sub);
+      test_element_ids = &trial_submesh->GetParentElementIDMap();
+      test_face_ids = &trial_submesh->GetParentFaceIDMap();
+      test_edge_ids = &trial_submesh->GetParentEdgeIDMap();
+      test_vertex_ids = &trial_submesh->GetParentVertexIDMap();
+      return true;
+   }
+#endif
+   return false;
+}
+
 void MixedBilinearForm::Assemble(int skip_zeros)
 {
    if (ext)
@@ -1560,7 +1592,6 @@ void MixedBilinearForm::Assemble(int skip_zeros)
    Mesh *test_mesh = test_fes->GetMesh();
 
    const bool same_mesh = (trial_mesh == test_mesh);
-   const SubMesh *trial_submesh = NULL;
    const Array<int> *test_element_ids = NULL;
    const Array<int> *test_face_ids = NULL;
    const Array<int> *test_edge_ids = NULL;
@@ -1569,21 +1600,12 @@ void MixedBilinearForm::Assemble(int skip_zeros)
 
    if (!same_mesh)
    {
-      const bool trial_is_submesh = SubMesh::IsSubMesh(trial_mesh, test_mesh);
-      MFEM_VERIFY(trial_is_submesh,
+      MFEM_VERIFY(GetSubMeshParentIDMaps(trial_mesh, test_mesh,
+                                         test_element_ids, test_face_ids,
+                                         test_edge_ids, test_vertex_ids),
                   "MixedBilinearForm::Assemble requires trial and test spaces "
                   "on the same mesh, or the trial space on a direct SubMesh "
                   "of the test space");
-
-      trial_submesh = static_cast<const SubMesh *>(trial_mesh);
-      MFEM_VERIFY(trial_submesh->GetParent() == test_mesh,
-                  "MixedBilinearForm::Assemble currently supports a trial "
-                  "space on a direct SubMesh of the test space");
-
-      test_element_ids = &trial_submesh->GetParentElementIDMap();
-      test_face_ids = &trial_submesh->GetParentFaceIDMap();
-      test_edge_ids = &trial_submesh->GetParentEdgeIDMap();
-      test_vertex_ids = &trial_submesh->GetParentVertexIDMap();
       test_face_to_be = test_mesh->GetFaceToBdrElMap();
    }
 
