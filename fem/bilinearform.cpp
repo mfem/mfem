@@ -1660,8 +1660,8 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          {
             const int iface = mesh->GetBdrElementFaceIndex(i);
             const int test_face_id = mesh->Dimension() == 3   ? test_face_ids[iface]
-                                   : mesh->Dimension() == 2 ? test_edge_ids[iface]
-                                                            : test_vertex_ids[iface];
+                                     : mesh->Dimension() == 2 ? test_edge_ids[iface]
+                                     : test_vertex_ids[iface];
             const int test_bdr_elem_id = test_face_to_be[test_face_id];
             const int bdr_attr = mesh->GetBdrAttribute(i);
             if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }

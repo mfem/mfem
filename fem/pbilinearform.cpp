@@ -737,8 +737,7 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
    }
 }
 
-void
-ParMixedBilinearForm::Assemble(int skip_zeros)
+void ParMixedBilinearForm::Assemble(int skip_zeros)
 {
    if (interior_face_integs.Size())
    {
@@ -757,7 +756,6 @@ ParMixedBilinearForm::Assemble(int skip_zeros)
       AssembleSharedFaces(skip_zeros);
    }
 }
-
 
 HypreParMatrix *ParMixedBilinearForm::ParallelAssembleInternalMatrix()
 {

@@ -167,10 +167,12 @@ void check_submesh_trial_mixed_bilinear_form_parallel()
    reference_form.AddDomainIntegrator(new MassIntegrator(one), attr_marker);
    reference_form.Assemble();
    reference_form.Finalize();
-   std::unique_ptr<HypreParMatrix> reference_mat(reference_form.ParallelAssemble());
+   std::unique_ptr<HypreParMatrix> reference_mat(
+      reference_form.ParallelAssemble());
 
    std::unique_ptr<HypreParVector> trial_true(trial_gf.ParallelProject());
-   std::unique_ptr<HypreParVector> parent_trial_true(parent_trial_gf.ParallelProject());
+   std::unique_ptr<HypreParVector> parent_trial_true(
+      parent_trial_gf.ParallelProject());
    std::unique_ptr<HypreParVector> submesh_result(test_fes.NewTrueDofVector());
    std::unique_ptr<HypreParVector> reference_result(test_fes.NewTrueDofVector());
 
@@ -266,7 +268,8 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("ParMixedBilinearFormSubMeshTrial", "[Parallel], [FormRectangularSystemMatrix]")
+TEST_CASE("ParMixedBilinearFormSubMeshTrial",
+          "[Parallel], [FormRectangularSystemMatrix]")
 {
    check_submesh_trial_mixed_bilinear_form_parallel();
 }
