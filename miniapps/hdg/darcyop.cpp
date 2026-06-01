@@ -559,6 +559,11 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             auto *cP = trace_space->GetConformingProlongation();
             RHS.SetSize(cP->Width());
             cP->MultTranspose(*h, RHS);
+
+            auto *cR = trace_space->GetConformingRestriction();
+            X.SetSize(cR->Height());
+            const Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
+            cR->Mult(x_r, X);
          }
          else
          {
