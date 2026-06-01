@@ -51,8 +51,11 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
-- Fixed signed DOF handling in parallel grid-function save. See the new method
-  ParFiniteElementSpace::ApplyDofSigns() and ParGridFunction::Save().
+- Fixed signed DOF handling in parallel grid-function reading (read constructor)
+  and saving via ParGridFunction::SaveAsOne(). Simplified the process of
+  applying the DOF signs by using the new method ApplyDofSigns() in class
+  ParFiniteElementSpace -- the method will return immediately if no sign flips
+  are needed.
 
 
 Version 4.9, released on Dec 11, 2025
