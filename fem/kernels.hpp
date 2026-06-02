@@ -1111,9 +1111,19 @@ inline MFEM_HOST_DEVICE void GradTranspose2dY(const int d1d, const int q1d,
                                               const real_t (*B)[MQ1],
                                               const real_t (*G)[MQ1],
                                               regs2d_t<DIM,MQ1> &reg,
+                                              real_t (&sm0)[MQ1][MQ1][DIM],
                                               real_t (&sm1)[MQ1][MQ1][DIM])
 {
-   MFEM_CONTRACT_VAR(G);
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][0];
+         sm0[qy][qx][1] = reg[qy][qx][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
    MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
    {
       MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
@@ -1122,8 +1132,8 @@ inline MFEM_HOST_DEVICE void GradTranspose2dY(const int d1d, const int q1d,
          MFEM_UNROLL(MQ1)
          for (int qy = 0; qy < q1d; ++qy)
          {
-            u = std::fma(reg[qy][qx][0], B[dy][qy], u);
-            v = std::fma(reg[qy][qx][1], G[dy][qy], v);
+            u = std::fma(sm0[qy][qx][0], B[dy][qy], u);
+            v = std::fma(sm0[qy][qx][1], G[dy][qy], v);
          }
          sm1[dy][qx][1] = u;
          sm1[dy][qx][0] = v;
@@ -1163,9 +1173,19 @@ inline MFEM_HOST_DEVICE void VectorGradTranspose2dY(
    const real_t (*B)[MQ1],
    const real_t (*G)[MQ1],
    regs2d_vd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM],
    real_t (&sm1)[MQ1][MQ1][DIM])
 {
-   MFEM_CONTRACT_VAR(G);
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][c][0];
+         sm0[qy][qx][1] = reg[qy][qx][c][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
    MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
    {
       MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
@@ -1174,8 +1194,8 @@ inline MFEM_HOST_DEVICE void VectorGradTranspose2dY(
          MFEM_UNROLL(MQ1)
          for (int qy = 0; qy < q1d; ++qy)
          {
-            u = std::fma(reg[qy][qx][c][0], B[dy][qy], u);
-            v = std::fma(reg[qy][qx][c][1], G[dy][qy], v);
+            u = std::fma(sm0[qy][qx][0], B[dy][qy], u);
+            v = std::fma(sm0[qy][qx][1], G[dy][qy], v);
          }
          sm1[dy][qx][1] = u;
          sm1[dy][qx][0] = v;
@@ -1218,8 +1238,7 @@ inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
                                              real_t (&sm1)[MQ1][MQ1][DIM],
                                              real_t (&sm0)[MQ1][MQ1][DIM])
 {
-   MFEM_CONTRACT_VAR(sm0);
-   GradTranspose2dY<DIM, MQ1>(d1d, q1d, B, G, reg, sm1);
+   GradTranspose2dY<DIM, MQ1>(d1d, q1d, B, G, reg, sm0, sm1);
    GradTranspose2dX<DIM, MQ1>(d1d, q1d, B, G, sm1, reg);
 }
 
@@ -1232,8 +1251,7 @@ inline MFEM_HOST_DEVICE void VectorGradTranspose2d(const int d1d, const int q1d,
                                                    real_t (&sm1)[MQ1][MQ1][DIM],
                                                    regs2d_vd_t<VDIM, DIM, MQ1> &reg)
 {
-   MFEM_CONTRACT_VAR(sm0);
-   VectorGradTranspose2dY<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, reg, sm1);
+   VectorGradTranspose2dY<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, reg, sm0, sm1);
    VectorGradTranspose2dX<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, sm1, reg);
 }
 
