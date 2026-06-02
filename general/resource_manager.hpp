@@ -450,6 +450,7 @@ public:
 
    Memory(T *ptr, size_t count, bool own);
    Memory(T *ptr, size_t count, MemoryType loc, bool own);
+   Memory(T *ptr, size_t count, MemoryType loc, bool own, bool temporary);
    Memory(const Memory &base, int offset, int size);
 
    Memory(const Memory &r);
@@ -568,16 +569,29 @@ public:
 
    void Delete();
 
+   /// These functions should not be called if the pointer(s) being wrapped are
+   /// already registered.
    void Wrap(T *ptr, size_t size, bool own);
-
-   void Wrap(T *ptr, size_t size, MemoryType loc, bool own);
-
+   void Wrap(T *ptr, size_t size, MemoryType loc, bool own,
+             bool temporary = false);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
-             bool own_host, bool own_device, bool valid_host,
-             bool valid_device);
-
+             bool own_host, bool own_device, bool valid_host, bool valid_device,
+             bool temporary = false);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
-             bool own, bool valid_host = false, bool valid_device = true);
+             bool own, bool valid_host = false, bool valid_device = true,
+             bool temporary = false);
+
+   /// These functions can be called if the pointer(s) being wrapped are
+   /// already registered.
+   void CheckedWrap(T *ptr, size_t size, bool own);
+   // void CheckedWrap(T *ptr, size_t size, MemoryType loc, bool own,
+   //                  bool temporary = false);
+   // void CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
+   //                  MemoryType dloc, bool own_host, bool own_device,
+   //                  bool valid_host, bool valid_device, bool temporary = false);
+   // void CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
+   //                  MemoryType dloc, bool own, bool valid_host = false,
+   //                  bool valid_device = true, bool temporary = false);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
@@ -977,6 +991,92 @@ template <class T> void Memory<T>::Delete()
    }
 }
 
+template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
+{
+   auto &inst = MemoryManager::instance();
+   if (segment)
+   {
+      inst.erase(segment);
+      segment = 0;
+      offset_ = 0;
+   }
+   // look for existing host-accessible ptr
+   auto search_for = [&inst](void *p, size_t size, size_t idx,
+                             const std::map<const void *, size_t> &mapped,
+                             bool &found)
+   {
+      auto iter = mapped.upper_bound(p);
+      if (iter == mapped.begin())
+      {
+         // p is before any registered host-accessible pointers
+         found = false;
+      }
+      else
+      {
+         auto tmp = iter;
+         --tmp;
+         // tmp->first <= p, check stops
+         auto &seg = inst.storage.get_segment(tmp->second);
+         if (p < seg.lowers[idx] + seg.nbytes)
+         {
+            found = true;
+            return tmp;
+         }
+         else
+         {
+            found = false;
+         }
+      }
+      return iter;
+   };
+   bool found;
+   // look for host-accessible pointer first
+   auto iter = search_for(ptr, size, 0, inst.segment_maps[0], found);
+   if (found)
+   {
+      h_ptr = ptr;
+      size_ = size;
+      offset_ = reinterpret_cast<const char *>(ptr) -
+                reinterpret_cast<const char *>(iter->first);
+      segment = iter->second;
+      auto& seg = inst.storage.get_segment(segment);
+      h_mt = seg.mtypes[0];
+      ++seg.ref_count;
+      flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE |
+                                       (seg.temporary ? TEMPORARY : NONE))
+              : NONE;
+   }
+   else
+   {
+      iter = search_for(ptr, size, 1, inst.segment_maps[1], found);
+      if (found)
+      {
+         size_ = size;
+         offset_ = reinterpret_cast<const char *>(ptr) -
+                   reinterpret_cast<const char *>(iter->first);
+         segment = iter->second;
+         auto &seg = inst.storage.get_segment(segment);
+         h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
+         h_mt = seg.mtypes[0];
+         ++seg.ref_count;
+         flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE |
+                                          (seg.temporary ? TEMPORARY : NONE))
+                 : NONE;
+      }
+      else
+      {
+         Wrap(ptr, size, own);
+      }
+   }
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+   }
+#endif
+}
+
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
 {
    auto &inst = MemoryManager::instance();
@@ -1000,7 +1100,8 @@ template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
 }
 
 template <class T>
-void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
+void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own,
+                     bool temporary)
 {
    auto &inst = MemoryManager::instance();
    T *h_ptr_ = nullptr;
@@ -1051,21 +1152,22 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    }
 
    Wrap(h_ptr_, d_ptr_, size, hloc, dloc, own_host, own_device, valid_host,
-        valid_device);
+        valid_device, temporary);
 }
 
 template <class T>
 void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                      MemoryType dloc, bool own, bool valid_host,
-                     bool valid_device)
+                     bool valid_device, bool temporary)
 {
-   Wrap(h_ptr_, d_ptr, size, hloc, dloc, own, own, valid_host, valid_device);
+   Wrap(h_ptr_, d_ptr, size, hloc, dloc, own, own, valid_host, valid_device,
+        temporary);
 }
 
 template <class T>
 void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                      MemoryType dloc, bool own_host, bool own_device,
-                     bool valid_host, bool valid_device)
+                     bool valid_host, bool valid_device, bool temporary)
 {
    auto &inst = MemoryManager::instance();
    if (segment)
@@ -1109,6 +1211,10 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
       MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
                             "wrap own " << (int)dloc << ", " << false);
+   }
+   if (temporary)
+   {
+      flags = static_cast<Flags>(flags | TEMPORARY);
    }
 }
 
