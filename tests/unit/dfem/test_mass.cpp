@@ -80,8 +80,6 @@ void mass_action(const char *filename, int p)
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
 
-   pmesh.UniformRefinement(), pmesh.UniformRefinement();
-
    pmesh.EnsureNodes();
    auto* nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
    smesh.Clear();
@@ -324,8 +322,6 @@ void mass_mat_mixed(const char* filename, int p)
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
-
-   pmesh.UniformRefinement(), pmesh.UniformRefinement();
 
    pmesh.EnsureNodes();
    auto* nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
