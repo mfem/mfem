@@ -1405,6 +1405,8 @@ public:
                                 dof2quad_array_open);
    }
 
+   const Poly_1D::Basis &GetOpenBasis1D() const { return obasis1d; }
+
    virtual ~VectorTensorFiniteElement();
 };
 

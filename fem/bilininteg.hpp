@@ -3891,7 +3891,7 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
-    $H^1$-conforming space to an $H(curl$-conforming space. The range space can be
+    $H^1$-conforming space to an $H(curl)$-conforming space. The range space can be
     vector $L_2$ space as well. */
 class GradientInterpolator : public DiscreteInterpolator
 {
@@ -4000,12 +4000,29 @@ public:
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
+   int dim, ne;
+   // "dof" are the domain fespace dof counts
+   int ndof_o, ndof_c;
+   // "quads" are the range fespace dof counts
+   int nquad_o, nquad_c;
+
+   Vector pa_data;
+
 public:
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override
    { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
+
+   void AssemblePA(const FiniteElementSpace &dom_fes,
+                   const FiniteElementSpace &ran_fes) override;
+   void AssemblePA(const FiniteElementSpace &fes) override
+   {
+      AssemblePA(fes, fes);
+   }
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 };
 
 

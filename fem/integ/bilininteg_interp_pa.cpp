@@ -1950,4 +1950,154 @@ void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
    }
 }
 
+void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
+                                  const FiniteElementSpace &ran_fes)
+{
+   // TODO: 1D and 2D meshes
+   Mesh *mesh = dom_fes.GetMesh();
+   const VectorTensorFiniteElement *dom_el =
+      dynamic_cast<const VectorTensorFiniteElement *>(dom_fes.GetTypicalFE());
+   const VectorTensorFiniteElement *ran_el =
+      dynamic_cast<const VectorTensorFiniteElement *>(ran_fes.GetTypicalFE());
+   MFEM_VERIFY(dom_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   MFEM_VERIFY(ran_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   // TODO: support other spaces
+   MFEM_VERIFY(dom_el->GetDerivType() == FiniteElement::CURL,
+               "Domain space must be H(curl)");
+   MFEM_VERIFY(ran_el->GetDerivType() == FiniteElement::DIV,
+               "Range space must be H(div)");
+
+   const int dims = dom_el->GetDim();
+   MFEM_VERIFY(dims == 2 || dims == 3, "");
+   dim = mesh->Dimension();
+
+   ne = dom_fes.GetNE();
+   ndof_o = dom_el->GetOrder();
+   ndof_c = ndof_o + 1;
+   nquad_o = ran_el->GetOrder();
+   nquad_c = nquad_o + 1;
+
+   // extract the tensor product range dof locations
+   std::vector<real_t> qc(nquad_c);
+   std::vector<real_t> qo(nquad_o);
+   {
+      const IntegrationRule &ran_nodes = ran_el->GetNodes();
+      const Array<int> &quad_map = ran_el->GetDofMap();
+      for (int i = 0; i < nquad_c; ++i)
+      {
+         int idx = UnsignIndex(quad_map[i]);
+         qc[i] = ran_nodes.IntPoint(idx).x;
+      }
+      int offset;
+      switch (dim)
+      {
+         case 3:
+            offset = ndof_c * ndof_o * ndof_o;
+            break;
+         default:
+            mfem_error("Bad dimension!");
+      }
+      for (int i = 0; i < nquad_c; ++i)
+      {
+         int idx = UnsignIndex(quad_map[i + offset]);
+         qo[i] = ran_nodes.IntPoint(idx).x;
+      }
+   }
+
+   // evaluate all closed/open 1D basis (and their derivatives) at closed and
+   // open quads
+   // storage order: CC, CO, OC, OO
+   pa_data.SetSize(2 * (ndof_o * nquad_o + ndof_o * nquad_c + ndof_c * nquad_o +
+                        ndof_c * nquad_c));
+   auto b_ptr = pa_data.HostWrite();
+   auto g_ptr = b_ptr + (ndof_o * nquad_o + ndof_o * nquad_c +
+                         ndof_c * nquad_o + ndof_c * nquad_c);
+   auto &cbasis1d = dom_el->GetBasis1D();
+   auto &obasis1d = dom_el->GetOpenBasis1D();
+   Vector b, g;
+   b.SetSize(ndof_c);
+   g.SetSize(ndof_c);
+   for (int j = 0; j < nquad_c; ++j)
+   {
+      cbasis1d.Eval(qc[j], b, g);
+      for (int i = 0; i < ndof_c; ++i)
+      {
+         *b_ptr = b[i];
+         *g_ptr = g[i];
+         ++b_ptr;
+         ++g_ptr;
+      }
+   }
+
+   for (int j = 0; j < nquad_o; ++j)
+   {
+      cbasis1d.Eval(qo[j], b, g);
+      for (int i = 0; i < ndof_c; ++i)
+      {
+         *b_ptr = b[i];
+         *g_ptr = g[i];
+         ++b_ptr;
+         ++g_ptr;
+      }
+   }
+
+   b.SetSize(ndof_o);
+   g.SetSize(ndof_o);
+   for (int j = 0; j < nquad_c; ++j)
+   {
+      obasis1d.Eval(qc[j], b, g);
+      for (int i = 0; i < ndof_o; ++i)
+      {
+         *b_ptr = b[i];
+         *g_ptr = g[i];
+         ++b_ptr;
+         ++g_ptr;
+      }
+   }
+
+   for (int j = 0; j < nquad_o; ++j)
+   {
+      obasis1d.Eval(qo[j], b, g);
+      for (int i = 0; i < ndof_o; ++i)
+      {
+         *b_ptr = b[i];
+         *g_ptr = g[i];
+         ++b_ptr;
+         ++g_ptr;
+      }
+   }
+}
+
+void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
+{
+   // TODO
+   switch (dim)
+   {
+      // case 1:
+      //    break;
+      // case 2:
+      //    break;
+      case 3:
+         break;
+      default:
+         mfem_error("Bad dimension!");
+   }
+}
+
+void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   // TODO
+   switch (dim)
+   {
+      // case 1:
+      //    break;
+      // case 2:
+      //    break;
+      case 3:
+         break;
+      default:
+         mfem_error("Bad dimension!");
+   }
+}
+
 } // namespace mfem
