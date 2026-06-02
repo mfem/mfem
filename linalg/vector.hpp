@@ -103,9 +103,20 @@ public:
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
-       with SetData(). */
-   Vector(real_t *data_, int size_)
-   { data.Wrap(data_, size_, false); size = size_; }
+       with SetData(). @a check = true if @a data_ could have been previously
+      registered with the memory manager. */
+   Vector(real_t *data_, int size_, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(data_, size_, false);
+      }
+      else
+      {
+         data.Wrap(data_, size_, false);
+      }
+      size = size_;
+   }
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
@@ -190,14 +201,35 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
+   void SetData(real_t *d, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, data.Capacity(), false);
+      }
+      else
+      {
+         data.Wrap(d, data.Capacity(), false);
+      }
+   }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(real_t *d, int s) { data.Wrap(d, s, false); size = s; }
+   void SetDataAndSize(real_t *d, int s, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, s, false);
+      }
+      else
+      {
+         data.Wrap(d, s, false);
+      }
+      size = s;
+   }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
