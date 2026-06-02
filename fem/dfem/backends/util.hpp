@@ -545,7 +545,7 @@ decltype(auto) make_native_dual_input(
    }
    else
    {
-      return make_tensor_array<decay_t>(xq.GetBlock(I).HostRead(), &layout, gnqp);
+      return make_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout, gnqp);
    }
 }
 
@@ -565,7 +565,7 @@ decltype(auto) make_native_dual_output(
    }
    else
    {
-      return make_tensor_array<decay_t>(yq.GetBlock(O).HostReadWrite(), &layout,
+      return make_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout,
                                         gnqp);
    }
 }
