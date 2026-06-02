@@ -314,20 +314,24 @@ void mass_action(const char *filename, int p)
 #endif // TODO: Boundary tests 
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 template <int DIM>
 void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
+   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
 
    pmesh.UniformRefinement(), pmesh.UniformRefinement();
 
    pmesh.EnsureNodes();
    auto* nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
-   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
+
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
 
    Array<int> all_domain_attr;
    if (pmesh.attributes.Size() > 0)
@@ -336,12 +340,13 @@ void mass_mat_mixed(const char* filename, int p)
       all_domain_attr = 1;
    }
 
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   const auto* ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
    H1_FECollection fec0(p, DIM);
    H1_FECollection fec1(p + 1, DIM);
    ParFiniteElementSpace fes0(&pmesh, &fec0);
    ParFiniteElementSpace fes1(&pmesh, &fec1);
-
-   const auto* ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    ConstantCoefficient one(1.0);
    ParMixedBilinearForm blf(&fes1, &fes0);
@@ -349,13 +354,13 @@ void mass_mat_mixed(const char* filename, int p)
    blf.SetAssemblyLevel(AssemblyLevel::FULL);
    blf.Assemble();
    blf.Finalize();
-
    blf.SpMat().Finalize();
 
    static constexpr int U = 0, P = 1, Coords = 2;
    DifferentiableOperator dop(
-   /* inputs  */ {{ U, &fes1 }, { Coords, nodes->ParFESpace() }},
-   /* outputs */ {{ P, &fes0 }}, pmesh);
+   { { U, &fes1 }, { Coords, mfes } },
+   { { P, &fes0 } }, pmesh);
+
    local_mf_mass_qf<DIM> local_qfn;
    dop.AddDomainIntegrator<LocalQFBackend>(
       local_qfn,
@@ -364,11 +369,8 @@ void mass_mat_mixed(const char* filename, int p)
       *ir, all_domain_attr,
       Derivatives<U> {});
 
-   ParGridFunction ugf(&fes1);
-   ugf = 0.0;
-
-   ParGridFunction pgf(&fes0);
-   pgf = 0.0;
+   ParGridFunction ugf(&fes1), pgf(&fes0);
+   ugf = 0.0, pgf = 0.0;
 
    Vector xtvec(fes1.GetTrueVSize()), ytvec(fes0.GetTrueVSize());
    Vector nodestv;
@@ -380,7 +382,7 @@ void mass_mat_mixed(const char* filename, int p)
    fes1.GetRestrictionMatrix()->Mult(ugf, xtvec);
    MultiVector X{xtvec, nodestv};
 
-   auto ddopdu = dop.GetDerivative(U, X);
+   auto ddopdu = dop.GetDerivative(U, X, false);
 
    // Action linearized
    {
@@ -405,7 +407,7 @@ void mass_mat_mixed(const char* filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   // spmat
+   // MFEM sparse matrix
    if constexpr(!mfem_use_gpu)
    {
       SparseMatrix *A;
@@ -414,9 +416,8 @@ void mass_mat_mixed(const char* filename, int p)
       delete A;
    }
 
-#if 0 // TODO HypreParMatrix
-   // hypre parallel mat
-   if constexpr(!mfem_use_gpu)
+   // TODO Hypre parallel matrix
+   if constexpr(false && !mfem_use_gpu)
    {
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
@@ -426,35 +427,47 @@ void mass_mat_mixed(const char* filename, int p)
       delete Amfem;
       delete Adfem;
    }
-#endif // TODO
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+static const auto GenMeshs = [](const auto &meshs, const auto &extra)
+{
+   return !launch_all_non_regression_tests
+          ? GENERATE_REF(from_range(meshs))
+          : GENERATE_REF(from_range(meshs), from_range(extra));
+};
+
+static const auto GenOrders = []()
+{
+   return !launch_all_non_regression_tests ? 1 : GENERATE(1, 2, 3);
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto mesh2d =
-      GENERATE("../../data/star.mesh",
-               "../../data/star-q3.mesh",
-               "../../data/rt-2d-q3.mesh",
-               "../../data/inline-quad.mesh",
-               "../../data/periodic-square.mesh");
-   mass_action<2>(mesh2d, p);
-   mass_mat_mixed<2>(mesh2d, p);
+   const auto p = GenOrders();
+   const auto meshs = { "../../data/inline-quad.mesh" };
+   const auto extra = { "../../data/star.mesh",
+                        "../../data/star-q3.mesh",
+                        "../../data/rt-2d-q3.mesh",
+                        "../../data/periodic-square.mesh"
+                      };
+   mass_action<2>(GenMeshs(meshs, extra), p);
+   mass_mat_mixed<2>(GenMeshs(meshs, extra), p);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh3d =
-      GENERATE("../../data/fichera.mesh",
-               "../../data/fichera-q3.mesh",
-               "../../data/inline-hex.mesh",
-               "../../data/toroid-hex.mesh",
-               "../../data/periodic-cube.mesh");
-   mass_action<3>(mesh3d, p);
-   mass_mat_mixed<3>(mesh3d, p);
+   const auto p = GenOrders();
+   const auto meshs = { "../../data/inline-hex.mesh" };
+   const auto extra = { "../../data/fichera.mesh",
+                        "../../data/fichera-q3.mesh",
+                        "../../data/toroid-hex.mesh",
+                        "../../data/periodic-cube.mesh"
+                      };
+   mass_action<3>(GenMeshs(meshs, extra), p);
+   mass_mat_mixed<3>(GenMeshs(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI
