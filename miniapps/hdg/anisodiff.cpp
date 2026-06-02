@@ -1,6 +1,6 @@
-//                                MFEM Example 5
+//                                Anisotropic diffusion miniapp
 //
-// Compile with: make ex5
+// Compile with: make anisodiff
 //
 // Sample runs:  ex5 -m ../data/square-disc.mesh
 //               ex5 -m ../data/star.mesh
@@ -17,51 +17,58 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
-//               problem in the mixed formulation corresponding to the system
+// Description:  This example code solves asymptotic heat diffusion problem
+//               with anisotropic conductivity in the mixed formulation
+//               corresponding to the system
 //
-//                                 k^-1.q +         grad T =  g
-//                                  div q + div(T*c) + a T = -f
+//                                 kˉ¹⋅q + ∇ T =  g
+//                                   ∇⋅q + a T = -f
 //
-//               with natural boundary condition q.n = 0, where n is the outer
-//               normal. The tensor k represents the heat conductivity, where its
-//               symmetric and antisymmetric parts can be adjusted. The scalar a
-//               is then the heat capacity, which can be zero, changing the problem
-//               to steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
+//               with natural Neumann boundary condition q⋅n = 0, where n is
+//               the outer normal, or Dirichlet b.c. T = T_D. The tensor k
+//               represents the heat conductivity, where its symmetric and
+//               antisymmetric parts can be adjusted. The scalar a is the heat
+//               capacity, which can be zero, changing the problem to
+//               steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
 //               g = -a * <initial temperature> for the definite problem and
-//               g = -<initial temperature> for the indefinite one. These problems
-//               are offered:
-//               1) sine diffusion - with the asymptotic (a -> infinity) reference
-//                                   solution with the first order correction
+//               g = -<initial temperature> for the indefinite one. These
+//               problems are offered:
+//               1) sine diffusion - Sine profile diffusion with the asymptotic
+//                                   (a -> infinity) reference solution with
+//                                   the first order correction
 //               2) diffusion ring - arc segment IC diffused along circle
-//               3) diffusion ring Gauss - Gaussian blobs IC diffused along circle
-//               4) diffusion ring sine - sine profile in radial and angular
-//                                        direction is diffused along circle,
-//                                        analytic solution for asymptotic
-//                                        diffusion with zero radial diffusion
-//               5) boundary layer - exponentially decaying boundary layer problem
-//               6) steady peak - a peak profile with a constant conductivity and
-//                                a manufactured steady-state solution
+//               3) diff. ring (Gauss) - Gaussian blobs IC diffused along circle
+//               4) diff. ring (sine) - sine profile in radial and angular
+//                                      direction is diffused along circle,
+//                                      analytic solution for asymptotic
+//                                      diffusion with zero radial diffusion
+//               5) boundary layer - exponentially decaying boundary layer
+//                                   problem
+//               6) steady peak - a peak profile with a constant conductivity
+//                                and a manufactured steady-state solution
 //               7) steady varying angle - a concave radial profile diffused
 //                                         along the circle with a manufactured
 //                                         steady-state solution
-//               8) Sovinec problem - a sine profile with diffusion perpendicular
-//                                    to gradient of potential with a manufactured
-//                                    steady-state solution
-//               9) single-null diverted tokamak - Two-wire model of tokamak with
-//                                                 a single X-point
-//               10) double-null diverted tokamak - Two-wire model of tokamak with
-//                                                  two X-points
-//               We discretize with Raviart-Thomas finite elements (heat flux q)
-//               and piecewise discontinuous polynomials (temperature T). Alternatively,
-//               the piecewise discontinuous polynomials are used for both quantities.
+//               8) Sovinec problem - a sine profile with diffusion
+//                                    perpendicular to gradient of potential
+//                                    with a manufactured steady-state solution
+//               9) single-null diverted tokamak - Two-wire model of tokamak
+//                                                 with a single X-point
+//               10) double-null diverted tokamak - Two-wire model of tokamak
+//                                                  with two X-points
+//               We discretize with (broken) Raviart-Thomas finite elements
+//               (heat flux q) and piecewise discontinuous polynomials
+//               (temperature T). Alternatively, the piecewise discontinuous
+//               polynomials are used for both quantities with stabilization,
+//               yielding the Local Discontinous Galerkin method. Optionally,
+//               the mixed system is algebraically reduced or hybridized with
+//               DG interface elements or H1 trace elements.
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective saving
-//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               The miniapp demonstrates the use of the DarcyForm class and
+//               the wrapping time-dependent operator DarcyOperator in an AMR
+//               loop with the HDG error estimator.
 //
-//               We recommend viewing examples 1-4 before viewing this example.
+//               We recommend viewing examples 1-6 before viewing this miniapp.
 
 #include "mfem.hpp"
 #include "darcyop.hpp"
@@ -81,7 +88,7 @@ typedef function<void(const Vector &, DenseMatrix &)> MatFunc;
 
 enum Problem
 {
-   SteadyDiffusion = 1,
+   SineDiffusion = 1,
    DiffusionRing,
    DiffusionRingGauss,
    DiffusionRingSine,
@@ -128,7 +135,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool brt = false;
-   int iproblem = Problem::SteadyDiffusion;
+   int iproblem = Problem::SineDiffusion;
    ProblemParams pars;
    pars.x0 = 0.;
    pars.y0 = 0.;
@@ -261,7 +268,7 @@ int main(int argc, char *argv[])
    bool bnldiff = nonlinear_diff;
    switch (problem)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -333,7 +340,7 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   // Mark boundary conditions
+   // 4. Mark boundary conditions based on the selected problem
    const int bdr_attrs = mesh.bdr_attributes.Size() > 0 ?
                          mesh.bdr_attributes.Max() : 1;
    Array<int> bdr_is_dirichlet(bdr_attrs);
@@ -343,7 +350,7 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -351,11 +358,11 @@ int main(int argc, char *argv[])
       case Problem::Sovinec:
       case Problem::SingleNull:
       case Problem::DoubleNull:
-         //free (zero Dirichlet)
+         // Free b.c. (zero Dirichlet)
          if (bc_neumann)
          {
-            bdr_is_neumann[1] = -1;//outflow
-            bdr_is_neumann[2] = -1;//outflow
+            bdr_is_neumann[1] = -1; // Outflow
+            bdr_is_neumann[2] = -1; // Outflow
          }
          break;
       case Problem::BoundaryLayer:
@@ -367,7 +374,7 @@ int main(int argc, char *argv[])
          break;
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 5. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
@@ -385,10 +392,12 @@ int main(int argc, char *argv[])
 
    if (dr > 0.) { RandomizeMesh(mesh, dr); }
 
-   // 5. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
-   unique_ptr<FiniteElementCollection> V_coll;
-   unique_ptr<FiniteElementCollection> V_coll_dg;
+   // 6. Define a finite element space on the mesh. Here we use the
+   //    (broken) Raviart-Thomas finite elements of the specified order for the
+   //    heat flux or discontinuous Galerkin alternatively. The temperature is
+   //    always discretized by discontinuous Galerkin elements.
+   unique_ptr<FiniteElementCollection> V_coll; // Heat flux FE collection
+   unique_ptr<FiniteElementCollection> V_coll_dg; // DG heat flux FE colection
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
@@ -399,57 +408,76 @@ int main(int argc, char *argv[])
    else if (brt)
    {
       V_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      // For broken Raviart-Thomas elements, we define an auxiliary DG space
+      // for visualization with an older version of GLVIs without support of
+      // this element family.
       V_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
       V_coll = make_unique<RT_FECollection>(order, dim);
    }
+
+   // Temperature FE collection
    auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
+   // Heat flux FE space
    auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
                                                   (dg)?(dim):(1));
    auto V_space_dg = (V_coll_dg)?(make_unique<FiniteElementSpace>(
                                      &mesh, V_coll_dg.get(), dim)):(nullptr);
+   // Temperature FE space
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
+   // Darcy form
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
-   // 6. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; //base temperature
 
-   ConstantCoefficient acoeff(pars.a); //heat capacity
+   ConstantCoefficient acoeff(pars.a); // Heat capacity
 
    auto kFun = GetKFun(pars);
-   MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
-   InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
+   MatrixFunctionCoefficient kcoeff(dim, kFun); // Tensor conductivity
+   InverseMatrixCoefficient ikcoeff(kcoeff); // Inverse tensor conductivity
 
    auto tFun = GetTFun(pars);
-   FunctionCoefficient tcoeff(tFun); //temperature
-   SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
+   FunctionCoefficient tcoeff(tFun); // Analytic temperature
+   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux rhs
 
    auto fFun = GetFFun(pars);
-   FunctionCoefficient fcoeff(fFun); //temperature rhs
+   FunctionCoefficient fcoeff(fFun); // Temperature r.h.s.
 
    auto qFun = GetQFun(pars);
-   VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
+   VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
 
-   // 7. Assemble the finite element matrices for the Darcy operator
+   // 8. Assemble the finite element matrices for the Darcy operator
    //
-   //                            D = [ M  B^T ]
-   //                                [ B   0  ]
+   //                     ┌        ┐
+   //                     | Mq -Bᵀ |
+   //                     | B  Mt  |
+   //                     └        ┘
    //     where:
-   //
-   //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
-   //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
+   //     RTDG:
+   //     Mq = (kˉ¹ q, v)                    q, v ∈ V
+   //     B = (∇⋅q, w)                       q ∈ V, w ∈ W
+   //     Mt = (a T, w)                      T, w ∈ W
+   //     LBRT:
+   //     Mq = (kˉ¹ q, v)                    q, v ∈ V
+   //     B = (∇⋅q, w) + <[q⋅n], {w}>         q ∈ V, w ∈ W
+   //     Mt = (a T, w)                      T, w ∈ W
+   //     LDG:
+   //     Mq = (kˉ¹ q, v)                    q, v ∈ V
+   //     B = (∇⋅q, w) + <[q⋅n], {w}>         q ∈ V, w ∈ W
+   //     Mt = (a T, w) + <td k hˉ¹[T], [w]> T, w ∈ W
 
-   //diffusion
+   // Diffusion
 
    unique_ptr<MixedFluxFunction> HeatFluxFun;
    if (!bnldiff)
    {
-      //linear diffusion
+      // Linear diffusion
       if (!nonlinear)
       {
          BilinearForm *Mq = darcy->GetFluxMassForm();
@@ -477,7 +505,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      //nonlinear diffusion
+      // Nonlinear diffusion
       BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
       HeatFluxFun = GetHeatFluxFun(pars, dim);
       if (dg)
@@ -498,7 +526,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //diffusion stabilization
+   // Diffusion stabilization
    if (dg)
    {
       if (bnldiff)
@@ -530,7 +558,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //divergence/weak gradient
+   // Divergence/weak gradient
 
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    if (dg)
@@ -555,7 +583,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //inertial term
+   // Inertial term
 
    if (pars.a > 0.)
    {
@@ -571,7 +599,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / reduction / assembly level
 
    Array<int> ess_flux_tdofs_list;
    if (!dg && !brt)
@@ -584,6 +612,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
+      // Hybridization
       chrono.Clear();
       chrono.Start();
 
@@ -599,7 +628,7 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-      // set essential BC
+      // Set essential BC
       if (trace_ess_bc)
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
@@ -609,6 +638,7 @@ int main(int argc, char *argv[])
    }
    else if (reduction)
    {
+      // Reduction
       chrono.Clear();
       chrono.Start();
 
@@ -632,7 +662,7 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   // 8. Define the BlockStructure of the problem, i.e. define the array of
+   // 9. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
@@ -660,11 +690,13 @@ int main(int argc, char *argv[])
    }
    cout << "***********************************************************\n";
 
-   // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
-   //    side.  Define the GridFunction q,t for the finite element solution and
-   //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (q,t) and the linear forms (fform, gform).
+   // 10. Allocate memory (x, rhs) for the analytical solution and the right
+   //     hand side. Define the GridFunction q_h, t_h for the finite element
+   //     solution and linear forms fform and gform for the right hand side.
+   //     The data allocated by x and rhs are passed as a reference to the grid
+   //     functions (q,t) and the linear forms (fform, gform). With
+   //     hybridization, linear form hform for the constraint is constructed
+   //     as well together with the trace grid function tr_h.
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
@@ -688,11 +720,11 @@ int main(int argc, char *argv[])
       tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
    }
 
-   // flux rhs
+   // Flux r.h.s.
    unique_ptr<LinearForm> gform(new LinearForm);
    gform->Update(V_space.get(), rhs.GetBlock(0), 0);
 
-   // Dirichlet
+   // Dirichlet b.c.
    if (!hybridization || !trace_ess_bc)
    {
       if (dg)
@@ -712,35 +744,32 @@ int main(int argc, char *argv[])
       }
    }
 
-   // potential rhs
+   // Potential r.h.s.
    unique_ptr<LinearForm> fform(new LinearForm);
    fform->Update(W_space.get(), rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
-   //Neumann
+   // Neumann b.c. (non-hybridized)
    if (!hybridization)
    {
       fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +2., 0.),
                                   bdr_is_neumann);
    }
 
-   //prepare (reduced) solution and rhs vectors
+   // Constraint r.h.s.
 
    unique_ptr<LinearForm> hform;
 
-   //Neumann BC for the hybridized system
-
+   // Neumann b.c. for the hybridized system
    if (hybridization)
    {
       hform = make_unique<LinearForm>();
       hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
-      //note that Neumann BC must be applied only for the heat flux
-      //and not the total flux for stability reasons
       hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
                                    bdr_is_neumann);
    }
 
-   //construct the operator
+   // 11. Construct the spatial operator
 
    DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
    {gform.get(), fform.get(), hform.get()},
@@ -757,7 +786,7 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
-   //construct the AMR refiner
+   // 12. Construct the HDG AMR refiner
 
    unique_ptr<BilinearFormIntegrator> amr_bfi;
    unique_ptr<ErrorEstimator> amr_err;
@@ -779,14 +808,14 @@ int main(int argc, char *argv[])
    for (int amr_it = 0; amr_it <= amr_nrefs; amr_it++)
    {
 
-      // solve the steady/asymptotic problem
+      // 13. Solve the steady/asymptotic problem
 
       Vector dx(x.Size()); dx = 0.;
       op.SetTime(1.);
       op.ImplicitSolve(1., x, dx);
       x += dx;
 
-      // 12. Compute the L2 error norms.
+      // 14. Compute the L2 error norms.
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -825,7 +854,7 @@ int main(int argc, char *argv[])
          cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
 
-      // Project the fluxes
+      // 15. Project the fluxes
 
       GridFunction q_vh;
 
@@ -840,7 +869,7 @@ int main(int argc, char *argv[])
          q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
-      // Project the analytic solution
+      // 16. Project the analytic solution
 
       static GridFunction q_a, t_a;
 
@@ -850,8 +879,8 @@ int main(int argc, char *argv[])
       t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
-      // 13. Save the mesh and the solution. This output can be viewed later using
-      //     GLVis: "glvis -m anisodiff.mesh -g sol_q.gf" or "glvis -m
+      // 17. Save the mesh and the solution. This output can be viewed later
+      //     using GLVis: "glvis -m anisodiff.mesh -g sol_q.gf" or "glvis -m
       //     anisodiff.mesh -g sol_t.gf".
       if (mfem)
       {
@@ -881,7 +910,7 @@ int main(int argc, char *argv[])
          t_h.Save(t_ofs);
       }
 
-      // 14. Save data in the VisIt format
+      // 18. Save data in the VisIt format
       if (visit)
       {
          static VisItDataCollection visit_dc("Anisodiff", &mesh);
@@ -899,7 +928,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // 15. Save data in the ParaView format
+      // 19. Save data in the ParaView format
       if (paraview)
       {
          static ParaViewDataCollection paraview_dc("Anisodiff", &mesh);
@@ -921,7 +950,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      // 16. Send the solution by socket to a GLVis server.
+      // 20. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          static socketstream q_sock, t_sock;
@@ -940,68 +969,74 @@ int main(int argc, char *argv[])
             VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it);
             VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it);
          }
+      }
 
-         // refine the mesh
+      // 21. Refine the mesh
 
-         if (amr_it < amr_nrefs)
+      if (amr_it < amr_nrefs)
+      {
+         amr_ref->Apply(mesh);
+         if (amr_ref->Stop()) { break; }
+
+         // Update FE spaces
+         V_space->Update();
+         if (V_space_dg) { V_space_dg->Update(); }
+         W_space->Update();
+         if (hybridization)
          {
-            amr_ref->Apply(mesh);
-            if (amr_ref->Stop()) { break; }
-
-            V_space->Update();
-            if (V_space_dg) { V_space_dg->Update(); }
-            W_space->Update();
-            if (hybridization)
-            {
-               trace_space->Update();
-               //tr_h.Update();
-            }
-
-            block_offsets = DarcyOperator::ConstructOffsets(*darcy);
-            x.Update(block_offsets, mt);
-            rhs.Update(block_offsets, mt);
-
-            x = 0.;
-            q_h.MakeRef(V_space.get(), x.GetBlock(0), 0);
-            t_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
-
-            gform->Update(V_space.get(), rhs.GetBlock(0), 0);
-            fform->Update(W_space.get(), rhs.GetBlock(1), 0);
-
-            if (hybridization)
-            {
-               //x.GetBlock(2) = tr_h;
-               tr_h.MakeRef(trace_space.get(), x.GetBlock(2), 0);
-               hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
-            }
-
-            if (!dg && !brt)
-            {
-               V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
-               q_h.ProjectBdrCoefficientNormal(qcoeff,
-                                               bdr_is_neumann);   //essential Neumann BC
-            }
-
-            if (hybridization && trace_ess_bc)
-            {
-               tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
-            }
-
-            darcy->Update();
-            if (hybridization)
-            {
-               darcy->EnableHybridization(trace_space.get(),
-                                          new NormalTraceJumpIntegrator(),
-                                          ess_flux_tdofs_list);
-               // set essential BC
-               if (trace_ess_bc)
-               {
-                  darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
-               }
-            }
-
-            op.Update();
+            trace_space->Update();
+            //tr_h.Update();
          }
+
+         // Update grid functions and linear forms
+         block_offsets = DarcyOperator::ConstructOffsets(*darcy);
+         x.Update(block_offsets, mt);
+         rhs.Update(block_offsets, mt);
+
+         x = 0.;
+         q_h.MakeRef(V_space.get(), x.GetBlock(0), 0);
+         t_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
+
+         gform->Update(V_space.get(), rhs.GetBlock(0), 0);
+         fform->Update(W_space.get(), rhs.GetBlock(1), 0);
+
+         if (hybridization)
+         {
+            //x.GetBlock(2) = tr_h;
+            tr_h.MakeRef(trace_space.get(), x.GetBlock(2), 0);
+            hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
+         }
+
+         // Project essential b.c.
+         if (!dg && !brt)
+         {
+            V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
+            q_h.ProjectBdrCoefficientNormal(qcoeff,
+                                            bdr_is_neumann);   //essential Neumann BC
+         }
+
+         if (hybridization && trace_ess_bc)
+         {
+            tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
+         }
+
+         // Update Darcy form, where hybridization must be reinitialized to
+         // reintegrate the constraint and eliminate the essential b.c.
+         darcy->Update();
+         if (hybridization)
+         {
+            darcy->EnableHybridization(trace_space.get(),
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
+            // set essential BC
+            if (trace_ess_bc)
+            {
+               darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+            }
+         }
+
+         // Update Darcy operator
+         op.Update();
       }
    }
 
@@ -1020,9 +1055,10 @@ MatFunc GetKFun(const ProblemParams &params)
 
    switch (params.prob)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
       case Problem::BoundaryLayer:
       case Problem::SteadyPeak:
+         // Axial conductivity
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1040,6 +1076,7 @@ MatFunc GetKFun(const ProblemParams &params)
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
       case Problem::SteadyVaryingAngle:
+         // Radial vs. tangential conductivity
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1061,6 +1098,9 @@ MatFunc GetKFun(const ProblemParams &params)
             }
          };
       case Problem::Sovinec:
+         // C. R. Sovinec et al., Nonlinear magnetohydrodynamics simulation
+         // using high-order finite elements. Journal of Computational Physics,
+         // 195, pp. 355–386 (2004).
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1175,7 +1215,9 @@ TFunc GetTFun(const ProblemParams &params)
 
    switch (params.prob)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
+         // Sine profile diffusion with asymptotic (a -> infinity)
+         // solution and the first order correction
          return [=](const Vector &x, real_t t) -> real_t
          {
             const int ndim = x.Size();
@@ -1213,6 +1255,7 @@ TFunc GetTFun(const ProblemParams &params)
             return t0 - div / a * t;
          };
       case Problem::DiffusionRing:
+         // Arc segment IC for diffusion along circle
          return [=](const Vector &x, real_t t) -> real_t
          {
             constexpr real_t r0 = 0.25;
@@ -1238,6 +1281,7 @@ TFunc GetTFun(const ProblemParams &params)
             return min(1., dr) * min(1., dth) * t_0;
          };
       case Problem::DiffusionRingGauss:
+         // Gaussian blobs IC for diffusion along circle
          return [=](const Vector &x, real_t t) -> real_t
          {
             constexpr real_t r0 = 0.025;
@@ -1252,6 +1296,9 @@ TFunc GetTFun(const ProblemParams &params)
             return - exp(- r_l*r_l/(r0*r0)) + exp(- r_r*r_r/(r0*r0));
          };
       case Problem::DiffusionRingSine:
+         // Sine profile in radial and angular direction is diffused along
+         // circle, where analytic solution for asymptotic diffusion with
+         // zero radial diffusion is provided (ks -> 0)
          return [=](const Vector &x, real_t t) -> real_t
          {
             constexpr real_t r0 = 0.05;
@@ -1282,7 +1329,7 @@ TFunc GetTFun(const ProblemParams &params)
             return - (e_down + e_up) / denom * sin(M_PI * x(0));
          };
       case Problem::SteadyPeak:
-         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
          // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
          // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
          // ICCFD7-1401)
@@ -1293,7 +1340,7 @@ TFunc GetTFun(const ProblemParams &params)
             return x(0)*x(1) * pow(arg, s);
          };
       case Problem::SteadyVaryingAngle:
-         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
          // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
          // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
          // ICCFD7-1401)
@@ -1354,7 +1401,9 @@ VecTFunc GetQFun(const ProblemParams &params)
 
    switch (params.prob)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
+         // Sine profile diffusion with asymptotic (a -> infinity)
+         // solution and the first order correction
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1396,6 +1445,9 @@ VecTFunc GetQFun(const ProblemParams &params)
             v = 0.;
          };
       case Problem::DiffusionRingSine:
+         // Sine profile in radial and angular direction is diffused along
+         // circle, where analytic solution for asymptotic diffusion with
+         // zero radial diffusion is provided (ks -> 0)
          return [=](const Vector &x, real_t t, Vector &v)
          {
             constexpr real_t r0 = 0.05;
@@ -1415,6 +1467,9 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(1) = - k * T_r * cos(th);
          };
       case Problem::BoundaryLayer:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers and Mathematics with
+         // Applications, 145, pp. 159-174 (2023).
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1435,6 +1490,10 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(1) = -kappa(1,1) * T_y;
          };
       case Problem::SteadyPeak:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1452,6 +1511,10 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(1) = -kappa(1,1) * T_y;
          };
       case Problem::SteadyVaryingAngle:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1468,6 +1531,9 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(1) = -kappa_r * T_r * dx(1);
          };
       case Problem::Sovinec:
+         // C. R. Sovinec et al., Nonlinear magnetohydrodynamics simulation
+         // using high-order finite elements. Journal of Computational Physics,
+         // 195, pp. 355–386 (2004).
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1500,7 +1566,7 @@ TFunc GetFFun(const ProblemParams &params)
 
    switch (params.prob)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -1517,6 +1583,10 @@ TFunc GetFFun(const ProblemParams &params)
             return 0.;
          };
       case Problem::SteadyPeak:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
          return [=](const Vector &x, real_t) -> real_t
          {
             DenseMatrix kappa;
@@ -1530,6 +1600,10 @@ TFunc GetFFun(const ProblemParams &params)
             return kappa(0,0) * T_xx + kappa(1,1) * T_yy;
          };
       case Problem::SteadyVaryingAngle:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATION METHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t kappa_r = ks * k;
@@ -1542,6 +1616,9 @@ TFunc GetFFun(const ProblemParams &params)
             return kappa_r * T_rr;
          };
       case Problem::Sovinec:
+         // C. R. Sovinec et al., Nonlinear magnetohydrodynamics simulation
+         // using high-order finite elements. Journal of Computational Physics,
+         // 195, pp. 355–386 (2004).
          return [=](const Vector &x, real_t) -> real_t
          {
             Vector dx(x);
@@ -1562,7 +1639,7 @@ unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
 
    switch (params.prob)
    {
-      case Problem::SteadyDiffusion:
+      case Problem::SineDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
