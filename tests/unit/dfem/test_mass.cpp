@@ -40,20 +40,17 @@ template <int DIM> struct global_mf_mass_qf
    {
       // Forward-diff with Enzyme cannot propagate the
       // seeded tangent through the mfem::forall dispatch
-      if constexpr(mfem_use_gpu)
+#ifdef MFEM_USE_ENZYME
+      for (size_t q = 0; q < u.size(); q++)
       {
-         mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
-         {
-            v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-         });
+         v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
       }
-      else
+#else
+      mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
-         for (size_t q = 0; q < u.size(); q++)
-         {
-            v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-         }
-      }
+         v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
+      });
+#endif
    }
 };
 
@@ -115,7 +112,9 @@ void mass_action(const char *filename, int p)
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    if constexpr(!mfem_use_gpu)
    {
+#ifndef MFEM_USE_ENZYME
       blf.AddDomainIntegrator(new MassIntegrator(one, ir));
+#endif
    }
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
@@ -148,9 +147,11 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
+#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr);
+#endif
       }
 
       MultiVector MX{X, N}, MZ{Z};
@@ -176,9 +177,11 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
+#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+#endif
       }
 
       MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
@@ -222,9 +225,11 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
+#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+#endif
       }
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -380,7 +385,7 @@ void mass_mat_mixed(const char* filename, int p)
 
    auto ddopdu = dop.GetDerivative(U, X, false);
 
-   // Action linearized
+   SECTION("Action Linearized")
    {
       xtvec.Randomize(567);
       ugf.SetFromTrueDofs(xtvec);
@@ -403,8 +408,7 @@ void mass_mat_mixed(const char* filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   // MFEM sparse matrix
-   if constexpr(!mfem_use_gpu)
+   SECTION("MFEM SparseMatrix")
    {
       SparseMatrix *A;
       ddopdu->Assemble(A);

@@ -150,7 +150,7 @@ void diffusion(const char *filename, int p)
       };
       const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
-      SECTION("Action")
+      SECTION("Scalar Action")
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
@@ -183,324 +183,318 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
-      // SECTION("Action Partial Assembly")
-      // {
-      //    static constexpr int QData = 2;
-      //    QuadratureSpace qspace(pmesh, *ir);
-      //    VectorQuadratureSpace qspace_vec(qspace, DIM * DIM);
-      //    QuadratureFunction qd(qspace_vec);
+      SECTION("Scalar Action Partial Assembly")
+      {
+         static constexpr int QData = 2;
+         QuadratureSpace qspace(pmesh, *ir);
+         VectorQuadratureSpace qspace_vec(qspace, DIM * DIM);
+         QuadratureFunction qd(qspace_vec);
 
-      //    DifferentiableOperator setupPAData(
-      //    {
-      //       {Coords, mfes}
-      //    },
-      //    {
-      //       {QData, &qspace_vec}
-      //    }, pmesh);
+         DifferentiableOperator setupPAData(
+         {
+            {Coords, mfes}
+         },
+         {
+            {QData, &qspace_vec}
+         }, pmesh);
 
-      //    typename Diffusion<DIM>::PASetup pa_setup_qf;
-      //    setupPAData.AddDomainIntegrator<QFBackend>(
-      //       pa_setup_qf,
-      //       Inputs<Gradient<Coords>, Weight> {},
-      //       Outputs<Identity<QData>> {},
-      //       *ir, all_domain_attr);
+         typename Diffusion<DIM>::PASetup pa_setup_qf;
+         setupPAData.AddDomainIntegrator<QFBackend>(
+            pa_setup_qf,
+            Inputs<Gradient<Coords>, Weight> {},
+            Outputs<Identity<QData>> {},
+            *ir, all_domain_attr);
 
-      //    {
-      //       Vector nodestv;
-      //       nodes->GetTrueDofs(nodestv);
-      //       MultiVector X{nodestv};
-      //       MultiVector Y{qd};
-      //       setupPAData.Mult(X, Y);
-      //    }
+         {
+            Vector nodestv;
+            nodes->GetTrueDofs(nodestv);
+            MultiVector X{nodestv};
+            MultiVector Y{qd};
+            setupPAData.Mult(X, Y);
+         }
 
-      //    DifferentiableOperator applyPAData(
-      //    {
-      //       {U, &pfes}, {QData, &qspace_vec}
-      //    },
-      //    {
-      //       {U, &pfes}
-      //    }, pmesh);
-      //    typename Diffusion<DIM>::PAApply pa_apply_qf;
-      //    applyPAData.AddDomainIntegrator<QFBackend>(
-      //       pa_apply_qf,
-      //       Inputs<Gradient<U>, Identity<QData>> {},
-      //       Outputs<Gradient<U>> {},
-      //       *ir, all_domain_attr);
+         DifferentiableOperator applyPAData(
+         {
+            {U, &pfes}, {QData, &qspace_vec}
+         },
+         {
+            {U, &pfes}
+         }, pmesh);
+         typename Diffusion<DIM>::PAApply pa_apply_qf;
+         applyPAData.AddDomainIntegrator<QFBackend>(
+            pa_apply_qf,
+            Inputs<Gradient<U>, Identity<QData>> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr);
 
-      //    {
-      //       pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      //       MultiVector X{xtvec, qd};
-      //       MultiVector Z{ztvec};
-      //       applyPAData.Mult(X, Z);
-      //    }
+         {
+            pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+            MultiVector X{xtvec, qd};
+            MultiVector Z{ztvec};
+            applyPAData.Mult(X, Z);
+         }
 
-      //    blf_fa.Mult(x, y);
-      //    pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      //    ytvec -= ztvec;
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+         ytvec -= ztvec;
 
-      //    real_t norm_global = 0.0;
-      //    real_t norm_local = ytvec.Normlinf();
-      //    MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-      //                  pmesh.GetComm());
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
 
-      //    dbg("Action Partial Assembly");
-      //    REQUIRE(norm_global == MFEM_Approx(0.0));
-      //    MPI_Barrier(MPI_COMM_WORLD);
-      // }
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
-      // Action Linearized
-      // {
-      //    DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-      //    typename Diffusion<DIM>::MFApply mf_apply_qf;
-      //    dop_mf.AddDomainIntegrator<QFBackend>(
-      //       mf_apply_qf,
-      //       Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-      //       Outputs<Gradient<U>> {},
-      //       *ir, all_domain_attr,
-      //       Derivatives<U> {});
+      SECTION("Scalar Action Linearized")
+      {
+         DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_apply_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
-      //    pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      //    Vector nodestv;
-      //    nodes->GetTrueDofs(nodestv);
-      //    MultiVector X{xtvec, nodestv};
-      //    MultiVector Z{ztvec};
-      //    auto ddop = dop_mf.GetDerivative(U, X);
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         MultiVector Z{ztvec};
+         auto ddop = dop_mf.GetDerivative(U, X);
 
-      //    // Randomize again s.t. the PA setup like cache can't
-      //    // trivially succeed by caching one direction only.
-      //    xtvec.Randomize(567);
-      //    x.SetFromTrueDofs(xtvec);
+         // Randomize again s.t. the PA setup like cache can't
+         // trivially succeed by caching one direction only.
+         xtvec.Randomize(567);
+         x.SetFromTrueDofs(xtvec);
 
-      //    Vector dztvec(ztvec.Size());
-      //    MultiVector DZ{dztvec};
-      //    ddop->Mult(X[0], DZ);
+         Vector dztvec(ztvec.Size());
+         MultiVector DZ{dztvec};
+         ddop->Mult(X[0], DZ);
 
-      //    blf_fa.Mult(x, y);
-      //    pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+         blf_fa.Mult(x, y);
+         pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
-      //    ytvec -= dztvec;
+         ytvec -= dztvec;
 
-      //    real_t norm_global = 0.0;
-      //    real_t norm_local = ytvec.Normlinf();
-      //    MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-      //                  pmesh.GetComm());
+         real_t norm_global = 0.0;
+         real_t norm_local = ytvec.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
 
-      //    dbg("Action Linearized");
-      //    REQUIRE(norm_global == MFEM_Approx(0.0));
-      //    MPI_Barrier(MPI_COMM_WORLD);
-      // }
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
-      // SparseMatrix
-      // if constexpr(!mfem_use_gpu)
-      // {
-      //    DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-      //    typename Diffusion<DIM>::MFApply mf_apply_qf;
-      //    dop_mf.AddDomainIntegrator<QFBackend>(
-      //       mf_apply_qf,
-      //       Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-      //       Outputs<Gradient<U>> {},
-      //       *ir, all_domain_attr,
-      //       Derivatives<U> {});
+      SECTION("Scalar SparseMatrix")
+      {
+         DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_apply_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
-      //    pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      //    Vector nodestv;
-      //    nodes->GetTrueDofs(nodestv);
-      //    MultiVector X{xtvec, nodestv};
-      //    auto dRdU = dop_mf.GetDerivative(U, X);
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop_mf.GetDerivative(U, X);
 
-      //    SparseMatrix *A = nullptr;
-      //    dRdU->Assemble(A);
+         SparseMatrix *A = nullptr;
+         dRdU->Assemble(A);
 
-      //    dbg("SparseMatrix");
-      //    TestSameMatrices(*A, blf_fa.SpMat());
-      //    delete A;
-      //    MPI_Barrier(MPI_COMM_WORLD);
-      // }
+         TestSameMatrices(*A, blf_fa.SpMat());
+         delete A;
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
-      // Assemble Diagonal
-      // {
-      //    DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-      //    typename Diffusion<DIM>::MFApply mf_apply_qf;
-      //    dop_mf.AddDomainIntegrator<QFBackend>(
-      //       mf_apply_qf,
-      //       Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-      //       Outputs<Gradient<U>> {},
-      //       *ir, all_domain_attr,
-      //       Derivatives<U> {});
+      SECTION("Scalar Assemble Diagonal")
+      {
+         DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
+         typename Diffusion<DIM>::MFApply mf_apply_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_apply_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
-      //    pfes.GetRestrictionMatrix()->Mult(x, xtvec);
-      //    Vector nodestv;
-      //    nodes->GetTrueDofs(nodestv);
-      //    MultiVector X{xtvec, nodestv};
-      //    auto dRdU = dop_mf.GetDerivative(U, X);
+         pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop_mf.GetDerivative(U, X);
 
-      //    Vector dfem_diagonal(pfes.GetTrueVSize());
-      //    dRdU->AssembleDiagonal(dfem_diagonal);
+         Vector dfem_diagonal(pfes.GetTrueVSize());
+         dRdU->AssembleDiagonal(dfem_diagonal);
 
-      //    Vector mfem_diagonal(pfes.GetTrueVSize());
-      //    blf_fa.AssembleDiagonal(mfem_diagonal);
+         Vector mfem_diagonal(pfes.GetTrueVSize());
+         blf_fa.AssembleDiagonal(mfem_diagonal);
 
-      //    dfem_diagonal -= mfem_diagonal;
+         dfem_diagonal -= mfem_diagonal;
 
-      //    real_t norm_global = 0.0;
-      //    real_t norm_local = dfem_diagonal.Normlinf();
-      //    MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-      //                  pmesh.GetComm());
+         real_t norm_global = 0.0;
+         real_t norm_local = dfem_diagonal.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
 
-      //    dbg("Assemble Diagonal");
-      //    REQUIRE(norm_global == MFEM_Approx(0.0));
-      //    MPI_Barrier(MPI_COMM_WORLD);
-      // }
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 
-   // SECTION("Vector")
-   // {
-   //    ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
-   //    ParGridFunction vx(&vpfes), vy(&vpfes);
-   //    Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
-   //           vZ(vpfes.GetTrueVSize());
+   SECTION("Vector")
+   {
+      ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
+      ParGridFunction vx(&vpfes), vy(&vpfes);
+      Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
+             vZ(vpfes.GetTrueVSize());
 
-   //    SECTION("Action")
-   //    {
-   //       vX.Randomize(1);
-   //       vx.SetFromTrueDofs(vX);
+      SECTION("Vector Action")
+      {
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
 
-   //       DifferentiableOperator dop_mf(
-   //       {
-   //          {U, &vpfes},
-   //          {Coords, mfes},
-   //       },
-   //       {
-   //          {U, &vpfes}
-   //       }, pmesh);
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
 
-   //       typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-   //       dop_mf.AddDomainIntegrator<QFBackend>(
-   //          mf_vector_diffusion_qf,
-   //          Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-   //          Outputs<Gradient<U>> {},
-   //          *ir, all_domain_attr);
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_vector_diffusion_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr);
 
-   //       Vector nodestv;
-   //       nodes->GetTrueDofs(nodestv);
-   //       MultiVector X{vX, nodestv};
-   //       MultiVector Z{vZ};
-   //       dop_mf.Mult(X, Z);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         MultiVector Z{vZ};
+         dop_mf.Mult(X, Z);
 
-   //       ParBilinearForm vblf_fa(&vpfes);
-   //       vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-   //       vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-   //       vblf_fa.Assemble();
-   //       vblf_fa.Finalize();
-   //       vblf_fa.Mult(vx, vy);
-   //       vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy);
+         vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
 
-   //       vY -= vZ;
-   //       real_t norm_global = 0.0;
-   //       real_t norm_local = vY.Normlinf();
-   //       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-   //                     pmesh.GetComm());
+         vY -= vZ;
+         real_t norm_global = 0.0;
+         real_t norm_local = vY.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
 
-   //       dbg("Vector Action");
-   //       REQUIRE(norm_global == MFEM_Approx(0.0));
-   //       MPI_Barrier(MPI_COMM_WORLD);
-   //    }
+         dbg("Vector Action");
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
-   //    // Action Linearized
-   //    {
-   //       vX.Randomize(1);
-   //       vx.SetFromTrueDofs(vX);
+      SECTION("Vector Action Linearized")
+      {
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
 
-   //       DifferentiableOperator dop_mf(
-   //       {
-   //          {U, &vpfes},
-   //          {Coords, mfes},
-   //       },
-   //       {
-   //          {U, &vpfes}
-   //       }, pmesh);
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
 
-   //       typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-   //       dop_mf.AddDomainIntegrator<QFBackend>(
-   //          mf_vector_diffusion_qf,
-   //          Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-   //          Outputs<Gradient<U>> {},
-   //          *ir, all_domain_attr,
-   //          Derivatives<U> {});
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_vector_diffusion_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
-   //       Vector nodestv;
-   //       nodes->GetTrueDofs(nodestv);
-   //       MultiVector X{vX, nodestv};
-   //       const auto ddop = dop_mf.GetDerivative(U, X);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         const auto ddop = dop_mf.GetDerivative(U, X);
 
-   //       MultiVector Z{vZ};
-   //       ddop->Mult(vX, Z);
+         MultiVector Z{vZ};
+         ddop->Mult(vX, Z);
 
-   //       ParBilinearForm vblf_fa(&vpfes);
-   //       vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-   //       vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-   //       vblf_fa.Assemble();
-   //       vblf_fa.Finalize();
-   //       vblf_fa.Mult(vx, vy);
-   //       vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy);
+         vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
 
-   //       vY -= vZ;
-   //       real_t norm_global = 0.0;
-   //       real_t norm_local = vY.Normlinf();
-   //       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-   //                     pmesh.GetComm());
+         vY -= vZ;
+         real_t norm_global = 0.0;
+         real_t norm_local = vY.Normlinf();
+         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                       pmesh.GetComm());
 
-   //       dbg("Vector Action Linearized");
-   //       REQUIRE(norm_global == MFEM_Approx(0.0));
-   //       MPI_Barrier(MPI_COMM_WORLD);
-   //    }
+         dbg("Vector Action Linearized");
+         REQUIRE(norm_global == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
 
-   //    // SparseMatrix
-   //    if constexpr(!mfem_use_gpu)
-   //    {
-   //       vX.Randomize(1);
-   //       vx.SetFromTrueDofs(vX);
+      SECTION("Vector SparseMatrix")
+      {
+         vX.Randomize(1);
+         vx.SetFromTrueDofs(vX);
 
-   //       DifferentiableOperator dop_mf(
-   //       {
-   //          {U, &vpfes},
-   //          {Coords, mfes},
-   //       },
-   //       {
-   //          {U, &vpfes}
-   //       }, pmesh);
+         DifferentiableOperator dop_mf(
+         {
+            {U, &vpfes},
+            {Coords, mfes},
+         },
+         {
+            {U, &vpfes}
+         }, pmesh);
 
-   //       typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-   //       dop_mf.AddDomainIntegrator<QFBackend>(
-   //          mf_vector_diffusion_qf,
-   //          Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-   //          Outputs<Gradient<U>> {},
-   //          *ir, all_domain_attr,
-   //          Derivatives<U> {});
+         typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
+         dop_mf.AddDomainIntegrator<QFBackend>(
+            mf_vector_diffusion_qf,
+            Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Gradient<U>> {},
+            *ir, all_domain_attr,
+            Derivatives<U> {});
 
-   //       Vector nodestv;
-   //       nodes->GetTrueDofs(nodestv);
-   //       MultiVector X{vX, nodestv};
-   //       const auto ddop = dop_mf.GetDerivative(U, X);
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         MultiVector X{vX, nodestv};
+         const auto ddop = dop_mf.GetDerivative(U, X);
 
-   //       MultiVector Z{vZ};
-   //       ddop->Mult(vX, Z);
+         MultiVector Z{vZ};
+         ddop->Mult(vX, Z);
 
-   //       ParBilinearForm vblf_fa(&vpfes);
-   //       vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-   //       vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
-   //       vblf_fa.Assemble();
-   //       vblf_fa.Finalize();
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
 
-   //       SparseMatrix *A = nullptr;
-   //       ddop->Assemble(A);
+         SparseMatrix *A = nullptr;
+         ddop->Assemble(A);
 
-   //       dbg("Vector SparseMatrix");
-   //       TestSameMatrices(*A, vblf_fa.SpMat());
-   //       delete A;
-   //       MPI_Barrier(MPI_COMM_WORLD);
-   //    }
-   // }
+         dbg("Vector SparseMatrix");
+         TestSameMatrices(*A, vblf_fa.SpMat());
+         delete A;
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

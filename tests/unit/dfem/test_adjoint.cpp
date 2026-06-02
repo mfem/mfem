@@ -40,6 +40,8 @@ template <int DIM> struct global_qf
       tensor_array<const real_t> &w,
       tensor_array<dreal_t> &z) const
    {
+      // Forward-diff with Enzyme cannot propagate the
+      // seeded tangent through the mfem::forall dispatch
 #ifdef MFEM_USE_ENZYME
       for (size_t q = 0; q < x.size(); q++)
       {
@@ -182,14 +184,19 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
    using OT = Outputs<Value<U>>;
    using DT = Derivatives<U, V>;
 
-   // global_qf<DIM> q_gfn {};
-   // F.AddDomainIntegrator<GlobalQFBackend>(
-   //    q_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+   if constexpr(!mfem_use_gpu)
+   {
+#ifndef MFEM_USE_ENZYME
+      global_qf<DIM> q_gfn {};
+      F.AddDomainIntegrator<GlobalQFBackend>(
+         q_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+#endif
+   }
 
    local_qf<DIM> q_lfn {};
    F.AddDomainIntegrator<LocalQFBackend>(
       q_lfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
-   // AddLocalSpecializations<DIM, 3, local_qf<DIM>, IT, OT>();
+   AddLocalSpecializations<DIM, 3, local_qf<DIM>, IT, OT>();
 
    RunTangentAdjointConsistency<DIM>(F, fes, *nodes);
 }
