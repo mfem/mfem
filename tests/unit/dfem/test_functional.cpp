@@ -251,7 +251,7 @@ void functional(const char *filename, int p)
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
-          "[Parallel][dFEM][functional]")
+          "[Parallel][dFEM][GPU][functional]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
