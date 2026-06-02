@@ -1557,7 +1557,7 @@ static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
                                    const Array<int> *&test_edge_ids,
                                    const Array<int> *&test_vertex_ids)
 {
-   if (SubMesh::IsSubMesh(sub, parent))
+   if (SubMesh::IsSubMesh(sub) && static_cast<const SubMesh *>(sub)->GetParent() == parent)
    {
       const SubMesh *trial_submesh = static_cast<const SubMesh *>(sub);
       test_element_ids = &trial_submesh->GetParentElementIDMap();
@@ -1567,7 +1567,7 @@ static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
       return true;
    }
 #ifdef MFEM_USE_MPI
-   if (ParSubMesh::IsParSubMesh(sub, parent))
+   if (ParSubMesh::IsParSubMesh(sub) && static_cast<const ParSubMesh *>(sub)->GetParent() == parent)
    {
       const ParSubMesh *trial_submesh = static_cast<const ParSubMesh *>(sub);
       test_element_ids = &trial_submesh->GetParentElementIDMap();
@@ -1710,10 +1710,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          const int test_bdr_elem_id = GetTestBdrElementID(i);
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         MFEM_VERIFY(test_bdr_elem_id != -1,
-                     "Cannot assemble a mixed boundary integrator from "
-                     "submesh boundary element " << i << " because it does "
-                     "not correspond to a parent boundary element.");
+         if (test_bdr_elem_id == -1) { continue; }
 
          trial_fes->GetBdrElementVDofs(i, trial_vdofs, dom_dof_trans);
          test_fes->GetBdrElementVDofs(test_bdr_elem_id, test_vdofs, ran_dof_trans);
