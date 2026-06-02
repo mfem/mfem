@@ -180,8 +180,9 @@ void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
 {
    bool cuDSSObjectInitialized = (Ac != nullptr);
 
-   const HypreParMatrix *A = dynamic_cast<const HypreParMatrix *>(&op);
-   hypre_ParCSRMatrix *parcsr_op = *A;
+   hypre_ParCSRMatrix *parcsr_op = op;
+   op.HypreRead();
+   hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    op.HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
