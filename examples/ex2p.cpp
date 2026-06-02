@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   if (amg_elast && reorder_space)
+   if (amg_elast && !static_cond && reorder_space)
    {
       if (myid == 0)
          cerr << "\nThe AMG elasticity solver requires ordering byVDIM! "
