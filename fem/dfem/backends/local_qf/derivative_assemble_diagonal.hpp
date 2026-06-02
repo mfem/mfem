@@ -362,7 +362,8 @@ public:
                });
             }
          }
-      }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
+      }, ne, backend_t::thread_blocks(std::max(q1d, num_test_dof_1d)),
+      0, nullptr);
    }
 
    using DiagonalKernelType =

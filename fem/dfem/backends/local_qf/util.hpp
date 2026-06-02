@@ -474,26 +474,51 @@ inline int compute_element_dof_sz(
    return num_entities ? (R->Height() / num_entities) : 0;
 }
 
-template<std::size_t N_in, std::size_t N_out>
-inline int compute_map_scratch_buf_size(
-   const std::array<DofToQuadMap, N_in> &in_dtq,
-   const std::array<DofToQuadMap, N_out> &out_dtq,
-   int dimension)
+// ────────────────────────────────────────────────────────────────────────────
+// Number of threads per 1D direction to launch the kernel with
+template <typename inputs_t, typename outputs_t,
+          std::size_t N_in, std::size_t N_out>
+inline int compute_kernel_thread_1d(
+   const int q1d,
+   const std::array<int, N_in> &in_d1d,
+   const std::array<int, N_out> &out_d1d)
 {
-   int max_qp = 0;
-   int max_dof = 0;
-   const auto update = [&](const DofToQuadMap &map)
+   int t1d = q1d;
+   for_constexpr<N_in>([&](auto ic)
    {
-      const auto shape = map.B.GetShape();
-      max_qp = std::max(max_qp, shape[0]);
-      max_dof = std::max(max_dof, shape[2]);
-   };
-   for (const auto &map : in_dtq) { update(map); }
-   for (const auto &map : out_dtq) { update(map); }
-   const int q1d_map = max_qp;
-   const int d1d_map = max_dof;
-   return std::max(q1d_map * q1d_map * ((dimension == 2) ? 1 : q1d_map),
-                   d1d_map * d1d_map * ((dimension == 2) ? 1 : d1d_map));
+      using FOP = tuple_element_t<ic.value, inputs_t>;
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      {
+         t1d = std::max(t1d, in_d1d[ic.value]);
+      }
+   });
+   for_constexpr<N_out>([&](auto ic)
+   {
+      using FOP = tuple_element_t<ic.value, outputs_t>;
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      {
+         t1d = std::max(t1d, out_d1d[ic.value]);
+      }
+   });
+   return t1d;
+}
+
+// Inputs-only variant: used by kernels whose outputs are written at qp
+template <typename inputs_t, std::size_t N_in>
+inline int compute_kernel_thread_1d(
+   const int q1d,
+   const std::array<int, N_in> &in_d1d)
+{
+   int t1d = q1d;
+   for_constexpr<N_in>([&](auto ic)
+   {
+      using FOP = tuple_element_t<ic.value, inputs_t>;
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      {
+         t1d = std::max(t1d, in_d1d[ic.value]);
+      }
+   });
+   return t1d;
 }
 
 } // namespace mfem::future

@@ -463,7 +463,9 @@ public:
                // identity / weight derivative targets are not produced here
             }
          });
-      }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
+      }, ne, backend_t::thread_blocks(
+         compute_kernel_thread_1d<inputs_t, outputs_t>(q1d, in_d1d, out_d1d)),
+      0, nullptr);
    }
 
    using TransposeKernelType =
