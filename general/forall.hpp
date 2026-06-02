@@ -277,8 +277,6 @@ void OmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
 
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
-using cuda_launch_policy =
-   RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 template <int LB>
 using cuda_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true, LB>>;
