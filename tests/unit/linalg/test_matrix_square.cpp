@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,7 +23,7 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
    {
       for (int ne = 1; ne <= 4; ++ne)
       {
-         const int n_elements = std::pow(ne, dim);
+         const int n_elements = static_cast<int>(std::pow(ne, dim));
          CAPTURE(dim, n_elements);
          for (int order = 1; order <= 3; ++order)
          {
@@ -91,7 +91,7 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
    {
       for (int ne = 4; ne <= 5; ++ne)
       {
-         const int n_elements = std::pow(ne, dim);
+         const int n_elements = static_cast<int>(std::pow(ne, dim));
          CAPTURE(dim, n_elements);
          for (int order = 1; order <= 3; ++order)
          {
@@ -254,8 +254,10 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       yH = 0.0;
 
       MR->GetDiag(yBR);
+      yBR.SyncAliasMemory(yB);
       MW->GetDiag(yBW);
       yBW *= 3.14;
+      yBW.SyncAliasMemory(yB);
       H->GetDiag(yH);
 
       yH -= yB;

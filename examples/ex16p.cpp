@@ -5,10 +5,10 @@
 // Sample runs:  mpirun -np 4 ex16p
 //               mpirun -np 4 ex16p -m ../data/inline-tri.mesh
 //               mpirun -np 4 ex16p -m ../data/disc-nurbs.mesh -tf 2
-//               mpirun -np 4 ex16p -s 1 -a 0.0 -k 1.0
-//               mpirun -np 4 ex16p -s 2 -a 1.0 -k 0.0
-//               mpirun -np 8 ex16p -s 3 -a 0.5 -k 0.5 -o 4
-//               mpirun -np 4 ex16p -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               mpirun -np 4 ex16p -s 21 -a 0.0 -k 1.0
+//               mpirun -np 4 ex16p -s 22 -a 1.0 -k 0.0
+//               mpirun -np 8 ex16p -s 23 -a 0.5 -k 0.5 -o 4
+//               mpirun -np 4 ex16p -s 4 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               mpirun -np 16 ex16p -m ../data/fichera-q2.mesh
 //               mpirun -np 16 ex16p -m ../data/fichera-mixed.mesh
 //               mpirun -np 16 ex16p -m ../data/escher-p2.mesh
@@ -78,15 +78,15 @@ public:
    ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       const Vector &u);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
 
-   virtual ~ConductionOperator();
+   ~ConductionOperator() override;
 };
 
 real_t InitialTemperature(const Vector &x);
@@ -104,15 +104,18 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    int order = 2;
-   int ode_solver_type = 3;
+
+   int ode_solver_type = 23;  // SDIRK33Solver
    real_t t_final = 0.5;
    real_t dt = 1.0e-2;
    real_t alpha = 1.0e-2;
    real_t kappa = 0.5;
+
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
    bool adios2 = false;
+   bool solve_implicit_state = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -127,8 +130,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -137,6 +139,9 @@ int main(int argc, char *argv[])
                   "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -169,28 +174,7 @@ int main(int argc, char *argv[])
    // 4. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -232,6 +216,11 @@ int main(int argc, char *argv[])
 
    // 9. Initialize the conduction operator and the VisIt visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   oper.SetImplicitVariableType(imp_var);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -376,7 +365,6 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   delete ode_solver;
    delete pmesh;
 
    return 0;
@@ -428,11 +416,14 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 }
 
 void ConductionOperator::ImplicitSolve(const real_t dt,
-                                       const Vector &u, Vector &du_dt)
+                                       const Vector &u, Vector &k)
 {
    // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt, where K is linearized by using u from the previous timestep
+   //    M*k = -K(u + dt*k) for k = du/dt, if solving for stage-slope
+   // or
+   //    M*k = -dt*K(k) + M*u for k = u_s, if solving for stage-state
+   // where K is linearized by using u from the previous timestep, and
+   // the stage-state and slope relation: du/dt = (u_s - u)/dt.
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);
@@ -440,9 +431,20 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
       T_solver.SetOperator(*T);
    }
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
-   z.Neg();
-   T_solver.Mult(z, du_dt);
+
+   // Construct current right-hand side for stage state vs. slope solve
+   if (ImplicitVarTypeIsState())
+   {
+      // k, on return, is the stage value u
+      Mmat.Mult(u, z);
+   }
+   else
+   {
+      // k, on return, is the stage slope du/dt
+      Kmat.Mult(u, z);
+      z.Neg();
+   }
+   T_solver.Mult(z, k);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)

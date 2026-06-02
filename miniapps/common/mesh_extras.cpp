@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -129,6 +129,25 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 0 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::PYRAMID:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 7 0 1 2 3 4" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 3 3 2 1 0" << endl
+               << "1 2 0 1 4" << endl
+               << "1 2 1 2 4" << endl
+               << "1 2 3 4 2" << endl
+               << "1 2 0 4 3" << endl
+               << "vertices" << endl
+               << "5" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "1 1 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;
@@ -213,24 +232,20 @@ MergeMeshNodes(Mesh * mesh, int logging)
    }
 }
 
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+void AffineTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
 {
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+   V = 0.0;
+   T.Transform(ip, x);
 
-   marker.SetSize(max_attr);
-   if (attrs.Size() == 1 && attrs[0] == -1)
+   if (A.Height() == vdim)
    {
-      marker = 1;
+      A.Mult(x, V);
    }
-   else
+
+   if (b.Size() == vdim)
    {
-      marker = 0;
-      for (int j=0; j<attrs.Size(); j++)
-      {
-         int attr = attrs[j];
-         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-         marker[attr-1] = 1;
-      }
+      V.Add(1.0, b);
    }
 }
 
@@ -278,6 +293,23 @@ void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
    V(0) = X;
    V(1) = Y;
    if (dim == 3) { V(2) = Z; }
+}
+
+void SpiralTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   real_t theta = 2.0*M_PI*turns*x;
+   real_t r_min = (0.5-0.5*width) + (gap+width)*turns*x;
+   real_t r_xyz = r_min + (width)*y;
+
+   V.SetSize(dim);
+   V(0) = r_xyz*std::cos(theta);
+   V(1) = r_xyz*std::sin(theta);
+   if (dim == 3) { V(2) = z*width + x*height; }
 }
 
 } // namespace common

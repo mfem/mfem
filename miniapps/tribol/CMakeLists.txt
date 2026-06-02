@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,7 +12,7 @@
 if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
 
   add_mfem_miniapp(ContactPatchTest
-    MAIN ContactPatchTest.cpp
+    MAIN contact-patch-test.cpp
     LIBRARIES mfem)
 
 # The way the libraries are included, by default, in the command line is based

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -110,7 +110,7 @@ real_t compare_pa_id_assembly(int dim, int num_elements, int order,
    return error;
 }
 
-TEST_CASE("PAIdentityInterp", "[CUDA]")
+TEST_CASE("PAIdentityInterp", "[GPU]")
 {
    auto transpose = GENERATE(true, false);
    auto order = GENERATE(1, 2, 3, 4);

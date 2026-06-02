@@ -27,8 +27,8 @@ accelerations, so the relationship between forces/contact pressures and
 deformations/contact gaps is linear and, therefore, the problem can be solved
 exactly with a single linear solve. The mortar implementation is based on [Puso
 and Laursen (2004)](https://doi.org/10.1016/j.cma.2003.10.010). A description of
-the Tribol implementation is available in [Serac
-documentation](https://serac.readthedocs.io/en/latest/sphinx/theory_reference/solid.html#contact-mechanics).
+the Tribol implementation is available in [smith
+documentation](https://llnlsmith.readthedocs.io/en/latest/sphinx/theory_reference/solid.html#contact-mechanics).
 Lagrange multipliers are used to solve for the pressure required to prevent
 violation of the contact constraints.
 
@@ -100,13 +100,13 @@ instructions above.
 ## Usage
 
 The miniapp can be run by invoking e.g. `mpirun -n 2
-<MFEM_BUILD>/miniapps/tribol/ContactPatchTest`. Note the mesh file
+<MFEM_BUILD>/miniapps/tribol/contact-patch-test`. Note the mesh file
 `mfem/miniapps/tribol/two-hex.mesh` must be in your path for the miniapp to
 execute correctly. This mesh file contains two cubes occupying $[0,1]^3$ and
 $[0,1] \times [0,1] \times [0.99,1.99]$. By default, the miniapp will uniformly
 refine the mesh twice, then split it across MPI ranks. Additional command line
 options can be viewed in the source file,
-`mfem/miniapps/tribol/ContactPatchTest.cpp`. An elasticity bilinear form will be
+`mfem/miniapps/tribol/contact-patch-test.cpp`. An elasticity bilinear form will be
 created over the volume mesh and mortar contact constraints will be formed along
 the $z=1$ and $z=0.99$ surfaces of the blocks.
 

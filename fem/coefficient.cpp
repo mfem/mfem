@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // Implementation of Coefficient class
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 #include <cmath>
 #include <limits>
@@ -78,6 +79,49 @@ real_t PWConstCoefficient::Eval(ElementTransformation & T,
 {
    int att = T.Attribute;
    return (constants(att-1));
+}
+
+void PWConstCoefficient::Project(QuadratureFunction &qf)
+{
+   auto &qs = *qf.GetSpace();
+
+   const bool compressed =
+      qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Size() == 1;
+   const int *offsets = qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Read();
+   const int ne = qs.GetNE();
+
+   const int *attributes = [&]()
+   {
+      if (dynamic_cast<QuadratureSpace*>(&qs) != nullptr)
+      {
+         return qs.GetMesh()->GetElementAttributes().Read();
+      }
+      else if (auto *qs_f = dynamic_cast<FaceQuadratureSpace*>(&qs))
+      {
+         MFEM_VERIFY(qs_f->GetFaceType() == FaceType::Boundary,
+                     "Interior faces do not have attributes.");
+         return qs.GetMesh()->GetBdrFaceAttributes().Read();
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported case.");
+      }
+   }();
+
+   const real_t *d_c = constants.Read();
+   real_t *d_qf = qf.Write();
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int a = attributes[e];
+      const real_t elementConstant = d_c[a - 1];
+      const int begin = compressed ? e*offsets[0] : offsets[e];
+      const int end = compressed ? (e+1)*offsets[0] : offsets[e+1];
+      for (int i = begin; i < end; ++i)
+      {
+         d_qf[i] = elementConstant;
+      }
+   });
 }
 
 void PWCoefficient::InitMap(const Array<int> & attr,
@@ -519,6 +563,26 @@ void GradientGridFunctionCoefficient::Eval(
    }
 }
 
+void GradientGridFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   const FiniteElementSpace &fes = *GridFunc->FESpace();
+   const Mesh &mesh = *fes.GetMesh();
+   const int sdim = mesh.SpaceDimension();
+   const int gf_vdim = fes.GetVDim(); // assumed to be 1 in this class
+   qf.SetVDim(sdim*gf_vdim);
+   if (mesh.GetNE() == 0) { return; }
+   // All mesh element must be the same type:
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) == 1,
+               "All mesh elements must be the same type!");
+   const IntegrationRule &ir = qf.GetIntRule(0);
+   // All elements must use the same quadrature rule:
+   MFEM_VERIFY(qf.Size() == sdim*gf_vdim*ir.GetNPoints()*mesh.GetNE(),
+               "All mesh elements must use the same quadrature rule!");
+   // QuadratureFunction uses the layout qf_vdim x nq x ne, i.e.
+   // gf_vdim x sdim x nq x nq, so we need to request QVectorLayout::byVDIM:
+   GridFunc->GetGradients(ir, qf, QVectorLayout::byVDIM);
+}
+
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
    const GridFunction *gf)
    : VectorCoefficient(0)
@@ -807,6 +871,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
+   qf.HostWrite();
    DenseMatrix values;
    DenseSymmetricMatrix matrix;
    for (int iel = 0; iel < ne; ++iel)
@@ -818,7 +883,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), vdim);
+         matrix.UseExternalData(&values(0, iq), height);
          Eval(matrix, T, ip);
       }
    }
@@ -828,13 +893,12 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   mat.SetSize(height);
-   Eval(mat, T, ip);
+   Eval(mat_aux, T, ip);
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++ i)
       {
-         K(i, j) = mat(i, j);
+         K(i, j) = mat_aux(i, j);
       }
    }
 }
@@ -924,6 +988,75 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+MatrixArrayVectorCoefficient::MatrixArrayVectorCoefficient (int dim)
+   : MatrixCoefficient (dim)
+{
+   Coeff.SetSize(height);
+   ownCoeff.SetSize(height);
+   for (int i = 0; i < height; i++)
+   {
+      Coeff[i] = NULL;
+      ownCoeff[i] = true;
+   }
+}
+
+void MatrixArrayVectorCoefficient::SetTime(real_t t)
+{
+   for (int i=0; i < height; i++)
+   {
+      if (Coeff[i]) { Coeff[i]->SetTime(t); }
+   }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void MatrixArrayVectorCoefficient::Set(int i, VectorCoefficient * c, bool own)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
+}
+
+MatrixArrayVectorCoefficient::~MatrixArrayVectorCoefficient ()
+{
+   for (int i=0; i < height; i++)
+   {
+      if (ownCoeff[i]) { delete Coeff[i]; }
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(int i, Vector &V,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (Coeff[i])
+   {
+      Coeff[i] -> Eval(V, T, ip);
+   }
+   else
+   {
+      V = 0.0;
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(DenseMatrix &K,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   K.SetSize(height, width);
+   Vector V(width);
+   for (int i = 0; i < height; i++)
+   {
+      this->Eval(i, V, T, ip);
+      K.SetRow(i, V);
+   }
+}
+
 void MatrixRestrictedCoefficient::SetTime(real_t t)
 {
    if (c) { c->SetTime(t); }
@@ -952,6 +1085,29 @@ void SumCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void SumCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = alpha*aConst + beta * b
+      const real_t d_alpha_a = aConst*alpha;
+      const real_t d_beta = beta;
+      b->Project(qf);
+      auto d_qf = qf.ReadWrite();
+      mfem::forall(qf.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_qf[i] = d_alpha_a + d_beta*d_qf[i];
+      });
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(*qf.GetSpace());
+      b->Project(qf_b);
+      add(alpha, qf, beta, qf_b, qf);
+   }
+}
+
 void ProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
@@ -959,11 +1115,60 @@ void ProductCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void ProductCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = aConst * b
+      b->Project(qf);
+      qf *= aConst;
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(qf.GetSpace());
+      b->Project(qf_b);
+      qf *= qf_b;
+   }
+}
+
 void RatioCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
+}
+
+void RatioCoefficient::Project(QuadratureFunction &qf)
+{
+   if (b == nullptr)
+   {
+      if (a == nullptr)
+      {
+         qf = aConst / bConst;
+      }
+      else
+      {
+         a->Project(qf);
+         qf *= 1.0/bConst;
+      }
+   }
+   else
+   {
+      if (a == nullptr)
+      {
+         b->Project(qf);
+         qf.Reciprocal();
+         qf *= aConst;
+      }
+      else
+      {
+         a->Project(qf);
+         QuadratureFunction qf_b(qf.GetSpace());
+         b->Project(qf_b);
+         qf /= qf_b;
+      }
+   }
 }
 
 void PowerCoefficient::SetTime(real_t t)
@@ -994,6 +1199,41 @@ real_t InnerProductCoefficient::Eval(ElementTransformation &T,
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
    return va * vb;
+}
+
+void InnerProductCoefficient::Project(QuadratureFunction &qf)
+{
+   MFEM_VERIFY(a->GetVDim() == b->GetVDim(),
+               "Incompatible vector coefficients: a->GetVDim(): "
+               << a->GetVDim() << ", b->GetVDim(): " << b->GetVDim());
+
+   const int vdim = a->GetVDim();
+   MFEM_VERIFY(vdim >= 1, "invalid vdim: " << vdim);
+
+   // When running on device, make sure the output data is allocated before any
+   // local temporary data to reduce potential heap fragmentation:
+   auto dot_d = qf.Write();
+
+   QuadratureFunction qf_a(qf.GetSpace(), vdim);
+   QuadratureFunction qf_b(qf.GetSpace(), vdim);
+
+   a->Project(qf_a);
+   b->Project(qf_b);
+
+   auto a_d = qf_a.Read();
+   auto b_d = qf_b.Read();
+
+   mfem::forall(qf.GetSpace()->GetSize(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const real_t *ai = a_d + i*vdim;
+      const real_t *bi = b_d + i*vdim;
+      real_t dot = ai[0]*bi[0];
+      for (int d = 1; d < vdim; d++)
+      {
+         dot += ai[d]*bi[d];
+      }
+      dot_d[i] = dot;
+   });
 }
 
 VectorRotProductCoefficient::VectorRotProductCoefficient(VectorCoefficient &A,
@@ -1039,6 +1279,94 @@ real_t DeterminantCoefficient::Eval(ElementTransformation &T,
 {
    a->Eval(ma, T, ip);
    return ma.Det();
+}
+
+TraceCoefficient::TraceCoefficient(MatrixCoefficient &A)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth(),
+               "TraceCoefficient:  "
+               "Argument must be a square matrix.");
+}
+
+void TraceCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t TraceCoefficient::Eval(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma.Trace();
+}
+
+VectorComponentCoefficient::VectorComponentCoefficient(VectorCoefficient &A,
+                                                       int c)
+   : a(&A), va(A.GetVDim())
+{
+   SetComponent(c);
+}
+
+void VectorComponentCoefficient::SetComponent(int c)
+{
+   MFEM_ASSERT(c < a->GetVDim() && c >= 0,
+               "VectorComponentCoefficient:  "
+               "Index not in range.");
+
+   component = c;
+}
+
+void VectorComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t VectorComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(va, T, ip);
+   return va[component];
+}
+
+MatrixComponentCoefficient::MatrixComponentCoefficient(MatrixCoefficient &A,
+                                                       int ri, int ci)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   SetRowIndex(ri);
+   SetColumnIndex(ci);
+}
+
+void MatrixComponentCoefficient::SetRowIndex(int ri)
+{
+   MFEM_ASSERT(ri < a->GetHeight() && ri >= 0,
+               "MatrixComponentCoefficient:  "
+               "Row index not in range.");
+
+   row_idx = ri;
+}
+
+void MatrixComponentCoefficient::SetColumnIndex(int ci)
+{
+   MFEM_ASSERT(ci < a->GetWidth() && ci >= 0,
+               "MatrixComponentCoefficient:  "
+               "Column index not in range.");
+   col_idx = ci;
+}
+
+void MatrixComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t MatrixComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma(row_idx,col_idx);
 }
 
 VectorSumCoefficient::VectorSumCoefficient(int dim)
@@ -1324,6 +1652,30 @@ void InverseMatrixCoefficient::Eval(DenseMatrix &M,
 {
    a->Eval(M, T, ip);
    M.Invert();
+}
+
+ExponentialMatrixCoefficient::ExponentialMatrixCoefficient(MatrixCoefficient &A)
+   : MatrixCoefficient(A.GetHeight(), A.GetWidth()), a(&A)
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth() && A.GetHeight() == 2,
+               "ExponentialMatrixCoefficient:  "
+               << "Argument must be a square 2x2 matrix."
+               << "  Height = " << A.GetHeight()
+               << ", Width = " << A.GetWidth());
+}
+
+void ExponentialMatrixCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void ExponentialMatrixCoefficient::Eval(DenseMatrix &M,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(M, T, ip);
+   M.Exponential();
 }
 
 OuterProductCoefficient::OuterProductCoefficient(VectorCoefficient &A,
@@ -1742,7 +2094,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetMatrix());
+      SetConstant(const_coeff->GetMatrix(), transpose);
    }
    else if (auto *const_sym_coeff =
                dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
@@ -1803,7 +2155,7 @@ void CoefficientVector::SetConstant(const Vector &constant)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant)
+void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    const int width = constant.Width();
@@ -1816,7 +2168,8 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
       {
          for (int i = 0; i < height; ++i)
          {
-            (*this)[i + j*height + iq*vdim] = constant(i, j);
+            const real_t val = transpose ? constant(j,i) : constant(i,j);
+            (*this)[i + j*height + iq*vdim] = val;
          }
       }
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -201,19 +201,19 @@ public:
    inline int NumRows() const { return dof_trans_->NumRows(); }
    inline int Width() const { return dof_trans_->Width(); }
    inline int NumCols() const { return dof_trans_->NumCols(); }
-   inline bool IsIdentity() const { return dof_trans_->IsIdentity(); }
+   inline bool IsIdentity() const { return !dof_trans_ || dof_trans_->IsIdentity(); }
 
    /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
    void TransformPrimal(real_t *v) const;
-   inline void TransformPrimal(Vector &v) const
-   { TransformPrimal(v.GetData()); }
+   inline void TransformPrimal(Vector &v) const { TransformPrimal(v.GetData()); }
 
    /// Transform groups of DoFs stored as dense matrices
    inline void TransformPrimalCols(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       for (int c=0; c<V.Width(); c++)
       {
          TransformPrimal(V.GetColumn(c));
@@ -251,6 +251,7 @@ public:
    /// Transform rows of a dense matrix containing dual DoFs
    inline void TransformDualRows(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       Vector row;
       for (int r=0; r<V.Height(); r++)
       {
@@ -263,6 +264,7 @@ public:
    /// Transform columns of a dense matrix containing dual DoFs
    inline void TransformDualCols(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       for (int c=0; c<V.Width(); c++)
       {
          TransformDual(V.GetColumn(c));
@@ -274,16 +276,16 @@ public:
     computed by a DiscreteInterpolator before copying into a
     DiscreteLinearOperator.
 */
-void TransformPrimal(const DofTransformation *ran_dof_trans,
-                     const DofTransformation *dom_dof_trans,
+void TransformPrimal(const DofTransformation &ran_dof_trans,
+                     const DofTransformation &dom_dof_trans,
                      DenseMatrix &elmat);
 
 /** Transform a matrix of dual DoFs entries from different finite element spaces
     as computed by a BilinearFormIntegrator before summing into a
     MixedBilinearForm object.
 */
-void TransformDual(const DofTransformation *ran_dof_trans,
-                   const DofTransformation *dom_dof_trans,
+void TransformDual(const DofTransformation &ran_dof_trans,
+                   const DofTransformation &dom_dof_trans,
                    DenseMatrix &elmat);
 
 /** Abstract base class for high-order Nedelec spaces on elements with
@@ -306,13 +308,16 @@ private:
    static const DenseTensor T, TInv;
 
 protected:
-   const int order;  // basis function order
-   const int nedofs; // number of DoFs per edge
-   const int nfdofs; // number of DoFs per face
-   const int nedges; // number of edges per element
-   const int nfaces; // number of triangular faces per element
+   const int  order;  // basis function order
+   const int  nedofs; // number of DoFs per edge
+   const int  ntdofs; // number of DoFs per triangular face
+   const int  nqdofs; // number of DoFs per quadrilateral face
+   const int  nedges; // number of edges per element
+   const int  nfaces; // number of faces per element
+   const int *ftypes; // Pointer to array of Geometry::Type for each face
 
-   ND_DofTransformation(int size, int order, int num_edges, int num_tri_faces);
+   ND_DofTransformation(int size, int order, int num_edges, int num_faces,
+                        int *face_types);
 
 public:
    // Return the 2x2 transformation operator for the given face orientation
@@ -322,7 +327,7 @@ public:
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
 
-   bool IsIdentity() const override { return nfdofs < 2; }
+   bool IsIdentity() const override { return ntdofs < 2; }
 
    void TransformPrimal(const Array<int> & Fo, real_t *v) const override;
    void InvTransformPrimal(const Array<int> & Fo, real_t *v) const override;
@@ -334,9 +339,11 @@ public:
 /// triangles
 class ND_TriDofTransformation : public ND_DofTransformation
 {
+private:
+   const int face_type[1] = { Geometry::TRIANGLE };
 public:
    ND_TriDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2), order, 3, 1)
+      : ND_DofTransformation(order*(order + 2), order, 3, 1, (int *)face_type)
    {}
 };
 
@@ -345,7 +352,9 @@ class ND_TetDofTransformation : public ND_DofTransformation
 {
 public:
    ND_TetDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, order, 6, 4)
+      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, order, 6, 4,
+                             (int *)Geometry::Constants<Geometry::TETRAHEDRON>::
+                             FaceTypes)
    {}
 };
 
@@ -355,7 +364,21 @@ class ND_WedgeDofTransformation : public ND_DofTransformation
 public:
    ND_WedgeDofTransformation(int order)
       : ND_DofTransformation(3 * order * ((order + 1) * (order + 2))/2,
-                             order, 9, 2)
+                             order, 9, 5,
+                             (int *)Geometry::Constants<Geometry::PRISM>::
+                             FaceTypes)
+   {}
+};
+
+/// DoF transformation implementation for the Nedelec basis on pyramid elements
+class ND_PyramidDofTransformation : public ND_DofTransformation
+{
+public:
+   ND_PyramidDofTransformation(int order)
+      : ND_DofTransformation(2 * order * (order * (order + 1) + 2),
+                             order, 8, 5,
+                             (int *)Geometry::Constants<Geometry::PYRAMID>::
+                             FaceTypes)
    {}
 };
 

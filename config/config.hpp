@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,11 +23,14 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 
 #if (defined(MFEM_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIPCC__))
+    (defined(MFEM_USE_HIP) && defined(__HIP__))
 #define MFEM_HOST_DEVICE __host__ __device__
 #else
 #define MFEM_HOST_DEVICE
@@ -119,6 +122,15 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif
 
 // Check dependencies:
+
+// Define MFEM_MPI_REAL_T to be the appropriate MPI real type
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_SINGLE
+#define MFEM_MPI_REAL_T MPI_FLOAT
+#elif defined MFEM_USE_DOUBLE
+#define MFEM_MPI_REAL_T MPI_DOUBLE
+#endif
+#endif
 
 // Options that require MPI
 #ifndef MFEM_USE_MPI

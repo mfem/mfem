@@ -6,6 +6,7 @@
 //               nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 --weak-bc
 //               nurbs_ex1 -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -r 2 --neu "3"
 //               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
@@ -17,9 +18,13 @@
 //               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
+//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2
+//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2
+//               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2 -no-ibp
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               The boundary conditions can be enforced either strongly or weakly.
 //               Specifically, we discretize using a FE space of the specified
@@ -58,7 +63,7 @@ class Diffusion2Integrator: public BilinearFormIntegrator
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector shape,laplace;
+   Vector shape, laplace;
 #endif
    Coefficient *Q;
 
@@ -71,9 +76,9 @@ public:
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
@@ -138,15 +143,30 @@ public:
 
 };
 
+real_t sol(const Vector & x)
+{
+   if (x.Size() >= 2)
+   {
+      if ((x[1] - x[0] - 0.5 < 0.0) &&
+          (x[0] + x[1] -0.99 < 0.0))
+      {
+         return 1.0;
+      }
+   }
+
+   return 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
+   Array<int> neu(0);
    bool static_cond = false;
    bool visualization = 1;
    int lod = 0;
@@ -154,7 +174,9 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
+   int visport = 19916;
    order[0] = 1;
+   bool homogenousBC = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -169,11 +191,16 @@ int main(int argc, char *argv[])
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
                   "Slave boundaries for periodic BCs");
+   args.AddOption(&neu, "-n", "--neu",
+                  "Boundaries with Neumann BCs");
+   args.AddOption(&homogenousBC, "-h", "--hom",
+                  "-nh", "--no-hom",
+                  "Selection for using homogenous Dirichelet boundary conditions.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
-                  "--no-ibp",
+   args.AddOption(&ibp, "-ibp", "--ibp",
+                  "-no-ibp", "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
    args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
                   "--weak-bc",
@@ -188,6 +215,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&lod, "-lod", "--level-of-detail",
                   "Refinement level for 1D solution output (0 means no output).");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -266,8 +294,6 @@ int main(int argc, char *argv[])
          slave.Load(in, psize);
          in.close();
       }
-      master.Print();
-      slave.Print();
       NURBSext->ConnectBoundaries(master,slave);
    }
    else if (order[0] == -1) // Isoparametric
@@ -323,46 +349,101 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
+   Array<int> ess_bdr(0);
+   Array<int> neu_bdr(0);
+   Array<int> per_bdr(0);
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
+      neu_bdr.SetSize(mesh->bdr_attributes.Max());
+      per_bdr.SetSize(mesh->bdr_attributes.Max());
+
+      ess_bdr = 1;
+      neu_bdr = 0;
+      per_bdr = 0;
+
+      // Apply Neumann BCs
+      for (int i = 0; i < neu.Size(); i++)
       {
-         ess_bdr = 1;
-      }
-      else
-      {
-         ess_bdr = 0;
+         if ( neu[i]-1 >= 0 &&
+              neu[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[neu[i]-1] = 0;
+            neu_bdr[neu[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
+         }
       }
 
-      // Remove periodic BCs
+      // Correct for periodic BCs
       for (int i = 0; i < master.Size(); i++)
       {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
+         if ( master[i]-1 >= 0 &&
+              master[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[master[i]-1] = 0;
+            neu_bdr[master[i]-1] = 0;
+            per_bdr[master[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Master boundary "<<master[i]<<" out of range -- discarded"<< endl;
+         }
       }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      for (int i = 0; i < slave.Size(); i++)
+      {
+         if ( slave[i]-1 >= 0 &&
+              slave[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[slave[i]-1] = 0;
+            neu_bdr[slave[i]-1] = 0;
+            per_bdr[slave[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Slave boundary "<<slave[i]<<" out of range -- discarded"<< endl;
+         }
+      }
    }
+   cout <<"Boundary conditions:"<< endl;
+   cout <<" - Periodic  : "; per_bdr.Print();
+   cout <<" - Essential : "; ess_bdr.Print();
+   cout <<" - Neumann   : "; neu_bdr.Print();
+
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
    if (!strongBC)
       b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
+
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //    corresponding to fespace. Initialize x with initial guess that
+   //    satisfies the boundary conditions. Force the use of the ELEMENT
+   //    projection type, also in the case of a NURBS spaces. For a NURBS space
+   //    this will give a projection without any over and undershoots.
    GridFunction x(fespace);
-   x = 0.0;
+   if (homogenousBC)
+   {
+      x = 0.0;
+   }
+   else
+   {
+      FunctionCoefficient sol_cf(sol);
+      x.ProjectCoefficient(sol_cf, ProjectType::ELEMENT);
+   }
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -375,11 +456,12 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
    }
 
    if (!strongBC)
    {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -391,6 +473,11 @@ int main(int argc, char *argv[])
 
    SparseMatrix A;
    Vector B, X;
+   Array<int> ess_tdof_list(0);
+   if (strongBC)
+   {
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
@@ -427,7 +514,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
@@ -471,9 +557,18 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example1", mesh);
-   visit_dc.RegisterField("solution", &x);
-   visit_dc.Save();
+   if (ibp)
+   {
+      VisItDataCollection visit_dc("Example1", mesh);
+      visit_dc.RegisterField("solution", &x);
+      visit_dc.Save();
+   }
+   else
+   {
+      VisItDataCollection visit_dc("Example1_nibp", mesh);
+      visit_dc.RegisterField("solution", &x);
+      visit_dc.Save();
+   }
 
    // 15. Free the used memory.
    delete a;

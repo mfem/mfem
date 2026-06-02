@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,6 +77,7 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
    Vector face_vec(face_restr->Height());
    REQUIRE(face_vec.Size() == nfaces*ndof_per_face);
    face_restr->Mult(gf, face_vec);
+   face_vec.HostReadWrite();
 
    if (space_type == SpaceType::ND && dim == 3)
    {
@@ -116,3 +117,52 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
    gf2 -= gf;
    REQUIRE(gf2.Normlinf() == MFEM_Approx(0.0));
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("L2 Face Restriction", "[FaceRestriction][Parallel]")
+{
+   const int dim = GENERATE(2, 3);
+   constexpr int nx = 3;
+   constexpr int order = 2;
+   constexpr int vdim = 2;
+   const Ordering::Type ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+
+   Mesh serial_mesh = MakeCartesianMesh(nx, dim);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+
+   L2_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec, vdim, ordering);
+
+   auto *R = fes.GetFaceRestriction(ElementDofOrdering::LEXICOGRAPHIC,
+                                    FaceType::Interior);
+
+   Vector vals({1.0, 2.0});
+   VectorConstantCoefficient coeff(vals);
+
+   ParGridFunction gf(&fes);
+   gf.ProjectCoefficient(coeff);
+
+   Vector face_vec(R->Height());
+   R->Mult(gf, face_vec);
+
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
+   const int face_dofs = fes.GetTypicalTraceElement()->GetDof();
+   auto h_face_vec = Reshape(face_vec.HostRead(), face_dofs, vdim, 2, nf);
+
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int m = 0; m < 2; ++m)
+      {
+         for (int c = 0; c < vdim; ++c)
+         {
+            for (int i = 0; i < face_dofs; ++i)
+            {
+               REQUIRE(h_face_vec(i, c, m, f) == vals[c]);
+            }
+         }
+      }
+   }
+}
+
+#endif
