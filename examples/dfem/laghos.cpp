@@ -3199,13 +3199,12 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10) // implicit.
       {
-         // Don't repeat for TGreen and 3point.
-         if (problem != 0 && problem != 3)
+         // Don't repeat for TGreen and 3point (allow dt growth for 3point).
+         if (problem != 0)
          {
-            // Repeat only when the mesh inverted.
+            // Repeat only when the mesh inverted or the nonlinear solve failed.
             // Can happen at time integration, even if all stages were ok.
-            // Don't repeat time steps for implicit 3point.
-            if (dt_est < dt || !hydro->newton_converged)
+            if ((dt_est < dt || !hydro->newton_converged) && (problem != 3))
             {
                if (!hydro->newton_converged)
                {
