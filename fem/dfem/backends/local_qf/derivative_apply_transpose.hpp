@@ -202,8 +202,10 @@ public:
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
          Vector dir_o_l(*const_cast<Vector *>(direction_l), l_offset, l_size);
+         dir_o_l.UseDevice(true);
          const int elem_sz = out_elem_dof_size[o];
          Vector dir_o_e(dir_out_e, e_offset, elem_sz * ne);
+         dir_o_e.UseDevice(true);
          restriction<Entity::Element>(fd, dir_o_l, dir_o_e,
                                       ElementDofOrdering::LEXICOGRAPHIC);
          l_offset += l_size;

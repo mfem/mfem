@@ -123,6 +123,8 @@ public:
          total_out_l_size += GetVSize(outfds[i]);
       }
       transpose_direction_l.SetSize(total_out_l_size);
+      transpose_direction_l.UseDevice(true);
+      transpose_direction_l.Write();
 
       // Null-initialised: restriction_transpose / prepare_residual allocate on
       // first use and resize on subsequent calls.
@@ -206,6 +208,7 @@ public:
          {
             const int l_size = GetVSize(outfds[i]);
             Vector dir_l_i(transpose_direction_l, offset, l_size);
+            dir_l_i.UseDevice(true);
             if constexpr (std::is_same_v<direction_t, MultiVector>)
             {
                prolongation(outfds[i], direction_mv[i], dir_l_i);
