@@ -19,8 +19,19 @@ else()
     "CUDSS not found. Please set CUDSS_DIR to the install prefix.")
 endif()
 
-get_target_property(CUDSS_LIBRARY_LOCATION cudss LOCATION)
-get_filename_component(CUDSS_LIBRARY_DIR ${CUDSS_LIBRARY_LOCATION} DIRECTORY)
+if(CUDSS_FOUND AND TARGET cudss)
+  get_target_property(CUDSS_LIBRARY_LOCATION cudss IMPORTED_LOCATION)
+  if(NOT CUDSS_LIBRARY_LOCATION)
+    get_target_property(CUDSS_LIBRARY_LOCATION cudss IMPORTED_LOCATION_RELEASE)
+  endif()
+  if(CUDSS_LIBRARY_LOCATION)
+    get_filename_component(CUDSS_LIBRARY_DIR "${CUDSS_LIBRARY_LOCATION}" DIRECTORY)
+  else()
+    message(WARNING "Could not determine the location of the cuDSS library.")
+  endif()
+else()
+    message(WARNING "cuDSS target not available; cannot determine library directory.")
+endif()
 
 # Set the full name of the cuDSS threading library if OpenMP is enabled.
 # The threading layer library (libcudss_mtlayer_gomp.so) is located under the

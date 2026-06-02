@@ -183,7 +183,6 @@ void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
    hypre_ParCSRMatrix *parcsr_op = op;
    op.HypreRead();
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
-   hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    op.HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
@@ -237,9 +236,10 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
       Ac = std::make_unique<cudssMatrix_t>();
       // Create empty RHS and solution vectors
       SetNumRHS(1);
+      // Allocate device memory for csr values
+      CuMemAlloc(&csr_values_d, nnz * sizeof(real_t));
    }
 
-   cudaMalloc(&csr_values_d, nnz * sizeof(real_t));
    CuMemcpyDtoD(csr_values_d, csr_values, nnz * sizeof(real_t));
 
    // New cuDSS CSR matrix object and analysis or reuse the one from a previous
