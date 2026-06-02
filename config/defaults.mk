@@ -18,6 +18,7 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ASTYLE_BIN = astyle
 ETAGS_BIN = $(shell command -v etags 2> /dev/null)
 EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 
@@ -620,7 +621,7 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration

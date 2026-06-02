@@ -38,6 +38,13 @@
 #if PETSC_VERSION_LT(3,19,0)
 #define PETSC_SUCCESS 0
 #endif
+#if PETSC_VERSION_LT(3,23,0)
+#define PetscContainerSetCtxDestroy(A,B) PetscContainerSetUserDestroy(A,B)
+typedef PetscErrorCode (PetscCtxDestroyFn)(void**);
+#endif
+#if PETSC_VERSION_LT(3,24,0)
+typedef PetscErrorCode KSPMonitorFn(KSP,PetscInt,PetscReal,void*);
+#endif
 
 #include <fstream>
 #include <iomanip>
@@ -77,13 +84,17 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_destroy(Mat);
 static PetscErrorCode __mfem_mat_shell_copy(Mat,Mat,MatStructure);
 #if PETSC_VERSION_LT(3,23,0)
-static PetscErrorCode __mfem_array_container_destroy(void*);
-static PetscErrorCode __mfem_matarray_container_destroy(void *);
-#else
-static PetscErrorCode __mfem_array_container_destroy(void**);
-static PetscErrorCode __mfem_matarray_container_destroy(void**);
+typedef void *PetscCtxRt;
+#elif PETSC_VERSION_LT(3,25,0)
+typedef void **PetscCtxRt;
 #endif
+static PetscErrorCode __mfem_array_container_destroy(PetscCtxRt);
+static PetscErrorCode __mfem_matarray_container_destroy(PetscCtxRt);
+#if PETSC_VERSION_LT(3,23,0)
 static PetscErrorCode __mfem_monitor_ctx_destroy(void**);
+#else
+static PetscErrorCode __mfem_monitor_ctx_destroy(PetscCtxRt);
+#endif
 
 // auxiliary functions
 static PetscErrorCode Convert_Array_IS(MPI_Comm,bool,const mfem::Array<int>*,
@@ -1317,11 +1328,7 @@ BlockDiagonalConstructor(MPI_Comm comm,
 
          ierr = PetscContainerCreate(comm,&c); CCHKERRQ(comm,ierr);
          ierr = PetscContainerSetPointer(c,ptrs[i]); CCHKERRQ(comm,ierr);
-#if PETSC_VERSION_LT(3,23,0)
-         ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
          ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
          CCHKERRQ(comm,ierr);
          ierr = PetscObjectCompose((PetscObject)A,names[i],(PetscObject)c);
          CCHKERRQ(comm,ierr);
@@ -1648,11 +1655,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          PetscContainer c;
          ierr = PetscContainerCreate(comm,&c); CCHKERRQ(comm,ierr);
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
-#if PETSC_VERSION_LT(3,23,0)
-         ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
-#else
          ierr = PetscContainerSetCtxDestroy(c,__mfem_matarray_container_destroy);
-#endif
          PCHKERRQ(c,ierr);
          ierr = PetscObjectCompose((PetscObject)(*A),"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ((*A),ierr);
@@ -1748,11 +1751,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 
             ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); PCHKERRQ(B,ierr);
             ierr = PetscContainerSetPointer(c,ptrs[i]); PCHKERRQ(B,ierr);
-#if PETSC_VERSION_LT(3,23,0)
-            ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
             ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
             PCHKERRQ(B,ierr);
             ierr = PetscObjectCompose((PetscObject)(B),names[i],(PetscObject)c);
             PCHKERRQ(B,ierr);
@@ -2198,11 +2197,7 @@ PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
          ierr = PetscContainerCreate(PetscObjectComm((PetscObject)B),&c);
          PCHKERRQ(B,ierr);
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
-#if PETSC_VERSION_LT(3,23,0)
-         ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
-#else
          ierr = PetscContainerSetCtxDestroy(c,__mfem_matarray_container_destroy);
-#endif
          PCHKERRQ(c,ierr);
          ierr = PetscObjectCompose((PetscObject)B,"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ(B,ierr);
@@ -2485,7 +2480,6 @@ void PetscSolver::SetMaxIter(int max_iter)
 
 void PetscSolver::SetPrintLevel(int plev)
 {
-   typedef PetscErrorCode (*myPetscFunc)(void**);
    PetscViewerAndFormat *vf = NULL;
    PetscViewer viewer = PETSC_VIEWER_STDOUT_(PetscObjectComm(obj));
 
@@ -2498,7 +2492,6 @@ void PetscSolver::SetPrintLevel(int plev)
    {
       // there are many other options, see the function KSPSetFromOptions() in
       // src/ksp/ksp/interface/itcl.c
-      typedef PetscErrorCode (*myMonitor)(KSP,PetscInt,PetscReal,void*);
       KSP ksp = (KSP)obj;
       if (plev >= 0)
       {
@@ -2507,29 +2500,29 @@ void PetscSolver::SetPrintLevel(int plev)
       if (plev == 1)
       {
 #if PETSC_VERSION_LT(3,15,0)
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorDefault,vf,
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorDefault,vf,
 #else
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorResidual,vf,
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorResidual,vf,
 #endif
-                              (myPetscFunc)PetscViewerAndFormatDestroy);
+                              (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
          PCHKERRQ(ksp,ierr);
       }
       else if (plev > 1)
       {
          ierr = KSPSetComputeSingularValues(ksp,PETSC_TRUE); PCHKERRQ(ksp,ierr);
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorSingularValue,vf,
-                              (myPetscFunc)PetscViewerAndFormatDestroy);
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorSingularValue,vf,
+                              (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
          PCHKERRQ(ksp,ierr);
          if (plev > 2)
          {
             ierr = PetscViewerAndFormatCreate(viewer,PETSC_VIEWER_DEFAULT,&vf);
             PCHKERRQ(viewer,ierr);
 #if PETSC_VERSION_LT(3,15,0)
-            ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidualNorm,vf,
+            ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorTrueResidualNorm,vf,
 #else
-            ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidual,vf,
+            ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorTrueResidual,vf,
 #endif
-                                 (myPetscFunc)PetscViewerAndFormatDestroy);
+                                 (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
             PCHKERRQ(ksp,ierr);
          }
       }
@@ -2545,7 +2538,7 @@ void PetscSolver::SetPrintLevel(int plev)
       if (plev > 0)
       {
          ierr = SNESMonitorSet(snes,(myMonitor)SNESMonitorDefault,vf,
-                               (myPetscFunc)PetscViewerAndFormatDestroy);
+                               (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
          PCHKERRQ(snes,ierr);
       }
    }
@@ -3639,12 +3632,20 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       // make sure ess/nat_dof have been collectively set
       PetscBool lpr = PETSC_FALSE,pr;
       if (opts.ess_dof) { lpr = PETSC_TRUE; }
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"ess_dof should be collectively set");
       lpr = PETSC_FALSE;
       if (opts.nat_dof) { lpr = PETSC_TRUE; }
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"nat_dof should be collectively set");
       // make sure fields have been collectively set
@@ -4058,8 +4059,13 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
       ls = (PetscBool)(height == op.Height() && width  == op.Width() &&
                        (void*)&op == fctx &&
                        (void*)&op == jctx);
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
                               PetscObjectComm((PetscObject)snes));
+#else
+      mpiierr = MPI_Allreduce(&ls,&gs,1,MPI_C_BOOL,MPI_LAND,
+                              PetscObjectComm((PetscObject)snes));
+#endif
       CCHKERRQ(PetscObjectComm((PetscObject)snes),mpiierr);
       if (!gs)
       {
@@ -4150,20 +4156,31 @@ void PetscNonlinearSolver::SetUpdate(void (*update)(Operator *,int,
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 {
    SNES snes = (SNES)obj;
+   MPI_Comm comm = PetscObjectComm(obj);
 
-   bool b_nonempty = b.Size();
-   if (!B) { B = new PetscParVector(PetscObjectComm(obj), *this, true); }
-   if (!X) { X = new PetscParVector(PetscObjectComm(obj), *this, false, false); }
+   // Reduction needed: some processes may have null local size while others don't,
+   // and VecPlaceArray (used by PlaceMemory) is a logically collective operation.
+   PetscBool b_nonempty = b.Size() ? PETSC_TRUE : PETSC_FALSE;
+#if PETSC_VERSION_LT(3,24,0)
+   mpiierr = MPI_Allreduce(MPI_IN_PLACE,&b_nonempty,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+   mpiierr = MPI_Allreduce(MPI_IN_PLACE,&b_nonempty,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
+   CCHKERRQ(comm,mpiierr);
+
+   // Always create B with allocate=false so that PlaceMemory can be called on
+   // it regardless of whether b was empty on a previous call.
+   if (!B) { B = new PetscParVector(comm, *this, true, false); }
+   if (!X) { X = new PetscParVector(comm, *this, false, false); }
    X->PlaceMemory(x.GetMemory(),iterative_mode);
    if (b_nonempty) { B->PlaceMemory(b.GetMemory()); }
-   else { *B = 0.0; }
 
    Customize();
 
    if (!iterative_mode) { *X = 0.; }
 
-   // Solve the system.
-   ierr = SNESSolve(snes, B->x, X->x); PCHKERRQ(snes, ierr);
+   // Solve the system. Pass nullptr for b when empty (PETSc treats it as zero RHS).
+   ierr = SNESSolve(snes, b_nonempty ? B->x : nullptr, X->x); PCHKERRQ(snes, ierr);
    X->ResetMemory();
    if (b_nonempty) { B->ResetMemory(); }
 }
@@ -5316,21 +5333,27 @@ static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+static PetscErrorCode __mfem_array_container_destroy(PetscCtxRt ptr)
+{
+   PetscErrorCode ierr;
+
+   PetscFunctionBeginUser;
 #if PETSC_VERSION_LT(3,23,0)
-
-static PetscErrorCode __mfem_array_container_destroy(void *ptr)
-{
-   PetscErrorCode ierr;
-
-   PetscFunctionBeginUser;
    ierr = PetscFree(ptr); CHKERRQ(ierr);
+#else
+   ierr = PetscFree(*(void**)ptr); CHKERRQ(ierr);
+#endif
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
+static PetscErrorCode __mfem_matarray_container_destroy(PetscCtxRt ptr)
 {
+#if PETSC_VERSION_LT(3,23,0)
    mfem::Array<Mat> *a = (mfem::Array<Mat>*)ptr;
-   PetscErrorCode   ierr;
+#else
+   mfem::Array<Mat> *a = *(mfem::Array<Mat>**)ptr;
+#endif
+   PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
    for (int i=0; i<a->Size(); i++)
@@ -5343,41 +5366,16 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+#if PETSC_VERSION_LT(3,23,0)
+static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
 #else
-
-static PetscErrorCode __mfem_array_container_destroy(void **ptr)
+static PetscErrorCode __mfem_monitor_ctx_destroy(PetscCtxRt ctx)
+#endif
 {
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
-   ierr = PetscFree(*ptr); CHKERRQ(ierr);
-   PetscFunctionReturn(PETSC_SUCCESS);
-}
-
-static PetscErrorCode __mfem_matarray_container_destroy(void **ptr)
-{
-   mfem::Array<Mat> *a = (mfem::Array<Mat>*)*ptr;
-   PetscErrorCode   ierr;
-
-   PetscFunctionBeginUser;
-   for (int i=0; i<a->Size(); i++)
-   {
-      Mat M = (*a)[i];
-      MPI_Comm comm = PetscObjectComm((PetscObject)M);
-      ierr = MatDestroy(&M); CCHKERRQ(comm,ierr);
-   }
-   delete a;
-   PetscFunctionReturn(PETSC_SUCCESS);
-}
-
-#endif
-
-static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
-{
-   PetscErrorCode  ierr;
-
-   PetscFunctionBeginUser;
-   ierr = PetscFree(*ctx); CHKERRQ(ierr);
+   ierr = PetscFree(*(void**)ctx); CHKERRQ(ierr);
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -5622,11 +5620,7 @@ static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
 
       ierr = PetscContainerCreate(comm,&c); CHKERRQ(ierr);
       ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
-#if PETSC_VERSION_LT(3,23,0)
-      ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
       ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
       CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)(*pA),names[i],(PetscObject)c);
       CHKERRQ(ierr);
@@ -5720,11 +5714,7 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 
       ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); CHKERRQ(ierr);
       ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
-#if PETSC_VERSION_LT(3,23,0)
-      ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
       ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
       CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)lA,names[i],(PetscObject)c);
       CHKERRQ(ierr);
