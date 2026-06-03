@@ -1282,14 +1282,15 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
 
 int MemoryManager::PrintPtrs(std::ostream& os)
 {
-  int n_out = 0;
-  storage.segments.iterate([&](const auto &seg, size_t idx) {
-    os << "\nid " << idx << ", references " << seg.ref_count << " h_ptr "
-       << reinterpret_cast<const void *>(seg.lowers[0]) << ", d_ptr "
-       << reinterpret_cast<const void *>(seg.lowers[1]);
-    ++n_out;
-  });
-  return n_out;
+   int n_out = 0;
+   storage.segments.iterate([&](const auto &seg, size_t idx)
+   {
+      os << "\nid " << idx << ", references " << seg.ref_count << " h_ptr "
+         << reinterpret_cast<const void *>(seg.lowers[0]) << ", d_ptr "
+         << reinterpret_cast<const void *>(seg.lowers[1]);
+      ++n_out;
+   });
+   return n_out;
 }
 
 void MemoryManager::print_segment(size_t segment)

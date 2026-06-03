@@ -44,6 +44,11 @@ New and updated examples and miniapps
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 
+GPU computing
+-------------
+- Rework of the memory manager so that all calls to Sync and SyncAlias are now
+  no-op and can be removed from user code. Note that the copy sometimes performed
+  by SyncAlias is deferred to the next call to Read/ReadWrite.
 
 Version 4.9, released on Dec 11, 2025
 =====================================

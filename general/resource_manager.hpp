@@ -892,7 +892,8 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    {
       flags = static_cast<Flags>(flags | TEMPORARY);
    }
-   if (hloc == dloc || (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
+   if (hloc == dloc || (dloc == MemoryType::DEFAULT &&
+                        hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment = inst.insert(reinterpret_cast<char *>(h_ptr),
