@@ -326,8 +326,7 @@ public:
    int PrintPtrs(std::ostream &out = mfem::out);
 
    /// no-op
-   [[deprecated]]
-   int PrintAliases(std::ostream &out = mfem::out) { return -1; }
+   [[deprecated]] int PrintAliases(std::ostream & = mfem::out) { return -1; }
 
 #ifdef MFEM_USE_UMPIRE
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
