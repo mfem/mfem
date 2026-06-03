@@ -103,6 +103,7 @@
 
 // Enable MFEM functionality based on the MUMPS library.
 #cmakedefine MFEM_USE_MUMPS
+#cmakedefine MFEM_USE_COMPLEX_MUMPS
 #cmakedefine MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.

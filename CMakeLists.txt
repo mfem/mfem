@@ -76,7 +76,9 @@ set(XSDK_ENABLE_Fortran OFF)
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_MUMPS OR
+    MFEM_USE_COMPLEX_MUMPS)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
@@ -84,7 +86,7 @@ if (MFEM_USE_CONDUIT OR
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
@@ -342,7 +344,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS COMPLEX_MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -415,7 +417,7 @@ if (MFEM_USE_SUPERLU)
 endif()
 
 # MUMPS can only be enabled in parallel
-if (MFEM_USE_MUMPS)
+if (MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
     set(MFEM_MUMPS_VERSION ${MUMPS_VERSION})
