@@ -162,9 +162,9 @@ struct ManagedAllocator : public Allocator
    void Alloc(void **ptr, size_t nbytes) override
    {
 #if defined(MFEM_USE_CUDA)
-      *ptr = mfem::CuMallocManaged(ptr, nbytes);
+      *ptr = mfem::CuMallocManaged(ptr, nbytes == 0 ? 8 : nbytes);
 #elif defined(MFEM_USE_HIP)
-      *ptr = mfem::HipMallocManaged(ptr, nbytes);
+      *ptr = mfem::HipMallocManaged(ptr, nbytes == 0 ? 8 : nbytes);
 #else
       *ptr = new char[nbytes];
 #endif

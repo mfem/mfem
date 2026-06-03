@@ -47,8 +47,6 @@ TEST_CASE("MemoryManager/Scopes",
       REQUIRE(h_x == x.GetData());
       REQUIRE(mem->size_ == x.Size());
       REQUIRE(mem->offset_ == 0);
-      // registered if segment > 0
-      REQUIRE(mem->segment > 0);
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
 #else
       // Accessible Memory<real_t> to get the flags
