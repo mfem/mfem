@@ -38,6 +38,11 @@ add_mfem_miniapp(mfem-logo
     LIBRARIES mfem)
 
 if (MFEM_USE_MPI)
+  add_mfem_miniapp(panisodiff
+    MAIN panisodiff.cpp
+    ${HDG_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(pconvdiff
     MAIN pconvdiff.cpp
     ${HDG_COMMON_FILES}

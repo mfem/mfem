@@ -25,7 +25,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = anisodiff convdiff mfem-logo
-PAR_MINIAPPS = pconvdiff
+PAR_MINIAPPS = panisodiff pconvdiff
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else

@@ -446,6 +446,8 @@ miniapps/hdg/convdiff
 miniapps/hdg/convdiff*.mesh
 miniapps/hdg/Convdiff*
 miniapps/hdg/pconvdiff
+miniapps/hdg/panisodiff
+miniapps/hdg/panisodiff*.mesh
 miniapps/hdg/pconvdiff*.mesh
 miniapps/hdg/PConvdiff*
 
