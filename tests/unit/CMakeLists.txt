@@ -49,7 +49,6 @@ set(UNIT_TESTS_SRCS
   general/test_ordering.cpp
   general/test_reduction.cpp
   general/test_text.cpp
-  general/test_umpire_mem.cpp
   general/test_zlib.cpp
   linalg/test_amgfsolver.cpp
   linalg/test_cg_indefinite.cpp
@@ -209,6 +208,19 @@ add_dependencies(unit_tests copy_miniapps_nurbs_data)
 #   ctest -R unit_tests [-V]
 if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
     add_test(NAME unit_tests COMMAND unit_tests)
+  endif()
+
+if (MFEM_USE_UMPIRE)
+   if(MFEM_USE_CUDA OR MFEM_USE_HIP)
+      set(UMPIRE_UNIT_TESTS_SRCS umpire_unit_test_main.cpp)
+      mfem_add_executable(umpire_unit_tests ${UMPIRE_UNIT_TESTS_SRCS})
+      if(MFEM_USE_CUDA)
+         set_property(SOURCE ${UMPIRE_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+      endif()
+      target_link_libraries(umpire_unit_tests mfem)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} umpire_unit_tests)
+      add_test(NAME umpire_unit_tests COMMAND umpire_unit_tests)
+   endif()
 endif()
 
 #-----------------------------------------------------------

@@ -884,7 +884,7 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    {
       flags = static_cast<Flags>(flags | TEMPORARY);
    }
-   if (hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED)
+   if (hloc == dloc || (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment = inst.insert(reinterpret_cast<char *>(h_ptr),
@@ -1178,8 +1178,8 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    h_ptr = h_ptr_;
    h_mt = hloc;
    size_ = size;
-   if ((hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED) &&
-       dloc == MemoryType::DEFAULT)
+   if (hloc == dloc ||
+       (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(d_ptr == nullptr || d_ptr == h_ptr,
                   "expected h_ptr == d_ptr or d_ptr == nullptr");
