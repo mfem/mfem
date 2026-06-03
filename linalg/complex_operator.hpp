@@ -242,7 +242,6 @@ public:
 
 #endif
 
-
 #ifdef MFEM_USE_MPI
 
 /** @brief Specialization of the ComplexOperator built from a pair of

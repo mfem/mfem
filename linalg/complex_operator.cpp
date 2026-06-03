@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
-#include "../general/communication.hpp"
 #include <set>
 #include <map>
 
@@ -880,4 +879,4 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 
 #endif // MFEM_USE_MPI
 
-} // namespace mfem
+}
