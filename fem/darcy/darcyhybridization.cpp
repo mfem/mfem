@@ -3097,6 +3097,9 @@ void DarcyHybridization::ReconstructTotalFlux(
    MFEM_ASSERT(fes.GetMesh() == fes_ut.GetMesh(),
                "Different meshes are not supported!");
 
+   MFEM_ASSERT(fes.GetMesh()->Conforming(),
+               "Non-conforming meshes are not supported!");
+
    Mesh *mesh = fes_ut.GetMesh();
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh = (c_pfes)?(c_pfes->GetParMesh()):(NULL);
