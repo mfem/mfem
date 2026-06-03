@@ -40,21 +40,11 @@ template <int DIM> struct global_qf
       tensor_array<const real_t> &w,
       tensor_array<dreal_t> &z) const
    {
-      // Forward-diff with Enzyme cannot propagate the
-      // seeded tangent through the mfem::forall dispatch
-#ifdef MFEM_USE_ENZYME
-      for (size_t q = 0; q < x.size(); q++)
-      {
-         const dreal_t xq = x(q), yq = y(q);
-         z(q) = sin(xq) * cos(yq) * (xq + yq) * w(q) * det(J(q));
-      }
-#else
       mfem::forall(x.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const dreal_t xq = x(q), yq = y(q);
          z(q) = sin(xq) * cos(yq) * (xq + yq) * w(q) * det(J(q));
       });
-#endif
    }
 };
 
@@ -186,11 +176,9 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
 
    if constexpr(!mfem_use_gpu)
    {
-#ifndef MFEM_USE_ENZYME
       global_qf<DIM> q_gfn {};
       F.AddDomainIntegrator<GlobalQFBackend>(
          q_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
-#endif
    }
 
    local_qf<DIM> q_lfn {};

@@ -89,7 +89,6 @@ public:
 
 /*struct mass_global_qf
 {
-   inline MFEM_HOST_DEVICE
    void operator()(
       tensor_array<const dscalar_t> &u,
       tensor_array<const real_t, DIM, DIM> &J,
@@ -97,21 +96,12 @@ public:
       tensor_array<dscalar_t> &out1,
       tensor_array<dscalar_t> &out2) const
    {
-#ifdef MFEM_USE_ENZYME
-      for (size_t q = 0; q < u.size(); q++)
-      {
-         const auto v = u(q) * det(J(q)) * w(q);
-         out1(q) = v;
-         out2(q) = v;
-      }
-#else
       mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto v = u(q) * det(J(q)) * w(q);
          out1(q) = v;
          out2(q) = v;
       });
-#endif
    }
 };*/
 
@@ -128,19 +118,6 @@ struct mass_diffusion_global_qf
       tensor_array<dscalar_t, DIM> &out2,
       tensor_array<real_t, DIM, DIM> &out3) const
    {
-#ifdef MFEM_USE_ENZYME
-      for (size_t q = 0; q < u.size(); q++)
-      {
-         [[maybe_unused]] const auto invJq = inv(J(q));
-         const auto detJq = det(J(q));
-
-         out1(q) = u(q) * detJq * w(q);
-         // out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
-         out3(q) = J(q);
-      }
-
-      jit_bounds(dudxi, J, w, out2, u.size());
-#else
       mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJq = inv(J(q));
@@ -149,28 +126,7 @@ struct mass_diffusion_global_qf
          out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
       });
-#endif
    }
-
-#ifdef MFEM_USE_ENZYME
-   // XXX: Attribute instrumentation does not work due to ABI differences that
-   // change the argument number.
-   //__attribute__((annotate("jit", 5)))
-   void jit_bounds(
-      tensor_array<const dscalar_t, DIM> &dudxi,
-      tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t> &w,
-      tensor_array<dscalar_t, DIM> &out1,
-      size_t NQ) const
-   {
-      for (size_t q = 0; q < NQ; q++)
-      {
-         const auto invJq = inv(J(q));
-         const auto detJq = det(J(q));
-         out1(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
-      }
-   }
-#endif
 };
 
 struct mass_local_qf
@@ -323,7 +279,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU][OUTPUTS]")
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
       {
-#ifndef MFEM_USE_ENZYME
          MultiVector X {xtvec, nodestvec, qdata, dpf};
          MultiVector Z{ytvec, yqdata};
 
@@ -384,7 +339,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU][OUTPUTS]")
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
-#endif
       }
 
       {

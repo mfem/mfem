@@ -445,7 +445,6 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
-         dbg("Vector Action Linearized");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
@@ -489,7 +488,6 @@ void diffusion(const char *filename, int p)
          SparseMatrix *A = nullptr;
          ddop->Assemble(A);
 
-         dbg("Vector SparseMatrix");
          TestSameMatrices(*A, vblf_fa.SpMat());
          delete A;
          MPI_Barrier(MPI_COMM_WORLD);

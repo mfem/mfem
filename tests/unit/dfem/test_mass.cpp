@@ -38,19 +38,10 @@ template <int DIM> struct global_mf_mass_qf
                    tensor_array<const real_t> &w,
                    tensor_array<dscalar_t> &v) const
    {
-      // Forward-diff with Enzyme cannot propagate the
-      // seeded tangent through the mfem::forall dispatch
-#ifdef MFEM_USE_ENZYME
-      for (size_t q = 0; q < u.size(); q++)
-      {
-         v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-      }
-#else
       mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
       });
-#endif
    }
 };
 
@@ -112,9 +103,7 @@ void mass_action(const char *filename, int p)
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    if constexpr(!mfem_use_gpu)
    {
-#ifndef MFEM_USE_ENZYME
       blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-#endif
    }
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
@@ -147,11 +136,9 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
-#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr);
-#endif
       }
 
       MultiVector MX{X, N}, MZ{Z};
@@ -177,11 +164,9 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
-#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
-#endif
       }
 
       MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
@@ -225,11 +210,9 @@ void mass_action(const char *filename, int p)
 
       if constexpr(!mfem_use_gpu)
       {
-#ifndef MFEM_USE_ENZYME
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
-#endif
       }
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -430,44 +413,31 @@ void mass_mat_mixed(const char* filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-static const auto GenMeshs = [](const auto &meshs, const auto &extra)
-{
-   return !launch_all_non_regression_tests
-          ? GENERATE_REF(from_range(meshs))
-          : GENERATE_REF(from_range(meshs), from_range(extra));
-};
-
-static const auto GenOrders = []()
-{
-   return !launch_all_non_regression_tests ? 1 : GENERATE(1, 2, 3);
-};
-
-// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 {
-   const auto p = GenOrders();
+   const auto p = GenAll({1}, {1, 2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
    const auto extra = { "../../data/star.mesh",
                         "../../data/star-q3.mesh",
                         "../../data/rt-2d-q3.mesh",
                         "../../data/periodic-square.mesh"
                       };
-   mass_action<2>(GenMeshs(meshs, extra), p);
-   mass_mat_mixed<2>(GenMeshs(meshs, extra), p);
+   mass_action<2>(GenAll(meshs, extra), p);
+   mass_mat_mixed<2>(GenAll(meshs, extra), p);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
 {
-   const auto p = GenOrders();
+   const auto p = GenAll({1}, {1, 2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh",
                         "../../data/fichera-q3.mesh",
                         "../../data/toroid-hex.mesh",
                         "../../data/periodic-cube.mesh"
                       };
-   mass_action<3>(GenMeshs(meshs, extra), p);
-   mass_mat_mixed<3>(GenMeshs(meshs, extra), p);
+   mass_action<3>(GenAll(meshs, extra), p);
+   mass_mat_mixed<3>(GenAll(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI
