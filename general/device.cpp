@@ -139,7 +139,7 @@ Device::Device()
       {
          MFEM_ABORT("Unknown memory backend!");
       }
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       inst.Configure(host_mem_type, device_mem_type);
    }
 
@@ -179,7 +179,7 @@ Device::~Device()
       // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
-      auto& inst = MemoryManager::instance();
+      auto& inst = MemoryManager::Instance();
       inst.Destroy();
    }
    Get().ngpu = -1;
@@ -431,7 +431,7 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
                "invalid device memory configuration!");
 
    // Update the memory manager with the new settings
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    inst.Configure(host_mem_type, device_mem_type);
 }
 

@@ -229,7 +229,7 @@ private:
    bool wait_next_alloc = false;
 
    /// helper for finding the next address starting from p aligned to alignment
-   char *get_aligned(char *p) const noexcept;
+   char *GetAligned(char *p) const noexcept;
 
    /// helper for when a new block needs to be allocated
    void *AllocBlock(size_t size);
@@ -250,7 +250,7 @@ public:
 };
 
 template <class BaseAlloc, bool NeedsWait>
-char *TempAllocator<BaseAlloc, NeedsWait>::get_aligned(char *p) const noexcept
+char *TempAllocator<BaseAlloc, NeedsWait>::GetAligned(char *p) const noexcept
 {
    auto offset = reinterpret_cast<uintptr_t>(p) % alignment;
    if (offset)
@@ -275,7 +275,7 @@ void *TempAllocator<BaseAlloc, NeedsWait>::AllocBlock(size_t size)
    blocks.emplace_back(static_cast<char *>(res),
                        static_cast<char *>(res) + rec_size, 1);
    ++total_allocs;
-   res = get_aligned(static_cast<char *>(res));
+   res = GetAligned(static_cast<char *>(res));
    curr_end = static_cast<char *>(res) + size;
    return res;
 }
@@ -341,7 +341,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Alloc(void **ptr, size_t nbytes)
 {
    if (blocks.size())
    {
-      char *res = get_aligned(curr_end);
+      char *res = GetAligned(curr_end);
       if (std::get<1>(blocks.back()) >= (res + nbytes))
       {
          // have room in the last block
@@ -478,7 +478,7 @@ void MemoryManager::MemCopyAsync(void *dst, const void *src, size_t nbytes,
 #endif
 }
 
-MemoryManager &MemoryManager::instance()
+MemoryManager &MemoryManager::Instance()
 {
    static MemoryManager inst;
    return inst;
@@ -656,19 +656,19 @@ void MemoryManager::Destroy()
       {
          MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                                    "destroy " << (int)seg.mtypes[1] << ", "
-                                   << seg.is_temporary());
-         Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1], seg.is_temporary());
+                                   << seg.IsTemporary());
+         Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1], seg.IsTemporary());
          segment_maps[1].erase(seg.lowers[1]);
          seg.lowers[1] = nullptr;
          // seg.mtypes[1] = MemoryType::DEFAULT;
       }
       if (seg.lowers[0] &&
-          (seg.mtypes[0] != MemoryType::HOST || seg.is_temporary()))
+          (seg.mtypes[0] != MemoryType::HOST || seg.IsTemporary()))
       {
          MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[0], seg.lowers[0] + seg.nbytes,
                                    "destroy " << (int)seg.mtypes[0] << ", "
-                                   << seg.is_temporary());
-         Dealloc(seg.lowers[0], seg.nbytes, seg.mtypes[0], seg.is_temporary());
+                                   << seg.IsTemporary());
+         Dealloc(seg.lowers[0], seg.nbytes, seg.mtypes[0], seg.IsTemporary());
          segment_maps[0].erase(seg.lowers[0]);
          seg.lowers[0] = nullptr;
          // seg.mtypes[0] = MemoryType::DEFAULT;
@@ -837,7 +837,7 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
    return static_cast<char *>(res);
 }
 
-size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
+size_t MemoryManager::RBase::Insert(size_t segment, ptrdiff_t offset,
                                     bool on_device, bool valid)
 {
    size_t idx = nodes.CreateNext();
@@ -845,11 +845,11 @@ size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
    n.offset = offset;
    if (valid)
    {
-      n.set_valid();
+      n.SetValid();
    }
-   return insert(get_segment(segment).roots[on_device], idx);
+   return Insert(GetSegment(segment).roots[on_device], idx);
 }
-size_t MemoryManager::RBase::insert(size_t segment, size_t node,
+size_t MemoryManager::RBase::Insert(size_t segment, size_t node,
                                     ptrdiff_t offset, bool on_device,
                                     bool valid)
 {
@@ -858,58 +858,58 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
    n.offset = offset;
    if (valid)
    {
-      n.set_valid();
+      n.SetValid();
    }
 
-   return insert(get_segment(segment).roots[on_device], node, idx);
+   return Insert(GetSegment(segment).roots[on_device], node, idx);
 }
 
-void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
+void MemoryManager::RBase::InsertDuplicate(size_t a, size_t b)
 {
    nodes.Erase(b);
 }
 
-void MemoryManager::erase_node(size_t &root, size_t idx)
+void MemoryManager::EraseNode(size_t &root, size_t idx)
 {
-   storage.erase(root, idx);
+   storage.Erase(root, idx);
    storage.nodes.Erase(idx);
 }
 
 template <class F>
-void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
-                               ptrdiff_t stop, F &&func)
+void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
+                              ptrdiff_t stop, F &&func)
 {
    MFEM_MEM_OP_BENCH_SCOPE(8, false);
-   auto &seg = storage.get_segment(segment);
-   size_t curr = find_marker(segment, start, on_device);
+   auto &seg = storage.GetSegment(segment);
+   size_t curr = FindMarker(segment, start, on_device);
    if (!curr)
    {
       return;
    }
-   auto pos = std::max(start, storage.get_node(curr).offset);
+   auto pos = std::max(start, storage.GetNode(curr).offset);
    while (pos < stop)
    {
-      auto &n = storage.get_node(curr);
-      size_t next = storage.successor(curr);
+      auto &n = storage.GetNode(curr);
+      size_t next = storage.Successor(curr);
       // n.offset <= pos < next point
-      if (!n.is_valid())
+      if (!n.IsValid())
       {
          if (next)
          {
             // pn is always valid
-            auto &pn = storage.get_node(next);
+            auto &pn = storage.GetNode(next);
             if (stop >= pn.offset)
             {
                func(pos, pn.offset);
                if (pos == n.offset)
                {
                   // entire span is validated
-                  erase_node(seg.roots[on_device], curr);
-                  curr = storage.successor(next);
-                  erase_node(seg.roots[on_device], next);
+                  EraseNode(seg.roots[on_device], curr);
+                  curr = storage.Successor(next);
+                  EraseNode(seg.roots[on_device], next);
                   if (curr)
                   {
-                     pos = storage.get_node(curr).offset;
+                     pos = storage.GetNode(curr).offset;
                   }
                   else
                   {
@@ -931,8 +931,8 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                }
                else
                {
-                  storage.insert(segment,
-                                 storage.insert(segment, curr, pos, on_device,
+                  storage.Insert(segment,
+                                 storage.Insert(segment, curr, pos, on_device,
                                                 true),
                                  stop, on_device, false);
                }
@@ -950,15 +950,15 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                }
                else
                {
-                  erase_node(seg.roots[on_device], curr);
+                  EraseNode(seg.roots[on_device], curr);
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, true);
+               auto tmp = storage.Insert(segment, curr, pos, on_device, true);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, false);
+                  storage.Insert(segment, tmp, stop, on_device, false);
                }
             }
             break;
@@ -966,7 +966,7 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
       }
       if (next)
       {
-         pos = storage.get_node(next).offset;
+         pos = storage.GetNode(next).offset;
       }
       else
       {
@@ -977,25 +977,25 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
 }
 
 template <class F>
-void MemoryManager::mark_invalid(size_t segment, bool on_device,
-                                 ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::MarkInvalid(size_t segment, bool on_device,
+                                ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
    MFEM_MEM_OP_BENCH_SCOPE(7, false);
-   auto &seg = storage.get_segment(segment);
-   size_t curr = find_marker(segment, start, on_device);
+   auto &seg = storage.GetSegment(segment);
+   size_t curr = FindMarker(segment, start, on_device);
    if (!curr)
    {
       func(start, stop);
-      storage.insert(segment, start, on_device, false);
+      storage.Insert(segment, start, on_device, false);
       if (stop < seg.nbytes)
       {
-         storage.insert(segment, stop, on_device, true);
+         storage.Insert(segment, stop, on_device, true);
       }
       return;
    }
    auto pos = start;
    {
-      auto &n = storage.get_node(curr);
+      auto &n = storage.GetNode(curr);
       if (pos < n.offset)
       {
          // should be no prev node
@@ -1005,10 +1005,10 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
             // can just move curr
             func(start, n.offset);
             n.offset = pos;
-            curr = storage.successor(curr);
+            curr = storage.Successor(curr);
             if (curr)
             {
-               pos = storage.get_node(curr).offset;
+               pos = storage.GetNode(curr).offset;
             }
             else
             {
@@ -1019,8 +1019,8 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
          {
             func(start, stop);
             // need new start and stop markers
-            storage.insert(segment,
-                           storage.insert(segment, curr, start, on_device,
+            storage.Insert(segment,
+                           storage.Insert(segment, curr, start, on_device,
                                           false),
                            stop, on_device, true);
             return;
@@ -1029,28 +1029,28 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
    }
    while (pos < stop)
    {
-      auto &n = storage.get_node(curr);
-      size_t next = storage.successor(curr);
+      auto &n = storage.GetNode(curr);
+      size_t next = storage.Successor(curr);
       // n.offset <= pos < next point
-      if (n.is_valid())
+      if (n.IsValid())
       {
          if (next)
          {
             // pn is always invalid
-            auto &pn = storage.get_node(next);
+            auto &pn = storage.GetNode(next);
             if (stop >= pn.offset)
             {
                func(pos, pn.offset);
                if (pos == n.offset)
                {
                   // entire span is invalidated
-                  erase_node(seg.roots[on_device], curr);
-                  curr = storage.successor(next);
-                  erase_node(seg.roots[on_device], next);
+                  EraseNode(seg.roots[on_device], curr);
+                  curr = storage.Successor(next);
+                  EraseNode(seg.roots[on_device], next);
 
                   if (curr)
                   {
-                     pos = storage.get_node(curr).offset;
+                     pos = storage.GetNode(curr).offset;
                   }
                   else
                   {
@@ -1072,8 +1072,8 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.insert(segment,
-                                 storage.insert(segment, curr, pos, on_device,
+                  storage.Insert(segment,
+                                 storage.Insert(segment, curr, pos, on_device,
                                                 false),
                                  stop, on_device, true);
                }
@@ -1091,15 +1091,15 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                }
                else
                {
-                  erase_node(seg.roots[on_device], curr);
+                  EraseNode(seg.roots[on_device], curr);
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, false);
+               auto tmp = storage.Insert(segment, curr, pos, on_device, false);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, true);
+                  storage.Insert(segment, tmp, stop, on_device, true);
                }
             }
             break;
@@ -1107,7 +1107,7 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
       }
       if (next)
       {
-         pos = storage.get_node(next).offset;
+         pos = storage.GetNode(next).offset;
       }
       else
       {
@@ -1117,7 +1117,7 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
    }
 }
 
-size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
+size_t MemoryManager::Insert(char *hptr, char *dptr, size_t nbytes,
                              MemoryType hloc, MemoryType dloc, bool valid_host,
                              bool valid_device, bool temporary)
 {
@@ -1130,7 +1130,7 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    MFEM_ASSERT(hloc != MemoryType::DEFAULT, "hloc cannot be DEFAULT");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
    size_t next_segment = storage.segments.CreateNext();
-   auto &seg = storage.get_segment(next_segment);
+   auto &seg = storage.GetSegment(next_segment);
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
    seg.lowers[0] = hptr;
@@ -1156,27 +1156,27 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    seg.mtypes[1] = dloc;
    if (temporary)
    {
-      seg.set_temporary();
+      seg.SetTemporary();
    }
 
    if (!valid_host)
    {
-      mark_invalid(next_segment, false, 0, nbytes,
+      MarkInvalid(next_segment, false, 0, nbytes,
       [](auto start, auto stop) {});
    }
    if (!valid_device)
    {
-      mark_invalid(next_segment, true, 0, nbytes, [](auto start, auto stop) {});
+      MarkInvalid(next_segment, true, 0, nbytes, [](auto start, auto stop) {});
    }
    return next_segment;
 }
 
-void MemoryManager::clear_segment(RBase::Segment &seg)
+void MemoryManager::ClearSegment(RBase::Segment &seg)
 {
    // cleanup nodes
    for (int i = 0; i < 2; ++i)
    {
-      storage.visit(seg.roots[i], [](size_t) { return true; },
+      storage.Visit(seg.roots[i], [](size_t) { return true; },
       [](size_t) { return true; }, [&](size_t idx)
       {
          storage.nodes.Erase(idx);
@@ -1185,16 +1185,16 @@ void MemoryManager::clear_segment(RBase::Segment &seg)
    }
 }
 
-void MemoryManager::clear_segment(size_t segment)
+void MemoryManager::ClearSegment(size_t segment)
 {
-   auto &seg = storage.get_segment(segment);
-   clear_segment(seg);
+   auto &seg = storage.GetSegment(segment);
+   ClearSegment(seg);
 }
 
-void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
+void MemoryManager::ClearSegment(RBase::Segment &seg, bool on_device)
 {
    // cleanup nodes
-   storage.visit(seg.roots[on_device], [](size_t) { return true; },
+   storage.Visit(seg.roots[on_device], [](size_t) { return true; },
    [](size_t) { return true; }, [&](size_t idx)
    {
       storage.nodes.Erase(idx);
@@ -1203,17 +1203,17 @@ void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
    seg.roots[on_device] = 0;
 }
 
-void MemoryManager::clear_segment(size_t segment, bool on_device)
+void MemoryManager::ClearSegment(size_t segment, bool on_device)
 {
-   auto &seg = storage.get_segment(segment);
-   clear_segment(seg, on_device);
+   auto &seg = storage.GetSegment(segment);
+   ClearSegment(seg, on_device);
 }
 
-void MemoryManager::erase(size_t segment)
+void MemoryManager::Erase(size_t segment)
 {
    if (segment)
    {
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (seg.ref_count)
       {
          if (!--seg.ref_count)
@@ -1229,39 +1229,39 @@ void MemoryManager::erase(size_t segment)
             seg.lowers[0] = nullptr;
             seg.lowers[1] = nullptr;
             seg.nbytes = 0;
-            clear_segment(segment);
-            seg.reset_temporary();
+            ClearSegment(segment);
+            seg.ResetTemporary();
             storage.segments.Erase(segment);
          }
       }
    }
 }
 
-size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
-                                  bool on_device)
+size_t MemoryManager::FindMarker(size_t segment, ptrdiff_t offset,
+                                 bool on_device)
 {
-   auto &seg = storage.get_segment(segment);
+   auto &seg = storage.GetSegment(segment);
 
    // mark valid
    size_t start = seg.roots[on_device];
-   storage.visit(seg.roots[on_device],
+   storage.Visit(seg.roots[on_device],
                  [&](size_t idx)
    {
       // if idx <= lower, then everything to the left is too small
-      return storage.get_node(idx).offset > offset;
+      return storage.GetNode(idx).offset > offset;
    },
    [&](size_t idx)
    {
       // if idx >= lower, then everything to the right is too large
-      return storage.get_node(idx).offset < offset;
+      return storage.GetNode(idx).offset < offset;
    }, [&](size_t idx)
    {
-      if (storage.get_node(start).offset < offset)
+      if (storage.GetNode(start).offset < offset)
       {
          // look for point larger than start
-         if (storage.get_node(idx).offset <= offset)
+         if (storage.GetNode(idx).offset <= offset)
          {
-            if (storage.get_node(start).offset < storage.get_node(idx).offset)
+            if (storage.GetNode(start).offset < storage.GetNode(idx).offset)
             {
                start = idx;
             }
@@ -1270,12 +1270,12 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
       else
       {
          // look for point smaller than curr
-         if (storage.get_node(idx).offset < storage.get_node(start).offset)
+         if (storage.GetNode(idx).offset < storage.GetNode(start).offset)
          {
             start = idx;
          }
       }
-      return storage.get_node(start).offset == offset;
+      return storage.GetNode(start).offset == offset;
    });
    return start;
 }
@@ -1293,14 +1293,14 @@ int MemoryManager::PrintPtrs(std::ostream& os)
    return n_out;
 }
 
-void MemoryManager::print_segment(size_t segment)
+void MemoryManager::PrintSegment(size_t segment)
 {
    if (!segment)
    {
       mfem::out << "nullptr" << std::endl;
       return;
    }
-   auto &seg = storage.get_segment(segment);
+   auto &seg = storage.GetSegment(segment);
    for (int i = 0; i < 2; ++i)
    {
       if (i == 0)
@@ -1314,11 +1314,11 @@ void MemoryManager::print_segment(size_t segment)
       mfem::out << " seg " << segment << ", " << static_cast<int>(seg.mtypes[i])
                 << ": " << static_cast<void *>(seg.lowers[i]) << ", "
                 << static_cast<void *>(seg.lowers[i] + seg.nbytes) << std::endl;
-      auto curr = storage.first(seg.roots[i]);
+      auto curr = storage.First(seg.roots[i]);
       while (curr)
       {
-         mfem::out << storage.get_node(curr).offset;
-         if (storage.get_node(curr).is_valid())
+         mfem::out << storage.GetNode(curr).offset;
+         if (storage.GetNode(curr).IsValid())
          {
             mfem::out << "(v), ";
          }
@@ -1326,23 +1326,23 @@ void MemoryManager::print_segment(size_t segment)
          {
             mfem::out << "(i), ";
          }
-         curr = storage.successor(curr);
+         curr = storage.Successor(curr);
       }
       mfem::out << std::endl;
    }
 }
 
 template <class F>
-void MemoryManager::check_valid(size_t segment, bool on_device, ptrdiff_t start,
-                                ptrdiff_t stop, F &&func)
+void MemoryManager::CheckValid(size_t segment, bool on_device, ptrdiff_t start,
+                               ptrdiff_t stop, F &&func)
 {
-   size_t curr = find_marker(segment, start, on_device);
-   check_valid(curr, start, stop, func);
+   size_t curr = FindMarker(segment, start, on_device);
+   CheckValid(curr, start, stop, func);
 }
 
 template <class F>
-void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
-                                F &&func)
+void MemoryManager::CheckValid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
+                               F &&func)
 {
    MFEM_MEM_OP_BENCH_SCOPE(9, false);
    if (!curr)
@@ -1351,9 +1351,9 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
       return;
    }
    auto pos = start;
-   if (pos < storage.get_node(curr).offset)
+   if (pos < storage.GetNode(curr).offset)
    {
-      pos = storage.get_node(curr).offset;
+      pos = storage.GetNode(curr).offset;
       if (func(start, std::min(pos, stop), true))
       {
          return;
@@ -1361,15 +1361,15 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
    }
    while (pos < stop)
    {
-      auto &n = storage.get_node(curr);
-      size_t next = storage.successor(curr);
+      auto &n = storage.GetNode(curr);
+      size_t next = storage.Successor(curr);
       // n.offset <= pos < next point
-      if (!n.is_valid())
+      if (!n.IsValid())
       {
          if (next)
          {
             // pn is always valid
-            auto &pn = storage.get_node(next);
+            auto &pn = storage.GetNode(next);
             if (stop >= pn.offset)
             {
                if (func(pos, pn.offset, false))
@@ -1400,7 +1400,7 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
          if (next)
          {
             // pn is always valid
-            auto &pn = storage.get_node(next);
+            auto &pn = storage.GetNode(next);
             if (stop >= pn.offset)
             {
                if (func(pos, pn.offset, true))
@@ -1428,7 +1428,7 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
       }
       if (next)
       {
-         pos = storage.get_node(next).offset;
+         pos = storage.GetNode(next).offset;
       }
       else
       {
@@ -1443,11 +1443,11 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
 {
    if (segment)
    {
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       {
          bool any_invalid = false;
-         check_valid(segment, true, offset, offset + nbytes,
-                     [&](auto, auto, bool valid)
+         CheckValid(segment, true, offset, offset + nbytes,
+                    [&](auto, auto, bool valid)
          {
             if (valid)
             {
@@ -1463,8 +1463,8 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
       }
       {
          bool any_invalid = false;
-         check_valid(segment, false, offset, offset + nbytes,
-                     [&](auto, auto, bool valid)
+         CheckValid(segment, false, offset, offset + nbytes,
+                    [&](auto, auto, bool valid)
          {
             if (valid)
             {
@@ -1482,14 +1482,14 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
    return MemoryType::DEFAULT;
 }
 
-bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
-                             bool on_device)
+bool MemoryManager::IsValid(size_t segment, size_t offset, size_t nbytes,
+                            bool on_device)
 {
    if (segment)
    {
       bool all_valid = true;
-      check_valid(segment, on_device, offset, offset + nbytes,
-                  [&](auto, auto, bool valid)
+      CheckValid(segment, on_device, offset, offset + nbytes,
+                 [&](auto, auto, bool valid)
       {
          if (valid)
          {
@@ -1503,30 +1503,30 @@ bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
    return false;
 }
 
-char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
+char *MemoryManager::Write(size_t segment, size_t offset, size_t nbytes,
                            MemoryClass mc)
 {
-   return write(segment, offset, nbytes, rw_on_dev(mc));
+   return Write(segment, offset, nbytes, RWOnDevice(mc));
 }
 
-char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
+char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
+                               MemoryClass mc)
+{
+   return ReadWrite(segment, offset, nbytes, RWOnDevice(mc));
+}
+
+const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
                                 MemoryClass mc)
 {
-   return read_write(segment, offset, nbytes, rw_on_dev(mc));
+   return Read(segment, offset, nbytes, RWOnDevice(mc));
 }
 
-const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
-                                MemoryClass mc)
-{
-   return read(segment, offset, nbytes, rw_on_dev(mc));
-}
-
-char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
+char *MemoryManager::Write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
    if (segment && nbytes > 0)
    {
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
@@ -1537,24 +1537,24 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.IsTemporary());
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
 
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
-                               << seg.is_temporary());
+                               << seg.IsTemporary());
       }
-      mark_valid(segment, on_device, offset, offset + nbytes,
+      MarkValid(segment, on_device, offset, offset + nbytes,
       [](auto, auto) {});
-      mark_invalid(segment, !on_device, offset, offset + nbytes,
+      MarkInvalid(segment, !on_device, offset, offset + nbytes,
       [](auto, auto) {});
       MFEM_MEM_OP_DEBUG_USE(5, seg.lowers[on_device] + offset,
                             seg.lowers[on_device] + offset + nbytes, " Write");
       Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
-                seg.is_temporary());
+                seg.IsTemporary());
       Protect(seg.lowers[!on_device], seg.mtypes[!on_device], offset, nbytes,
-              seg.is_temporary());
+              seg.IsTemporary());
       return seg.lowers[on_device] + offset;
    }
    MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
@@ -1657,8 +1657,8 @@ void MemoryManager::BatchMemCopy2(
    }
 }
 
-bool MemoryManager::check_read_write(size_t segment, size_t offset,
-                                     size_t nbytes, bool on_device)
+bool MemoryManager::CheckReadWrite(size_t segment, size_t offset,
+                                   size_t nbytes, bool on_device)
 {
    bool valid = true;
    if (segment && nbytes > 0)
@@ -1668,8 +1668,8 @@ bool MemoryManager::check_read_write(size_t segment, size_t offset,
           segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                   GetHostMemoryType(), true));
 
-      check_valid(segment, on_device, offset, offset + nbytes,
-                  [&](auto start, auto stop, bool valid)
+      CheckValid(segment, on_device, offset, offset + nbytes,
+                 [&](auto start, auto stop, bool valid)
       {
          if (!valid)
          {
@@ -1687,8 +1687,8 @@ bool MemoryManager::check_read_write(size_t segment, size_t offset,
          valid = false;
       }
       segs.clear();
-      check_valid(segment, !on_device, offset, offset + nbytes,
-                  [&](auto start, auto stop, bool valid)
+      CheckValid(segment, !on_device, offset, offset + nbytes,
+                 [&](auto start, auto stop, bool valid)
       {
          if (valid)
          {
@@ -1709,8 +1709,8 @@ bool MemoryManager::check_read_write(size_t segment, size_t offset,
    return valid;
 }
 
-bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
-                               bool on_device)
+bool MemoryManager::CheckRead(size_t segment, size_t offset, size_t nbytes,
+                              bool on_device)
 {
    bool valid = true;
    if (segment && nbytes > 0)
@@ -1720,8 +1720,8 @@ bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
           segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                   GetHostMemoryType(), true));
 
-      check_valid(segment, on_device, offset, offset + nbytes,
-                  [&](auto start, auto stop, bool valid)
+      CheckValid(segment, on_device, offset, offset + nbytes,
+                 [&](auto start, auto stop, bool valid)
       {
          if (!valid)
          {
@@ -1742,8 +1742,8 @@ bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
    return valid;
 }
 
-char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
-                                bool on_device)
+char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
+                               bool on_device)
 {
    if (segment && nbytes > 0)
    {
@@ -1752,7 +1752,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
           copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                        GetManagedMemoryType(), true));
 
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
@@ -1763,27 +1763,27 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.IsTemporary());
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
-                               << seg.is_temporary());
+                               << seg.IsTemporary());
       }
       bool need_sync = false;
       if (seg.lowers[0] == seg.lowers[1])
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
+         MarkValid(segment, on_device, offset, offset + nbytes,
          [&](auto, auto) { need_sync = true; });
       }
       else
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
-                    [&](auto start, auto stop)
+         MarkValid(segment, on_device, offset, offset + nbytes,
+                   [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
       Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
-                seg.is_temporary());
+                seg.IsTemporary());
       if (copy_segs.size())
       {
          if (!seg.lowers[!on_device])
@@ -1796,12 +1796,12 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                   !on_device ? memory_types[1] : memory_types[0];
             }
             seg.lowers[!on_device] =
-               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.IsTemporary());
             segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
                                   "alloc " << (int)seg.mtypes[!on_device]
-                                  << ", " << seg.is_temporary());
+                                  << ", " << seg.IsTemporary());
          }
          else
          {
@@ -1811,7 +1811,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
       }
 
-      mark_invalid(segment, !on_device, offset, offset + nbytes,
+      MarkInvalid(segment, !on_device, offset, offset + nbytes,
       [&](auto, auto) {});
       if (!on_device && need_sync)
       {
@@ -1824,7 +1824,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                             seg.lowers[on_device] + offset + nbytes,
                             " ReadWrite ");
       Protect(seg.lowers[!on_device], seg.mtypes[!on_device], offset, nbytes,
-              seg.is_temporary());
+              seg.IsTemporary());
       return seg.lowers[on_device] + offset;
    }
    MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
@@ -1832,7 +1832,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
    return nullptr;
 }
 
-const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
+const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
    if (segment && nbytes > 0)
@@ -1842,7 +1842,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
           copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                        GetManagedMemoryType(), true));
 
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
@@ -1853,28 +1853,28 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.IsTemporary());
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device] << ", "
-                               << seg.is_temporary());
+                               << seg.IsTemporary());
       }
 
       bool need_sync = false;
       if (seg.lowers[0] == seg.lowers[1])
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
+         MarkValid(segment, on_device, offset, offset + nbytes,
          [&](auto, auto) { need_sync = true; });
       }
       else
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
-                    [&](auto start, auto stop)
+         MarkValid(segment, on_device, offset, offset + nbytes,
+                   [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
       Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
-                seg.is_temporary());
+                seg.IsTemporary());
       if (copy_segs.size())
       {
          if (!seg.lowers[!on_device])
@@ -1887,12 +1887,12 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                   !on_device ? memory_types[1] : memory_types[0];
             }
             seg.lowers[!on_device] =
-               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.IsTemporary());
             segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
                                   "alloc " << (int)seg.mtypes[!on_device]
-                                  << ", " << seg.is_temporary());
+                                  << ", " << seg.IsTemporary());
          }
          else
          {
@@ -1916,8 +1916,8 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
    return nullptr;
 }
 
-int MemoryManager::compare_host_device(size_t segment, size_t offset,
-                                       size_t nbytes)
+int MemoryManager::CompareHostDevice(size_t segment, size_t offset,
+                                     size_t nbytes)
 {
    if (segment)
    {
@@ -1925,8 +1925,8 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
       for (int i = 0; i < 2; ++i)
       {
          bool any_invalid = false;
-         check_valid(segment, i, offset, offset + nbytes,
-                     [&](auto, auto, bool valid)
+         CheckValid(segment, i, offset, offset + nbytes,
+                    [&](auto, auto, bool valid)
          {
             if (valid)
             {
@@ -1941,7 +1941,7 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
          }
       }
 
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
          MFEM_ASSERT(seg.mtypes[0] != MemoryType::DEVICE &&
@@ -1990,7 +1990,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
    // heuristic: copy from src0 unless invalid, then copy from src1
 
    // loc(marker0)/loc(marker1) are either <= src_offset, or everything before
-   // them is the same state (opposite of get_node(marker).is_valid())
+   // them is the same state (opposite of GetNode(marker).IsValid())
    // This should only occur if marker is the first marker, which is always
    // invalid
    size_t next_m0 = marker0;
@@ -2001,8 +2001,8 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                                                        AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy1(
                                                        AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
-   check_valid(marker, dst_offset, dst_offset + nbytes,
-               [&](auto dst_start, auto dst_stop, bool valid)
+   CheckValid(marker, dst_offset, dst_offset + nbytes,
+              [&](auto dst_start, auto dst_stop, bool valid)
    {
       if (valid)
       {
@@ -2024,7 +2024,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                if (marker)
                {
                   {
-                     auto pos = storage.get_node(marker).offset - src_offset;
+                     auto pos = storage.GetNode(marker).offset - src_offset;
                      if (start < pos)
                      {
                         // start < mpos, don't advance marker
@@ -2035,14 +2035,14 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                   MFEM_ASSERT(marker, "marker should always be valid");
                   if (next_marker == marker)
                   {
-                     next_marker = storage.successor(marker);
+                     next_marker = storage.Successor(marker);
                   }
                   while (true)
                   {
                      if (next_marker)
                      {
                         auto pos =
-                           storage.get_node(next_marker).offset - src_offset;
+                           storage.GetNode(next_marker).offset - src_offset;
                         if (start < pos)
                         {
                            return;
@@ -2053,7 +2053,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                         return;
                      }
                      marker = next_marker;
-                     next_marker = storage.successor(marker);
+                     next_marker = storage.Successor(marker);
                   }
                }
             };
@@ -2061,10 +2061,10 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
             while (true)
             {
                advance_marker(marker0, next_m0);
-               auto pos0 = storage.get_node(marker0).offset - src_offset;
+               auto pos0 = storage.GetNode(marker0).offset - src_offset;
                if (start < pos0)
                {
-                  MFEM_ASSERT(!storage.get_node(marker0).is_valid(),
+                  MFEM_ASSERT(!storage.GetNode(marker0).IsValid(),
                               "marker0 should always be invalid at this point");
                   copy0.emplace_back(src_offset + start);
                   copy0.emplace_back(dst_offset + start);
@@ -2083,7 +2083,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                }
                else
                {
-                  if (storage.get_node(marker0).is_valid())
+                  if (storage.GetNode(marker0).IsValid())
                   {
                      // copy from src0
                      copy0.emplace_back(src_offset + start);
@@ -2091,7 +2091,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                      if (next_m0)
                      {
                         auto npos0 =
-                           storage.get_node(next_m0).offset - src_offset;
+                           storage.GetNode(next_m0).offset - src_offset;
                         MFEM_ASSERT(npos0 > pos0, "invalid segment 0");
                         if (stop <= npos0)
                         {
@@ -2121,9 +2121,9 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                      if (next_m0)
                      {
                         // next_m0 is guaranteed to be valid
-                        MFEM_ASSERT(storage.get_node(next_m0).is_valid(),
+                        MFEM_ASSERT(storage.GetNode(next_m0).IsValid(),
                                     "expected next_m0 to be valid");
-                        auto npos0 = storage.get_node(next_m0).offset - src_offset;
+                        auto npos0 = storage.GetNode(next_m0).offset - src_offset;
 
                         stop1 = std::min<decltype(stop1)>(stop1, npos0);
                      }
@@ -2131,11 +2131,11 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                      {
                         advance_marker(marker1, next_m1);
                         auto pos1 =
-                           storage.get_node(marker1).offset - src_offset;
+                           storage.GetNode(marker1).offset - src_offset;
                         if (start < pos1)
                         {
                            MFEM_ASSERT(
-                              !storage.get_node(marker1).is_valid(),
+                              !storage.GetNode(marker1).IsValid(),
                               "marker1 should always be invalid at this point");
                            copy1.emplace_back(src_offset + start);
                            copy1.emplace_back(dst_offset + start);
@@ -2158,14 +2158,14 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                         }
                         else
                         {
-                           if (storage.get_node(marker1).is_valid())
+                           if (storage.GetNode(marker1).IsValid())
                            {
                               // copy from src1
                               copy1.emplace_back(src_offset + start);
                               copy1.emplace_back(dst_offset + start);
                               if (next_m1)
                               {
-                                 auto npos1 = storage.get_node(next_m1).offset -
+                                 auto npos1 = storage.GetNode(next_m1).offset -
                                               src_offset;
                                  MFEM_ASSERT(npos1 > pos1, "invalid segment 1");
                                  if (stop1 <= npos1)
@@ -2244,11 +2244,11 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                   "dst doesn't correspond to dseg");
       // perform lazy device allocation of dst
       dseg->lowers[on_device] =
-         Alloc(dseg->nbytes, dseg->mtypes[on_device], dseg->is_temporary());
+         Alloc(dseg->nbytes, dseg->mtypes[on_device], dseg->IsTemporary());
       segment_maps[on_device].emplace(dseg->lowers[on_device], dsegment);
       MFEM_MEM_OP_DEBUG_ADD(
          0, dseg->lowers[on_device], dseg->lowers[on_device] + dseg->nbytes,
-         "alloc " << (int)dseg->mtypes[on_device] << ", " << dseg->is_temporary());
+         "alloc " << (int)dseg->mtypes[on_device] << ", " << dseg->IsTemporary());
    }
    if (src0)
    {
@@ -2271,15 +2271,15 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
    if (dst_seg != src_seg || dst_offset != src_offset)
    {
       size_t currs[2] = {0, 0};
-      auto &dseg = storage.get_segment(dst_seg);
-      auto &sseg = storage.get_segment(src_seg);
+      auto &dseg = storage.GetSegment(dst_seg);
+      auto &sseg = storage.GetSegment(src_seg);
       if (sseg.lowers[0])
       {
-         currs[0] = find_marker(src_seg, src_offset, false);
+         currs[0] = FindMarker(src_seg, src_offset, false);
       }
       if (sseg.lowers[1])
       {
-         currs[1] = find_marker(src_seg, src_offset, true);
+         currs[1] = FindMarker(src_seg, src_offset, true);
       }
       // TODO: is this the right condition for detecting zero-copy dseg?
       // might want to check the memory space is the same instead
@@ -2297,7 +2297,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
          // size_t ncopies = 0;
          for (int i = 0; i < 2; ++i)
          {
-            size_t curr = find_marker(dst_seg, dst_offset, i);
+            size_t curr = FindMarker(dst_seg, dst_offset, i);
             CopyImpl(&dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
                      sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
                      sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i],
@@ -2314,7 +2314,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
    {
       return;
    }
-   auto &dseg = storage.get_segment(segment);
+   auto &dseg = storage.GetSegment(segment);
 
    if (dseg.lowers[0] == dseg.lowers[1])
    {
@@ -2328,11 +2328,11 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
       {
          // perform lazy device allocation
          dseg.lowers[1] =
-            Alloc(dseg.nbytes, dseg.mtypes[1], dseg.is_temporary());
+            Alloc(dseg.nbytes, dseg.mtypes[1], dseg.IsTemporary());
          segment_maps[1].emplace(dseg.lowers[1], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, dseg.lowers[1], dseg.lowers[1] + dseg.nbytes,
                                "alloc " << (int)dseg.mtypes[1] << ", "
-                               << dseg.is_temporary());
+                               << dseg.IsTemporary());
       }
       BatchMemCopy(dseg.lowers[1], src - offset, dseg.mtypes[1],
                    MemoryType::HOST, copy_segs);
@@ -2345,8 +2345,8 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
              AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
              copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                           GetManagedMemoryType(), true));
-         check_valid(segment, i, offset, offset + nbytes,
-                     [&](auto start, auto stop, bool valid)
+         CheckValid(segment, i, offset, offset + nbytes,
+                    [&](auto start, auto stop, bool valid)
          {
             if (valid)
             {
@@ -2358,11 +2358,11 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
          {
             // perform lazy device allocation
             dseg.lowers[i] =
-               Alloc(dseg.nbytes, dseg.mtypes[i], dseg.is_temporary());
+               Alloc(dseg.nbytes, dseg.mtypes[i], dseg.IsTemporary());
             segment_maps[i].emplace(dseg.lowers[i], segment);
             MFEM_MEM_OP_DEBUG_ADD(
                0, dseg.lowers[i], dseg.lowers[i] + dseg.nbytes,
-               "alloc " << (int)dseg.mtypes[i] << ", " << dseg.is_temporary());
+               "alloc " << (int)dseg.mtypes[i] << ", " << dseg.IsTemporary());
          }
          BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
                       MemoryType::HOST, copy_segs);
@@ -2377,16 +2377,16 @@ void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
    {
       return;
    }
-   auto &sseg = storage.get_segment(segment);
+   auto &sseg = storage.GetSegment(segment);
    size_t sh_curr = 0;
    size_t sd_curr = 0;
    if (sseg.lowers[0])
    {
-      sh_curr = find_marker(segment, offset, false);
+      sh_curr = FindMarker(segment, offset, false);
    }
    if (sseg.lowers[1])
    {
-      sd_curr = find_marker(segment, offset, true);
+      sd_curr = FindMarker(segment, offset, true);
    }
 
    size_t curr = 0;
@@ -2399,7 +2399,7 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
 {
    if (segment)
    {
-      auto &seg = storage.get_segment(segment);
+      auto &seg = storage.GetSegment(segment);
       if (seg.lowers[1])
       {
          MFEM_VERIFY(seg.mtypes[1] == loc,
@@ -2410,7 +2410,7 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
       {
          seg.mtypes[1] = loc;
          // lazy device memory allocation
-         // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
+         // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.IsTemporary());
       }
    }
 }
@@ -2418,29 +2418,29 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
 void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
                                 bool host_valid, bool device_valid)
 {
-   auto &seg = storage.get_segment(segment);
+   auto &seg = storage.GetSegment(segment);
    if (host_valid)
    {
-      mark_valid(segment, false, offset, nbytes, [](auto, auto) {});
+      MarkValid(segment, false, offset, nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[0], seg.mtypes[0], offset, nbytes,
-                seg.is_temporary());
+                seg.IsTemporary());
    }
    else
    {
-      mark_invalid(segment, false, offset, nbytes, [](auto, auto) {});
-      Protect(seg.lowers[0], seg.mtypes[0], offset, nbytes, seg.is_temporary());
+      MarkInvalid(segment, false, offset, nbytes, [](auto, auto) {});
+      Protect(seg.lowers[0], seg.mtypes[0], offset, nbytes, seg.IsTemporary());
    }
 
    if (device_valid)
    {
-      mark_valid(segment, true, offset, nbytes, [](auto, auto) {});
+      MarkValid(segment, true, offset, nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[1], seg.mtypes[1], offset, nbytes,
-                seg.is_temporary());
+                seg.IsTemporary());
    }
    else
    {
-      mark_invalid(segment, true, offset, nbytes, [](auto, auto) {});
-      Protect(seg.lowers[1], seg.mtypes[1], offset, nbytes, seg.is_temporary());
+      MarkInvalid(segment, true, offset, nbytes, [](auto, auto) {});
+      Protect(seg.lowers[1], seg.mtypes[1], offset, nbytes, seg.IsTemporary());
    }
 }
 
@@ -2471,13 +2471,13 @@ void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
 
 void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
 {
-   auto &inst = instance();
+   auto &inst = Instance();
    inst.UpdateDualMemoryType(mt, dual_mt);
 }
 
 MemoryType MemoryManager::GetDualMemoryType(MemoryType mt)
 {
-   auto &inst = instance();
+   auto &inst = Instance();
    return inst.dual_map[(int)mt];
 }
 

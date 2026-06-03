@@ -60,18 +60,18 @@ private:
          ptrdiff_t offset;
          Flags flag = Flags::NONE;
 
-         bool is_valid() const { return flag & VALID; }
-         void set_valid() { flag = static_cast<Flags>(flag | VALID); }
-         void set_invalid() { flag = static_cast<Flags>(flag & ~VALID); }
-         void set_black() { flag = static_cast<Flags>(flag & ~RED_COLOR); }
-         void set_red() { flag = static_cast<Flags>(flag | RED_COLOR); }
-         void copy_color(const Node &o)
+         bool IsValid() const { return flag & VALID; }
+         void SetValid() { flag = static_cast<Flags>(flag | VALID); }
+         void SetInvalid() { flag = static_cast<Flags>(flag & ~VALID); }
+         void SetBlack() { flag = static_cast<Flags>(flag & ~RED_COLOR); }
+         void SetRed() { flag = static_cast<Flags>(flag | RED_COLOR); }
+         void CopyColor(const Node &o)
          {
             flag =
                static_cast<Flags>((flag & ~RED_COLOR) | (o.flag & RED_COLOR));
          }
 
-         bool is_red() const { return flag & RED_COLOR; }
+         bool IsRed() const { return flag & RED_COLOR; }
       };
       struct Segment
       {
@@ -82,50 +82,50 @@ private:
          size_t ref_count = 1;
          bool temporary = false;
 
-         void set_temporary() { temporary = true; }
-         void reset_temporary() { temporary = false; }
-         bool is_temporary() const { return temporary; }
+         void SetTemporary() { temporary = true; }
+         void ResetTemporary() { temporary = false; }
+         bool IsTemporary() const { return temporary; }
       };
       internal::ReusableStorage<Node> nodes;
       internal::ReusableStorage<Segment> segments;
 
-      using RBTree<RBase>::insert;
-      using RBTree<RBase>::erase;
-      using RBTree<RBase>::first;
-      using RBTree<RBase>::visit;
-      using RBTree<RBase>::successor;
+      using RBTree<RBase>::Insert;
+      using RBTree<RBase>::Erase;
+      using RBTree<RBase>::First;
+      using RBTree<RBase>::Visit;
+      using RBTree<RBase>::Successor;
 
-      Node &get_node(size_t curr) { return nodes.Get(curr); }
-      const Node &get_node(size_t curr) const { return nodes.Get(curr); }
+      Node &GetNode(size_t curr) { return nodes.Get(curr); }
+      const Node &GetNode(size_t curr) const { return nodes.Get(curr); }
 
-      Segment &get_segment(size_t curr) { return segments.Get(curr); }
-      const Segment &get_segment(size_t curr) const
+      Segment &GetSegment(size_t curr) { return segments.Get(curr); }
+      const Segment &GetSegment(size_t curr) const
       {
          return segments.Get(curr);
       }
 
-      void post_left_rotate(size_t) {}
-      void post_right_rotate(size_t) {}
-      void erase_swap_hook(size_t) {}
+      void PostLeftRotate(size_t) {}
+      void PostRightRotate(size_t) {}
+      void EraseSwapHook(size_t) {}
 
-      auto compare_nodes(size_t a, size_t b) const
+      auto CompareNodes(size_t a, size_t b) const
       {
-         auto &na = get_node(a);
-         auto &nb = get_node(b);
+         auto &na = GetNode(a);
+         auto &nb = GetNode(b);
          return nb.offset - na.offset;
       }
 
-      void insert_duplicate(size_t a, size_t b);
+      void InsertDuplicate(size_t a, size_t b);
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid);
+      size_t Insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid);
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, size_t node, ptrdiff_t offset,
+      size_t Insert(size_t segment, size_t node, ptrdiff_t offset,
                     bool on_device, bool valid);
    };
 
-   void print_segment(size_t segment);
+   void PrintSegment(size_t segment);
 
 private:
    template <class T> friend class Memory;
@@ -134,7 +134,7 @@ private:
    MemoryManager();
 
    RBase storage;
-   void erase_node(size_t &root, size_t idx);
+   void EraseNode(size_t &root, size_t idx);
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
    std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
    // host, device, host-pinned, managed
@@ -163,61 +163,60 @@ private:
    std::map<const void *, size_t> segment_maps[2];
 
    /// remove all validity markers for a segment
-   void clear_segment(size_t segment);
-   void clear_segment(RBase::Segment &seg);
+   void ClearSegment(size_t segment);
+   void ClearSegment(RBase::Segment &seg);
 
-   void clear_segment(RBase::Segment &seg, bool on_device);
-   void clear_segment(size_t segment, bool on_device);
+   void ClearSegment(RBase::Segment &seg, bool on_device);
+   void ClearSegment(size_t segment, bool on_device);
 
-   size_t find_marker(size_t segment, ptrdiff_t offset, bool on_device);
+   size_t FindMarker(size_t segment, ptrdiff_t offset, bool on_device);
 
    /// calls func(begin, end, valid) for each section between [start, stop)
    /// returns early if func returns true
    template <class F>
-   void check_valid(size_t segment, bool on_device, ptrdiff_t start,
-                    ptrdiff_t stop, F &&func);
+   void CheckValid(size_t segment, bool on_device, ptrdiff_t start,
+                   ptrdiff_t stop, F &&func);
 
    /// @a curr is a marker node index
    template <class F>
-   void check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop, F &&func);
+   void CheckValid(size_t curr, ptrdiff_t start, ptrdiff_t stop, F &&func);
 
    template <class F>
-   void mark_valid(size_t segment, bool on_device, ptrdiff_t start,
-                   ptrdiff_t stop, F &&func);
+   void MarkValid(size_t segment, bool on_device, ptrdiff_t start,
+                  ptrdiff_t stop, F &&func);
 
    template <class F>
-   void mark_invalid(size_t segment, bool on_device, ptrdiff_t start,
-                     ptrdiff_t stop, F &&func);
+   void MarkInvalid(size_t segment, bool on_device, ptrdiff_t start,
+                    ptrdiff_t stop, F &&func);
 
-   size_t insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
+   size_t Insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
                  MemoryType dloc, bool valid_host, bool valid_device,
                  bool temporary);
 
    /// Decreases reference count on @a segment
-   void erase(size_t segment);
+   void Erase(size_t segment);
 
    MemoryType GetMemoryType(size_t segment, size_t offset, size_t nbytes);
 
-   bool is_valid(size_t segment, size_t offset, size_t nbytes, bool on_device);
+   bool IsValid(size_t segment, size_t offset, size_t nbytes, bool on_device);
 
-   bool check_read(size_t segment, size_t offset, size_t nbytes,
-                   bool on_device);
-   bool check_read_write(size_t segment, size_t offset, size_t nbytes,
-                         bool on_device);
+   bool CheckRead(size_t segment, size_t offset, size_t nbytes, bool on_device);
+   bool CheckReadWrite(size_t segment, size_t offset, size_t nbytes,
+                       bool on_device);
 
-   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *Read(size_t segment, size_t offset,
                                                 size_t nbytes, bool on_device);
-   MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *Write(size_t segment, size_t offset,
                                            size_t nbytes, bool on_device);
-   MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
-                                                size_t nbytes, bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *ReadWrite(size_t segment, size_t offset,
+                                               size_t nbytes, bool on_device);
 
-   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *Read(size_t segment, size_t offset,
                                                 size_t nbytes, MemoryClass mc);
-   MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *Write(size_t segment, size_t offset,
                                            size_t nbytes, MemoryClass mc);
-   MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
-                                                size_t nbytes, MemoryClass mc);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *ReadWrite(size_t segment, size_t offset,
+                                               size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
    size_t CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
@@ -240,7 +239,7 @@ private:
 
    void CopyToHost(size_t segment, size_t offset, char *dst, size_t nbytes);
 
-   int compare_host_device(size_t segment, size_t offset, size_t nbytes);
+   int CompareHostDevice(size_t segment, size_t offset, size_t nbytes);
 
    /// @a copy_segs first is start offset, second is stop offset
    void BatchMemCopy(
@@ -275,7 +274,7 @@ private:
 #endif
    void EnsureAlloc(MemoryType mt);
 
-   static bool rw_on_dev(MemoryClass mc)
+   static bool RWOnDevice(MemoryClass mc)
    {
       if (IsHostMemory(mfem::GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
       {
@@ -302,7 +301,7 @@ public:
    /// device)
    void Destroy();
 
-   MFEM_ENZYME_INACTIVENOFREE static MemoryManager &instance();
+   MFEM_ENZYME_INACTIVENOFREE static MemoryManager &Instance();
 
    void Configure(MemoryType host_loc = MemoryType::DEFAULT,
                   MemoryType device_loc = MemoryType::DEFAULT,
@@ -334,39 +333,40 @@ public:
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
    static void SetUmpireHostAllocatorName(const char *h_name)
    {
-      instance().SetUmpireHostAllocatorName_(h_name);
+      Instance().SetUmpireHostAllocatorName_(h_name);
    }
    /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
    static void SetUmpireDeviceAllocatorName(const char *d_name)
    {
-      instance().SetUmpireDeviceAllocatorName_(d_name);
+      Instance().SetUmpireDeviceAllocatorName_(d_name);
    }
    /// Set the device Umpire allocator name used with
    /// MemoryType::DEVICE_UMPIRE_2
    static void SetUmpireDevice2AllocatorName(const char *d_name)
    {
-      instance().SetUmpireDevice2AllocatorName_(d_name);
+      Instance().SetUmpireDevice2AllocatorName_(d_name);
    }
 
    /// Get the host Umpire allocator name used with MemoryType::HOST_UMPIRE
    static const char *GetUmpireHostAllocatorName()
    {
-      return instance().h_umpire_name.c_str();
+      return Instance().h_umpire_name.c_str();
    }
    /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
    static const char *GetUmpireDeviceAllocatorName()
    {
-      return instance().d_umpire_name.c_str();
+      return Instance().d_umpire_name.c_str();
    }
    /// Get the device Umpire allocator name used with
    /// MemoryType::DEVICE_UMPIRE_2
    static const char *GetUmpireDevice2AllocatorName()
    {
-      return instance().d_umpire_2_name.c_str();
+      return Instance().d_umpire_2_name.c_str();
    }
 #endif
 };
 
+/// C++ custom allocator interface for memory manager allocators
 template <class T> class AllocatorAdaptor
 {
    int idx = 0;
@@ -401,7 +401,7 @@ public:
 
    T *allocate(size_t n)
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       void *res;
       inst.allocs[idx]->Alloc(&res, n * sizeof(T));
       return static_cast<T *>(res);
@@ -409,7 +409,7 @@ public:
 
    void deallocate(T *ptr, size_t n)
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       inst.allocs[idx]->Dealloc(ptr, n);
    }
 };
@@ -438,7 +438,7 @@ protected:
       USE_DEVICE = 1 << 3,
       TEMPORARY = 1 << 4,
    };
-   MemoryType h_mt = MemoryManager::instance().GetHostMemoryType();
+   MemoryType h_mt = MemoryManager::Instance().GetHostMemoryType();
    mutable Flags flags = NONE;
 
    friend class MemoryManager;
@@ -449,7 +449,7 @@ protected:
              bool valid_host);
 
 public:
-   Memory() { MemoryManager::instance(); };
+   Memory() { MemoryManager::Instance(); };
    explicit Memory(int size, bool temporary = false);
    Memory(size_t count, MemoryType loc, bool temporary = false);
    Memory(size_t count, MemoryType hloc, MemoryType dloc,
@@ -540,7 +540,7 @@ public:
       {
          return;
       }
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (!segment)
       {
          if (h_ptr == nullptr)
@@ -550,7 +550,7 @@ public:
          else
          {
             segment =
-               inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
+               inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
                            size_ * sizeof(T), h_mt, loc, true, false, false);
             flags = static_cast<Flags>(flags | OWNS_DEVICE);
          }
@@ -658,14 +658,14 @@ public:
 
    void DeleteDevice(bool copy_to_host = true)
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
-         auto &seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.GetSegment(segment);
          if (copy_to_host)
          {
             // ensure the full segment is valid on host
-            inst.read(segment, 0, seg.nbytes, false);
+            inst.Read(segment, 0, seg.nbytes, false);
          }
          if (seg.lowers[1] != seg.lowers[0] && seg.lowers[1])
          {
@@ -674,9 +674,9 @@ public:
                MFEM_MEM_OP_DEBUG_REMOVE2(
                   1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                   "dealloc " << (int)seg.mtypes[1] << ", "
-                  << seg.is_temporary());
+                  << seg.ITemporary());
                inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
-                            seg.is_temporary());
+                            seg.IsTemporary());
                inst.segment_maps[1].erase(seg.lowers[1]);
                seg.lowers[1] = nullptr;
                inst.SetValidity(segment, 0, seg.nbytes, true, false);
@@ -690,8 +690,9 @@ public:
    {
    }
 
-   /// Make *this valid everywhere base is valid, possibly involves copies.
-   /// Should be @deprecated, but some code relies on the copy behavior?
+   /// @deprecated This is a no-op. Note that previously this could copy data
+   /// between host/device pointers; this is now deferred to the next call to
+   /// Read/ReadWrite.
    void SyncAlias(const Memory &base, int alias_size) const
    {
       MFEM_MEM_OP_DEBUG_SYNC_ALIAS(3, h_ptr, base.h_ptr,
@@ -704,7 +705,7 @@ public:
       {
          return h_mt;
       }
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
          return inst.GetMemoryType(segment, offset_ * sizeof(T),
@@ -720,32 +721,32 @@ public:
 
    MemoryType GetDeviceMemoryType() const
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
-         return inst.storage.get_segment(segment).mtypes[1];
+         return inst.storage.GetSegment(segment).mtypes[1];
       }
       return MemoryType::DEFAULT;
    }
 
    bool HostIsValid() const
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
-         return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
-                              false);
+         return inst.IsValid(segment, offset_ * sizeof(T), size_ * sizeof(T),
+                             false);
       }
       return h_ptr != nullptr;
    }
 
    bool DeviceIsValid() const
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
-         return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
-                              true);
+         return inst.IsValid(segment, offset_ * sizeof(T), size_ * sizeof(T),
+                             true);
       }
       return false;
    }
@@ -764,15 +765,15 @@ public:
 
    void PrintFlags() const
    {
-      auto &inst = MemoryManager::instance();
-      inst.print_segment(segment);
+      auto &inst = MemoryManager::Instance();
+      inst.PrintSegment(segment);
    }
 
    int CompareHostAndDevice(int size) const
    {
-      auto &inst = MemoryManager::instance();
-      return inst.compare_host_device(segment, offset_ * sizeof(T),
-                                      size * sizeof(T));
+      auto &inst = MemoryManager::Instance();
+      return inst.CompareHostDevice(segment, offset_ * sizeof(T),
+                                    size * sizeof(T));
    }
 
    bool IsTemporary() const { return flags & TEMPORARY; }
@@ -780,10 +781,10 @@ public:
 
 template <class T> void Memory<T>::New(size_t size)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -807,10 +808,10 @@ template <class T> void Memory<T>::New(size_t size)
 
 template <class T> void Memory<T>::New(size_t size, bool temporary)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -839,7 +840,7 @@ template <class T> void Memory<T>::New(size_t size, bool temporary)
 template <class T>
 void Memory<T>::New(size_t size, MemoryType loc, bool temporary)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    MemoryType hloc;
    MemoryType dloc = MemoryType::DEFAULT;
    if (IsHostMemory(loc))
@@ -866,10 +867,10 @@ template <class T>
 void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
                      bool temporary, bool valid_host)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -896,7 +897,7 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
                         hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
-      segment = inst.insert(reinterpret_cast<char *>(h_ptr),
+      segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(h_ptr), size * sizeof(T),
                             h_mt, dloc, valid_host, !valid_host, temporary);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
@@ -905,7 +906,7 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment =
-         inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
+         inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
                      h_mt, dloc, valid_host, !valid_host, temporary);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
@@ -916,10 +917,10 @@ template <class T> void Memory<T>::Delete()
 {
    if (segment)
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if ((flags & OWNS_DEVICE))
       {
-         auto &seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.GetSegment(segment);
          MFEM_ASSERT(offset_ == 0, "should not have any offset");
          MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
                      "should hot refer to a subsection");
@@ -927,9 +928,9 @@ template <class T> void Memory<T>::Delete()
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(
                1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
-               "dealloc " << (int)seg.mtypes[1] << ", " << seg.is_temporary());
+               "dealloc " << (int)seg.mtypes[1] << ", " << seg.IsTemporary());
             inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
-                         seg.is_temporary());
+                         seg.IsTemporary());
             inst.segment_maps[1].erase(seg.lowers[1]);
          }
          seg.lowers[1] = nullptr;
@@ -939,7 +940,7 @@ template <class T> void Memory<T>::Delete()
          MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
 
          bool temporary = IsTemporary();
-         auto &seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.GetSegment(segment);
          if (seg.lowers[0] == nullptr)
          {
             // de-allocated by inst.Destroy()
@@ -989,7 +990,7 @@ template <class T> void Memory<T>::Delete()
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
                                       "dealloc " << (int)h_mt << ", "
                                       << temporary);
-            auto& inst = MemoryManager::instance();
+            auto& inst = MemoryManager::Instance();
             inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
                          h_mt, temporary);
          }
@@ -1002,10 +1003,10 @@ template <class T> void Memory<T>::Delete()
 
 template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -1025,7 +1026,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
          auto tmp = iter;
          --tmp;
          // tmp->first <= p, check stops
-         auto &seg = inst.storage.get_segment(tmp->second);
+         auto &seg = inst.storage.GetSegment(tmp->second);
          if (p < seg.lowers[idx] + seg.nbytes)
          {
             found = true;
@@ -1048,7 +1049,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
       offset_ = reinterpret_cast<const char *>(ptr) -
                 reinterpret_cast<const char *>(iter->first);
       segment = iter->second;
-      auto& seg = inst.storage.get_segment(segment);
+      auto& seg = inst.storage.GetSegment(segment);
       h_mt = seg.mtypes[0];
       ++seg.ref_count;
       flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE |
@@ -1064,7 +1065,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
          offset_ = reinterpret_cast<const char *>(ptr) -
                    reinterpret_cast<const char *>(iter->first);
          segment = iter->second;
-         auto &seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.GetSegment(segment);
          h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
          h_mt = seg.mtypes[0];
          ++seg.ref_count;
@@ -1088,10 +1089,10 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
 
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -1112,7 +1113,7 @@ template <class T>
 void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own,
                      bool temporary)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    T *h_ptr_ = nullptr;
    T* d_ptr_ = nullptr;
    MemoryType hloc = MemoryType::DEFAULT;
@@ -1178,10 +1179,10 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                      MemoryType dloc, bool own_host, bool own_device,
                      bool valid_host, bool valid_device, bool temporary)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
    }
    h_ptr = h_ptr_;
@@ -1205,7 +1206,7 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
       }
       MFEM_ASSERT(h_ptr != nullptr,
                   "Cannot wrap d_ptr != nullptr with h_ptr == nullptr");
-      segment = inst.insert(reinterpret_cast<char *>(h_ptr),
+      segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(d_ptr), size * sizeof(T),
                             hloc, dloc, valid_host, valid_device, false);
    }
@@ -1242,10 +1243,10 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       return;
    }
 
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
    }
    h_ptr = base.h_ptr + offset;
    offset_ = base.offset_ + offset;
@@ -1267,7 +1268,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 #endif
       )
       {
-         base.segment = inst.insert(reinterpret_cast<char *>(base.h_ptr),
+         base.segment = inst.Insert(reinterpret_cast<char *>(base.h_ptr),
                                     nullptr, base.size_ * sizeof(T), base.h_mt,
                                     MemoryType::DEFAULT, true, false, false);
          if (base.flags & OWNS_HOST)
@@ -1280,7 +1281,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    segment = base.segment;
    if (segment)
    {
-      ++inst.storage.get_segment(segment).ref_count;
+      ++inst.storage.GetSegment(segment).ref_count;
    }
 }
 
@@ -1304,7 +1305,7 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
 
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 {
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    MemoryType dloc = MemoryType::DEFAULT;
    if (IsHostMemory(mt))
    {
@@ -1318,7 +1319,7 @@ template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
    if (dloc != MemoryType::DEFAULT)
    {
       segment =
-         inst.insert(nullptr, nullptr, 0, h_mt, dloc, false, false, false);
+         inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false, false);
    }
 }
 
@@ -1326,7 +1327,7 @@ template <class T>
 Memory<T>::Memory(T *ptr, size_t count, bool own)
 {
    // ensure MemoryManager instance exists
-   MemoryManager::instance();
+   MemoryManager::Instance();
    Wrap(ptr, count, own);
 }
 
@@ -1334,7 +1335,7 @@ template <class T>
 Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
 {
    // ensure MemoryManager instance exists
-   MemoryManager::instance();
+   MemoryManager::Instance();
    Wrap(ptr, count, loc, own);
 }
 
@@ -1345,16 +1346,16 @@ template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
 
 template <class T> void Memory<T>::Reset()
 {
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    Reset(inst.GetHostMemoryType());
 }
 
 template <class T> void Memory<T>::Reset(MemoryType host_mt)
 {
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    if (segment)
    {
-      inst.erase(segment);
+      inst.Erase(segment);
       segment = 0;
       offset_ = 0;
    }
@@ -1369,10 +1370,10 @@ Memory<T>::Memory(const Memory &r)
    : h_ptr(r.h_ptr), size_(r.size_), offset_(r.offset_), segment(r.segment),
      h_mt(r.h_mt), flags(r.flags)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
-      auto &seg = inst.storage.get_segment(segment);
+      auto &seg = inst.storage.GetSegment(segment);
       ++seg.ref_count;
    }
    // Old copy constructor semantics closer to "move" so no else case is needed.
@@ -1394,10 +1395,10 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
 {
    if (&r != this)
    {
-      auto &inst = MemoryManager::instance();
+      auto &inst = MemoryManager::Instance();
       if (segment)
       {
-         inst.erase(segment);
+         inst.Erase(segment);
       }
       h_ptr = r.h_ptr;
       size_ = r.size_;
@@ -1408,7 +1409,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       flags = r.flags;
       if (segment)
       {
-         auto &seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.GetSegment(segment);
          ++seg.ref_count;
       }
       // old copy assign semantics closer to "move" so no else case is needed
@@ -1422,8 +1423,8 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
    {
       if (segment)
       {
-         auto &inst = MemoryManager::instance();
-         inst.erase(segment);
+         auto &inst = MemoryManager::Instance();
+         inst.Erase(segment);
          segment = 0;
       }
       h_ptr = r.h_ptr;
@@ -1443,7 +1444,7 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
 
 template <class T> void Memory<T>::EnsureRegistered() const
 {
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    if (h_ptr && !segment &&
 #if !defined(HYPRE_USING_GPU)
        IsDeviceMemory(inst.GetDeviceMemoryType())
@@ -1457,7 +1458,7 @@ template <class T> void Memory<T>::EnsureRegistered() const
       )
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
-      segment = inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
+      segment = inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
                             size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true,
                             false, false);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
@@ -1469,15 +1470,16 @@ template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size,
                          " Write Request");
    MFEM_MEM_OP_BENCH_SCOPE(2, true);
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
-      return reinterpret_cast<T *>(inst.write(
-                                      segment, (offset + offset_) * sizeof(T), size * sizeof(T), on_device));
+      return reinterpret_cast<T *>(inst.Write(segment,
+                                              (offset + offset_) * sizeof(T),
+                                              size * sizeof(T), on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size, " Write");
    return h_ptr + offset;
@@ -1488,15 +1490,16 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
                          " ReadWrite Request");
    MFEM_MEM_OP_BENCH_SCOPE(0, true);
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
-      return reinterpret_cast<T *>(inst.read_write(
-                                      segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
+      return reinterpret_cast<T *>(
+                inst.ReadWrite(segment, (offset_ + offset) * sizeof(T),
+                               size * sizeof(T), on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
                          " ReadWrite");
@@ -1509,15 +1512,16 @@ const T *Memory<T>::Read(bool on_device, int offset, int size) const
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size,
                          " Read Request");
    MFEM_MEM_OP_BENCH_SCOPE(1, true);
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
-      return reinterpret_cast<const T *>(inst.read(
-                                            segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
+      return reinterpret_cast<const T *>(
+                inst.Read(segment, (offset_ + offset) * sizeof(T), size * sizeof(T),
+                          on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size, " Read");
    return h_ptr + offset;
@@ -1525,24 +1529,24 @@ const T *Memory<T>::Read(bool on_device, int offset, int size) const
 
 template <class T> T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   return Write(MemoryManager::rw_on_dev(mc), size);
+   return Write(MemoryManager::RWOnDevice(mc), size);
 }
 
 template <class T> T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   return ReadWrite(MemoryManager::rw_on_dev(mc), size);
+   return ReadWrite(MemoryManager::RWOnDevice(mc), size);
 }
 
 template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   return Read(MemoryManager::rw_on_dev(mc), size);
+   return Read(MemoryManager::RWOnDevice(mc), size);
 }
 
 template <class T> T &Memory<T>::operator[](size_t idx)
 {
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + idx, h_ptr + idx + 1, " ReadWrite[]");
    MFEM_ASSERT(h_ptr && idx < size_ &&
-               MemoryManager::instance().check_read_write(
+               MemoryManager::Instance().CheckReadWrite(
                   segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
                "invalid host pointer access");
    return h_ptr[idx];
@@ -1552,7 +1556,7 @@ template <class T> const T &Memory<T>::operator[](size_t idx) const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + idx, h_ptr + idx + 1, " Read[]");
    MFEM_ASSERT(h_ptr && idx < size_ &&
-               MemoryManager::instance().check_read(
+               MemoryManager::Instance().CheckRead(
                   segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
                "invalid host pointer access");
    return h_ptr[idx];
@@ -1562,8 +1566,8 @@ template <class T> Memory<T>::~Memory()
 {
    if (segment)
    {
-      auto &inst = MemoryManager::instance();
-      inst.erase(segment);
+      auto &inst = MemoryManager::Instance();
+      inst.Erase(segment);
       segment = 0;
    }
 }
@@ -1576,7 +1580,7 @@ template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
    {
       return;
    }
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    MFEM_ASSERT(size >= 0, "out of bounds copy");
    MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
    MFEM_ASSERT(size_t(size) <= src.size_, "out of bounds copy");
@@ -1618,7 +1622,7 @@ template <class T> void Memory<T>::CopyFromHost(const T *src, int size)
    {
       return;
    }
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    MFEM_ASSERT(size >= 0, "out of bounds copy");
    MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
    if (segment)
@@ -1647,7 +1651,7 @@ template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
    {
       return;
    }
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    MFEM_ASSERT(size >= 0, "out of bounds copy");
    MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
    if (segment)
@@ -1666,7 +1670,7 @@ template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
 template <class T> Memory<T>::operator T *()
 {
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
-   MFEM_ASSERT(MemoryManager::instance().check_read_write(
+   MFEM_ASSERT(MemoryManager::Instance().CheckReadWrite(
                   segment, offset_ * sizeof(T), size_ * sizeof(T), false),
                "invalid host pointer access");
    return h_ptr;
@@ -1675,7 +1679,7 @@ template <class T> Memory<T>::operator T *()
 template <class T> Memory<T>::operator const T *() const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
-   MFEM_ASSERT(MemoryManager::instance().check_read(
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(
                   segment, offset_ * sizeof(T), size_ * sizeof(T), false),
                "invalid host pointer access");
    return h_ptr;
@@ -1684,7 +1688,7 @@ template <class T> Memory<T>::operator const T *() const
 template <class T> template <class U> Memory<T>::operator U *()
 {
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
-   MFEM_ASSERT(MemoryManager::instance().check_read_write(
+   MFEM_ASSERT(MemoryManager::Instance().CheckReadWrite(
                   segment, offset_ * sizeof(T), size_ * sizeof(T), false),
                "invalid host pointer access");
    return reinterpret_cast<U *>(h_ptr);
@@ -1693,7 +1697,7 @@ template <class T> template <class U> Memory<T>::operator U *()
 template <class T> template <class U> Memory<T>::operator const U *() const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
-   MFEM_ASSERT(MemoryManager::instance().check_read(
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(
                   segment, offset_ * sizeof(T), size_ * sizeof(T), false),
                "invalid host pointer access");
    return reinterpret_cast<const U *>(h_ptr);

@@ -64,7 +64,7 @@ namespace mfem
 {
 MemoryType GetMemoryType(MemoryClass mc)
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    switch (mc)
    {
       case MemoryClass::HOST:    return inst.GetHostMemoryType();
@@ -1787,7 +1787,7 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
 
 MemoryManager mm;
 
-MemoryManager& MemoryManager::instance()
+MemoryManager& MemoryManager::Instance()
 {
    return mm;
 }

@@ -638,7 +638,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = MemoryManager::instance().GetHostPinnedMemoryType();
+      auto mt = MemoryManager::Instance().GetHostPinnedMemoryType();
       Array<T> workspace(nblocks, mt, mt, true);
       auto work = workspace.HostWrite();
       red.work = work;

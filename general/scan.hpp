@@ -62,9 +62,9 @@ template <class Op> void DoDeviceScan(Op &&op)
    MFEM_GPU_CHECK(op(nullptr, bytes));
 #ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
    Array<std::byte> workspace(
-      bytes, MemoryManager::instance().GetDeviceMemoryType(), true);
+      bytes, MemoryManager::Instance().GetDeviceMemoryType(), true);
 #else
-   workspace.SetSize(bytes, MemoryManager::instance().GetDeviceMemoryType());
+   workspace.SetSize(bytes, MemoryManager::Instance().GetDeviceMemoryType());
 #endif
    MFEM_GPU_CHECK(op(workspace.Write(), bytes));
 }
@@ -258,10 +258,10 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
       // bug in cuda < 12.5, work-around: use Flagged instead
 #ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
       Array<bool> flags(num_items,
-                        MemoryManager::instance().GetDeviceMemoryType(), true);
+                        MemoryManager::Instance().GetDeviceMemoryType(), true);
 #else
       Array<bool> flags(num_items,
-                        MemoryManager::instance().GetDeviceMemoryType());
+                        MemoryManager::Instance().GetDeviceMemoryType());
 #endif
       auto ptr = flags.Write();
       forall(num_items,

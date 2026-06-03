@@ -932,7 +932,7 @@ public:
    MemoryManager();
    ~MemoryManager();
 
-   static MemoryManager& instance();
+   static MemoryManager& Instance();
 
    /// Initialize the memory manager.
    void Init();

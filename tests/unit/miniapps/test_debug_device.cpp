@@ -46,7 +46,7 @@ static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 
 static void ScanMemoryTypes()
 {
-   auto &inst = MemoryManager::instance();
+   auto &inst = MemoryManager::Instance();
    const auto h_mt = inst.GetHostMemoryType(),
               d_mt = inst.GetDeviceMemoryType();
    TestMemoryTypes(h_mt, true), TestMemoryTypes(d_mt, true);
@@ -127,7 +127,7 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    {
       int overflow(int c) override { return c; }
    } null_buffer;
-   auto& inst = MemoryManager::instance();
+   auto& inst = MemoryManager::Instance();
    std::ostream dev_null(&null_buffer);
    const auto n_ptr = inst.PrintPtrs(dev_null);
 #ifndef MFEM_USE_NEW_MEM_MANAGER

@@ -146,7 +146,7 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
 
    mfem::out << "src flags:" << std::endl;
    src.PrintFlags();
-   Memory<char> dst(5, MemoryManager::instance().GetDeviceMemoryType(), false);
+   Memory<char> dst(5, MemoryManager::Instance().GetDeviceMemoryType(), false);
    mfem::out << "dst flags:" << std::endl;
    dst.PrintFlags();
    {
