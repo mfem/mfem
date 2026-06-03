@@ -447,7 +447,7 @@ miniapps/hdg/convdiff*.mesh
 miniapps/hdg/Convdiff*
 miniapps/hdg/pconvdiff
 miniapps/hdg/pconvdiff*.mesh
-miniapps/hdg/Pconvdiff*
+miniapps/hdg/PConvdiff*
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div

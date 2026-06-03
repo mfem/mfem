@@ -1155,7 +1155,7 @@ int main(int argc, char *argv[])
       // 15. Save data in the ParaView format
       if (paraview)
       {
-         static ParaViewDataCollection paraview_dc("Pconvdiff", &pmesh);
+         static ParaViewDataCollection paraview_dc("PConvdiff", &pmesh);
          if (ti == 0)
          {
             paraview_dc.SetPrefixPath("ParaView");
