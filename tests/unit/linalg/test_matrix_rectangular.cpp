@@ -95,6 +95,7 @@ TEST_CASE("MixedBilinearFormSubMeshTrial", "[FormRectangularSystemMatrix]")
    submesh_form.Mult(trial_gf, submesh_result);
    reference_form.Mult(parent_trial_gf, reference_result);
 
+   REQUIRE(submesh_result.Norml2() >= MFEM_Approx(0.0));
    submesh_result -= reference_result;
    REQUIRE(submesh_result.Norml2() == MFEM_Approx(0.0));
 }
@@ -252,6 +253,7 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrial",
    submesh_mat->Mult(*trial_true, *submesh_result);
    reference_mat->Mult(*parent_trial_true, *reference_result);
 
+   REQUIRE(submesh_result->Norml2() >= MFEM_Approx(0.0));
    *submesh_result -= *reference_result;
    REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
 }

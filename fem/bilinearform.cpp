@@ -1557,8 +1557,7 @@ static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
                                    const Array<int> *&test_edge_ids,
                                    const Array<int> *&test_vertex_ids)
 {
-   if (SubMesh::IsSubMesh(sub) &&
-       static_cast<const SubMesh *>(sub)->GetParent() == parent)
+   if (SubMesh::IsSubMesh(sub, parent))
    {
       const SubMesh *trial_submesh = static_cast<const SubMesh *>(sub);
       test_element_ids = &trial_submesh->GetParentElementIDMap();
@@ -1568,8 +1567,7 @@ static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
       return true;
    }
 #ifdef MFEM_USE_MPI
-   if (ParSubMesh::IsParSubMesh(sub) &&
-       static_cast<const ParSubMesh *>(sub)->GetParent() == parent)
+   if (ParSubMesh::IsParSubMesh(sub, parent))
    {
       const ParSubMesh *trial_submesh = static_cast<const ParSubMesh *>(sub);
       test_element_ids = &trial_submesh->GetParentElementIDMap();
