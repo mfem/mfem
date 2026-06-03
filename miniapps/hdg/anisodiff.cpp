@@ -169,8 +169,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&ref_levels, "-r", "--ref-levels",
+                  "Number of refinement levels (automatic to 10000 elements by default)");
    args.AddOption(&dr, "-dr", "--delta-random",
                   "Relative random displacement of the mesh nodes.");
    args.AddOption(&nx, "-nx", "--ncells-x",
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
       case Problem::Sovinec:
       case Problem::SingleNull:
       case Problem::DoubleNull:
-         // Free b.c. (zero Dirichlet)
+         // Free BC (zero Dirichlet)
          if (bc_neumann)
          {
             bdr_is_neumann[1] = -1; // Outflow
@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
-   pars.t_0 = 1.; //base temperature
+   pars.t_0 = 1.; // Base temperature
 
    ConstantCoefficient acoeff(pars.a); // Heat capacity
 
@@ -662,7 +662,7 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   // 9. Define the BlockStructure of the problem, i.e. define the array of
+   // 9. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
@@ -709,6 +709,7 @@ int main(int argc, char *argv[])
       tr_h.MakeRef(trace_space.get(), x.GetBlock(2), 0);
    }
 
+   // Project essential b.c.
    if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
@@ -724,9 +725,9 @@ int main(int argc, char *argv[])
    unique_ptr<LinearForm> gform(new LinearForm);
    gform->Update(V_space.get(), rhs.GetBlock(0), 0);
 
-   // Dirichlet b.c.
    if (!hybridization || !trace_ess_bc)
    {
+      // Dirichlet BC
       if (dg)
       {
          gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
@@ -749,20 +750,19 @@ int main(int argc, char *argv[])
    fform->Update(W_space.get(), rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
-   // Neumann b.c. (non-hybridized)
    if (!hybridization)
    {
+      // Neumann BC (non-hybridized)
       fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +2., 0.),
                                   bdr_is_neumann);
    }
 
    // Constraint r.h.s.
-
    unique_ptr<LinearForm> hform;
 
-   // Neumann b.c. for the hybridized system
    if (hybridization)
    {
+      // Neumann BC for the hybridized system
       hform = make_unique<LinearForm>();
       hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
       hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
@@ -786,36 +786,51 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
-   // 12. Construct the HDG AMR refiner
+   // 12. Set up an error estimator. Here we use the HDG estimator which
+   // evaluates the difference between the face values of the potential and the
+   // trace variable and calculates its energy norm with respect to a given
+   // operator, which represented by the provided integrator implementing
+   // ComputeHDGFaceEnergy() method.
 
    unique_ptr<BilinearFormIntegrator> amr_bfi;
    unique_ptr<ErrorEstimator> amr_err;
-   unique_ptr<ThresholdRefiner> amr_ref;
 
    if (amr_nrefs > 0 && hybridization)
    {
       amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
       amr_err.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
       static_cast<HDGErrorEstimator*>(amr_err.get())->SetAnisotropic();
-      amr_ref.reset(new ThresholdRefiner(*amr_err));
-      amr_ref->SetTotalErrorFraction(0.7);
    }
    else
    {
       amr_nrefs = 0;
    }
 
+   // 13. A refiner selects and refines elements based on a refinement strategy.
+   //     The strategy here is to refine elements with errors larger than a
+   //     fraction of the maximum element error. Other strategies are possible.
+   //     The refiner will call the given error estimator.
+   unique_ptr<ThresholdRefiner> amr_ref;
+
+   if (amr_nrefs > 0)
+   {
+      amr_ref.reset(new ThresholdRefiner(*amr_err));
+      amr_ref->SetTotalErrorFraction(0.7);
+   }
+
+   // 14. The main AMR loop. In each iteration we solve the problem on the
+   //     current mesh, visualize the solution, and refine the mesh.
    for (int amr_it = 0; amr_it <= amr_nrefs; amr_it++)
    {
 
-      // 13. Solve the steady/asymptotic problem
+      // 15. Solve the steady/asymptotic problem
 
       Vector dx(x.Size()); dx = 0.;
       op.SetTime(1.);
       op.ImplicitSolve(1., x, dx);
       x += dx;
 
-      // 14. Compute the L2 error norms.
+      // 16. Compute the L2 error norms.
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -854,7 +869,7 @@ int main(int argc, char *argv[])
          cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
 
-      // 15. Project the fluxes
+      // 17. Project the fluxes
 
       GridFunction q_vh;
 
@@ -869,7 +884,7 @@ int main(int argc, char *argv[])
          q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
-      // 16. Project the analytic solution
+      // 18. Project the analytic solution
 
       static GridFunction q_a, t_a;
 
@@ -879,7 +894,7 @@ int main(int argc, char *argv[])
       t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
-      // 17. Save the mesh and the solution. This output can be viewed later
+      // 19. Save the mesh and the solution. This output can be viewed later
       //     using GLVis: "glvis -m anisodiff.mesh -g sol_q.gf" or "glvis -m
       //     anisodiff.mesh -g sol_t.gf".
       if (mfem)
@@ -910,7 +925,7 @@ int main(int argc, char *argv[])
          t_h.Save(t_ofs);
       }
 
-      // 18. Save data in the VisIt format
+      // 20. Save data in the VisIt format
       if (visit)
       {
          static VisItDataCollection visit_dc("Anisodiff", &mesh);
@@ -928,7 +943,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // 19. Save data in the ParaView format
+      // 21. Save data in the ParaView format
       if (paraview)
       {
          static ParaViewDataCollection paraview_dc("Anisodiff", &mesh);
@@ -950,7 +965,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      // 20. Send the solution by socket to a GLVis server.
+      // 22. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          static socketstream q_sock, t_sock;
@@ -971,7 +986,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      // 21. Refine the mesh
+      // 23. Refine the mesh
 
       if (amr_it < amr_nrefs)
       {
@@ -1028,7 +1043,7 @@ int main(int argc, char *argv[])
             darcy->EnableHybridization(trace_space.get(),
                                        new NormalTraceJumpIntegrator(),
                                        ess_flux_tdofs_list);
-            // set essential BC
+            // Set essential b.c.
             if (trace_ess_bc)
             {
                darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
