@@ -1050,6 +1050,13 @@ int main(int argc, char *argv[])
          if (V_space_dg) { V_space_dg->Update(); }
          W_space->Update();
          if (hybridization) { trace_space->Update(); }
+         if (reconstruct)
+         {
+            qt_h.FESpace()->Update();
+            t_hs.FESpace()->Update();
+            q_hs.FESpace()->Update();
+            tr_hs.FESpace()->Update();
+         }
 
          // Load balance the mesh, and update the spaces. Currently available
          // only for nonconforming meshes.
@@ -1061,6 +1068,13 @@ int main(int argc, char *argv[])
             if (V_space_dg) { V_space_dg->Update(); }
             W_space->Update();
             if (hybridization) { trace_space->Update(); }
+            if (reconstruct)
+            {
+               qt_h.FESpace()->Update();
+               t_hs.FESpace()->Update();
+               q_hs.FESpace()->Update();
+               tr_hs.FESpace()->Update();
+            }
          }
 
          // Update grid functions and linear forms
@@ -1071,6 +1085,13 @@ int main(int argc, char *argv[])
          x = 0.;
          q_h.MakeRef(V_space.get(), x.GetBlock(0), 0);
          t_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
+         if (reconstruct)
+         {
+            qt_h.SetSpace(qt_h.FESpace());
+            t_hs.SetSpace(t_hs.FESpace());
+            q_hs.SetSpace(q_hs.FESpace());
+            tr_hs.SetSpace(tr_hs.FESpace());
+         }
 
          gform->Update(V_space.get(), rhs.GetBlock(0), 0);
          fform->Update(W_space.get(), rhs.GetBlock(1), 0);
