@@ -781,18 +781,11 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
       }
       else
       {
-         // Inactive inputs are passed as enzyme_dup with their (zeroed) shadow,
-         // NOT as enzyme_const. Enzyme_const is unsafe here: when an inactive
-         // tensor_array is read through its copying accessor (e.g. J(q) ->
-         // get_tensor copies into a local tensor, then det(J)), Enzyme fails to
-         // zero the shadow of that local copy and propagates a primal-valued
-         // tangent (effectively dJ = J), injecting a spurious derivative term.
          process_inputs<wrapper_fn, qf_return_t, CurI + 1, NI, ActivityMap...>(
             inputs, shadows, primals, derivs,
             acc...,
-            enzyme_dup,
-            &std::get<CurI>(inputs),
-            &std::get<CurI>(shadows));
+            enzyme_const,
+            &std::get<CurI>(inputs));
       }
    }
 }
