@@ -31,7 +31,7 @@ TEST_CASE("MemoryManager/Scopes",
          // from Operator::RecoverFEMSolution
          x.SyncMemory(X);
       }
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
       // Accessible Memory<real_t> to get the flags
       struct MemoryReal
       {

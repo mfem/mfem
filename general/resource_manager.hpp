@@ -16,7 +16,7 @@
 #include <type_traits>
 #include <vector>
 
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
 
 #define MFEM_USE_TEMPORARY_WORK_BUFFERS
 
@@ -321,6 +321,14 @@ public:
    void Dealloc(char *ptr, size_t nbytes, MemoryType type, bool temporary);
    /// Raw unregistered allocation of a buffer
    char *Alloc(size_t nbytes, MemoryType type, bool temporary);
+
+   /// Prints all pointers known by the memory manager,
+   /// returning the number of printed pointers
+   int PrintPtrs(std::ostream &out = mfem::out);
+
+   /// no-op
+   [[deprecated]]
+   int PrintAliases(std::ostream &out = mfem::out) { return -1; }
 
 #ifdef MFEM_USE_UMPIRE
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE

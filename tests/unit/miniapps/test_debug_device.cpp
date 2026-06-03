@@ -17,8 +17,6 @@ using namespace mfem;
 #include "run_unit_tests.hpp"
 
 using namespace mfem;
-// TODO: fix
-#if 0
 #ifndef _WIN32 // Debug device specific tests, not supported on Windows
 #include <unistd.h>
 
@@ -132,7 +130,9 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    auto& inst = MemoryManager::instance();
    std::ostream dev_null(&null_buffer);
    const auto n_ptr = inst.PrintPtrs(dev_null);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
    const auto n_alias = inst.PrintAliases(dev_null);
+#endif
    const auto pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
 
@@ -140,16 +140,18 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    {
       Aliases(n);
       REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
       REQUIRE(inst.PrintAliases(dev_null) == n_alias);
+#endif
    }
    MmuCatch();
    ScanMemoryTypes();
 
    REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
    REQUIRE(inst.PrintAliases(dev_null) == n_alias);
-}
 #endif
-
+}
 #endif // _WIN32
 
 int main(int argc, char *argv[])

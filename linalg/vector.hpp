@@ -144,7 +144,7 @@ public:
       Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
 
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    Vector(int size_, MemoryType mt, bool temporary)
       : data(size_, mt, temporary), size(size_)
    {}
@@ -636,7 +636,7 @@ inline void Vector::SetSize(int s)
    // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
    const bool use_dev = data.UseDevice();
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    bool temporary = data.IsTemporary();
    data.Delete();
    data.New(s, mt, temporary);
@@ -663,7 +663,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
       }
    }
    const bool use_dev = data.UseDevice();
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    bool temporary = data.IsTemporary();
    data.Delete();
    if (s > 0 || temporary)

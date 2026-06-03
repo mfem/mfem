@@ -1233,7 +1233,7 @@ void Vector::DeleteAt(const Array<int> &indices)
       const bool use_dev = UseDevice();
 
       // extra entry for number of selected out
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
       Array<int> workspace(size + 1, true);
 #else
       Array<int> workspace(size + 1);

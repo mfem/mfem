@@ -4,7 +4,7 @@
 #include "general/forall.hpp"
 #include "general/resource_manager.hpp"
 
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
 using namespace mfem;
 
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")

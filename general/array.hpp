@@ -107,7 +107,7 @@ public:
       src.size = 0;
    }
 
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    Array(int size_, bool temporary) : data(size_, temporary), size(size_) {}
    Array(int size_, MemoryType mt, bool temporary)
       : data(size_, mt, temporary), size(size_)
@@ -820,7 +820,7 @@ template <class T>
 inline void Array<T>::GrowSize(int minsize)
 {
    const int nsize = std::max(minsize, 2 * data.Capacity());
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    Memory<T> p(nsize, data.GetMemoryType(), data.IsTemporary());
 #else
    Memory<T> p(nsize, data.GetMemoryType());
@@ -835,7 +835,7 @@ template <typename T>
 inline void Array<T>::ShrinkToFit()
 {
    if (Capacity() == size) { return; }
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    Memory<T> p(size, data.GetMemoryType(), data.IsTemporary());
 #else
    Memory<T> p(size, data.GetMemoryType());
@@ -918,7 +918,7 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
       }
    }
    const bool use_dev = data.UseDevice();
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    bool temporary = data.IsTemporary();
    data.Delete();
    if (nsize > 0 || temporary)
