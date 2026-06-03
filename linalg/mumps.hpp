@@ -17,7 +17,8 @@
 #if defined(MFEM_USE_MUMPS) || defined(MFEM_USE_COMPLEX_MUMPS)
 #include "operator.hpp"
 #include "hypre.hpp"
-#include "mpi.h"
+#include <mpi.h>
+#endif
 
 #ifdef MFEM_USE_MUMPS
 #ifdef MFEM_USE_SINGLE
@@ -489,6 +490,8 @@ private:
                         int n_loc,
                         int lsol_loc) const;
 
+   ComplexOperator::Convention conv = ComplexOperator::Convention::HERMITIAN;
+
 #else
    // Root-gather path
    int global_num_rows;
@@ -509,7 +512,5 @@ private:
 #endif // MFEM_USE_COMPLEX_MUMPS
 
 } // namespace mfem
-
-#endif // MFEM_USE_MUMPS || MFEM_USE_COMPLEX_MUMPS
 
 #endif // MFEM_MUMPS

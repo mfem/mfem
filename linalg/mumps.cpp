@@ -14,9 +14,8 @@
 
 #if defined(MFEM_USE_MUMPS) || defined(MFEM_USE_COMPLEX_MUMPS)
 #include "mumps.hpp"
+#include <unordered_map>
 #include <algorithm>
-
-
 
 #if MFEM_MUMPS_VERSION >= 530
 #ifdef MUMPS_INTSIZE64
@@ -1044,6 +1043,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    const int nrhs  = id->nrhs;
 
    // Pack all RHS
+   int xisign = (conv == ComplexOperator::BLOCK_SYMMETRIC) ? -1 : 1;
    for (int i = 0; i < nrhs; i++)
    {
       MFEM_ASSERT(X[i], "Missing Vector in Mult!");
@@ -1058,7 +1058,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
       for (int j = 0; j < n_loc; j++)
       {
          dst[j].r = xr[j];
-         dst[j].i = xi[j];
+         dst[j].i = xisign * xi[j];
       }
    }
 
