@@ -16,11 +16,15 @@
 namespace mfem::future
 {
 
+// ────────────────────────────────────────────────────────────────────────────
+// Low-order backends instantiations for (DIM, Q1D)
+// ────────────────────────────────────────────────────────────────────────────
 template struct lo_ker_backend<2, 2>;
 template struct lo_ker_backend<2, 3>;
 template struct lo_ker_backend<2, 4>;
 template struct lo_ker_backend<2, 5>;
 template struct lo_ker_backend<2, 6>;
+template struct lo_ker_backend<2, 7>;
 template struct lo_ker_backend<2, 8>;
 
 template struct lo_ker_backend<3, 2>;
@@ -28,6 +32,7 @@ template struct lo_ker_backend<3, 3>;
 template struct lo_ker_backend<3, 4>;
 template struct lo_ker_backend<3, 5>;
 template struct lo_ker_backend<3, 6>;
+template struct lo_ker_backend<3, 7>;
 template struct lo_ker_backend<3, 8>;
 
 template struct LocalQFLOBackend<2, 2>;
@@ -35,6 +40,7 @@ template struct LocalQFLOBackend<2, 3>;
 template struct LocalQFLOBackend<2, 4>;
 template struct LocalQFLOBackend<2, 5>;
 template struct LocalQFLOBackend<2, 6>;
+template struct LocalQFLOBackend<2, 7>;
 template struct LocalQFLOBackend<2, 8>;
 
 template struct LocalQFLOBackend<3, 2>;
@@ -42,30 +48,34 @@ template struct LocalQFLOBackend<3, 3>;
 template struct LocalQFLOBackend<3, 4>;
 template struct LocalQFLOBackend<3, 5>;
 template struct LocalQFLOBackend<3, 6>;
+template struct LocalQFLOBackend<3, 7>;
 template struct LocalQFLOBackend<3, 8>;
 
-// template struct ho_ker_backend<2, 8>;
-// template struct ho_ker_backend<2, 10>;
-// template struct ho_ker_backend<2, 12>;
-// template struct ho_ker_backend<2, 16>;
-// template struct ho_ker_backend<2, 20>;
+// ────────────────────────────────────────────────────────────────────────────
+// High-order backends instantiations for (DIM, Q1D)
+// ────────────────────────────────────────────────────────────────────────────
+template struct ho_ker_backend<2, 8>;
+template struct ho_ker_backend<2, 10>;
+template struct ho_ker_backend<2, 12>;
+template struct ho_ker_backend<2, 16>;
+template struct ho_ker_backend<2, 20>;
 
-// template struct ho_ker_backend<3, 8>;
-// template struct ho_ker_backend<3, 10>;
-// template struct ho_ker_backend<3, 12>;
-// template struct ho_ker_backend<3, 16>;
-// template struct ho_ker_backend<3, 20>;
+template struct ho_ker_backend<3, 8>;
+template struct ho_ker_backend<3, 10>;
+template struct ho_ker_backend<3, 12>;
+template struct ho_ker_backend<3, 16>;
+template struct ho_ker_backend<3, 20>;
 
-// template struct LocalQFHOBackend<2, 8>;
-// template struct LocalQFHOBackend<2, 10>;
-// template struct LocalQFHOBackend<2, 12>;
-// template struct LocalQFHOBackend<2, 16>;
-// template struct LocalQFHOBackend<2, 20>;
+template struct LocalQFHOBackend<2, 8>;
+template struct LocalQFHOBackend<2, 10>;
+template struct LocalQFHOBackend<2, 12>;
+template struct LocalQFHOBackend<2, 16>;
+template struct LocalQFHOBackend<2, 20>;
 
-// template struct LocalQFHOBackend<3, 8>;
-// template struct LocalQFHOBackend<3, 10>;
-// template struct LocalQFHOBackend<3, 12>;
-// template struct LocalQFHOBackend<3, 16>;
-// template struct LocalQFHOBackend<3, 20>;
+template struct LocalQFHOBackend<3, 8>;
+template struct LocalQFHOBackend<3, 10>;
+template struct LocalQFHOBackend<3, 12>;
+template struct LocalQFHOBackend<3, 16>;
+template struct LocalQFHOBackend<3, 20>;
 
 } // namespace mfem::future
