@@ -46,6 +46,7 @@
 #if !CAMP_USE_PLATFORM_DEFAULT_STREAM
 #error "MFEM only supports RAJA/CAMP with the default platform stream."
 #endif
+#endif
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
