@@ -144,7 +144,8 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
       REQUIRE(inst.PrintAliases(dev_null) == n_alias);
 #endif
    }
-   MmuCatch();
+
+   MmuCatch(pagesize / sizeof(real_t));
    ScanMemoryTypes();
 
    REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
