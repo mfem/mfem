@@ -18,8 +18,6 @@ TEST_CASE("MemoryManager/Scopes",
           "[MemoryManager]"
           "[GPU]")
 {
-   // TODO
-#if 0
    SECTION("WithNewMemoryAndSize")
    {
       Vector x(1);
@@ -33,15 +31,35 @@ TEST_CASE("MemoryManager/Scopes",
          // from Operator::RecoverFEMSolution
          x.SyncMemory(X);
       }
-      // Accessible Memory<double> to get the flags
-      struct MemoryDouble
+#ifdef USE_NEW_MEM_MANAGER
+      // Accessible Memory<real_t> to get the flags
+      struct MemoryReal
+      {
+         real_t *h_ptr;
+         size_t size_; ///< Size of the allocated memory
+         size_t offset_;  ///< Size of the allocated memory
+         mutable size_t segment; /// registered segment
+         MemoryType h_mt; ///< Host memory type
+         mutable unsigned char flags;
+      };
+      const MemoryReal *mem = (MemoryReal*) &x.GetMemory();
+      const real_t *h_x = mem->h_ptr;
+      REQUIRE(h_x == x.GetData());
+      REQUIRE(mem->size_ == x.Size());
+      REQUIRE(mem->offset_ == 0);
+      // registered if segment > 0
+      REQUIRE(mem->segment > 0);
+      REQUIRE(mem->h_mt == Device::GetHostMemoryType());
+#else
+      // Accessible Memory<real_t> to get the flags
+      struct MemoryReal
       {
          real_t *h_ptr;
          int capacity; ///< Size of the allocated memory
          MemoryType h_mt; ///< Host memory type
          mutable unsigned flags;
       };
-      const MemoryDouble *mem = (MemoryDouble*) &x.GetMemory();
+      const MemoryReal *mem = (MemoryReal*) &x.GetMemory();
       const real_t *h_x = mem->h_ptr;
       REQUIRE(h_x == x.GetData());
       REQUIRE(mem->capacity == x.Size());
@@ -51,8 +69,8 @@ TEST_CASE("MemoryManager/Scopes",
       const bool registered = mem->flags & Registered;
       const bool registered_is_known = registered == mm.IsKnown(h_x);
       REQUIRE(registered_is_known);
-   }
 #endif
+   }
 
    SECTION("WithMakeRef")
    {
