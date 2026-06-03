@@ -726,11 +726,6 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
-if (MFEM_USE_RAJA)
-  # MFEM only supports using RAJA/CAMP in default stream mode because memory calls
-  # are performed outside of the RAJA ecosystem.
-  target_compile_definitions(mfem PUBLIC CAMP_USE_PLATFORM_DEFAULT_STREAM=1)
-endif()
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (TPL_TARGETS)

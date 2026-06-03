@@ -37,6 +37,15 @@
 // removed in a future release).
 #define CUB_IGNORE_DEPRECATED_CPP_DIALECT
 #define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
+
+// MFEM only supports using RAJA/CAMP backends in default stream mode because
+// memory calls are performed outside of the RAJA ecosystem
+#ifndef CAMP_USE_PLATFORM_DEFAULT_STREAM
+#define CAMP_USE_PLATFORM_DEFAULT_STREAM 1
+#else
+#if !CAMP_USE_PLATFORM_DEFAULT_STREAM
+#error "MFEM only supports RAJA/CAMP with the default platform stream."
+#endif
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
