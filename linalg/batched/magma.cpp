@@ -26,6 +26,20 @@
 namespace mfem
 {
 
+namespace
+{
+
+void VerifyBatchedLUFactorization(const Array<int> &info_array)
+{
+   const int *info = info_array.HostRead();
+   for (int i = 0; i < info_array.Size(); i++)
+   {
+      MFEM_VERIFY(info[i] == 0, "Batch LU factorization failed");
+   }
+}
+
+}
+
 Magma::Magma()
 {
    const magma_int_t status = magma_init();
@@ -99,7 +113,8 @@ void MagmaBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const magma_int_t status = MFEM_MAGMA_PREFIX(getrf_batched)(
                                  n, n, d_A_ptrs, n, d_P_ptrs,
                                  info_array.Write(), n_mat, Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
+   VerifyBatchedLUFactorization(info_array);
 }
 
 void MagmaBatchedLinAlg::LUSolve(
@@ -169,12 +184,13 @@ void MagmaBatchedLinAlg::Invert(DenseTensor &A) const
    status = MFEM_MAGMA_PREFIX(getrf_batched)(
                n, n, d_LU_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
                Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
+   VerifyBatchedLUFactorization(info_array);
 
    status = MFEM_MAGMA_PREFIX(getri_outofplace_batched)(
                n, d_LU_ptrs, n, d_P_ptrs, d_A_ptrs, n, info_array.Write(),
                n_mat, Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
 }
 
 } // namespace mfem

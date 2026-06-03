@@ -494,6 +494,47 @@ TEST_CASE("Batched Linear Algebra",
    }
 }
 
+TEST_CASE("Batched LU factorization failure handling",
+          "[DenseMatrix][GPU]")
+{
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
+
+   const int n = 3;
+   const int n_mat = 3;
+
+   DenseTensor A_batch(n, n, n_mat);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix A;
+      A_batch(i, A);
+      A = 0.0;
+      for (int j = 0; j < n; ++j)
+      {
+         A(j, j) = 2.0 + i + j;
+      }
+   }
+
+   DenseMatrix singular;
+   A_batch(1, singular);
+   singular(0, 0) = 1.0;
+   singular(1, 0) = 2.0;
+   singular(2, 0) = 3.0;
+   singular(0, 1) = 1.0;
+   singular(1, 1) = 2.0;
+   singular(2, 1) = 3.0;
+   singular(0, 2) = 4.0;
+   singular(1, 2) = 5.0;
+   singular(2, 2) = 6.0;
+
+   Array<int> P;
+   REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).LUFactor(A_batch, P),
+                       Catch::Matchers::Contains("Batch LU factorization failed"));
+}
+
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 {
    DenseTensor t1(2,3,4);
