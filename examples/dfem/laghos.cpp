@@ -64,6 +64,8 @@ enum EXT_DATA_IDX
    ORDER_VEL,
    VISCOSITY_FLAG,
    VISCOSITY_TYPE,
+   VISC_Q1,
+   VISC_Q2,
    H0,
    DT_ESTIMATE,
    DT_EST_METHOD,
@@ -258,6 +260,8 @@ matd_t<DIM> qdata_setup(
    const bool &use_viscosity,
    const int &viscosity_type,
    const int &dt_est_method,
+   const real_t &visc_q1,
+   const real_t &visc_q2,
    real_t &dt_est)
 {
    using matd = matd_t<DIM>;
@@ -417,9 +421,7 @@ matd_t<DIM> qdata_setup(
          // The smoothing becomes active when |delta_v| approaches dv_scale.
          const auto abs_delta_v = softabs(dv_scale, delta_v);
 
-         const auto q1 = 0.25; // linear    - stability in weak shocks.
-         const auto q2 = 1.00; // quadratic - grows in strong shocks.
-         const auto mu =  rho * h * (q2 * abs_delta_v + psi * q1 * cs);
+         const auto mu = rho * h * (visc_q2 * abs_delta_v + psi * visc_q1 * cs);
          stress += mu * sym(dvdx);
 
          dt_visc_coeff = mu;
@@ -490,6 +492,8 @@ struct TimeStepEstimateQFunction
          static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
          static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
          static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
+         external_data[EXT_DATA_IDX::VISC_Q1],
+         external_data[EXT_DATA_IDX::VISC_Q2],
          dt_est);
 
       return mfem::tuple{dt_est};
@@ -523,6 +527,8 @@ struct UpdateQuadratureDataQFunction
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
             static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
+            external_data[EXT_DATA_IDX::VISC_Q1],
+            external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
@@ -553,6 +559,8 @@ public:
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
             static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
+            external_data[EXT_DATA_IDX::VISC_Q1],
+            external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
@@ -604,6 +612,8 @@ public:
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
             static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
+            external_data[EXT_DATA_IDX::VISC_Q1],
+            external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est);
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
@@ -2671,6 +2681,8 @@ int main(int argc, char *argv[])
    bool glvis = false;
    bool paraview = false;
    int viscosity_type = 2;
+   real_t viscosity_q1 = 0.25;
+   real_t viscosity_q2 = 1.0;
    int preconditioner_type = PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
    int dump_jacobians = 0;
    int nretry = 100;
@@ -2739,6 +2751,10 @@ int main(int argc, char *argv[])
                   "-no-paraview", "--no-paraview",
                   "Enable ParaView output (VTK files; can be expensive).");
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
+   args.AddOption(&viscosity_q1, "-av-q1", "--av-q1",
+                  "Artificial viscosity (type 7) linear coefficient.");
+   args.AddOption(&viscosity_q2, "-av-q2", "--av-q2",
+                  "Artificial viscosity (type 7) quadratic coefficient.");
    args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
    args.AddOption(&nretry, "-nretry", "--nretry", "");
    args.AddOption(&petsc_opts, "-petsc-opts", "--petsc-opts",
@@ -3010,13 +3026,14 @@ int main(int argc, char *argv[])
       out << "num qp: " << ir.GetNPoints() << "\n";
    }
 
-   // Create external data vector
-   // Layout is [cfl, order_velocity, use_viscosity, h0]
+   // Create external data vector.
    Vector external_data(EXT_DATA_IDX::COUNT);
    external_data[EXT_DATA_IDX::CFL] = cfl;
    external_data[EXT_DATA_IDX::ORDER_VEL] = order_v;
    external_data[EXT_DATA_IDX::VISCOSITY_FLAG] = use_viscosity;
    external_data[EXT_DATA_IDX::VISCOSITY_TYPE] = viscosity_type;
+   external_data[EXT_DATA_IDX::VISC_Q1] = viscosity_q1;
+   external_data[EXT_DATA_IDX::VISC_Q2] = viscosity_q2;
    external_data[EXT_DATA_IDX::DT_ESTIMATE] =
       std::numeric_limits<real_t>::infinity();
    external_data[EXT_DATA_IDX::DT_EST_METHOD] = (problem == 0) ? 1.0 : 0.0;
