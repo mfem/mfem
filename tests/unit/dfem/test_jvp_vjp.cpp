@@ -63,24 +63,23 @@ template <int DIM> struct local_qf
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// Verifies <bZ, J·δ> == <Jᵀ·bZ, δ> for each derivatives
 template <int DIM>
-static void RunTangentAdjointConsistency(DifferentiableOperator &F,
-                                         ParFiniteElementSpace &fes,
-                                         ParGridFunction &nodes)
+static void VerifyJvpVjp(DifferentiableOperator &F,
+                         ParFiniteElementSpace &fes,
+                         ParGridFunction &nodes)
 {
    const auto nfes = nodes.ParFESpace();
    const auto tvsize = fes.GetTrueVSize();
    const auto ntvsize = nfes->GetTrueVSize();
    const auto comm = fes.GetParMesh()->GetComm();
 
-   Vector X(tvsize), Y(tvsize), Z(tvsize), N(ntvsize);
+   Vector X_bar(tvsize), Y_bar(tvsize), N_bar(ntvsize);
 
-   X.Randomize(0x9e3779b9);
-   Y.Randomize(0x9e3779b1);
-   nodes.GetTrueDofs(N);
+   X_bar.Randomize(0x9e3779b9);
+   Y_bar.Randomize(0x9e3779b1);
+   nodes.GetTrueDofs(N_bar);
 
-   MultiVector state{X, Y, N};
+   MultiVector state{X_bar, Y_bar, N_bar};
 
    Vector dX(tvsize), dY(tvsize), dZ(tvsize);
    dX.Randomize(0x01000193);
@@ -91,35 +90,34 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
 
    const auto dFu = F.GetDerivative(U, state);
    const auto dFv = F.GetDerivative(V, state);
-   dFu->Mult(dX, mdU); // dU = ∂F/∂u · dX
-   dFv->Mult(dY, mdV); // dV = ∂F/∂v · dY
+   dFu->Mult(dX, mdU); // dU = (∂F/∂u) dX
+   dFv->Mult(dY, mdV); // dV = (∂F/∂v) dY
    add(dU, dV, dZ);
 
-   Vector bX(tvsize), bY(tvsize), bZ(tvsize);
-   bZ.Randomize(0x7ed55d16);
+   Vector dX_star(tvsize), dY_star(tvsize), dZ_star(tvsize);
+   dZ_star.Randomize(0x7ed55d16);
 
-   MultiVector mbZ{bZ}, mbX{bX}, mbY{bY};
-   dFu->MultTranspose(mbZ, mbX); // bX = (∂F/∂u)ᵀ · bZ
-   dFv->MultTranspose(mbZ, mbY); // bY = (∂F/∂v)ᵀ · bZ
+   MultiVector mdZ_star{dZ_star}, mdX_star{dX_star}, mdY_star{dY_star};
+   dFu->MultTranspose(mdZ_star, mdX_star); // dX* = (∂F/∂u)^T dZ*
+   dFv->MultTranspose(mdZ_star, mdY_star); // dY* = (∂F/∂v)^T dZ*
 
-   // Tangent-Adjoint consistency test:
-   // <\bar{Z}, J·dZ> == <Jᵀ·\bar{Z}, dZ>
-   REQUIRE(InnerProduct(comm, bZ, dZ) ==
-           MFEM_Approx(InnerProduct(comm, bX, dX) +
-                       InnerProduct(comm, bY, dY)));
+   // Tangent/cotangent consistency test:
+   // <dZ*, dZ> = <dX*, dX> + <dY*, dY>
+   REQUIRE(InnerProduct(comm, dZ_star, dZ) ==
+           MFEM_Approx(InnerProduct(comm, dX_star, dX) +
+                       InnerProduct(comm, dY_star, dY)));
 
-   REQUIRE(InnerProduct(comm, bZ, dU) ==
-           MFEM_Approx(InnerProduct(comm, bX, dX)));
+   REQUIRE(InnerProduct(comm, dZ_star, dU) ==
+           MFEM_Approx(InnerProduct(comm, dX_star, dX)));
 
-   REQUIRE(InnerProduct(comm, bZ, dV) ==
-           MFEM_Approx(InnerProduct(comm, bY, dY)));
+   REQUIRE(InnerProduct(comm, dZ_star, dV) ==
+           MFEM_Approx(InnerProduct(comm, dY_star, dY)));
 
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Tangent-adjoint consistency test
 template <int DIM>
-void TangentAdjointConsistencyTest(const char *filename, int p)
+void TestJvpVjp(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
 
@@ -169,12 +167,11 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
       q_lfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
    AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT>();
 
-   RunTangentAdjointConsistency<DIM>(F, fes, *nodes);
+   VerifyJvpVjp<DIM>(F, fes, *nodes);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
-          "[Parallel][dFEM][GPU][ADJOINT][2D]")
+TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU][JVP][2D]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -183,12 +180,11 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
                         "../../data/rt-2d-q3.mesh",
                         "../../data/periodic-square.mesh"
                       };
-   TangentAdjointConsistencyTest<2>(GenAll(meshs, extra), p);
+   TestJvpVjp<2>(GenAll(meshs, extra), p);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
-          "[Parallel][dFEM][GPU][ADJOINT][3D]")
+TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU][JVP][3D]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
@@ -197,7 +193,7 @@ TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
                         "../../data/toroid-hex.mesh",
                         "../../data/periodic-cube.mesh"
                       };
-   TangentAdjointConsistencyTest<3>(GenAll(meshs, extra), p);
+   TestJvpVjp<3>(GenAll(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI
