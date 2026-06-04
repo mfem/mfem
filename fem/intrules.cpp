@@ -2537,8 +2537,6 @@ StroudIntegrationRules StroudIntRules;
 
 StroudIntegrationRules::StroudIntegrationRules()
 {
-   own_rules = 1;
-
    const MemoryType h_mt = MemoryType::HOST;
    SquareStroudIntRules.SetSize(32, h_mt);
    SquareStroudIntRules = NULL;
@@ -2631,9 +2629,6 @@ StroudIntegrationRules::~StroudIntegrationRules()
       omp_destroy_lock(&IntRuleLocks[i]);
    }
 #endif
-
-   if (!own_rules) { return; }
-
    DeleteIntRuleArray(SquareStroudIntRules);
    DeleteIntRuleArray(TriangleStroudIntRules);
    DeleteIntRuleArray(CubeStroudIntRules);
