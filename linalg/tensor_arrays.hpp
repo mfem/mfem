@@ -33,7 +33,9 @@ constexpr inline void for_unrolled_simple(std::index_sequence<Is...>, Fn &&fn)
 
 
 template <int... loop_sizes>
+#ifdef MFEM_USE_ENZYME
 __attribute__((annotate("enzyme_inactive")))
+#endif
 constexpr inline auto to_multiindex(std::size_t i)
 {
    constexpr auto dims = sizeof...(loop_sizes);
@@ -97,7 +99,6 @@ public:
    using scalar_type = scalar_t;
    using tensor_type = tensor<std::remove_cv_t<scalar_t>,tensor_sizes...>;
 
-   static constexpr std::integer_sequence<size_t, tensor_sizes...> tensor_sizes_;
    static constexpr auto tensor_dims = sizeof...(tensor_sizes);
    static constexpr auto total_dims = ndims + tensor_dims;
    static constexpr auto tensor_sizes_array() noexcept
