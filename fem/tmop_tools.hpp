@@ -221,7 +221,7 @@ protected:
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   real_t GetDeterminantLowerBound(const Vector &d,
+   real_t GetDeterminantLowerBound(const Vector &d_loc,
                                    const FiniteElementSpace &fes,
                                    bool update_det_gf) const;
 
