@@ -49,6 +49,15 @@ namespace mfem
 class FilteredSolver : public Solver
 {
 public:
+
+   enum class SubspaceSelectionMethod
+   {
+      GRADIENT,
+      KNEE,
+      GMM,
+      COST
+   };
+
    /// Construct an empty filtered solver. Must set operator and solver before use.
    FilteredSolver() : Solver() { }
 
@@ -66,6 +75,8 @@ public:
 
    /// Apply the filtered solver
    void Mult(const Vector &x, Vector &y) const override;
+
+   void SelectFilteredSubspace(const SubspaceSelectionMethod);
 
    virtual ~FilteredSolver() = default;
 

@@ -137,6 +137,52 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    x+=z;
 }
 
+void FilteredSolver::SelectFilteredSubspace(const FilteredSolver::SubspaceSelectionMethod m_)
+{
+   auto Ah = dynamic_cast<const HypreParMatrix*>(A);
+   MFEM_VERIFY(Ah, "AMGFSolver::SelectFilteredSubspace: HypreParMatrix expected.");
+
+   HypreParVector l1_row_norms(*Ah);
+
+   SparseMatrix merged_A;
+   A.MergeDiagAndOffd(merged_A);
+
+   HYPRE_BigInt row_start = Ah.GetRowStarts()[0];
+   HYPRE_BigInt row_end = Ah.GetRowStarts()[1];
+   int local_num_rows = Ah.GetNumRows();
+   HYPRE_BigInt global_num_cols = Ah.N();
+
+   // Process each row
+   for (int local_row = 0; local_row < local_num_rows; ++local_row)
+   {
+      const real_t *vals = merged_A.GetRowEntries(local_row);
+      int row_size = merged_A.RowSize(local_row);
+      double norm = 0.0;
+      for (int i = 0; i < row_size; ++i)
+      {
+         norm += fabs(vals[i]);
+      }
+      l1_row_norms(local_row) = norm; 
+   }
+
+   Synch
+
+   switch (m_)
+   {
+      case FilteredSolver::SubspaceSelectionMethod::GRADIENT:
+         break;
+      case FilteredSolver::SubspaceSelectionMethod::KNEE:
+         break;
+      case FilteredSolver::SubspaceSelectionMethod::GMM:
+         break;
+      case FilteredSolver::SubspaceSelectionMethod::COST:
+         break;
+   }
+
+   P = ???;
+   solver_set = false;
+}
+
 #ifdef MFEM_USE_MPI
 
 void AMGFSolver::SetOperator(const Operator &A_)

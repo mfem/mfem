@@ -458,6 +458,16 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    // Solver the system with the given solver
    solver->SetOperator(*Areduced);
    solver->Mult(breduced, Xhat.GetBlock(0));
+
+   if (lobpcg)
+   {
+      HypreParMatrix *minusAreduced = new HypreParMatrix(*Areduced);
+      *minusAreduced *= -1.0;
+      lobpcg->SetOperator(*minusAreduced);
+      lobpcg->Solve();
+      delete minusAreduced;
+   }
+
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
    lin_solver_iterations.Append(numit);

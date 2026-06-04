@@ -85,6 +85,8 @@ public:
    Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
 
    virtual ~IPSolver();
+
+   void SetLOBPCG(HypreLOBPCG * lobpcg_) {lobpcg = lobpcg_;};
 protected:
    /// OptContactProblem (not owned).
    OptContactProblem* problem = nullptr;
@@ -153,6 +155,8 @@ protected:
    /// print level, 0: no printing, > 0 various solver progress output is shown
    int print_level = 0;
    MPI_Comm comm;
+
+   HypreLOBPCG * lobpcg = nullptr;
 private:
    /// Form (regularized) IP-Newton linear system matrix
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,

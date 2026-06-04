@@ -422,12 +422,21 @@ int main(int argc, char *argv[])
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
 
+      int nev = 10;
+      HypreLOBPCG lobpcg(MPI_COMM_WORLD);
+      lobpcg.SetNumModes(nev);
+      lobpcg.SetPreconditioner(*prec);
+      lobpcg.SetMaxIter(100);
+      lobpcg.SetRelTol(1e-10);
+      lobpcg.SetPrecondUsageMode(1);
+
       // 9(g). Interior-Point optimizer driving contact resolution.
       IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetPrintLevel(0);
+      optimizer.SetLOBPCG(&lobpcg);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
@@ -454,6 +463,9 @@ int main(int argc, char *argv[])
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
       Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
+      Array<real_t> eigenvalues;
+      lobpcg.GetEigenvalues(eigenvalues);
+      ParGridFunction x(&fes_copy);
 
       if (Mpi::Root())
       {
@@ -467,6 +479,14 @@ int main(int argc, char *argv[])
             std::cout << PCGiterations[i] << " ";
          }
          mfem::out << "\n";
+
+         mfem::out << " Eigenvalues                     = ";
+         for (int eigi = 0; eigi < eigenvalues.Size(); ++eigi)
+         {
+            eigenvalues[eigi] *= -1.0;
+            mfem::out << eigenvalues[eigi] << " ";
+         }
+         mfem::out << endl;
       }
 
       // 9(i). Visualization outputs.
@@ -484,8 +504,30 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh_copy << x_gf << flush;
+         //sol_sock << "parallel " << num_procs << " " << myid << "\n"
+         //         << "solution\n" << pmesh_copy << x_gf << flush;
+
+         for (int eigi = 0; eigi < eigenvalues.Size(); ++eigi)
+         {
+            x = lobpcg.GetEigenvector(eigi);
+            sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << pmesh_copy << x << flush
+                     << "window_title 'Eigenmode " << eigi+1 << '/' << nev
+                     << ", Lambda = " << eigenvalues[eigi] << "'" << endl;
+
+            char c;
+            if (myid == 0)
+            {
+               mfem::out << "press (q)uit or (c)ontinue --> " << flush;
+               cin >> c;
+            }
+            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+            if (c != 'c')
+            {
+               break;
+            }
+         }
 
          if (i == total_steps - 1)
          {
