@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Set the problem options
+   // 2. Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
    bool bnldiff = nonlinear_diff;
@@ -307,12 +307,12 @@ int main(int argc, char *argv[])
       cerr << "Warning: A linear solver is used" << endl;
    }
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
+   // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
+   // 4. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    if (ny <= 0)
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   // 4. Mark boundary conditions based on the selected problem
+   // 5. Mark boundary conditions based on the selected problem
    const int bdr_attrs = mesh.bdr_attributes.Size() > 0 ?
                          mesh.bdr_attributes.Max() : 1;
    Array<int> bdr_is_dirichlet(bdr_attrs);
@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
          break;
    }
 
-   // 5. Refine the mesh to increase the resolution. In this example we do
+   // 6. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 
    if (dr > 0.) { RandomizeMesh(mesh, dr); }
 
-   // 6. Define a finite element space on the mesh. Here we use the
+   // 7. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas finite elements of the specified order for the
    //    heat flux or discontinuous Galerkin alternatively. The temperature is
    //    always discretized by discontinuous Galerkin elements.
@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
    // Darcy form
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
-   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 8. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; // Base temperature
 
    ConstantCoefficient acoeff(pars.a); // Heat capacity
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
 
    auto tFun = GetTFun(pars);
    FunctionCoefficient tcoeff(tFun); // Analytic temperature
-   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux rhs
+   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux r.h.s.
 
    auto fFun = GetFFun(pars);
    FunctionCoefficient fcoeff(fFun); // Temperature r.h.s.
@@ -452,7 +452,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
 
-   // 8. Assemble the finite element matrices for the Darcy operator
+   // 9. Assemble the finite element matrices for the Darcy operator
    //
    //                     ┌        ┐
    //                     | Mq -Bᵀ |
@@ -662,9 +662,9 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   // 9. Define the block structure of the problem, i.e. define the array of
-   //    offsets for each variable. The last component of the Array is the sum
-   //    of the dimensions of each block.
+   // 10. Define the block structure of the problem, i.e. define the array of
+   //     offsets for each variable. The last component of the Array is the sum
+   //     of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
    cout << "***********************************************************\n";
@@ -690,7 +690,7 @@ int main(int argc, char *argv[])
    }
    cout << "***********************************************************\n";
 
-   // 10. Allocate memory (x, rhs) for the analytical solution and the right
+   // 11. Allocate memory (x, rhs) for the analytical solution and the right
    //     hand side. Define the GridFunction q_h, t_h for the finite element
    //     solution and linear forms fform and gform for the right hand side.
    //     The data allocated by x and rhs are passed as a reference to the grid
@@ -713,12 +713,12 @@ int main(int argc, char *argv[])
    if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
-                                      bdr_is_neumann);   //essential Neumann BC
+                                      bdr_is_neumann);   // Essential Neumann BC
    }
 
    if (hybridization && trace_ess_bc)
    {
-      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
+      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // Essential Dirichlet BC
    }
 
    // Flux r.h.s.
@@ -769,7 +769,7 @@ int main(int argc, char *argv[])
                                    bdr_is_neumann);
    }
 
-   // 11. Construct the spatial operator
+   // 12. Construct the spatial operator
 
    DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
    {gform.get(), fform.get(), hform.get()},
@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
-   // 12. Set up an error estimator. Here we use the HDG estimator which
+   // 13. Set up an error estimator. Here we use the HDG estimator which
    // evaluates the difference between the face values of the potential and the
    // trace variable and calculates its energy norm with respect to a given
    // operator, which represented by the provided integrator implementing
@@ -806,7 +806,7 @@ int main(int argc, char *argv[])
       amr_nrefs = 0;
    }
 
-   // 13. A refiner selects and refines elements based on a refinement strategy.
+   // 14. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
@@ -818,19 +818,19 @@ int main(int argc, char *argv[])
       amr_ref->SetTotalErrorFraction(0.7);
    }
 
-   // 14. The main AMR loop. In each iteration we solve the problem on the
+   // 15. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    for (int amr_it = 0; amr_it <= amr_nrefs; amr_it++)
    {
 
-      // 15. Solve the steady/asymptotic problem
+      // 16. Solve the steady/asymptotic problem
 
       Vector dx(x.Size()); dx = 0.;
       op.SetTime(1.);
       op.ImplicitSolve(1., x, dx);
       x += dx;
 
-      // 16. Compute the L2 error norms.
+      // 17. Compute the L2 error norms.
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -869,7 +869,7 @@ int main(int argc, char *argv[])
          cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
 
-      // 17. Project the fluxes
+      // 18. Project the fluxes
 
       GridFunction q_vh;
 
@@ -884,7 +884,7 @@ int main(int argc, char *argv[])
          q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
-      // 18. Project the analytic solution
+      // 19. Project the analytic solution
 
       static GridFunction q_a, t_a;
 
@@ -894,7 +894,7 @@ int main(int argc, char *argv[])
       t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
-      // 19. Save the mesh and the solution. This output can be viewed later
+      // 20. Save the mesh and the solution. This output can be viewed later
       //     using GLVis: "glvis -m anisodiff.mesh -g sol_q.gf" or "glvis -m
       //     anisodiff.mesh -g sol_t.gf".
       if (mfem)
@@ -925,7 +925,7 @@ int main(int argc, char *argv[])
          t_h.Save(t_ofs);
       }
 
-      // 20. Save data in the VisIt format
+      // 21. Save data in the VisIt format
       if (visit)
       {
          static VisItDataCollection visit_dc("Anisodiff", &mesh);
@@ -943,7 +943,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // 21. Save data in the ParaView format
+      // 22. Save data in the ParaView format
       if (paraview)
       {
          static ParaViewDataCollection paraview_dc("Anisodiff", &mesh);
@@ -965,7 +965,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      // 22. Send the solution by socket to a GLVis server.
+      // 23. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          static socketstream q_sock, t_sock;
@@ -980,13 +980,13 @@ int main(int argc, char *argv[])
          }
          if (analytic)
          {
-            static socketstream qa_sock, qta_sock, ta_sock, c_sock;
+            static socketstream qa_sock, ta_sock;
             VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it);
             VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it);
          }
       }
 
-      // 23. Refine the mesh
+      // 24. Refine the mesh
 
       if (amr_it < amr_nrefs)
       {

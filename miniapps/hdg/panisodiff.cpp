@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Set the problem options
+   // 3. Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
    bool bnldiff = nonlinear_diff;
@@ -332,12 +332,12 @@ int main(int argc, char *argv[])
       cerr << "Warning: A linear solver is used" << endl;
    }
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
+   // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 5. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    if (ny <= 0)
@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   // 5. Mark boundary conditions based on the selected problem
+   // 6. Mark boundary conditions based on the selected problem
    const int bdr_attrs = mesh.bdr_attributes.Size() > 0 ?
                          mesh.bdr_attributes.Max() : 1;
    Array<int> bdr_is_dirichlet(bdr_attrs);
@@ -399,7 +399,7 @@ int main(int argc, char *argv[])
          break;
    }
 
-   // 6. Refine the mesh to increase the resolution. In this example we do
+   // 7. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
@@ -413,14 +413,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Make sure the mesh is in the non-conforming mode to enable local
+   // 8. Make sure the mesh is in the non-conforming mode to enable local
    //    refinement of quadrilaterals/hexahedra, and the above partitioning
    //    algorithm. Simplices can be refined either in conforming or in non-
    //    conforming mode. The conforming mode however does not support
    //    dynamic partitioning.
    mesh.EnsureNCMesh(nc_simplices);
 
-   // 8. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 9. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -432,10 +432,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 9. Define a finite element space on the mesh. Here we use the
-   //    (broken) Raviart-Thomas finite elements of the specified order for the
-   //    heat flux or discontinuous Galerkin alternatively. The temperature is
-   //    always discretized by discontinuous Galerkin elements.
+   // 10. Define a finite element space on the mesh. Here we use the
+   //     (broken) Raviart-Thomas finite elements of the specified order for the
+   //     heat flux or discontinuous Galerkin alternatively. The temperature is
+   //     always discretized by discontinuous Galerkin elements.
    unique_ptr<FiniteElementCollection> V_coll; // Heat flux FE collection
    unique_ptr<FiniteElementCollection> V_coll_dg; // DG heat flux FE colection
    if (dg)
@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
    // Darcy form
    auto darcy = make_unique<ParDarcyForm>(V_space.get(), W_space.get());
 
-   // 10. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 11. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; // Base temperature
 
    ConstantCoefficient acoeff(pars.a); // Heat capacity
@@ -483,7 +483,7 @@ int main(int argc, char *argv[])
 
    auto tFun = GetTFun(pars);
    FunctionCoefficient tcoeff(tFun); // Analytic temperature
-   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux rhs
+   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux r.h.s.
 
    auto fFun = GetFFun(pars);
    FunctionCoefficient fcoeff(fFun); // Temperature r.h.s.
@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
 
-   // 11. Assemble the finite element matrices for the Darcy operator
+   // 12. Assemble the finite element matrices for the Darcy operator
    //
    //                     ┌        ┐
    //                     | Mq -Bᵀ |
@@ -702,7 +702,7 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   // 12. Define the block structure of the problem, i.e. define the array of
+   // 13. Define the block structure of the problem, i.e. define the array of
    //     offsets for each variable. The last component of the Array is the sum
    //     of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
@@ -733,7 +733,7 @@ int main(int argc, char *argv[])
       cout << "***********************************************************\n";
    }
 
-   // 13. Allocate memory (x, rhs) for the analytical solution and the right
+   // 14. Allocate memory (x, rhs) for the analytical solution and the right
    //     hand side. Define the GridFunction q_h, t_h for the finite element
    //     solution and linear forms fform and gform for the right hand side.
    //     The data allocated by x and rhs are passed as a reference to the grid
@@ -756,12 +756,12 @@ int main(int argc, char *argv[])
    if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
-                                      bdr_is_neumann);   //essential Neumann BC
+                                      bdr_is_neumann);   // Essential Neumann BC
    }
 
    if (hybridization && trace_ess_bc)
    {
-      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
+      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // Essential Dirichlet BC
    }
 
    // Flux r.h.s.
@@ -812,7 +812,7 @@ int main(int argc, char *argv[])
                                    bdr_is_neumann);
    }
 
-   // 14. Construct the spatial operator
+   // 15. Construct the spatial operator
 
    DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
    {gform.get(), fform.get(), hform.get()},
@@ -829,7 +829,7 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
-   // 15. Set up an error estimator. Here we use the HDG estimator which
+   // 16. Set up an error estimator. Here we use the HDG estimator which
    // evaluates the difference between the face values of the potential and the
    // trace variable and calculates its energy norm with respect to a given
    // operator, which represented by the provided integrator implementing
@@ -849,7 +849,7 @@ int main(int argc, char *argv[])
       amr_nrefs = 0;
    }
 
-   // 16. A refiner selects and refines elements based on a refinement strategy.
+   // 17. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
@@ -861,19 +861,19 @@ int main(int argc, char *argv[])
       amr_ref->SetTotalErrorFraction(0.7);
    }
 
-   // 17. The main AMR loop. In each iteration we solve the problem on the
+   // 18. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    for (int amr_it = 0; amr_it <= amr_nrefs; amr_it++)
    {
 
-      // 18. Solve the steady/asymptotic problem
+      // 19. Solve the steady/asymptotic problem
 
       Vector dx(x.Size()); dx = 0.;
       op.SetTime(1.);
       op.ImplicitSolve(1., x, dx);
       x += dx;
 
-      // 19. Compute the L2 error norms.
+      // 20. Compute the L2 error norms.
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -918,7 +918,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      // 20. Project the fluxes
+      // 21. Project the fluxes
 
       ParGridFunction q_vh;
 
@@ -933,7 +933,7 @@ int main(int argc, char *argv[])
          q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
-      // 21. Project the analytic solution
+      // 22. Project the analytic solution
 
       static ParGridFunction q_a, t_a;
 
@@ -943,7 +943,7 @@ int main(int argc, char *argv[])
       t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
-      // 22. Save the mesh and the solution. This output can be viewed later
+      // 23. Save the mesh and the solution. This output can be viewed later
       //     using GLVis: "glvis -m panisodiff.mesh -g sol_q.gf" or "glvis -m
       //     panisodiff.mesh -g sol_t.gf".
       if (mfem)
@@ -974,7 +974,7 @@ int main(int argc, char *argv[])
          t_h.Save(t_ofs);
       }
 
-      // 23. Save data in the VisIt format
+      // 24. Save data in the VisIt format
       if (visit)
       {
          static VisItDataCollection visit_dc("PAnisodiff", &pmesh);
@@ -995,7 +995,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // 24. Save data in the ParaView format
+      // 25. Save data in the ParaView format
       if (paraview)
       {
          static ParaViewDataCollection paraview_dc("PAnisodiff", &pmesh);
@@ -1017,7 +1017,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      // 25. Send the solution by socket to a GLVis server.
+      // 26. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          static socketstream q_sock, t_sock;
@@ -1038,7 +1038,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      // 26. Refine the mesh
+      // 27. Refine the mesh
 
       if (amr_it < amr_nrefs)
       {
