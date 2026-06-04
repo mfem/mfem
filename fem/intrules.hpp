@@ -274,7 +274,7 @@ public:
     *
     *  @details In the new integration rule, ip_new[i] = ip_old[ordering[i]]
     */
-   IntegrationRule Permute(const Array<int> &ordering) const;
+   IntegrationRule Reorder(const Array<int> &ordering) const;
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }

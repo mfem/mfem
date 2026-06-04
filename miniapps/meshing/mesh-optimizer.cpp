@@ -80,6 +80,8 @@
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape + bounded Jacobian determinant:
+//     * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db
 //   Blade shape (AD):
 //     mesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -161,6 +163,7 @@ int main(int argc, char *argv[])
    int mesh_node_order   = 0;
    int barrier_type      = 0;
    int worst_case_type   = 0;
+   bool detj_bound       = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -317,6 +320,10 @@ int main(int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&detj_bound, "-db", "--detj-bound",
+                  "-no-db", "--no-detj-bound",
+                  "Enable or disable strict enforcement of positive Jacobian "
+                  "determinants to guarantee mesh validity.");
    args.Parse();
    if (!args.Good())
    {
@@ -367,6 +374,8 @@ int main(int argc, char *argv[])
    // shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
+
+   auto detgf = mesh->GetJacobianDeterminantGF();
 
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
@@ -446,6 +455,7 @@ int main(int argc, char *argv[])
          common::VisualizeMesh(vis1, "localhost", 19916, *mesh, "Perturbed",
                                300, 600, 300, 300);
       }
+      mesh->UpdateJacobianDeterminantGF(*detgf.get());
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This
@@ -901,6 +911,9 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Enable determinant bounding if requested.
+   if (detj_bound) { tmop_integ->EnableDeterminantPLBounds(detgf.get(), 4, 4); }
+
    //
    // Setup the NonlinearForm which defines the integral of interest, its
    // first and second derivatives.
@@ -1136,6 +1149,7 @@ int main(int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
+   if (detj_bound) { solver.EnsurePositiveDeterminantBound(); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.
@@ -1167,6 +1181,11 @@ int main(int argc, char *argv[])
                           n_hr_iter, n_h_iter);
    hr_solver.AddGridFunctionForUpdate(&x0);
    hr_solver.AddFESpaceForUpdate(&fes_h1);
+   if (detj_bound)
+   {
+      hr_solver.AddGridFunctionForUpdate(detgf.get());
+      hr_solver.AddFESpaceForUpdate(detgf->FESpace());
+   }
    if (adapt_lim_const > 0.)
    {
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);

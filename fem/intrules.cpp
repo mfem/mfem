@@ -236,7 +236,7 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
-IntegrationRule IntegrationRule::Permute(const Array<int> &ordering) const
+IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
 {
    const int np = GetNPoints();
    MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");

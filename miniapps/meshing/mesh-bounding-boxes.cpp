@@ -288,24 +288,6 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
    return meshbb;
 }
 
-IntegrationRule PermuteIR(const IntegrationRule &irule,
-                          const Array<int> ordering)
-{
-   const int np = irule.GetNPoints();
-   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
-   IntegrationRule ir(np);
-   ir.SetOrder(irule.GetOrder());
-
-   for (int i = 0; i < np; i++)
-   {
-      IntegrationPoint &ip_new = ir.IntPoint(i);
-      const IntegrationPoint &ip_old = irule.IntPoint(ordering[i]);
-      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
-   }
-
-   return ir;
-}
-
 void VisualizeBB(Mesh &mesh, char *title, int pos_x, int pos_y)
 {
    socketstream sock;

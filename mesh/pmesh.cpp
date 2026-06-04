@@ -2014,18 +2014,20 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
-std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF()
+std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF() const
 {
-   int mesh_poly_deg = Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1;
+   int mesh_poly_deg =
+      Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1;
    // determinant order is d*p-1 for tensor product elements and
    // d*(p-1) for simplices. We use the former here for simplicity.
    int det_order = Dim*mesh_poly_deg-1;
    L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,
                                                   BasisType::GaussLobatto);
-   ParFiniteElementSpace *fespace_det = new ParFiniteElementSpace(this, fec_det);
+   ParFiniteElementSpace *fespace_det =
+      new ParFiniteElementSpace(const_cast<ParMesh *>(this), fec_det);
    auto detgf = std::make_unique<ParGridFunction>(fespace_det);
    detgf->MakeOwner(fec_det);
-   Mesh::UpdateJacobianDeterminantGF(detgf.get());
+   Mesh::UpdateJacobianDeterminantGF(*detgf.get());
    return detgf;
 }
 

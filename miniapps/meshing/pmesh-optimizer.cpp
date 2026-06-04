@@ -336,8 +336,8 @@ int main (int argc, char *argv[])
                   "2 - PMean.");
    args.AddOption(&detj_bound, "-db", "--detj-bound",
                   "-no-db", "--no-detj-bound",
-                  "Enable or disable determinant of Jacobian bounds. Used "
-                  "in line search to guarantee mesh validity.");
+                  "Enable or disable strict enforcement of positive Jacobian "
+                  "determinants to guarantee mesh validity.");
    args.Parse();
    if (!args.Good())
    {
@@ -477,7 +477,7 @@ int main (int argc, char *argv[])
          common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
                                300, 600, 300, 300);
       }
-      pmesh->UpdateJacobianDeterminantGF(detgf.get());
+      pmesh->UpdateJacobianDeterminantGF(*detgf.get());
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This
