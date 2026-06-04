@@ -113,7 +113,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-// Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
+// Assemble gradient and Hessian of ALF field at quad points for AdaptLim (2D).
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
                                      const real_t *B_nodes,
@@ -185,7 +185,7 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Compute/interpolate gradient and Hessian one vector component at a time.
+      // Compute/interpolate gradient and Hessian, one component at a time.
       for (int c = 0; c < 2; c++)
       {
          kernels::internal::s_regs2d_t<MD1> rgrad_nodes, ddalf_dx_n, ddalf_dy_n;

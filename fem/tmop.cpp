@@ -3850,8 +3850,10 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
       MFEM_VERIFY(z0[i], "NULL GridFunction pointer.");
       const FiniteElementSpace *fes_i = z0[i]->FESpace();
       MFEM_VERIFY(fes_i->GetVDim() == 1, "Expects scalar input GridFunctions.");
-      MFEM_VERIFY(fes_i->GetVSize() == ndofs, "All fields on the same FE space.");
-      MFEM_VERIFY(fes_i->GetMesh() == mesh, "All fields on the same Mesh.");
+      MFEM_VERIFY(fes_i->GetVSize() == ndofs,
+                  "All fields must be on the same FE space.");
+      MFEM_VERIFY(fes_i->GetMesh() == mesh,
+                  "All fields must be on the same Mesh.");
       MFEM_VERIFY(coeff[i], "NULL Coefficient pointer.");
    }
 

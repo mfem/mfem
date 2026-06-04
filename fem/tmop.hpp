@@ -2042,6 +2042,7 @@ protected:
    //   int [ c_k (z_k(x) - z_k0(x0))^2 / delta_max_k^2 ] dx
    // with one Coefficient per field. The fields z_k(x) are remapped from their
    // initial values z_k0(x0) through a single AdaptivityEvaluator instance.
+   // All GridFunctions must use the same FE space.
    Array<GridFunction *> adapt_lim_gf0;   // Owned. Initial fields z_k0(x0).
    Array<GridFunction *> adapt_lim_gf;    // Owned. Remapped fields z_k(x).
    Vector adapt_lim_init_nodes;           // Owned. Initial mesh nodes (ldofs).
@@ -2404,7 +2405,8 @@ public:
                             Smaller values activate the term faster. */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae, real_t delta_max = 1.0);
-   /// Multi-field adaptive limiting with per-field delta_max values.
+   /// Multi-field adaptive limiting with per-field delta_max values. All
+   /// GridFunctions must be on the same FiniteElementSpace.
    void EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
                                const Array<Coefficient *> &coeff,
                                AdaptivityEvaluator &ae,

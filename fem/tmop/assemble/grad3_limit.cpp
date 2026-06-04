@@ -164,7 +164,7 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
                                J, W, b, bld, XL, X, H0, exp_lim, d, q);
 }
 
-// Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (3D)
+// Assemble gradient and Hessian of ALF field at quadr points for AdaptLim (3D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                                      const real_t *B_nodes,
@@ -202,7 +202,8 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       kernels::internal::Grad3d(D1D, D1D, smem.d, sB_nodes, sG_nodes, r_X, r_J);
 
       // Compute the reference derivatives of ALF at DOF nodes.
-      kernels::internal::s_regs3d_t<MD1> alf_n, dalf_dxi_n, dalf_deta_n, dalf_dzeta_n;
+      kernels::internal::s_regs3d_t<MD1> alf_n;
+      kernels::internal::s_regs3d_t<MD1> dalf_dxi_n, dalf_deta_n, dalf_dzeta_n;
       kernels::internal::LoadDofs3d(e, D1D, ALF, alf_n);
       kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem.d,
                                                 sG_nodes, sB_nodes, sB_nodes,
@@ -222,7 +223,8 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       // Compute/interpolate gradient and Hessian one vector component at a time.
       for (int c = 0; c < 3; c++)
       {
-         kernels::internal::s_regs3d_t<MD1> rgrad_nodes, dd_dxi_n, dd_deta_n, dd_dzeta_n;
+         kernels::internal::s_regs3d_t<MD1> rgrad_nodes;
+         kernels::internal::s_regs3d_t<MD1> dd_dxi_n, dd_deta_n, dd_dzeta_n;
 
          // Precompute the inverse of the physical Jacobian.
          kernels::internal::vd_regs3d_t<3, 3, MD1> Jpr_inv;

@@ -76,7 +76,7 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                                       r11(1, qz, qy, qx),
                                       r11(2, qz, qy, qx)
                                     };
-               const real_t coeff0 = const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
+               const real_t coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx, qy, qz, e);
 
                real_t d1[3];
                // Eval_d1 (Quadratic Limiter)
@@ -193,7 +193,8 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
 
-               const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
+               const real_t coeff =
+                  const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
                const real_t factor = weight * coeff * normal_inv_delta_sq *
                                      alf_quad(qz, qy, qx);
 

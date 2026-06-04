@@ -242,7 +242,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
             real_t *ALC_c = PA.ALC.HostWrite() + c * PA.nq * PA.ne;
             for (int q = 0; q < PA.nq; ++q)
             {
-               ALC_c[q + e * PA.nq] = adapt_lim_coeff[c]->Eval(*T, ir.IntPoint(q));
+               ALC_c[q + e * PA.nq] =
+                  adapt_lim_coeff[c]->Eval(*T, ir.IntPoint(q));
             }
          }
       }
@@ -376,7 +377,6 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
          break;
       }
    }
-
    PA.ALC.UseDevice(true);
    if (all_const)
    {
@@ -391,6 +391,8 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    }
    else
    {
+      // If one Coefficient is not constant, we allocate the full size for
+      // all Coefficients. Could be optimized in the future.
       PA.ALC.SetSize(nal * PA.nq * PA.ne, Device::GetMemoryType());
       real_t *ALC_all = PA.ALC.HostWrite();
       for (int c = 0; c < nal; c++)
@@ -401,7 +403,8 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
             ElementTransformation &T = *PA.fes->GetElementTransformation(e);
             for (int q = 0; q < PA.ir->GetNPoints(); ++q)
             {
-               ALC_c[q + e * PA.nq] = adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
+               ALC_c[q + e * PA.nq] =
+                  adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
             }
          }
       }
@@ -602,14 +605,16 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
    {
       GetLocalStateEnergyPA_2D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
-      if (adapt_lim_gf.Size() > 0) { energy += GetLocalStateEnergyPA_AdaptLim_2D(); }
+      if (adapt_lim_gf.Size() > 0)
+      { energy += GetLocalStateEnergyPA_AdaptLim_2D(); }
    }
 
    if (PA.dim == 3)
    {
       GetLocalStateEnergyPA_3D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
-      if (adapt_lim_gf.Size() > 0) { energy += GetLocalStateEnergyPA_AdaptLim_3D(); }
+      if (adapt_lim_gf.Size() > 0)
+      { energy += GetLocalStateEnergyPA_AdaptLim_3D(); }
    }
 
    return energy;

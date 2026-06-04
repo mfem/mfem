@@ -119,15 +119,14 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
                   const real_t *Jtr = &J(0, 0, qx, qy, e);
                   const real_t detJtr = kernels::Det<2>(Jtr);
                   const real_t weight = W(qx, qy) * detJtr;
-                  const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
+                  const real_t coeff = const_coeff ? ALC(0,0,0) : ALC(qx, qy, e);
                   const real_t factor = weight * coeff * normal_inv_delta_sq;
 
                   const real_t diff = alf_quad(qy, qx);
                   const real_t grad_v = ALF_grad(v, qx, qy, e);
                   const real_t hess_vv = ALF_hess(v, v, qx, qy, e);
-                  const real_t hdiag = factor * (grad_v * grad_v + diff * hess_vv);
 
-                  QD(qx, dy) += bb * hdiag;
+                  QD(qx, dy) += bb * factor * (grad_v*grad_v + diff * hess_vv);
                }
             }
          }
