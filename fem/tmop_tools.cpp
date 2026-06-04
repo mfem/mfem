@@ -502,10 +502,9 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = detj_bound ?
-                              GetDeterminantLowerBound(d_loc, *fes, true)/
-                              wideal_det :
-                              ComputeMinDet(d_loc, *fes);
+   const real_t min_detT_in =
+      detj_bound ? GetDeterminantLowerBound(d_loc, *fes, true) / wideal_det
+      /* */      : ComputeMinDet(d_loc, *fes);
 
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
@@ -557,9 +556,9 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 #endif
 
       // Check the changes in detJ.
-      min_detT_out = detj_bound ?
-                     GetDeterminantLowerBound(d_loc, *fes, true)/wideal_det :
-                     ComputeMinDet(d_loc, *fes);
+      min_detT_out =
+         detj_bound ? GetDeterminantLowerBound(d_loc, *fes, true) / wideal_det
+         /* */      : ComputeMinDet(d_loc, *fes);
 
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
