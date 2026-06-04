@@ -266,12 +266,12 @@ public:
          using FOP = tuple_element_t<i, outputs_t>;
          if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
          {
-            MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+            MFEM_VERIFY(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
-            MFEM_ASSERT(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
+            MFEM_VERIFY(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
          }
          else { static_assert(false, "Unsupported FieldOperator"); }

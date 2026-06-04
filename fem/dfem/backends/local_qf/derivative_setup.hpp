@@ -208,17 +208,17 @@ public:
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
-            MFEM_ASSERT(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
-            MFEM_ASSERT(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
+            MFEM_VERIFY(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
             in_XE[i] = Reshape(xe[k]->Read(), v, q, q, B2D ? 1 : q, ne);
          }
          else if constexpr (is_weight_fop_v<FOP>)
          {
-            MFEM_ASSERT(ctx.ir.GetNPoints() == k_dim(q1d), "tensor-product IR expected");
+            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d), "tensor-product IR expected");
             in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
          else { static_assert(false, "Unsupported"); }
