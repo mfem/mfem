@@ -99,13 +99,17 @@ unique_ptr<FluxFunction> GetFluxFun(const ProblemParams &params,
 unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
                                              int dim);
 
+// Visualize the grid function in GLVis
+bool VisualizeField(socketstream &sout, const ParGridFunction &gf,
+                    const char *name, int iter = 0, bool verbose = true);
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
 
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
+   //int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
    bool verbose = (myid == 0);
@@ -1178,123 +1182,28 @@ int main(int argc, char *argv[])
       // 16. Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         const char vishost[] = "localhost";
-         const int  visport   = 19916;
-         static socketstream q_sock(vishost, visport);
-         q_sock << "parallel " << num_procs << " " << myid << "\n";
-         q_sock.precision(8);
-         q_sock << "solution\n" << pmesh << q_vh << endl;
-         if (ti == 0)
-         {
-            q_sock << "window_title 'Heat flux'" << endl;
-            q_sock << "keys Rljvvvvvmmc" << endl;
-         }
+         static socketstream q_sock, t_sock;
+         VisualizeField(q_sock, q_vh, "Heat flux", ti, verbose);
+         VisualizeField(t_sock, t_h, "Temperature", ti, verbose);
          if (reconstruct)
          {
-            // Make sure all ranks have sent their 'q' solution before initiating
-            // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh.GetComm());
-            static socketstream qt_sock(vishost, visport);
-            qt_sock << "parallel " << num_procs << " " << myid << "\n";
-            qt_sock.precision(8);
-            qt_sock << "solution\n" << pmesh << qt_h << endl;
-            if (ti == 0)
-            {
-               qt_sock << "window_title 'Total flux'" << endl;
-               qt_sock << "keys Rljvvvvvmmc" << endl;
-            }
-            // Make sure all ranks have sent their 'qt' solution before initiating
-            // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh.GetComm());
-            static socketstream qs_sock(vishost, visport);
-            qs_sock << "parallel " << num_procs << " " << myid << "\n";
-            qs_sock.precision(8);
-            qs_sock << "solution\n" << pmesh << q_hs << endl;
-            if (ti == 0)
-            {
-               qs_sock << "window_title 'Recon. flux'" << endl;
-               qs_sock << "keys Rljvvvvvmmc" << endl;
-            }
-            // Make sure all ranks have sent their 'qs' solution before initiating
-            // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh.GetComm());
-            static socketstream ts_sock(vishost, visport);
-            ts_sock << "parallel " << num_procs << " " << myid << "\n";
-            ts_sock.precision(8);
-            ts_sock << "solution\n" << pmesh << t_hs << endl;
-            if (ti == 0)
-            {
-               ts_sock << "window_title 'Recon. temperature'" << endl;
-               ts_sock << "keys Rljmmc" << endl;
-            }
-         }
-         // Make sure all ranks have sent their 'q' solution before initiating
-         // another set of GLVis connections (one from each rank):
-         MPI_Barrier(pmesh.GetComm());
-         static socketstream t_sock(vishost, visport);
-         t_sock << "parallel " << num_procs << " " << myid << "\n";
-         t_sock.precision(8);
-         t_sock << "solution\n" << pmesh << t_h << endl;
-         if (ti == 0)
-         {
-            t_sock << "window_title 'Temperature'" << endl;
-            t_sock << "keys Rljmmc" << endl;
+            static socketstream qt_sock, qs_sock, ts_sock;
+            VisualizeField(qt_sock, qt_h, "Total flux", ti, verbose);
+            VisualizeField(qs_sock, q_hs, "Recon. flux", ti, verbose);
+            VisualizeField(ts_sock, t_hs, "Recon. temperature", ti, verbose);
          }
          if (analytic)
          {
-            // Make sure all ranks have sent their 't' solution before initiating
-            // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh.GetComm());
-            static socketstream qa_sock(vishost, visport);
-            qa_sock << "parallel " << num_procs << " " << myid << "\n";
-            qa_sock.precision(8);
-            qa_sock << "solution\n" << pmesh << q_a << endl;
-            if (ti == 0)
-            {
-               qa_sock << "window_title 'Heat flux analytic'" << endl;
-               qa_sock << "keys Rljvvvvvmmc" << endl;
-            }
+            static socketstream qa_sock, qta_sock, ta_sock, c_sock;
+            VisualizeField(qa_sock, q_a, "Heat flux analytic", ti, verbose);
             if (bconv || bnlconv)
             {
-               // Make sure all ranks have sent their 'qa' solution before initiating
-               // another set of GLVis connections (one from each rank):
-               MPI_Barrier(pmesh.GetComm());
-               static socketstream qta_sock(vishost, visport);
-               qta_sock << "parallel " << num_procs << " " << myid << "\n";
-               qta_sock.precision(8);
-               qta_sock << "solution\n" << pmesh << qt_a << endl;
-               if (ti == 0)
-               {
-                  qta_sock << "window_title 'Total flux analytic'" << endl;
-                  qta_sock << "keys Rljvvvvvmmc" << endl;
-               }
+               VisualizeField(qa_sock, qt_a, "Total heat flux analytic", ti, verbose);
             }
-            // Make sure all ranks have sent their 'qta' solution before initiating
-            // another set of GLVis connections (one from each rank):
-            MPI_Barrier(pmesh.GetComm());
-            static socketstream ta_sock(vishost, visport);
-            ta_sock << "parallel " << num_procs << " " << myid << "\n";
-            ta_sock.precision(8);
-            ta_sock << "solution\n" << pmesh << t_a << endl;
-            if (ti == 0)
-            {
-               ta_sock << "window_title 'Temperature analytic'" << endl;
-               ta_sock << "keys Rljmmc" << endl;
-            }
+            VisualizeField(ta_sock, t_a, "Temperature analytic", ti, verbose);
             if (bconv)
             {
-               // Make sure all ranks have sent their 'ta' solution before initiating
-               // another set of GLVis connections (one from each rank):
-               MPI_Barrier(pmesh.GetComm());
-               static socketstream c_sock(vishost, visport);
-               c_sock << "parallel " << num_procs << " " << myid << "\n";
-               c_sock.precision(8);
-               c_sock << "solution\n" << pmesh << c_gf << endl;
-               if (ti == 0)
-               {
-                  c_sock << "window_title 'Velocity'" << endl;
-                  c_sock << "keys Rljvvvvvmmc" << endl;
-               }
+               VisualizeField(c_sock, c_gf, "Velocity", ti, verbose);
             }
          }
       }
@@ -1764,4 +1673,51 @@ unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
    }
 
    return nullptr;
+}
+
+bool VisualizeField(socketstream &sout, const ParGridFunction &gf,
+                    const char *name, int iter, bool verbose)
+{
+   const char vishost[] = "localhost";
+   const int visport = 19916;
+   if (!sout.is_open())
+   {
+      sout.open(vishost, visport);
+   }
+   if (!sout)
+   {
+      if (verbose)
+      {
+         cout << "Unable to connect to GLVis server at " << vishost << ':'
+              << visport << endl;
+         cout << "GLVis visualization disabled.\n";
+      }
+      return false;
+   }
+   else
+   {
+      // Make sure all ranks have sent the previous solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(gf.ParFESpace()->GetComm());
+      const int num_procs = gf.ParFESpace()->GetNRanks();
+      const int myid = gf.ParFESpace()->GetMyRank();
+      sout << "parallel " << num_procs << " " << myid << "\n";
+      constexpr int precision = 8;
+      sout.precision(precision);
+      sout << "solution\n" << *gf.FESpace()->GetMesh() << gf;
+      if (iter == 0)
+      {
+         sout << "window_title '" << name << "'\n";
+         if (gf.VectorDim() > 1)
+         {
+            sout << "keys Rljvvvvvmmc" << endl;
+         }
+         else
+         {
+            sout << "keys Rljmmc" << endl;
+         }
+      }
+      sout << flush;
+   }
+   return true;
 }
