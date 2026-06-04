@@ -45,7 +45,7 @@ TEST_CASE("MemoryManager/Scopes",
       const MemoryReal *mem = (MemoryReal*) &x.GetMemory();
       const real_t *h_x = mem->h_ptr;
       REQUIRE(h_x == x.GetData());
-      REQUIRE(mem->size_ == x.Size());
+      REQUIRE(mem->size_ == static_cast<size_t>(x.Size()));
       REQUIRE(mem->offset_ == 0);
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
 #else
