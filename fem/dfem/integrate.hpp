@@ -102,7 +102,7 @@ void map_quadrature_data_to_fields_tensor_impl_1d(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &/*scratch_mem*/)
+   std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
