@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "general/array.hpp"
+#include "../../general/array.hpp"
 #include "fielddescriptor.hpp"
 
 namespace mfem::future

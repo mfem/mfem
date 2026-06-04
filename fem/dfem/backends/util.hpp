@@ -11,20 +11,17 @@
 #pragma once
 
 #include "../../quadinterpolator.hpp"
-#include "../util.hpp"
 #include "../../../general/enzyme.hpp"
 #include "../../../linalg/dual.hpp"
 
-#define DFEM_USE_OWN_TUPLE
-#ifndef DFEM_USE_OWN_TUPLE
-#include <tuple>
-#else
-#include "fem/dfem/tuple.hpp"
+#include "../fielddescriptor.hpp"
+#include "../util.hpp"
+
+#include "../tuple.hpp"
 using mfem::future::tuple;
 using mfem::future::tuple_size;
 using mfem::future::tuple_element;
 using mfem::future::tuple_element_t;
-#endif
 
 namespace mfem::future
 {

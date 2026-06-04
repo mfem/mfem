@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../../integrator_ctx.hpp"
-#include "fem/kernels.hpp"
+#include "../../../kernels.hpp"
 
 #include "kernels.hpp"
 #include "util.hpp"

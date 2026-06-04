@@ -12,9 +12,10 @@
 
 // Compile-time quadrature argument metadata for local q-functions
 
+#include "../../../../linalg/tensor.hpp"
+
 #include "../../integrator_ctx.hpp"
 #include "../../util.hpp"
-#include "linalg/tensor.hpp"
 
 #include <algorithm>
 #include <array>

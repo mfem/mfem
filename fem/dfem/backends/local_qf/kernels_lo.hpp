@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "fem/kernels.hpp"
+#include "../../../kernels.hpp"
 namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
