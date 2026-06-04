@@ -789,12 +789,21 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
          // tangent (effectively dJ = J), injecting a spurious derivative term.
          // Needed for the 'mass_diffusion_global_qf' tests in
          // tests/unit/dfem/test_multiple_outputs.cpp.
+#if 1
          process_inputs<wrapper_fn, qf_return_t, CurI + 1, NI, ActivityMap...>(
             inputs, shadows, primals, derivs,
             acc...,
             enzyme_dup,
             &std::get<CurI>(inputs),
             &std::get<CurI>(shadows));
+#else
+
+         process_inputs<wrapper_fn, qf_return_t, CurI + 1, NI, ActivityMap...>(
+            inputs, shadows, primals, derivs,
+            acc...,
+            enzyme_const,
+            &std::get<CurI>(inputs));
+#endif
       }
    }
 }

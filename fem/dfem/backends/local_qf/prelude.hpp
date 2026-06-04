@@ -139,42 +139,94 @@ struct LocalQFBackend
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM, int Q1D, typename QT, typename IT, typename OT>
-inline void AddActionLO()
+inline void AddAction()
 {
    using ker = LocalQFImpl::Action<QT, IT, OT>;
-   ker::ActionLO::template Specialization<DIM, Q1D>::Add();
+   if constexpr (Q1D <= 8)
+   {
+      ker::ActionLO::template Specialization<DIM, Q1D>::Add();
+   }
+   else
+   {
+      ker::ActionHO::template Specialization<DIM, Q1D>::Add();
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
-inline void AddDerivativeActionLO()
+inline void AddDerivativeAction()
 {
    using ker = LocalQFImpl::DerivativeAction<DID, QT, IT, OT>;
-   ker::DerivativeActionLO::template Specialization<DIM, Q1D>::Add();
+   if constexpr (Q1D <= 8)
+   {
+      ker::DerivativeActionLO::template Specialization<DIM, Q1D>::Add();
+   }
+   else
+   {
+      ker::DerivativeActionHO::template Specialization<DIM, Q1D>::Add();
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
-inline void AddDerivativeSetupLO()
+inline void AddDerivativeSetup()
 {
    using ker = LocalQFImpl::DerivativeSetup<DID, QT, IT, OT>;
-   ker::DerivativeSetupLO::template Specialization<DIM, Q1D>::Add();
+   if constexpr (Q1D <= 8)
+   {
+      ker::DerivativeSetupLO::template Specialization<DIM, Q1D>::Add();
+   }
+   else
+   {
+      ker::DerivativeSetupHO::template Specialization<DIM, Q1D>::Add();
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
-inline void AddDerivativeApplyLO()
+inline void AddDerivativeApply()
 {
    using ker = LocalQFImpl::DerivativeApply<DID, QT, IT, OT>;
-   ker::DerivativeApplyLO::template Specialization<DIM, Q1D>::Add();
+   if constexpr (Q1D <= 8)
+   {
+      ker::DerivativeApplyLO::template Specialization<DIM, Q1D>::Add();
+   }
+   else
+   {
+      ker::DerivativeApplyHO::template Specialization<DIM, Q1D>::Add();
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
-inline void AddDerivativeApplyTransposeLO()
+inline void AddDerivativeApplyTranspose()
 {
    using ker = LocalQFImpl::DerivativeApplyTranspose<DID, QT, IT, OT>;
-   ker::DerivativeApplyTransposeLO::template Specialization<DIM, Q1D>::Add();
+   if constexpr (Q1D <= 8)
+   {
+      ker::DerivativeApplyTransposeLO::template Specialization<DIM, Q1D>::Add();
+   }
+   else
+   {
+      ker::DerivativeApplyTransposeHO::template Specialization<DIM, Q1D>::Add();
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, int Q1D, typename QT, typename IT, typename OT,
+         typename derivative_ids_t = std::index_sequence<>>
+inline void AddLocalSpecializations()
+{
+   AddAction<DIM, Q1D, QT, IT, OT>();
+
+   for_constexpr([&](auto i)
+   {
+      using derivative_id = decltype(i);
+      AddDerivativeAction<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      AddDerivativeSetup<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      AddDerivativeApply<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      AddDerivativeApplyTranspose<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+   }, derivative_ids_t{});
 }
 
 }

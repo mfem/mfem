@@ -184,7 +184,6 @@ struct MF_Mass_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t> &v) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(v.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = weight(q) * det(J(q)) * u(q);
@@ -199,7 +198,6 @@ struct PA_Mass_Setup_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t> &D) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(D.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          D(q) = weight(q) * det(J(q));
@@ -214,7 +212,6 @@ struct PA_Mass_Apply_global_qf
                    tensor_array<const real_t> &D,
                    tensor_array<real_t> &v) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(v.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = D(q) * u(q);
@@ -287,7 +284,6 @@ struct MF_Diffusion_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM> &Gv) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(J.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
@@ -304,7 +300,6 @@ struct PA_Diffusion_Setup_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM, DIM> &D) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(J.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
@@ -320,7 +315,6 @@ struct PA_Diffusion_Apply_global_qf
                    tensor_array<const real_t, DIM, DIM> &D,
                    tensor_array<real_t, DIM> &Gv) const
    {
-      NVTX_MARK_FUNCTION;
       mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          Gv(q) = D(q) * Gu(q);
@@ -922,7 +916,6 @@ struct BakeOff
 
       void Mult(const Vector &xv, Vector &yv) const override
       {
-         NVTX_MARK_FUNCTION;
          MultiVector MX{const_cast<Vector&>(xv), arg1}, MY{yv};
          dop->Mult(MX, MY);
       }
@@ -965,7 +958,6 @@ struct BakeOff
       vqspace(qspace, DIM*DIM),
       qfct(vqspace)
    {
-      NVTX_MARK_FUNCTION;
       smesh.Clear();
       x.Randomize(0x9e3779b9);
       assert(q1d*q1d*q1d == ir->GetNPoints());

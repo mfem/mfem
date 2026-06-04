@@ -16,7 +16,6 @@
 #include "util.hpp"
 
 #include <array>
-#include <cmath>
 
 namespace mfem::future::LocalQFImpl
 {
@@ -172,20 +171,6 @@ public:
          Ye_mem.SetSize(num_test_dof * test_vdim * ne);
          Ye_mem.UseDevice(true);
       }
-
-#ifndef MFEM_DEBUG
-      // DerivativeAssembleDiagonalLO::template Specialization<2, 2>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<2, 3>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<2, 4>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<2, 5>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<2, 6>::Add();
-
-      // DerivativeAssembleDiagonalLO::template Specialization<3, 2>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<3, 3>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<3, 4>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<3, 5>::Add();
-      // DerivativeAssembleDiagonalLO::template Specialization<3, 6>::Add();
-#endif
    }
 
    template <typename Backend>
@@ -223,8 +208,7 @@ public:
       }
       else
       {
-         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
-         // run_kernels<DerivativeAssembleDiagonalHO>();
+         run_kernels<DerivativeAssembleDiagonalHO>();
       }
 
       diag_e += Ye_mem;
@@ -252,7 +236,6 @@ public:
       const int q1d,
       const int dim)
    {
-      NVTX_MARK_FUNCTION;
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
@@ -370,8 +353,8 @@ public:
       decltype(&DerivativeAssembleDiagonal::derivative_assemble_diagonal_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalLO, DiagonalKernelType, (int,
                                                                             int));
-   // MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalHO, DiagonalKernelType, (int,
-   //                                                                          int));
+   MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalHO, DiagonalKernelType, (int,
+                                                                            int));
 };
 
 template <
@@ -415,43 +398,43 @@ DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::Derivat
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// template <int DIM, int Q1D>
-// typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
-// DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Kernel()
-// {
-//    using diag_t =
-//       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    return diag_t::template
-//           derivative_assemble_diagonal_callback<LocalQFHOBackend<DIM>, Q1D>;
-// }
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
+DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Kernel()
+{
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return diag_t::template
+          derivative_assemble_diagonal_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
 
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
-// DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Fallback(
-//    int dim, int)
-// {
-//    using diag_t =
-//       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    if (dim == 2)
-//    {
-//       return diag_t::template
-//              derivative_assemble_diagonal_callback<LocalQFHOBackend<2>>;
-//    }
-//    else if (dim == 3)
-//    {
-//       return diag_t::template
-//              derivative_assemble_diagonal_callback<LocalQFHOBackend<3>>;
-//    }
-//    else { MFEM_ABORT("Unsupported dimension"); }
-// }
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DiagonalKernelType
+DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleDiagonalHO::Fallback(
+   int dim, int)
+{
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   if (dim == 2)
+   {
+      return diag_t::template
+             derivative_assemble_diagonal_callback<LocalQFHOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return diag_t::template
+             derivative_assemble_diagonal_callback<LocalQFHOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
 
 } // namespace mfem::future::LocalQFImpl

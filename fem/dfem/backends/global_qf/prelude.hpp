@@ -106,7 +106,6 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      dbg();
       return GlobalQFImpl::DerivativeApply<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc_t{}, inputs, outputs, qp_cache);
@@ -124,7 +123,6 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      dbg();
       return GlobalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc_t{}, inputs, outputs, qp_cache);
@@ -142,7 +140,6 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      dbg();
       return LocalQFImpl::DerivativeAssemble<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc_t{}, inputs, outputs, qp_cache);
@@ -160,7 +157,6 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      dbg();
       return LocalQFImpl::DerivativeAssembleDiagonal<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc_t{}, inputs, outputs, qp_cache);

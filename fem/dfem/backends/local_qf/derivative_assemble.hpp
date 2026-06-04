@@ -804,7 +804,6 @@ public:
       const int q1d,
       const int dim)
    {
-      NVTX_MARK_FUNCTION;
       static constexpr int DIM = backend_t::DIM;
       static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr int MNQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;

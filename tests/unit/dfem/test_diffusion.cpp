@@ -100,7 +100,6 @@ template <int DIM, typename QFBackend = LocalQFBackend>
 void diffusion(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -396,7 +395,6 @@ void diffusion(const char *filename, int p)
          MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
 
-         dbg("Vector Action");
          REQUIRE(norm_global == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
@@ -496,42 +494,29 @@ void diffusion(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-static const auto GenMeshs = [](const auto &meshs, const auto &extra)
-{
-   return !launch_all_non_regression_tests
-          ? GENERATE_REF(from_range(meshs))
-          : GENERATE_REF(from_range(meshs), from_range(extra));
-};
-
-static const auto GenOrders = []()
-{
-   return !launch_all_non_regression_tests ? 1 : GENERATE(1, 2, 3);
-};
-
-// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][DIFFUSION][2D]")
 {
-   const auto p = GenOrders();
+   const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
    const auto extra = { "../../data/star.mesh",
                         "../../data/star-q3.mesh",
                         "../../data/rt-2d-q3.mesh",
                         "../../data/periodic-square.mesh"
                       };
-   diffusion<2>(GenMeshs(meshs, extra), p);
+   diffusion<2>(GenAll(meshs, extra), p);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][DIFFUSION][3D]")
 {
-   const auto p = GenOrders();
+   const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh",
                         "../../data/fichera-q3.mesh",
                         "../../data/toroid-hex.mesh",
                         "../../data/periodic-cube.mesh"
                       };
-   diffusion<3>(GenMeshs(meshs, extra), p);
+   diffusion<3>(GenAll(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI

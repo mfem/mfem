@@ -31,14 +31,13 @@ template <int DIM>
 void vectordivergence(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
    MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
 
    pmesh.EnsureNodes();
-   [[maybe_unused]] auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
    p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
 
@@ -54,8 +53,7 @@ void vectordivergence(const char *filename, int p)
    ParFiniteElementSpace pvfes(&pmesh, &fec, DIM);
 
    const int q = 3 * p + 1;
-   [[maybe_unused]] const auto *ir =
-      &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
 
    ParGridFunction xv(&pvfes);
    ParGridFunction ys(&psfes), sz(&psfes);
@@ -178,31 +176,31 @@ void vectordivergence(const char *filename, int p)
    }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU][DIV]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto p = GenAll({1}, {2, 3});
 
    SECTION("2D p=" + std::to_string(p))
    {
-      const auto filename =
-         GENERATE("../../data/star.mesh",
-                  "../../data/star-q3.mesh",
-                  "../../data/rt-2d-q3.mesh",
-                  "../../data/inline-quad.mesh",
-                  "../../data/periodic-square.mesh");
-      vectordivergence<2>(filename, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      vectordivergence<2>(GenAll(meshs, extra), p);
    }
 
    SECTION("3D p=" + std::to_string(p))
    {
-      const auto filename =
-         GENERATE("../../data/fichera.mesh",
-                  "../../data/fichera-q3.mesh",
-                  "../../data/inline-hex.mesh",
-                  "../../data/toroid-hex.mesh",
-                  "../../data/periodic-cube.mesh");
-      vectordivergence<3>(filename, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      vectordivergence<3>(GenAll(meshs, extra), p);
    }
 }
 

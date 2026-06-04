@@ -127,42 +127,11 @@ public:
    {
       if (q1d <= 8)
       {
-         // #ifndef MFEM_DEBUG
-         //          static const bool AddKernelLO =
-         //             (
-         //                // 2D kernels
-         //                ActionLO::template Specialization<2, 2>::Add(),
-         //                ActionLO::template Specialization<2, 3>::Add(),
-         //                ActionLO::template Specialization<2, 4>::Add(),
-         //                ActionLO::template Specialization<2, 5>::Add(),
-         //                ActionLO::template Specialization<2, 6>::Add(),
-         //                // 3D kernels
-         //                ActionLO::template Specialization<3, 2>::Add(),
-         //                ActionLO::template Specialization<3, 3>::Add(),
-         //                ActionLO::template Specialization<3, 4>::Add(),
-         //                ActionLO::template Specialization<3, 5>::Add(),
-         //                ActionLO::template Specialization<3, 6>::Add(),
-         //                true);
-         //          MFEM_CONTRACT_VAR(AddKernelLO);
-         // #endif // MFEM_DEBUG
          run_kernels<ActionLO>(xe, ye);
       }
       else
       {
-         // #ifndef MFEM_DEBUG
-         //          static const bool AddKernelHO =
-         //             (
-         //                // 3D HO kernels
-         //                ActionHO::template Specialization<3, 10>::Add(),
-         //                ActionHO::template Specialization<3, 12>::Add(),
-         //                ActionHO::template Specialization<3, 14>::Add(),
-         //                ActionHO::template Specialization<3, 16>::Add(),
-         //                ActionHO::template Specialization<3, 18>::Add(),
-         //                true);
-         // MFEM_CONTRACT_VAR(AddKernelHO);
-         // #endif // MFEM_DEBUG
-         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
-         // run_kernels<ActionHO>(xe, ye);
+         run_kernels<ActionHO>(xe, ye);
       }
    }
 
@@ -189,7 +158,6 @@ public:
                                // fallback arguments
                                const int dim, const int q1d)
    {
-      NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
       MFEM_CONTRACT_VAR(dim);
       MFEM_ASSERT(dim == ctx.mesh.Dimension(), "Dimension mismatch");
@@ -432,7 +400,7 @@ public:
    }
    using KernelType = decltype(&Action::action_callback<>);
    MFEM_REGISTER_KERNELS(ActionLO, KernelType, (int, int));
-   // MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int));
+   MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int));
 };
 
 // Low Order kernels
@@ -470,37 +438,37 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// // High Order kernels
-// template <
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// template <int DIM, int Q1D>
-// typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-// Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
-// {
-//    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-//    return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
-// }
+// High Order kernels
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
 
-// // High Order fallback
-// template <
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-// Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
-// {
-//    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-//    if (dim == 2)
-//    {
-//       return action_t::template action_callback<LocalQFHOBackend<2>>;
-//    }
-//    else if (dim == 3)
-//    {
-//       return action_t::template action_callback<LocalQFHOBackend<3>>;
-//    }
-//    else { MFEM_ABORT("Unsupported dimension"); }
-// }
+// High Order fallback
+template <
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   if (dim == 2)
+   {
+      return action_t::template action_callback<LocalQFHOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return action_t::template action_callback<LocalQFHOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
 
 } // namespace mfem::future::LocalQFImpl

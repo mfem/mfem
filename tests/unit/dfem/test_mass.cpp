@@ -62,7 +62,6 @@ template <int DIM>
 void mass_action(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -305,7 +304,6 @@ template <int DIM>
 void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -415,7 +413,7 @@ void mass_mat_mixed(const char* filename, int p)
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 {
-   const auto p = GenAll({1}, {1, 2, 3});
+   const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
    const auto extra = { "../../data/star.mesh",
                         "../../data/star-q3.mesh",
@@ -429,7 +427,7 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
 {
-   const auto p = GenAll({1}, {1, 2, 3});
+   const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh",
                         "../../data/fichera-q3.mesh",

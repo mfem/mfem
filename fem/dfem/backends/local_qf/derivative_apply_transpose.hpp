@@ -218,8 +218,7 @@ public:
       }
       else
       {
-         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
-         // run_kernels<DerivativeApplyTransposeHO>(ye);
+         run_kernels<DerivativeApplyTransposeHO>(ye);
       }
    }
 
@@ -254,7 +253,6 @@ public:
       // fallback arguments
       const int dim, const int q1d)
    {
-      NVTX_MARK_FUNCTION;
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
@@ -474,8 +472,8 @@ public:
       decltype(&DerivativeApplyTranspose::derivative_apply_transpose_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeApplyTransposeLO, TransposeKernelType, (int,
                                                                            int));
-   // MFEM_REGISTER_KERNELS(DerivativeApplyTransposeHO, TransposeKernelType, (int,
-   //                                                                         int));
+   MFEM_REGISTER_KERNELS(DerivativeApplyTransposeHO, TransposeKernelType, (int,
+                                                                           int));
 };
 
 template <
@@ -519,43 +517,43 @@ DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::Derivativ
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// template <int DIM, int Q1D>
-// typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::TransposeKernelType
-// DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeApplyTransposeHO::Kernel()
-// {
-//    using transpose_t =
-//       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    return transpose_t::template
-//           derivative_apply_transpose_callback<LocalQFHOBackend<DIM>, Q1D>;
-// }
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::TransposeKernelType
+DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeApplyTransposeHO::Kernel()
+{
+   using transpose_t =
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return transpose_t::template
+          derivative_apply_transpose_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
 
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::TransposeKernelType
-// DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeApplyTransposeHO::Fallback
-// (int dim, int)
-// {
-//    using transpose_t =
-//       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    if (dim == 2)
-//    {
-//       return transpose_t::template
-//              derivative_apply_transpose_callback<LocalQFHOBackend<2>>;
-//    }
-//    else if (dim == 3)
-//    {
-//       return transpose_t::template
-//              derivative_apply_transpose_callback<LocalQFHOBackend<3>>;
-//    }
-//    else { MFEM_ABORT("Unsupported dimension"); }
-// }
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::TransposeKernelType
+DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeApplyTransposeHO::Fallback
+(int dim, int)
+{
+   using transpose_t =
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   if (dim == 2)
+   {
+      return transpose_t::template
+             derivative_apply_transpose_callback<LocalQFHOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return transpose_t::template
+             derivative_apply_transpose_callback<LocalQFHOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
 
 } // namespace mfem::future::LocalQFImpl

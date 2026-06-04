@@ -405,11 +405,11 @@ struct ho_ker_backend
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int T_DIM, int T_MQ1 = 20>
+template<int T_DIM, int T_Q1D = 20>
 struct LocalQFHOBackend
 {
    // ─────────────────────────────────────────────────────
-   static constexpr int DIM = T_DIM, MQ1 = T_MQ1, Q1D = T_MQ1;
+   static constexpr int DIM = T_DIM, MQ1 = T_Q1D, Q1D = T_Q1D;
    static_assert(DIM == 2 || DIM == 3);
 
    // ─────────────────────────────────────────────────────
@@ -432,7 +432,7 @@ struct LocalQFHOBackend
    using Shared = typename backend_t::Shared;
 
    // ─────────────────────────────────────────────────────
-   template<int MQ1, typename WT, typename WI, typename Cache, typename AddY>
+   template<typename WT, typename WI, typename Cache, typename AddY>
    static MFEM_HOST_DEVICE inline
    void DiagContract(Shared &s,
                      const int num_dof_1d, const int q1d, const int nz_dof,
@@ -517,7 +517,7 @@ struct LocalQFHOBackend
    using QReg = ho_qreg_t<backend_t, T>;
 
    // ─────────────────────────────────────────────────────
-   template<int MQ1, typename ArgRegT, typename XE_T>
+   template<typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE
    void LoadValue(Shared &s,
                   const int e, const int d, const int q, const int,
@@ -530,7 +530,7 @@ struct LocalQFHOBackend
    }
 
    // ─────────────────────────────────────────────────────
-   template<int RNK, int MQ1, typename ArgRegT, typename XE_T,
+   template<int RNK, typename ArgRegT, typename XE_T,
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE
    void LoadGradient(Shared &s,
@@ -566,29 +566,11 @@ struct LocalQFHOBackend
    // ─────────────────────────────────────────────────────
    template<typename T>
    static MFEM_HOST_DEVICE inline
-   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
-   {
-      hok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
-   }
-
-   // ─────────────────────────────────────────────────────
-   template<typename T>
-   static MFEM_HOST_DEVICE inline
    auto qp_pull_directional(QReg<T> &preg, QReg<T> &sreg,
                             int qx, int qy, int qz, bool dependent)
    {
       return hok::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
                                            dependent);
-   }
-
-   // ─────────────────────────────────────────────────────
-   template<typename T>
-   static MFEM_HOST_DEVICE inline
-   void qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
-   {
-      hok::store_at<DIM, T, decltype(reg),
-          qf_param_uses_dual_v<T>>
-          (reg, qx, qy, qz, out);
    }
 
    // ─────────────────────────────────────────────────────
@@ -639,6 +621,24 @@ struct LocalQFHOBackend
       {
          static_assert(false, "Unsupported");
       }
+   }
+
+   // ─────────────────────────────────────────────────────
+   template<typename T>
+   static MFEM_HOST_DEVICE inline
+   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
+   {
+      hok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
+   }
+
+   // ─────────────────────────────────────────────────────
+   template<typename T>
+   static MFEM_HOST_DEVICE inline
+   void qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
+   {
+      hok::store_at<DIM, T, decltype(reg),
+          qf_param_uses_dual_v<T>>
+          (reg, qx, qy, qz, out);
    }
 
    // ─────────────────────────────────────────────────────

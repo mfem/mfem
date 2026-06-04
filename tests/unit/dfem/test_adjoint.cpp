@@ -63,7 +63,7 @@ template <int DIM> struct local_qf
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// Verifies <bZ, J·δ> == <Jᵀ·bZ, δ> for the derivatives w.r.t. U and V.
+// Verifies <bZ, J·δ> == <Jᵀ·bZ, δ> for each derivatives
 template <int DIM>
 static void RunTangentAdjointConsistency(DifferentiableOperator &F,
                                          ParFiniteElementSpace &fes,
@@ -117,29 +117,12 @@ static void RunTangentAdjointConsistency(DifferentiableOperator &F,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, typename QT, typename IT, typename OT>
-inline void AddLocalSpecializations()
-{
-   AddActionLO<DIM, Q1D, QT, IT, OT>();
-
-   AddDerivativeActionLO<DIM, Q1D, U, QT, IT, OT>();
-   AddDerivativeSetupLO<DIM, Q1D, U, QT, IT, OT>();
-   AddDerivativeApplyLO<DIM, Q1D, U, QT, IT, OT>();
-   AddDerivativeApplyTransposeLO<DIM, Q1D, U, QT, IT, OT>();
-
-   AddDerivativeActionLO<DIM, Q1D, V, QT, IT, OT>();
-   AddDerivativeSetupLO<DIM, Q1D, V, QT, IT, OT>();
-   AddDerivativeApplyLO<DIM, Q1D, V, QT, IT, OT>();
-   AddDerivativeApplyTransposeLO<DIM, Q1D, V, QT, IT, OT>();
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // Tangent-adjoint consistency test
 template <int DIM>
 void TangentAdjointConsistencyTest(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
+   mfem::out << filename << " " << DIM << " " << p << std::endl;
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -181,40 +164,41 @@ void TangentAdjointConsistencyTest(const char *filename, int p)
          q_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
    }
 
+   using LQT = local_qf<DIM>;
    local_qf<DIM> q_lfn {};
    F.AddDomainIntegrator<LocalQFBackend>(
       q_lfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
-   AddLocalSpecializations<DIM, 3, local_qf<DIM>, IT, OT>();
+   AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT>();
 
    RunTangentAdjointConsistency<DIM>(F, fes, *nodes);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Tangent-Adjoint Consistency 2D",
           "[Parallel][dFEM][GPU][ADJOINT][2D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh =
-      GENERATE("../../data/star.mesh",
-               "../../data/star-q3.mesh",
-               "../../data/rt-2d-q3.mesh",
-               "../../data/inline-quad.mesh",
-               "../../data/periodic-square.mesh");
-   TangentAdjointConsistencyTest<2>(mesh, p);
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-quad.mesh" };
+   const auto extra = { "../../data/star.mesh",
+                        "../../data/star-q3.mesh",
+                        "../../data/rt-2d-q3.mesh",
+                        "../../data/periodic-square.mesh"
+                      };
+   TangentAdjointConsistencyTest<2>(GenAll(meshs, extra), p);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Tangent-Adjoint Consistency 3D",
           "[Parallel][dFEM][GPU][ADJOINT][3D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh =
-      GENERATE("../../data/fichera.mesh",
-               "../../data/fichera-q3.mesh",
-               "../../data/inline-hex.mesh",
-               "../../data/toroid-hex.mesh",
-               "../../data/periodic-cube.mesh");
-   TangentAdjointConsistencyTest<3>(mesh, p);
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-hex.mesh" };
+   const auto extra = { "../../data/fichera.mesh",
+                        "../../data/fichera-q3.mesh",
+                        "../../data/toroid-hex.mesh",
+                        "../../data/periodic-cube.mesh"
+                      };
+   TangentAdjointConsistencyTest<3>(GenAll(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI

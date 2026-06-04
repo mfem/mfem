@@ -164,30 +164,11 @@ public:
                                    ElementDofOrdering::LEXICOGRAPHIC);
       if (q1d <= 8)
       {
-         // #ifndef MFEM_DEBUG
-         //          static const bool AddKernelLO =
-         //             (
-         //                // 2D kernels
-         //                DerivativeActionLO::template Specialization<2, 2>::Add(),
-         //                DerivativeActionLO::template Specialization<2, 3>::Add(),
-         //                DerivativeActionLO::template Specialization<2, 4>::Add(),
-         //                DerivativeActionLO::template Specialization<2, 5>::Add(),
-         //                DerivativeActionLO::template Specialization<2, 6>::Add(),
-         //                // 3D kernels
-         //                DerivativeActionLO::template Specialization<3, 2>::Add(),
-         //                DerivativeActionLO::template Specialization<3, 3>::Add(),
-         //                DerivativeActionLO::template Specialization<3, 4>::Add(),
-         //                DerivativeActionLO::template Specialization<3, 5>::Add(),
-         //                DerivativeActionLO::template Specialization<3, 6>::Add(),
-         //                true);
-         //          MFEM_CONTRACT_VAR(AddKernelLO);
-         // #endif // MFEM_DEBUG
          run_kernels<DerivativeActionLO>(xe, ye);
       }
       else
       {
-         MFEM_ABORT("Unsupported q1d for LocalQFBackend: " << q1d);
-         // run_kernels<DerivativeActionHO>(xe, ye);
+         run_kernels<DerivativeActionHO>(xe, ye);
       }
    }
 
@@ -591,7 +572,7 @@ public:
    using DerivativeKernelType =
       decltype(&DerivativeAction::derivative_action_callback<>);
    MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeKernelType, (int, int));
-   // MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int));
 };
 
 // Low Order kernels
@@ -637,45 +618,45 @@ DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionL
    else { MFEM_ABORT("Unsupported dimension"); }
 }
 
-// // High Order kernels
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// template <int DIM, int Q1D>
-// typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-// DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Kernel()
-// {
-//    using derivative_action_t =
-//       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    return derivative_action_t::template
-//           derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
-// }
+// High Order kernels
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+template <int DIM, int Q1D>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Kernel()
+{
+   using derivative_action_t =
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return derivative_action_t::template
+          derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
 
-// // High Order fallback
-// template <
-//    int derivative_id,
-//    typename qfunc_t,
-//    typename inputs_t,
-//    typename outputs_t>
-// typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-// DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Fallback
-// (int dim, int)
-// {
-//    using derivative_action_t =
-//       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
-//    if (dim == 2)
-//    {
-//       return derivative_action_t::template
-//              derivative_action_callback<LocalQFHOBackend<2>>;
-//    }
-//    else if (dim == 3)
-//    {
-//       return derivative_action_t::template
-//              derivative_action_callback<LocalQFHOBackend<3>>;
-//    }
-//    else { MFEM_ABORT("Unsupported dimension"); }
-// }
+// High Order fallback
+template <
+   int derivative_id,
+   typename qfunc_t,
+   typename inputs_t,
+   typename outputs_t>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Fallback
+(int dim, int)
+{
+   using derivative_action_t =
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   if (dim == 2)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFHOBackend<2>>;
+   }
+   else if (dim == 3)
+   {
+      return derivative_action_t::template
+             derivative_action_callback<LocalQFHOBackend<3>>;
+   }
+   else { MFEM_ABORT("Unsupported dimension"); }
+}
 
 } // namespace mfem::future::LocalQFImpl

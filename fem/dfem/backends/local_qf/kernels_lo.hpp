@@ -578,6 +578,38 @@ struct LocalQFLOBackend
    // ─────────────────────────────────────────────────────
    template<typename T>
    static MFEM_HOST_DEVICE inline
+   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
+   {
+      if constexpr (qf_param_uses_dual_v<T>)
+      {
+         lok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
+      }
+      else
+      {
+         constexpr int RNK = qf_param_shape<T>::rank;
+         if constexpr (RNK == 0)
+         {
+            as_tensor<real_t>(&lok::at<DIM>(reg, qx, qy, qz)[0]) = out;
+         }
+         else if constexpr (RNK == 1)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            as_tensor<real_t, e0>(&lok::at<DIM>(reg, qx, qy, qz)[0]) = out;
+         }
+         else if constexpr (RNK == 2)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            as_tensor<real_t, e0, e1>(
+               &lok::at<DIM>(reg, qx, qy, qz)[0][0]) = out;
+         }
+         else { static_assert(false, "Unsupported"); }
+      }
+   }
+
+   // ─────────────────────────────────────────────────────
+   template<typename T>
+   static MFEM_HOST_DEVICE inline
    void qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
    {
       if constexpr (!qf_param_uses_dual_v<T>)
@@ -665,38 +697,6 @@ struct LocalQFLOBackend
                   YE(i + e0 * j, qx, qy, qz, e) = qf_store_gradient(qout(i, j));
                }
             }
-         }
-         else { static_assert(false, "Unsupported"); }
-      }
-   }
-
-   // ─────────────────────────────────────────────────────
-   template<typename T>
-   static MFEM_HOST_DEVICE inline
-   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
-   {
-      if constexpr (qf_param_uses_dual_v<T>)
-      {
-         lok::store_at<DIM, T, decltype(reg), false>(reg, qx, qy, qz, out);
-      }
-      else
-      {
-         constexpr int RNK = qf_param_shape<T>::rank;
-         if constexpr (RNK == 0)
-         {
-            as_tensor<real_t>(&lok::at<DIM>(reg, qx, qy, qz)[0]) = out;
-         }
-         else if constexpr (RNK == 1)
-         {
-            constexpr int e0 = qf_param_shape<T>::extents[0];
-            as_tensor<real_t, e0>(&lok::at<DIM>(reg, qx, qy, qz)[0]) = out;
-         }
-         else if constexpr (RNK == 2)
-         {
-            constexpr int e0 = qf_param_shape<T>::extents[0];
-            constexpr int e1 = qf_param_shape<T>::extents[1];
-            as_tensor<real_t, e0, e1>(
-               &lok::at<DIM>(reg, qx, qy, qz)[0][0]) = out;
          }
          else { static_assert(false, "Unsupported"); }
       }

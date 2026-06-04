@@ -253,32 +253,27 @@ void functional(const char *filename, int p)
 TEST_CASE("dFEM functional derivative action matches finite differences",
           "[Parallel][dFEM][GPU][functional]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto p = GenAll({1}, {2, 3});
    SECTION("2d")
    {
-      const auto f =
-         GENERATE(
-            "../../data/star.mesh",
-            "../../data/star-q3.mesh",
-            "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh"
-         );
-      functional<2>(f, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      functional<2>(GenAll(meshs, extra), p);
    }
 
    SECTION("3d")
    {
-      const auto f =
-         GENERATE(
-            "../../data/fichera.mesh",
-            "../../data/fichera-q3.mesh",
-            "../../data/inline-hex.mesh",
-            "../../data/toroid-hex.mesh",
-            "../../data/periodic-cube.mesh"
-         );
-      functional<3>(f, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      functional<3>(GenAll(meshs, extra), p);
    }
 }
 

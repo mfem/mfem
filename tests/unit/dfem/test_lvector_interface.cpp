@@ -41,7 +41,6 @@ template <int DIM, typename QFBackend = LocalQFBackend>
 void l_vector_interface(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -111,28 +110,26 @@ void l_vector_interface(const char *filename, int p)
 
 TEST_CASE("dFEM L-Vector 2D", "[Parallel][dFEM][GPU][2D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh2d =
-      GENERATE("../../data/star.mesh",
-               "../../data/star-q3.mesh",
-               "../../data/rt-2d-q3.mesh",
-               "../../data/inline-quad.mesh",
-               "../../data/periodic-square.mesh");
-   l_vector_interface<2>(mesh2d, p);
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-quad.mesh" };
+   const auto extra = { "../../data/star.mesh",
+                        "../../data/star-q3.mesh",
+                        "../../data/rt-2d-q3.mesh",
+                        "../../data/periodic-square.mesh"
+                      };
+   l_vector_interface<2>(GenAll(meshs, extra), p);
 }
 
 TEST_CASE("dFEM L-Vector 3D", "[Parallel][dFEM][GPU][3D]")
 {
-   const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-   const auto mesh3d =
-      GENERATE("../../data/fichera.mesh",
-               "../../data/fichera-q3.mesh",
-               "../../data/inline-hex.mesh",
-               "../../data/toroid-hex.mesh",
-               "../../data/periodic-cube.mesh");
-   l_vector_interface<3>(mesh3d, p);
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-hex.mesh" };
+   const auto extra = { "../../data/fichera.mesh",
+                        "../../data/fichera-q3.mesh",
+                        "../../data/toroid-hex.mesh",
+                        "../../data/periodic-cube.mesh"
+                      };
+   l_vector_interface<3>(GenAll(meshs, extra), p);
 }
 
 #endif // MFEM_USE_MPI

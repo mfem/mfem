@@ -152,7 +152,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU][OUTPUTS]")
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
    const char *filename = "../../data/inline-quad.mesh";
    CAPTURE(filename, DIM, p);
-   dbg("{} {} {}", filename, DIM, p);
 
    Mesh smesh(filename);
    MFEM_ASSERT(smesh.Dimension() == DIM, "DIM and mesh dimension have to match");
