@@ -492,7 +492,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 
    real_t wideal_det = 1.0;
-   if (detj_bound) {
+   if (detj_bound)
+   {
       const Mesh *mesh = fes->GetMesh();
       const DenseMatrix &Wideal =
          Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
