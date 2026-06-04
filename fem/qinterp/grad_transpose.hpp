@@ -723,6 +723,8 @@ static void DerivativesTranspose3D(const int NE,
 } // namespace quadrature_interpolator
 } // namespace internal
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
          int Q1D, int NBZ>
 QuadratureInterpolator::GradTransposeKernelType
@@ -733,5 +735,7 @@ QuadratureInterpolator::GradTransposeKernels::Kernel()
    else if (DIM == 3) { return internal::quadrature_interpolator::DerivativesTranspose3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

@@ -122,7 +122,6 @@ template <int DIM>
 void TangentAdjointConsistencyTest(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
-   mfem::out << filename << " " << DIM << " " << p << std::endl;
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);

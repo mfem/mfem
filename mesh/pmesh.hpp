@@ -312,7 +312,7 @@ protected:
    void LoadSharedEntities(std::istream &input);
 
    /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
-   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
+   /** Note that this method is not related to the public 'Mesh::EnsureNodes'.*/
    void EnsureParNodes();
 
    /// Internal function used in ParMesh::MakeRefined (and related constructor)

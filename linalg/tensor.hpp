@@ -373,10 +373,10 @@ MFEM_HOST_DEVICE constexpr zero operator/(zero, T /*other*/)
    return zero{};
 }
 
-/** @brief `zero` plus `zero` is `zero */
+/** @brief `zero` plus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator+=(zero, zero) { return zero{}; }
 
-/** @brief `zero` minus `zero` is `zero */
+/** @brief `zero` minus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator-=(zero, zero) { return zero{}; }
 
 /** @brief let `zero` be accessed like a tuple */

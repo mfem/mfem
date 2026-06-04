@@ -597,7 +597,7 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
-constexpr auto filter_fields(const std::tuple<Ts...>&)
+constexpr auto filter_fields([[maybe_unused]] const std::tuple<Ts...> &t)
 {
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
@@ -1430,15 +1430,6 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    }
 }
 
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// x is a long vector containing the data for all fields on tdofs and
-/// fields contains the information about each individual field to retrieve
-/// it's corresponding prolongation.
-///
-/// @param fields the array of field descriptors.
-/// @param x the input vector in tdofs.
-/// @param fields_l the array of output vectors in vdofs.
 // inline
 // void prolongation(const std::vector<FieldDescriptor> fields,
 //                   const Vector &x,
@@ -1456,6 +1447,18 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 //    }
 // }
 
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// Applies each field's prolongation operator blockwise from the input
+/// BlockVector into the corresponding L-vector storage.
+///
+/// When @a is_lvector is true, the input blocks are assumed to already be in
+/// L-vector layout and are copied directly without applying prolongation.
+///
+/// @param fields the field descriptors.
+/// @param x the input BlockVector.
+/// @param x_l the output vectors in L-vector layout.
+/// @param is_lvector whether @a x already stores L-vector data.
 inline
 void prolongation(
    const std::vector<FieldDescriptor> fields,
@@ -1488,6 +1491,19 @@ void prolongation(
    }
 }
 
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// Applies each field's prolongation operator blockwise from the input
+/// MultiVector into the corresponding L-vector storage.
+///
+/// When @a is_lvector is true, the input blocks are assumed to already be in
+/// L-vector layout and their memory is reused directly without applying
+/// prolongation.
+///
+/// @param fields the field descriptors.
+/// @param x the input MultiVector.
+/// @param x_l the output vectors in L-vector layout.
+/// @param is_lvector whether @a x already stores L-vector data.
 inline
 void prolongation(
    const std::vector<FieldDescriptor> fields,
@@ -1759,7 +1775,7 @@ template <typename fop_t>
 inline
 std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const FieldDescriptor &f,
-   const fop_t &,
+   [[maybe_unused]] const fop_t &fop,
    MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)

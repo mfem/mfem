@@ -146,10 +146,9 @@ public:
 
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
-   /// @param direction_t The direction vector in which to compute the
-   /// derivative. This has to be a T-dof vector.
-   /// @param result_t Result vector of the action of the derivative on
-   /// direction_t on T-dofs.
+   /// @param x The direction vector in which to compute the derivative.
+   //  This has to be a T-dof vector.
+   /// @param y Result vector of the action of the derivative on x on T-dofs.
    void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
@@ -434,10 +433,10 @@ public:
 
    /// @brief Compute the action of the operator on a given vector.
    ///
-   /// @param solutions_in The solution vector in which to compute the action.
+   /// @param x The solution vector in which to compute the action.
    /// This has to be a T-dof vector if MultLevel is set to TVECTOR, or L-dof
    /// Vector if MultLevel is set to LVECTOR.
-   /// @param result_in Result vector of the action of the operator on
+   /// @param y Result vector of the action of the operator on
    /// solutions. The result is a T-dof vector or L-dof vector depending on
    /// the MultLevel.
    void Mult(const Vector &x, Vector &y) const override;
@@ -555,24 +554,40 @@ public:
    /// methods.
    void DisableTensorProductStructure(bool disable = true);
 
-   /// @brief Get the derivative operator for a given derivative ID.
+   /// @brief Create a derivative operator for a given derivative ID.
    ///
-   /// This function returns a shared pointer to a DerivativeOperator that
-   /// computes the derivative of the operator with respect to the given
-   /// derivative ID. The derivative ID is used to identify the specific
-   /// derivative action to be performed.
+   /// Returns a DerivativeOperator representing the derivative of this
+   /// operator for the given derivative ID. The current state @a x is
+   /// captured by the returned
+   /// operator and used to initialize the input field data needed for future
+   /// derivative applications and assembly operations.
    ///
-   /// @param derivative_id The ID of the derivative to be computed.
-   /// @param sol_l The solution vectors to be used for the derivative
-   /// computation. This should be a vector of pointers to the solution
-   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @param par_l The parameter vectors to be used for the derivative
-   /// computation. This should be a vector of pointers to the parameter
-   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @return A shared pointer to the DerivativeOperator.
+   /// This overload accepts the state as a T-vector BlockVector. When cached
+   /// derivative-apply callbacks are available, they are preferred over the
+   /// uncached callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @return A shared pointer to the configured DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const Vector &x);
 
+   /// @brief Create a derivative operator for a given derivative ID.
+   ///
+   /// This overload accepts the state as a MultiVector. The current state
+   /// @a x is captured by the returned operator and used to initialize the
+   /// input field data needed for derivative applications and assembly.
+   ///
+   /// When @a use_cached_setup is true and cached derivative-apply callbacks
+   /// are available, the returned operator uses them; otherwise it falls back
+   /// to the direct derivative-action callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state stored in a MultiVector.
+   /// @param use_cached_setup Whether to prefer cached derivative-apply
+   /// callbacks over direct derivative actions.
+   /// @return A shared pointer to the configured DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const MultiVector &x,
       const bool use_cached_setup = true);
