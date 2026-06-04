@@ -15,11 +15,10 @@
 
 #include "mfem.hpp"
 
-#include "../../../fem/dfem/doperator.hpp"
+#ifdef MFEM_USE_MPI
+
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
-
-#ifdef MFEM_USE_MPI
 
 using namespace mfem;
 using namespace mfem::future;

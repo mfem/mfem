@@ -17,7 +17,6 @@ using mfem::real_t;
 using namespace mfem;
 using namespace mfem::future;
 
-#include "../../../fem/dfem/doperator.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
 
 #ifdef MFEM_USE_MPI

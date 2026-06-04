@@ -11,6 +11,10 @@
 
 // Explicit instantiation of the local Q-function backend device code
 
+#include "../../../../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include "kernels.hpp"
 
 namespace mfem::future
@@ -79,3 +83,5 @@ template struct LocalQFHOBackend<3, 16>;
 template struct LocalQFHOBackend<3, 20>;
 
 } // namespace mfem::future
+
+#endif // MFEM_USE_MPI

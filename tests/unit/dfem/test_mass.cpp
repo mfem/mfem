@@ -12,12 +12,11 @@
 #include "../unit_tests.hpp"
 
 #include "mfem.hpp"
-#include "../../../fem/dfem/doperator.hpp"
 #include "../linalg/test_same_matrices.hpp"
 
-#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
-
 #ifdef MFEM_USE_MPI
+
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
