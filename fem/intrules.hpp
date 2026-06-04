@@ -493,8 +493,6 @@ public:
 class StroudIntegrationRules
 {
 private:
-   int own_rules;
-
    Array<IntegrationRule *> SquareStroudIntRules;
    Array<IntegrationRule *> TriangleStroudIntRules;
    Array<IntegrationRule *> CubeStroudIntRules;
@@ -535,8 +533,6 @@ public:
 
    /// Returns a Stroud integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);
-
-   void SetOwnRules(int o) { own_rules = o; }
 
    /// Destroys an StroudIntegrationRules object
    ~StroudIntegrationRules();
