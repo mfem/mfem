@@ -1,5 +1,7 @@
 #include <mfem.hpp>
 
+#ifdef MFEM_USE_PROTEUS
+
 #include "../fem/dfem/util.hpp"
 
 #include <proteus/CppJitModule.h>
@@ -534,3 +536,13 @@ int main()
 
    return 0;
 }
+
+#else
+
+int main()
+{
+   std::cerr << "Proteus is required to run this example.\n";
+   return EXIT_FAILURE;
+}
+
+#endif // MFEM_USE_PROTEUS
