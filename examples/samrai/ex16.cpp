@@ -24,6 +24,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "MeshOps.hpp"
+
 // SAMRAI includes
 #include "SAMRAI/SAMRAI_config.h"
 #include "LinAdv.h"
@@ -42,31 +44,27 @@
 #include "SAMRAI/tbox/InputManager.h"
 #include "SAMRAI/tbox/SAMRAI_MPI.h"
 
-using namespace std;
 using namespace mfem;
-using namespace SAMRAI;
 
 /** After spatial discretization, the conduction model can be written as:
  *
  *     du/dt = M^{-1}(-Ku)
  *
  *  where u is the vector representing the temperature, M is the mass matrix,
- *  and K is the diffusion operator with diffusivity depending on u:
- *  (\kappa + \alpha u).
+ *  and K is the diffusion operator with scalar diffusivity \kappa
  *
  *  Class ConductionOperator represents the right-hand side of the above ODE.
  */
 class ConductionOperator : public TimeDependentOperator
 {
 protected:
-   FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
-   BilinearForm *M;
-   BilinearForm *K;
+   std::unique_ptr<BilinearForm> M;
+   std::unique_ptr<BilinearForm> K;
 
    SparseMatrix Mmat, Kmat;
-   SparseMatrix *T; // T = M + dt K
+   std::unique_ptr<SparseMatrix> Tmat; // T = M + dt K
    real_t current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -75,58 +73,41 @@ protected:
    CGSolver T_solver; // Implicit solver for T = M + dt K
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
-   real_t alpha, kappa;
-
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, real_t alpha, real_t kappa,
-                      const Vector &u);
+   ConductionOperator(FiniteElementSpace &f, real_t kappa);
 
    void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
-
-   /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
-   void SetParameters(const Vector &u);
-
-   ~ConductionOperator() override;
 };
 
 real_t InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI and SAMRAI
-   tbox::SAMRAI_MPI::init(&argc, &argv);
-   tbox::SAMRAIManager::initialize();
-   tbox::SAMRAIManager::startup();
-   const tbox::SAMRAI_MPI& mpi(tbox::SAMRAI_MPI::getSAMRAIWorld());
+   const int precision = 8;
+   std::cout.precision(precision);
 
-   // 1. Parse command-line options for MFEM
-   const char *mesh_file = "../data/star.mesh";
+   // Define command line argument defaults for MFEM
+   const char *mesh_file = "../../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
 
    int ode_solver_type = 23;  // SDIRK33Solver
-   real_t t_final = 0.5;
-   real_t dt = 1.0e-2;
-   real_t alpha = 1.0e-2;
-   real_t kappa = 0.5;
+   real_t kappa = 0.01;
 
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
    bool solve_implicit_state = false;
 
-   // SAMRAI options
+   // Define command line argument defaults for SAMRAI
    const char *samrai_input_file = "samrai_input.3d";
-   int samrai_vis_dump_interval = 5;
 
-   int precision = 8;
-   cout.precision(precision);
-
+   // Parse command line arguments
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -136,14 +117,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::Types.c_str());
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
-   args.AddOption(&alpha, "-a", "--alpha",
-                  "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "Kappa coefficient offset.");
+                  "Diffusion coefficient.");
    args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
                   "-imp-slope", "--implicit-slope",
                   "Implicitly solve for stage state or slope.");
@@ -157,74 +132,76 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&samrai_input_file, "-i", "--samrai-input",
                   "SAMRAI input file.");
-   args.AddOption(&samrai_vis_dump_interval, "-svi", "--samrai-vis-interval",
-                  "SAMRAI visualization dump interval.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
-      tbox::SAMRAIManager::shutdown();
-      tbox::SAMRAIManager::finalize();
-      tbox::SAMRAI_MPI::finalize();
+      args.PrintUsage(std::cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
-   // 2. Initialize MFEM: Read mesh
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   // Initialize SAMRAI
+   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
+   SAMRAI::tbox::SAMRAIManager::initialize();
+   SAMRAI::tbox::SAMRAIManager::startup();
+   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
 
-   // 3. Define the ODE solver used for time integration
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   /************************** Create MFEM objects ****************************/
 
-   // 4. Refine the mesh
+   // Create and refine the mesh
+   Mesh mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   // 5. Define the finite element space
-   H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll);
+   // Create the finite element space
+   H1_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+   std::cout << "Number of temperature unknowns: " << fespace.GetTrueVSize()
+             << std::endl;
 
-   int fe_size = fespace.GetTrueVSize();
-   cout << "Number of temperature unknowns: " << fe_size << endl;
-
+   // Create the grid function and set initial conditions
    GridFunction u_gf(&fespace);
-
-   // 6. Set initial conditions for MFEM
    FunctionCoefficient u_0(InitialTemperature);
    u_gf.ProjectCoefficient(u_0);
    Vector u;
    u_gf.GetTrueDofs(u);
 
-   // 7. Initialize the conduction operator
-   ConductionOperator oper(fespace, alpha, kappa, u);
+   // Create the conduction operator
+   ConductionOperator conduction(fespace, kappa);
    using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
                                   : ImplicitVariableType::SLOPE;
-   oper.SetImplicitVariableType(imp_var);
+   conduction.SetImplicitVariableType(imp_var);
 
-   u_gf.SetFromTrueDofs(u);
+   // Create the ODE solver used for time integration
+   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
+   mfem_ode_solver->Init(conduction);
+
+   // Write out the mesh and initial condition
    {
-      ofstream omesh("ex16.mesh");
+      std::ofstream omesh("ex16.mesh");
       omesh.precision(precision);
-      mesh->Print(omesh);
-      ofstream osol("ex16-init.gf");
+      mesh.Print(omesh);
+      std::ofstream osol("ex16-init.gf");
       osol.precision(precision);
       u_gf.Save(osol);
    }
 
-   VisItDataCollection visit_dc("Example16", mesh);
-   visit_dc.RegisterField("temperature", &u_gf);
+   // Optionally, create the VisIt output object and save the initial condition
+   std::unique_ptr<VisItDataCollection> visit_dc;
    if (visit)
    {
-      visit_dc.SetCycle(0);
-      visit_dc.SetTime(0.0);
-      visit_dc.Save();
+      visit_dc = std::make_unique<VisItDataCollection>("Example16", &mesh);
+      visit_dc->RegisterField("temperature", &u_gf);
+      visit_dc->SetCycle(0);
+      visit_dc->SetTime(0.0);
+      visit_dc->Save();
    }
 
+   // Optionally, create the visualization stream and visualize initial condition
    socketstream sout;
    if (visualization)
    {
@@ -233,190 +210,97 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
+         std::cout << "Unable to connect to GLVis server at "
+                   << vishost << ':' << visport << std::endl;
          visualization = false;
-         cout << "GLVis visualization disabled.\n";
+         std::cout << "GLVis visualization disabled.\n";
       }
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << u_gf;
+         sout << "solution\n" << mesh << u_gf;
          sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         sout << std::flush;
+         std::cout << "GLVis visualization paused."
+                   << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
-   // Initialize MFEM time integrator
-   ode_solver->Init(oper);
-   real_t mfem_time = 0.0;
+   std::cout << "\n=== Initializing SAMRAI ===" << std::endl;
 
-   // 8. Initialize SAMRAI
-   cout << "\n=== Initializing SAMRAI ===" << endl;
+   /************************* Create SAMRAI objects ***************************/
 
    // Parse SAMRAI input file
-   tbox::InputManager::getManager()->parseInputFile(samrai_input_file);
-   std::shared_ptr<tbox::Database> input_db(
-      tbox::InputManager::getManager()->getInputDatabase());
+   SAMRAI::tbox::InputManager::getManager()->parseInputFile(samrai_input_file);
+   std::shared_ptr<SAMRAI::tbox::Database> input_db =
+      SAMRAI::tbox::InputManager::getManager()->getInputDatabase();
 
-   std::shared_ptr<tbox::Database> main_db = input_db->getDatabase("Main");
-   std::shared_ptr<tbox::Database> linadv_db = input_db->getDatabase("LinAdv");
-   std::shared_ptr<tbox::Database> cart_geom_db =
-      input_db->getDatabase("CartesianGeometry");
-   std::shared_ptr<tbox::Database> hier_db =
-      input_db->getDatabase("PatchHierarchy");
-   std::shared_ptr<tbox::Database> berger_db =
-      input_db->getDatabase("BergerRigoutsos");
-   std::shared_ptr<tbox::Database> gridding_db =
-      input_db->getDatabase("GriddingAlgorithm");
-   std::shared_ptr<tbox::Database> std_tag_db =
-      input_db->getDatabase("StandardTagAndInitialize");
-   std::shared_ptr<tbox::Database> hyperbolic_db =
-      input_db->getDatabase("HyperbolicLevelIntegrator");
-   std::shared_ptr<tbox::Database> time_refine_db =
-      input_db->getDatabase("TimeRefinementIntegrator");
-   std::shared_ptr<tbox::Database> load_balancer_db =
-      input_db->getDatabase("LoadBalancer");
+   const SAMRAI::tbox::Dimension samrai_dim(
+      static_cast<unsigned short>(input_db->getDatabase("Main")->getInteger("dim")));
+   auto grid_geometry = std::make_shared<SAMRAI::geom::CartesianGridGeometry>(
+      samrai_dim, "CartesianGeometry", input_db->getDatabase("CartesianGeometry"));
+   auto patch_hierarchy = std::make_shared<SAMRAI::hier::PatchHierarchy>(
+      "PatchHierarchy", grid_geometry, input_db->getDatabase("PatchHierarchy"));
+   auto linadv_model = std::make_shared<LinAdv>("LinAdv", samrai_dim,
+      input_db->getDatabase("LinAdv"), grid_geometry);
+   auto hyp_level_integrator = std::make_shared<SAMRAI::algs::HyperbolicLevelIntegrator>(
+      "HyperbolicLevelIntegrator", input_db->getDatabase("HyperbolicLevelIntegrator"),
+      linadv_model.get(), true);
+   auto error_detector = std::make_shared<SAMRAI::mesh::StandardTagAndInitialize>(
+      "StandardTagAndInitialize", hyp_level_integrator.get(),
+      input_db->getDatabase("StandardTagAndInitialize"));
+   auto box_generator = std::make_shared<SAMRAI::mesh::BergerRigoutsos>(samrai_dim,
+      input_db->getDatabase("BergerRigoutsos"));
+   auto load_balancer = std::make_shared<SAMRAI::mesh::CascadePartitioner>(samrai_dim,
+      "CascadePartitioner", input_db->getDatabase("LoadBalancer"));
+   auto gridding_algorithm = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
+      patch_hierarchy, "GriddingAlgorithm",
+      input_db->getDatabase("GriddingAlgorithm"), error_detector, box_generator,
+      load_balancer);
+   auto samrai_time_integrator = std::make_unique<SAMRAI::algs::TimeRefinementIntegrator>(
+      "TimeRefinementIntegrator", input_db->getDatabase("TimeRefinementIntegrator"),
+      patch_hierarchy, hyp_level_integrator, gridding_algorithm);
 
-   const tbox::Dimension samrai_dim(static_cast<unsigned short>(main_db->getInteger("dim")));
-   const string samrai_base_name = main_db->getStringWithDefault("base_name", "unnamed");
-   const string samrai_viz_dump_dirname =
-      main_db->getStringWithDefault("viz_dump_dirname", samrai_base_name);
-
-   // Create SAMRAI objects
-   std::shared_ptr<geom::CartesianGridGeometry> grid_geometry(
-      new geom::CartesianGridGeometry(
-         samrai_dim,
-         "CartesianGeometry",
-         cart_geom_db));
-
-   std::shared_ptr<hier::PatchHierarchy> patch_hierarchy(
-      new hier::PatchHierarchy(
-         "PatchHierarchy",
-         grid_geometry,
-         hier_db));
-
-   std::shared_ptr<LinAdv> linadv_model(
-      new LinAdv(
-         "LinAdv",
-         samrai_dim,
-         linadv_db,
-         grid_geometry));
-
-   std::shared_ptr<algs::HyperbolicLevelIntegrator> hyp_level_integrator(
-      new algs::HyperbolicLevelIntegrator(
-         "HyperbolicLevelIntegrator",
-         hyperbolic_db,
-         linadv_model.get(),
-         true));
-
-   std::shared_ptr<mesh::StandardTagAndInitialize> error_detector(
-      new mesh::StandardTagAndInitialize(
-         "StandardTagAndInitialize",
-         hyp_level_integrator.get(),
-         std_tag_db));
-
-   std::shared_ptr<mesh::BergerRigoutsos> box_generator(
-      new mesh::BergerRigoutsos(
-         samrai_dim,
-         berger_db));
-
-   std::shared_ptr<mesh::CascadePartitioner> load_balancer(
-      new mesh::CascadePartitioner(
-         samrai_dim,
-         "CascadePartitioner",
-         load_balancer_db));
-
-   std::shared_ptr<mesh::GriddingAlgorithm> gridding_algorithm(
-      new mesh::GriddingAlgorithm(
-         patch_hierarchy,
-         "GriddingAlgorithm",
-         gridding_db,
-         error_detector,
-         box_generator,
-         load_balancer));
-
-   std::shared_ptr<algs::TimeRefinementIntegrator> time_integrator(
-      new algs::TimeRefinementIntegrator(
-         "TimeRefinementIntegrator",
-         time_refine_db,
-         patch_hierarchy,
-         hyp_level_integrator,
-         gridding_algorithm));
-
-#ifdef HAVE_HDF5
-   std::shared_ptr<appu::VisItDataWriter> visit_data_writer(
-      new appu::VisItDataWriter(
-         samrai_dim,
-         "LinAdv VisIt Writer",
-         samrai_viz_dump_dirname));
-   linadv_model->registerVisItDataWriter(visit_data_writer);
-#endif
-
-   // Initialize SAMRAI hierarchy
-   double samrai_loop_time = time_integrator->getIntegratorTime();
-   double samrai_loop_time_end = time_integrator->getEndTime();
-   double samrai_dt = 0.0;  // Will be computed after initialization
-
-   time_integrator->initializeHierarchy();
-
-   cout << "SAMRAI hierarchy initialized" << endl;
-   cout << "SAMRAI start time: " << samrai_loop_time << endl;
-   cout << "SAMRAI end time: " << samrai_loop_time_end << endl;
-   cout << "SAMRAI initial dt: " << samrai_dt << endl;
 
    // 9. Alternating time loop
-   cout << "\n=== Starting alternating time loop ===" << endl;
-
-   real_t final_time = min(t_final, static_cast<real_t>(samrai_loop_time_end));
+   const double final_time = samrai_time_integrator->getEndTime();
    int ti = 1;
    bool last_step = false;
-
-   while (mfem_time < final_time && samrai_loop_time < samrai_loop_time_end)
+   double time = samrai_time_integrator->getIntegratorTime();
+   double dt = samrai_time_integrator->initializeHierarchy();
+   while (time < final_time)
    {
-      if (mfem_time + dt >= final_time - dt/2 ||
-          samrai_loop_time + samrai_dt >= samrai_loop_time_end - samrai_dt/2)
+      if (time + dt >=  final_time - 0.5*dt)
       {
          last_step = true;
       }
 
+      // SAMRAI advection step
+      const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
+
       // MFEM heat equation step
-      ode_solver->Step(u, mfem_time, dt);
+      mfem_ode_solver->Step(u, time, dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         cout << "MFEM step " << ti << ", t = " << mfem_time << endl;
+         std::cout << "step " << ti << ", t = " << time << std::endl;
 
          u_gf.SetFromTrueDofs(u);
          if (visualization)
          {
-            sout << "solution\n" << *mesh << u_gf << flush;
+            sout << "solution\n" << mesh << u_gf << std::flush;
          }
 
          if (visit)
          {
-            visit_dc.SetCycle(ti);
-            visit_dc.SetTime(mfem_time);
-            visit_dc.Save();
+            visit_dc->SetCycle(ti);
+            visit_dc->SetTime(time);
+            visit_dc->Save();
          }
-      }
-      oper.SetParameters(u);
-
-      // SAMRAI advection step
-      bool rebalance_hierarchy = false;
-      double samrai_dt_new = time_integrator->advanceHierarchy(samrai_dt, rebalance_hierarchy);
-      samrai_loop_time += samrai_dt;
-      samrai_dt = samrai_dt_new;
-
-      if (last_step || (ti % vis_steps) == 0)
-      {
-         cout << "SAMRAI step " << ti << ", t = " << samrai_loop_time
-              << ", dt = " << samrai_dt << endl;
       }
 
       ti++;
+      dt = dt_new;
 
       if (last_step)
       {
@@ -424,40 +308,29 @@ int main(int argc, char *argv[])
       }
    }
 
-   cout << "\n=== Time integration completed ===" << endl;
-   cout << "MFEM final time: " << mfem_time << endl;
-   cout << "SAMRAI final time: " << samrai_loop_time << endl;
-
    // 10. Save final solution
    {
-      ofstream osol("ex16-final.gf");
+      std::ofstream osol("ex16-final.gf");
       osol.precision(precision);
       u_gf.Save(osol);
    }
 
-   cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << endl;
-#ifdef HAVE_HDF5
-   cout << "SAMRAI solution saved to: " << samrai_viz_dump_dirname << endl;
-#endif
+   std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
 
-   // 11. Cleanup
-   delete mesh;
-
-   tbox::SAMRAIManager::shutdown();
-   tbox::SAMRAIManager::finalize();
-   tbox::SAMRAI_MPI::finalize();
+   SAMRAI::tbox::SAMRAIManager::shutdown();
+   SAMRAI::tbox::SAMRAIManager::finalize();
+   SAMRAI::tbox::SAMRAI_MPI::finalize();
 
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, real_t al,
-                                       real_t kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0), fespace(f),
-     M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
+ConductionOperator::ConductionOperator(FiniteElementSpace &fespace, real_t kappa)
+   : TimeDependentOperator(fespace.GetTrueVSize(), (real_t) 0.0), current_dt(0.0),
+     z(height)
 {
    const real_t rel_tol = 1e-8;
 
-   M = new BilinearForm(&fespace);
+   M = std::make_unique<BilinearForm>(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
@@ -470,17 +343,18 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, real_t al,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
-   alpha = al;
-   kappa = kap;
+   K = std::make_unique<BilinearForm>(&fespace);
+   ConstantCoefficient kappa_coeff(kappa);
+   K->AddDomainIntegrator(new DiffusionIntegrator(kappa_coeff));
+   K->Assemble();
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    T_solver.iterative_mode = false;
    T_solver.SetRelTol(rel_tol);
    T_solver.SetAbsTol(0.0);
-   T_solver.SetMaxIter(100);
+   T_solver.SetMaxIter(1000);
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
-
-   SetParameters(u);
 }
 
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
@@ -502,13 +376,8 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    //    M*k = -dt*K(k) + M*u for k = u_s, if solving for stage-state
    // where K is linearized by using u from the previous timestep, and
    // the stage-state and slope relation: du/dt = (u_s - u)/dt.
-   if (!T)
-   {
-      T = Add(1.0, Mmat, dt, Kmat);
-      current_dt = dt;
-      T_solver.SetOperator(*T);
-   }
-   MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
+   Tmat = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, dt, Kmat));
+   T_solver.SetOperator(*Tmat);
 
    // Construct current right-hand side for stage state vs. slope solve
    if (ImplicitVarTypeIsState())
@@ -523,34 +392,6 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
       z.Neg();
    }
    T_solver.Mult(z, k);
-}
-
-void ConductionOperator::SetParameters(const Vector &u)
-{
-   GridFunction u_alpha_gf(&fespace);
-   u_alpha_gf.SetFromTrueDofs(u);
-   for (int i = 0; i < u_alpha_gf.Size(); i++)
-   {
-      u_alpha_gf(i) = kappa + alpha*u_alpha_gf(i);
-   }
-
-   delete K;
-   K = new BilinearForm(&fespace);
-
-   GridFunctionCoefficient u_coeff(&u_alpha_gf);
-
-   K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
-   K->Assemble();
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-   delete T;
-   T = NULL; // re-compute T on the next ImplicitSolve
-}
-
-ConductionOperator::~ConductionOperator()
-{
-   delete T;
-   delete M;
-   delete K;
 }
 
 real_t InitialTemperature(const Vector &x)

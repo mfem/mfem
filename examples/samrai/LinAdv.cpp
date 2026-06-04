@@ -691,7 +691,7 @@ void LinAdv::computeFluxesOnPatch(
       SAMRAI_SHARED_PTR_CAST<pdat::FaceData<double>, hier::PatchData>(
          patch.getPatchData(d_flux, getDataContext())));
    TBOX_ASSERT(flux);
-   
+
    if (d_dim < tbox::Dimension(3)) {
 
       TBOX_ASSERT(CELLG == FACEG);
@@ -853,7 +853,7 @@ void LinAdv::computeFluxesOnPatch(
 
          const pdat::CellIndex& ci(*ic);
          for (int dir = 0; dir < d_dim.getValue(); dir++) {
-            
+
             pdat::FaceIndex fm(ci, dir, pdat::FaceIndex::Lower);
             pdat::FaceIndex fp(ci, dir, pdat::FaceIndex::Upper);
 
@@ -864,7 +864,7 @@ void LinAdv::computeFluxesOnPatch(
             }
          }
       }
-      
+
    }
 }
 
@@ -2429,7 +2429,7 @@ void LinAdv::getFromInput(
             if (error_db && error_key == "RANDOM") {
                d_threshold = error_db->getDoubleWithDefault("threshold", 0.01);
             }
-            
+
             if (error_db && error_key == "UVAL_DEVIATION") {
 
                if (error_db->keyExists("dev_tol")) {
@@ -3209,7 +3209,7 @@ LinAdv::putCoordinatesToDatabase(
 
       pdat::NodeData<double> coords(patch.getBox(), dim.getValue(),
                                     hier::IntVector::getZero(dim));
-   
+
       const hier::Index& box_lo = patch.getBox().lower();
       const double* x_lo = pgeom->getXLower();
       const double* dx = pgeom->getDx();

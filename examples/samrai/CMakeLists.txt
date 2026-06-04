@@ -29,6 +29,10 @@ add_custom_target(test_samrai
 set(PFX samrai_)
 add_mfem_examples(SAMRAI_EXAMPLES_SRCS ${PFX} "" test_samrai)
 
+# Copy SAMRAI input files to build directory
+configure_file(samrai_input.2d samrai_input.2d COPYONLY)
+configure_file(samrai_input.3d samrai_input.3d COPYONLY)
+
 # Remove "samrai_" prefix from executable name for consistency with GNU build
 # system.
 foreach(SRC_FILE ${SAMRAI_EXAMPLES_SRCS})
@@ -42,7 +46,8 @@ endforeach()
 target_sources(samrai_ex16 PRIVATE LinAdv.cpp fortran/flux2d.f fortran/flux3d.f
   fortran/fluxcorner3d.f fortran/grad2d.f fortran/grad3d.f fortran/init2d.f
   fortran/init3d.f fortran/stable2d.f fortran/stable3d.f fortran/stufprobc.f
-  fortran/trace1d.f fortran/trace2d.f fortran/trace3d.f)
+  fortran/trace1d.f fortran/trace2d.f fortran/trace3d.f MeshOps.cpp
+)
 
 # Testing.
 # The SAMRAI tests can be run separately using the target "test_samrai"
