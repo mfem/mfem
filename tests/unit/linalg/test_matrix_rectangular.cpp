@@ -100,6 +100,83 @@ TEST_CASE("MixedBilinearFormSubMeshTrial", "[FormRectangularSystemMatrix]")
    REQUIRE(submesh_result.Norml2() == MFEM_Approx(0.0));
 }
 
+TEST_CASE("MixedBilinearFormSubMeshTrialBoundary",
+          "[FormRectangularSystemMatrix]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Element *el = mesh.GetElement(i);
+      Array<int> vertices;
+      el->GetVertices(vertices);
+
+      real_t xavg = 0.0;
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         xavg += mesh.GetVertex(vertices[j])[0];
+      }
+      xavg /= vertices.Size();
+      el->SetAttribute((xavg < 0.5) ? 1 : 2);
+   }
+   mesh.SetAttributes();
+   mesh.bdr_attributes.SetSize(mesh.GetNBE());
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      mesh.GetBdrElement(i)->SetAttribute(i + 1);
+      mesh.bdr_attributes[i] = i + 1;
+   }
+
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 1;
+   auto trial_submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+   const int dim = mesh.Dimension();
+   const int order = 2;
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace trial_fes(&trial_submesh, &fec);
+   FiniteElementSpace parent_trial_fes(&mesh, &fec);
+   FiniteElementSpace test_fes(&mesh, &fec);
+
+   FunctionCoefficient xcoeff([](const Vector &x)
+   {
+      return 1.0 + 2.0 * x(0) - x(1);
+   });
+
+   GridFunction trial_gf(&trial_fes);
+   trial_gf.ProjectCoefficient(xcoeff);
+
+   GridFunction parent_trial_gf(&parent_trial_fes);
+   parent_trial_gf = 0.0;
+   SubMesh::Transfer(trial_gf, parent_trial_gf);
+
+   ConstantCoefficient one(1.0);
+
+   Array<int> ref_bdr_marker(mesh.bdr_attributes.Max());
+   ref_bdr_marker = 0;
+   ref_bdr_marker[0] = 1;
+
+   MixedBilinearForm submesh_form(&trial_fes, &test_fes);
+   submesh_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
+   submesh_form.Assemble();
+   submesh_form.Finalize();
+
+   MixedBilinearForm reference_form(&parent_trial_fes, &test_fes);
+   reference_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
+   reference_form.Assemble();
+   reference_form.Finalize();
+
+   Vector submesh_result(test_fes.GetVSize());
+   Vector reference_result(test_fes.GetVSize());
+
+   submesh_form.Mult(trial_gf, submesh_result);
+   reference_form.Mult(parent_trial_gf, reference_result);
+
+   REQUIRE(submesh_result.Norml2() > 1e-3);
+   submesh_result -= reference_result;
+   REQUIRE(submesh_result.Norml2() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
    enum FECType { H1, L2_VALUE, L2_INTEGRAL };
@@ -256,6 +333,97 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrial",
    REQUIRE(submesh_result->Norml2() > 1e-3);
    *submesh_result -= *reference_result;
    REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("ParMixedBilinearFormSubMeshTrialBoundary",
+          "[Parallel], [FormRectangularSystemMatrix]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Element *el = mesh.GetElement(i);
+      Array<int> vertices;
+      el->GetVertices(vertices);
+
+      real_t xavg = 0.0;
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         xavg += mesh.GetVertex(vertices[j])[0];
+      }
+      xavg /= vertices.Size();
+      el->SetAttribute((xavg < 0.5) ? 1 : 2);
+   }
+   mesh.SetAttributes();
+   mesh.bdr_attributes.SetSize(mesh.GetNBE());
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      mesh.GetBdrElement(i)->SetAttribute(i + 1);
+      mesh.bdr_attributes[i] = i + 1;
+   }
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   Array<int> subdomain_attributes(1);
+   subdomain_attributes[0] = 1;
+   auto trial_submesh = ParSubMesh::CreateFromDomain(pmesh,
+                                                     subdomain_attributes);
+
+   const int dim = pmesh.Dimension();
+   const int order = 2;
+
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace trial_fes(&trial_submesh, &fec);
+   ParFiniteElementSpace parent_trial_fes(&pmesh, &fec);
+   ParFiniteElementSpace test_fes(&pmesh, &fec);
+
+   FunctionCoefficient xcoeff([](const Vector &x)
+   {
+      return 1.0 + 2.0 * x(0) - x(1);
+   });
+
+   ParGridFunction trial_gf(&trial_fes);
+   trial_gf.ProjectCoefficient(xcoeff);
+
+   ParGridFunction parent_trial_gf(&parent_trial_fes);
+   parent_trial_gf = 0.0;
+   ParSubMesh::Transfer(trial_gf, parent_trial_gf);
+
+   ConstantCoefficient one(1.0);
+
+   Array<int> ref_bdr_marker(mesh.bdr_attributes.Max());
+   ref_bdr_marker = 0;
+   ref_bdr_marker[1] = 1;
+
+   ParMixedBilinearForm submesh_form(&trial_fes, &test_fes);
+   submesh_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
+   submesh_form.Assemble();
+   submesh_form.Finalize();
+   HypreParMatrix *submesh_mat = submesh_form.ParallelAssemble();
+
+   ParMixedBilinearForm reference_form(&parent_trial_fes, &test_fes);
+   reference_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
+   reference_form.Assemble();
+   reference_form.Finalize();
+   HypreParMatrix *reference_mat = reference_form.ParallelAssemble();
+
+   HypreParVector *trial_true = trial_gf.ParallelProject();
+   HypreParVector *parent_trial_true = parent_trial_gf.ParallelProject();
+   HypreParVector *submesh_result = test_fes.NewTrueDofVector();
+   HypreParVector *reference_result = test_fes.NewTrueDofVector();
+
+   submesh_mat->Mult(*trial_true, *submesh_result);
+   reference_mat->Mult(*parent_trial_true, *reference_result);
+
+   REQUIRE(submesh_result->Norml2() >= MFEM_Approx(0.0));
+   *submesh_result -= *reference_result;
+   REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
+
+   delete reference_result;
+   delete submesh_result;
+   delete parent_trial_true;
+   delete trial_true;
+   delete reference_mat;
+   delete submesh_mat;
 }
 
 TEST_CASE("ParallelFormRectangular",
