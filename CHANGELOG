@@ -230,6 +230,9 @@ Miscellaneous
 - Added access to the internal parallel matrix in Par(Mixed)BilinearForm and
   related utility methods for elimination of BCs.
 
+- Added support for (Par)MixedBilinearForm assembly over trial FE spaces 
+  defined on (Par)SubMeshes of the test FE space's mesh.
+
 - FindPointsGSLIB has a new constructor that accepts the mesh object and
   internally calls the Setup() method so users do not have to. The FreeData()
   method has also been moved to the destructor so users do not need to manually
