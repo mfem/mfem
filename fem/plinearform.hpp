@@ -119,6 +119,17 @@ public:
        the assembly will be executed on the device. */
    void Assemble();
 
+   /// Assemble delta functions, first summing containing-element counts across
+   /// ranks.
+   void AssembleDelta() override;
+
+protected:
+   /// Locate delta centers in this rank's local mesh.
+   void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                         Array<IntegrationPoint> &ips) override;
+
+public:
+
    /// Return true if assembly on device is supported, false otherwise.
    bool SupportsDevice() const override;
 

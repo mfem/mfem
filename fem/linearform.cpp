@@ -13,8 +13,33 @@
 
 #include "fem.hpp"
 
+#include <memory>
+#include <vector>
+
 namespace mfem
 {
+namespace
+{
+
+// Local vertices with nonzero linear shape values identify the mesh entity
+// containing the point.
+constexpr real_t kEntityTol = 1e-6;
+
+void ActiveEntityVertices(Geometry::Type geom, const IntegrationPoint &ip,
+                          Array<int> &active)
+{
+   static const LinearFECollection nodal_fec;
+   const FiniteElement &fe = *nodal_fec.FiniteElementForGeometry(geom);
+   Vector shape(fe.GetDof());
+   fe.CalcShape(ip, shape);
+   active.SetSize(0);
+   for (int i = 0; i < shape.Size(); i++)
+   {
+      if (shape(i) > kEntityTol) { active.Append(i); }
+   }
+}
+
+} // namespace
 
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
@@ -363,16 +388,23 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    Update(f, v, v_offset);
 }
 
-void LinearForm::AssembleDelta()
+void LinearForm::FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                                  Array<IntegrationPoint> &ips)
 {
-   if (domain_delta_integs.Size() == 0) { return; }
+   fes->GetMesh()->FindPoints(centers, elem_ids, ips, false);
+}
 
-   if (!HaveDeltaLocations())
+void LinearForm::ComputeDeltaLocations()
+{
+   const int ndi = domain_delta_integs.Size();
+   MFEM_ASSERT(ndi > 0, "");
+   Mesh *mesh = fes->GetMesh();
+   const int sdim = mesh->SpaceDimension();
+
+   DenseMatrix centers(sdim, ndi);
    {
-      int sdim = fes->GetMesh()->SpaceDimension();
       Vector center;
-      DenseMatrix centers(sdim, domain_delta_integs.Size());
-      for (int i = 0; i < centers.Width(); i++)
+      for (int i = 0; i < ndi; i++)
       {
          centers.GetColumnReference(i, center);
          domain_delta_integs[i]->GetDeltaCenter(center);
@@ -380,27 +412,128 @@ void LinearForm::AssembleDelta()
                      "Point dim " << center.Size() <<
                      " does not match space dim " << sdim);
       }
-      fes->GetMesh()->FindPoints(centers, domain_delta_integs_elem_id,
-                                 domain_delta_integs_ip);
    }
+   // Find an element containing each center (see FindDeltaCenters).
+   Array<int> anchor_elem_id;
+   Array<IntegrationPoint> anchor_ip;
+   FindDeltaCenters(centers, anchor_elem_id, anchor_ip);
+
+   domain_delta_integs_elems.assign(ndi, std::set<int> {});
+   domain_delta_integs_ips.assign(ndi, std::map<int, IntegrationPoint> {});
+   domain_delta_integs_count.SetSize(ndi);
+
+   // On conforming meshes, containing elements share all vertices of the
+   // active entity. This avoids relying on Inside() for boundary points.
+   if (mesh->Conforming())
+   {
+      std::unique_ptr<Table> vte(mesh->GetVertexToElementTable());
+
+      InverseElementTransformation inv_tr;
+      Vector pt(sdim);
+      Array<int> anchor_verts, cand_verts, active_local, entity_verts;
+
+      for (int i = 0; i < ndi; i++)
+      {
+         const int e0 = anchor_elem_id[i];
+         if (e0 < 0)
+         {
+            domain_delta_integs_count[i] = 0;   // center not in this mesh
+            continue;
+         }
+
+         for (int d = 0; d < sdim; d++) { pt(d) = centers(d, i); }
+
+         auto &elems = domain_delta_integs_elems[i];
+         auto &ips = domain_delta_integs_ips[i];
+         elems.insert(e0);
+         ips[e0] = anchor_ip[i];
+
+         mesh->GetElementVertices(e0, anchor_verts);
+         ActiveEntityVertices(mesh->GetElementBaseGeometry(e0), anchor_ip[i],
+                              active_local);
+
+         // Mesh-vertex ids of the entity the center sits on.
+         entity_verts.SetSize(0);
+         for (int a : active_local) { entity_verts.Append(anchor_verts[a]); }
+
+         // Interior point (entity == whole element) or unsupported geometry:
+         // only the anchor contains the center.
+         if (entity_verts.Size() != 0 &&
+             entity_verts.Size() < anchor_verts.Size())
+         {
+            // Candidates: elements incident to the first entity vertex.
+            const int v0 = entity_verts[0];
+            const int n_adj = vte->RowSize(v0);
+            const int *adj = vte->GetRow(v0);
+            for (int k = 0; k < n_adj; k++)
+            {
+               const int en = adj[k];
+               if (en == e0 || elems.count(en)) { continue; }
+               mesh->GetElementVertices(en, cand_verts);
+               bool shares_all = true;
+               for (int ev : entity_verts)
+               {
+                  if (cand_verts.Find(ev) < 0) { shares_all = false; break; }
+               }
+               if (!shares_all) { continue; }
+               // Topologically contains the center. Compute its reference
+               // point for assembly; the Inside/Outside verdict is irrelevant.
+               inv_tr.SetTransformation(*fes->GetElementTransformation(en));
+               IntegrationPoint ip_n;
+               inv_tr.Transform(pt, ip_n);
+               elems.insert(en);
+               ips[en] = ip_n;
+            }
+         }
+
+         domain_delta_integs_count[i] = static_cast<int>(elems.size());
+      }
+   }
+   else
+   {
+      for (int i = 0; i < ndi; i++)
+      {
+         const int e0 = anchor_elem_id[i];
+         if (e0 < 0)
+         {
+            domain_delta_integs_count[i] = 0;
+            continue;
+         }
+
+         domain_delta_integs_elems[i].insert(e0);
+         domain_delta_integs_ips[i][e0] = anchor_ip[i];
+         domain_delta_integs_count[i] = 1;
+      }
+   }
+}
+
+void LinearForm::AssembleDelta()
+{
+   if (domain_delta_integs.Size() == 0) { return; }
+
+   if (!HaveDeltaLocations()) { ComputeDeltaLocations(); }
 
    Array<int> vdofs;
    Vector elemvect;
    for (int i = 0; i < domain_delta_integs.Size(); i++)
    {
-      int elem_id = domain_delta_integs_elem_id[i];
-      // The delta center may be outside of this sub-domain, or
-      // (Par)Mesh::FindPoints() failed to find this point:
-      if (elem_id < 0) { continue; }
+      const int n = domain_delta_integs_count[i];
+      if (n <= 0) { continue; }
 
-      const IntegrationPoint &ip = domain_delta_integs_ip[i];
-      ElementTransformation &Trans = *fes->GetElementTransformation(elem_id);
-      Trans.SetIntPoint(&ip);
+      const real_t weight = 1.0 / static_cast<real_t>(n);
+      const auto &ips = domain_delta_integs_ips[i];
+      for (const int elem_id : domain_delta_integs_elems[i])
+      {
+         const IntegrationPoint &ip = ips.at(elem_id);
+         ElementTransformation &Trans = *fes->GetElementTransformation(elem_id);
+         Trans.SetIntPoint(&ip);
 
-      fes->GetElementVDofs(elem_id, vdofs);
-      domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id),
-                                                       Trans, elemvect);
-      AddElementVector(vdofs, elemvect);
+         fes->GetElementVDofs(elem_id, vdofs);
+         domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id),
+                                                          Trans, elemvect);
+         elemvect *= weight;
+         AddElementVector(vdofs, elemvect);
+      }
    }
 }
 

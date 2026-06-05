@@ -11,6 +11,9 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "mesh/mesh_test_utils.hpp"
+
+#include <cmath>
 
 using namespace mfem;
 
@@ -239,6 +242,422 @@ TEST_CASE("Domain Integration (Vector Field)",
    }
 }
 
+// ---------------------------------------------------------------------------
+// Delta-coefficient domain integrators. A delta on a shared mesh entity is
+// split uniformly over the elements containing its center.
+
+// Single hex split into 24 tets, translated so the hex center -- a vertex
+// shared by all 24 tets -- sits at the origin.
+Mesh MakeCenteredHex24Tets()
+{
+   Mesh mesh = Mesh::MakeCartesian3DWith24TetsPerHex(1, 1, 1, 2.0, 2.0, 2.0);
+   for (int v = 0; v < mesh.GetNV(); v++)
+   {
+      real_t *vp = mesh.GetVertex(v);
+      vp[0] -= 1.0;
+      vp[1] -= 1.0;
+      vp[2] -= 1.0;
+   }
+   return mesh;
+}
+
+// A linear vector field not in the lowest-order Nedelec space, so its ND
+// projection has a discontinuous normal trace across element faces.
+void GenericField(const Vector &x, Vector &v)
+{
+   v.SetSize(3);
+   v(0) = 0.1 + 0.2 * x(0) - 0.3 * x(1) + 0.15 * x(2);
+   v(1) = -0.2 + 0.4 * x(1) + 0.25 * x(2) - 0.1 * x(0);
+   v(2) = 0.3 + 0.5 * x(2) + 0.2 * x(0) - 0.35 * x(1);
+}
+
+real_t ScalarLinearField(const Vector &x)
+{
+   return 0.25 + 0.5 * x(0) - 0.125 * x(1) + 0.75 * x(2);
+}
+
+int FindOriginVertex(const Mesh &mesh)
+{
+   for (int v = 0; v < mesh.GetNV(); v++)
+   {
+      const real_t *vp = mesh.GetVertex(v);
+      if (std::abs(vp[0]) < 1e-12 && std::abs(vp[1]) < 1e-12 &&
+          std::abs(vp[2]) < 1e-12)
+      {
+         return v;
+      }
+   }
+   return -1;
+}
+
+// Reference load vector from uniformly distributing a vector delta at the
+// origin across every element that contains it (weight 1/N per element).
+void AssembleUniformReference(FiniteElementSpace &fes, const Vector &dir,
+                              Vector &expected)
+{
+   Mesh &mesh = *fes.GetMesh();
+   const int v0 = FindOriginVertex(mesh);
+   REQUIRE(v0 >= 0);
+
+   Table *vte = mesh.GetVertexToElementTable();
+   const int N = vte->RowSize(v0);
+   const int *els = vte->GetRow(v0);
+   REQUIRE(N > 1);
+
+   expected.SetSize(fes.GetVSize());
+   expected = 0.0;
+
+   Vector center(mesh.SpaceDimension());
+   center = 0.0;
+
+   for (int j = 0; j < N; j++)
+   {
+      const int e = els[j];
+      ElementTransformation &Trans = *fes.GetElementTransformation(e);
+      InverseElementTransformation inv_tr(&Trans);
+      IntegrationPoint ip;
+      const int res = inv_tr.Transform(center, ip);
+      REQUIRE(res == InverseElementTransformation::Inside);
+      Trans.SetIntPoint(&ip);
+
+      const FiniteElement &fe = *fes.GetFE(e);
+      DenseMatrix vshape(fe.GetDof(), mesh.SpaceDimension());
+      fe.CalcPhysVShape(Trans, vshape);
+
+      Vector elemvect(fe.GetDof());
+      vshape.Mult(dir, elemvect);
+      elemvect *= 1.0 / static_cast<real_t>(N);
+
+      Array<int> vdofs;
+      fes.GetElementVDofs(e, vdofs);
+      expected.AddElementVector(vdofs, elemvect);
+   }
+
+   delete vte;
+}
+
+TEST_CASE("Domain Integration (Vector Delta on Shared Vertex)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   Mesh mesh = MakeCenteredHex24Tets();
+
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   Vector dir(3);
+   dir = 0.0;
+   dir[2] = 1.0;
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   Vector expected;
+   AssembleUniformReference(fes, dir, expected);
+
+   Vector diff(rhs);
+   diff -= expected;
+   const real_t err = diff.Norml2();
+   const real_t ref = expected.Norml2();
+   INFO("rhs.Norml2 = " << rhs.Norml2() << ", ref.Norml2 = " << ref
+        << ", err = " << err);
+   REQUIRE(ref > 0.0);
+   REQUIRE(err / ref < 1e-12);
+
+   delete vdc;
+}
+
+// A vector delta on a face shared by two elements, oriented along the face
+// NORMAL. The Nedelec tangential trace is continuous across the face so only
+// the normal component is discontinuous: the assembled functional applied to a
+// field with a discontinuous normal trace must equal the symmetric average of
+// the two one-sided values.
+TEST_CASE("Domain Integration (Vector Delta on Shared Face)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   Mesh mesh = OrientedTriFaceMesh(1);
+
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   Vector x0(3);
+   x0(0) = 0.0; x0(1) = 1.0 / 3.0; x0(2) = 1.0 / 3.0;  // shared-face centroid
+   Vector dir(3);
+   dir = 0.0; dir(0) = 1.0;                             // normal to the face
+
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   VectorFunctionCoefficient Fc(3, GenericField);
+   GridFunction g(&fes);
+   g.ProjectCoefficient(Fc);
+
+   Vector g0(3), g1(3);
+   {
+      IntegrationPoint ip;
+      InverseElementTransformation inv0(fes.GetElementTransformation(0));
+      REQUIRE(inv0.Transform(x0, ip) == InverseElementTransformation::Inside);
+      g.GetVectorValue(0, ip, g0);
+      InverseElementTransformation inv1(fes.GetElementTransformation(1));
+      REQUIRE(inv1.Transform(x0, ip) == InverseElementTransformation::Inside);
+      g.GetVectorValue(1, ip, g1);
+   }
+
+   const real_t side0 = dir * g0;
+   const real_t side1 = dir * g1;
+   INFO("side0 = " << side0 << ", side1 = " << side1);
+   REQUIRE(std::abs(side0 - side1) > 1e-3);   // the two sides genuinely differ
+
+   const real_t Lg = rhs * g;
+   const real_t sym = 0.5 * (side0 + side1);
+   INFO("Lg = " << Lg << ", symmetric avg = " << sym
+        << ", one-sided = " << side0 << "/" << side1);
+   REQUIRE(Lg == MFEM_Approx(sym));
+   REQUIRE(std::abs(Lg - side0) > 1e-4);
+   REQUIRE(std::abs(Lg - side1) > 1e-4);
+
+   delete vdc;
+}
+
+// Independent oracle: distribute a vector delta uniformly over all elements
+// that geometrically contain `center`.
+
+// Independent containment check from element vertices: barycentric coordinates
+// for tetrahedra and bounding boxes for the test hexes.
+bool ElementContainsByHand(Mesh &mesh, int e, const Vector &pt,
+                           IntegrationPoint &ip)
+{
+   const real_t tol = 1e-9;
+   Array<int> v;
+   mesh.GetElementVertices(e, v);
+   const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+   if (geom == Geometry::TETRAHEDRON)
+   {
+      // Barycentric coordinates by Cramer's rule: solve [c0 c1 c2] lam = pt-v0
+      // with columns ck = v_{k+1} - v0. lam are the reference coordinates.
+      const real_t *v0 = mesh.GetVertex(v[0]);
+      real_t c[3][3], b[3];
+      for (int d = 0; d < 3; d++)
+      {
+         for (int k = 0; k < 3; k++)
+         {
+            c[d][k] = mesh.GetVertex(v[k + 1])[d] - v0[d];
+         }
+         b[d] = pt(d) - v0[d];
+      }
+      auto det3 = [](real_t a0, real_t a1, real_t a2,
+                     real_t b0, real_t b1, real_t b2,
+                     real_t d0, real_t d1, real_t d2)
+      {
+         return a0 * (b1 * d2 - b2 * d1) - a1 * (b0 * d2 - b2 * d0)
+                + a2 * (b0 * d1 - b1 * d0);
+      };
+      const real_t D = det3(c[0][0], c[0][1], c[0][2],
+                            c[1][0], c[1][1], c[1][2],
+                            c[2][0], c[2][1], c[2][2]);
+      const real_t l0 = det3(b[0], c[0][1], c[0][2],
+                             b[1], c[1][1], c[1][2],
+                             b[2], c[2][1], c[2][2]) / D;
+      const real_t l1 = det3(c[0][0], b[0], c[0][2],
+                             c[1][0], b[1], c[1][2],
+                             c[2][0], b[2], c[2][2]) / D;
+      const real_t l2 = det3(c[0][0], c[0][1], b[0],
+                             c[1][0], c[1][1], b[1],
+                             c[2][0], c[2][1], b[2]) / D;
+      ip.x = l0; ip.y = l1; ip.z = l2;
+      return l0 >= -tol && l1 >= -tol && l2 >= -tol &&
+             (l0 + l1 + l2) <= 1.0 + tol;
+   }
+   else if (geom == Geometry::CUBE)
+   {
+      real_t mn[3], mx[3];
+      for (int d = 0; d < 3; d++) { mn[d] = mx[d] = mesh.GetVertex(v[0])[d]; }
+      for (int i = 1; i < v.Size(); i++)
+      {
+         const real_t *xi = mesh.GetVertex(v[i]);
+         for (int d = 0; d < 3; d++)
+         {
+            mn[d] = std::min(mn[d], xi[d]);
+            mx[d] = std::max(mx[d], xi[d]);
+         }
+      }
+      bool inside = true;
+      real_t r[3];
+      for (int d = 0; d < 3; d++)
+      {
+         inside = inside && (pt(d) >= mn[d] - tol) &&
+                  (pt(d) <= mx[d] + tol);
+         r[d] = (pt(d) - mn[d]) / (mx[d] - mn[d]);
+      }
+      ip.x = r[0]; ip.y = r[1]; ip.z = r[2];
+      return inside;
+   }
+   MFEM_ABORT("by-hand containment supports only TET and CUBE");
+   return false;
+}
+
+void AssembleDeltaReferenceBruteForce(FiniteElementSpace &fes,
+                                      const Vector &center, const Vector &dir,
+                                      Vector &expected)
+{
+   Mesh &mesh = *fes.GetMesh();
+   std::vector<int> containing;
+   std::vector<IntegrationPoint> ips;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      IntegrationPoint ip;
+      if (ElementContainsByHand(mesh, e, center, ip))
+      {
+         containing.push_back(e);
+         ips.push_back(ip);
+      }
+   }
+   const int N = static_cast<int>(containing.size());
+   REQUIRE(N > 0);
+
+   expected.SetSize(fes.GetVSize());
+   expected = 0.0;
+   for (size_t j = 0; j < containing.size(); j++)
+   {
+      const int e = containing[j];
+      ElementTransformation &Trans = *fes.GetElementTransformation(e);
+      Trans.SetIntPoint(&ips[j]);
+      const FiniteElement &fe = *fes.GetFE(e);
+      DenseMatrix vshape(fe.GetDof(), mesh.SpaceDimension());
+      fe.CalcPhysVShape(Trans, vshape);
+      Vector elemvect(fe.GetDof());
+      vshape.Mult(dir, elemvect);
+      elemvect *= 1.0 / static_cast<real_t>(N);
+      Array<int> vdofs;
+      fes.GetElementVDofs(e, vdofs);
+      expected.AddElementVector(vdofs, elemvect);
+   }
+}
+
+TEST_CASE("Domain Integration (Vector Delta on Hex Shared Face)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   // Two hexahedra sharing a face (a unit cube split in X at x=0.5).
+   const int which = GENERATE(0, 1, 2);
+   Vector x0(3);
+   x0(0) = 0.5;
+   switch (which)
+   {
+      case 0:  x0(1) = 0.5;  x0(2) = 0.5;  break;  // face centroid
+      case 1:  x0(1) = 0.5;  x0(2) = 0.0;  break;  // shared-face edge midpoint
+      default: x0(1) = 0.0;  x0(2) = 0.0;  break;  // shared-face corner vertex
+   }
+   Vector dir(3);
+   dir = 0.0; dir(0) = 1.0;
+
+   Mesh mesh = DividingPlaneMesh(false, false, true);
+   REQUIRE(mesh.GetNE() == 2);
+   REQUIRE(mesh.Conforming());
+
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   Vector expected;
+   AssembleDeltaReferenceBruteForce(fes, x0, dir, expected);
+
+   Vector diff(rhs);
+   diff -= expected;
+   const real_t err = diff.Norml2();
+   const real_t ref = expected.Norml2();
+   INFO("which = " << which << ", rhs.Norml2 = " << rhs.Norml2()
+        << ", ref.Norml2 = " << ref << ", err = " << err);
+   REQUIRE(ref > 0.0);
+   REQUIRE(err / ref < 1e-12);
+
+   delete vdc;
+}
+
+TEST_CASE("Domain Integration (RT Vector Delta on Shared Face)",
+          "[RT_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   Mesh mesh = OrientedTriFaceMesh(1);
+
+   RT_FECollection fec(0, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   Vector x0(3);
+   x0(0) = 0.0; x0(1) = 1.0 / 3.0; x0(2) = 1.0 / 3.0;
+   Vector dir(3);
+   dir = 0.0; dir(1) = 1.0;
+
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
+   rhs.Assemble();
+
+   Vector expected;
+   AssembleDeltaReferenceBruteForce(fes, x0, dir, expected);
+
+   Vector diff(rhs);
+   diff -= expected;
+   const real_t err = diff.Norml2();
+   const real_t ref = expected.Norml2();
+   INFO("rhs.Norml2 = " << rhs.Norml2() << ", ref.Norml2 = " << ref
+        << ", err = " << err);
+   REQUIRE(ref > 0.0);
+   REQUIRE(err / ref < 1e-12);
+}
+
+TEST_CASE("Domain Integration (Scalar Delta on Shared Entity)",
+          "[H1_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   const int which = GENERATE(0, 1, 2);
+   Vector x0(3);
+   x0(0) = 0.5;
+   switch (which)
+   {
+      case 0:  x0(1) = 0.5;  x0(2) = 0.5;  break;  // face centroid
+      case 1:  x0(1) = 0.5;  x0(2) = 0.0;  break;  // edge midpoint
+      default: x0(1) = 0.0;  x0(2) = 0.0;  break;  // vertex
+   }
+
+   Mesh mesh = DividingPlaneMesh(false, false, true);
+   REQUIRE(mesh.GetNE() == 2);
+   REQUIRE(mesh.Conforming());
+
+   H1_FECollection fec(2, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   DeltaCoefficient dc(x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new DomainLFIntegrator(dc));
+   rhs.Assemble();
+
+   FunctionCoefficient q(ScalarLinearField);
+   GridFunction g(&fes);
+   g.ProjectCoefficient(q);
+
+   INFO("which = " << which << ", rhs(g) = " << rhs(g)
+        << ", exact = " << ScalarLinearField(x0));
+   REQUIRE(rhs(g) == MFEM_Approx(ScalarLinearField(x0)));
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Domain Integration in Parallel (Scalar Field)",
@@ -424,6 +843,151 @@ TEST_CASE("Domain Integration in Parallel (Vector Field)",
          }
       }
    }
+}
+
+TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Vertex)",
+          "[ParLinearForm]"
+          "[DeltaCoefficient]"
+          "[Parallel]")
+{
+   // Compare the parallel true-vector norm with the serial reference.
+   Mesh mesh = MakeCenteredHex24Tets();
+
+   Vector dir(3);
+   dir = 0.0;
+   dir[2] = 1.0;
+
+   ND_FECollection fec_serial(1, 3);
+   FiniteElementSpace fes_serial(&mesh, &fec_serial);
+   Vector ref;
+   AssembleUniformReference(fes_serial, dir, ref);
+   const real_t ref_norm = ref.Norml2();
+   REQUIRE(ref_norm > 0.0);
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ND_FECollection fec(1, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+
+   ParLinearForm rhs(&pfes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   Vector tv(pfes.GetTrueVSize());
+   rhs.ParallelAssemble(tv);
+   const real_t par_norm = GlobalLpNorm(2.0, tv.Norml2(), MPI_COMM_WORLD);
+
+   INFO("nranks = " << Mpi::WorldSize() << ", ref = " << ref_norm
+        << ", par = " << par_norm);
+   REQUIRE(par_norm == MFEM_Approx(ref_norm));
+
+   delete vdc;
+}
+
+TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
+          "[ParLinearForm]"
+          "[DeltaCoefficient]"
+          "[Parallel]")
+{
+   // Scatter the origin's element star across ranks.
+   Mesh mesh = MakeCenteredHex24Tets();
+
+   Vector dir(3);
+   dir = 0.0;
+   dir[2] = 1.0;
+
+   ND_FECollection fec_serial(1, 3);
+   FiniteElementSpace fes_serial(&mesh, &fec_serial);
+   Vector ref;
+   AssembleUniformReference(fes_serial, dir, ref);
+   const real_t ref_norm = ref.Norml2();
+   REQUIRE(ref_norm > 0.0);
+
+   const int nranks = Mpi::WorldSize();
+   Array<int> part(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); e++) { part[e] = e % nranks; }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, part.GetData());
+
+   ND_FECollection fec(1, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+   ParLinearForm rhs(&pfes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   Vector tv(pfes.GetTrueVSize());
+   rhs.ParallelAssemble(tv);
+   const real_t par_norm = GlobalLpNorm(2.0, tv.Norml2(), MPI_COMM_WORLD);
+
+   INFO("nranks = " << nranks << ", ref = " << ref_norm
+        << ", par = " << par_norm);
+   REQUIRE(par_norm == MFEM_Approx(ref_norm));
+
+   delete vdc;
+}
+
+TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Face)",
+          "[ParLinearForm]"
+          "[DeltaCoefficient]"
+          "[Parallel]")
+{
+   // Put the two elements containing the face delta on different ranks.
+   const int nranks = Mpi::WorldSize();
+
+   Mesh mesh = OrientedTriFaceMesh(1);
+
+   Vector x0(3);
+   x0(0) = 0.0; x0(1) = 1.0 / 3.0; x0(2) = 1.0 / 3.0;
+   Vector dir(3);
+   dir = 0.0; dir(0) = 1.0;
+
+   real_t sym_ref;
+   {
+      ND_FECollection fec(1, 3);
+      FiniteElementSpace fes(&mesh, &fec);
+      VectorFunctionCoefficient Fc(3, GenericField);
+      GridFunction g(&fes);
+      g.ProjectCoefficient(Fc);
+      Vector g0(3), g1(3);
+      IntegrationPoint ip;
+      InverseElementTransformation inv0(fes.GetElementTransformation(0));
+      REQUIRE(inv0.Transform(x0, ip) == InverseElementTransformation::Inside);
+      g.GetVectorValue(0, ip, g0);
+      InverseElementTransformation inv1(fes.GetElementTransformation(1));
+      REQUIRE(inv1.Transform(x0, ip) == InverseElementTransformation::Inside);
+      g.GetVectorValue(1, ip, g1);
+      sym_ref = 0.5 * ((dir * g0) + (dir * g1));
+      REQUIRE(std::abs((dir * g0) - (dir * g1)) > 1e-3);
+   }
+
+   Array<int> partitioning(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      partitioning[e] = (nranks >= 2) ? e % nranks : 0;
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.GetData());
+
+   ND_FECollection fec(1, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   VectorFunctionCoefficient Fc(3, GenericField);
+   ParGridFunction g(&pfes);
+   g.ProjectCoefficient(Fc);
+
+   VectorDeltaCoefficient *vdc =
+      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   ParLinearForm rhs(&pfes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.Assemble();
+
+   const real_t Lg = rhs(g);
+   INFO("nranks = " << nranks << ", Lg = " << Lg << ", sym_ref = " << sym_ref);
+   REQUIRE(Lg == MFEM_Approx(sym_ref));
+
+   delete vdc;
 }
 
 #endif // MFEM_USE_MPI
