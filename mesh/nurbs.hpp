@@ -28,6 +28,10 @@ namespace mfem
 
 class GridFunction;
 
+/** This enumerated type describes the point set to use for NURBS*/
+enum class NURBSPointSet { DEFAULT = 0, GREVILLE, BOTELLA, DEMKO };
+
+
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
     a prescribed order.
 
@@ -191,6 +195,9 @@ public:
    real_t GetDemko(int i) const;
 
    void GetDemko(Vector &xi) const;
+
+   /// Uniform interface for obtaining Greville/Botella/Demko points
+   void GetPoints(Vector &xi, NURBSPointSet) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -556,7 +563,20 @@ public:
    /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang,
                                 int times);
+
+
+   friend NURBSPatch *MakeInterpolation(NURBSPatch *parent,
+                                        NURBSPointSet pSet);// = NURBSPointSet::DEFAULT);
+
+
+   void eval(Vector &u, Vector &val);
+   void eval(real_t u0, Vector & val);
+   void eval(real_t u0, real_t u1, Vector & val);
+   void eval(real_t u0, real_t u1, real_t u2, Vector &val);
 };
+
+Mesh MakeNURBSInterpolation(const Mesh &orig_mesh, NURBSPointSet pSet);
+
 
 
 #ifdef MFEM_USE_MPI
@@ -1110,6 +1130,9 @@ public:
 
    /// Returns a deep copy of the patch topology mesh
    Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
+
+   /// Returns a pointer of the patch topology mesh
+   Mesh *GetPatchTopo() const { return patchTopo; }
 
    /** Returns a deep copy of all instantiated patches. To ensure that patches
        are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets

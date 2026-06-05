@@ -6079,6 +6079,25 @@ Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
    return periodic_mesh;
 }
 
+Mesh Mesh::MakeNURBSInterpolation(const Mesh &orig_mesh, int pSet)
+{
+   NURBSExtension *orig_ext = orig_mesh.NURBSext;
+   MFEM_VERIFY(orig_ext,"Mesh::MakeNURBSInterpolation: Not a NURBS mesh!");
+   orig_ext->ConvertToPatches(*orig_mesh.Nodes);
+
+   int npatch = orig_ext->GetNP();
+   Array<NURBSPatch*> orig_patches(npatch);
+   Array<const NURBSPatch*> new_patches(npatch);
+
+   orig_ext->GetPatches(orig_patches);
+   for (int p = 0; p < npatch; p++)
+   {
+      new_patches[p] = MakeInterpolation(orig_patches[p],static_cast<NURBSPointSet>(pSet));
+   }
+
+   return Mesh(NURBSExtension(orig_ext->GetPatchTopo(), new_patches));
+}
+
 std::vector<int> Mesh::CreatePeriodicVertexMapping(
    const std::vector<Vector> &translations, real_t tol) const
 {

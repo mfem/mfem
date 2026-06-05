@@ -988,6 +988,9 @@ public:
        SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
+   /// Create a linear mesh with nodes at the specified points of @a orig_mesh.
+   static Mesh MakeNURBSInterpolation(const Mesh &orig_mesh, int pSet = 0);
+
    ///@}
 
    /// Construct a Mesh from a NURBSExtension, which is deep-copied.
