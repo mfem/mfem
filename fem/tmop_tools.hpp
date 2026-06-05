@@ -284,6 +284,12 @@ public:
    void EnsurePositiveDeterminantBound(GridFunction &det_gf_, int ref_factor,
                                        int max_recursion_depth = 0);
 
+   /// Update internal determinant GridFunction after a mesh topology change.
+   void UpdateDeterminantBoundGridFunction()
+   {
+      if (det_gf) { det_gf->Update(); }
+   }
+
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
