@@ -17,22 +17,23 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves asymptotic heat diffusion problem
-//               with anisotropic conductivity in the mixed formulation
-//               corresponding to the system
+// Description:  This miniapp solves asymptotic heat diffusion problem with
+//               anisotropic conductivity in the mixed formulation corresponding
+//               to the system
 //
 //                                 kˉ¹⋅q + ∇ T =  g
 //                                   ∇⋅q + a T = -f
 //
-//               with natural Neumann boundary condition q⋅n = 0, where n is
-//               the outer normal, or Dirichlet b.c. T = T_D. The tensor k
-//               represents the heat conductivity, where its symmetric and
-//               antisymmetric parts can be adjusted. The scalar a is the heat
-//               capacity, which can be zero, changing the problem to
-//               steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
-//               g = -a * <initial temperature> for the definite problem and
-//               g = -<initial temperature> for the indefinite one. These
-//               problems are offered:
+//               with essential (RT) / natural (DG) Neumann boundary condition
+//               q⋅n = 0, where n is the outer normal, or Dirichlet b.c. T =
+//               = <given temperature>. The tensor k represents the heat
+//               conductivity, where its symmetric and antisymmetric parts can
+//               be adjusted. The scalar a is the heat capacity, which can be
+//               zero, changing the problem to steady-state, indefinite,
+//               saddle-point. The initial condition is f = 0 and g = -a *
+//               <initial temperature> for the definite problem and g =
+//               - <initial temperature> for the indefinite one. These problems
+//               are offered:
 //               1) sine diffusion - Sine profile diffusion with the asymptotic
 //                                   (a -> infinity) reference solution with
 //                                   the first order correction
@@ -65,8 +66,8 @@
 //               DG interface elements or H1 trace elements.
 //
 //               The miniapp demonstrates the use of the DarcyForm class and
-//               the wrapping time-dependent operator DarcyOperator in an AMR
-//               loop with the HDG error estimator.
+//               the wrapping system operator DarcyOperator in an AMR loop with
+//               the HDG error estimator.
 //
 //               We recommend viewing examples 1-6 before viewing this miniapp.
 

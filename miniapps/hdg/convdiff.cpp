@@ -1,6 +1,6 @@
-//                                MFEM Example 5
+//                             Convection-diffusion miniapp
 //
-// Compile with: make ex5
+// Compile with: make convdiff
 //
 // Sample runs:  ex5 -m ../data/square-disc.mesh
 //               ex5 -m ../data/star.mesh
@@ -17,38 +17,56 @@
 //               ex5 -m ../data/star.mesh -pa -d raja-omp
 //               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
-// Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
-//               problem in the mixed formulation corresponding to the system
+// Description:  This miniapp solves a convection-diffusion problem in the mixed
+//               formulation corresponding to the system
 //
-//                                 1/k*q +           grad T =  g
-//                                 div q + div(T*c) + dT/dt = -f
+//                                 1/k q + ∇ T           =  g
+//                                   ∇⋅q + ∇⋅(Tc) + dT/dt = -f
 //
-//               with natural boundary condition -T = <given temperature> and/or
-//               essential (RT) / natural (DG) boundary condition qT.n = (q + T*c).n
-//               = <given total flux>. The scalar k is the heat conductivity and c the
-//               given velocity field. Multiple problems are offered based on the paper:
-//               N.C. Nguyen et al., Journal of Computational Physics 228 (2009) 3232–3254.
-//               In particular, they are (corresponding to the subsections of section 5):
-//               1) steady-state diffusion - with zero Dirichlet temperature BCs
-//               2) steady-state advection-diffusion - with zero Dirichlet temperature BCs
-//               3) steady-state advection  - with Dirichlet temperature inflow BC and
-//                                            Neumann total flux outflow BC
-//               4) non-steady advection(-diffusion) - with Dirichlet temperature BCs
-//               5) Kovasznay flow - with Dirichlet temperature inflow BC and Neumann
-//                                   total flux outflow BCs
-//               6) steady-state Burgers flow - with zero Dirichlet temperature BCs
-//               7) non-steady Burgers flow - with zero Dirichlet temperature BCs
-//               Here, we use a given exact solution (q,T) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (heat flux q) and piecewise discontinuous
-//               polynomials (temperature T).
+//               with natural Dirichlet boundary condition T = <given
+//               temperature> and/or Neumann boundary condition (q + Tc)⋅n =
+//               = <given total flux>, where n is the outer normal. The scalar k
+//               is the heat conductivity and c the given velocity field.
+//               Multiple problems are offered based on the paper: N.C. Nguyen
+//               et al., Journal of Computational Physics 228 (2009) 3232–3254.
+//               In particular, they are (corresponding to the subsections of
+//               section 5):
+//               1) steady diffusion - sine profile steady diffusion with zero
+//                                     Dirichlet temperature BCs
+//               2) steady advection-diffusion - sine profile steady advection-
+//                                               -diffusion with zero Dirichlet
+//                                               temperature BCs (and Neumann
+//                                               outflow BCs optionally)
+//               3) steady advection - step function circular advection with
+//                                     Dirichlet temperature inflow and Neumann
+//                                     total flux outflow BC (instead of paper's
+//                                     embedded BC for a full circle advection)
+//               4) non-steady advection(-diffusion) - blob circular advection
+//                                                     with diffusion with
+//                                                     Dirichlet temperature BCs
+//               5) Kovasznay flow - advection-diffusion of periodically
+//                                   injected contaminant concentration (repr.
+//                                   by T) with Dirichlet temperature inflow BC
+//                                   and Neumann total flux outflow BCs
+//               6) steady Burgers flow - with zero Dirichlet temperature BCs
+//               7) non-steady Burgers flow - with zero Dirichlet temperature
+//                                            BCs
+//               We discretize with (broken) Raviart-Thomas finite elements
+//               (heat flux q) and piecewise discontinuous polynomials
+//               (temperature T). Alternatively, the piecewise discontinuous
+//               polynomials are used for both quantities with stabilization,
+//               yielding the Local Discontinous Galerkin method. Optionally,
+//               the mixed system is algebraically reduced or hybridized with
+//               DG interface elements or H1 trace elements. The schemes can be
+//               also upwinded along the velocity field in both, diffusion and
+//               convection parts, or centered (default).
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective saving
-//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               The miniapp demonstrates the use of the DarcyForm class and
+//               time evolution of the system operator provided by DarcyOperator
+//               with different boundary conditions and discretizations.
 //
-//               We recommend viewing examples 1-4 before viewing this example.
+//               We recommend viewing examples 1-5, 9 and 41 before viewing this
+//               miniapp.
 
 #include "mfem.hpp"
 #include "darcyop.hpp"
@@ -249,7 +267,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Set the problem options
+   // 2. Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
    bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
@@ -322,12 +340,12 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
+   // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
+   // 4. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    if (ny <= 0)
@@ -350,7 +368,7 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   // Mark boundary conditions
+   // 5. Mark boundary conditions based on the selected problem
    const int bdr_attrs = mesh.bdr_attributes.Size() > 0 ?
                          mesh.bdr_attributes.Max() : 1;
    Array<int> bdr_is_dirichlet(bdr_attrs);
@@ -369,22 +387,21 @@ int main(int argc, char *argv[])
          //free (zero Dirichlet)
          if (bc_neumann)
          {
-            bdr_is_neumann[1] = -1;//outflow
-            bdr_is_neumann[2] = -1;//outflow
+            bdr_is_neumann[1] = -1; // Outflow
+            bdr_is_neumann[2] = -1; // Outflow
          }
          break;
       case Problem::SteadyAdvection:
-         bdr_is_dirichlet[3] = -1;//inflow
-         bdr_is_neumann[0] = -1;//outflow
+         bdr_is_dirichlet[3] = -1; // Inflow
+         bdr_is_neumann[0] = -1; // Outflow
          break;
       case Problem::NonsteadyAdvectionDiffusion:
          bdr_is_dirichlet = -1;
          //bdr_is_neumann = -1;
          break;
       case Problem::KovasznayFlow:
-         //bdr_is_dirichlet[3] = -1;//inflow (zero)
-         bdr_is_neumann = -1;//outflow
-         bdr_is_neumann[3] = 0;
+         bdr_is_neumann = -1; // Outflow
+         bdr_is_neumann[3] = 0; // Inflow
          break;
    }
 
@@ -394,24 +411,28 @@ int main(int argc, char *argv[])
       bdr_is_free[a] = !bdr_is_dirichlet[a] && !bdr_is_neumann[a];
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 6. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
    if (strlen(mesh_file) > 0)
    {
-      int ref = (ref_levels >= 0)?(ref_levels):
-                (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref; l++)
+      if (ref_levels < 0)
+      {
+         ref_levels = (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
-   unique_ptr<FiniteElementCollection> V_coll;
-   unique_ptr<FiniteElementCollection> V_coll_dg;
+   // 7. Define a finite element space on the mesh. Here we use the
+   //    (broken) Raviart-Thomas finite elements of the specified order for the
+   //    heat flux or discontinuous Galerkin alternatively. The temperature is
+   //    always discretized by discontinuous Galerkin elements.
+   unique_ptr<FiniteElementCollection> V_coll; // Heat flux FE collection
+   unique_ptr<FiniteElementCollection> V_coll_dg; // DG heat flux FE colection
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
@@ -422,61 +443,82 @@ int main(int argc, char *argv[])
    else if (brt)
    {
       V_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      // For broken Raviart-Thomas elements, we define an auxiliary DG space
+      // for visualization with an older version of GLVIs without support of
+      // this element family.
       V_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
       V_coll = make_unique<RT_FECollection>(order, dim);
    }
+
+   // Temperature FE collection
    auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
+   // Heat flux FE space
    auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
                                                   (dg)?(dim):(1));
    auto V_space_dg = (V_coll_dg)?(make_unique<FiniteElementSpace>(
                                      &mesh, V_coll_dg.get(), dim)):(nullptr);
+   // Temperature FE space
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
+   // Darcy form
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
-   // 6. Define the coefficients, analytical solution, and rhs of the PDE.
-   pars.t_0 = 1.; //base temperature
+   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
+   pars.t_0 = 1.; // Base temperature
 
-   ConstantCoefficient kcoeff(pars.k); //conductivity
-   ConstantCoefficient ikcoeff(1./pars.k); //inverse conductivity
+   ConstantCoefficient kcoeff(pars.k); // Conductivity
+   ConstantCoefficient ikcoeff(1./pars.k); // Inverse conductivity
 
    auto cFun = GetCFun(pars);
-   VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
-   NormalizedVectorCoefficient nccoeff(ccoeff); //normalized velocity
+   VectorFunctionCoefficient ccoeff(dim, cFun); // Velocity
+   NormalizedVectorCoefficient nccoeff(ccoeff); // Normalized velocity
 
    auto tFun = GetTFun(pars);
-   FunctionCoefficient tcoeff(tFun); //temperature
-   SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
+   FunctionCoefficient tcoeff(tFun); // Analytic temperature
+   ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux r.h.s.
 
    auto fFun = GetFFun(pars);
-   FunctionCoefficient fcoeff(fFun); //temperature rhs
+   FunctionCoefficient fcoeff(fFun); // Temperature r.h.s.
 
    auto qFun = GetQFun(pars);
-   VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
+   VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
-   VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
+   VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff,
+                                 one); // Analytic total flux
    VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
-                                :((VectorCoefficient&)qcoeff);//<--velocity is undefined
+                                :((VectorCoefficient&)qcoeff); //<-- velocity is undefined
 
-   // 7. Assemble the finite element matrices for the Darcy operator
+   // 8. Assemble the finite element matrices for the Darcy operator
    //
-   //                            D = [ M  B^T ]
-   //                                [ B   0  ]
+   //                     ┌        ┐
+   //                     | Mq -Bᵀ |
+   //                     | B  D   |
+   //                     └        ┘
    //     where:
-   //
-   //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
-   //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
+   //     RTDG:
+   //     Mq = (kˉ¹ q, v)                            q, v ∈ V
+   //     B = (∇⋅q, w)                               q ∈ V, w ∈ W
+   //     D = (1/dt T, w) - (c T, ∇w) - <c⋅n{T}, [w]>  T, w ∈ W
+   //     LBRT:
+   //     Mq = (kˉ¹ q, v)                            q, v ∈ V
+   //     B = (∇⋅q, w) + <[q⋅n], {w}>                 q ∈ V, w ∈ W
+   //     D = (1/dt T, w) - (c T, ∇w) - <c⋅n{T}, [w]>  T, w ∈ W
+   //     LDG:
+   //     Mq = (kˉ¹ q, v)                            q, v ∈ V
+   //     B = (∇⋅q, w) + <[q⋅n], {w}>                 q ∈ V, w ∈ W
+   //     D = (1/dt T, w) + <td k hˉ¹[T], [w]> -
+   //         - (c T, ∇w) - <c⋅n{T}, [w]>             T, w ∈ W
 
-   //diffusion
+   // Diffusion
 
    unique_ptr<MixedFluxFunction> HeatFluxFun;
    if (!bnldiff)
    {
-      //linear diffusion
+      // Linear diffusion
       if (!nonlinear_flux)
       {
          BilinearForm *Mq = darcy->GetFluxMassForm();
@@ -504,7 +546,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      //nonlinear diffusion
+      // Nonlinear diffusion
       BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
       HeatFluxFun = GetHeatFluxFun(pars, dim);
       if (dg)
@@ -535,7 +577,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   //diffusion stabilization
+   // Diffusion stabilization
+
    if (dg && (!bnldiff || hybridization) && td > 0.)
    {
       if (!nonlinear_pot)
@@ -582,7 +625,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //divergence/weak gradient
+   // Divergence/weak gradient
 
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    if (dg)
@@ -622,7 +665,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //linear convection
+   // Linear convection
 
    if (bconv)
    {
@@ -694,7 +737,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //nonlinear convection in the nonlinear regime
+   // Nonlinear convection in the nonlinear regime
 
    unique_ptr<FluxFunction> FluxFun;
    unique_ptr<NumericalFlux> FluxSolver;
@@ -721,7 +764,7 @@ int main(int argc, char *argv[])
                                     *FluxSolver, 0, -1.));
    }
 
-   // inertial term
+   // Inertial term
    // Note the mass integrator is added in DarcyOperator, but we must construct
    // the corresponding bilinear form here
    if (btime)
@@ -730,7 +773,7 @@ int main(int argc, char *argv[])
       else { darcy->GetPotentialMassNonlinearForm(); }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / reduction / assembly level
 
    Array<int> ess_flux_tdofs_list;
    if (!dg && !brt)
@@ -743,6 +786,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
+      // Hybridization
       chrono.Clear();
       chrono.Start();
 
@@ -758,7 +802,7 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-      // set essential BC
+      // Set essential BC
       if (trace_ess_bc)
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
@@ -768,6 +812,7 @@ int main(int argc, char *argv[])
    }
    else if (reduction)
    {
+      // Reduction
       chrono.Clear();
       chrono.Start();
 
@@ -791,7 +836,7 @@ int main(int argc, char *argv[])
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   // 8. Define the BlockStructure of the problem, i.e. define the array of
+   // 9. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
@@ -819,11 +864,13 @@ int main(int argc, char *argv[])
    }
    cout << "***********************************************************\n";
 
-   // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
-   //    side.  Define the GridFunction q,t for the finite element solution and
-   //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (q,t) and the linear forms (fform, gform).
+   // 10. Allocate memory (x, rhs) for the analytical solution and the right
+   //     hand side. Define the GridFunction q_h, t_h for the finite element
+   //     solution and linear forms fform and gform for the right hand side.
+   //     The data allocated by x and rhs are passed as a reference to the grid
+   //     functions (q,t) and the linear forms (fform, gform). With
+   //     hybridization, linear form hform for the constraint is constructed
+   //     as well together with the trace grid function tr_h.
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
@@ -838,27 +885,27 @@ int main(int argc, char *argv[])
 
    if (btime)
    {
-      t_h.ProjectCoefficient(tcoeff); //initial condition
+      t_h.ProjectCoefficient(tcoeff); // Initial condition
    }
 
    if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
-                                      bdr_is_neumann);   //essential Neumann BC
+                                      bdr_is_neumann);   // Essential Neumann BC
    }
 
    if (hybridization && trace_ess_bc)
    {
-      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
+      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // Essential Dirichlet BC
    }
 
-   // flux rhs
+   // Flux r.h.s.
    unique_ptr<LinearForm> gform(new LinearForm);
    gform->Update(V_space.get(), rhs.GetBlock(0), 0);
 
-   // Dirichlet
    if (!hybridization || !trace_ess_bc)
    {
+      // Dirichlet BC
       if (dg)
       {
          gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
@@ -876,14 +923,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   // potential rhs
+   // Potential r.h.s.
    unique_ptr<LinearForm> fform(new LinearForm);
    fform->Update(W_space.get(), rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
 
-   //Neumann
    if (!hybridization)
    {
+      // Neumann BC (non-hybridized)
       if (dg || brt)
       {
          if (upwinded)
@@ -906,7 +953,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //Dirichlet
+   // Dirichlet BC (convective)
    if (bconv)
    {
       if (upwinded)
@@ -923,14 +970,12 @@ int main(int argc, char *argv[])
       }
    }
 
-   //prepare (reduced) solution and rhs vectors
-
+   // Constraint r.h.s.
    unique_ptr<LinearForm> hform;
-
-   //Neumann BC for the hybridized system
 
    if (hybridization)
    {
+      // Neumann BC for the hybridized system
       hform = make_unique<LinearForm>();
       hform->Update(trace_space.get(), rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
@@ -939,15 +984,14 @@ int main(int argc, char *argv[])
                                    bdr_is_neumann);
    }
 
-   //construct the operator
+   // 11. Construct the spatial operator
 
    DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
    {gform.get(), fform.get(),hform.get()},
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
 
-   //construct the time solver
-
+   // 12. Construct the time ODE solver
    unique_ptr<ODESolver> ode_solver;
 
    switch (ode)
@@ -963,22 +1007,22 @@ int main(int argc, char *argv[])
 
    ode_solver->Init(op);
 
-   //iterate in time
+   // 13. The main time loop
 
    if (!btime) { nt = 1; }
 
-   const real_t dt = tf / nt; //time step
+   const real_t dt = tf / nt; // Time step
 
-   int i_Kovasznay = 0;//injection iteration - Kovasznay flow
-   constexpr real_t dt_Kovasznay = 2.;//injection period - Kovasznay flow
+   int i_Kovasznay = 0; // Injection iteration - Kovasznay flow
+   constexpr real_t dt_Kovasznay = 2.; // Injection period - Kovasznay flow
 
    for (int ti = 0; ti < nt; ti++)
    {
-      //set current time
+      // Set the current time
 
       real_t t = tf * ti / nt;
 
-      //perform injection - Kovasznay flow
+      // Perform injection - Kovasznay flow
       if (problem == Problem::KovasznayFlow &&
           t >= ((i_Kovasznay+1) * dt_Kovasznay) * (1. - 100*epsilon))
       {
@@ -988,12 +1032,12 @@ int main(int argc, char *argv[])
          t_h += t_Kovasznay;
       }
 
-      //perform time step
+      // 14. Perform time step
 
-      real_t dt_ = dt;//<---ignore time step changes
+      real_t dt_ = dt; //<--- ignore time step changes
       ode_solver->Step(x, t, dt_);
 
-      // 12. Compute the L2 error norms.
+      // 15. Compute the L2 error norms.
 
       int order_quad = max(2, 2*order+1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -1033,7 +1077,7 @@ int main(int argc, char *argv[])
          cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
 
-      // Project the fluxes
+      // 16. Project the fluxes
 
       GridFunction q_vh;
 
@@ -1048,7 +1092,7 @@ int main(int argc, char *argv[])
          q_vh.MakeRef(V_space.get(), q_h, 0);
       }
 
-      // Project the analytic solution
+      // 17. Project the analytic solution
 
       static GridFunction q_a, qt_a, t_a, c_gf;
 
@@ -1067,8 +1111,8 @@ int main(int argc, char *argv[])
          c_gf.ProjectCoefficient(ccoeff);
       }
 
-      // 13. Save the mesh and the solution. This output can be viewed later using
-      //     GLVis: "glvis -m convdiff.mesh -g sol_q.gf" or "glvis -m
+      // 18. Save the mesh and the solution. This output can be viewed later
+      //     using GLVis: "glvis -m convdiff.mesh -g sol_q.gf" or "glvis -m
       //     convdiff.mesh -g sol_t.gf".
       if (mfem)
       {
@@ -1098,7 +1142,7 @@ int main(int argc, char *argv[])
          t_h.Save(t_ofs);
       }
 
-      // 14. Save data in the VisIt format
+      // 19. Save data in the VisIt format
       if (visit)
       {
          static VisItDataCollection visit_dc("Convdiff", &mesh);
@@ -1113,11 +1157,11 @@ int main(int argc, char *argv[])
             }
          }
          visit_dc.SetCycle(ti);
-         visit_dc.SetTime(t); // set the time
+         visit_dc.SetTime(t);
          visit_dc.Save();
       }
 
-      // 15. Save data in the ParaView format
+      // 20. Save data in the ParaView format
       if (paraview)
       {
          static ParaViewDataCollection paraview_dc("Convdiff", &mesh);
@@ -1136,11 +1180,11 @@ int main(int argc, char *argv[])
             }
          }
          paraview_dc.SetCycle(ti);
-         paraview_dc.SetTime(t); // set the time
+         paraview_dc.SetTime(t);
          paraview_dc.Save();
       }
 
-      // 16. Send the solution by socket to a GLVis server.
+      // 21. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          static socketstream q_sock, t_sock;
