@@ -25,6 +25,9 @@ namespace
 // containing the point.
 constexpr real_t kEntityTol = 1e-6;
 
+// Physical-space tolerance for the nonconforming containment filter.
+constexpr real_t kContainTol = 1e-9;
+
 void ActiveEntityVertices(Geometry::Type geom, const IntegrationPoint &ip,
                           Array<int> &active)
 {
@@ -491,6 +494,13 @@ void LinearForm::ComputeDeltaLocations()
    }
    else
    {
+      // Use NCMesh closure nodes to bridge master/slave interfaces where a
+      // hanging vertex is not a coarse element corner.
+      const int ne = mesh->GetNE();
+      InverseElementTransformation inv_tr;
+      Vector pt(sdim), mapped(sdim);
+      Array<int> active_local, candidates;
+
       for (int i = 0; i < ndi; i++)
       {
          const int e0 = anchor_elem_id[i];
@@ -500,9 +510,27 @@ void LinearForm::ComputeDeltaLocations()
             continue;
          }
 
-         domain_delta_integs_elems[i].insert(e0);
-         domain_delta_integs_ips[i][e0] = anchor_ip[i];
-         domain_delta_integs_count[i] = 1;
+         for (int d = 0; d < sdim; d++) { pt(d) = centers(d, i); }
+         ActiveEntityVertices(mesh->GetElementBaseGeometry(e0), anchor_ip[i],
+                              active_local);
+         mesh->ncmesh->FindClosureElements(e0, active_local, candidates);
+
+         auto &elems = domain_delta_integs_elems[i];
+         auto &ips = domain_delta_integs_ips[i];
+         for (int e : candidates)
+         {
+            if (e >= ne) { continue; }
+            ElementTransformation &Trans = *fes->GetElementTransformation(e);
+            inv_tr.SetTransformation(Trans);
+            IntegrationPoint ip_e;
+            inv_tr.Transform(pt, ip_e);
+            Trans.Transform(ip_e, mapped);
+            mapped -= pt;
+            if (mapped.Norml2() > kContainTol) { continue; }
+            elems.insert(e);
+            ips[e] = ip_e;
+         }
+         domain_delta_integs_count[i] = static_cast<int>(elems.size());
       }
    }
 }

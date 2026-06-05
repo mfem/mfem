@@ -568,6 +568,14 @@ public:
     */
    int GetNodeVertex(int node) { return nodes[node].vert_index; }
 
+   /** @brief Return leaf-element candidates adjacent to a local entity.
+       @a elem is a Mesh element index. @a local_entity_vertices contains the
+       element-local vertices of a vertex, edge, face, or the whole element.
+       The result is a topological closure neighborhood; callers that need the
+       exact containing set should still apply a geometric containment filter. */
+   void FindClosureElements(int elem, const Array<int> &local_entity_vertices,
+                            Array<int> &closure);
+
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
@@ -796,6 +804,7 @@ protected:
    Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
+   Table node_element; ///< node-to-leaf-element closure table
 
    /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
@@ -1106,11 +1115,22 @@ protected:
                        const Array<int> *search_set = NULL);
 
 
-   void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
-   void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
+   void CollectEdgeVertices(int v0, int v1, Array<int> &indices) const;
+   void CollectTriFaceVertices(int v0, int v1, int v2,
+                               Array<int> &indices) const;
    void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
-                                Array<int> &indices);
+                                Array<int> &indices) const;
+   void CollectElementClosureNodes(int elem, Array<int> &indices) const;
+   void CollectEntityClosureNodes(int elem,
+                                  const Array<int> &local_entity_vertices,
+                                  Array<int> &indices) const;
    void BuildElementToVertexTable();
+   void BuildNodeToElementTable();
+
+   void UpdateNodeToElementTable()
+   {
+      if (node_element.Size() < 0) { BuildNodeToElementTable(); }
+   }
 
    void UpdateElementToVertexTable()
    {

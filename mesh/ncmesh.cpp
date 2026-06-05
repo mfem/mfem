@@ -251,6 +251,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , boundary_faces(other.boundary_faces)
    , face_geom(other.face_geom)
    , element_vertex(other.element_vertex)
+   , node_element(other.node_element)
    , shadow(1024, 2048)
 {
    Update();
@@ -275,6 +276,7 @@ void NCMesh::Update()
    edge_list.Clear();
 
    element_vertex.Clear();
+   node_element.Clear();
 }
 
 NCMesh::~NCMesh()
@@ -4057,7 +4059,7 @@ NCMesh::NCList::BuildIndex() const
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
-void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
+void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices) const
 {
    int mid = nodes.FindId(v0, v1);
    if (mid >= 0 && nodes[mid].HasVertex())
@@ -4069,7 +4071,8 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
    }
 }
 
-void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
+void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2,
+                                    Array<int> &indices) const
 {
    int mid[3];
    if (TriFaceSplit(v0, v1, v2, mid))
@@ -4094,7 +4097,7 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 }
 
 void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
-                                     Array<int> &indices)
+                                     Array<int> &indices) const
 {
    int mid[5];
    real_t scale;
@@ -4126,6 +4129,166 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
          }
          break;
    }
+}
+
+void NCMesh::CollectElementClosureNodes(int elem, Array<int> &indices) const
+{
+   const Element &el = elements[leaf_elements[elem]];
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   const GeomInfo &gi = GI[el.Geom()];
+   const int *node = el.node;
+
+   indices.SetSize(0);
+   for (int j = 0; j < gi.nv; j++) { indices.Append(node[j]); }
+   for (int j = 0; j < gi.ne; j++)
+   {
+      const int *ev = gi.edges[j];
+      CollectEdgeVertices(node[ev[0]], node[ev[1]], indices);
+   }
+
+   if (Dim >= 3)
+   {
+      for (int j = 0; j < gi.nf; j++)
+      {
+         const int *fv = gi.faces[j];
+         if (gi.nfv[j] == 4)
+         {
+            CollectQuadFaceVertices(node[fv[0]], node[fv[1]],
+                                    node[fv[2]], node[fv[3]], indices);
+         }
+         else
+         {
+            CollectTriFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]],
+                                   indices);
+         }
+      }
+   }
+
+   indices.Sort();
+   indices.Unique();
+}
+
+void NCMesh::CollectEntityClosureNodes(int elem,
+                                       const Array<int> &local_entity_vertices,
+                                       Array<int> &indices) const
+{
+   const Element &el = elements[leaf_elements[elem]];
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   const GeomInfo &gi = GI[el.Geom()];
+   const int *node = el.node;
+   indices.SetSize(0);
+
+   if (local_entity_vertices.Size() == 1)
+   {
+      indices.Append(node[local_entity_vertices[0]]);
+   }
+   else if (local_entity_vertices.Size() == 2)
+   {
+      for (int j = 0; j < gi.ne; j++)
+      {
+         const int *ev = gi.edges[j];
+         if (local_entity_vertices.Find(ev[0]) >= 0 &&
+             local_entity_vertices.Find(ev[1]) >= 0)
+         {
+            indices.Append(node[ev[0]]);
+            indices.Append(node[ev[1]]);
+            CollectEdgeVertices(node[ev[0]], node[ev[1]], indices);
+            break;
+         }
+      }
+   }
+   else
+   {
+      for (int j = 0; j < gi.nf; j++)
+      {
+         if (gi.nfv[j] != local_entity_vertices.Size()) { continue; }
+         const int *fv = gi.faces[j];
+         bool match = true;
+         for (int k = 0; k < gi.nfv[j]; k++)
+         {
+            if (local_entity_vertices.Find(fv[k]) < 0)
+            {
+               match = false;
+               break;
+            }
+         }
+         if (!match) { continue; }
+
+         for (int k = 0; k < gi.nfv[j]; k++) { indices.Append(node[fv[k]]); }
+         if (gi.nfv[j] == 4)
+         {
+            CollectQuadFaceVertices(node[fv[0]], node[fv[1]],
+                                    node[fv[2]], node[fv[3]], indices);
+         }
+         else
+         {
+            CollectTriFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]],
+                                   indices);
+         }
+         break;
+      }
+   }
+
+   indices.Sort();
+   indices.Unique();
+}
+
+void NCMesh::BuildNodeToElementTable()
+{
+   Array<Connection> conn;
+   Array<int> elem_nodes;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      CollectElementClosureNodes(i, elem_nodes);
+      for (int j = 0; j < elem_nodes.Size(); j++)
+      {
+         conn.Append(Connection(elem_nodes[j], i));
+      }
+   }
+   conn.Sort();
+   conn.Unique();
+   node_element.MakeFromList(nodes.NumIds(), conn);
+}
+
+void NCMesh::FindClosureElements(int elem,
+                                 const Array<int> &local_entity_vertices,
+                                 Array<int> &closure)
+{
+   closure.SetSize(0);
+   if (elem < 0 || elem >= leaf_elements.Size()) { return; }
+
+   const Element &el = elements[leaf_elements[elem]];
+   const GeomInfo &gi = GI[el.Geom()];
+   if (local_entity_vertices.Size() == 0 ||
+       local_entity_vertices.Size() >= gi.nv)
+   {
+      closure.Append(elem);
+      return;
+   }
+
+   UpdateNodeToElementTable();
+
+   Array<int> entity_nodes;
+   CollectEntityClosureNodes(elem, local_entity_vertices, entity_nodes);
+   if (entity_nodes.Size() == 0)
+   {
+      closure.Append(elem);
+      return;
+   }
+
+   for (int j = 0; j < entity_nodes.Size(); j++)
+   {
+      const int entity_node = entity_nodes[j];
+      const int *row = node_element.GetRow(entity_node);
+      for (int k = 0; k < node_element.RowSize(entity_node); k++)
+      {
+         closure.Append(row[k]);
+      }
+   }
+   closure.Sort();
+   closure.Unique();
 }
 
 void NCMesh::BuildElementToVertexTable()
@@ -6969,6 +7132,7 @@ void NCMesh::Trim()
 
    boundary_faces.DeleteAll();
    element_vertex.Clear();
+   node_element.Clear();
 
    ClearTransforms();
 
@@ -7020,6 +7184,7 @@ long NCMesh::MemoryUsage() const
           vertex_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
+          node_element.MemoryUsage() +
           ref_stack.MemoryUsage() +
           derefinements.MemoryUsage() +
           transforms.MemoryUsage() +
@@ -7044,6 +7209,7 @@ int NCMesh::PrintMemoryDetail() const
              << vertex_list.MemoryUsage() << " vertex_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
+             << node_element.MemoryUsage() << " node_element\n"
              << ref_stack.MemoryUsage() << " ref_stack\n"
              << derefinements.MemoryUsage() << " derefinements\n"
              << transforms.MemoryUsage() << " transforms\n"
