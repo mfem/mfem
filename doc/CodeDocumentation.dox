@@ -262,6 +262,7 @@ namespace mfem {
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
  * - <a class="el" href="anisodiff_8cpp_source.html">HDG anisotropic diffusion</a>: (Hybridized) mixed formulation of anisotropic problems
+ * - <a class="el" href="panisodiff_8cpp_source.html">HDG anisotropic diffusion (parallel)</a>: Parallel (hybridized) mixed formulation of anisotropic problems
  * - <a class="el" href="mfem-logo_8cpp_source.html">MFEM logo</a>: (Hybridized) mixed solution of convection-diffusion problem with MFEM logo
  * - <a class="el" href="convdiff_8cpp_source.html">HDG convection-diffusion</a>: (Hybridized) mixed solution of convection-diffusion test problems
  * - <a class="el" href="pconvdiff_8cpp_source.html">HDG convection-diffusion (parallel)</a>: Parallel (hybridized) mixed solution of convection-diffusion test problems
