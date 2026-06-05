@@ -154,7 +154,7 @@ TEST_CASE("MixedBilinearFormSubMeshTrialBoundary",
 
    Array<int> ref_bdr_marker(mesh.bdr_attributes.Max());
    ref_bdr_marker = 0;
-   ref_bdr_marker[0] = 1;
+   ref_bdr_marker[2] = 1;
 
    MixedBilinearForm submesh_form(&trial_fes, &test_fes);
    submesh_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
@@ -392,7 +392,7 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrialBoundary",
 
    Array<int> ref_bdr_marker(mesh.bdr_attributes.Max());
    ref_bdr_marker = 0;
-   ref_bdr_marker[1] = 1;
+   ref_bdr_marker[2] = 1;
 
    ParMixedBilinearForm submesh_form(&trial_fes, &test_fes);
    submesh_form.AddBoundaryIntegrator(new MassIntegrator(one), ref_bdr_marker);
@@ -414,7 +414,7 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrialBoundary",
    submesh_mat->Mult(*trial_true, *submesh_result);
    reference_mat->Mult(*parent_trial_true, *reference_result);
 
-   REQUIRE(submesh_result->Norml2() >= MFEM_Approx(0.0));
+   REQUIRE(submesh_result->Norml2() > 1e-3);
    *submesh_result -= *reference_result;
    REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
 
