@@ -732,7 +732,7 @@ The specific libraries and their options are:
   MPI implementations.
   URL: https://developer.nvidia.com/cudss
        https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss
-  Options: CUDSS_OPT, CUDSS_INCLUDE_LIB.
+  Options: CUDSS_OPT, CUDSS_LIB.
   Versions: cuDSS >= 0.6.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Ginkgo may have additional
