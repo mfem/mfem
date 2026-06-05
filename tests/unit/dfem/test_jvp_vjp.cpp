@@ -30,16 +30,17 @@ using dreal_t = dual<real_t, real_t>;
 static constexpr int U = 0, V = 1, 𝚵 = 2;
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM> struct global_qf
+template<int DIM>
+struct global_qf
 {
-   void operator()(
-      tensor_array<const dreal_t> &x,
-      tensor_array<const dreal_t> &y,
-      tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t> &w,
-      tensor_array<dreal_t> &z) const
+   void operator()(tensor_array<const dreal_t> &x,
+                   tensor_array<const dreal_t> &y,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dreal_t> &z) const
    {
-      mfem::forall(x.size(), [=] MFEM_HOST_DEVICE (int q)
+      mfem::forall(x.size(),
+                   [=] MFEM_HOST_DEVICE(int q)
       {
          const dreal_t xq = x(q), yq = y(q);
          z(q) = sin(xq) * cos(yq) * (xq + yq) * w(q) * det(J(q));
@@ -48,21 +49,19 @@ template <int DIM> struct global_qf
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM> struct local_qf
+template<int DIM>
+struct local_qf
 {
-   inline MFEM_HOST_DEVICE
-   void operator()(const dreal_t &x,
-                   const dreal_t &y,
-                   const tensor<real_t, DIM, DIM> &J,
-                   const real_t &w,
-                   dreal_t &z) const
-   {
-      z = sin(x) * cos(y) * (x + y) * w * det(J);
-   }
+   inline MFEM_HOST_DEVICE void operator()(const dreal_t &x,
+                                           const dreal_t &y,
+                                           const tensor<real_t, DIM, DIM> &J,
+                                           const real_t &w,
+                                           dreal_t &z) const
+   { z = sin(x) * cos(y) * (x + y) * w * det(J); }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM>
+template<int DIM>
 static void VerifyJvpVjp(DifferentiableOperator &F,
                          ParFiniteElementSpace &fes,
                          ParGridFunction &nodes)
@@ -78,14 +77,14 @@ static void VerifyJvpVjp(DifferentiableOperator &F,
    Y_bar.Randomize(0x9e3779b1);
    nodes.GetTrueDofs(N_bar);
 
-   MultiVector state{X_bar, Y_bar, N_bar};
+   MultiVector state{ X_bar, Y_bar, N_bar };
 
    Vector dX(tvsize), dY(tvsize), dZ(tvsize);
    dX.Randomize(0x01000193);
    dY.Randomize(0x1b873593);
 
    Vector dU(tvsize), dV(tvsize);
-   MultiVector mdU{dU}, mdV{dV};
+   MultiVector mdU{ dU }, mdV{ dV };
 
    const auto dFu = F.GetDerivative(U, state);
    const auto dFv = F.GetDerivative(V, state);
@@ -96,7 +95,7 @@ static void VerifyJvpVjp(DifferentiableOperator &F,
    Vector dX_star(tvsize), dY_star(tvsize), dZ_star(tvsize);
    dZ_star.Randomize(0x7ed55d16);
 
-   MultiVector mdZ_star{dZ_star}, mdX_star{dX_star}, mdY_star{dY_star};
+   MultiVector mdZ_star{ dZ_star }, mdX_star{ dX_star }, mdY_star{ dY_star };
    dFu->MultTranspose(mdZ_star, mdX_star); // dX* = (∂F/∂u)^T dZ*
    dFv->MultTranspose(mdZ_star, mdY_star); // dY* = (∂F/∂v)^T dZ*
 
@@ -111,11 +110,10 @@ static void VerifyJvpVjp(DifferentiableOperator &F,
 
    REQUIRE(InnerProduct(comm, dZ_star, dV) ==
            MFEM_Approx(InnerProduct(comm, dY_star, dY)));
-
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM>
+template<int DIM>
 void TestJvpVjp(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -145,25 +143,25 @@ void TestJvpVjp(const char *filename, int p)
    const auto ir = &IntRules.Get(geom, 2 * p + 1);
 
    using vfds_t = std::vector<FieldDescriptor>;
-   const vfds_t in_fds = { {U, &fes}, {V, &fes}, {𝚵, nfes} };
-   const vfds_t out_fds = { {U, &fes} };
+   const vfds_t in_fds = { { U, &fes }, { V, &fes }, { 𝚵, nfes } };
+   const vfds_t out_fds = { { U, &fes } };
    DifferentiableOperator F(in_fds, out_fds, pmesh);
 
    using IT = Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>;
    using OT = Outputs<Value<U>>;
    using DT = Derivatives<U, V>;
 
-   if constexpr(!mfem_use_gpu)
+   if constexpr (!mfem_use_gpu)
    {
-      global_qf<DIM> q_gfn {};
+      global_qf<DIM> q_gfn{};
       F.AddDomainIntegrator<GlobalQFBackend>(
-         q_gfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+         q_gfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
    }
 
    using LQT = local_qf<DIM>;
-   local_qf<DIM> q_lfn {};
+   local_qf<DIM> q_lfn{};
    F.AddDomainIntegrator<LocalQFBackend>(
-      q_lfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
+      q_lfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
    AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT>();
 
    VerifyJvpVjp<DIM>(F, fes, *nodes);
@@ -172,7 +170,7 @@ void TestJvpVjp(const char *filename, int p)
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU][JVP][2D]")
 {
-   const auto p = GenAll({1}, {2, 3});
+   const auto p = GenAll({ 1 }, { 2, 3 });
    const auto meshs = { "../../data/inline-quad.mesh" };
    const auto extra = { "../../data/star.mesh",
                         "../../data/star-q3.mesh",
@@ -185,7 +183,7 @@ TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU][JVP][2D]")
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU][JVP][3D]")
 {
-   const auto p = GenAll({1}, {2, 3});
+   const auto p = GenAll({ 1 }, { 2, 3 });
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh",
                         "../../data/fichera-q3.mesh",

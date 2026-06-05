@@ -14,7 +14,7 @@
 namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
-#include "../util.hpp" // for as_tensor
+#include "../util.hpp"    // for as_tensor
 #include "util.hpp"
 
 namespace mfem::future
@@ -72,7 +72,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
 {
    constexpr int RNK = qf_param_shape<T>::rank;
    auto &qp = at<DIM>(reg, qx, qy, qz);
-   if constexpr (RNK == 0) { return T{qp[0]}; }
+   if constexpr (RNK == 0) { return T{ qp[0] }; }
    else if constexpr (RNK == 1)
    {
       constexpr int e0 = qf_param_shape<T>::extents[0];
@@ -100,13 +100,16 @@ template<bool tangent, typename U>
 MFEM_HOST_DEVICE inline auto qp_store(const U &v)
 {
    if constexpr (tangent) { return qf_store_gradient(v); }
-   else { return qf_store_value(v); }
+   else
+   {
+      return qf_store_value(v);
+   }
 }
 
 // Store primal value or dual tangent at one quadrature point
 template<int DIM, typename T, typename Reg, bool tangent>
-MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
-                                      const T &out)
+MFEM_HOST_DEVICE inline void
+store_at(Reg &reg, int qx, int qy, int qz, const T &out)
 {
    constexpr int RNK = qf_param_shape<T>::rank;
    auto &qp = at<DIM>(reg, qx, qy, qz);
@@ -125,16 +128,18 @@ MFEM_HOST_DEVICE inline void store_at(Reg &reg, int qx, int qy, int qz,
       for (int i = 0; i < e0; ++i)
       {
          MFEM_UNROLL(e1)
-         for (int j = 0; j < e1; ++j) { qp[i][j] = qp_store<tangent>(out(i, j)); }
+         for (int j = 0; j < e1; ++j)
+         {
+            qp[i][j] = qp_store<tangent>(out(i, j));
+         }
       }
    }
 }
 
 // Pull primal/tangent pair into a dual q-function argument
 template<int DIM, typename T, typename Reg>
-MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
-                                              int qx, int qy, int qz,
-                                              bool dependent)
+MFEM_HOST_DEVICE inline auto
+pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
 {
    if constexpr (!qf_param_uses_dual_v<T>)
    {
@@ -146,13 +151,13 @@ MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
       constexpr int RNK = qf_param_shape<T>::rank;
       auto &pqp = at<DIM>(preg, qx, qy, qz);
       auto &sqp = at<DIM>(sreg, qx, qy, qz);
-      if constexpr (RNK == 0) { return T{pqp[0], sqp[0]}; }
+      if constexpr (RNK == 0) { return T{ pqp[0], sqp[0] }; }
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          T t{};
          MFEM_UNROLL(e0)
-         for (int dd = 0; dd < e0; ++dd) { t(dd) = {pqp[dd], sqp[dd]}; }
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = { pqp[dd], sqp[dd] }; }
          return t;
       }
       else
@@ -164,7 +169,7 @@ MFEM_HOST_DEVICE inline auto pull_directional(Reg &preg, Reg &sreg,
          for (int i = 0; i < e0; ++i)
          {
             MFEM_UNROLL(e1)
-            for (int j = 0; j < e1; ++j) { t(i, j) = {pqp[i][j], sqp[i][j]}; }
+            for (int j = 0; j < e1; ++j) { t(i, j) = { pqp[i][j], sqp[i][j] }; }
          }
          return t;
       }
@@ -183,11 +188,13 @@ struct lo_ker_backend
 
    template<int VDIM>
    using qreg_t = std::conditional_t<(DIM == 2),
-         ker::regs2d_t<VDIM, MQ1>, ker::regs3d_t<VDIM, MQ1>>;
+         ker::regs2d_t<VDIM, MQ1>,
+         ker::regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
    using qreg_vd_t = std::conditional_t<(DIM == 2),
-         ker::regs2d_vd_t<VDIM, SDIM, MQ1>, ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
+         ker::regs2d_vd_t<VDIM, SDIM, MQ1>,
+         ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
 
    struct Shared2d
    {
@@ -205,8 +212,11 @@ struct lo_ker_backend
 
    template<typename ArgRegT, typename XE_T>
    static MFEM_HOST_DEVICE void load_value(Shared &s,
-                                           const int e, const int d, const int q,
-                                           const real_t *B, const XE_T &XE,
+                                           const int e,
+                                           const int d,
+                                           const int q,
+                                           const real_t *B,
+                                           const XE_T &XE,
                                            ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
@@ -222,12 +232,18 @@ struct lo_ker_backend
       }
    }
 
-   template<int RNK, typename ArgRegT, typename XE_T,
+   template<int RNK,
+            typename ArgRegT,
+            typename XE_T,
             typename FieldParamT = ArgRegT>
    static MFEM_HOST_DEVICE void load_gradient(Shared &s,
-                                              const int e, const int d, const int q,
-                                              const real_t *B, const real_t *G,
-                                              const XE_T &XE, ArgRegT &rarg)
+                                              const int e,
+                                              const int d,
+                                              const int q,
+                                              const real_t *B,
+                                              const real_t *G,
+                                              const XE_T &XE,
+                                              ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
@@ -274,8 +290,11 @@ struct lo_ker_backend
 
    template<typename ArgRegT, typename YE_T>
    static MFEM_HOST_DEVICE void write_value(Shared &s,
-                                            const int e, const int d, const int q,
-                                            const real_t *B, const YE_T &YE,
+                                            const int e,
+                                            const int d,
+                                            const int q,
+                                            const real_t *B,
+                                            const YE_T &YE,
                                             ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
@@ -291,12 +310,18 @@ struct lo_ker_backend
       }
    }
 
-   template<int RNK, typename ArgRegT, typename YE_T,
+   template<int RNK,
+            typename ArgRegT,
+            typename YE_T,
             typename FieldParamT = ArgRegT>
    static MFEM_HOST_DEVICE void write_gradient(Shared &s,
-                                               const int e, const int d, const int q,
-                                               const real_t *B, const real_t *G,
-                                               YE_T &YE, ArgRegT &rarg)
+                                               const int e,
+                                               const int d,
+                                               const int q,
+                                               const real_t *B,
+                                               const real_t *G,
+                                               YE_T &YE,
+                                               ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
@@ -328,18 +353,23 @@ struct lo_ker_backend
             {
                if constexpr (DIM == 2)
                {
-                  ker::VectorGradTranspose2d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  ker::VectorGradTranspose2d(
+                     d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
                   ker::WriteGradDofs2d(d, c, e, rarg, YE);
                }
                else
                {
-                  ker::VectorGradTranspose3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  ker::VectorGradTranspose3d(
+                     d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
                   ker::WriteGradDofs3d(d, c, e, rarg, YE);
                }
             }
          }
       }
-      else { static_assert(false, "Unsupported"); }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
    }
 };
 
@@ -355,14 +385,12 @@ struct LocalQFLOBackend
    static inline ThreadBlocks thread_blocks(const int q1d)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
-      return {q1d, q1d, (DIM == 2) ? 1 : q1d};
+      return { q1d, q1d, (DIM == 2) ? 1 : q1d };
    }
 
    // ─────────────────────────────────────────────────────
    static inline constexpr int MAX_THREADS_PER_BLOCK()
-   {
-      return Q1D * Q1D * ((DIM == 2) ? 1 : Q1D);
-   }
+   { return Q1D * Q1D * ((DIM == 2) ? 1 : Q1D); }
 
    // ─────────────────────────────────────────────────────
    using backend_t = lo_ker_backend<DIM, Q1D>;
@@ -372,18 +400,23 @@ struct LocalQFLOBackend
 
    // ─────────────────────────────────────────────────────
    template<typename WT, typename WI, typename Cache, typename AddY>
-   static MFEM_HOST_DEVICE inline
-   void DiagContract(Shared &s,
-                     const int num_dof_1d, const int q1d, const int nz_dof,
-                     WT wt, WI wi, Cache cache, AddY add_y)
+   static MFEM_HOST_DEVICE inline void DiagContract(Shared &s,
+                                                    const int num_dof_1d,
+                                                    const int q1d,
+                                                    const int nz_dof,
+                                                    WT wt,
+                                                    WI wi,
+                                                    Cache cache,
+                                                    AddY add_y)
    {
       MFEM_CONTRACT_VAR(nz_dof);
       real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
-      auto s0 = reinterpret_cast<real_t (*)[Q1D][Q1D]>(base);
+      auto s0 = reinterpret_cast<real_t(*)[Q1D][Q1D]>(base);
 
       if constexpr (DIM == 3)
       {
-         auto s1 = reinterpret_cast<real_t (*)[Q1D][Q1D]>(base + Q1D * Q1D * Q1D);
+         auto s1 =
+            reinterpret_cast<real_t(*)[Q1D][Q1D]>(base + Q1D * Q1D * Q1D);
 
          // reduce qz → dz : s0[dz][qy][qx]
          MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
@@ -465,31 +498,39 @@ struct LocalQFLOBackend
 
    // ─────────────────────────────────────────────────────
    template<typename ArgRegT, typename XE_T>
-   static inline MFEM_HOST_DEVICE
-   void LoadValue(Shared &s,
-                  const int e, const int d, const int q, const int,
-                  const real_t *B, const XE_T &XE, ArgRegT &rarg)
-   {
-      backend_t::load_value(s, e, d, q, B, XE, rarg);
-   }
+   static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
+                                                 const int e,
+                                                 const int d,
+                                                 const int q,
+                                                 const int,
+                                                 const real_t *B,
+                                                 const XE_T &XE,
+                                                 ArgRegT &rarg)
+   { backend_t::load_value(s, e, d, q, B, XE, rarg); }
 
    // ─────────────────────────────────────────────────────
-   template<int RNK, typename ArgRegT, typename XE_T,
+   template<int RNK,
+            typename ArgRegT,
+            typename XE_T,
             typename FieldParamT = ArgRegT>
-   static inline MFEM_HOST_DEVICE
-   void LoadGradient(Shared &s,
-                     const int e, const int d, const int q, const int,
-                     const real_t *B, const real_t *G,
-                     const XE_T &XE, ArgRegT &rarg)
+   static inline MFEM_HOST_DEVICE void LoadGradient(Shared &s,
+                                                    const int e,
+                                                    const int d,
+                                                    const int q,
+                                                    const int,
+                                                    const real_t *B,
+                                                    const real_t *G,
+                                                    const XE_T &XE,
+                                                    ArgRegT &rarg)
    {
-      backend_t::template load_gradient<RNK, ArgRegT, XE_T, FieldParamT>
-      (s, e, d, q, B, G, XE, rarg);
+      backend_t::template load_gradient<RNK, ArgRegT, XE_T, FieldParamT>(
+         s, e, d, q, B, G, XE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
    template<typename T>
-   static MFEM_HOST_DEVICE inline
-   auto qp_pull(QReg<T> &reg, int qx, int qy, int qz)
+   static MFEM_HOST_DEVICE inline auto
+   qp_pull(QReg<T> &reg, int qx, int qy, int qz)
    {
       if constexpr (qf_param_uses_dual_v<T>)
       {
@@ -514,26 +555,28 @@ struct LocalQFLOBackend
             return as_tensor<real_t, e0, e1>(
                       &lok::at<DIM>(reg, qx, qy, qz)[0][0]);
          }
-         else { static_assert(false, "Unsupported"); }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
       }
    }
 
    // ─────────────────────────────────────────────────────
    template<typename T>
-   static MFEM_HOST_DEVICE inline
-   auto qp_pull_directional(QReg<T> &preg, QReg<T> &sreg,
-                            int qx, int qy, int qz, bool dependent)
-   {
-      return lok::pull_directional<DIM, T>(preg, sreg, qx, qy, qz,
-                                           dependent);
-   }
+   static MFEM_HOST_DEVICE inline auto qp_pull_directional(
+      QReg<T> &preg, QReg<T> &sreg, int qx, int qy, int qz, bool dependent)
+   { return lok::pull_directional<DIM, T>(preg, sreg, qx, qy, qz, dependent); }
 
    // ─────────────────────────────────────────────────────
    template<typename DT, typename XE_T>
-   static MFEM_HOST_DEVICE inline
-   DT identity_qp_pull_dual(bool dependent,
-                            const XE_T &XP, const XE_T &XD,
-                            int qx, int qy, int qz, int e)
+   static MFEM_HOST_DEVICE inline DT identity_qp_pull_dual(bool dependent,
+                                                           const XE_T &XP,
+                                                           const XE_T &XD,
+                                                           int qx,
+                                                           int qy,
+                                                           int qz,
+                                                           int e)
    {
       constexpr int RNK = qf_param_shape<DT>::rank;
       if constexpr (RNK == 0)
@@ -567,18 +610,22 @@ struct LocalQFLOBackend
             for (int j = 0; j < e1; ++j)
             {
                t(i, j).value = XP(i + e0 * j, qx, qy, qz, e);
-               t(i, j).gradient = dependent ? XD(i + e0 * j, qx, qy, qz, e) : 0.0;
+               t(i, j).gradient =
+                  dependent ? XD(i + e0 * j, qx, qy, qz, e) : 0.0;
             }
          }
          return t;
       }
-      else { static_assert(false, "Unsupported"); }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
    }
 
    // ─────────────────────────────────────────────────────
    template<typename T>
-   static MFEM_HOST_DEVICE inline
-   void qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
+   static MFEM_HOST_DEVICE inline void
+   qp_push(QReg<T> &reg, int qx, int qy, int qz, const T &out)
    {
       if constexpr (qf_param_uses_dual_v<T>)
       {
@@ -600,17 +647,20 @@ struct LocalQFLOBackend
          {
             constexpr int e0 = qf_param_shape<T>::extents[0];
             constexpr int e1 = qf_param_shape<T>::extents[1];
-            as_tensor<real_t, e0, e1>(
-               &lok::at<DIM>(reg, qx, qy, qz)[0][0]) = out;
+            as_tensor<real_t, e0, e1>(&lok::at<DIM>(reg, qx, qy, qz)[0][0]) =
+               out;
          }
-         else { static_assert(false, "Unsupported"); }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
       }
    }
 
    // ─────────────────────────────────────────────────────
    template<typename T>
-   static MFEM_HOST_DEVICE inline
-   void qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
+   static MFEM_HOST_DEVICE inline void
+   qp_push_tangent(QReg<T> &reg, int qx, int qy, int qz, const T &out)
    {
       if constexpr (!qf_param_uses_dual_v<T>)
       {
@@ -624,9 +674,8 @@ struct LocalQFLOBackend
 
    // ─────────────────────────────────────────────────────
    template<typename DT, typename YE_T>
-   static MFEM_HOST_DEVICE inline
-   void identity_qp_write_value(YE_T &YE, int qx, int qy, int qz, int e,
-                                const DT &qout)
+   static MFEM_HOST_DEVICE inline void identity_qp_write_value(
+      YE_T &YE, int qx, int qy, int qz, int e, const DT &qout)
    {
       constexpr int RNK = qf_param_shape<DT>::rank;
       if constexpr (qf_param_uses_dual_v<DT>)
@@ -658,15 +707,17 @@ struct LocalQFLOBackend
                }
             }
          }
-         else { static_assert(false, "Unsupported"); }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
       }
    }
 
    // ─────────────────────────────────────────────────────
    template<typename DT, typename YE_T>
-   static MFEM_HOST_DEVICE inline
-   void identity_qp_write_tangent(YE_T &YE, int qx, int qy, int qz, int e,
-                                  const DT &qout)
+   static MFEM_HOST_DEVICE inline void identity_qp_write_tangent(
+      YE_T &YE, int qx, int qy, int qz, int e, const DT &qout)
    {
       constexpr int RNK = qf_param_shape<DT>::rank;
       if constexpr (qf_param_uses_dual_v<DT>)
@@ -698,31 +749,42 @@ struct LocalQFLOBackend
                }
             }
          }
-         else { static_assert(false, "Unsupported"); }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
       }
    }
 
    // ─────────────────────────────────────────────────────
    template<typename ArgRegT, typename YE_T>
-   static inline MFEM_HOST_DEVICE
-   void WriteValue(Shared &s,
-                   const int e, const int d, const int q, const int,
-                   const real_t *B, const YE_T &YE, ArgRegT &rarg)
-   {
-      backend_t::write_value(s, e, d, q, B, YE, rarg);
-   }
+   static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
+                                                  const int e,
+                                                  const int d,
+                                                  const int q,
+                                                  const int,
+                                                  const real_t *B,
+                                                  const YE_T &YE,
+                                                  ArgRegT &rarg)
+   { backend_t::write_value(s, e, d, q, B, YE, rarg); }
 
    // ─────────────────────────────────────────────────────
-   template<int RNK, typename ArgRegT, typename YE_T,
+   template<int RNK,
+            typename ArgRegT,
+            typename YE_T,
             typename FieldParamT = ArgRegT>
-   static inline MFEM_HOST_DEVICE
-   void WriteGradient(Shared &s,
-                      const int e, const int d, const int q, const int,
-                      const real_t *B, const real_t *G,
-                      YE_T &YE, ArgRegT &rarg)
+   static inline MFEM_HOST_DEVICE void WriteGradient(Shared &s,
+                                                     const int e,
+                                                     const int d,
+                                                     const int q,
+                                                     const int,
+                                                     const real_t *B,
+                                                     const real_t *G,
+                                                     YE_T &YE,
+                                                     ArgRegT &rarg)
    {
-      backend_t::template write_gradient<RNK, ArgRegT, YE_T, FieldParamT>
-      (s, e, d, q, B, G, YE, rarg);
+      backend_t::template write_gradient<RNK, ArgRegT, YE_T, FieldParamT>(
+         s, e, d, q, B, G, YE, rarg);
    }
 };
 
