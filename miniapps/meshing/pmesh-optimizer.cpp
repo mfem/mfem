@@ -947,9 +947,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Enable determinant bounding if requested
-   if (detj_bound) { tmop_integ->EnableDeterminantPLBounds(detgf.get(), 4, 4); }
-
    //
    // Setup the ParNonlinearForm which defines the integral of interest, its
    // first and second derivatives.
@@ -1195,7 +1192,7 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (detj_bound) { solver.EnsurePositiveDeterminantBound(); }
+   if (detj_bound) { solver.EnsurePositiveDeterminantBound(*detgf, 4, 4); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.

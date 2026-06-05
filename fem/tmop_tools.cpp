@@ -491,19 +491,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       return scale;
    }
 
-   real_t wideal_det = 1.0;
-   if (detj_bound)
-   {
-      const Mesh *mesh = fes->GetMesh();
-      const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
-      wideal_det = Wideal.Det();
-   }
-
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const real_t min_detT_in =
-      detj_bound ? GetDeterminantLowerBound(d_loc, *fes, true) / wideal_det
+      detj_bound ? ComputeDetJprLowerBound(d_loc, *fes)
       /* */      : ComputeMinDet(d_loc, *fes);
 
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
@@ -557,7 +548,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
       // Check the changes in detJ.
       min_detT_out =
-         detj_bound ? GetDeterminantLowerBound(d_loc, *fes, true) / wideal_det
+         detj_bound ? ComputeDetJprLowerBound(d_loc, *fes)
          /* */      : ComputeMinDet(d_loc, *fes);
 
       if (untangling == false && min_detT_out <= min_detJ_limit)
@@ -984,6 +975,27 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    }
 }
 
+void TMOPNewtonSolver::EnsurePositiveDeterminantBound(
+   GridFunction &det_gf_, int ref_factor, int max_recursion_depth)
+{
+#ifdef MFEM_USE_MPI
+   if (ParGridFunction *pdet_gf = dynamic_cast<ParGridFunction *>(&det_gf_))
+   {
+      det_gf = std::make_unique<ParGridFunction>(*pdet_gf);
+   }
+   else
+#endif
+   {
+      det_gf = std::make_unique<GridFunction>(det_gf_);
+   }
+
+   int max_order = det_gf->FESpace()->GetMaxElementOrder();
+   det_plb = std::make_unique<PLBound>(det_gf->FESpace(),
+                                       ref_factor*(max_order+1));
+   plb_rec_depth = max_recursion_depth;
+   detj_bound = true;
+}
+
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
                                        const FiniteElementSpace &fes) const
 {
@@ -1043,27 +1055,58 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    return min_detJ;
 }
 
-real_t TMOPNewtonSolver::GetDeterminantLowerBound(const Vector &d_loc,
-                                                  const FiniteElementSpace &fes,
-                                                  bool update_det_gf) const
+real_t TMOPNewtonSolver::ComputeDetJprLowerBound(const Vector &d_loc,
+                                                 const FiniteElementSpace &fes) const
 {
-   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   TMOP_Integrator *ti  = NULL;
-   TMOPComboIntegrator *co = NULL;
-   ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
-   if (ti)
+   MFEM_VERIFY(det_gf != nullptr && det_plb != nullptr,
+               "Determinant bounding has not been setup.");
+   FiniteElementSpace *det_fes = det_gf->FESpace();
+   MFEM_VERIFY(!det_fes->IsVariableOrder() && UsesTensorBasis(*det_fes),
+               "Determinant lower bounds require a fixed-order tensor-product "
+               "determinant space.");
+   Array<int> dofs, xdofs;
+   DenseMatrix dshape, Jpr, pos;
+   Vector d_loc_el, detvals;
+
+   for (int e = 0; e < fes.GetNE(); e++)
    {
-      return ti->GetDeterminantLowerBound(d_loc, fes, update_det_gf);
+      const FiniteElement *fe = fes.GetFE(e);
+      const int dof = fe->GetDof(), dim = fe->GetDim();
+      dshape.SetSize(dof, dim);
+      Jpr.SetSize(dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      x_0.GetElementDofValues(e, posV);
+      if (periodic)
+      {
+         auto n_el = dynamic_cast<const NodalFiniteElement *>(fe);
+         n_el->ReorderLexToNative(dim, posV);
+      }
+
+      fes.GetElementVDofs(e, xdofs);
+      d_loc.GetSubVector(xdofs, d_loc_el);
+      posV += d_loc_el;
+
+      const IntegrationRule &irule = det_fes->GetFE(e)->GetNodes();
+      const int nsp = irule.GetNPoints();
+      detvals.SetSize(nsp);
+      det_fes->GetElementDofs(e, dofs);
+      for (int q = 0; q < nsp; q++)
+      {
+         fe->CalcDShape(irule.IntPoint(q), dshape);
+         MultAtB(pos, dshape, Jpr);
+         detvals(q) = Jpr.Det();
+      }
+      det_gf->SetSubVector(dofs, detvals);
    }
-   co = dynamic_cast<TMOPComboIntegrator *>(integs[0]);
-   if (co)
-   {
-      Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-      return ati[0]->GetDeterminantLowerBound(d_loc, fes, update_det_gf);
-   }
-   MFEM_ABORT("No TMOP integrator found.");
-   return 0.0;
+
+   auto minbounds = det_gf->EstimateFunctionMinimum(0, *det_plb,
+                                                    plb_rec_depth, 1e-5);
+
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
+   return minbounds.first/Wideal.Det();
 }
 
 #ifdef MFEM_USE_MPI

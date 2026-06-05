@@ -204,8 +204,11 @@ protected:
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
-   // Bounding determinant grid function
+   // Determinant lower-bound data used by the line search.
    bool detj_bound = false;
+   std::unique_ptr<GridFunction> det_gf;
+   std::unique_ptr<PLBound> det_plb;
+   int plb_rec_depth = 0;
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
@@ -218,12 +221,15 @@ protected:
       return ir;
    }
 
+   /// Compute the minimum determinant of the trial mesh at quadrature points,
+   /// scaled by determinant of ideal target element.
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   real_t GetDeterminantLowerBound(const Vector &d_loc,
-                                   const FiniteElementSpace &fes,
-                                   bool update_det_gf) const;
+   /// Compute a lower bound for the minimum determinant of the trial mesh,
+   /// scaled by determinant of ideal target element.
+   real_t ComputeDetJprLowerBound(const Vector &d_loc,
+                                  const FiniteElementSpace &fes) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
    real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
@@ -267,10 +273,16 @@ public:
 
    void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
 
-   void EnsurePositiveDeterminantBound()
-   {
-      detj_bound = true;
-   }
+   /** @brief Ensure a positive lower bound for the determinant during
+       line-search.
+       @note The solver creates and updates its own internal copy
+       of this GridFunction while testing trial mesh positions.
+       The @a ref_factor controls the number of control points used by
+       the PLBound object, and @a max_recursion_depth controls the depth used by
+       the minimum-value estimator.
+   */
+   void EnsurePositiveDeterminantBound(GridFunction &det_gf_, int ref_factor,
+                                       int max_recursion_depth = 0);
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
