@@ -506,6 +506,11 @@ int main(int argc, char *argv[])
       q_vh.MakeRef(V_space.get(), q_h, 0);
    }
 
+   if (reconstruct)
+   {
+      darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+   }
+
    // 15. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m mfem-logo.mesh -g sol_q.gf" or "glvis -m
    //     mfem-logo.mesh -g sol_t.gf".
