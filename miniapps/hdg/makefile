@@ -66,11 +66,13 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build #clean-exec
+clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-#clean-exec:
-#	@rm -rf 
+clean-exec:
+	@rm -f anisodiff*.mesh sol_t*.gf sol_q*.gf mfem-logo.mesh convdiff*.mesh
+	@rm -f panisodiff*.mesh pconvdiff*.mesh
+	@rm -rf Anisodiff* Convdiff* Mfem-logo* PAnisodiff* PConvdiff*
