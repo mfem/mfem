@@ -899,9 +899,9 @@ public:
 
    using AssembleKernelType =
       decltype(&DerivativeAssemble::derivative_assemble_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeAssembleHO,
-                         AssembleKernelType,
-                         (int /*dim*/, int /*q1d*/));
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleHO,
+                                     AssembleKernelType,
+                                     (int /*dim*/, int /*q1d*/));
 };
 
 template<int derivative_id,
@@ -909,6 +909,7 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
+inline
 typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
 AssembleKernelType
 DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::

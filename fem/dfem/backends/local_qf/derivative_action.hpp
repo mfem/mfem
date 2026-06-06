@@ -651,8 +651,12 @@ public:
 
    using DerivativeKernelType =
       decltype(&DerivativeAction::derivative_action_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeKernelType, (int, int) );
-   MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeActionLO,
+                                     DerivativeKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeActionHO,
+                                     DerivativeKernelType,
+                                     (int, int) );
 };
 
 // Low Order kernels
@@ -661,7 +665,7 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeActionLO::Kernel()
@@ -678,7 +682,7 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeActionLO::Fallback(int dim, int q1d)
@@ -708,7 +712,7 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeActionHO::Kernel()

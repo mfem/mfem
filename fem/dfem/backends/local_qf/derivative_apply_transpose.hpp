@@ -502,12 +502,12 @@ public:
    using TransposeKernelType =
       decltype(&DerivativeApplyTranspose::
                derivative_apply_transpose_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeApplyTransposeLO,
-                         TransposeKernelType,
-                         (int, int) );
-   MFEM_REGISTER_KERNELS(DerivativeApplyTransposeHO,
-                         TransposeKernelType,
-                         (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeApplyTransposeLO,
+                                     TransposeKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeApplyTransposeHO,
+                                     TransposeKernelType,
+                                     (int, int) );
 };
 
 template<int derivative_id,
@@ -515,10 +515,12 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
-TransposeKernelType
-DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
-DerivativeApplyTransposeLO::Kernel()
+inline typename DerivativeApplyTranspose<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeApplyTransposeLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using transpose_t =
@@ -562,10 +564,12 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
-TransposeKernelType
-DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
-DerivativeApplyTransposeHO::Kernel()
+inline typename DerivativeApplyTranspose<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeApplyTransposeHO::Kernel()
 {
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;

@@ -390,12 +390,12 @@ public:
    using DiagonalKernelType =
       decltype(&DerivativeAssembleDiagonal::
                derivative_assemble_diagonal_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalLO,
-                         DiagonalKernelType,
-                         (int, int) );
-   MFEM_REGISTER_KERNELS(DerivativeAssembleDiagonalHO,
-                         DiagonalKernelType,
-                         (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleDiagonalLO,
+                                     DiagonalKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleDiagonalHO,
+                                     DiagonalKernelType,
+                                     (int, int) );
 };
 
 template<int derivative_id,
@@ -403,12 +403,12 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeAssembleDiagonal<derivative_id,
-         qfunc_t,
-         inputs_t,
-         outputs_t>::DiagonalKernelType
-         DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
-         DerivativeAssembleDiagonalLO::Kernel()
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using diag_t =
@@ -421,12 +421,12 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t>
-typename DerivativeAssembleDiagonal<derivative_id,
-         qfunc_t,
-         inputs_t,
-         outputs_t>::DiagonalKernelType
-         DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
-         DerivativeAssembleDiagonalLO::Fallback(int dim, int q1d)
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalLO::Fallback(int dim, int q1d)
 {
    MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using diag_t =
@@ -452,12 +452,12 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeAssembleDiagonal<derivative_id,
-         qfunc_t,
-         inputs_t,
-         outputs_t>::DiagonalKernelType
-         DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
-         DerivativeAssembleDiagonalHO::Kernel()
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalHO::Kernel()
 {
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;

@@ -430,14 +430,14 @@ public:
       nullptr);
    }
    using KernelType = decltype(&Action::action_callback<>);
-   MFEM_REGISTER_KERNELS(ActionLO, KernelType, (int, int) );
-   MFEM_REGISTER_KERNELS(ActionHO, KernelType, (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionLO, KernelType, (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionHO, KernelType, (int, int) );
 };
 
 // Low Order kernels
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
 template<int DIM, int Q1D>
-typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= 8);
@@ -447,7 +447,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 
 // Low Order fallback
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
-typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 {
    MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
@@ -469,7 +469,7 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 // High Order kernels
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
 template<int DIM, int Q1D>
-typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
 {
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;

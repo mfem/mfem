@@ -451,8 +451,12 @@ public:
 
    using SetupKernelType =
       decltype(&DerivativeSetup::derivative_setup_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeSetupLO, SetupKernelType, (int, int) );
-   MFEM_REGISTER_KERNELS(DerivativeSetupHO, SetupKernelType, (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeSetupLO,
+                                     SetupKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeSetupHO,
+                                     SetupKernelType,
+                                     (int, int) );
 };
 
 template<int derivative_id,
@@ -460,7 +464,7 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeSetupLO::Kernel()
@@ -475,7 +479,7 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t>
-typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeSetupLO::Fallback(int dim, int q1d)
@@ -501,7 +505,7 @@ template<int derivative_id,
          typename inputs_t,
          typename outputs_t>
 template<int DIM, int Q1D>
-typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeSetupHO::Kernel()

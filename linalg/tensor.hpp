@@ -19,6 +19,7 @@
 
 #include "dual.hpp"
 #include <limits>
+#include <utility>
 #include <type_traits> // for std::false_type
 
 namespace mfem
@@ -57,7 +58,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator*(const A& a, const tensor& s)
-   -> decltype(a * s.scalar())
+   -> decltype(std::declval<const A&>() * std::declval<const T&>())
    {
       return a * s.scalar();
    }
@@ -66,7 +67,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator*(const tensor& s, const A& a)
-   -> decltype(s.scalar() * a)
+   -> decltype(std::declval<const T&>() * std::declval<const A&>())
    {
       return s.scalar() * a;
    }
@@ -75,7 +76,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator/(const A& a, const tensor& s)
-   -> decltype(a / s.scalar())
+   -> decltype(std::declval<const A&>() / std::declval<const T&>())
    {
       return a / s.scalar();
    }
@@ -83,7 +84,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator/(const tensor& s, const A& a)
-   -> decltype(s.scalar() / a)
+   -> decltype(std::declval<const T&>() / std::declval<const A&>())
    {
       return s.scalar() / a;
    }
@@ -1621,7 +1622,7 @@ void GetScalingFactor(const T &d_max, T &mult)
 }
 
 template <typename T> MFEM_HOST_DEVICE
-T calcsv(const tensor<T, 1, 1> A, const int i)
+T calcsv(const tensor<T, 1, 1> A, [[maybe_unused]] const int i)
 {
    return A[0][0];
 }
