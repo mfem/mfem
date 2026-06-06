@@ -8,8 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#ifndef DFEM_DOPERATOR_HPP
-#define DFEM_DOPERATOR_HPP
+#pragma once
 
 #include "../../config/config.hpp" // IWYU pragma: keep
 
@@ -174,6 +173,9 @@ public:
    {
       EnsureQpCache();
       prolongation(direction, x, direction_l);
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+      prepare_residual<Entity::Element>(outfds, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
@@ -847,5 +849,3 @@ void DifferentiableOperator::AddIntegrator(
 } // namespace mfem::future
 
 #endif // MFEM_USE_MPI
-
-#endif // DFEM_DOPERATOR_HPP

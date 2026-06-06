@@ -1664,26 +1664,15 @@ void prolongation_transpose(
 
       const auto P = get_prolongation(fields[i]);
 
-      // If nullptr, assume Identity.
-      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr)
+      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr ||
+          P->Height() == x[i].Size())
       {
-         x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         x[i] = *x_l[i];
       }
       else
       {
-         // Check if output is already L-vector sized
-         if (P->Height() == x[i].Size())
-         {
-            // Output is already L-vector, just copy it
-            x[i].SetSize(x_l[i]->Size());
-            x[i] = *x_l[i];
-         }
-         else
-         {
-            // Output is T-vector, apply transpose
-            x[i].SetSize(P->Width());
-            P->MultTranspose(*x_l[i], x[i]);
-         }
+         x[i].SetSize(P->Width());
+         P->MultTranspose(*x_l[i], x[i]);
       }
    }
 }

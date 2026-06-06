@@ -10,20 +10,20 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
 
 #ifdef MFEM_USE_MPI
 
+#include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
-using mfem::future::tensor;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
-using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 

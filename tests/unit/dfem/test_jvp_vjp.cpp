@@ -9,17 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../unit_tests.hpp" // IWYU pragma: keep
+#include "../unit_tests.hpp"
 
 #include "mfem.hpp"
-using mfem::real_t;
+
+#ifdef MFEM_USE_MPI
+
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../linalg/tensor_arrays.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
-
-#include "../../../linalg/tensor_arrays.hpp"
-
-#ifdef MFEM_USE_MPI
 
 #ifdef MFEM_USE_ENZYME
 using dreal_t = real_t;
