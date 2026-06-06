@@ -2882,7 +2882,35 @@ void HypreParMatrix::Destroy()
 
       MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
                        Device::GetHostMemoryClass() : GetHypreMemoryClass();
-      Write(mc, diagOwner < 0, offdOwner <0);
+      Write(mc, diagOwner < 0, offdOwner < 0);
+      if (diagOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
+         mfem_hypre_TFree_host(A->diag->i);
+         if (A->diag->owns_data)
+         {
+            mfem_hypre_TFree_host(A->diag->j);
+            mfem_hypre_TFree_host(A->diag->data);
+         }
+         Write(GetHypreMemoryClass(), true, false);
+         A->diag->i = NULL;
+         A->diag->j = NULL;
+         A->diag->data = NULL;
+      }
+      if (offdOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
+         mfem_hypre_TFree_host(A->offd->i);
+         if (A->offd->owns_data)
+         {
+            mfem_hypre_TFree_host(A->offd->j);
+            mfem_hypre_TFree_host(A->offd->data);
+         }
+         Write(GetHypreMemoryClass(), false, true);
+         A->offd->i = NULL;
+         A->offd->j = NULL;
+         A->offd->data = NULL;
+      }
    }
 #endif
 
