@@ -1597,18 +1597,25 @@ void prolongation(
       }
       else
       {
-         // Check if input is already L-vector sized
-         if (P->Height() == x[i].Size())
+         // Classify each block using the field's true vs local dof sizes so
+         // mixed T/L MultiVector inputs stay consistent across MPI ranks.
+         const int true_sz = GetTrueVSize(fields[i]);
+         const int local_sz = GetVSize(fields[i]);
+         if (x[i].Size() == local_sz && x[i].Size() != true_sz)
          {
-            // Input is already L-vector, just copy it
             x_l[i]->SetSize(x[i].Size());
             *x_l[i] = x[i];
          }
-         else
+         else if (x[i].Size() == true_sz)
          {
-            // Input is T-vector, apply prolongation
             x_l[i]->SetSize(P->Height());
             P->Mult(x[i], *x_l[i]);
+         }
+         else
+         {
+            MFEM_ABORT("prolongation: input size " << x[i].Size()
+                       << " does not match T-vector size " << true_sz
+                       << " or L-vector size " << local_sz);
          }
       }
    }
@@ -1664,15 +1671,23 @@ void prolongation_transpose(
 
       const auto P = get_prolongation(fields[i]);
 
-      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr ||
-          P->Height() == x[i].Size())
+      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr)
       {
          x[i] = *x_l[i];
       }
       else
       {
-         x[i].SetSize(P->Width());
-         P->MultTranspose(*x_l[i], x[i]);
+         const int true_sz = GetTrueVSize(fields[i]);
+         const int local_sz = GetVSize(fields[i]);
+         if (x[i].Size() == local_sz && x[i].Size() != true_sz)
+         {
+            x[i] = *x_l[i];
+         }
+         else
+         {
+            x[i].SetSize(true_sz);
+            P->MultTranspose(*x_l[i], x[i]);
+         }
       }
    }
 }

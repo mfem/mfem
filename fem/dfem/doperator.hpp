@@ -481,7 +481,8 @@ public:
                      "not determine the number of output blocks.");
       }
 
-      prolongation(infds, x, infields_l);
+      const bool is_lvector = (mult_level == MultLevel::LVECTOR);
+      prolongation(infds, x, infields_l, is_lvector);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (auto *v : residual_e) { *v = 0.0; }
@@ -490,7 +491,7 @@ public:
          action_callbacks[i](infields_e, residual_e);
       }
       restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
-      prolongation_transpose(outfds, residual_l, y);
+      prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
 
    /// @brief Add an integrator to the operator.
