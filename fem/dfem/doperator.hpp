@@ -8,7 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#pragma once
+#ifndef DFEM_DOPERATOR_HPP
+#define DFEM_DOPERATOR_HPP
 
 #include "../../config/config.hpp" // IWYU pragma: keep
 
@@ -131,6 +132,7 @@ public:
       transpose_result_l.resize(infds.size(), nullptr);
       transpose_result_e.resize(infds.size(), nullptr);
 
+      // Prolong from T-vector to L-vector
       if constexpr (std::is_same_v<vector_t, Vector>)
       {
          MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
@@ -143,6 +145,16 @@ public:
          prolongation(infds, x, infields_l);
       }
    }
+
+   ~DerivativeOperator() override
+   {
+      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
+      detail::DeleteOwnedVectorPointers(daction_l, daction_e);
+      detail::DeleteOwnedVectorPointers(transpose_result_l, transpose_result_e);
+   }
+
+   DerivativeOperator(const DerivativeOperator &) = delete;
+   DerivativeOperator &operator=(const DerivativeOperator &) = delete;
 
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
@@ -162,9 +174,6 @@ public:
    {
       EnsureQpCache();
       prolongation(direction, x, direction_l);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, daction_e);
-      for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
@@ -404,6 +413,15 @@ public:
       const std::vector<FieldDescriptor> &outfds,
       const ParMesh &mesh);
 
+   ~DifferentiableOperator() override
+   {
+      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
+      detail::DeleteOwnedVectorPointers(residual_l, residual_e);
+   }
+
+   DifferentiableOperator(const DifferentiableOperator &) = delete;
+   DifferentiableOperator &operator=(const DifferentiableOperator &) = delete;
+
    /// MultLevel enum to indicate if the T->L Operators are used in the
    /// Mult method.
    enum MultLevel
@@ -461,9 +479,7 @@ public:
                      "not determine the number of output blocks.");
       }
 
-      const bool is_lvector = mult_level == MultLevel::LVECTOR;
-
-      prolongation(infds, x, infields_l, is_lvector);
+      prolongation(infds, x, infields_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (auto *v : residual_e) { *v = 0.0; }
@@ -472,7 +488,7 @@ public:
          action_callbacks[i](infields_e, residual_e);
       }
       restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
-      prolongation_transpose(outfds, residual_l, y, is_lvector);
+      prolongation_transpose(outfds, residual_l, y);
    }
 
    /// @brief Add an integrator to the operator.
@@ -832,3 +848,4 @@ void DifferentiableOperator::AddIntegrator(
 
 #endif // MFEM_USE_MPI
 
+#endif // DFEM_DOPERATOR_HPP

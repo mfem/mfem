@@ -69,6 +69,30 @@ constexpr auto to_array(const std::tuple<Ts...>& tuple)
 namespace detail
 {
 
+// Delete each owned Vector pointer at most once, then clear the slots.
+inline void DeleteOwnedVectorPointersImpl(std::vector<Vector *> &deleted,
+                                          std::vector<Vector *> &vectors)
+{
+   for (auto *&v : vectors)
+   {
+      if (v != nullptr &&
+          std::find(deleted.begin(), deleted.end(), v) == deleted.end())
+      {
+         deleted.push_back(v);
+         delete v;
+      }
+      v = nullptr;
+   }
+}
+
+// Clean up Vector pointer groups that may contain aliases across groups.
+template <typename... vector_groups_t>
+inline void DeleteOwnedVectorPointers(vector_groups_t &... vector_groups)
+{
+   std::vector<Vector *> deleted;
+   (DeleteOwnedVectorPointersImpl(deleted, vector_groups), ...);
+}
+
 template <typename lambda, std::size_t... i>
 constexpr void for_constexpr(lambda&& f,
                              std::integral_constant<std::size_t, i>... Is)
@@ -1356,10 +1380,14 @@ get_restriction_transpose(
 /// @param field the field descriptor.
 /// @param x the input vector in tdofs.
 /// @param field_l the output vector in vdofs.
+/// @param is_lvector whether @a x already stores L-vector data.
 inline
-void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
+void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l,
+                  const bool is_lvector = false)
 {
    const auto P = get_prolongation(field);
+
+   // If P is nullptr or Identity, just copy
    if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
@@ -1376,12 +1404,32 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
       {
          field_l = x;
       }
+      return;
    }
-   else
+
+   // Check if input is already L-vector sized (skip prolongation if so)
+   if (is_lvector && x.Size() == P->Height())
    {
-      field_l.SetSize(P->Height());
-      P->Mult(x, field_l);
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         int n = x.Size();
+         field_l.SetSize(n);
+         bool use_dev = false; // x.UseDevice();
+         field_l.UseDevice(use_dev);
+         const auto xr = x.Read(use_dev);
+         auto fw = field_l.ReadWrite(use_dev);
+         mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
+      }
+      else
+      {
+         field_l = x;
+      }
+      return;
    }
+
+   // Apply prolongation
+   field_l.SetSize(P->Height());
+   P->Mult(x, field_l);
 }
 
 inline
@@ -1473,7 +1521,12 @@ void prolongation(
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
-      if (P == nullptr || is_lvector)
+      if (P == nullptr)
+      {
+         *x_l[i] = x.GetBlock(i);
+      }
+      // Check if input is already L-vector sized (skip prolongation if so)
+      else if (is_lvector && x.GetBlock(i).Size() == P->Height())
       {
          *x_l[i] = x.GetBlock(i);
       }
@@ -1544,13 +1597,19 @@ void prolongation(
       }
       else
       {
-         MFEM_ASSERT(P->Width() == x[i].Size(),
-                     "prolongation not applicable to given input data size " <<
-                     P->Width() << " vs " << x[i].Size());
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                     "prolongation not applicable to given output data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         P->Mult(x[i], *x_l[i]);
+         // Check if input is already L-vector sized
+         if (P->Height() == x[i].Size())
+         {
+            // Input is already L-vector, just copy it
+            x_l[i]->SetSize(x[i].Size());
+            *x_l[i] = x[i];
+         }
+         else
+         {
+            // Input is T-vector, apply prolongation
+            x_l[i]->SetSize(P->Height());
+            P->Mult(x[i], *x_l[i]);
+         }
       }
    }
 }
@@ -1612,13 +1671,19 @@ void prolongation_transpose(
       }
       else
       {
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                     "prolongation not applicable to given input data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         MFEM_ASSERT(P->Width() == x[i].Size(),
-                     "prolongation not applicable to given output data size " <<
-                     P->Width() << " vs " << x[i].Size());
-         P->MultTranspose(*x_l[i], x[i]);
+         // Check if output is already L-vector sized
+         if (P->Height() == x[i].Size())
+         {
+            // Output is already L-vector, just copy it
+            x[i].SetSize(x_l[i]->Size());
+            x[i] = *x_l[i];
+         }
+         else
+         {
+            // Output is T-vector, apply transpose
+            x[i].SetSize(P->Width());
+            P->MultTranspose(*x_l[i], x[i]);
+         }
       }
    }
 }
@@ -1735,6 +1800,7 @@ void restriction_transpose(
       // TODO: if nullptr, assume Identity
       if (R == nullptr)
       {
+         if (x_l[i] != x_e[i]) { delete x_l[i]; }
          x_l[i] = x_e[i];
       }
       else

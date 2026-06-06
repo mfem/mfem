@@ -172,7 +172,8 @@ public:
          // One can retrieve the derivative of a DifferentiableOperator wrt a
          // field variable if the derivative has been requested during the
          // DifferentiableOperator::AddDomainIntegrator call.
-         MultiVector X{minsurface->u, *mesh_nodes};
+         // Note: GetDerivative expects T-vectors as input
+         MultiVector X{x, *mesh_nodes};
          dres_du = minsurface->res->GetDerivative(SOLUTION_U, X);
       }
 
