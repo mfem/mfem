@@ -13,6 +13,8 @@
 #include <memory>
 
 #include "mfem.hpp"
+
+#include "../../fem/dfem/doperator.hpp"
 #include "../../fem/dfem/parameterspace.hpp"
 
 using real_t = mfem::real_t;
