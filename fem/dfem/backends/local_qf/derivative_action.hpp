@@ -18,17 +18,17 @@
 namespace mfem::future::LocalQFImpl
 {
 
-template<
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
 class DerivativeAction
 {
    static constexpr auto inout_tuple =
-   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
+   static constexpr size_t nfields =
+      count_unique_field_ids(filtered_inout_tuple);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -43,16 +43,16 @@ class DerivativeAction
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
-   const std::vector<const DofToQuad*> dtqs;
+   const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t*, n_inputs> input_B, input_G;
+   const std::array<const real_t *, n_inputs> input_B, input_G;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // outputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_outputs> output_dtq;
    const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t*, n_outputs> output_B, output_G;
+   const std::array<const real_t *, n_outputs> output_B, output_G;
    const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
    // other constants
    const int dim, ne, nq, q1d;
@@ -65,42 +65,36 @@ public:
    //////////////////////////////////////////////////////////////////
    DerivativeAction() = delete;
 
-   DerivativeAction(
-      IntegratorContext ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs) :
-      qfunc(std::move(qfunc)),
-      inputs(inputs),
-      outputs(outputs),
-      ctx(ctx),
+   DerivativeAction(IntegratorContext ctx,
+                    qfunc_t qfunc,
+                    inputs_t inputs,
+                    outputs_t outputs):
+      qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       dtqs(make_dtqs(ctx)),
       // inputs: dtq, idx, B, G, d1d, q1d, vdim
       input_dtq(create_dtq_maps<Entity::Element>(
-                   inputs, dtqs,
+                   inputs,
+                   dtqs,
                    create_union_field_map_for_dtq(ctx, inputs),
-                   ctx.unionfds, ctx.ir)),
+                   ctx.unionfds,
+                   ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)),
-      input_G(get_G(input_dtq)),
-      input_d1d(get_D1D(input_dtq)),
-      input_q1d(get_Q1D(input_dtq)),
+      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
+      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
       output_dtq(create_dtq_maps<Entity::Element>(
-                    outputs, dtqs,
+                    outputs,
+                    dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
-                    ctx.unionfds, ctx.ir)),
+                    ctx.unionfds,
+                    ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)),
-      output_G(get_G(output_dtq)),
-      output_d1d(get_D1D(output_dtq)),
-      output_q1d(get_Q1D(output_dtq)),
+      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
+      output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
-      dim(ctx.mesh.Dimension()),
-      ne(ctx.nentities),
-      nq(ctx.ir.GetNPoints()),
+      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
       q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
@@ -123,49 +117,61 @@ public:
             break;
          }
       }
-      MFEM_ASSERT(direction_field_idx != -1,
-                  "LocalQFBackend: derivative direction field not found in unionfds");
+      MFEM_ASSERT(
+         direction_field_idx != -1,
+         "LocalQFBackend: derivative direction field not found in unionfds");
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
    }
 
    //////////////////////////////////////////////////////////////////
-   template <typename Backend>
+   template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye) const
    {
-      Backend::Run(
-         dim, q1d,
-         // arguments
-         ctx, qfunc,
-         // inputs
-         input_idx, input_B, input_G, input_vdim, input_d1d, input_q1d,
-         // outputs
-         output_idx, output_B, output_G, output_vdim, output_d1d, output_q1d,
-         // input and output vectors
-         xe, ye,
-         input_is_dependent,
-         direction_e,
-         // fallback arguments
-         dim, q1d);
+      Backend::Run(dim,
+                   q1d,
+                   // arguments
+                   ctx,
+                   qfunc,
+                   // inputs
+                   input_idx,
+                   input_B,
+                   input_G,
+                   input_vdim,
+                   input_d1d,
+                   input_q1d,
+                   // outputs
+                   output_idx,
+                   output_B,
+                   output_G,
+                   output_vdim,
+                   output_d1d,
+                   output_q1d,
+                   // input and output vectors
+                   xe,
+                   ye,
+                   input_is_dependent,
+                   direction_e,
+                   // fallback arguments
+                   dim,
+                   q1d);
    }
 
    //////////////////////////////////////////////////////////////////
-   void operator()(
-      const std::vector<Vector *> &xe,
-      const Vector *direction_l,
-      std::vector<Vector *> &ye) const
+   void operator()(const std::vector<Vector *> &xe,
+                   const Vector *direction_l,
+                   std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeAction: direction vector is null");
 
-      restriction<Entity::Element>(direction_fd, *direction_l, direction_e,
+      restriction<Entity::Element>(direction_fd,
+                                   *direction_l,
+                                   direction_e,
                                    ElementDofOrdering::LEXICOGRAPHIC);
-      if (q1d <= 8)
-      {
-         run_kernels<DerivativeActionLO>(xe, ye);
-      }
+      if (q1d <= 8) { run_kernels<DerivativeActionLO>(xe, ye); }
       else
       {
          run_kernels<DerivativeActionHO>(xe, ye);
@@ -174,28 +180,30 @@ public:
 
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
-   static void derivative_action_callback(const IntegratorContext &ctx,
-                                          const qfunc_t &qfunc,
-                                          // inputs: idx, B, G, vdim, d1d, q1d
-                                          const std::array<size_t, n_inputs> &in_idx,
-                                          const std::array<const real_t*, n_inputs> in_B,
-                                          const std::array<const real_t*, n_inputs> in_G,
-                                          const std::array<int, n_inputs> &in_vdim,
-                                          const std::array<int, n_inputs> &in_d1d,
-                                          const std::array<int, n_inputs> &in_q1d,
-                                          // outputs: idx, B, G, vdim, d1d, q1d
-                                          const std::array<size_t, n_outputs> &out_idx,
-                                          const std::array<const real_t*, n_outputs> out_B,
-                                          const std::array<const real_t*, n_outputs> out_G,
-                                          const std::array<int, n_outputs> &out_vdim,
-                                          const std::array<int, n_outputs> &out_d1d,
-                                          const std::array<int, n_outputs> &out_q1d,
-                                          const std::vector<Vector *> &xe,
-                                          std::vector<Vector *> &ye,
-                                          const std::array<bool, n_inputs> &input_dep,
-                                          const Vector &direction_e,
-                                          // fallback arguments
-                                          const int dim, const int q1d)
+   static void
+   derivative_action_callback(const IntegratorContext &ctx,
+                              const qfunc_t &qfunc,
+                              // inputs: idx, B, G, vdim, d1d, q1d
+                              const std::array<size_t, n_inputs> &in_idx,
+                              const std::array<const real_t *, n_inputs> in_B,
+                              const std::array<const real_t *, n_inputs> in_G,
+                              const std::array<int, n_inputs> &in_vdim,
+                              const std::array<int, n_inputs> &in_d1d,
+                              const std::array<int, n_inputs> &in_q1d,
+                              // outputs: idx, B, G, vdim, d1d, q1d
+                              const std::array<size_t, n_outputs> &out_idx,
+                              const std::array<const real_t *, n_outputs> out_B,
+                              const std::array<const real_t *, n_outputs> out_G,
+                              const std::array<int, n_outputs> &out_vdim,
+                              const std::array<int, n_outputs> &out_d1d,
+                              const std::array<int, n_outputs> &out_q1d,
+                              const std::vector<Vector *> &xe,
+                              std::vector<Vector *> &ye,
+                              const std::array<bool, n_inputs> &input_dep,
+                              const Vector &direction_e,
+                              // fallback arguments
+                              const int dim,
+                              const int q1d)
    {
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
 
@@ -212,7 +220,7 @@ public:
       // --------------------------------------------------
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3+1+1, const real_t>, n_inputs> in_XE;
+      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
       for_constexpr<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
@@ -231,10 +239,15 @@ public:
          }
          else if constexpr (is_weight_fop_v<FOP>)
          {
-            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d), "tensor-product IR expected");
-            in_XE[i] = Reshape(ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
+            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d),
+                        "tensor-product IR expected");
+            in_XE[i] = Reshape(
+                          ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
-         else { static_assert(false, "Unsupported"); }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
       });
 
       const auto d_direction = direction_e.Read();
@@ -253,29 +266,36 @@ public:
                            "direction E-vector size mismatch for input " << i);
                in_XE_dir[i] = Reshape(d_direction, d, d, B2D ? 1 : d, v, ne);
             }
-            else { in_XE_dir[i] = in_XE[i]; }
+            else
+            {
+               in_XE_dir[i] = in_XE[i];
+            }
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
             if (input_dep[i])
             {
                MFEM_VERIFY(direction_e.Size() == xe[k]->Size(),
-                           "direction E-vector size mismatch (identity input) " << i);
+                           "direction E-vector size mismatch (identity input) "
+                           << i);
                in_XE_dir[i] = Reshape(d_direction, v, q, q, B2D ? 1 : q, ne);
             }
-            else { in_XE_dir[i] = in_XE[i]; }
+            else
+            {
+               in_XE_dir[i] = in_XE[i];
+            }
          }
-         else if constexpr (is_weight_fop_v<FOP>)
+         else if constexpr (is_weight_fop_v<FOP>) { in_XE_dir[i] = in_XE[i]; }
+         else
          {
-            in_XE_dir[i] = in_XE[i];
+            static_assert(false, "Unsupported");
          }
-         else { static_assert(false, "Unsupported"); }
       });
 
       // --------------------------------------------------
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3+1+1, real_t>, n_outputs> out_YE;
+      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
@@ -292,14 +312,18 @@ public:
             MFEM_ASSERT(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
          }
-         else { static_assert(false, "Unsupported FieldOperator"); }
+         else
+         {
+            static_assert(false, "Unsupported FieldOperator");
+         }
       });
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      dfem::forall<MTPB>([=] MFEM_HOST_DEVICE (const int e, void *)
+      dfem::forall<MTPB>(
+         [=] MFEM_HOST_DEVICE(const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -307,7 +331,8 @@ public:
          // Inputs and outputs argument registers
          // -----------------------------------------------
          args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
-         input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> sargs; // shadow
+         input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1>
+         sargs; // shadow
 
          // -----------------------------------------------
          // Shared memory
@@ -332,9 +357,13 @@ public:
             else if constexpr (is_gradient_fop_v<FOP>)
             {
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK, decltype(rarg), decltype(XE),
-                                                FieldParamT>(smem, e, d, q, Q1D, B, G, XE, rarg);
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadGradient<RNK,
+                                                decltype(rarg),
+                                                decltype(XE),
+                                                FieldParamT>(
+                                                   smem, e, d, q, Q1D, B, G, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
             {
@@ -365,12 +394,21 @@ public:
             else if constexpr (is_gradient_fop_v<FOP>)
             {
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK, decltype(sarg), decltype(XE),
-                                                FieldParamT>(smem, e, d, q, Q1D, B, G, XE, sarg);
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadGradient<RNK,
+                                                decltype(sarg),
+                                                decltype(XE),
+                                                FieldParamT>(
+                                                   smem, e, d, q, Q1D, B, G, XE, sarg);
             }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>) { }
-            else { static_assert(false, "Unsupported"); }
+            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+            {
+            }
+            else
+            {
+               static_assert(false, "Unsupported");
+            }
          });
 
          // -----------------------------------------------
@@ -388,7 +426,8 @@ public:
                   args_tuple_t primal_args {}, shadow_args {};
 
                   // --------------------------------------
-                  // Pulling arguments from registers to primal and shadow tuples
+                  // Pulling arguments from registers to primal and shadow
+                  // tuples
                   // --------------------------------------
                   for_constexpr<n_inputs>([&](auto ic)
                   {
@@ -398,7 +437,8 @@ public:
                      const auto &XE = in_XE[i];
                      const auto &XEd = in_XE_dir[i];
                      using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
                         parg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
@@ -406,23 +446,35 @@ public:
                         {
                            targ = as_tensor<ARG>(&XEd(0, qx, qy, qz, e));
                         }
-                        else { targ = ARG{}; }
+                        else
+                        {
+                           targ = ARG{};
+                        }
                      }
                      else if constexpr (is_weight_fop_v<FOP>)
                      {
                         parg = XE(qx, qy, qz, 0, 0);
                         targ = real_t(0.0);
                      }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
                      {
-                        parg = backend_t::template qp_pull<ARG>(get<i>(rargs), qx, qy, qz);
+                        parg = backend_t::template qp_pull<ARG>(
+                           get<i>(rargs), qx, qy, qz);
                         if (input_dep[i])
                         {
-                           targ = backend_t::template qp_pull<ARG>(get<i>(sargs), qx, qy, qz);
+                           targ = backend_t::template qp_pull<ARG>(
+                              get<i>(sargs), qx, qy, qz);
                         }
-                        else { targ = ARG{}; }
+                        else
+                        {
+                           targ = ARG{};
+                        }
                      }
-                     else { static_assert(false, "Unsupported"); }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
                   });
 
                   // --------------------------------------
@@ -439,19 +491,25 @@ public:
                      const auto &qout = get<o>(shadow_args);
                      auto &YE = out_YE[i];
                      using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
                         as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qout;
                      }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
                      {
                         auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push_tangent<ARG>(rarg, qx, qy, qz, qout);
+                        backend_t::template qp_push_tangent<ARG>(
+                           rarg, qx, qy, qz, qout);
                      }
-                     else { static_assert(false, "Unsupported"); }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
                   });
-#else // MFEM_USE_ENZYME
+#else  // MFEM_USE_ENZYME
                   args_tuple_t qargs;
 
                   // --------------------------------------
@@ -464,14 +522,16 @@ public:
                      const auto &XE = in_XE[i];
                      const auto &XEd = in_XE_dir[i];
                      using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
-                        using DT = typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                        using DT =
+                           typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                         if constexpr (qf_param_uses_dual_v<DT>)
                         {
-                           qarg = backend_t::template identity_qp_pull_dual<DT>
-                           (input_dep[i], XE, XEd, qx, qy, qz, e);
+                           qarg = backend_t::template identity_qp_pull_dual<DT>(
+                              input_dep[i], XE, XEd, qx, qy, qz, e);
                         }
                         else
                         {
@@ -482,12 +542,21 @@ public:
                      {
                         qarg = XE(qx, qy, qz, 0, 0);
                      }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
                      {
-                        qarg = backend_t::template qp_pull_directional<ARG>
-                        (get<i>(rargs), get<i>(sargs), qx, qy, qz, input_dep[i]);
+                        qarg = backend_t::template qp_pull_directional<ARG>(
+                           get<i>(rargs),
+                           get<i>(sargs),
+                           qx,
+                           qy,
+                           qz,
+                           input_dep[i]);
                      }
-                     else { static_assert(false, "Unsupported"); }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
                   });
 
                   // --------------------------------------
@@ -504,27 +573,33 @@ public:
                      const auto &qarg = get<o>(qargs);
                      const auto &YE = out_YE[i];
                      using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
                      if constexpr (is_identity_fop_v<FOP>)
                      {
-                        using DT = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                        using DT =
+                           typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
                         if constexpr (qf_param_uses_dual_v<DT>)
                         {
-                           backend_t::identity_qp_write_tangent
-                           (YE, qx, qy, qz, e, qarg);
+                           backend_t::identity_qp_write_tangent(
+                              YE, qx, qy, qz, e, qarg);
                         }
                         else
                         {
                            as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
                         }
                      }
-                     else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
                      {
                         auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push_tangent<ARG>
-                        (rarg, qx, qy, qz, qarg);
+                        backend_t::template qp_push_tangent<ARG>(
+                           rarg, qx, qy, qz, qarg);
                      }
-                     else { static_assert(false, "Unsupported"); }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
                   });
 #endif // MFEM_USE_ENZYME
                }
@@ -545,117 +620,131 @@ public:
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop_v<FOP>)
             {
-               backend_t::WriteValue
-               (smem, e, d, q, q1d, B, YE, rarg);
+               backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
                using YE_t = decltype(YE);
                using rarg_t = decltype(rarg);
-               using qf_param_t = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+               using qf_param_t =
+                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>
-               (smem, e, d, q, q1d, B, G, YE, rarg);
+               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
+                  smem, e, d, q, q1d, B, G, YE, rarg);
             }
             else if constexpr (is_identity_fop_v<FOP>)
             {
                // nothing to do
             }
-            else { static_assert(false, "Unsupported"); }
+            else
+            {
+               static_assert(false, "Unsupported");
+            }
          });
-      }, ne, backend_t::thread_blocks(
-         compute_kernel_thread_1d<inputs_t, outputs_t>(q1d, in_d1d, out_d1d)),
-      0, nullptr);
+      },
+      ne,
+      backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
+                                  q1d, in_d1d, out_d1d)),
+      0,
+      nullptr);
    }
 
    using DerivativeKernelType =
       decltype(&DerivativeAction::derivative_action_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeKernelType, (int, int));
-   MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(DerivativeActionLO, DerivativeKernelType, (int, int) );
+   MFEM_REGISTER_KERNELS(DerivativeActionHO, DerivativeKernelType, (int, int) );
 };
 
 // Low Order kernels
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Kernel()
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+template<int DIM, int Q1D>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeActionLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return derivative_action_t::template
-          derivative_action_callback<LocalQFLOBackend<DIM, Q1D>>;
+   return derivative_action_t::template derivative_action_callback<
+             LocalQFLOBackend<DIM, Q1D>>;
 }
 
 // Low Order fallback
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionLO::Fallback
-(int dim, int q1d)
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeActionLO::Fallback(int dim, int q1d)
 {
    MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return derivative_action_t::template
-             derivative_action_callback<LocalQFLOBackend<2>>;
+      return derivative_action_t::template derivative_action_callback<
+                LocalQFLOBackend<2>>;
    }
    else if (dim == 3)
    {
-      return derivative_action_t::template
-             derivative_action_callback<LocalQFLOBackend<3>>;
+      return derivative_action_t::template derivative_action_callback<
+                LocalQFLOBackend<3>>;
    }
-   else { MFEM_ABORT("Unsupported dimension"); }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+   }
 }
 
 // High Order kernels
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Kernel()
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+template<int DIM, int Q1D>
+typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeActionHO::Kernel()
 {
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return derivative_action_t::template
-          derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
+   return derivative_action_t::
+          template derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
 }
 
 // High Order fallback
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeActionHO::Fallback
-(int dim, int)
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeKernelType
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeActionHO::Fallback(int dim, int)
 {
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return derivative_action_t::template
-             derivative_action_callback<LocalQFHOBackend<2>>;
+      return derivative_action_t::template derivative_action_callback<
+                LocalQFHOBackend<2>>;
    }
    else if (dim == 3)
    {
-      return derivative_action_t::template
-             derivative_action_callback<LocalQFHOBackend<3>>;
+      return derivative_action_t::template derivative_action_callback<
+                LocalQFHOBackend<3>>;
    }
-   else { MFEM_ABORT("Unsupported dimension"); }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+   }
 }
 
 } // namespace mfem::future::LocalQFImpl

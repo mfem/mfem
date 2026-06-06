@@ -27,7 +27,7 @@ namespace mfem::future::LocalQFImpl
 namespace detail
 {
 
-template <int DIM>
+template<int DIM>
 MFEM_HOST_DEVICE inline int tensor_idx(int x, int y, int z, int N)
 {
    static_assert(DIM == 2 || DIM == 3);
@@ -35,23 +35,31 @@ MFEM_HOST_DEVICE inline int tensor_idx(int x, int y, int z, int N)
    return x + N * (y + N * z);
 }
 
-template <int DIM>
-MFEM_HOST_DEVICE inline real_t trial_basis_weight_value(
-   const DeviceTensor<3, const real_t> &B,
-   const int qx, const int qy, const int qz,
-   const int Jx, const int Jy, const int Jz)
+template<int DIM>
+MFEM_HOST_DEVICE inline real_t
+trial_basis_weight_value(const DeviceTensor<3, const real_t> &B,
+                         const int qx,
+                         const int qy,
+                         const int qz,
+                         const int Jx,
+                         const int Jy,
+                         const int Jz)
 {
    static_assert(DIM == 2 || DIM == 3);
    return B(qx, 0, Jx) * B(qy, 0, Jy) * ((DIM == 3) ? B(qz, 0, Jz) : 1.0);
 }
 
-template <int DIM>
-MFEM_HOST_DEVICE inline real_t trial_basis_weight_gradient(
-   const DeviceTensor<3, const real_t> &B,
-   const DeviceTensor<3, const real_t> &G,
-   const int m,
-   const int qx, const int qy, const int qz,
-   const int Jx, const int Jy, const int Jz)
+template<int DIM>
+MFEM_HOST_DEVICE inline real_t
+trial_basis_weight_gradient(const DeviceTensor<3, const real_t> &B,
+                            const DeviceTensor<3, const real_t> &G,
+                            const int m,
+                            const int qx,
+                            const int qy,
+                            const int qz,
+                            const int Jx,
+                            const int Jy,
+                            const int Jz)
 {
    const auto Gx = G(qx, 0, Jx), Gy = G(qy, 0, Jy);
    const auto Bx = B(qx, 0, Jx), By = B(qy, 0, Jy);
@@ -63,21 +71,21 @@ MFEM_HOST_DEVICE inline real_t trial_basis_weight_gradient(
    else
    {
       const auto Bz = B(qz, 0, Jz), Gz = G(qz, 0, Jz);
-      return (m == 0) ? Gx * By * Bz :
-             (m == 1) ? Bx * Gy * Bz :
-             (m == 2) ? Bx * By * Gz :
-             (assert(false), 0.0);
+      return (m == 0)   ? Gx * By * Bz
+             : (m == 1) ? Bx * Gy * Bz
+             : (m == 2) ? Bx * By * Gz
+             : (assert(false), 0.0);
    }
 }
 
-template <int DIM, int MQ1, typename Shared, typename output_t>
-MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
-   DeviceTensor<2, real_t> &y,
-   const DeviceTensor<3, real_t> &f,
-   const output_t &output,
-   const DofToQuadMap &dtq,
-   Shared &s,
-   const int tv_dof = -1)
+template<int DIM, int MQ1, typename Shared, typename output_t>
+MFEM_HOST_DEVICE void
+map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
+                              const DeviceTensor<3, real_t> &f,
+                              const output_t &output,
+                              const DofToQuadMap &dtq,
+                              Shared &s,
+                              const int tv_dof = -1)
 {
    using output_fop_t = std::decay_t<output_t>;
    const auto B = dtq.B, G = dtq.G;
@@ -105,16 +113,11 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             const int fi = f_slab ? 0 : vd;
             MFEM_FOREACH_THREAD(qy, y, q1d)
             MFEM_FOREACH_THREAD(qx, x, q1d)
-            {
-               r_qp[qy][qx] = fqp(fi, 0, qx, qy);
-            }
+            { r_qp[qy][qx] = fqp(fi, 0, qx, qy); }
             MFEM_SYNC_THREAD;
             ker::Eval2d<MQ1, true>(d1d, q1d, s.M, s.B, r_qp, Y);
             MFEM_FOREACH_THREAD(dy, y, d1d)
-            MFEM_FOREACH_THREAD(dx, x, d1d)
-            {
-               yd(dx, dy, vd) += Y[dy][dx];
-            }
+            MFEM_FOREACH_THREAD(dx, x, d1d) { yd(dx, dy, vd) += Y[dy][dx]; }
             MFEM_SYNC_THREAD;
          }
       }
@@ -131,9 +134,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             {
                MFEM_FOREACH_THREAD(qy, y, q1d)
                MFEM_FOREACH_THREAD(qx, x, q1d)
-               {
-                  f_qp[qz][qy][qx] = fqp(fi, 0, qx, qy, qz);
-               }
+               { f_qp[qz][qy][qx] = fqp(fi, 0, qx, qy, qz); }
             }
             MFEM_SYNC_THREAD;
             ker::Eval3d<MQ1, true>(d1d, q1d, s.M, s.B, f_qp, Y);
@@ -141,9 +142,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             {
                MFEM_FOREACH_THREAD(dy, y, d1d)
                MFEM_FOREACH_THREAD(dx, x, d1d)
-               {
-                  yd(dx, dy, dz, vd) += Y[dz][dy][dx];
-               }
+               { yd(dx, dy, dz, vd) += Y[dz][dy][dx]; }
             }
             MFEM_SYNC_THREAD;
          }
@@ -238,7 +237,8 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             MFEM_FOREACH_THREAD(qy, y, q1d)
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
-               int qz = 0; MFEM_CONTRACT_VAR(qz);
+               int qz = 0;
+               MFEM_CONTRACT_VAR(qz);
                yqp(sq, qx, qy) = fqp(0, qx, qy);
             }
             MFEM_SYNC_THREAD;
@@ -254,9 +254,7 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
             {
                MFEM_FOREACH_THREAD(qy, y, q1d)
                MFEM_FOREACH_THREAD(qx, x, q1d)
-               {
-                  yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz);
-               }
+               { yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz); }
             }
             MFEM_SYNC_THREAD;
          }
@@ -270,8 +268,12 @@ MFEM_HOST_DEVICE void map_quadrature_data_to_fields(
    }
 }
 
-template <int DIM, int MQ1, typename Shared,
-          typename input_fop_ts, std::size_t n_inputs, typename output_fop_t>
+template<int DIM,
+         int MQ1,
+         typename Shared,
+         typename input_fop_ts,
+         std::size_t n_inputs,
+         typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const DeviceTensor<5, real_t> &Ae,
    const DeviceTensor<6, const real_t> &qpdc,
@@ -338,17 +340,19 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
       MFEM_SYNC_THREAD;
    };
 
-   const auto accumulate_tv =
-      [&](const int Jx, const int Jy, const int Jz, const int j,
-          const int tv, const int tod_only = -1)
+   const auto accumulate_tv = [&](const int Jx,
+                                  const int Jy,
+                                  const int Jz,
+                                  const int j,
+                                  const int tv,
+                                  const int tod_only = -1)
    {
       int m_offset = 0;
       for_constexpr<n_inputs>([&](auto inp)
       {
          using fop_t = std::decay_t<decltype(get<inp>(inputs_ref))>;
 
-         const int trial_op_dim =
-            static_cast<int>(itod(static_cast<int>(inp)));
+         const int trial_op_dim = static_cast<int>(itod(static_cast<int>(inp)));
          if (trial_op_dim == 0) { return; }
 
          const auto &B = input_dtq_maps[inp].B;
@@ -371,7 +375,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         fhat_storage[k * nq + q] += f * w;
                      }
-                     else { fhat_storage[q] += f * w; }
+                     else
+                     {
+                        fhat_storage[q] += f * w;
+                     }
                   }
                }
             });
@@ -383,9 +390,8 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                for (int m = 0; m < trial_op_dim; m++)
                {
-                  const real_t w =
-                     trial_basis_weight_gradient<DIM>(
-                        B, G, m, qx, qy, qz, Jx, Jy, Jz);
+                  const real_t w = trial_basis_weight_gradient<DIM>(
+                                      B, G, m, qx, qy, qz, Jx, Jy, Jz);
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
@@ -394,7 +400,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      {
                         fhat_storage[k * nq + q] += f * w;
                      }
-                     else { fhat_storage[q] += f * w; }
+                     else
+                     {
+                        fhat_storage[q] += f * w;
+                     }
                   }
                }
             });
@@ -418,12 +427,14 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
             const int J = tensor_idx<DIM>(Jx, Jy, Jz, num_trial_dof_1d);
             for (int j = 0; j < trial_vdim; j++)
             {
-               auto bvtfhat = Reshape(&Ae(0, 0, J, j, e), num_test_dof, test_vdim);
+               auto bvtfhat =
+                  Reshape(&Ae(0, 0, J, j, e), num_test_dof, test_vdim);
                const int fhat_size = test_vdim * test_op_dim * nq;
 
                if (fhat_size <= FHAT_SLAB_MAX)
                {
-                  auto fhat = Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
+                  auto fhat =
+                     Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
                   for (int tv = 0; tv < test_vdim; tv++)
                   {
                      for (int tod = 0; tod < test_op_dim; tod++)
@@ -454,15 +465,16 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                         foreach_qp([&](const int qx, const int qy, const int qz)
                         {
                            const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
-                           const real_t w =
-                              trial_basis_weight_value<DIM>(B, qx, qy, qz, Jx, Jy, Jz);
+                           const real_t w = trial_basis_weight_value<DIM>(
+                                               B, qx, qy, qz, Jx, Jy, Jz);
                            for (int m = 0; m < trial_op_dim; m++)
                            {
                               for (int i = 0; i < test_vdim; i++)
                               {
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
-                                    const real_t f = qpdc(m + m_offset, j, k, i, q, e);
+                                    const real_t f =
+                                       qpdc(m + m_offset, j, k, i, q, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -476,14 +488,14 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                            const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
                            for (int m = 0; m < trial_op_dim; m++)
                            {
-                              const real_t w =
-                                 trial_basis_weight_gradient<DIM>(
-                                    B, G, m, qx, qy, qz, Jx, Jy, Jz);
+                              const real_t w = trial_basis_weight_gradient<DIM>(
+                                                  B, G, m, qx, qy, qz, Jx, Jy, Jz);
                               for (int i = 0; i < test_vdim; i++)
                               {
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
-                                    const real_t f = qpdc(m + m_offset, j, k, i, q, e);
+                                    const real_t f =
+                                       qpdc(m + m_offset, j, k, i, q, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -492,8 +504,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      }
                      else
                      {
-                        MFEM_ABORT_KERNEL("sum factorized sparse matrix assemble routine "
-                                          "not implemented for field operator");
+                        MFEM_ABORT_KERNEL(
+                           "sum factorized sparse matrix assemble routine "
+                           "not implemented for field operator");
                      }
                      MFEM_SYNC_THREAD;
                      m_offset += trial_op_dim;
@@ -520,7 +533,8 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   {
                      zero_slab(test_op_dim);
                      accumulate_tv(Jx, Jy, Jz, j, tv);
-                     auto f_slab = Reshape(&fhat_storage[0], 1, test_op_dim, nq);
+                     auto f_slab =
+                        Reshape(&fhat_storage[0], 1, test_op_dim, nq);
                      map_quadrature_data_to_fields<DIM, MQ1>(
                         bvtfhat, f_slab, output, output_dtq, smem, tv);
                   }
@@ -546,17 +560,17 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
 
 // ────────────────────────────────────────────────────────────────────────────
 // Assemble sparse Jacobian from cached quadrature derivatives (tensor 2D/3D)
-template<
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
 class DerivativeAssemble
 {
    static constexpr auto inout_tuple =
-   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
+   static constexpr size_t nfields =
+      count_unique_field_ids(filtered_inout_tuple);
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
@@ -566,7 +580,7 @@ class DerivativeAssemble
    inputs_t inputs;
    outputs_t outputs;
    const bool use_sum_factorization;
-   const std::vector<const DofToQuad*> dtqs;
+   const std::vector<const DofToQuad *> dtqs;
    const std::array<DofToQuadMap, n_inputs> input_dtq_maps;
    const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
    const std::array<bool, n_inputs> input_is_dependent;
@@ -589,46 +603,52 @@ class DerivativeAssemble
 public:
    DerivativeAssemble() = delete;
 
-   DerivativeAssemble(
-      IntegratorContext ctx_in,
-      qfunc_t /*qfunc*/,
-      inputs_t inputs_in,
-      outputs_t outputs_in,
-      const Vector &qp_cache_in) :
-      ctx(ctx_in),
-      qp_cache(qp_cache_in),
-      inputs(inputs_in),
-      outputs(outputs_in),
-      use_sum_factorization([&]
+   DerivativeAssemble(IntegratorContext ctx_in,
+                      qfunc_t /*qfunc*/,
+                      inputs_t inputs_in,
+                      outputs_t outputs_in,
+                      const Vector &qp_cache_in):
+      ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
+      outputs(outputs_in), use_sum_factorization(
+         [&]
    {
       const Element::Type etype =
          Element::TypeFromGeometry(ctx_in.mesh.GetTypicalElementGeometry());
       return (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
    }()),
-   dtqs([&]
+   dtqs(
+      [&]
    {
-      const DofToQuad::Mode dtq_mode =
-      use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
-      std::vector<const DofToQuad*> maps;
+      const DofToQuad::Mode dtq_mode = use_sum_factorization
+      ? DofToQuad::Mode::TENSOR
+      : DofToQuad::Mode::FULL;
+      std::vector<const DofToQuad *> maps;
       maps.reserve(ctx_in.unionfds.size());
       for (const auto &field : ctx_in.unionfds)
       {
-         maps.emplace_back(GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
+         maps.emplace_back(
+            GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
       }
       return maps;
    }()),
    input_dtq_maps(create_dtq_maps<Entity::Element>(
-                     inputs, dtqs,
+                     inputs,
+                     dtqs,
                      create_union_field_map_for_dtq(ctx_in, inputs),
-                     ctx_in.unionfds, ctx_in.ir)),
+                     ctx_in.unionfds,
+                     ctx_in.ir)),
    output_dtq_maps(create_dtq_maps<Entity::Element>(
-                      outputs, dtqs,
+                      outputs,
+                      dtqs,
                       create_union_field_map_for_dtq(ctx_in, outputs),
-                      ctx_in.unionfds, ctx_in.ir)),
+                      ctx_in.unionfds,
+                      ctx_in.ir)),
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
-   test_field_uf(find_union_field_index(ctx_in, get<0>(outputs).GetFieldId())),
-   test_fes([&]
+   test_field_uf(
+      find_union_field_index(ctx_in, get<0>(outputs).GetFieldId())),
+   test_fes(
+      [&]
    {
       const auto *fes = std::get_if<const ParFiniteElementSpace *>(
          &ctx_in.unionfds[test_field_uf].data);
@@ -636,7 +656,8 @@ public:
                   "LocalQFBackend: test space is not a ParFiniteElementSpace");
       return *fes;
    }()),
-   trial_fes([&]
+   trial_fes(
+      [&]
    {
       const auto *fes = std::get_if<const ParFiniteElementSpace *>(
          &ctx_in.unionfds[trial_field_uf].data);
@@ -647,8 +668,8 @@ public:
    test_vdim(get<0>(outputs).vdim),
    test_op_dim(get<0>(outputs).size_on_qp / test_vdim),
    num_test_dof(test_fes->GetFE(0)->GetDof()),
-   trial_vdim(compute_trial_vdim(inputs, derivative_id)),
-   trial_op_dim([&]
+   trial_vdim(compute_trial_vdim(inputs, derivative_id)), trial_op_dim(
+      [&]
    {
       int top = 0;
       for_constexpr<n_inputs>([&](auto i)
@@ -661,19 +682,17 @@ public:
       return top;
    }()),
    num_trial_dof(trial_fes->GetFE(0)->GetDof()),
-   dim(ctx_in.mesh.Dimension()),
-   ne(ctx_in.nentities),
-   nq(ctx_in.ir.GetNPoints()),
-   q1d(tensor_1d_size(nq, dim)),
-   num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)),
-   total_trial_op_dim([&]
+   dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
+   nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
+   num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)), total_trial_op_dim(
+      [&]
    {
       const auto in_qp_sizes =
-      get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {});
-      return compute_total_trial_op_dim(inputs, input_is_dependent, in_qp_sizes);
+      get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs>{});
+      return compute_total_trial_op_dim(
+         inputs, input_is_dependent, in_qp_sizes);
    }()),
-   inputs_trial_op_dim(),
-   Ae_mem()
+   inputs_trial_op_dim(), Ae_mem()
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
@@ -681,7 +700,8 @@ public:
                   "DerivativeAssemble: trial field not found in unionfds");
       MFEM_ASSERT(test_field_uf != SIZE_MAX,
                   "DerivativeAssemble: test field not found in unionfds");
-      MFEM_ASSERT(trial_vdim > 0, "LocalQFBackend: could not determine trial vdim");
+      MFEM_ASSERT(trial_vdim > 0,
+                  "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
                   "LocalQFBackend: no dependent inputs found");
 
@@ -689,12 +709,14 @@ public:
       inputs_trial_op_dim.UseDevice(true);
       for_constexpr<n_inputs>([&](auto i)
       {
-         inputs_trial_op_dim[i] = input_is_dependent[i]
-                                  ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
-                                  : 0;
+         inputs_trial_op_dim[i] =
+            input_is_dependent[i]
+            ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
+            : 0;
       });
 
-      const int elem_mat_size = num_test_dof * test_vdim * num_trial_dof * trial_vdim;
+      const int elem_mat_size =
+         num_test_dof * test_vdim * num_trial_dof * trial_vdim;
       Ae_mem.SetSize(elem_mat_size * ne);
       Ae_mem.UseDevice(true);
       Ae_mem = 0.0;
@@ -710,14 +732,27 @@ public:
                     "for tensor-product 2D/3D elements only");
       }
 
-      DerivativeAssembleHO::Run(
-         dim, q1d,
-         ctx, qp_cache, Ae_mem,
-         inputs, outputs, input_dtq_maps, output_dtq_maps[0],
-         inputs_trial_op_dim,
-         test_vdim, test_op_dim, num_test_dof, num_trial_dof, num_trial_dof_1d,
-         trial_vdim, total_trial_op_dim,
-         nq, ne, q1d, dim);
+      DerivativeAssembleHO::Run(dim,
+                                q1d,
+                                ctx,
+                                qp_cache,
+                                Ae_mem,
+                                inputs,
+                                outputs,
+                                input_dtq_maps,
+                                output_dtq_maps[0],
+                                inputs_trial_op_dim,
+                                test_vdim,
+                                test_op_dim,
+                                num_test_dof,
+                                num_trial_dof,
+                                num_trial_dof_1d,
+                                trial_vdim,
+                                total_trial_op_dim,
+                                nq,
+                                ne,
+                                q1d,
+                                dim);
 
       A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
 
@@ -738,12 +773,10 @@ public:
 
          Array<int> test_vdofs_mapped(test_vdofs.Size());
          const Array<int> &test_dofmap =
-            dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
+            dynamic_cast<const TensorBasisElement &>(*test_fes->GetFE(0))
+            .GetDofMap();
 
-         if (test_dofmap.Size() == 0)
-         {
-            test_vdofs_mapped = test_vdofs;
-         }
+         if (test_dofmap.Size() == 0) { test_vdofs_mapped = test_vdofs; }
          else
          {
             for (int vd = 0; vd < test_vdim; vd++)
@@ -758,12 +791,10 @@ public:
 
          Array<int> trial_vdofs_mapped(trial_vdofs.Size());
          const Array<int> &trial_dofmap =
-            dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
+            dynamic_cast<const TensorBasisElement &>(*trial_fes->GetFE(0))
+            .GetDofMap();
 
-         if (trial_dofmap.Size() == 0)
-         {
-            trial_vdofs_mapped = trial_vdofs;
-         }
+         if (trial_dofmap.Size() == 0) { trial_vdofs_mapped = trial_vdofs; }
          else
          {
             for (int vd = 0; vd < trial_vdim; vd++)
@@ -808,7 +839,8 @@ public:
       static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr int MNQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
 
-      MFEM_VERIFY(dim == DIM, "DerivativeAssemble: mesh dim does not match backend");
+      MFEM_VERIFY(dim == DIM,
+                  "DerivativeAssemble: mesh dim does not match backend");
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
@@ -821,14 +853,24 @@ public:
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      const auto qpdc = Reshape(qp_cache.Read(), total_trial_op_dim, trial_vdim,
-                                test_op_dim, test_vdim, nq, ne);
+      const auto qpdc = Reshape(qp_cache.Read(),
+                                total_trial_op_dim,
+                                trial_vdim,
+                                test_op_dim,
+                                test_vdim,
+                                nq,
+                                ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 
-      auto Ae = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim,
-                        num_trial_dof, trial_vdim, ne);
+      auto Ae = Reshape(Ae_mem.ReadWrite(),
+                        num_test_dof,
+                        test_vdim,
+                        num_trial_dof,
+                        trial_vdim,
+                        ne);
 
-      dfem::forall([=] MFEM_HOST_DEVICE (const int e, void *)
+      dfem::forall(
+         [=] MFEM_HOST_DEVICE(const int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -837,44 +879,57 @@ public:
 
          MFEM_SHARED typename backend_t::Shared s;
 
-         detail::assemble_element_mat_sumfact<DIM, MQ1>(
-            Ae, qpdc, e, itod, inputs, get<0>(outputs),
-            input_dtq_maps, output_dtq,
-            q1d, num_trial_dof_1d, s);
-
-      }, ne, backend_t::thread_blocks(q1d), 0, nullptr);
+         detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
+                                                        qpdc,
+                                                        e,
+                                                        itod,
+                                                        inputs,
+                                                        get<0>(outputs),
+                                                        input_dtq_maps,
+                                                        output_dtq,
+                                                        q1d,
+                                                        num_trial_dof_1d,
+                                                        s);
+      },
+      ne,
+      backend_t::thread_blocks(q1d),
+      0,
+      nullptr);
    }
 
    using AssembleKernelType =
       decltype(&DerivativeAssemble::derivative_assemble_callback<>);
-   MFEM_REGISTER_KERNELS(DerivativeAssembleHO, AssembleKernelType,
+   MFEM_REGISTER_KERNELS(DerivativeAssembleHO,
+                         AssembleKernelType,
                          (int /*dim*/, int /*q1d*/));
 };
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-template <int DIM, int Q1D>
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Kernel()
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+template<int DIM, int Q1D>
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+AssembleKernelType
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssembleHO::Kernel()
 {
    static_assert(DIM == 2 || DIM == 3);
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return assemble_t::template
-          derivative_assemble_callback<LocalQFHOBackend<DIM, Q1D>>;
+   return assemble_t::template derivative_assemble_callback<
+             LocalQFHOBackend<DIM, Q1D>>;
 }
 
-template <
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t>
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssembleHO::Fallback
-(int dim, int q1d)
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+inline
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+AssembleKernelType
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssembleHO::Fallback(int dim, int q1d)
 {
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
@@ -882,15 +937,18 @@ DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::DerivativeAssem
    MFEM_VERIFY(q1d <= 8, "q1d must be <= 8");
    if (dim == 2)
    {
-      return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<2,8>>;
+      return assemble_t::template derivative_assemble_callback<
+                LocalQFHOBackend<2, 8>>;
    }
    else if (dim == 3)
    {
-      return assemble_t::template
-             derivative_assemble_callback<LocalQFHOBackend<3,8>>;
+      return assemble_t::template derivative_assemble_callback<
+                LocalQFHOBackend<3, 8>>;
    }
-   else { MFEM_ABORT("Unsupported dimension"); }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+   }
 }
 
 } // namespace mfem::future::LocalQFImpl
