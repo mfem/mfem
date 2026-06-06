@@ -132,7 +132,7 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
    const unsigned patch_data_size = 1 + 2*mesh.Dimension();
    BlockArray<int> local_patch_data(patch_data_size, local_patch_count);
    unsigned patch_ind = 0;
-   Array<int> patch_data_values;
+   Array<int> patch_data_values(patch_data_size);
    for (int level_number = 0; level_number <= hierarchy->getFinestLevelNumber();
       level_number++)
    {

@@ -24,6 +24,7 @@
 #include "SAMRAI/algs/HyperbolicLevelIntegrator.h"
 #include "SAMRAI/algs/HyperbolicPatchStrategy.h"
 #include "SAMRAI/hier/IntVector.h"
+#include "SAMRAI/pdat/NodeVariable.h"
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/tbox/Serializable.h"
 #include "SAMRAI/hier/VariableContext.h"
@@ -390,6 +391,10 @@ public:
    printClassData(
       std::ostream& os) const;
 
+   int getPositionId() const;
+
+   int getStateId() const;
+
 private:
    /*
     * These private member functions read data from input and restart.
@@ -468,6 +473,11 @@ private:
    tbox::ResourceAllocator d_allocator;
 
    /**
+    * std::shared_ptr to position variable vector - [x]
+    */
+   std::shared_ptr<pdat::NodeVariable<double> > d_xval;
+
+   /**
     * std::shared_ptr to state variable vector - [u]
     */
    std::shared_ptr<pdat::CellVariable<double> > d_uval;
@@ -487,7 +497,7 @@ private:
     */
    double d_source;
    bool d_check_fluxes;
-  
+
    /**
     * write coordinate values to Blueprint output.  If true, write full
     * double arrays of coordinate values for every mesh node.  If false,

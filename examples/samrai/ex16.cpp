@@ -60,23 +60,23 @@ class ConductionOperator : public TimeDependentOperator
 protected:
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
-   std::unique_ptr<BilinearForm> M;
-   std::unique_ptr<BilinearForm> K;
+   std::unique_ptr<ParBilinearForm> M;
+   std::unique_ptr<ParBilinearForm> K;
 
-   SparseMatrix Mmat, Kmat;
-   std::unique_ptr<SparseMatrix> Tmat; // T = M + dt K
+   HypreParMatrix Mmat, Kmat;
+   std::unique_ptr<HypreParMatrix> Tmat; // T = M + dt K
    real_t current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
-   DSmoother M_prec;  // Preconditioner for the mass matrix M
+   HypreSmoother M_prec;  // Preconditioner for the mass matrix M
 
    CGSolver T_solver; // Implicit solver for T = M + dt K
-   DSmoother T_prec;  // Preconditioner for the implicit solver
+   HypreSmoother T_prec;  // Preconditioner for the implicit solver
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, real_t kappa);
+   ConductionOperator(ParFiniteElementSpace* fes, real_t kappa);
 
    void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
@@ -91,11 +91,6 @@ int main(int argc, char *argv[])
    const int precision = 8;
    std::cout.precision(precision);
 
-   // Define command line argument defaults for MFEM
-   const char *mesh_file = "../../data/star.mesh";
-   int ref_levels = 2;
-   int order = 2;
-
    int ode_solver_type = 23;  // SDIRK33Solver
    real_t kappa = 0.01;
 
@@ -109,12 +104,6 @@ int main(int argc, char *argv[])
 
    // Parse command line arguments
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::Types.c_str());
    args.AddOption(&kappa, "-k", "--kappa",
@@ -145,88 +134,6 @@ int main(int argc, char *argv[])
    SAMRAI::tbox::SAMRAIManager::initialize();
    SAMRAI::tbox::SAMRAIManager::startup();
    const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
-
-   /************************** Create MFEM objects ****************************/
-
-   // Create and refine the mesh
-   Mesh mesh(mesh_file, 1, 1);
-   for (int lev = 0; lev < ref_levels; lev++)
-   {
-      mesh.UniformRefinement();
-   }
-
-   // Create the finite element space
-   H1_FECollection fe_coll(order, mesh.Dimension());
-   FiniteElementSpace fespace(&mesh, &fe_coll);
-   std::cout << "Number of temperature unknowns: " << fespace.GetTrueVSize()
-             << std::endl;
-
-   // Create the grid function and set initial conditions
-   GridFunction u_gf(&fespace);
-   FunctionCoefficient u_0(InitialTemperature);
-   u_gf.ProjectCoefficient(u_0);
-   Vector u;
-   u_gf.GetTrueDofs(u);
-
-   // Create the conduction operator
-   ConductionOperator conduction(fespace, kappa);
-   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
-   ImplicitVariableType imp_var = solve_implicit_state ?
-                                  ImplicitVariableType::STATE
-                                  : ImplicitVariableType::SLOPE;
-   conduction.SetImplicitVariableType(imp_var);
-
-   // Create the ODE solver used for time integration
-   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
-   mfem_ode_solver->Init(conduction);
-
-   // Write out the mesh and initial condition
-   {
-      std::ofstream omesh("ex16.mesh");
-      omesh.precision(precision);
-      mesh.Print(omesh);
-      std::ofstream osol("ex16-init.gf");
-      osol.precision(precision);
-      u_gf.Save(osol);
-   }
-
-   // Optionally, create the VisIt output object and save the initial condition
-   std::unique_ptr<VisItDataCollection> visit_dc;
-   if (visit)
-   {
-      visit_dc = std::make_unique<VisItDataCollection>("Example16", &mesh);
-      visit_dc->RegisterField("temperature", &u_gf);
-      visit_dc->SetCycle(0);
-      visit_dc->SetTime(0.0);
-      visit_dc->Save();
-   }
-
-   // Optionally, create the visualization stream and visualize initial condition
-   socketstream sout;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         std::cout << "Unable to connect to GLVis server at "
-                   << vishost << ':' << visport << std::endl;
-         visualization = false;
-         std::cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout.precision(precision);
-         sout << "solution\n" << mesh << u_gf;
-         sout << "pause\n";
-         sout << std::flush;
-         std::cout << "GLVis visualization paused."
-                   << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
-
-   std::cout << "\n=== Initializing SAMRAI ===" << std::endl;
 
    /************************* Create SAMRAI objects ***************************/
 
@@ -261,13 +168,147 @@ int main(int argc, char *argv[])
       "TimeRefinementIntegrator", input_db->getDatabase("TimeRefinementIntegrator"),
       patch_hierarchy, hyp_level_integrator, gridding_algorithm);
 
+   double dt = samrai_time_integrator->initializeHierarchy();
+   const int samrai_position_id = linadv_model->getPositionId();
+   const int samrai_state_id = linadv_model->getStateId();
 
-   // 9. Alternating time loop
+   /************************** Create MFEM objects ****************************/
+
+   // Create MFEM mesh to match SAMRAI mesh using the SAMRAI communicator
+   MeshOps mesh_ops(patch_hierarchy, mpi.getCommunicator());
+   const ParMesh& mesh = mesh_ops.getMesh();
+
+   // Transfer initial SAMRAI state (cell averages) to an MFEM grid function
+   // (piecewise-constant representation)
+   std::unique_ptr<ParGridFunction> uavg_gf;
+   {
+      std::vector<std::unique_ptr<ParGridFunction>> gfs =
+         mesh_ops.transferToMFEM(samrai_position_id, {}, {samrai_state_id});
+      uavg_gf = std::move(gfs[0]);
+   }
+
+   // Create an MFEM grid function and obtain initial condition by
+   // reconstructing from the piece-constant representation
+   const int order = 1;
+   H1_FECollection u_fecollection(order, mesh.Dimension());
+   std::unique_ptr<ParFiniteElementSpace> u_fespace =
+      mesh_ops.createFESpace(u_fecollection);
+   std::cout << "Number of temperature unknowns: " << u_fespace->GlobalTrueVSize()
+             << std::endl;
+   ParGridFunction u_gf(u_fespace.get());
+   Vector u;
+   u_gf.GetTrueDofs(u);
+   {
+      OperatorPtr M_op;
+      ParBilinearForm M(u_fespace.get());
+      M.AddDomainIntegrator(new MassIntegrator());
+      M.Assemble();
+      M.FormSystemMatrix({}, M_op);
+
+      OperatorPtr Rhs_op;
+      Vector uavg;
+      Vector rhs(u.Size());
+      ParMixedBilinearForm Rhs(uavg_gf->ParFESpace(), u_fespace.get());
+      Rhs.AddDomainIntegrator(new MassIntegrator());
+      Rhs.Assemble();
+      Rhs.FormRectangularSystemMatrix({}, {}, Rhs_op);
+      uavg_gf->GetTrueDofs(uavg);
+      Rhs_op->Mult(uavg, rhs);
+
+      CGSolver solver(mesh.GetComm());
+      solver.iterative_mode = false;
+      solver.SetRelTol(1e-5);
+      solver.SetAbsTol(0.0);
+      solver.SetMaxIter(30);
+      solver.SetPrintLevel(0);
+      HypreSmoother prec;
+      //prec.SetType(HypreSmoother::Jacobi);
+      //solver.SetPreconditioner(prec);
+      solver.SetOperator(*M_op);
+      solver.Mult(rhs, u);
+      MFEM_VERIFY(solver.GetConverged(), "Solver did not converge.");
+   }
+   u = 1.0;
+   u_gf.SetFromTrueDofs(u);
+
+/*
+   // Create the conduction operator
+   ConductionOperator conduction(u_fespace, kappa);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   conduction.SetImplicitVariableType(imp_var);
+
+   // Create the ODE solver used for time integration
+   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
+   mfem_ode_solver->Init(conduction);
+*/
+   // Write out the mesh and initial condition
+   {
+      std::ofstream omesh("ex16.mesh");
+      omesh.precision(precision);
+      mesh.Print(omesh);
+      std::ofstream osol("ex16-init.gf");
+      osol.precision(precision);
+      u_gf.Save(osol);
+   }
+
+   // Optionally, create the VisIt output object and save the initial condition
+   std::unique_ptr<VisItDataCollection> visit_dc;
+   if (visit)
+   {
+      //visit_dc = std::make_unique<VisItDataCollection>("Example16", &mesh);
+      visit_dc->RegisterField("temperature", &u_gf);
+      visit_dc->SetCycle(0);
+      visit_dc->SetTime(0.0);
+      visit_dc->Save();
+   }
+
+   // Optionally, create the visualization stream and visualize initial condition
+   socketstream sout;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         std::cout << "Unable to connect to GLVis server at "
+                   << vishost << ':' << visport << std::endl;
+         visualization = false;
+         std::cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout.precision(precision);
+         sout << "solution\n" << mesh << u_gf;
+         sout << "pause\n";
+         sout << std::flush;
+         std::cout << "GLVis visualization paused."
+                   << " Press space (in the GLVis window) to resume it.\n";
+      }
+   }
+   // Create the conduction operator
+   ConductionOperator conduction(u_fespace.get(), kappa);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   conduction.SetImplicitVariableType(imp_var);
+
+   // Create the ODE solver used for time integration
+   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
+   mfem_ode_solver->Init(conduction);
+
+
+
+   /*************************** Advance Solutions *****************************/
+
    const double final_time = samrai_time_integrator->getEndTime();
    int ti = 1;
    bool last_step = false;
    double time = samrai_time_integrator->getIntegratorTime();
-   double dt = samrai_time_integrator->initializeHierarchy();
    while (time < final_time)
    {
       if (time + dt >=  final_time - 0.5*dt)
@@ -324,15 +365,16 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &fespace, real_t kappa)
-   : TimeDependentOperator(fespace.GetTrueVSize(), (real_t) 0.0), current_dt(0.0),
-     z(height)
+ConductionOperator::ConductionOperator(ParFiniteElementSpace *fespace,
+   real_t kappa) : TimeDependentOperator(fespace->GetTrueVSize(), (real_t) 0.0),
+   current_dt(0.0), M_solver(fespace->GetComm()), T_solver(fespace->GetComm()),
+   z(height)
 {
    const real_t rel_tol = 1e-8;
 
-   M = std::make_unique<BilinearForm>(&fespace);
+   M = std::make_unique<ParBilinearForm>(fespace);
    M->AddDomainIntegrator(new MassIntegrator());
-   M->Assemble();
+   M->Assemble(0);
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = false;
@@ -340,13 +382,14 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &fespace, real_t kappa
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(30);
    M_solver.SetPrintLevel(0);
+   M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
-   K = std::make_unique<BilinearForm>(&fespace);
+   K = std::make_unique<ParBilinearForm>(fespace);
    ConstantCoefficient kappa_coeff(kappa);
    K->AddDomainIntegrator(new DiffusionIntegrator(kappa_coeff));
-   K->Assemble();
+   K->Assemble(0);
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    T_solver.iterative_mode = false;
@@ -376,7 +419,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    //    M*k = -dt*K(k) + M*u for k = u_s, if solving for stage-state
    // where K is linearized by using u from the previous timestep, and
    // the stage-state and slope relation: du/dt = (u_s - u)/dt.
-   Tmat = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, dt, Kmat));
+   Tmat = std::unique_ptr<HypreParMatrix>(Add(1.0, Mmat, dt, Kmat));
    T_solver.SetOperator(*Tmat);
 
    // Construct current right-hand side for stage state vs. slope solve
@@ -396,7 +439,9 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
 
 real_t InitialTemperature(const Vector &x)
 {
-   if (x.Norml2() < 0.5)
+   Vector c({15.0, 10.0});
+   c -= x;
+   if (c.Norml2() < 5.0)
    {
       return 2.0;
    }

@@ -42,6 +42,7 @@
 #include "SAMRAI/pdat/FaceIndex.h"
 #include "SAMRAI/pdat/FaceVariable.h"
 #include "SAMRAI/pdat/NodeData.h"
+#include "SAMRAI/pdat/NodeIterator.h"
 #include "SAMRAI/mesh/CascadePartitioner.h"
 #include "SAMRAI/tbox/PIO.h"
 #include "SAMRAI/tbox/RestartManager.h"
@@ -125,6 +126,7 @@ LinAdv::LinAdv(
    d_grid_geometry(grid_geom),
    d_use_nonuniform_workload(false),
    d_allocator(tbox::AllocatorDatabase::getDatabase()->getDefaultAllocator()),
+   d_xval(new pdat::NodeVariable<double>(dim, "xval", d_allocator, dim.getValue())),
    d_uval(new pdat::CellVariable<double>(dim, "uval", d_allocator)),
    d_flux(new pdat::FaceVariable<double>(dim, "flux", d_allocator)),
    d_advection_velocity(dim.getValue()),
@@ -347,6 +349,12 @@ void LinAdv::registerModelVariables(
    TBOX_ASSERT(integrator != 0);
    TBOX_ASSERT(CELLG == FACEG);
 
+   integrator->registerVariable(d_xval, hier::IntVector::getZero(d_dim),
+      algs::HyperbolicLevelIntegrator::INPUT,
+      d_grid_geometry,
+      "CONSTANT_COARSEN",
+      "LINEAR_REFINE");
+
    integrator->registerVariable(d_uval, d_nghosts,
       algs::HyperbolicLevelIntegrator::TIME_DEP,
       d_grid_geometry,
@@ -461,6 +469,23 @@ void LinAdv::initializeDataOnPatch(
       const double* dx = pgeom->getDx();
       const double* xlo = pgeom->getXLower();
       const double* xhi = pgeom->getXUpper();
+
+      std::shared_ptr<pdat::NodeData<double> > xval(
+         SAMRAI_SHARED_PTR_CAST<pdat::NodeData<double>, hier::PatchData>(
+            patch.getPatchData(d_xval, getDataContext())));
+
+      TBOX_ASSERT(xval);
+
+      for (pdat::NodeIterator in(pdat::NodeGeometry::begin(patch.getBox())),
+           in_end(pdat::NodeGeometry::end(patch.getBox()));
+           in != in_end; ++in) {
+
+         const pdat::NodeIndex& ni(*in);
+         for (int d=0; d < d_dim.getValue(); d++)
+         {
+            (*xval)(ni,d) = xlo[d] + dx[d]*ni[d];
+         }
+      }
 
       std::shared_ptr<pdat::CellData<double> > uval(
          SAMRAI_SHARED_PTR_CAST<pdat::CellData<double>, hier::PatchData>(
@@ -3261,4 +3286,20 @@ void LinAdv::addFields(
    }
 }
 #endif
+
+int LinAdv::getPositionId() const
+{
+   hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
+   std::shared_ptr<hier::VariableContext> current =
+      variable_db->getContext("CURRENT");
+   return variable_db->mapVariableAndContextToIndex(d_xval, current);
+}
+
+int LinAdv::getStateId() const
+{
+   hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
+   std::shared_ptr<hier::VariableContext> current =
+      variable_db->getContext("CURRENT");
+   return variable_db->mapVariableAndContextToIndex(d_uval, current);
+}
 
