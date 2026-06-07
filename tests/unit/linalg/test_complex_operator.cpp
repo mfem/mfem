@@ -113,3 +113,61 @@ TEST_CASE("ComplexOperator Quaternion Tests", "[ComplexOperator]")
       REQUIRE(qikx.Normlinf() < tol);
    }
 }
+
+TEST_CASE("ComplexHypreParMatrix GetSystemMatrix",
+          "[ComplexOperator][Parallel][GPU]")
+{
+   // This test reproduces the issue described in PR #5200 on GitHub. See also
+   // the follow up PR #5346.
+
+   // 1. Construct ComplexHypreParMatrix similar to ex25p.
+   const char mesh_file[] = "../../data/inline-quad.mesh";
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   int dim = mesh->Dimension();
+   int ref_levels = 1;
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   int par_ref_levels = 1;
+   for (int l = 0; l < par_ref_levels; l++)
+   {
+      pmesh.UniformRefinement();
+   }
+   int order = 1;
+   ND_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
+   if (pmesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+   }
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   ComplexOperator::Convention conv = ComplexOperator::HERMITIAN;
+   VectorConstantCoefficient f(Vector{1_r, 2_r});
+   ParComplexLinearForm b(&fespace, conv);
+   b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
+   b = 0.0;
+   b.Assemble();
+   ParComplexGridFunction x(&fespace);
+   x = 0.0;
+   ConstantCoefficient one(1_r);
+   ParSesquilinearForm a(&fespace, conv);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(one),
+                         new CurlCurlIntegrator(one));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(one),
+                         new VectorFEMassIntegrator(one));
+   a.Assemble();
+   OperatorPtr Ah;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
+
+   // 2. Test the call to ComplexHypreParMatrix::GetSystemMatrix and destroying
+   //    the returned matrix.
+   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+   delete A;
+}
