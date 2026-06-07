@@ -801,8 +801,8 @@ void DifferentiableOperator::AddIntegrator(
    bool disable_assemble = false;
    for_constexpr([&](auto i)
    {
-      if constexpr (is_identity_fop<
-                    std::decay_t<decltype(get<i>(outputs))>>::value)
+      using output_fop_t = tuple_element_t<i, output_t>;
+      if constexpr (is_identity_fop_v<std::decay_t<output_fop_t>>)
       {
          disable_assemble = true;
       }
