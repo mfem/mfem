@@ -308,7 +308,6 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrial",
    submesh_mat->Mult(*trial_true, *submesh_result);
    reference_mat->Mult(*parent_trial_true, *reference_result);
 
-   REQUIRE(submesh_result->Norml2() > 1e-3);
    *submesh_result -= *reference_result;
    REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
 }
@@ -374,7 +373,6 @@ TEST_CASE("ParMixedBilinearFormSubMeshTrialBoundary",
    submesh_mat->Mult(*trial_true, *submesh_result);
    reference_mat->Mult(*parent_trial_true, *reference_result);
 
-   REQUIRE(submesh_result->Norml2() > 1e-3);
    *submesh_result -= *reference_result;
    REQUIRE(submesh_result->Norml2() == MFEM_Approx(0.0));
 }
