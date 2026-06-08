@@ -1647,8 +1647,14 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       {
          if (domain_integs_marker[k] != NULL)
          {
+            // Check that the user-provided domain_integs_marker size for the current integrator either
+            // matches the number of domain attributes on the test space or trial space, since the
+            // latter may be a subset of the former
             MFEM_VERIFY(domain_integs_marker[k]->Size() ==
-                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
+                        (trial_mesh->attributes.Size() ? trial_mesh->attributes.Max() : 0)
+                        ||
+                        domain_integs_marker[k]->Size() ==
+                        (test_mesh->attributes.Size() ? test_mesh->attributes.Max() : 0),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
@@ -1695,10 +1701,15 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             break;
          }
          Array<int> &bdr_marker = *boundary_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+         // Check that the user-provided boundary_integs_marker size for the current bdr integrator
+         // either matches the number of bdr attributes on the trial space or test space, since the
+         // latter may be a subset of the former
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
+                     || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
+                                              test_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         for (int i = 0; i < bdr_marker.Size(); i++)
          {
             bdr_attr_marker[i] |= bdr_marker[i];
          }
@@ -1796,11 +1807,16 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             bdr_attr_marker = 1;
             break;
          }
+         // Check that the user-provided boundary_face_integs_marker size for the current bdr
+         // integrator either matches the number of bdr attributes on the trial space or test space,
+         // since the latter may be a subset of the former
          Array<int> &bdr_marker = *boundary_face_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
+                     || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
+                                              test_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         for (int i = 0; i < bdr_marker.Size(); i++)
          {
             bdr_attr_marker[i] |= bdr_marker[i];
          }
@@ -1895,11 +1911,16 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             bdr_attr_marker = 1;
             break;
          }
+         // Check that the user-provided boundary_trace_face_integs_marker size for the current bdr
+         // integrator either matches the number of bdr attributes on the trial space or test space,
+         // since the latter may be a subset of the former
          Array<int> &bdr_marker = *boundary_trace_face_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
+                     || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
+                                              test_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary trace face "
                      "integrator #" << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         for (int i = 0; i < bdr_marker.Size(); i++)
          {
             bdr_attr_marker[i] |= bdr_marker[i];
          }
