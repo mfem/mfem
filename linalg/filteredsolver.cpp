@@ -139,7 +139,7 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
 
 void FilteredSolver::SelectFilteredSubspace(const FilteredSolver::SubspaceSelectionMethod m_)
 {
-   auto Ah = dynamic_cast<const HypreParMatrix*>(A);
+   /*auto Ah = dynamic_cast<const HypreParMatrix*>(A);
    MFEM_VERIFY(Ah, "AMGFSolver::SelectFilteredSubspace: HypreParMatrix expected.");
 
    HypreParVector l1_row_norms(*Ah);
@@ -180,7 +180,7 @@ void FilteredSolver::SelectFilteredSubspace(const FilteredSolver::SubspaceSelect
    }
 
    P = ???;
-   solver_set = false;
+   solver_set = false;*/
 }
 
 #ifdef MFEM_USE_MPI
