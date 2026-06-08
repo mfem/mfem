@@ -15,6 +15,12 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added NVIDIA cuDSS library interface. Implementation examples have been 
+  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more 
+  details. Supported versions >= 0.6.0.
+
+- Extend FindPointsGSLIB to support surface meshes.
+
 - Replaced legacy simplex quadrature rules with symmetric positive-weight
   rules for triangles (orders 0-25) and tetrahedra (orders 0-20). These
   rules guarantee all-positive weights and interior quadrature points,
@@ -37,6 +43,11 @@ Meshing improvements
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
+- Added the option to include material interfaces (faces separating elements
+  with different element attributes) as additional boundary elements, for
+  parallel visualization, e.g. with GLVis. This is supported by both the Print
+  and PrintAsOne methods of ParMesh. See ParMesh::SetPrintInterfaces().
+
 New and updated examples and miniapps
 -------------------------------------
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
@@ -45,6 +56,15 @@ New and updated examples and miniapps
 GPU computing
 -------------------------------------
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
+Miscellaneous
+-------------
+- Fixed signed DOF handling in parallel grid-function reading (read constructor)
+  and saving via ParGridFunction::SaveAsOne(). Simplified the process of
+  applying the DOF signs by using the new method ApplyDofSigns() in class
+  ParFiniteElementSpace -- the method will return immediately if no sign flips
+  are needed.
+
 
 Version 4.9, released on Dec 11, 2025
 =====================================
