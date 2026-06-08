@@ -4395,6 +4395,16 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
    return *this;
 }
 
+void DenseMatrixStack::InitOffset()
+{
+   off.SetSize(nk);
+   if (nk > 0) { off[0] = 0; }
+   for (int k = 1; k < nk; k++)
+   {
+      off[k] = off[k - 1] + ni[k - 1] * nj[k - 1];
+   }
+}
+
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);

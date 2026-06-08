@@ -24,6 +24,7 @@ class DenseMatrix : public Matrix
 {
    friend class DenseTensor;
    friend class DenseMatrixInverse;
+   friend class DenseMatrixStack;
 
 private:
    Memory<real_t> data;
@@ -1310,6 +1311,290 @@ public:
    }
 
    ~DenseTensor() { tdata.Delete(); }
+};
+
+/// Three index container (stack of matrices)
+class DenseMatrixStack
+{
+private:
+   mutable DenseMatrix Mk;
+   Memory<real_t> tdata;
+   int tsize;
+   Array<int> off, ni, nj;
+   int nk;
+
+   void InitOffset();
+
+public:
+   DenseMatrixStack()
+      : Mk(NULL, 0, 0)
+   {
+      tsize = 0;
+      nk = 0;
+   }
+
+   DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize);
+   }
+
+   DenseMatrixStack(real_t *d, const Array<int>& ik, const Array<int>& jk,
+                    int k)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(d, tsize, false);
+   }
+
+   DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k,
+                    MemoryType mt)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /// Copy constructor: deep copy
+   DenseMatrixStack(const DenseMatrixStack &other)
+      : Mk(NULL, 0, 0), off(other.off), ni(other.ni), nj(other.nj), nk(other.nk)
+   {
+      tsize = other.tsize;
+      if (tsize > 0)
+      {
+         tdata.New(tsize, other.tdata.GetMemoryType());
+         tdata.CopyFrom(other.tdata, tsize);
+      }
+   }
+
+   int SizeI(int k) const { return ni[k]; }
+   int SizeJ(int k) const { return nj[k]; }
+   int SizeK() const { return nk; }
+
+   int TotalSize() const { return tsize; }
+
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      ni.SetSize(k);
+      nj.SetSize(k);
+      if (k > 0) { ni = i; }
+      if (k > 0) { nj = j; }
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   void SetSize(const Array<int>& ik, const Array<int>& jk, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   void UseExternalData(real_t *ext_data, int i, int j, int k)
+   {
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      ni.SetSize(k);
+      nj.SetSize(k);
+      ni = i;
+      nj = j;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(ext_data, tsize, false);
+   }
+
+   void UseExternalData(real_t *ext_data,
+                        const Array<int>& ik, const Array<int>& jk, int k)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(ext_data, tsize, false);
+   }
+
+   /// @brief Reset the DenseTensor to use the given external Memory @a mem and
+   /// dimensions @a i, @a j, and @a k.
+   ///
+   /// If @a own_mem is false, the DenseTensor will not own any of the pointers
+   /// of @a mem.
+   ///
+   /// Note that when @a own_mem is true, the @a mem object can be destroyed
+   /// immediately by the caller but `mem.Delete()` should NOT be called since
+   /// the DenseTensor object takes ownership of all pointers owned by @a mem.
+   void NewMemoryAndSize(const Memory<real_t> &mem,
+                         const Array<int>& ik, const Array<int>& jk, int k,
+                         bool own_mem)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      if (own_mem)
+      {
+         tdata = mem;
+      }
+      else
+      {
+         tdata.MakeAlias(mem, 0, tsize);
+      }
+   }
+
+   /// Sets the tensor elements equal to constant c
+   DenseMatrixStack &operator=(real_t c);
+
+   /// Copy assignment operator (performs a deep copy)
+   DenseMatrixStack &operator=(const DenseTensor &other);
+
+   DenseMatrix &operator()(int k)
+   {
+      return operator()(k, Mk);
+   }
+   const DenseMatrix &operator()(int k) const
+   {
+      return operator()(k, Mk);
+   }
+   DenseMatrix &operator()(int k, DenseMatrix& buff)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(nullptr, SizeI(k), SizeJ(k));
+      buff.data = Memory<real_t>(GetData(k), SizeI(k)*SizeJ(k), false);
+      return buff;
+   }
+   const DenseMatrix &operator()(int k, DenseMatrix& buff) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(nullptr, SizeI(k), SizeJ(k));
+      buff.data = Memory<real_t>(const_cast<real_t*>(GetData(k)),
+                                 SizeI(k)*SizeJ(k),
+                                 false);
+      return buff;
+   }
+
+   real_t &operator()(int i, int j, int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ(k));
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI(k));
+      return tdata[off[k] + i + SizeI(k) * j];
+   }
+
+   const real_t &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ(k));
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI(k));
+      return tdata[off[k] + i + SizeI(k) * j];
+   }
+
+   real_t *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata + off[k];
+   }
+
+   const real_t *GetData(int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata + off[k];
+   }
+
+   real_t *Data() { return tdata; }
+
+   const real_t *Data() const { return tdata; }
+
+   Memory<real_t> &GetMemory() { return tdata; }
+   const Memory<real_t> &GetMemory() const { return tdata; }
+
+   /** Matrix-vector product from unassembled element matrices, assuming both
+       'x' and 'y' use the same elem_dof table. */
+   void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
+
+   void Clear()
+   {
+      tdata.Delete();
+      tsize = 0;
+      Mk.UseExternalData(NULL, 0, 0);
+      off.LoseData();
+      ni.LoseData();
+      nj.LoseData();
+      nk = 0;
+   }
+
+   std::size_t MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const real_t *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const real_t *HostRead() const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   real_t *Write(bool on_dev = true)
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   real_t *HostWrite()
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   real_t *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   real_t *HostReadWrite()
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseMatrixStack &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
+
+   ~DenseMatrixStack() { tdata.Delete(); }
 };
 
 /** @brief Compute the LU factorization of a batch of matrices. Calls
