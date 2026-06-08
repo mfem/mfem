@@ -26,8 +26,8 @@
 #include <tuple>
 
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-
-#include "internal/mmu.tcc"
+#define MFEM_MMU_CPP
+#include "internal/mmu.cpp"
 
 namespace mfem
 {

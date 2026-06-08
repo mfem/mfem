@@ -54,7 +54,8 @@
 #include <sstream>
 
 #ifndef MFEM_USE_NEW_MEM_MANAGER
-#include "internal/mmu.tcc"
+#define MFEM_MMU_CPP
+#include "internal/mmu.cpp"
 #endif
 
 // Internal debug option, useful for tracking some memory manager operations.
