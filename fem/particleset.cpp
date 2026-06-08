@@ -789,7 +789,8 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
    crystal_init(cr, gsl_comm);
 #endif // MFEM_USE_GSLIB
 
-   router = new CrystalRouter(comm);
+   router = new CrystalRouterOld(comm);
+   router_native = new CrystalRouter(comm);
 }
 #endif // MFEM_USE_MPI
 
@@ -1042,6 +1043,7 @@ ParticleSet::~ParticleSet()
 {
 #ifdef MFEM_USE_MPI
    delete router;
+   delete router_native;
 #endif
 
 // again, more gslib stuff

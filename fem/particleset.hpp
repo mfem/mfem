@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "../general/crystal.hpp"
+#include "../general/crystal_old.hpp"
 
 #include "gslib.hpp"
 #include "kernel_dispatch.hpp"
@@ -336,7 +337,8 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   CrystalRouter* router = nullptr;
+   CrystalRouterOld* router = nullptr;     // backs Redistribute (scalar columns)
+   CrystalRouter* router_native = nullptr; // backs RedistributeNative (ParticleVector columns)
 #endif // MFEM_USE_MPI
 
 //#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)

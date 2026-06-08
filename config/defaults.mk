@@ -133,9 +133,9 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI           = NO
+MFEM_USE_MPI           = YES
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5       = NO
+MFEM_USE_METIS_5       = YES
 MFEM_PRECISION         = double
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
@@ -167,8 +167,8 @@ MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
-MFEM_USE_GSLIB         = NO
-MFEM_USE_CUDA          = NO
+MFEM_USE_GSLIB         = YES
+MFEM_USE_CUDA          = NOtaging buffers: vdim reals per outgoing particle (byVDIM layout)
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
@@ -254,7 +254,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.1.0
+     METIS_DIR = @MFEM_DIR@/../metis
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif

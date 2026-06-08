@@ -7,6 +7,7 @@
 #include <mpi.h>
 #include <vector>
 #include "../linalg/vector.hpp"
+#include "../linalg/particlevector.hpp"
 #include "array.hpp"
 
 namespace mfem
@@ -18,22 +19,19 @@ public:
    CrystalRouter(MPI_Comm comm);
    ~CrystalRouter();
 
-   void Route(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data);
+   void Route(ParticleVector &data, Array<int> &ranks);
 
 private:
    MPI_Comm comm;
    int rank, nprocs;
 
-   // partition items into keep vs send based on rank
-   void Move(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data,
-            int cutoff, bool send_hi,
-            Array<int> &send_ranks, std::vector<Array<int>> &send_int_data, std::vector<Array<real_t>> &send_real_data);
+   Array<int> send_rank_buf;
+   Array<real_t> send_data_buf;
 
+   void Move(ParticleVector &data, Array<int> &ranks, int cutoff, bool send_hi);
 
-   // exchange send buffers with partner ranks and append received items to ranks and data
-   void Exchange(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data,
-                 int target, int recvn, int tag,
-                 Array<int> &send_ranks, std::vector<Array<int>> &send_int_data, std::vector<Array<real_t>> &send_real_data);
+   void Exchange(ParticleVector &data, Array<int> &ranks,
+                 int target, int recvn, int tag);
 };
 
 }
