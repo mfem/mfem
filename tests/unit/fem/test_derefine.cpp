@@ -144,6 +144,10 @@ int PolyCoeff::order_ = -1;
 
 void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
 {
+   CAPTURE(order);
+   CAPTURE(el_type);
+   CAPTURE(basis_type);
+
    Mesh mesh;
    if (dimension == 1)
    {
@@ -193,6 +197,9 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    Vector coarse_soln_v{x};
 
    double mass_coarse = integrate(&x);
+
+   CAPTURE(mass_fine);
+   CAPTURE(mass_coarse);
 
    // conservation check
    REQUIRE( fabs(mass_fine-mass_coarse) < 1.e-12 );
