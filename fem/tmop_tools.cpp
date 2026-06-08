@@ -494,8 +494,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const real_t min_detT_in =
-      detj_bound ? ComputeDetJprLowerBound(d_loc, *fes)
-      /* */      : ComputeMinDet(d_loc, *fes);
+      detJpr_pos_bound ? ComputeDetJptLowerBound(d_loc, *fes)
+      /* */            : ComputeMinDet(d_loc, *fes);
 
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
@@ -548,8 +548,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
       // Check the changes in detJ.
       min_detT_out =
-         detj_bound ? ComputeDetJprLowerBound(d_loc, *fes)
-         /* */      : ComputeMinDet(d_loc, *fes);
+         detJpr_pos_bound ? ComputeDetJptLowerBound(d_loc, *fes)
+         /* */            : ComputeMinDet(d_loc, *fes);
 
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
@@ -993,7 +993,7 @@ void TMOPNewtonSolver::EnsurePositiveDeterminantBound(
    det_plb = std::make_unique<PLBound>(det_gf->FESpace(),
                                        ref_factor*(max_order+1));
    plb_rec_depth = max_recursion_depth;
-   detj_bound = true;
+   detJpr_pos_bound = true;
 }
 
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
@@ -1055,7 +1055,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    return min_detJ;
 }
 
-real_t TMOPNewtonSolver::ComputeDetJprLowerBound(const Vector &d_loc,
+real_t TMOPNewtonSolver::ComputeDetJptLowerBound(const Vector &d_loc,
                                                  const FiniteElementSpace &fes) const
 {
    MFEM_VERIFY(det_gf != nullptr && det_plb != nullptr,

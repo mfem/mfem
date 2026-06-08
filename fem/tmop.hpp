@@ -13,7 +13,7 @@
 #define MFEM_TMOP_HPP
 
 #include "../linalg/invariants.hpp"
-#include "gridfunc.hpp"
+#include "nonlininteg.hpp"
 #include "../linalg/dual.hpp"
 
 namespace mfem
@@ -2591,8 +2591,6 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
-
-
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

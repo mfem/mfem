@@ -205,7 +205,7 @@ protected:
    IntegrationRules *IntegRules;
    int integ_order;
    // Determinant lower-bound data used by the line search.
-   bool detj_bound = false;
+   bool detJpr_pos_bound = false;
    std::unique_ptr<GridFunction> det_gf;
    std::unique_ptr<PLBound> det_plb;
    int plb_rec_depth = 0;
@@ -221,14 +221,14 @@ protected:
       return ir;
    }
 
-   /// Compute the minimum determinant of the trial mesh at quadrature points,
-   /// scaled by determinant of ideal target element.
+   /// Compute the minimum det(Jpt) of the trial mesh at quadrature points
+   /// (computes det(Jpr) and scales by the det of ideal target element).
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   /// Compute a lower bound for the minimum determinant of the trial mesh,
-   /// scaled by determinant of ideal target element.
-   real_t ComputeDetJprLowerBound(const Vector &d_loc,
+   /// Compute a lower bound for det(Jpt) of the trial mesh,
+   /// (computes det(Jpr) and scales by the det of ideal target element).
+   real_t ComputeDetJptLowerBound(const Vector &d_loc,
                                   const FiniteElementSpace &fes) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
@@ -274,13 +274,18 @@ public:
    void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
 
    /** @brief Ensure a positive lower bound for the determinant during
-       line-search.
-       @note The solver creates and updates its own internal copy
+       line-search (guaranteed for tensor-product elements).
+
+       The solver creates and updates its own internal copy
        of this GridFunction while testing trial mesh positions.
        The @a ref_factor controls the number of control points used by
        the PLBound object, and @a max_recursion_depth controls the depth used by
        the minimum-value estimator.
-   */
+
+       The determinant is represented by a high-order GridFunction computed
+       at the mesh nodes. The order is chosen s.t. interpolating the det at
+       some quad point would be equivalent to computing the det directly at the
+       same quad point using the mesh positions. */
    void EnsurePositiveDeterminantBound(GridFunction &det_gf_, int ref_factor,
                                        int max_recursion_depth = 0);
 
