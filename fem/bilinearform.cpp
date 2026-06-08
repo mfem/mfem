@@ -2560,7 +2560,6 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
    FiniteElementSpace &iterated_fes = *trial_fes;
    Mesh *mesh = iterated_fes.GetMesh();
    const int num_elem = iterated_fes.GetNE();
-   const int num_boundary_elem = iterated_fes.GetNBE();
 
    if (mat == NULL)
    {
