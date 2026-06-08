@@ -15,7 +15,19 @@
 namespace mfem
 {
 
-static constexpr int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
+static constexpr int def_ref_type_num_children[] = { 0, 2, 2, 4, 2, 4, 4, 8 };
+static constexpr int tri_ref_type_num_children[] = { 0, 2, 2, 2, 4 };
+static const int* const ref_type_num_children[Geometry::NUM_GEOMETRIES] =
+{
+   NULL,
+   def_ref_type_num_children,
+   tri_ref_type_num_children,
+   def_ref_type_num_children,
+   def_ref_type_num_children,
+   def_ref_type_num_children,
+   def_ref_type_num_children,
+   def_ref_type_num_children
+};
 
 // derefinement tables
 // The first n numbers in each line are the refined elements that contain

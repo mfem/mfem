@@ -677,6 +677,8 @@ protected: // implementation
       Geometry::Type Geom() const { return Geometry::Type(geom); }
       bool IsLeaf() const { return !ref_type && (parent != -2); }
       int GetAttribute() const { return attribute; }
+
+      unsigned int GetNumChildren(int iref_type) const;
    };
 
 
@@ -1409,6 +1411,8 @@ protected:
    };
 
    static GeomInfo GI[Geometry::NumGeom];
+
+   static void InitGeomInfoByDim(int dim, GeomInfo gi[]);
 
    /// This is used for a NURBS mesh with this NCMesh as its patch topology.
    VertexToKnotSpan vertex_to_knotspan;

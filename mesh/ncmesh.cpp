@@ -124,6 +124,16 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    initialized = true;
 }
 
+void NCMesh::InitGeomInfoByDim(int dim, GeomInfo gi[])
+{
+   MFEM_ASSERT(dim > 0 && dim <= Geometry::MaxDim, "unsupported dimension");
+
+   for (int t = Geometry::DimStart[dim]; t < Geometry::DimStart[dim+1]; t++)
+   {
+      gi[t].InitGeom((Geometry::Type)t);
+   }
+}
+
 NCMesh::NCMesh(const Mesh *mesh)
    : shadow(1024, 2048)
 {
@@ -133,6 +143,8 @@ NCMesh::NCMesh(const Mesh *mesh)
    Iso = true;
    Legacy = false;
 
+   InitGeomInfoByDim(Dim, GI);
+
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -140,13 +152,6 @@ NCMesh::NCMesh(const Mesh *mesh)
 
       Geometry::Type geom = elem->GetGeometryType();
       CheckSupportedGeom(geom);
-      GI[geom].InitGeom(geom);
-
-      // if we have pyramids we will need tets after refinement
-      if (geom == Geometry::PYRAMID)
-      {
-         GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
-      }
 
       // create NCMesh::Element for this mfem::Element
       int root_id = AddElement(geom, elem->GetAttribute());
@@ -611,6 +616,10 @@ NCMesh::Element::Element(Geometry::Type geom, int attr)
    // 4-element arrays were used (e.g. through templates); we thus prefer to
    // keep the code as simple as possible.
 }
+
+unsigned int NCMesh::Element::GetNumChildren(int iref_type) const
+{ return ref_type_num_children[(int)geom][iref_type]; }
+
 
 int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
                           int n4, int n5, int n6, int n7,
@@ -6551,6 +6560,8 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       input >> ident;
    }
 
+   InitGeomInfoByDim(Dim, GI);
+
    // load elements
    MFEM_VERIFY(ident == "elements", "Invalid mesh file: " << ident);
    input >> count;
@@ -6569,7 +6580,6 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       if (geom >= 0)
       {
          CheckSupportedGeom(type);
-         GI[geom].InitGeom(type);
 
          input >> ref_type;
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
@@ -6577,7 +6587,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
 
          if (ref_type) // refined element
          {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            for (unsigned int j = 0; j < el.GetNumChildren(ref_type); j++)
             {
                input >> el.child[j];
             }
@@ -6727,7 +6737,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
       // load child IDs and make parent-child links
-      int nch = ref_type_num_children[ref_type];
+      int nch = el.GetNumChildren(ref_type);
       for (int i = 0, id; i < nch; i++)
       {
          input >> id;
@@ -6793,6 +6803,8 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
    MFEM_VERIFY(ident == "dimension", "invalid mesh file");
    input >> Dim;
 
+   InitGeomInfoByDim(Dim, GI);
+
    // load elements
    skip_comment_lines(input, '#');
    input >> ident;
@@ -6805,7 +6817,6 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
 
       Geometry::Type type = Geometry::Type(geom);
       CheckSupportedGeom(type);
-      GI[geom].InitGeom(type);
 
       int eid = AddElement(type, attr);
       MFEM_ASSERT(eid == i, "");
