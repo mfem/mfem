@@ -399,7 +399,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          });
 
          emb_tr.SetIdentityTransformation(geom);
-         const DenseTensor &pmats = cf_tr.point_matrices[geom];
+         const DenseMatrixStack &pmats = cf_tr.point_matrices[geom];
 
          // Collect the basis functions
          for (int iref = 0; iref < nref; ++iref)
@@ -546,7 +546,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
       ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor &pmats = cf_tr.point_matrices[geom];
+      const DenseMatrixStack &pmats = cf_tr.point_matrices[geom];
 
       DenseMatrix R_iho(&R[offsets[iho]], ndof_lor*nref, ndof_ho);
 
@@ -1617,7 +1617,7 @@ std::unique_ptr<SparseMatrix>>
       ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor& pmats = cf_tr.point_matrices[geom];
+      const DenseMatrixStack& pmats = cf_tr.point_matrices[geom];
 
       int nedof_ho = fe_ho.GetDof();
       int nedof_lor = fe_lor.GetDof();

@@ -11775,7 +11775,7 @@ const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
             CoarseFineTr.embeddings[j].matrix = index;
          }
 
-         DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
+         DenseMatrixStack &pmats = CoarseFineTr.point_matrices[geom];
          pmats.SetSize(Dim, Dim+1, static_cast<int>((mat_no.size())));
 
          // calculate the point matrices used

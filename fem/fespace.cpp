@@ -1731,7 +1731,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
       isotr.SetIdentityTransformation(geom);
       const int ldof = fe->GetDof();
       lP.SetSize(ldof, ldof);
-      const DenseTensor &pmats = rtrans.point_matrices[geom];
+      const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
       isotr.SetPointMat(pmats(emb.matrix));
       fe->GetLocalInterpolation(isotr, lP);
 
@@ -1771,7 +1771,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.point_matrices[geom];
+   const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
    int ldof = fe->GetDof();
@@ -1949,7 +1949,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          isotr.SetIdentityTransformation(geom);
          const int ldof = fe->GetDof();
          eP.SetSize(ldof, ldof);
-         const DenseTensor &pmats = trans_ref.point_matrices[geom];
+         const DenseMatrixStack &pmats = trans_ref.point_matrices[geom];
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);
       }
@@ -2035,7 +2035,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
          isotr.SetIdentityTransformation(geom);
          const int ldof = fe->GetDof();
          eP.SetSize(ldof);
-         const DenseTensor &pmats = trans_ref.point_matrices[geom];
+         const DenseMatrixStack &pmats = trans_ref.point_matrices[geom];
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);
       }
@@ -2249,7 +2249,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          f_fes->fec->FiniteElementForGeometry(geom);
       const FiniteElement *coarse_fe =
          c_fes->fec->FiniteElementForGeometry(geom);
-      const DenseTensor &pmats = rtrans.point_matrices[geom];
+      const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
 
       lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
       lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
@@ -2367,7 +2367,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
-   const DenseTensor &pmats = dtrans.point_matrices[geom];
+   const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
 
    const int nmat = pmats.SizeK();
    const int ldof = fe->GetDof();
@@ -2430,7 +2430,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       if (IsVariableOrder())
       {
          fe = GetFE(emb.parent);
-         const DenseTensor &pmats = dtrans.point_matrices[geom];
+         const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
          const int ldof = fe->GetDof();
 
          IsoparametricTransformation isotr;
@@ -2494,7 +2494,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
       coarse_fes.fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.point_matrices[geom];
+   const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
 
