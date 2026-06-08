@@ -337,7 +337,7 @@ int main (int argc, char *argv[])
    args.AddOption(&detj_bound, "-db", "--detj-bound",
                   "-no-db", "--no-detj-bound",
                   "Enable or disable strict enforcement of positive Jacobian "
-                  "determinants to guarantee mesh validity.");
+                  "determinants to guarantee mesh validity for tensor-product " "elements.");
    args.Parse();
    if (!args.Good())
    {
