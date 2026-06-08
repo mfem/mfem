@@ -1803,8 +1803,12 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          ilu_fact_type::build()
          .with_skip_sorting(skip_sort)
          .on(executor);
+#if MFEM_GINKGO_VERSION < 20000
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#else
+      precond_gen = gko::preconditioner::Ilu<>::build()
+#endif
       .with_factorization(fact_factory)
       .with_l_solver(l_solver_factory)
       .with_u_solver(u_solver_factory)
@@ -1819,8 +1823,12 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .with_iterations(static_cast<unsigned long>(sweeps))
          .with_skip_sorting(skip_sort)
          .on(executor);
+#if MFEM_GINKGO_VERSION < 20000
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#else
+      precond_gen = gko::preconditioner::Ilu<>::build()
+#endif
       .with_factorization(fact_factory)
       .with_l_solver(l_solver_factory)
       .with_u_solver(u_solver_factory)
@@ -1889,7 +1897,11 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_both_factors(false)
          .with_skip_sorting(skip_sort)
          .on(executor);
+#if MFEM_GINKGO_VERSION < 20000
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#else
+      precond_gen = gko::preconditioner::Ic<>::build()
+#endif
                     .with_factorization(fact_factory)
                     .with_l_solver(l_solver_factory)
                     .on(executor);
@@ -1903,7 +1915,11 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_iterations(static_cast<unsigned long>(sweeps))
          .with_skip_sorting(skip_sort)
          .on(executor);
+#if MFEM_GINKGO_VERSION < 20000
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#else
+      precond_gen = gko::preconditioner::Ic<>::build()
+#endif
                     .with_factorization(fact_factory)
                     .with_l_solver(l_solver_factory)
                     .on(executor);
