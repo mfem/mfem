@@ -275,20 +275,18 @@ public:
 
    /** @brief Ensure a positive lower bound for the determinant during
        line-search.
-       @note The solver creates and updates its own internal copy
-       of this GridFunction while testing trial mesh positions.
-       The @a ref_factor controls the number of control points used by
-       the PLBound object, and @a max_recursion_depth controls the depth used by
-       the minimum-value estimator.
+       @note The solver creates and updates its own determinant GridFunction
+       from @a mesh while testing trial mesh positions. When @a mesh is a
+       ParMesh, the internal determinant field is a ParGridFunction. The
+       @a ref_factor controls the number of control points used by the PLBound
+       object, and @a max_recursion_depth controls the depth used by the
+       minimum-value estimator.
    */
-   void EnsurePositiveDeterminantBound(GridFunction &det_gf_, int ref_factor,
+   void EnsurePositiveDeterminantBound(Mesh &mesh, int ref_factor,
                                        int max_recursion_depth = 0);
 
    /// Update internal determinant GridFunction after a mesh topology change.
-   void UpdateDeterminantBoundGridFunction()
-   {
-      if (det_gf) { det_gf->Update(); }
-   }
+   void UpdateDeterminantBoundGridFunction();
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }

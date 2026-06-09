@@ -392,8 +392,6 @@ int main (int argc, char *argv[])
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   auto detgf = pmesh->GetJacobianDeterminantGF();
-
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
    // The nonlinear problem will be solved for the continuous displacement.
@@ -477,7 +475,6 @@ int main (int argc, char *argv[])
          common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
                                300, 600, 300, 300);
       }
-      pmesh->UpdateJacobianDeterminantGF(*detgf.get());
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This
@@ -1192,7 +1189,6 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (detj_bound) { solver.EnsurePositiveDeterminantBound(*detgf, 4, 4); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.
@@ -1205,6 +1201,12 @@ int main (int argc, char *argv[])
    if (solver_art_type > 0)
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
+   if (detj_bound)
+   {
+      const int bound_refs = 4; // number of refinements to compute bounds
+      const int bound_recs = 4; // number of recursions for the bound search
+      solver.EnsurePositiveDeterminantBound(*pmesh, bound_refs, bound_recs);
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
@@ -1224,11 +1226,6 @@ int main (int argc, char *argv[])
                           n_hr_iter, n_h_iter);
    hr_solver.AddGridFunctionForUpdate(&x0);
    hr_solver.AddFESpaceForUpdate(&pfes_h1);
-   if (detj_bound)
-   {
-      hr_solver.AddGridFunctionForUpdate(detgf.get());
-      hr_solver.AddFESpaceForUpdate(detgf->ParFESpace());
-   }
    if (adapt_lim_const > 0.)
    {
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);

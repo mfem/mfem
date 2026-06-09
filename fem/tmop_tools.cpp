@@ -976,24 +976,34 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 }
 
 void TMOPNewtonSolver::EnsurePositiveDeterminantBound(
-   GridFunction &det_gf_, int ref_factor, int max_recursion_depth)
+   Mesh &mesh, int ref_factor, int max_recursion_depth)
 {
 #ifdef MFEM_USE_MPI
-   if (ParGridFunction *pdet_gf = dynamic_cast<ParGridFunction *>(&det_gf_))
+   if (ParMesh *pmesh = dynamic_cast<ParMesh *>(&mesh))
    {
-      det_gf = std::make_unique<ParGridFunction>(*pdet_gf);
+      det_gf = pmesh->GetJacobianDeterminantGF();
    }
    else
 #endif
    {
-      det_gf = std::make_unique<GridFunction>(det_gf_);
+      det_gf = mesh.GetJacobianDeterminantGF();
    }
 
+   // setup the PLBound object for estimating the minima.
+   // note: this must be updated if the mesh is p-refined.
    int max_order = det_gf->FESpace()->GetMaxElementOrder();
    det_plb = std::make_unique<PLBound>(det_gf->FESpace(),
                                        ref_factor*(max_order+1));
    plb_rec_depth = max_recursion_depth;
    detj_bound = true;
+}
+
+void TMOPNewtonSolver::UpdateDeterminantBoundGridFunction()
+{
+   if (!det_gf) { return; }
+
+   det_gf->FESpace()->Update();
+   det_gf->Update();
 }
 
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
