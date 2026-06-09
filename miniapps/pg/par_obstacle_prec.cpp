@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    int order = 1;
-   int ref_levels = 5;
+   int ref_levels = 2;
    int max_prox_it = 1000;
    real_t prox_tol = 1e-06;
    int max_newt_it = 50;
@@ -57,20 +57,11 @@ int main(int argc, char *argv[])
    FunctionCoefficient u_exact(exact_solution);
    VectorFunctionCoefficient u_grad_exact(dim, exact_solution_gradient);
    Shannon entropy;
-   // CoefficientScaledLegendreFunction entropy(new Shannon);
-   // entropy.SetShift(obstacle);
 
    for (int l = 0; l < ref_levels; l++)
    {
       ser_mesh.UniformRefinement();
    }
-   // {
-   //    int curvature_order = max(order,2);
-   //    ser_mesh.SetCurvature(curvature_order);
-   //    GridFunction *nodes = ser_mesh.GetNodes();
-   //    real_t scale = 2*sqrt(2);
-   //    *nodes /= scale;
-   // }
    ParMesh mesh(MPI_COMM_WORLD, ser_mesh);
    ser_mesh.Clear();
 
@@ -93,7 +84,6 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh.bdr_attributes.Size() ? mesh.bdr_attributes.Max() : 0);
    ess_bdr = 1;
-   ess_bdr.Print();
    Array<int> ess_tdof_list;
    primal_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 

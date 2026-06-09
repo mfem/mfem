@@ -61,9 +61,9 @@
 -prec_pc_bddc_coarse_pc_type cholesky
 
 # deluxe scaling (needs PETSc compiled with support for MUMPS)
-#-prec_pc_bddc_use_deluxe_scaling
+-prec_pc_bddc_use_deluxe_scaling
 #-prec_pc_bddc_deluxe_zerorows
 
 # adaptive generation of primal space (needs MUMPS)
-#-prec_pc_bddc_adaptive_threshold 5
-#-prec_pc_bddc_schur_exact
+-prec_pc_bddc_adaptive_threshold 5
+-prec_pc_bddc_schur_exact

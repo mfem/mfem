@@ -156,6 +156,7 @@ void Gibbs::gradinv(const Vector &x, Vector &invg) const
 void Gibbs::hessinv(const Vector &x, DenseMatrix &H) const
 {
    y.SetSize(x.Size());
+   H.SetSize(x.Size());
    gradinv(x, y);
    H.Diag(y.GetData(), y.Size());
    AddMult_a_VVt(-1.0, y, H);
