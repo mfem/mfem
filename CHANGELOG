@@ -59,6 +59,8 @@ GPU computing
   no-op and can be removed from user code. Note that the copy sometimes performed
   by SyncAlias is deferred to the next call to Read/ReadWrite.
   
+- Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
 Miscellaneous
 -------------
 - Fixed signed DOF handling in parallel grid-function reading (read constructor)
