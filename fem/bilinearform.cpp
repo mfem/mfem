@@ -1551,29 +1551,44 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
-static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
-                                   const Array<int> *&test_element_ids,
-                                   const Array<int> *&test_face_ids,
-                                   const Array<int> *&test_edge_ids,
-                                   const Array<int> *&test_vertex_ids)
+static bool IsSubMesh(const Mesh *sub, const Mesh *parent)
 {
    if (SubMesh::IsSubMesh(sub, parent))
    {
-      const SubMesh *trial_submesh = static_cast<const SubMesh *>(sub);
-      test_element_ids = &trial_submesh->GetParentElementIDMap();
-      test_face_ids = &trial_submesh->GetParentFaceIDMap();
-      test_edge_ids = &trial_submesh->GetParentEdgeIDMap();
-      test_vertex_ids = &trial_submesh->GetParentVertexIDMap();
       return true;
    }
 #ifdef MFEM_USE_MPI
    if (ParSubMesh::IsParSubMesh(sub, parent))
    {
-      const ParSubMesh *trial_submesh = static_cast<const ParSubMesh *>(sub);
-      test_element_ids = &trial_submesh->GetParentElementIDMap();
-      test_face_ids = &trial_submesh->GetParentFaceIDMap();
-      test_edge_ids = &trial_submesh->GetParentEdgeIDMap();
-      test_vertex_ids = &trial_submesh->GetParentVertexIDMap();
+      return true;
+   }
+#endif
+   return false;
+}
+
+static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
+                                   const Array<int> *&sub_to_parent_element_ids,
+                                   const Array<int> *&sub_to_parent_face_ids,
+                                   const Array<int> *&sub_to_parent_edge_ids,
+                                   const Array<int> *&sub_to_parent_vertex_ids)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      const SubMesh *submesh = static_cast<const SubMesh *>(sub);
+      sub_to_parent_element_ids = &submesh->GetParentElementIDMap();
+      sub_to_parent_face_ids = &submesh->GetParentFaceIDMap();
+      sub_to_parent_edge_ids = &submesh->GetParentEdgeIDMap();
+      sub_to_parent_vertex_ids = &submesh->GetParentVertexIDMap();
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      const ParSubMesh *submesh = static_cast<const ParSubMesh *>(sub);
+      sub_to_parent_element_ids = &submesh->GetParentElementIDMap();
+      sub_to_parent_face_ids = &submesh->GetParentFaceIDMap();
+      sub_to_parent_edge_ids = &submesh->GetParentEdgeIDMap();
+      sub_to_parent_vertex_ids = &submesh->GetParentVertexIDMap();
       return true;
    }
 #endif
@@ -1592,48 +1607,86 @@ void MixedBilinearForm::Assemble(int skip_zeros)
    Mesh *test_mesh = test_fes->GetMesh();
 
    const bool same_mesh = (trial_mesh == test_mesh);
-   const Array<int> *test_element_ids = NULL;
-   const Array<int> *test_face_ids = NULL;
-   const Array<int> *test_edge_ids = NULL;
-   const Array<int> *test_vertex_ids = NULL;
+   const bool is_trial_submesh = IsSubMesh(trial_mesh, test_mesh);
+   const bool is_test_submesh = IsSubMesh(test_mesh, trial_mesh);
+   const Array<int> *submesh_parent_element_ids = NULL;
+   const Array<int> *submesh_parent_face_ids = NULL;
+   const Array<int> *submesh_parent_edge_ids = NULL;
+   const Array<int> *submesh_parent_vertex_ids = NULL;
    Array<int> test_face_to_be;
+   Array<int> trial_face_to_be;
 
    if (!same_mesh)
    {
-      MFEM_VERIFY(GetSubMeshParentIDMaps(trial_mesh, test_mesh,
-                                         test_element_ids, test_face_ids,
-                                         test_edge_ids, test_vertex_ids),
+      MFEM_VERIFY(is_trial_submesh || is_test_submesh,
                   "MixedBilinearForm::Assemble requires trial and test spaces "
                   "on the same mesh, or the trial space on a direct SubMesh "
                   "of the test space");
-      test_face_to_be = test_mesh->GetFaceToBdrElMap();
+      if (is_trial_submesh)
+      {
+         GetSubMeshParentIDMaps(trial_mesh, test_mesh,
+                                submesh_parent_element_ids, submesh_parent_face_ids,
+                                submesh_parent_edge_ids, submesh_parent_vertex_ids);
+         test_face_to_be = test_mesh->GetFaceToBdrElMap();
+      }
+      if (is_test_submesh)
+      {
+         GetSubMeshParentIDMaps(test_mesh, trial_mesh,
+                                submesh_parent_element_ids, submesh_parent_face_ids,
+                                submesh_parent_edge_ids, submesh_parent_vertex_ids);
+         trial_face_to_be = trial_mesh->GetFaceToBdrElMap();
+      }
    }
 
    ElementTransformation *eltrans;
    DenseMatrix elmat;
 
-   FiniteElementSpace &iterated_fes = *trial_fes;
+   FiniteElementSpace &iterated_fes = (same_mesh ||
+                                       is_trial_submesh) ? *trial_fes : *test_fes;
    Mesh *mesh = iterated_fes.GetMesh();
    const int num_elem = iterated_fes.GetNE();
    const int num_boundary_elem = iterated_fes.GetNBE();
 
-   auto GetTestElementID = [same_mesh, test_element_ids](int elem) -> int
+   auto GetTestElementID = [same_mesh, is_trial_submesh,
+                                       submesh_parent_element_ids](int elem) -> int
    {
-      return same_mesh ? elem : (*test_element_ids)[elem];
+      return (!same_mesh && is_trial_submesh) ? (*submesh_parent_element_ids)[elem] : elem;
    };
 
-   auto GetTestBdrElementID = [same_mesh, mesh, test_face_ids, test_edge_ids,
-                                          test_vertex_ids, &test_face_to_be](int bdr_elem) -> int
+   auto GetTrialElementID = [same_mesh, is_test_submesh,
+                                        submesh_parent_element_ids](int elem) -> int
    {
-      if (same_mesh)
+      return (!same_mesh && is_test_submesh) ? (*submesh_parent_element_ids)[elem] : elem;
+   };
+
+   auto GetTestBdrElementID = [same_mesh, is_trial_submesh, mesh,
+                                          submesh_parent_face_ids, submesh_parent_edge_ids,
+                                          submesh_parent_vertex_ids, &test_face_to_be](int bdr_elem) -> int
+   {
+      if (same_mesh || !is_trial_submesh)
       {
          return bdr_elem;
       }
       const int iface = mesh->GetBdrElementFaceIndex(bdr_elem);
-      const int test_face_id = mesh->Dimension() == 3   ? (*test_face_ids)[iface]
-      : mesh->Dimension() == 2 ? (*test_edge_ids)[iface]
-      : (*test_vertex_ids)[iface];
+      const int test_face_id = mesh->Dimension() == 3   ? (*submesh_parent_face_ids)[iface]
+      : mesh->Dimension() == 2 ? (*submesh_parent_edge_ids)[iface]
+      : (*submesh_parent_vertex_ids)[iface];
       return test_face_to_be[test_face_id];
+   };
+
+   auto GetTrialBdrElementID = [same_mesh, is_test_submesh, mesh,
+                                           submesh_parent_face_ids, submesh_parent_edge_ids,
+                                           submesh_parent_vertex_ids, &trial_face_to_be](int bdr_elem) -> int
+   {
+      if (same_mesh || !is_test_submesh)
+      {
+         return bdr_elem;
+      }
+      const int iface = mesh->GetBdrElementFaceIndex(bdr_elem);
+      const int trial_face_id = mesh->Dimension() == 3   ? (*submesh_parent_face_ids)[iface]
+      : mesh->Dimension() == 2 ? (*submesh_parent_edge_ids)[iface]
+      : (*submesh_parent_vertex_ids)[iface];
+      return trial_face_to_be[trial_face_id];
    };
 
    if (mat == NULL)
@@ -1663,9 +1716,10 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < num_elem; i++)
       {
+         const int trial_elem_id = GetTrialElementID(i);
          const int test_elem_id = GetTestElementID(i);
          const int elem_attr = mesh->GetAttribute(i);
-         trial_fes->GetElementVDofs(i, trial_vdofs, dom_dof_trans);
+         trial_fes->GetElementVDofs(trial_elem_id, trial_vdofs, dom_dof_trans);
          test_fes->GetElementVDofs(test_elem_id, test_vdofs, ran_dof_trans);
          eltrans = iterated_fes.GetElementTransformation(i);
 
@@ -1677,7 +1731,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                domain_integs[k]->AssembleElementMatrix2(
-                  *trial_fes->GetFE(i), *test_fes->GetFE(test_elem_id),
+                  *trial_fes->GetFE(trial_elem_id), *test_fes->GetFE(test_elem_id),
                   *eltrans, elemmat);
                elmat += elemmat;
             }
@@ -1718,12 +1772,13 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < num_boundary_elem; i++)
       {
+         const int trial_bdr_elem_id = GetTrialBdrElementID(i);
          const int test_bdr_elem_id = GetTestBdrElementID(i);
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         if (test_bdr_elem_id == -1) { continue; }
+         if (trial_bdr_elem_id == -1 || test_bdr_elem_id == -1) { continue; }
 
-         trial_fes->GetBdrElementVDofs(i, trial_vdofs, dom_dof_trans);
+         trial_fes->GetBdrElementVDofs(trial_bdr_elem_id, trial_vdofs, dom_dof_trans);
          test_fes->GetBdrElementVDofs(test_bdr_elem_id, test_vdofs, ran_dof_trans);
          eltrans = iterated_fes.GetBdrElementTransformation(i);
 
@@ -1735,7 +1790,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                 (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
             boundary_integs[k]->AssembleElementMatrix2(
-               *trial_fes->GetBE(i), *test_fes->GetBE(test_bdr_elem_id),
+               *trial_fes->GetBE(trial_bdr_elem_id), *test_fes->GetBE(test_bdr_elem_id),
                *eltrans, elemmat);
             elmat += elemmat;
          }
@@ -1756,19 +1811,21 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          ftr = mesh->GetInteriorFaceTransformations(i);
          if (ftr != NULL)
          {
+            const int trial_elem_1 = GetTrialElementID(ftr->Elem1No);
             const int test_elem_1 = GetTestElementID(ftr->Elem1No);
-            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+            trial_fes->GetElementVDofs(trial_elem_1, trial_vdofs);
             test_fes->GetElementVDofs(test_elem_1, test_vdofs);
-            trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+            trial_fe1 = trial_fes->GetFE(trial_elem_1);
             test_fe1 = test_fes->GetFE(test_elem_1);
             if (ftr->Elem2No >= 0)
             {
+               const int trial_elem_2 = GetTrialElementID(ftr->Elem2No);
                const int test_elem_2 = GetTestElementID(ftr->Elem2No);
-               trial_fes->GetElementVDofs(ftr->Elem2No, trial_vdofs2);
+               trial_fes->GetElementVDofs(trial_elem_2, trial_vdofs2);
                test_fes->GetElementVDofs(test_elem_2, test_vdofs2);
                trial_vdofs.Append(trial_vdofs2);
                test_vdofs.Append(test_vdofs2);
-               trial_fe2 = trial_fes->GetFE(ftr->Elem2No);
+               trial_fe2 = trial_fes->GetFE(trial_elem_2);
                test_fe2 = test_fes->GetFE(test_elem_2);
             }
             else
@@ -1823,7 +1880,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       }
 
       DofTransformation dom_dof_trans, ran_dof_trans;
-      for (int i = 0; i < trial_fes->GetNBE(); i++)
+      for (int i = 0; i < num_boundary_elem; i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -1831,10 +1888,11 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          ftr = mesh->GetBdrFaceTransformations(i);
          if (ftr != NULL)
          {
+            const int trial_elem_1 = GetTrialElementID(ftr->Elem1No);
             const int test_elem_1 = GetTestElementID(ftr->Elem1No);
-            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs, dom_dof_trans);
+            trial_fes->GetElementVDofs(trial_elem_1, trial_vdofs, dom_dof_trans);
             test_fes->GetElementVDofs(test_elem_1, test_vdofs, ran_dof_trans);
-            trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
+            trial_fe1 = trial_fes->GetFE(trial_elem_1);
             test_fe1 = test_fes->GetFE(test_elem_1);
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
@@ -1926,7 +1984,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
       }
 
-      for (int i = 0; i < trial_fes->GetNBE(); i++)
+      for (int i = 0; i < num_boundary_elem; i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr - 1] == 0) { continue; }
