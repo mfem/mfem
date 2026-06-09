@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
+   bool solve_implicit_state = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -126,6 +127,9 @@ int main(int argc, char *argv[])
                   "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -179,6 +183,11 @@ int main(int argc, char *argv[])
 
    // 7. Initialize the conduction operator and the visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   oper.SetImplicitVariableType(imp_var);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -316,11 +325,14 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 }
 
 void ConductionOperator::ImplicitSolve(const real_t dt,
-                                       const Vector &u, Vector &du_dt)
+                                       const Vector &u, Vector &k)
 {
    // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt, where K is linearized by using u from the previous timestep
+   //    M*k = -K(u + dt*k) for k = du/dt, if solving for stage-slope
+   // or
+   //    M*k = -dt*K(k) + M*u for k = u_s, if solving for stage-state
+   // where K is linearized by using u from the previous timestep, and
+   // the stage-state and slope relation: du/dt = (u_s - u)/dt.
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);
@@ -328,9 +340,20 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
       T_solver.SetOperator(*T);
    }
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
-   z.Neg();
-   T_solver.Mult(z, du_dt);
+
+   // Construct current right-hand side for stage state vs. slope solve
+   if (ImplicitVarTypeIsState())
+   {
+      // k, on return, is the stage value u_s
+      Mmat.Mult(u, z);
+   }
+   else
+   {
+      // k, on return, is the stage slope du/dt
+      Kmat.Mult(u, z);
+      z.Neg();
+   }
+   T_solver.Mult(z, k);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
