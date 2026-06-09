@@ -67,3 +67,52 @@ TEST_CASE("MemoryManager/Scopes",
       REQUIRE((x_data == x.HostRead()));
    }
 }
+
+TEST_CASE("MemoryManager/SyncAliasDeviceValidBase",
+          "[MemoryManager]"
+          "[GPU]")
+{
+   // Regression test for SyncAlias on a base that is valid on the device with a
+   // stale host buffer (flags = VALID_DEVICE only), with an alias that was
+   // created earlier while the base was host-valid (as BlockVector blocks are).
+   // The alias shares the base buffers, so SyncAlias only needs to update the
+   // alias flags: it must copy across the host/device boundary only from the
+   // side that is actually valid. Copying the stale host buffer onto the valid
+   // device data corrupts the base data in place.
+   constexpr int n = 8;
+   constexpr real_t stale_host = 1.0;
+   constexpr real_t valid_device = 2.0;
+
+   Vector base(n);
+   base.UseDevice(true);
+
+   // Put stale values in the host buffer.
+   {
+      real_t *hp = base.HostWrite();
+      for (int i = 0; i < n; i++) { hp[i] = stale_host; }
+   }
+
+   // The block alias is created while the base is host-valid, mirroring
+   // BlockVector::SetBlocks() which builds the block aliases at construction.
+   Vector alias;
+   alias.MakeRef(base, 0, n);
+
+   // Write the correct values on the device only. The base is now VALID_DEVICE
+   // only, with the host buffer left holding the stale values.
+   {
+      real_t *dp = base.Write();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { dp[i] = valid_device; });
+   }
+
+   // Sync the alias's flags with the base.
+   alias.SyncAliasMemory(base);
+
+   // The valid device data must survive: SyncAlias must not have copied the
+   // stale host buffer over it. On a host-only build the data lives on the host,
+   // so the expected value is the same either way.
+   const real_t *hp = base.HostRead();
+   for (int i = 0; i < n; i++)
+   {
+      REQUIRE(hp[i] == valid_device);
+   }
+}

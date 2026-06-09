@@ -1159,9 +1159,14 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
    // This is called only when (base_flags & Mem::Registered) is true.
    // Note that (alias_flags & Registered) may not be true.
    MFEM_ASSERT(alias_flags & Mem::ALIAS, "not an alias");
+   // The alias shares the base host and device buffers, so syncing only needs to
+   // establish/register the alias pointers and copy the base's validity flags
+   // below. Any host<->device copy must source from the side that is actually
+   // valid: copying from a stale side would clobber the valid data in the shared
+   // buffer (e.g. an HtoD from a stale host overwriting a valid device buffer).
    if ((base_flags & Mem::VALID_HOST) && !(alias_flags & Mem::VALID_HOST))
    {
-      mm.GetAliasHostPtr(alias_h_ptr, alias_bytes, true);
+      mm.GetAliasHostPtr(alias_h_ptr, alias_bytes, base_flags & Mem::VALID_DEVICE);
    }
    if ((base_flags & Mem::VALID_DEVICE) && !(alias_flags & Mem::VALID_DEVICE))
    {
@@ -1171,7 +1176,7 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
          alias_flags = (alias_flags | Mem::Registered | Mem::OWNS_INTERNAL) &
                        ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
       }
-      mm.GetAliasDevicePtr(alias_h_ptr, alias_bytes, true);
+      mm.GetAliasDevicePtr(alias_h_ptr, alias_bytes, base_flags & Mem::VALID_HOST);
    }
    alias_flags = (alias_flags & ~(Mem::VALID_HOST | Mem::VALID_DEVICE)) |
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
