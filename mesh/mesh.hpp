@@ -1355,6 +1355,11 @@ public:
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
 
+   /// Returns the minimum and maximum corners of the element bounding box.
+   void GetElementBoundingBoxes(Vector &elmin, Vector &elmax, int nref=2);
+
+   void GetElementBoundingBox(int elem, Vector &elmin, Vector &elmax, int nref=2);
+
    void GetCharacteristics(real_t &h_min, real_t &h_max,
                            real_t &kappa_min, real_t &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);

@@ -202,6 +202,69 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
    }
 }
 
+void Mesh::GetElementBoundingBoxes(Vector &elmin, Vector &elmax, int nref)
+{
+   int nel = GetNE();
+   elmin.SetSize(spaceDim * nel);
+   elmax.SetSize(spaceDim * nel);
+   elmin = numeric_limits<real_t>::max();
+   elmax = -numeric_limits<real_t>::max();
+   if (Nodes == NULL)
+   {
+      Array<int> verts;
+      real_t *coord;
+      // create bounding boxes from vertex coordinates
+      for (int e = 0; e < nel; e++)
+      {
+         GetElementVertices(e, verts);
+         for (int v = 0; v < verts.Size(); v++)
+         {
+            coord = GetVertex(verts[v]);
+            for (int d = 0; d < spaceDim; d++)
+            {
+               elmin(d*nel + e) = min(elmin(d*nel + e), coord[d]);
+               elmax(d*nel + e) = max(elmax(d*nel + e), coord[d]);
+            }
+         }
+      }
+   }
+   else
+   {
+      Nodes->GetElementBounds(elmin, elmax, nref);
+   }
+}
+
+void Mesh::GetElementBoundingBox(int elem, Vector &elmin, Vector &elmax,
+                                 int nref)
+{
+   elmin.SetSize(spaceDim);
+   elmax.SetSize(spaceDim);
+   elmin = numeric_limits<real_t>::max();
+   elmax = -numeric_limits<real_t>::max();
+   if (Nodes == NULL)
+   {
+      Array<int> verts;
+      real_t *coord;
+      // create bounding boxes from vertex coordinates
+      GetElementVertices(elem, verts);
+      for (int v = 0; v < verts.Size(); v++)
+      {
+         coord = GetVertex(verts[v]);
+         for (int d = 0; d < spaceDim; d++)
+         {
+            elmin(d) = min(elmin(d), coord[d]);
+            elmax(d) = max(elmax(d), coord[d]);
+         }
+      }
+   }
+   else
+   {
+      const int max_order = Nodes->FESpace()->GetMaxElementOrder();
+      PLBound plb(Nodes->FESpace(), nref*(max_order+1));
+      Nodes->GetElementBounds(elem, plb, elmin, elmax);
+   }
+}
+
 void Mesh::GetCharacteristics(real_t &h_min, real_t &h_max,
                               real_t &kappa_min, real_t &kappa_max,
                               Vector *Vh, Vector *Vk)
