@@ -480,10 +480,11 @@ void LinAdv::initializeDataOnPatch(
            in_end(pdat::NodeGeometry::end(patch.getBox()));
            in != in_end; ++in) {
 
-         const pdat::NodeIndex& ni(*in);
+         const pdat::NodeIndex global_index = *in;
+         const pdat::NodeIndex local_index = global_index - patch.getBox().lower();
          for (int d=0; d < d_dim.getValue(); d++)
          {
-            (*xval)(ni,d) = xlo[d] + dx[d]*ni[d];
+            (*xval)(global_index,d) = xlo[d] + dx[d]*local_index[d];
          }
       }
 
