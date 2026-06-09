@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    bool solve_implicit_state = false;
 
    // Define command line argument defaults for SAMRAI
-   const char *samrai_input_file = "samrai_input.3d";
+   const char *samrai_input_file = "samrai_input.2d";
 
    // Parse command line arguments
    OptionsParser args(argc, argv);
@@ -187,8 +187,9 @@ int main(int argc, char *argv[])
       uavg_gf = std::move(gfs[0]);
    }
 
-   // Create an MFEM grid function and obtain initial condition by
-   // reconstructing from the piece-constant representation
+   // Create an H1p MFEM grid function and obtain initial condition by
+   // projecting the piecewise-constant representation onto the higher-order
+   // finite element space
    const int order = 1;
    H1_FECollection u_fecollection(order, mesh.Dimension());
    std::unique_ptr<ParFiniteElementSpace> u_fespace =
@@ -222,18 +223,16 @@ int main(int argc, char *argv[])
       solver.SetMaxIter(30);
       solver.SetPrintLevel(0);
       HypreSmoother prec;
-      //prec.SetType(HypreSmoother::Jacobi);
-      //solver.SetPreconditioner(prec);
+      prec.SetType(HypreSmoother::Jacobi);
+      solver.SetPreconditioner(prec);
       solver.SetOperator(*M_op);
       solver.Mult(rhs, u);
       MFEM_VERIFY(solver.GetConverged(), "Solver did not converge.");
    }
-   u = 1.0;
    u_gf.SetFromTrueDofs(u);
 
-/*
    // Create the conduction operator
-   ConductionOperator conduction(u_fespace, kappa);
+   ConductionOperator conduction(u_fespace.get(), kappa);
    using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
@@ -243,7 +242,7 @@ int main(int argc, char *argv[])
    // Create the ODE solver used for time integration
    std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
    mfem_ode_solver->Init(conduction);
-*/
+
    // Write out the mesh and initial condition
    {
       std::ofstream omesh("ex16.mesh");
@@ -289,19 +288,6 @@ int main(int argc, char *argv[])
                    << " Press space (in the GLVis window) to resume it.\n";
       }
    }
-   // Create the conduction operator
-   ConductionOperator conduction(u_fespace.get(), kappa);
-   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
-   ImplicitVariableType imp_var = solve_implicit_state ?
-                                  ImplicitVariableType::STATE
-                                  : ImplicitVariableType::SLOPE;
-   conduction.SetImplicitVariableType(imp_var);
-
-   // Create the ODE solver used for time integration
-   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
-   mfem_ode_solver->Init(conduction);
-
-
 
    /*************************** Advance Solutions *****************************/
 
