@@ -44,6 +44,7 @@
 #endif
 
 #if !defined(MFEM_USE_CUDA_OR_HIP)
+constexpr bool mfem_use_gpu = false;
 #define MFEM_DEVICE
 #define MFEM_HOST
 #define MFEM_LAMBDA
@@ -52,6 +53,7 @@
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
+#define MFEM_LAUNCH_BOUNDS(...)
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \

@@ -56,6 +56,50 @@ inline void Det1D(const int NE,
    });
 }
 
+template<int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
+inline void Det1DSurface(const int NE,
+                         const real_t *b,
+                         const real_t *g,
+                         const real_t *x,
+                         real_t *y,
+                         const int d1d = 0,
+                         const int q1d = 0,
+                         Vector *d_buff = nullptr)
+{
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(d_buff);
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto G = Reshape(g, Q1D, D1D);
+   const auto X = Reshape(x, D1D, T_SDIM, NE);
+   auto Y = Reshape(y, Q1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int q = 0; q < Q1D; q++)
+      {
+         real_t grad[T_SDIM];
+         for (int s = 0; s < T_SDIM; s++) { grad[s] = 0.0; }
+         for (int d = 0; d < D1D; d++)
+         {
+            const real_t gval = G(q, d);
+            for (int s = 0; s < T_SDIM; s++)
+            {
+               grad[s] += gval * X(d, s, e);
+            }
+         }
+         real_t norm2 = 0.0;
+         for (int s = 0; s < T_SDIM; s++)
+         {
+            norm2 += grad[s] * grad[s];
+         }
+         Y(q, e) = std::sqrt(norm2);
+      }
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void Det2D(const int NE,
                   const real_t *b,
@@ -290,11 +334,16 @@ template<int DIM, int SDIM, int D1D, int Q1D>
 QuadratureInterpolator::DetKernelType
 QuadratureInterpolator::DetKernels::Kernel()
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Det1D; }
-   else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
-   else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1)
+   {
+      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
+      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 2>; }
+      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 3>; }
+   }
+   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
+   MFEM_ABORT("");
 }
 
 /// @endcond

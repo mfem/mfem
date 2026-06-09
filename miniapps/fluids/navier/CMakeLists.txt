@@ -15,6 +15,13 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp)
 
+  if(MFEM_USE_GSLIB)
+    list(APPEND NAVIER_COMMON_SOURCES
+      navier_particles.cpp)
+    list(APPEND NAVIER_COMMON_HEADERS
+      navier_particles.hpp)
+  endif()
+
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
 
@@ -56,6 +63,19 @@ if (MFEM_USE_MPI)
     MAIN navier_turbchan.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
+
+  set(MESH_FILE "channel-bifurcation-2d.mesh")
+  add_custom_command(OUTPUT data_is_copied
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/data/${MESH_FILE}" .
+    COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+    COMMENT "Copying navier miniapps data files ...")
+  add_custom_target(copy_miniapps_navier_data DEPENDS data_is_copied)
+
+  add_mfem_miniapp(navier_bifurcation
+    MAIN navier_bifurcation.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem-common)
+add_dependencies(navier_bifurcation copy_miniapps_navier_data)
 
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht

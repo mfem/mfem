@@ -34,14 +34,26 @@ static int GetNFacesPerElement(const Mesh &mesh)
    }
 }
 
+static bool IsParFESpace(const FiniteElementSpace &fes)
+{
+#ifdef MFEM_USE_MPI
+   return dynamic_cast<const ParFiniteElementSpace *>(&fes) != nullptr;
+#else
+   return false;
+#endif
+}
+
+const Operator &HybridizationExtension::GetProlongation() const
+{
+   return P_pc ? *P_pc : *h.c_fes.GetProlongationMatrix();
+}
+
 void HybridizationExtension::ConstructC()
 {
    Mesh &mesh = *h.fes.GetMesh();
-   const int ne = mesh.GetNE();
    const int nf = mesh.GetNFbyType(FaceType::Interior);
    const int m = h.fes.GetFE(0)->GetDof(); // num hat dofs per el
    const int n = h.c_fes.GetFaceElement(0)->GetDof(); // num c dofs per face
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
 
    // Assemble Ct_mat using EA
    Vector emat(m * n * 2 * nf);
@@ -56,16 +68,13 @@ void HybridizationExtension::ConstructC()
    // pointer is valid.
    Array<int> dof_map = tbe->GetDofMap();
 
-   Ct_mat.SetSize(m * n * n_faces_per_el * ne);
+   Ct_mat.SetSize(m * n * n_el_face);
    const auto d_emat = Reshape(emat.Read(), m, n, 2, nf);
    const int *d_dof_map = dof_map.Read();
    const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
-   auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
+   auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_el_face);
 
-   mfem::forall(Ct_mat.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_Ct_mat[i] = 0.0;
-   });
+   Ct_mat = 0.0; // On device, since previous call to Write()
 
    mfem::forall(m*n*2*nf, [=] MFEM_HOST_DEVICE (int idx)
    {
@@ -74,18 +83,27 @@ void HybridizationExtension::ConstructC()
       const int ie = (idx / m / n) % 2;
       const int f = idx / m / n / 2;
 
-      const int e  = d_face_to_el(0, ie, f);
       const int fi = d_face_to_el(1, ie, f);
 
       // Skip elements belonging to face neighbors of shared faces
-      if (e < ne)
+      if (fi >= 0)
       {
          // Convert to back to native MFEM ordering in the volume
          const int i_s = d_dof_map[i_lex];
          const int i = (i_s >= 0) ? i_s : -1 - i_s;
-         d_Ct_mat(i, j, fi, e) = d_emat(i_lex, j, ie, f);
+         d_Ct_mat(i, j, fi) = d_emat(i_lex, j, ie, f);
       }
    });
+
+#ifdef MFEM_USE_MPI
+   if (auto pc_fes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes))
+   {
+      if (pc_fes->Nonconforming())
+      {
+         P_pc.reset(pc_fes->GetPartialConformingInterpolation());
+      }
+   }
+#endif
 }
 
 namespace internal
@@ -109,197 +127,196 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
 {
    const Mesh &mesh = *h.fes.GetMesh();
    const int ne = mesh.GetNE();
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
    AhatInvCt_mat.SetSize(Ct_mat.Size());
-   auto d_AhatInvCt = Reshape(AhatInvCt_mat.Write(), m, n, n_faces_per_el, ne);
+   auto d_AhatInvCt = Reshape(AhatInvCt_mat.Write(), m, n, n_el_face);
 
+   const int nidofs = idofs.Size();
+   const int nbdofs = bdofs.Size();
+
+   MFEM_VERIFY(nidofs <= MID, "");
+   MFEM_VERIFY(nbdofs <= MBD, "");
+
+   Ahat_ii.SetSize(nidofs*nidofs*ne);
+   Ahat_ib.SetSize(nidofs*nbdofs*ne);
+   Ahat_bi.SetSize(nbdofs*nidofs*ne);
+   Ahat_bb.SetSize(nbdofs*nbdofs*ne);
+
+   Ahat_ii_piv.SetSize(nidofs*ne);
+   Ahat_bb_piv.SetSize(nbdofs*ne);
+
+   const auto *d_idofs = idofs.Read();
+   const auto *d_bdofs = bdofs.Read();
+
+   const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), m, ne);
+   auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
+
+   auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
+   auto d_A_ib_all = Reshape(Ahat_ib.Write(), nidofs*nbdofs, ne);
+   auto d_A_bi_all = Reshape(Ahat_bi.Write(), nbdofs*nidofs, ne);
+   auto d_A_bb_all = Reshape(Ahat_bb.Write(), nbdofs*nbdofs, ne);
+
+   auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
+   auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
+
+   const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_el_face);
+   const auto d_el_face_offsets = el_face_offsets.Read();
+
+   static constexpr bool GLOBAL = (MID == 0 && MBD == 0);
+
+   using internal::LocalMemory;
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
-      const int nidofs = idofs.Size();
-      const int nbdofs = bdofs.Size();
+      constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
+      constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
+      constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
 
-      MFEM_VERIFY(nidofs <= MID, "");
-      MFEM_VERIFY(nbdofs <= MBD, "");
+      LocalMemory<int,MAX_IDOFS> idofs_loc;
+      LocalMemory<int,MAX_BDOFS> bdofs_loc;
+      for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
+      for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
 
-      Ahat_ii.SetSize(nidofs*nidofs*ne);
-      Ahat_ib.SetSize(nidofs*nbdofs*ne);
-      Ahat_bi.SetSize(nbdofs*nidofs*ne);
-      Ahat_bb.SetSize(nbdofs*nbdofs*ne);
-
-      Ahat_ii_piv.SetSize(nidofs*ne);
-      Ahat_bb_piv.SetSize(nbdofs*ne);
-
-      const auto *d_idofs = idofs.Read();
-      const auto *d_bdofs = bdofs.Read();
-
-      const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), m, ne);
-      auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
-
-      auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
-      auto d_A_ib_all = Reshape(Ahat_ib.Write(), nidofs*nbdofs, ne);
-      auto d_A_bi_all = Reshape(Ahat_bi.Write(), nbdofs*nidofs, ne);
-      auto d_A_bb_all = Reshape(Ahat_bb.Write(), nbdofs*nbdofs, ne);
-
-      auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
-      auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
-
-      const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
-
-      static constexpr bool GLOBAL = (MID == 0 && MBD == 0);
-
-      using internal::LocalMemory;
-
-      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      LocalMemory<int,MAX_BDOFS> essdofs_loc;
+      int nbfdofs = 0;
+      int nessdofs = 0;
+      for (int i = 0; i < nbdofs; i++)
       {
-         constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
-         constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
-         constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
-         constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
-
-         LocalMemory<int,MAX_IDOFS> idofs_loc;
-         LocalMemory<int,MAX_BDOFS> bdofs_loc;
-         for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
-         for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
-
-         LocalMemory<int,MAX_BDOFS> essdofs_loc;
-         int nbfdofs = 0;
-         int nessdofs = 0;
-         for (int i = 0; i < nbdofs; i++)
+         const int dof_idx = bdofs_loc[i];
+         if (d_hat_dof_marker(dof_idx, e) == ESSENTIAL)
          {
-            const int dof_idx = bdofs_loc[i];
-            if (d_hat_dof_marker(dof_idx, e) == ESSENTIAL)
+            essdofs_loc[nessdofs] = dof_idx;
+            nessdofs += 1;
+         }
+         else
+         {
+            bdofs_loc[nbfdofs] = dof_idx;
+            nbfdofs += 1;
+         }
+      }
+
+      LocalMemory<real_t, MID*MID> A_ii_loc;
+      LocalMemory<real_t, MBD*MID> A_bi_loc;
+      LocalMemory<real_t, MID*MBD> A_ib_loc;
+      LocalMemory<real_t, MBD*MBD> A_bb_loc;
+
+      DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
+      DeviceMatrix A_ib(GLOBAL ? &d_A_ib_all(0,e) : A_ib_loc, nidofs, nbfdofs);
+      DeviceMatrix A_bi(GLOBAL ? &d_A_bi_all(0,e) : A_bi_loc, nbfdofs, nidofs);
+      DeviceMatrix A_bb(GLOBAL ? &d_A_bb_all(0,e) : A_bb_loc, nbfdofs, nbfdofs);
+
+      for (int j = 0; j < nidofs; j++)
+      {
+         const int jj = idofs_loc[j];
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
+         }
+         for (int i = 0; i < nbfdofs; i++)
+         {
+            A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+         }
+      }
+      for (int j = 0; j < nbfdofs; j++)
+      {
+         const int jj = bdofs_loc[j];
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
+         }
+         for (int i = 0; i < nbfdofs; i++)
+         {
+            A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+         }
+      }
+
+      LocalMemory<int,MID> ipiv_ii_loc;
+      LocalMemory<int,MBD> ipiv_bb_loc;
+
+      auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
+      auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
+
+      kernels::LUFactor(A_ii, nidofs, ipiv_ii);
+      kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
+      kernels::LUFactor(A_bb, nbfdofs, ipiv_bb);
+
+      const int begin = d_el_face_offsets[e];
+      const int end = d_el_face_offsets[e + 1];
+      for (int f = begin; f < end; ++f)
+      {
+         for (int j = 0; j < n; ++j)
+         {
+            LocalMemory<real_t,MAX_BDOFS> Sb_inv_Cb_t;
+            for (int i = 0; i < nbfdofs; ++i)
             {
-               essdofs_loc[nessdofs] = dof_idx;
-               nessdofs += 1;
+               Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f);
             }
-            else
+            kernels::LUSolve(A_bb, nbfdofs, ipiv_bb, Sb_inv_Cb_t);
+            for (int i = 0; i < nbfdofs; ++i)
             {
-               bdofs_loc[nbfdofs] = dof_idx;
-               nbfdofs += 1;
+               const int b_i = bdofs_loc[i];
+               d_AhatInvCt(b_i, j, f) = Sb_inv_Cb_t[i];
+            }
+            for (int i = 0; i < nidofs; ++i)
+            {
+               d_AhatInvCt(idofs_loc[i], j, f) = 0.0;
+            }
+            for (int i = 0; i < nessdofs; ++i)
+            {
+               d_AhatInvCt(essdofs_loc[i], j, f) = 0.0;
             }
          }
+      }
 
-         LocalMemory<real_t, MID*MID> A_ii_loc;
-         LocalMemory<real_t, MBD*MID> A_bi_loc;
-         LocalMemory<real_t, MID*MBD> A_ib_loc;
-         LocalMemory<real_t, MBD*MBD> A_bb_loc;
-
-         DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
-         DeviceMatrix A_ib(GLOBAL ? &d_A_ib_all(0,e) : A_ib_loc, nidofs, nbfdofs);
-         DeviceMatrix A_bi(GLOBAL ? &d_A_bi_all(0,e) : A_bi_loc, nbfdofs, nidofs);
-         DeviceMatrix A_bb(GLOBAL ? &d_A_bb_all(0,e) : A_bb_loc, nbfdofs, nbfdofs);
+      // Write out to global memory
+      if (!GLOBAL)
+      {
+         // Note: in the following constructors, avoid using index 0 in
+         //       d_A_{bi,ib,bb}_all when their size is 0.
+         DeviceMatrix d_A_bi((nbfdofs && nidofs) ?
+                             &d_A_bi_all(0,e) : nullptr,
+                             nbfdofs, nidofs);
+         DeviceMatrix d_A_ib((nbfdofs && nidofs) ?
+                             &d_A_ib_all(0,e) : nullptr,
+                             nidofs, nbfdofs);
+         DeviceMatrix d_A_bb((nbfdofs) ? &d_A_bb_all(0,e) : nullptr,
+                             nbfdofs, nbfdofs);
 
          for (int j = 0; j < nidofs; j++)
          {
-            const int jj = idofs_loc[j];
+            d_ipiv_ii(j,e) = ipiv_ii[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
+               d_A_ii(i,j,e) = A_ii(i,j);
             }
             for (int i = 0; i < nbfdofs; i++)
             {
-               A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+               d_A_bi(i,j) = A_bi(i,j);
             }
          }
          for (int j = 0; j < nbfdofs; j++)
          {
-            const int jj = bdofs_loc[j];
+            d_ipiv_bb(j,e) = ipiv_bb[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
+               d_A_ib(i,j) = A_ib(i,j);
             }
             for (int i = 0; i < nbfdofs; i++)
             {
-               A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+               d_A_bb(i,j) = A_bb(i,j);
             }
          }
-
-         LocalMemory<int,MID> ipiv_ii_loc;
-         LocalMemory<int,MBD> ipiv_bb_loc;
-
-         auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
-         auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
-
-         kernels::LUFactor(A_ii, nidofs, ipiv_ii);
-         kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
-         kernels::LUFactor(A_bb, nbfdofs, ipiv_bb);
-
-         for (int f = 0; f < n_faces_per_el; ++f)
-         {
-            for (int j = 0; j < n; ++j)
-            {
-               LocalMemory<real_t,MAX_BDOFS> Sb_inv_Cb_t;
-               for (int i = 0; i < nbfdofs; ++i)
-               {
-                  Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f, e);
-               }
-               kernels::LUSolve(A_bb, nbfdofs, ipiv_bb, Sb_inv_Cb_t);
-               for (int i = 0; i < nbfdofs; ++i)
-               {
-                  const int b_i = bdofs_loc[i];
-                  d_AhatInvCt(b_i, j, f, e) = Sb_inv_Cb_t[i];
-               }
-               for (int i = 0; i < nidofs; ++i)
-               {
-                  d_AhatInvCt(idofs_loc[i], j, f, e) = 0.0;
-               }
-               for (int i = 0; i < nessdofs; ++i)
-               {
-                  d_AhatInvCt(essdofs_loc[i], j, f, e) = 0.0;
-               }
-            }
-         }
-
-         // Write out to global memory
-         if (!GLOBAL)
-         {
-            // Note: in the following constructors, avoid using index 0 in
-            //       d_A_{bi,ib,bb}_all when their size is 0.
-            DeviceMatrix d_A_bi((nbfdofs && nidofs) ?
-                                &d_A_bi_all(0,e) : nullptr,
-                                nbfdofs, nidofs);
-            DeviceMatrix d_A_ib((nbfdofs && nidofs) ?
-                                &d_A_ib_all(0,e) : nullptr,
-                                nidofs, nbfdofs);
-            DeviceMatrix d_A_bb((nbfdofs) ? &d_A_bb_all(0,e) : nullptr,
-                                nbfdofs, nbfdofs);
-
-            for (int j = 0; j < nidofs; j++)
-            {
-               d_ipiv_ii(j,e) = ipiv_ii[j];
-               for (int i = 0; i < nidofs; i++)
-               {
-                  d_A_ii(i,j,e) = A_ii(i,j);
-               }
-               for (int i = 0; i < nbfdofs; i++)
-               {
-                  d_A_bi(i,j) = A_bi(i,j);
-               }
-            }
-            for (int j = 0; j < nbfdofs; j++)
-            {
-               d_ipiv_bb(j,e) = ipiv_bb[j];
-               for (int i = 0; i < nidofs; i++)
-               {
-                  d_A_ib(i,j) = A_ib(i,j);
-               }
-               for (int i = 0; i < nbfdofs; i++)
-               {
-                  d_A_bb(i,j) = A_bb(i,j);
-               }
-            }
-         }
-      });
-   }
+      }
+   });
 }
 
 void HybridizationExtension::ConstructH()
 {
    const Mesh &mesh = *h.fes.GetMesh();
    const int ne = mesh.GetNE();
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
@@ -334,44 +351,45 @@ void HybridizationExtension::ConstructH()
    }
 
    const auto d_AhatInvCt =
-      Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
+      Reshape(AhatInvCt_mat.Read(), m, n, n_el_face);
 
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
-   const int n_face_connections = 2*n_faces_per_el - 1;
-   Array<int> face_to_face(nf * n_face_connections);
+   Array<int> face_to_face(n_face_face);
 
-   Array<real_t> CAhatInvCt(nf*n_face_connections*n*n);
+   Vector CAhatInvCt(n_face_face*n*n);
 
-   const auto d_Ct = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
+   const auto d_Ct = Reshape(Ct_mat.Read(), m, n, n_el_face);
    const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
-   const auto d_el_to_face = Reshape(el_to_face.Read(), n_faces_per_el, ne);
-   auto d_CAhatInvCt = Reshape(CAhatInvCt.Write(), n, n, n_face_connections, nf);
-   auto d_face_to_face = Reshape(face_to_face.Write(), n_face_connections, nf);
+   const auto d_el_to_face = el_to_face.Read();
+   const auto d_el_face_offsets = el_face_offsets.Read();
+   auto d_CAhatInvCt = Reshape(CAhatInvCt.Write(), n, n, n_face_face);
+   auto d_face_to_face = Reshape(face_to_face.Write(), n_face_face);
+   auto d_face_face_offsets = face_face_offsets.Read();
 
-   mfem::forall(n*n*n_face_connections*nf, [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_CAhatInvCt[i] = 0.0;
-   });
+   CAhatInvCt = 0.0;
 
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
    {
+      const int begin_f = d_face_face_offsets[fi];
+
       int idx = 0;
       for (int ei = 0; ei < 2; ++ei)
       {
          const int e = d_face_to_el(0, ei, fi);
          if (e < 0 || e >= ne) { continue; }
-         for (int fj_i = 0; fj_i < n_faces_per_el; ++fj_i)
+         const int begin_i = d_el_face_offsets[e];
+         const int end_i = d_el_face_offsets[e + 1];
+         for (int fj_i = begin_i; fj_i < end_i; ++fj_i)
          {
-            const int fj = d_el_to_face(fj_i, e);
-            // Explicitly allow fi == fj (self-connections)
-            if (fj < 0) { continue; }
+            const int fj = d_el_to_face[fj_i];
+            // Allow fi == fj (self-connections)
 
             // Have we seen this face before? It is possible in some
             // configurations to encounter the same neighboring face twice
             int idx_j = idx;
             for (int i = 0; i < idx; ++i)
             {
-               if (d_face_to_face(i, fi) == fj)
+               if (d_face_to_face[begin_f + i] == fj)
                {
                   idx_j = i;
                   break;
@@ -380,56 +398,74 @@ void HybridizationExtension::ConstructH()
             // This is a new face, record it and increment the counter
             if (idx_j == idx)
             {
-               d_face_to_face(idx, fi) = fj;
+               d_face_to_face[begin_f + idx] = fj;
                idx++;
             }
          }
       }
-      // Fill unused entries with -1 to indicate invalid
-      for (; idx < n_face_connections; ++idx)
-      {
-         d_face_to_face(idx, fi) = -1;
-      }
    });
 
-   mfem::forall(nf*n_face_connections, [=] MFEM_HOST_DEVICE (int idx)
+   mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
    {
-      const int idx_j = idx % n_face_connections;
-      const int fi = idx / n_face_connections;
-
-      const int fj = d_face_to_face(idx_j, fi);
-      if (fj < 0) { return; }
-
-      for (int ei = 0; ei < 2; ++ei)
+      const int begin = d_face_face_offsets[fi];
+      const int end = d_face_face_offsets[fi + 1];
+      for (int idx_j = begin; idx_j < end; ++idx_j)
       {
-         const int e = d_face_to_el(0, ei, fi);
-         if (e < 0 || e >= ne) { continue; }
-         const int fi_i = d_face_to_el(1, ei, fi);
-
-         int fj_i = -1;
-         for (int ej = 0; ej < 2; ++ej)
+         const int fj = d_face_to_face[idx_j];
+         for (int ei = 0; ei < 2; ++ei)
          {
-            if (d_face_to_el(0, ej, fj) == e)
+            const int e = d_face_to_el(0, ei, fi);
+            if (e < 0 || e >= ne) { continue; }
+            const int fi_i = d_face_to_el(1, ei, fi);
+
+            int fj_i = -1;
+            for (int ej = 0; ej < 2; ++ej)
             {
-               fj_i = d_face_to_el(1, ej, fj);
-               break;
+               if (d_face_to_el(0, ej, fj) == e)
+               {
+                  fj_i = d_face_to_el(1, ej, fj);
+                  break;
+               }
+            }
+            if (fj_i >= 0)
+            {
+               const real_t *Ct_i = &d_Ct(0, 0, fi_i);
+               const real_t *AhatInvCt_i = &d_AhatInvCt(0, 0, fj_i);
+               real_t *CAhatInvCt_i = &d_CAhatInvCt(0, 0, idx_j);
+               kernels::AddMultAtB(m, n, n, Ct_i, AhatInvCt_i, CAhatInvCt_i);
             }
          }
-         if (fj_i >= 0)
-         {
-            const real_t *Ct_i = &d_Ct(0, 0, fi_i, e);
-            const real_t *AhatInvCt_i = &d_AhatInvCt(0, 0, fj_i, e);
-            real_t *CAhatInvCt_i = &d_CAhatInvCt(0, 0, idx_j, fi);
-            kernels::AddMultAtB(m, n, n, Ct_i, AhatInvCt_i, CAhatInvCt_i);
-         }
       }
    });
 
-   const int ncdofs = h.c_fes.GetVSize();
+
+#ifdef MFEM_USE_MPI
+   auto *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes);
+#endif
+
+   const int ncdofs_face_nbr = [&]()
+   {
+#ifdef MFEM_USE_MPI
+      // Only need to handle face neighbor DOFs when there are nonconforming
+      // (ghost) faces.
+      if (c_pfes && c_pfes->Nonconforming())
+      {
+         c_pfes->ExchangeFaceNbrData();
+         return c_pfes->GetFaceNbrVSize();
+      }
+#endif
+      return 0;
+   }();
+
+   const int ncdofs_local = h.c_fes.GetVSize();
+   const int ncdofs = ncdofs_local + ncdofs_face_nbr;
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction(ordering, FaceType::Interior);
-   const auto c_gather_map = Reshape(face_restr->GatherMap().Read(), n, nf);
+   const auto *l2_face_restr =
+      dynamic_cast<const L2InterfaceFaceRestriction*>(face_restr);
+   MFEM_ASSERT(l2_face_restr, "");
+   const auto c_scatter_map = Reshape(l2_face_restr->ScatterMap().Read(), n, nf);
 
    h.H.reset(new SparseMatrix);
    h.H->OverrideSize(ncdofs, ncdofs);
@@ -445,15 +481,15 @@ void HybridizationExtension::ConstructH()
       {
          const int i = idx_i % n;
          const int fi = idx_i / n;
-         const int ii = c_gather_map(i, fi);
+         const int ii = c_scatter_map(i, fi);
 
-         for (int idx = 0; idx < n_face_connections; ++idx)
+         const int begin = d_face_face_offsets[fi];
+         const int end = d_face_face_offsets[fi + 1];
+         for (int idx = begin; idx < end; ++idx)
          {
-            const int fj = d_face_to_face(idx, fi);
-            if (fj < 0) { break; }
             for (int j = 0; j < n; ++j)
             {
-               if (d_CAhatInvCt(i, j, idx, fi) != 0)
+               if (d_CAhatInvCt(i, j, idx) != 0)
                {
                   I[ii]++;
                }
@@ -465,13 +501,14 @@ void HybridizationExtension::ConstructH()
    // At this point, I[i] contains the number of nonzeros in row I. Perform a
    // partial sum to get I in CSR format. This is serial, so perform on host.
    //
-   // At the same time, we find any empty rows and add a single nonzero (we will
-   // put 1 on the diagonal) and record the row index.
+   // At the same time, we find any empty rows (corresponding to non-ghost DOFs)
+   // and add a single nonzero (we will put 1 on the diagonal) and record the
+   // row index.
    Array<int> empty_rows;
    {
       int *I = h.H->HostReadWriteI();
       int empty_row_count = 0;
-      for (int i = 0; i < ncdofs; i++)
+      for (int i = 0; i < ncdofs_local; i++)
       {
          if (I[i] == 0) { empty_row_count++; }
       }
@@ -482,7 +519,7 @@ void HybridizationExtension::ConstructH()
       for (int i = 0; i < ncdofs; i++)
       {
          int nnz = I[i];
-         if (nnz == 0)
+         if (nnz == 0 && i < ncdofs_local)
          {
             empty_rows[empty_row_idx] = i;
             empty_row_idx++;
@@ -507,18 +544,19 @@ void HybridizationExtension::ConstructH()
       {
          const int i = idx_i % n;
          const int fi = idx_i / n;
-         const int ii = c_gather_map[i + fi*n];
-         for (int idx = 0; idx < n_face_connections; ++idx)
+         const int ii = c_scatter_map[i + fi*n];
+         const int begin = d_face_face_offsets[fi];
+         const int end = d_face_face_offsets[fi + 1];
+         for (int idx = begin; idx < end; ++idx)
          {
-            const int fj = d_face_to_face(idx, fi);
-            if (fj < 0) { break; }
+            const int fj = d_face_to_face[idx];
             for (int j = 0; j < n; ++j)
             {
-               const real_t val = d_CAhatInvCt(i, j, idx, fi);
+               const real_t val = d_CAhatInvCt(i, j, idx);
                if (val != 0)
                {
                   const int k = I[ii];
-                  const int jj = c_gather_map(j, fj);
+                  const int jj = c_scatter_map(j, fj);
                   I[ii]++;
                   J[k] = jj;
                   V[k] = val;
@@ -549,13 +587,68 @@ void HybridizationExtension::ConstructH()
    }
 
 #ifdef MFEM_USE_MPI
-   auto *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes);
    if (c_pfes)
    {
-      OperatorHandle pP(h.pH.Type()), dH(h.pH.Type());
-      pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
-      dH.MakeSquareBlockDiag(c_pfes->GetComm(),c_pfes->GlobalVSize(),
-                             c_pfes->GetDofOffsets(), h.H.get());
+      OperatorHandle dH(h.pH.Type());
+
+      if (ncdofs_face_nbr > 0)
+      {
+         // Build the "face neighbor prolongation matrix" P_nbr, which maps from
+         // VDOFs (i.e. L-vector) to L-vectors with face neighbor DOFs. The
+         // action of P_nbr is equivalent to calling ExchangeFaceNbrData on a
+         // ParGridFunction. We compute P^t A P with P = P_nbr to assemble the
+         // face neighbor contributions into a parallel matrix.
+         ParMesh &pmesh = *c_pfes->GetParMesh();
+
+         HYPRE_BigInt ncdofs_bigint = ncdofs;
+         const HYPRE_BigInt global_ncdofs = pmesh.ReduceInt(ncdofs);
+
+         Array<HYPRE_BigInt> rows;
+         Array<HYPRE_BigInt> *offsets[1] = { &rows };
+         pmesh.GenerateOffsets(1, &ncdofs_bigint, offsets);
+
+         Array<int> I(ncdofs + 1);
+         auto d_I = I.Write();
+         mfem::forall(ncdofs + 1, [=] MFEM_HOST_DEVICE (int i) { d_I[i] = i; });
+
+         HYPRE_BigInt offset = c_pfes->GetMyDofOffset();
+         Array<HYPRE_BigInt> J(ncdofs);
+         auto d_J = J.Write();
+         mfem::forall(ncdofs_local, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_J[i] = offset + i;
+         });
+         const HYPRE_BigInt *map = c_pfes->GetFaceNbrGlobalDofMapArray().Read();
+         mfem::forall(ncdofs_face_nbr, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_J[ncdofs_local + i] = map[i];
+         });
+
+         Vector V(ncdofs);
+         V.UseDevice();
+         V = 1.0;
+
+         auto P_face_nbr =
+            std::make_unique<HypreParMatrix>(
+               c_pfes->GetComm(), ncdofs, global_ncdofs, c_pfes->GlobalVSize(),
+               I.HostReadWrite(), J.HostReadWrite(), V.HostReadWrite(), rows,
+               c_pfes->GetDofOffsets());
+         HypreParMatrix H_diag(c_pfes->GetComm(), global_ncdofs, rows, h.H.get());
+
+         dH.Reset(RAP(&H_diag, P_face_nbr.get()));
+
+         P_nbr = std::move(P_face_nbr);
+      }
+      else
+      {
+         dH.MakeSquareBlockDiag(c_pfes->GetComm(),c_pfes->GlobalVSize(),
+                                c_pfes->GetDofOffsets(), h.H.get());
+      }
+
+      OperatorHandle pP(h.pH.Type());
+      auto P_hyp = static_cast<HypreParMatrix*>(
+                      P_pc ? P_pc.get() : c_pfes->Dof_TrueDof_Matrix());
+      pP.ConvertFrom(P_hyp);
       h.pH.MakePtAP(dH, pP);
       h.H.reset();
    }
@@ -570,7 +663,6 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
 
    const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
    const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
 
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
@@ -580,8 +672,9 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
    face_restr->Mult(x, x_evec);
 
    const int *d_el_to_face = el_to_face.Read();
+   const int *d_el_face_offsets = el_face_offsets.Read();
    const auto d_Ct = Reshape(Ct_mat.Read(), n_hat_dof_per_el, n_c_dof_per_face,
-                             n_faces_per_el, ne);
+                             n_el_face);
    const auto d_x_evec = Reshape(x_evec.Read(), n_c_dof_per_face, nf);
    auto d_y = Reshape(y.Write(), n_hat_dof_per_el, ne);
 
@@ -590,13 +683,14 @@ void HybridizationExtension::MultCt(const Vector &x, Vector &y) const
       const int e = idx / n_hat_dof_per_el;
       const int i = idx % n_hat_dof_per_el;
       d_y(i, e) = 0.0;
-      for (int fi = 0; fi < n_faces_per_el; ++fi)
+      const int begin = d_el_face_offsets[e];
+      const int end = d_el_face_offsets[e+1];
+      for (int fi = begin; fi < end; ++fi)
       {
-         const int f = d_el_to_face[e*n_faces_per_el + fi];
-         if (f < 0) { continue; }
+         const int f = d_el_to_face[fi];
          for (int j = 0; j < n_c_dof_per_face; ++j)
          {
-            d_y(i, e) += d_Ct(i, j, fi, e)*d_x_evec(j, f);
+            d_y(i, e) += d_Ct(i, j, fi)*d_x_evec(j, f);
          }
       }
    });
@@ -608,9 +702,8 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
    const int ne = mesh.GetNE();
    const int nf = mesh.GetNFbyType(FaceType::Interior);
 
-   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
-   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
+   const int n_hat_dof_per_el = h.fes.GetTypicalFE()->GetDof();
+   const int n_c_dof_per_face = h.c_fes.GetTypicalTraceElement()->GetDof();
 
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr = h.c_fes.GetFaceRestriction(
@@ -619,7 +712,7 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
    Vector y_evec(face_restr->Height());
    const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
    const auto d_Ct = Reshape(Ct_mat.Read(), n_hat_dof_per_el, n_c_dof_per_face,
-                             n_faces_per_el, ne);
+                             n_el_face);
    auto d_x = Reshape(x.Read(), n_hat_dof_per_el, ne);
    auto d_y_evec = Reshape(y_evec.Write(), n_c_dof_per_face, nf);
 
@@ -638,13 +731,27 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
 
          for (int i = 0; i < n_hat_dof_per_el; ++i)
          {
-            d_y_evec(j, f) += d_Ct(i, j, fi, e)*d_x(i, e);
+            d_y_evec(j, f) += d_Ct(i, j, fi)*d_x(i, e);
          }
       }
    });
 
    y.SetSize(face_restr->Width());
-   face_restr->MultTranspose(y_evec, y);
+
+   if (P_nbr)
+   {
+      auto l2_face_restr =
+         dynamic_cast<const L2InterfaceFaceRestriction*>(face_restr);
+      MFEM_ASSERT(l2_face_restr != nullptr, "");
+
+      Vector y_s(P_nbr->Height());
+      l2_face_restr->MultTransposeShared(y_evec, y_s);
+      P_nbr->MultTranspose(y_s, y);
+   }
+   else
+   {
+      face_restr->MultTranspose(y_evec, y);
+   }
 }
 
 void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
@@ -721,12 +828,12 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    const Mesh &mesh = *h.fes.GetMesh();
    const int dim = mesh.Dimension();
    const int ne = h.fes.GetNE();
+   const int nf = mesh.GetNFbyType(FaceType::Interior);
    const int ndof_per_el = h.fes.GetFE(0)->GetDof();
    const int ndof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
 
    MFEM_VERIFY(!h.fes.IsVariableOrder(), "");
    MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(mesh.Conforming(), "");
    MFEM_VERIFY(UsesTensorBasis(h.fes), "");
 
    // Set up array for idofs and bdofs
@@ -765,36 +872,96 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    }
 
    // Set up face info arrays
-   const int n_faces_per_el = GetNFacesPerElement(mesh);
-   el_to_face.SetSize(ne * n_faces_per_el);
-   face_to_el.SetSize(4 * mesh.GetNFbyType(FaceType::Interior));
-   el_to_face = -1;
+   el_face_offsets.SetSize(ne + 1);
+   el_face_offsets = 0;
+   // Count faces per element
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
+      if (!info.IsInterior() || info.IsNonconformingCoarse()) { continue; }
+      el_face_offsets[info.element[0].index + 1] += 1;
+      if (!info.IsShared())
+      {
+         el_face_offsets[info.element[1].index + 1] += 1;
+      }
+   }
+   el_face_offsets.PartialSum();
+   // Set up element-to-face and face-to-element arrays
+   n_el_face = el_face_offsets.Last();
+   el_to_face.SetSize(n_el_face);
+   face_to_el.SetSize(4 * nf);
 
    {
+      Array<int> el_face_counter(ne);
+      el_face_counter = 0;
+
       int face_idx = 0;
-      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
       {
          const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-         if (!info.IsInterior()) { continue; }
+         if (!info.IsInterior() || info.IsNonconformingCoarse()) { continue; }
 
          const int el1 = info.element[0].index;
-         const int fi1 = info.element[0].local_face_id;
-         el_to_face[el1 * n_faces_per_el + fi1] = face_idx;
+         int &offset1 = el_face_offsets[el1];
+         el_to_face[offset1] = face_idx;
+         face_to_el[0 + 4*face_idx] = el1;
+         face_to_el[1 + 4*face_idx] = offset1;
+
+         offset1 += 1;
 
          const int el2 = info.element[1].index;
-         const int fi2 = info.element[1].local_face_id;
          if (!info.IsShared())
          {
-            el_to_face[el2 * n_faces_per_el + fi2] = face_idx;
+            int &offset2 = el_face_offsets[el2];
+            el_to_face[offset2] = face_idx;
+            face_to_el[2 + 4*face_idx] = el2;
+            face_to_el[3 + 4*face_idx] = offset2;
+            offset2 += 1;
          }
-
-         face_to_el[0 + 4*face_idx] = el1;
-         face_to_el[1 + 4*face_idx] = fi1;
-         face_to_el[2 + 4*face_idx] = info.IsShared() ? ne + el2 : el2;
-         face_to_el[3 + 4*face_idx] = fi2;
+         else
+         {
+            face_to_el[2 + 4*face_idx] = ne + el2;
+            face_to_el[3 + 4*face_idx] = -1;
+         }
 
          ++face_idx;
       }
+
+      for (int i = ne; i > 0; i--)
+      {
+         el_face_offsets[i] = el_face_offsets[i-1];
+      }
+      el_face_offsets[0] = 0;
+   }
+
+   // Create the face-to-face connectivity
+   {
+      face_face_offsets.SetSize(nf + 1);
+      const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
+      const auto d_el_face_offsets = el_face_offsets.Read();
+      auto d_face_face_offsets = face_face_offsets.Write();
+      mfem::forall(nf + 1, [=] MFEM_HOST_DEVICE (int i) { d_face_face_offsets[i] = 0; });
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
+      {
+         int n_connections = 0;
+         for (int ie = 0; ie < 2; ++ie)
+         {
+            // Number of faces adjacent to e
+            const int e = d_face_to_el(0, ie, f);
+            if (e < ne)
+            {
+               n_connections += d_el_face_offsets[e + 1] - d_el_face_offsets[e];
+               // Subtract 1 since we are double-counting the face 'f' (it
+               // belongs to both adjacent elements).
+               if (ie > 0) { n_connections -= 1; }
+            }
+         }
+         d_face_face_offsets[f + 1] = n_connections;
+      });
+      // TODO: parallel scan on device?
+      face_face_offsets.HostReadWrite();
+      face_face_offsets.PartialSum();
+      n_face_face = face_face_offsets.Last();
    }
 
    // Count the number of dofs in the discontinuous version of fes:
@@ -851,12 +1018,19 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
                         0, free_vdofs_marker.HostWrite());
       }
       else
-      {
-         free_vdofs_marker.MakeRef(free_tdof_marker);
-      }
-#else
-      free_vdofs_marker.MakeRef(free_tdof_marker);
 #endif
+      {
+         const SparseMatrix *cP = h.fes.GetConformingProlongation();
+         if (cP)
+         {
+            free_vdofs_marker.SetSize(cP->Height());
+            cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
+         }
+         else
+         {
+            free_vdofs_marker.MakeRef(free_tdof_marker);
+         }
+      }
 
       hat_dof_marker.SetSize(num_hat_dofs);
       {
@@ -866,7 +1040,8 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          const int *gather_map = R->GatherMap().Read();
          const int *d_free_vdofs_marker = free_vdofs_marker.Read();
          const auto d_Ct_mat = Reshape(Ct_mat.Read(), ndof_per_el,
-                                       ndof_per_face, n_faces_per_el, ne);
+                                       ndof_per_face, n_el_face);
+         const int *d_el_face_offsets = el_face_offsets.Read();
          DofType *d_hat_dof_marker = hat_dof_marker.Write();
 
          // Set the hat_dofs_marker to 1 or 0 according to whether the DOF is
@@ -882,11 +1057,13 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
                const int i_loc = i % ndof_per_el;
                const int e = i / ndof_per_el;
                d_hat_dof_marker[i] = INTERIOR;
-               for (int f = 0; f < n_faces_per_el; ++f)
+               const int begin = d_el_face_offsets[e];
+               const int end = d_el_face_offsets[e + 1];
+               for (int f = begin; f < end; ++f)
                {
                   for (int k = 0; k < ndof_per_face; ++k)
                   {
-                     if (d_Ct_mat(i_loc, k, f, e) != 0.0)
+                     if (d_Ct_mat(i_loc, k, f) != 0.0)
                      {
                         d_hat_dof_marker[i] = BOUNDARY;
                         break;
@@ -1105,13 +1282,14 @@ void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
       });
    }
    MultAhatInv(b_hat);
-   const Operator *P = h.c_fes.GetProlongationMatrix();
-   if (P)
+
+   if (IsParFESpace(h.c_fes))
    {
-      Vector bl(P->Height());
-      b_r.SetSize(P->Width());
+      const Operator &P = GetProlongation();
+      Vector bl(P.Height());
+      b_r.SetSize(P.Width());
       MultC(b_hat, bl);
-      P->MultTranspose(bl, b_r);
+      P.MultTranspose(bl, b_r);
    }
    else
    {
@@ -1127,17 +1305,19 @@ void HybridizationExtension::ComputeSolution(
    MultRt(b, b_hat);
 
    tmp1.SetSize(num_hat_dofs);
-   const Operator *P = h.c_fes.GetProlongationMatrix();
-   if (P)
+
+   if (IsParFESpace(h.c_fes))
    {
-      Vector sol_l(P->Height());
-      P->Mult(sol_r, sol_l);
+      const Operator &P = GetProlongation();
+      Vector sol_l(P.Height());
+      P.Mult(sol_r, sol_l);
       MultCt(sol_l, tmp1);
    }
    else
    {
       MultCt(sol_r, tmp1);
    }
+
    add(b_hat, -1.0, tmp1, tmp1);
    // Eliminate essential DOFs
    const auto *d_hat_dof_marker = hat_dof_marker.Read();

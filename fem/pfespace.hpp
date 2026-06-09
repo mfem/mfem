@@ -340,8 +340,20 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
-   int GetDofSign(int i)
-   { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
+   /** @brief Return true if the parallel FE space has DOFs with signs opposite
+       of the DOFs in the respective serial FE space. */
+   bool HaveDofSigns() const { return ldof_sign.Size() != 0; }
+
+   /** @brief Apply the DOF signs to the given host data @a h_data which must be
+       of size GetVSize() if HaveDofSigns() is true. If HaveDofSigns() is false,
+       this method is no-op and returns immediately. */
+   void ApplyDofSigns(real_t *h_data) const;
+
+   /** @brief Return -1 if the given (vector) DOF @a i has a sign opposite of
+       the DOF in the respecive serial FE space. Otherwise, return 1. */
+   int GetDofSign(int i) const
+   { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
+
    HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
    HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
    HYPRE_BigInt GlobalVSize() const
@@ -483,6 +495,8 @@ public:
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() { return face_nbr_glob_dof_map; }
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() const
+   { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
