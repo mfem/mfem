@@ -377,6 +377,8 @@ jobs:
         if: matrix.codecov == 'YES'
         uses: mfem/github-actions/upload-coverage@update-codecov-url
         with:
-          name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+          name: ${{ github.jobs[github.job].name }}
           project_dir: ${{ env.MFEM_TOP_DIR }}
           directories: "fem general linalg mesh"
+        secrets:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
