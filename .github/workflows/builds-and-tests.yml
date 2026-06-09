@@ -380,5 +380,5 @@ jobs:
           name: ${{ github.jobs[github.job].name }}
           project_dir: ${{ env.MFEM_TOP_DIR }}
           directories: "fem general linalg mesh"
-        secrets:
+        env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
