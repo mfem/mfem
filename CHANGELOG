@@ -61,6 +61,8 @@ Miscellaneous
   ParFiniteElementSpace -- the method will return immediately if no sign flips
   are needed.
 
+- Added support for (Par)MixedBilinearForm assembly over test and trial FE spaces 
+  where one is defined on a (Par)SubMesh of the other FE space's mesh.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
@@ -246,9 +248,6 @@ Miscellaneous
 
 - Added access to the internal parallel matrix in Par(Mixed)BilinearForm and
   related utility methods for elimination of BCs.
-
-- Added support for (Par)MixedBilinearForm assembly over trial FE spaces 
-  defined on (Par)SubMeshes of the test FE space's mesh.
 
 - FindPointsGSLIB has a new constructor that accepts the mesh object and
   internally calls the Setup() method so users do not have to. The FreeData()

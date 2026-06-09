@@ -1760,7 +1760,9 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          // latter may be a subset of the former
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
                      || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
-                                              test_mesh->bdr_attributes.Max() : 0),
+                                              test_mesh->bdr_attributes.Max() : 0)
+                     || bdr_marker.Size() == (trial_mesh->bdr_attributes.Size() ?
+                                              trial_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
          for (int i = 0; i < bdr_marker.Size(); i++)
@@ -1870,7 +1872,9 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
                      || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
-                                              test_mesh->bdr_attributes.Max() : 0),
+                                              test_mesh->bdr_attributes.Max() : 0)
+                     || bdr_marker.Size() == (trial_mesh->bdr_attributes.Size() ?
+                                              trial_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
          for (int i = 0; i < bdr_marker.Size(); i++)
@@ -1975,7 +1979,9 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          Array<int> &bdr_marker = *boundary_trace_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size()
                      || bdr_marker.Size() == (test_mesh->bdr_attributes.Size() ?
-                                              test_mesh->bdr_attributes.Max() : 0),
+                                              test_mesh->bdr_attributes.Max() : 0)
+                     || bdr_marker.Size() == (trial_mesh->bdr_attributes.Size() ?
+                                              trial_mesh->bdr_attributes.Max() : 0),
                      "invalid boundary marker for boundary trace face "
                      "integrator #" << k << ", counting from zero");
          for (int i = 0; i < bdr_marker.Size(); i++)
