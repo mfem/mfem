@@ -2534,32 +2534,10 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
       return;
    }
 
-   Mesh *trial_mesh = trial_fes->GetMesh();
-   Mesh *test_mesh = test_fes->GetMesh();
-   const bool same_mesh = (trial_mesh == test_mesh);
-   const Array<int> *test_element_ids = NULL;
-   const Array<int> *test_face_ids = NULL;
-   const Array<int> *test_edge_ids = NULL;
-   const Array<int> *test_vertex_ids = NULL;
-   Array<int> test_face_to_be;
-
-   if (!same_mesh)
-   {
-      MFEM_VERIFY(GetSubMeshParentIDMaps(trial_mesh, test_mesh,
-                                         test_element_ids, test_face_ids,
-                                         test_edge_ids, test_vertex_ids),
-                  "MixedBilinearForm::Assemble requires trial and test spaces "
-                  "on the same mesh, or the trial space on a direct SubMesh "
-                  "of the test space");
-      test_face_to_be = test_mesh->GetFaceToBdrElMap();
-   }
-
    ElementTransformation *eltrans;
    DenseMatrix elmat;
 
-   FiniteElementSpace &iterated_fes = *trial_fes;
-   Mesh *mesh = iterated_fes.GetMesh();
-   const int num_elem = iterated_fes.GetNE();
+   Mesh *mesh = test_fes->GetMesh();
 
    if (mat == NULL)
    {
@@ -2572,27 +2550,21 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
       {
          if (domain_integs_marker[k] != NULL)
          {
-            // Check that the user-provided domain_integs_marker size for the current integrator either
-            // matches the number of domain attributes on the test space or trial space, since the
-            // latter may be a subset of the former
             MFEM_VERIFY(domain_integs_marker[k]->Size() ==
-                        (trial_mesh->attributes.Size() ? trial_mesh->attributes.Max() : 0)
-                        ||
-                        domain_integs_marker[k]->Size() ==
-                        (test_mesh->attributes.Size() ? test_mesh->attributes.Max() : 0),
+                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
       }
 
-      DofTransformation dom_dof_trans, ran_dof_trans;
-      for (int i = 0; i < num_elem; i++)
+      DofTransformation dom_dof_trans;
+      DofTransformation ran_dof_trans;
+      for (int i = 0; i < test_fes->GetNE(); i++)
       {
-         const int test_elem_id = (same_mesh ? i : (*test_element_ids)[i]);
          const int elem_attr = mesh->GetAttribute(i);
          trial_fes->GetElementVDofs(i, trial_vdofs, dom_dof_trans);
-         test_fes->GetElementVDofs(test_elem_id, test_vdofs, ran_dof_trans);
-         eltrans = iterated_fes.GetElementTransformation(i);
+         test_fes->GetElementVDofs(i, test_vdofs, ran_dof_trans);
+         eltrans = test_fes->GetElementTransformation(i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
          elmat = 0.0;
@@ -2601,9 +2573,9 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
             if (domain_integs_marker[k] == NULL ||
                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
-               domain_integs[k]->AssembleElementMatrix2(
-                  *trial_fes->GetFE(i), *test_fes->GetFE(test_elem_id),
-                  *eltrans, elemmat);
+               domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
+                                                        *test_fes->GetFE(i),
+                                                        *eltrans, elemmat);
                elmat += elemmat;
             }
          }
