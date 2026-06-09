@@ -30,7 +30,7 @@ jobs:
         uses: ./.github/actions/sanitize/mpi
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-hypre@v2.5
+        uses: mfem/github-actions/build-hypre@v2.6
         with:
           archive: ${{env.HYPRE_TGZ}}
           dir: ${{env.HYPRE_DIR}}
