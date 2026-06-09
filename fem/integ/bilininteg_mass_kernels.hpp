@@ -1408,51 +1408,53 @@ using ApplyKernelType = MassIntegrator::ApplyKernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<D1D, Q1D>; }
    else if constexpr (DIM == 3)
    {
-      constexpr int MDQ = T_D1D >= T_Q1D ? T_D1D : T_Q1D;
+      constexpr int MDQ = D1D >= Q1D ? D1D : Q1D;
       // max 64 threads in z limit in cuda and hip
       if constexpr (MDQ > 0)
       {
-         return internal::SmemPAMassApply3D<T_D1D, T_Q1D,
+         return internal::SmemPAMassApply3D<D1D, Q1D,
                 internal::mass::NBZ3D(MDQ)>;
       }
    }
-   MFEM_ABORT("");
+   else { MFEM_ABORT(""); }
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::PAMassApply2D; }
-   else if (DIM == 3) { return internal::PAMassApply3D; }
+   if (dim == 1) { return internal::PAMassApply1D; }
+   else if (dim == 2) { return internal::PAMassApply2D; }
+   else if (dim == 3) { return internal::PAMassApply3D; }
    else { MFEM_ABORT(""); }
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
-   MFEM_ABORT("");
+   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D; }
-   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
+   if (dim == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if (dim == 2) { return internal::PAMassAssembleDiagonal2D; }
+   else if (dim == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
+
 /// \endcond DO_NOT_DOCUMENT
+
 } // namespace mfem
 
 #endif
