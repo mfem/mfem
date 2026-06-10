@@ -2871,29 +2871,18 @@ void HypreParMatrix::Destroy()
 #ifdef HYPRE_USING_GPU
    if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
+      // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
+      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
+      // is called below.
+
       // Check that if both diagOwner and offdOwner are negative then they have
       // the same value.
       MFEM_VERIFY(!(diagOwner < 0 && offdOwner < 0) || diagOwner == offdOwner,
                   "invalid state");
 
-      // If swapping back to host pointers below, preemptively delete rownnz
-      if (diagOwner == -1 &&
-          hypre_CSRMatrixMemoryLocation(A->diag) == GetHypreMemoryLocation())
-      {
-         mfem_hypre_TFree(hypre_CSRMatrixRownnz(A->diag));
-      }
-      if (offdOwner == -1 &&
-          hypre_CSRMatrixMemoryLocation(A->offd) == GetHypreMemoryLocation())
-      {
-         mfem_hypre_TFree(hypre_CSRMatrixRownnz(A->offd));
-      }
-
-      // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
-      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
-      // is called below.
       MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
                        Device::GetHostMemoryClass() : GetHypreMemoryClass();
-      Write(mc, diagOwner < 0, offdOwner < 0);
+      Write(mc, diagOwner < 0, offdOwner <0);
    }
 #endif
 
