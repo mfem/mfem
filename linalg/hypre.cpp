@@ -595,8 +595,8 @@ void HypreParMatrix::Init()
 inline decltype(hypre_CSRMatrix::memory_location)
 GetHypreParMatrixMemoryLocation(MemoryClass mc)
 {
-   // This method is called by HypreParMatrix::{Destroy,Read,ReadWrite,Write}
-   // (with MemoryClass arg) and those are private and called only with memory
+   // This method is called by HypreParMatrix::{Read,ReadWrite,Write} (with
+   // MemoryClass argument) and those are private and called only with memory
    // class mc == Device::GetHostMemoryClass() or mc == GetHypreMemoryClass().
    // If they need to be called with a different MemoryClass, the logic below
    // may need to be adjusted.
@@ -2893,8 +2893,7 @@ void HypreParMatrix::Destroy()
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
          }
 #if MFEM_HYPRE_VERSION >= 21800
-         auto ml = GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
-         hypre_CSRMatrixMemoryLocation(A->diag) = ml;
+         hypre_CSRMatrixMemoryLocation(A->diag) = GetHypreMemoryLocation();
 #endif
       }
       if (offdOwner == -1)
@@ -2907,8 +2906,7 @@ void HypreParMatrix::Destroy()
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
          }
 #if MFEM_HYPRE_VERSION >= 21800
-         auto ml = GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
-         hypre_CSRMatrixMemoryLocation(A->offd) = ml;
+         hypre_CSRMatrixMemoryLocation(A->offd) = GetHypreMemoryLocation();
 #endif
       }
    }
