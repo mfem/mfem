@@ -53,6 +53,10 @@ New and updated examples and miniapps
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 
+GPU computing
+-------------
+- Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
 Miscellaneous
 -------------
 - Fixed signed DOF handling in parallel grid-function reading (read constructor)
