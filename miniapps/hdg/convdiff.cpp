@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
       case Problem::NonsteadyBurgers:
       case Problem::SteadyLinearKappa:
       case Problem::NonsteadyLinearKappa:
-         //free (zero Dirichlet)
+         // Free BC (zero Dirichlet)
          if (bc_neumann)
          {
             bdr_is_neumann[1] = -1; // Outflow
@@ -987,7 +987,7 @@ int main(int argc, char *argv[])
    // 11. Construct the spatial operator
 
    DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
-   {gform.get(), fform.get(),hform.get()},
+   {gform.get(), fform.get(), hform.get()},
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
 

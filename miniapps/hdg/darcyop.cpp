@@ -697,7 +697,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                    << " iterations. Residual norm is " << solver->GetFinalNorm()
                    << ".\n";
       }
-      std::cout << "solver took " << chrono.RealTime() << "s.\n";
+      std::cout << "Solver took " << chrono.RealTime() << "s.\n";
    }
 
    dx_v -= x_v;
