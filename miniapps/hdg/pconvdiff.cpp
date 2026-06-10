@@ -2,20 +2,18 @@
 //
 // Compile with: make pconvdiff
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  mpirun -np 4 pconvdiff -nx 20 -p 2 -o 2 -hb -dg
+//               mpirun -np 4 pconvdiff -nx 20 -p 2 -o 2 -hb -up -bcn
+//               mpirun -np 4 pconvdiff -m ../../data/amr-quad.mesh -rs 1 -p 2 -o 2 -hb -brt -up -bcn
+//               mpirun -np 4 pconvdiff -nx 20 -p 2 -o 2 -hb -dg -up -bcn -trbc -trh1
+//               mpirun -np 4 pconvdiff -m ../../data/amr-quad.mesh -rs 1 -p 2 -o 2 -rd -brt -up -bcn
+//               mpirun -np 4 pconvdiff -nx 20 -p 2 -o 0 -hb -brt -up -rec
+//               mpirun -np 4 pconvdiff -nx 20 -p 2 -o 1
+//               mpirun -np 4 pconvdiff -nx 40 -p 3 -o 2 -k 1e-4 -hb -dg -up
+//               mpirun -np 4 pconvdiff -nx 40 -p 4 -k 1e-4 -tf 0.5 -nt 20 -ode 3 -o 2 -hb -dg
+//             * mpirun -np 4 pconvdiff -nx 120 -ny 30 -sx 10 -sy 2.5 -p 5 -k 1e-2 -tf 10 -nt 100 -ode 3 -o 2 -dg -hb
 //
 // Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This miniapp solves a convection-diffusion problem in the mixed
 //               formulation corresponding to the system

@@ -2,20 +2,18 @@
 //
 // Compile with: make panisodiff
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  mpirun -np 4 panisodiff -nx 20 -p 1 -o 2 -hb -dg
+//               mpirun -np 4 panisodiff -nx 20 -p 1 -o 2 -rd -brt -a 1e2 -bcn
+//               mpirun -np 4 panisodiff -nx 20 -p 1 -o 2 -rd -dg
+//               mpirun -np 4 panisodiff -nx 20 -p 1 -o 2 -hb -dg -trh1 -a 1e2 -bcn
+//               mpirun -np 4 panisodiff -nx 20 -p 1 -o 0 -hb -brt -rec -trbc
+//               mpirun -np 4 panisodiff -nx 20 -p 1 -o 2
+//               mpirun -np 4 panisodiff -nx 40 -p 2 -a 1 -ks 1e-4 -o 2 -hb -dg
+//               mpirun -np 4 panisodiff -m ../../data/square-disc.mesh -p 2 -a 1 -k 1e-2 -ks 2e-3 -o 2 -hb -dg
+//               mpirun -np 4 panisodiff -nx 20 -p 5 -ks 1e+1 -o 2 -hb -brt -amr 5
+//               mpirun -np 4 panisodiff -nx 20 -p 9 -ks 1e-4 -o 2 -hb -dg -amr 5
 //
 // Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This miniapp solves asymptotic heat diffusion problem with
 //               anisotropic conductivity in the mixed formulation corresponding

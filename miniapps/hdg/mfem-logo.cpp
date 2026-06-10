@@ -3,6 +3,11 @@
 // Compile with: make mfem-logo
 //
 // Sample runs:  mfem-logo -nx 50 -o 3 -hb -dg -a 1e3 -ks 1e-3 -c 2e4
+//               mfem-logo -nx 50 -o 3 -hb -dg -a 1e3 -ks 1e-3 -c 2e4 -up -trh1
+//               mfem-logo -nx 50 -o 3 -rd -brt -a 1e3 -ks 1e-3 -c 2e4
+//               mfem-logo -nx 50 -o 1 -a 1e3 -ks 1e-3 -c 2e4
+//               mfem-logo -nx 50 -o 1 -hb -brt -a 2e3 -ks 1e-3 -c 2e4 -rec
+//               mfem-logo -nx 50 -o 1 -a 2e3 -ks 1e-3 -c 2e3 -pa
 //
 // Device sample runs:
 //
