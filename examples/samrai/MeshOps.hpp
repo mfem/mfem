@@ -147,7 +147,7 @@ public:
 
    enum BDR_ATTRIBUTE {Ylower=1, Xupper=2, Yupper=3, Xlower=4};
 
-   MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy, MPI_Comm communicator);
+   MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy);
 
    const ParMesh& getMesh() const { return mesh; }
 
@@ -193,8 +193,8 @@ public:
       transferToSAMRAI(node_fields, cell_fields);
    }
 
-   // reconstruct a field u (represented by dst) from u_hat (represented by src)
-   // Note current only 2D reconstruction of L^2_1 (piecewise-linear) field from
+   // reconstruct an L2 field u (represented by dst) from u_hat (represented by src)
+   // Note currently only 2D reconstruction of L^2_1 (piecewise-linear) field from
    // L^2_0 (piecewise-constant) field is supported. The reconstruction is done
    // by enforcing
    //   1) element average: (u, psi_hat)_E = ({u_hat}, psi_hat)_E
@@ -206,7 +206,9 @@ public:
    // where ( , )_E denotes area integral, < , >_E denotes the surface integral,
    // psi_hat the L^2_0 basis function on element E, and e_* is the unit vector
    // in the x_* direction
-   void reconstructField(const ParGridFunction& src, ParGridFunction& dst);
+   void reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst);
+
+   void reconstructH1Field(const ParGridFunction& src, ParGridFunction& dst);
 
 private:
 

@@ -51,15 +51,14 @@ Vector MeshOps::toVector(const SAMRAI::hier::IntVector& vector)
    return result;
 }
 
-MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
-   MPI_Comm communicator) :
+MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    hierarchy(hierarchy), corners(getCorners( hierarchy->getDim().getValue())),
    fe_collection_node(1, hierarchy->getDim().getValue()),
    fe_collection_cell(0, hierarchy->getDim().getValue())
 {
    int rank, ranks;
-   MPI_Comm_rank(communicator, &rank);
-   MPI_Comm_size(communicator, &ranks);
+   MPI_Comm_rank(hierarchy->getMPI().getCommunicator(), &rank);
+   MPI_Comm_size(hierarchy->getMPI().getCommunicator(), &ranks);
    const unsigned short dim = hierarchy->getDim().getValue();
 
    // build Cartesian MFEM mesh with unit width elements to easier facilitate
@@ -79,8 +78,10 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
    //       the hier::Index class
    int* lowerData = &domain_lower[0];
    int* upperData = &domain_upper[0];
-   MPI_Allreduce(MPI_IN_PLACE, lowerData, dim, MPI_INT, MPI_MIN, communicator);
-   MPI_Allreduce(MPI_IN_PLACE, upperData, dim, MPI_INT, MPI_MAX, communicator);
+   MPI_Allreduce(MPI_IN_PLACE, lowerData, dim, MPI_INT, MPI_MIN,
+      hierarchy->getMPI().getCommunicator());
+   MPI_Allreduce(MPI_IN_PLACE, upperData, dim, MPI_INT, MPI_MAX,
+      hierarchy->getMPI().getCommunicator());
    const SAMRAI::hier::IntVector num_cells = domain_upper - domain_lower + 1;
 
    // Create coarse mesh
@@ -117,7 +118,7 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy,
          MFEM_ABORT("NDIM not valid");
    }
    serial_mesh.EnsureNCMesh();
-   mesh = ParMesh(communicator, serial_mesh);
+   mesh = ParMesh(hierarchy->getMPI().getCommunicator(), serial_mesh);
    serial_mesh.Clear();
 
    // serialize local patch data
@@ -814,23 +815,23 @@ void MeshOps::transferToSAMRAI(
                   node_field_MFEM[dof_indices[dof_indices_ind+c]];
             }
          }
-         // set cell field values
-         for (int i=0; i < cell_fields.size(); i++)
-         {
-            SAMRAI::pdat::CellData<double>& cell_values =
-               *SAMRAI_SHARED_PTR_CAST<SAMRAI::pdat::CellData<double>>(
-                  cell_patch.getPatchData(std::get<int>(cell_fields[i])));
-            Vector dof_values;
-            cell_field_averages[i].GetElementDofValues(element_ind, dof_values);
-            cell_values(cell_index) = dof_values[0];
-         }
+      }
+      // set cell field values
+      for (int i=0; i < cell_fields.size(); i++)
+      {
+         SAMRAI::pdat::CellData<double>& cell_values =
+            *SAMRAI_SHARED_PTR_CAST<SAMRAI::pdat::CellData<double>>(
+               cell_patch.getPatchData(std::get<int>(cell_fields[i])));
+         Vector dof_values;
+         cell_field_averages[i].GetElementDofValues(element_ind, dof_values);
+         cell_values(cell_index) = dof_values[0];
       }
    }
 
    MPI_Barrier(mesh.GetComm());
 }
 
-void MeshOps::reconstructField(const ParGridFunction& src, ParGridFunction& dst)
+void MeshOps::reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst)
 {
    // todo: improve checking when dst is L2, p=0
    if (dst.FESpace()->GetOrder(0) == 0)

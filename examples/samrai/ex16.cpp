@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "MeshOps.hpp"
+#include "reconstruction.hpp"
 
 // SAMRAI includes
 #include "SAMRAI/SAMRAI_config.h"
@@ -45,6 +46,7 @@
 #include "SAMRAI/tbox/SAMRAI_MPI.h"
 
 using namespace mfem;
+
 
 /** After spatial discretization, the conduction model can be written as:
  *
@@ -84,7 +86,42 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 };
 
-real_t InitialTemperature(const Vector &x);
+template<class FiniteElementCollectionType>
+std::tuple<std::unique_ptr<FiniteElementCollectionType>,
+           std::unique_ptr<ParFiniteElementSpace>,
+           std::unique_ptr<ParGridFunction>>
+   createFiniteElementField(MeshOps& mesh_ops, const int order)
+{
+   const ParMesh& mesh = mesh_ops.getMesh();
+   auto fe_collection =
+      std::make_unique<FiniteElementCollectionType>(order, mesh.Dimension());
+   std::unique_ptr<ParFiniteElementSpace> fe_space =
+      mesh_ops.createFESpace(*fe_collection);
+   auto gridfunction = std::make_unique<ParGridFunction>(fe_space.get());
+   return std::make_tuple(std::move(fe_collection), std::move(fe_space),
+      std::move(gridfunction));
+}
+
+std::tuple<std::unique_ptr<ConductionOperator>,
+           std::unique_ptr<ODESolver>>
+   createConductionODESolver(ParFiniteElementSpace* fespace, const real_t kappa,
+                             const int ode_solver_type, const bool solve_implicit_state)
+{
+   // Create the conduction operator
+   auto conduction = std::make_unique<ConductionOperator>(fespace, kappa);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   conduction->SetImplicitVariableType(imp_var);
+
+   // Create the ODE solver used for time integration
+   std::unique_ptr<ODESolver> solver = ODESolver::Select(ode_solver_type);
+   solver->Init(*conduction);
+   return std::make_tuple(std::move(conduction), std::move(solver));
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -133,7 +170,6 @@ int main(int argc, char *argv[])
    SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
    SAMRAI::tbox::SAMRAIManager::initialize();
    SAMRAI::tbox::SAMRAIManager::startup();
-   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
 
    /************************* Create SAMRAI objects ***************************/
 
@@ -175,15 +211,14 @@ int main(int argc, char *argv[])
    /************************** Create MFEM objects ****************************/
 
    // Create MFEM mesh to match SAMRAI mesh using the SAMRAI communicator
-   MeshOps mesh_ops(patch_hierarchy, mpi.getCommunicator());
-   const ParMesh& mesh = mesh_ops.getMesh();
+   auto mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
 
    // Transfer initial SAMRAI state (cell averages) to an MFEM grid function
    // (piecewise-constant representation)
    std::unique_ptr<ParGridFunction> uavg_gf;
    {
       std::vector<std::unique_ptr<ParGridFunction>> gfs =
-         mesh_ops.transferToMFEM(samrai_position_id, {}, {samrai_state_id});
+         mesh_ops->transferToMFEM(samrai_position_id, {}, {samrai_state_id});
       uavg_gf = std::move(gfs[0]);
    }
 
@@ -191,66 +226,31 @@ int main(int argc, char *argv[])
    // projecting the piecewise-constant representation onto the higher-order
    // finite element space
    const int order = 1;
-   H1_FECollection u_fecollection(order, mesh.Dimension());
-   std::unique_ptr<ParFiniteElementSpace> u_fespace =
-      mesh_ops.createFESpace(u_fecollection);
+   using FECType = H1_FECollection;
+   std::unique_ptr<FECType> u_fecollection;
+   std::unique_ptr<ParFiniteElementSpace> u_fespace;
+   std::unique_ptr<ParGridFunction> u_gf;
+   Vector u;
+   std::tie(u_fecollection, u_fespace, u_gf) =
+      createFiniteElementField<FECType>(*mesh_ops, order);
    std::cout << "Number of temperature unknowns: " << u_fespace->GlobalTrueVSize()
              << std::endl;
-   ParGridFunction u_gf(u_fespace.get());
-   Vector u;
-   u_gf.GetTrueDofs(u);
-   {
-      OperatorPtr M_op;
-      ParBilinearForm M(u_fespace.get());
-      M.AddDomainIntegrator(new MassIntegrator());
-      M.Assemble();
-      M.FormSystemMatrix({}, M_op);
+   reconstructH1Field(*uavg_gf, *u_gf);
 
-      OperatorPtr Rhs_op;
-      Vector uavg;
-      Vector rhs(u.Size());
-      ParMixedBilinearForm Rhs(uavg_gf->ParFESpace(), u_fespace.get());
-      Rhs.AddDomainIntegrator(new MassIntegrator());
-      Rhs.Assemble();
-      Rhs.FormRectangularSystemMatrix({}, {}, Rhs_op);
-      uavg_gf->GetTrueDofs(uavg);
-      Rhs_op->Mult(uavg, rhs);
-
-      CGSolver solver(mesh.GetComm());
-      solver.iterative_mode = false;
-      solver.SetRelTol(1e-5);
-      solver.SetAbsTol(0.0);
-      solver.SetMaxIter(30);
-      solver.SetPrintLevel(0);
-      HypreSmoother prec;
-      prec.SetType(HypreSmoother::Jacobi);
-      solver.SetPreconditioner(prec);
-      solver.SetOperator(*M_op);
-      solver.Mult(rhs, u);
-      MFEM_VERIFY(solver.GetConverged(), "Solver did not converge.");
-   }
-   u_gf.SetFromTrueDofs(u);
-
-   // Create the conduction operator
-   ConductionOperator conduction(u_fespace.get(), kappa);
-   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
-   ImplicitVariableType imp_var = solve_implicit_state ?
-                                  ImplicitVariableType::STATE
-                                  : ImplicitVariableType::SLOPE;
-   conduction.SetImplicitVariableType(imp_var);
-
-   // Create the ODE solver used for time integration
-   std::unique_ptr<ODESolver> mfem_ode_solver = ODESolver::Select(ode_solver_type);
-   mfem_ode_solver->Init(conduction);
+   // Create the conduction operator and ODE solver used for time integration
+   std::unique_ptr<ConductionOperator> conduction;
+   std::unique_ptr<ODESolver> mfem_ode_solver;
+   std::tie(conduction, mfem_ode_solver) =
+      createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
 
    // Write out the mesh and initial condition
    {
       std::ofstream omesh("ex16.mesh");
       omesh.precision(precision);
-      mesh.Print(omesh);
+      mesh_ops->getMesh().Print(omesh);
       std::ofstream osol("ex16-init.gf");
       osol.precision(precision);
-      u_gf.Save(osol);
+      u_gf->Save(osol);
    }
 
    // Optionally, create the VisIt output object and save the initial condition
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
    if (visit)
    {
       //visit_dc = std::make_unique<VisItDataCollection>("Example16", &mesh);
-      visit_dc->RegisterField("temperature", &u_gf);
+      visit_dc->RegisterField("temperature", u_gf.get());
       visit_dc->SetCycle(0);
       visit_dc->SetTime(0.0);
       visit_dc->Save();
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << u_gf;
+         sout << "solution\n" << mesh_ops->getMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
          std::cout << "GLVis visualization paused."
@@ -305,17 +305,36 @@ int main(int argc, char *argv[])
       // SAMRAI advection step
       const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
 
+      // Transfer SAMRAI values to MFEM mesh (for now, recreate the MFEM mesh
+      // and dependent object to account for AMR in SAMRAI grid)
+      mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
+      {
+         std::vector<std::unique_ptr<ParGridFunction>> gfs =
+            mesh_ops->transferToMFEM(samrai_position_id, {}, {samrai_state_id});
+         uavg_gf = std::move(gfs[0]);
+      }
+      std::tie(u_fecollection, u_fespace, u_gf) =
+         createFiniteElementField<FECType>(*mesh_ops, order);
+      reconstructH1Field(*uavg_gf, *u_gf);
+      std::tie(conduction, mfem_ode_solver) =
+         createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
+
       // MFEM heat equation step
+      u_gf->GetTrueDofs(u);
       mfem_ode_solver->Step(u, time, dt);
+      u_gf->SetFromTrueDofs(u);
+
+      // Transfer MFEM values back to SAMRAI grid
+      std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
+      mesh_ops->transferToSAMRAI({}, {u_fields});
 
       if (last_step || (ti % vis_steps) == 0)
       {
          std::cout << "step " << ti << ", t = " << time << std::endl;
 
-         u_gf.SetFromTrueDofs(u);
          if (visualization)
          {
-            sout << "solution\n" << mesh << u_gf << std::flush;
+            sout << "solution\n" << mesh_ops->getMesh() << *u_gf << std::flush;
          }
 
          if (visit)
@@ -339,7 +358,7 @@ int main(int argc, char *argv[])
    {
       std::ofstream osol("ex16-final.gf");
       osol.precision(precision);
-      u_gf.Save(osol);
+      u_gf->Save(osol);
    }
 
    std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
@@ -421,18 +440,4 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
       z.Neg();
    }
    T_solver.Mult(z, k);
-}
-
-real_t InitialTemperature(const Vector &x)
-{
-   Vector c({15.0, 10.0});
-   c -= x;
-   if (c.Norml2() < 5.0)
-   {
-      return 2.0;
-   }
-   else
-   {
-      return 1.0;
-   }
 }

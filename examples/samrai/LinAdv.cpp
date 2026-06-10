@@ -3291,16 +3291,13 @@ void LinAdv::addFields(
 int LinAdv::getPositionId() const
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
-   std::shared_ptr<hier::VariableContext> current =
-      variable_db->getContext("CURRENT");
-   return variable_db->mapVariableAndContextToIndex(d_xval, current);
+   return variable_db->mapVariableAndContextToIndex(d_xval,
+      variable_db->getContext("CURRENT"));
 }
 
 int LinAdv::getStateId() const
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
-   std::shared_ptr<hier::VariableContext> current =
-      variable_db->getContext("CURRENT");
-   return variable_db->mapVariableAndContextToIndex(d_uval, current);
+   return variable_db->mapVariableAndContextToIndex(d_uval,
+      variable_db->getContext("CURRENT"));
 }
-
