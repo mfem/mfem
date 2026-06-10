@@ -13,7 +13,7 @@
 #include "../../general/tic_toc.hpp"
 #include <fstream>
 
-//#define USE_DIRECT_SOLVER_HYBRIDIZATION
+#define USE_DIRECT_SOLVER_HYBRIDIZATION
 #define USE_DIRECT_SOLVER_REDUCTION
 #define USE_DIRECT_SOLVER_SCHUR
 
