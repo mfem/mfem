@@ -114,6 +114,8 @@ TEST_CASE("ComplexOperator Quaternion Tests", "[ComplexOperator]")
    }
 }
 
+#ifdef MFEM_USE_MPI
+
 TEST_CASE("ComplexHypreParMatrix GetSystemMatrix",
           "[ComplexOperator][Parallel][GPU]")
 {
@@ -171,3 +173,5 @@ TEST_CASE("ComplexHypreParMatrix GetSystemMatrix",
    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
    delete A;
 }
+
+#endif // MFEM_USE_MPI
