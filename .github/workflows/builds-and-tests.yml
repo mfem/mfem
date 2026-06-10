@@ -304,7 +304,7 @@ jobs:
 
       # MFEM build and test
       - name: build
-        uses: mfem/github-actions/build-mfem@v2.6
+        uses: mfem/github-actions/build-mfem@update-num-tasks
         env:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         with:
