@@ -419,7 +419,10 @@ int main(int argc, char *argv[])
    //    algorithm. Simplices can be refined either in conforming or in non-
    //    conforming mode. The conforming mode however does not support
    //    dynamic partitioning.
-   mesh.EnsureNCMesh(nc_simplices);
+   if (amr_nrefs > 0)
+   {
+      mesh.EnsureNCMesh(nc_simplices);
+   }
 
    // 9. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
