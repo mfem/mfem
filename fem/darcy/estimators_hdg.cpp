@@ -44,6 +44,7 @@ void HDGErrorEstimator::ComputeEstimates()
    {
       const ParMesh *pmesh = psol_tr->ParFESpace()->GetParMesh();
       const int num_shared = pmesh->GetNSharedFaces();
+      const_cast<ParGridFunction*>(psol_tr)->ExchangeFaceNbrData();
 
       for (int sf = 0; sf < num_shared; sf++)
       {
