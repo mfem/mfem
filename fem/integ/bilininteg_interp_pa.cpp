@@ -14,6 +14,8 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 
+#include "bilininteg_hcurlhdiv_kernels.hpp"
+
 namespace mfem
 {
 
@@ -1973,9 +1975,9 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
 
    ne = dom_fes.GetNE();
    ndof_o = dom_el->GetOrder();
-   ndof_c = ndof_o + 1;
+   int ndof_c = ndof_o + 1;
    nquad_o = ran_el->GetOrder();
-   nquad_c = nquad_o + 1;
+   int nquad_c = nquad_o + 1;
 
    // extract the tensor product range dof locations
    std::vector<real_t> qc(nquad_c);
@@ -2068,36 +2070,51 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
    }
 }
 
+CurlInterpolator::Kernels::Kernels()
+{
+   CurlInterpolator::AddSpecialization<3, 1, 1>();
+   CurlInterpolator::AddSpecialization<3, 2, 2>();
+   CurlInterpolator::AddSpecialization<3, 3, 3>();
+   CurlInterpolator::AddSpecialization<3, 4, 4>();
+   CurlInterpolator::AddSpecialization<3, 5, 5>();
+}
+
+CurlInterpolator::CurlInterpolator() { static Kernels kernels{}; }
+
 void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // TODO
-   switch (dim)
-   {
-      // case 1:
-      //    break;
-      // case 2:
-      //    break;
-      case 3:
-         break;
-      default:
-         mfem_error("Bad dimension!");
-   }
+   ApplyPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
+                       y);
 }
 
 void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   // TODO
-   switch (dim)
-   {
-      // case 1:
-      //    break;
-      // case 2:
-      //    break;
-      case 3:
-         break;
-      default:
-         mfem_error("Bad dimension!");
-   }
+   ApplyTPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
+                        y);
 }
+
+/// \cond DO_NOT_DOCUMENT
+
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 3)
+   {
+      return internal::CurlInterpolatorApply3DSmem<0, 0>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
+
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyTPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 3)
+   {
+      return internal::CurlInterpolatorTApply3DSmem<0, 0>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

@@ -4002,13 +4002,15 @@ class CurlInterpolator : public DiscreteInterpolator
 {
    int dim, ne;
    // "dof" are the domain fespace dof counts
-   int ndof_o, ndof_c;
+   int ndof_o;
    // "quads" are the range fespace dof counts
-   int nquad_o, nquad_c;
+   int nquad_o;
 
    Vector pa_data;
 
 public:
+   CurlInterpolator();
+
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
                                ElementTransformation &Trans,
@@ -4023,6 +4025,23 @@ public:
    }
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   using ApplyKernelType = void (*)(const int ne, const int ndof_o,
+                                    const int nquad_o, const Vector &pa,
+                                    const Vector &x, Vector &y);
+
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyTPAKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int NDOF_O, int NQUAD_O> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+      ApplyTPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 };
 
 

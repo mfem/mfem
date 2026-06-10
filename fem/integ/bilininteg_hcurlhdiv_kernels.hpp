@@ -864,7 +864,90 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
    }); // end of element loop
 }
 
+namespace curlinterp
+{
+constexpr int NBZ3D(int ndof_o, int nquad_o)
+{
+   // TODO
+   return 1;
+}
+}
+
+template <int NDOF_O, int NQUAD_O>
+void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
+                                 const int nquad_o, const Vector &pa,
+                                 const Vector &x, Vector &y)
+{
+   constexpr int MND_O = NDOF_O ? NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+   constexpr int MNQ_O = NQUAD_O ? NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
+   constexpr int MNDQ = std::max(MND_O, MNQ_O);
+   constexpr int TBATCH = curlinterp::NBZ3D(MND_O, MNQ_O);
+   // TODO: batching
+   MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
+   MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
+   const int ndof_c = ndof_o + 1;
+   const int nquad_c = nquad_o + 1;
+   auto tmp = pa.Read();
+
+   auto Bcc = Reshape(tmp, ndof_c, nquad_c);
+   tmp += ndof_c * nquad_c;
+   auto Bco = Reshape(tmp, ndof_c, nquad_o);
+   tmp += ndof_c * nquad_o;
+   auto Boc = Reshape(tmp, ndof_o, nquad_c);
+   tmp += ndof_o * nquad_c;
+   auto Boo = Reshape(tmp, ndof_o, nquad_o);
+   tmp += ndof_o * nquad_o;
+
+   auto Gcc = Reshape(tmp, ndof_c, nquad_c);
+   tmp += ndof_c * nquad_c;
+   auto Gco = Reshape(tmp, ndof_c, nquad_o);
+   tmp += ndof_c * nquad_o;
+   auto Goc = Reshape(tmp, ndof_o, nquad_c);
+   tmp += ndof_o * nquad_c;
+   auto Goo = Reshape(tmp, ndof_o, nquad_o);
+
+   auto X = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
+   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
+
+   // TODO: best thread block shape?
+   mfem::forall_2d_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
+      ne, MNDQ * MNDQ * MNDQ, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // TODO
+   });
+}
+
+template <int NDOF_O, int NQUAD_O>
+void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
+                                  const int nquad_o, const Vector &pa,
+                                  const Vector &x, Vector &y)
+{
+   // TODO do half of the sum factorization cycle from D->Q
+}
+
 } // namespace internal
+
+template <int DIM, int NDOF_O, int NQUAD_O>
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 3)
+   {
+      return internal::CurlInterpolatorApply3DSmem<NDOF_O, NQUAD_O>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
+
+template <int DIM, int NDOF_O, int NQUAD_O>
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyTPAKernels::Kernel()
+{
+   if constexpr (DIM == 3)
+   {
+      return internal::CurlInterpolatorTApply3DSmem<NDOF_O, NQUAD_O>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
 
 } // namespace mfem
 
