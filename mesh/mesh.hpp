@@ -500,6 +500,12 @@ protected:
    void LoadNonconformingPatchTopo(std::istream &input,
                                    Array<int> &edge_to_ukv);
 
+   /// Return true if the face is a conforming face.
+   bool IsNURBS() const;
+
+   NURBSExtension* NURBSExt();
+   const NURBSExtension* NURBSExt() const;
+
    /// Update this NURBS Mesh and its NURBS data structures after a change, such
    /// as refinement, derefinement, or degree change.
    void UpdateNURBS();
