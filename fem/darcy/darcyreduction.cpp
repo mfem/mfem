@@ -1362,6 +1362,7 @@ void DarcyPotentialReduction::EliminateTrueDofsInRHS(
    for (int el = 0; el < NE; el++)
    {
       GetEDofs(el, edofs);
+      if (edofs.Size() <= 0) { continue; }
       xu.GetSubVector(edofs, u_e);
       u_e.Neg();
 
