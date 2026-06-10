@@ -637,6 +637,12 @@ public:
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   /// Return true if the space is a NURBS space
+   bool IsNURBS() const
+   {
+      return NURBSext;
+   }
+
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
