@@ -2892,8 +2892,10 @@ void HypreParMatrix::Destroy()
             mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
          }
-         hypre_CSRMatrixMemoryLocation(A->diag) =
-            GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
+#if MFEM_HYPRE_VERSION >= 21800
+         auto ml = GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
+         hypre_CSRMatrixMemoryLocation(A->diag) = ml;
+#endif
       }
       if (offdOwner == -1)
       {
@@ -2904,8 +2906,10 @@ void HypreParMatrix::Destroy()
             mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
          }
-         hypre_CSRMatrixMemoryLocation(A->offd) =
-            GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
+#if MFEM_HYPRE_VERSION >= 21800
+         auto ml = GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
+         hypre_CSRMatrixMemoryLocation(A->offd) = ml;
+#endif
       }
    }
 #endif
