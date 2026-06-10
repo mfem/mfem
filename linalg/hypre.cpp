@@ -2872,8 +2872,8 @@ void HypreParMatrix::Destroy()
    if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
-      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
-      // is called below.
+      // that they can be destroyed by mfem_hypre_TFree_host() or hypre when
+      // hypre_ParCSRMatrixDestroy(A) is called below, respectively.
 
       // Check that if both diagOwner and offdOwner are negative then they have
       // the same value.
@@ -2885,31 +2885,29 @@ void HypreParMatrix::Destroy()
       Write(mc, diagOwner < 0, offdOwner < 0);
       if (diagOwner == -1)
       {
-         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
-         mfem_hypre_TFree_host(A->diag->i);
-         if (A->diag->owns_data)
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
+         if (hypre_CSRMatrixOwnsData(A->diag))
          {
-            mfem_hypre_TFree_host(A->diag->j);
-            mfem_hypre_TFree_host(A->diag->data);
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
          }
          Write(GetHypreMemoryClass(), true, false);
-         A->diag->i = NULL;
-         A->diag->j = NULL;
-         A->diag->data = NULL;
+         hypre_CSRMatrixI(A->diag) = NULL;
+         hypre_CSRMatrixJ(A->diag) = NULL;
+         hypre_CSRMatrixData(A->diag) = NULL;
       }
       if (offdOwner == -1)
       {
-         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
-         mfem_hypre_TFree_host(A->offd->i);
-         if (A->offd->owns_data)
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
+         if (hypre_CSRMatrixOwnsData(A->offd))
          {
-            mfem_hypre_TFree_host(A->offd->j);
-            mfem_hypre_TFree_host(A->offd->data);
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
          }
          Write(GetHypreMemoryClass(), false, true);
-         A->offd->i = NULL;
-         A->offd->j = NULL;
-         A->offd->data = NULL;
+         hypre_CSRMatrixI(A->offd) = NULL;
+         hypre_CSRMatrixJ(A->offd) = NULL;
+         hypre_CSRMatrixData(A->offd) = NULL;
       }
    }
 #endif
