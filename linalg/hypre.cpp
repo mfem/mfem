@@ -595,8 +595,8 @@ void HypreParMatrix::Init()
 inline decltype(hypre_CSRMatrix::memory_location)
 GetHypreParMatrixMemoryLocation(MemoryClass mc)
 {
-   // This method is called by HypreParMatrix::{Read,ReadWrite,Write} (with
-   // MemoryClass argument) and those are private and called only with memory
+   // This method is called by HypreParMatrix::{Destroy,Read,ReadWrite,Write}
+   // (with MemoryClass arg) and those are private and called only with memory
    // class mc == Device::GetHostMemoryClass() or mc == GetHypreMemoryClass().
    // If they need to be called with a different MemoryClass, the logic below
    // may need to be adjusted.
@@ -2885,29 +2885,27 @@ void HypreParMatrix::Destroy()
       Write(mc, diagOwner < 0, offdOwner < 0);
       if (diagOwner == -1)
       {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
          mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
          if (hypre_CSRMatrixOwnsData(A->diag))
          {
             mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
          }
-         Write(GetHypreMemoryClass(), true, false);
-         hypre_CSRMatrixI(A->diag) = NULL;
-         hypre_CSRMatrixJ(A->diag) = NULL;
-         hypre_CSRMatrixData(A->diag) = NULL;
+         hypre_CSRMatrixMemoryLocation(A->diag) =
+            GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
       }
       if (offdOwner == -1)
       {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
          mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
          if (hypre_CSRMatrixOwnsData(A->offd))
          {
             mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
             mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
          }
-         Write(GetHypreMemoryClass(), false, true);
-         hypre_CSRMatrixI(A->offd) = NULL;
-         hypre_CSRMatrixJ(A->offd) = NULL;
-         hypre_CSRMatrixData(A->offd) = NULL;
+         hypre_CSRMatrixMemoryLocation(A->offd) =
+            GetHypreParMatrixMemoryLocation(GetHypreMemoryClass());
       }
    }
 #endif
