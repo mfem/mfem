@@ -910,7 +910,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
    auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
 
    // TODO: best thread block shape?
-   mfem::forall_2d_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
+   mfem::forall_2D_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
       ne, MNDQ * MNDQ * MNDQ, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
    {
       // TODO
