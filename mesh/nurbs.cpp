@@ -5764,7 +5764,7 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
-void NURBSExtension::PrintCoarsePatches(std::ostream &os)
+void NURBSExtension::PrintCoarsePatches(std::ostream &os) const
 {
    const int patchCP_size1 = patchCP.GetSize1();
    MFEM_VERIFY(patchCP_size1 == num_structured_patches || patchCP_size1 == 0,

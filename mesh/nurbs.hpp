@@ -1135,7 +1135,7 @@ public:
    void FullyCoarsen();
 
    /// Print control points for coarse patches.
-   virtual void PrintCoarsePatches(std::ostream &os);
+   virtual void PrintCoarsePatches(std::ostream &os) const;
 };
 
 
