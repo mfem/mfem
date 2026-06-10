@@ -57,6 +57,10 @@ New and updated examples and miniapps
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 
+GPU computing
+-------------
+- Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
 Miscellaneous
 -------------
 - Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
