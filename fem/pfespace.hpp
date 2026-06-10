@@ -25,6 +25,7 @@ namespace mfem
 {
 
 struct ParDerefineMatrixOp;
+class DeviceSharedDofCommunicator;
 
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
@@ -105,6 +106,8 @@ private:
    mutable SparseMatrix *R;
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
+   /// Optimized device shared-DOF communicator for conforming meshes. Owned.
+   mutable std::unique_ptr<DeviceSharedDofCommunicator> DofComm;
 
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
@@ -426,6 +429,14 @@ public:
    /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
+   /** @brief Return a device-friendly communicator for shared scalar dof
+       reductions on conforming spaces.
+
+       The returned object is owned by the ParFiniteElementSpace and remains
+       valid until the space is updated or destroyed.
+   */
+   const DeviceSharedDofCommunicator *GetDeviceSharedDofCommunicator() const;
+
    /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
    /** For non-conforming mesh, synchronization is performed on the cut (aka
@@ -659,6 +670,73 @@ public:
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(x,y); }
+};
+
+/** @brief Auxiliary device-aware communicator for shared scalar dof
+    reductions on conforming ParFiniteElementSpaces.
+
+    This class mirrors the neighbor-buffer communication pattern used by
+    DeviceConformingProlongationOperator, but it applies reduction operations
+    such as sum, min, and max over shared dofs instead of a linear operator.
+
+    Communication uses device buffers when GPU-aware MPI is enabled. Otherwise,
+    only the compact send/receive buffers are staged through host memory while
+    packing, local reduction, and scattering remain device-friendly. */
+class DeviceSharedDofCommunicator
+{
+public:
+   /// Reduction operation applied to shared dof values.
+   enum class Op { Sum, Min, Max };
+
+protected:
+   const GroupCommunicator &gc;
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   mutable Vector shr_buf, ext_buf, true_buf;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   MPI_Request *requests;
+
+   // Pack external local dof values into the neighbor send buffer.
+   void ReduceBeginCopy(const Vector &x_ldof) const;
+   // Copy owned local dof values into the true-dof output vector.
+   void ReduceLocalCopy(const Vector &x_ldof, Vector &x_tdof) const;
+   // Combine received shared values into the true-dof output vector.
+   void ReduceEndAssemble(Vector &x_tdof, Op op) const;
+
+   // Pack owned shared true dofs into the neighbor send buffer.
+   void BcastBeginCopy(const Vector &x_tdof) const;
+   // Scatter the owned true dofs to their local copies before MPI receives.
+   void BcastLocalCopy(const Vector &x_tdof, Vector &x_ldof) const;
+   // Scatter received neighbor values to external local dof entries.
+   void BcastEndCopy(Vector &x_ldof) const;
+
+public:
+   /// Construct from a conforming parallel finite element space.
+   DeviceSharedDofCommunicator(const ParFiniteElementSpace &pfes);
+
+   ~DeviceSharedDofCommunicator();
+
+   /** @brief Reduce local dof values to the owning true/shared dof entries.
+
+       The input @a x_ldof is a local dof vector and the result is written to
+       @a x_tdof, which must be sized on the true dofs of the associated
+       space. */
+   void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
+
+   /** @brief Broadcast true/shared dof values to all local dof copies.
+
+       The input @a x_tdof is a true dof vector and the result is written to
+       @a x_ldof, which must be sized on the local dofs of the associated
+       space. */
+   void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
+
+   /** @brief In-place shared-dof reduction followed by broadcast.
+
+       This operation replaces each shared local dof value in @a x_ldof with
+       the reduced value over all of its copies. */
+   void ReduceAndBcast(Vector &x_ldof, Op op) const;
 };
 
 }
