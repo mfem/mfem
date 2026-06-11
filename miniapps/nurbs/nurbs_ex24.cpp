@@ -138,9 +138,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
-   if (mesh->NURBSext && NURBS)
+   if (mesh->IsNURBS() && NURBS)
    {
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSExt(), order);
       if (prob == 0)
       {
          trial_fec = new NURBSFECollection(order);

@@ -1068,15 +1068,15 @@ NURBSPatch* ReflectPatch(NURBSPatch *patch, int nx, int ny, int nz,
 
 Mesh* ReflectNURBSMesh(Mesh &mesh, const Vector &origin, const Vector &normal)
 {
-   MFEM_VERIFY(mesh.NURBSext && mesh.Dimension() == 3,
+   MFEM_VERIFY(mesh.IsNURBS() && mesh.Dimension() == 3,
                "Only 3D NURBS meshes can be reflected");
 
-   Mesh patchTopo = mesh.NURBSext->GetPatchTopology(); // Deep copy
+   Mesh patchTopo = mesh.NURBSExt()->GetPatchTopology(); // Deep copy
 
    Array<NURBSPatch*> patchesOriginal, patches;
    mesh.GetNURBSPatches(patchesOriginal); // Deep copy
 
-   NURBSPatchMap p2g(mesh.NURBSext);
+   NURBSPatchMap p2g(mesh.NURBSExt());
    const KnotVector *kv[3];
 
    const int pnv = patchTopo.GetNV();
@@ -1176,7 +1176,7 @@ int main(int argc, char *argv[])
    Mesh *reflected{nullptr};
 
    //if (mesh.IsNURBS()) // TODO: available in PR 4936
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       reflected = ReflectNURBSMesh(mesh, origin, normal);
    }

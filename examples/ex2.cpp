@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 
    // 3. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->DegreeElevate(order, order);
    }
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    //    associated with the mesh nodes.
    FiniteElementCollection *fec;
    FiniteElementSpace *fespace;
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       fec = NULL;
       fespace = mesh->GetNodes()->FESpace();
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
    //     element displacement field. We assume that the initial mesh (read from
    //     the file) is not higher order curved mesh compared to the chosen FE
    //     space.
-   if (!mesh->NURBSext)
+   if (!mesh->IsNURBS())
    {
       mesh->SetNodalFESpace(fespace);
    }
