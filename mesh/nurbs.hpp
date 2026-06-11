@@ -1102,7 +1102,7 @@ public:
 
    /** @brief Return Cartesian indices (i,j) in 2D or (i,j,k) in 3D of element
        @a elem, in the knot-span tensor product ordering for its patch. */
-   void GetElementIJK(int elem, Array<int> & ijk);
+   void GetElementIJK(int elem, Array<int> & ijk) const;
 
    /** @brief Return the degrees of freedom in @a dofs on patch @a patch, in
        Cartesian order. */

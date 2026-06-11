@@ -148,7 +148,7 @@ void DiffusionIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
-   numPatches = mesh->NURBSext->GetNP();
+   numPatches = mesh->NURBSExt()->GetNP();
    for (int p=0; p<numPatches; ++p)
    {
       AssemblePatchPA(p, fes);

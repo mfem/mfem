@@ -1817,7 +1817,6 @@ void Mesh::Init()
    nodes_sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
-   NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
 }
@@ -1856,11 +1855,12 @@ void Mesh::DestroyTables()
 
 void Mesh::DestroyPointers()
 {
-   if (own_nodes) { delete Nodes; }
+   if (own_nodes)
+   {
+      delete Nodes;
+   }
 
    delete ncmesh;
-
-   delete NURBSext;
 
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -4564,9 +4564,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
    // Deep copy the NURBSExtension.
+   NURBSExtension* NURBSext = NULL;
 #ifdef MFEM_USE_MPI
-   ParNURBSExtension *pNURBSext =
-      dynamic_cast<ParNURBSExtension *>(mesh.NURBSext);
+   const ParNURBSExtension *pNURBSext =
+      dynamic_cast<const ParNURBSExtension *>(mesh.NURBSExt());
    if (pNURBSext)
    {
       NURBSext = new ParNURBSExtension(*pNURBSext);
@@ -4574,7 +4575,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    else
 #endif
    {
-      NURBSext = mesh.IsNURBS() ? new NURBSExtension(*mesh.NURBSext) : NULL;
+      NURBSext = mesh.IsNURBS() ? new NURBSExtension(*mesh.NURBSExt()) : NULL;
    }
 
    // Deep copy the NCMesh.
@@ -4598,7 +4599,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       FiniteElementSpace *fes_copy =
-         new FiniteElementSpace(*fes, this, fec_copy);
+         new FiniteElementSpace(*fes, this, NURBSext, fec_copy);
       Nodes = new GridFunction(fes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *mesh.Nodes;
@@ -4807,26 +4808,26 @@ Mesh::Mesh(const NURBSExtension& ext)
 {
    SetEmpty();
    /// make an internal copy of the NURBSExtension
-   NURBSext = new NURBSExtension(ext);
+   NURBSExtension* NURBSext = new NURBSExtension(ext);
 
-   Dim              = NURBSExt()->Dimension();
-   NumOfVertices    = NURBSExt()->GetNV();
-   NumOfElements    = NURBSExt()->GetNE();
-   NumOfBdrElements = NURBSExt()->GetNBE();
+   Dim              = NURBSext->Dimension();
+   NumOfVertices    = NURBSext->GetNV();
+   NumOfElements    = NURBSext->GetNE();
+   NumOfBdrElements = NURBSext->GetNBE();
 
-   NURBSExt()->GetElementTopo(elements);
-   NURBSExt()->GetBdrElementTopo(boundary);
+   NURBSext->GetElementTopo(elements);
+   NURBSext->GetBdrElementTopo(boundary);
 
    vertices.SetSize(NumOfVertices);
-   if (NURBSExt()->HavePatches())
+   if (NURBSext->HavePatches())
    {
-      NURBSFECollection  *fec = new NURBSFECollection(NURBSExt()->GetOrder());
-      const int vdim = NURBSExt()->GetPatchSpaceDimension();
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, NURBSext, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSExt()->SetCoordsFromPatches(*Nodes, vdim);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       for (int i = 0; i < spaceDim; i++)
@@ -5227,15 +5228,16 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
    Dim = mesh_array[0]->Dimension();
    spaceDim = mesh_array[0]->SpaceDimension();
 
+   NURBSExtension* NURBSext = NULL;
    if (mesh_array[0]->IsNURBS())
    {
       // assuming the pieces form a partition of a NURBS mesh
       NURBSext = new NURBSExtension(mesh_array, num_pieces);
 
-      NumOfVertices = NURBSExt()->GetNV();
-      NumOfElements = NURBSExt()->GetNE();
+      NumOfVertices = NURBSext->GetNV();
+      NumOfElements = NURBSext->GetNE();
 
-      NURBSExt()->GetElementTopo(elements);
+      NURBSext->GetElementTopo(elements);
 
       // NumOfBdrElements = NURBSExt()->GetNBE();
       // NURBSExt()->GetBdrElementTopo(boundary);
@@ -5348,7 +5350,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
       {
          gf_array[i] = mesh_array[i]->GetNodes();
       }
-      Nodes = new GridFunction(this, gf_array, num_pieces);
+      Nodes = new GridFunction(this, NURBSext, gf_array, num_pieces);
       own_nodes = 1;
    }
 
@@ -9937,16 +9939,42 @@ void Mesh::SetNodes(const Vector &node_coord)
 
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
-   if (own_nodes) { delete Nodes; }
+   // Check and transfer ownership
+   // After exchanging Nodes the NURBSExtension associated
+   // with the Mesh must be the same as before, moreover:
+   // - NURBS mesh must own its Nodes
+   // - These Nodes must own its FESpace
+   // - This FESpace must own its NURBSExtension
+   if (IsNURBS())
+   {
+      MFEM_VERIFY(own_nodes,  "NURBS mesh needs to own the old Nodes");
+      MFEM_VERIFY(make_owner, "NURBS mesh needs to own the new Nodes");
+
+      if (Nodes->FESpace() == nodes.FESpace())
+      {
+         MFEM_ASSERT(Nodes->FESpace()->FEColl() == nodes.FESpace()->FEColl(),
+                     "FECollections must be the same if space are the same");
+         nodes.MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL);
+      }
+      else if (nodes.FESpace()->GetNURBSext())
+      {
+         MFEM_VERIFY(nodes.OwnFEC(), "New nodes must own fespace");
+         nodes.FESpace()->OwnNURBSext(Nodes->FESpace()->StealNURBSext());
+      }
+      else
+      {
+         MFEM_WARNING("Down grading NURBS-based mesh, to standard mesh");
+      }
+   }
+
+   if (own_nodes)
+   {
+      delete Nodes;
+   }
    Nodes = &nodes;
    spaceDim = Nodes->FESpace()->GetVDim();
    own_nodes = (int)make_owner;
-
-   if (NURBSext != nodes.FESpace()->GetNURBSext())
-   {
-      delete NURBSext;
-      NURBSext = nodes.FESpace()->StealNURBSext();
-   }
 
    if (ncmesh)
    {
@@ -11363,7 +11391,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    if (non_geometry)
    {
-      mfem::Swap(NURBSext, other.NURBSext);
+      // mfem::Swap(NURBSext, other.NURBSext);
       mfem::Swap(ncmesh, other.ncmesh);
 
       mfem::Swap(Nodes, other.Nodes);

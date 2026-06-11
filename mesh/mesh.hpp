@@ -312,7 +312,7 @@ public:
    /// Named sets of boundary element attributes
    AttributeSets bdr_attribute_sets;
 
-   NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
+   // NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric
@@ -499,12 +499,6 @@ protected:
    /// Read NURBS patch/macro-element mesh (MFEM NURBS NC-patch mesh format)
    void LoadNonconformingPatchTopo(std::istream &input,
                                    Array<int> &edge_to_ukv);
-
-   /// Return true if the face is a conforming face.
-   bool IsNURBS() const;
-
-   NURBSExtension* NURBSExt();
-   const NURBSExtension* NURBSExt() const;
 
    /// Update this NURBS Mesh and its NURBS data structures after a change, such
    /// as refinement, derefinement, or degree change.
@@ -1375,6 +1369,13 @@ public:
    void GetCharacteristics(real_t &h_min, real_t &h_max,
                            real_t &kappa_min, real_t &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
+
+   /// Return true if the face is a conforming face.
+   bool IsNURBS() const;
+
+   NURBSExtension* NURBSExt();
+   const NURBSExtension* NURBSExt() const;
+
 
    /// @}
 

@@ -104,7 +104,7 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    // Reconstruct mesh using patches + topology
    Array<NURBSPatch*> patches;
    mesh1.GetNURBSPatches(patches);
-   const Mesh patchtopo = mesh1.NURBSext->GetPatchTopology();
+   const Mesh patchtopo = mesh1.NURBSExt()->GetPatchTopology();
 
    NURBSExtension ne(&patchtopo, patches);
    Mesh mesh2(ne);
@@ -119,12 +119,12 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    REQUIRE(error == MFEM_Approx(0.0));
 
    // Compare weights (these are stored separately from nodes)
-   REQUIRE(mesh1.NURBSext->GetWeights().Size() > 0);
-   REQUIRE(mesh1.NURBSext->GetWeights().Size() ==
-           mesh2.NURBSext->GetWeights().Size());
+   REQUIRE(mesh1.NURBSExt()->GetWeights().Size() > 0);
+   REQUIRE(mesh1.NURBSExt()->GetWeights().Size() ==
+           mesh2.NURBSExt()->GetWeights().Size());
 
-   Vector wdiff = mesh1.NURBSext->GetWeights();
-   wdiff -= mesh2.NURBSext->GetWeights();
+   Vector wdiff = mesh1.NURBSExt()->GetWeights();
+   wdiff -= mesh2.NURBSExt()->GetWeights();
    const real_t werror = wdiff.Norml2();
    REQUIRE(werror == MFEM_Approx(0.0));
 
@@ -311,7 +311,7 @@ TEST_CASE("NURBS knotvector orientation", "[NURBS]")
    // This will fail to load without CorrectPatchTopoOrientations
    auto mesh_fname = "../../miniapps/nurbs/meshes/3patch-nurbs-flipedge.mesh";
    Mesh mesh(mesh_fname, 1, 1);
-   REQUIRE(mesh.NURBSext->CheckPatches());
+   REQUIRE(mesh.NURBSExt()->CheckPatches());
 }
 
 TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
@@ -383,20 +383,20 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
    REQUIRE(mesh.GetNV() == expected.nv);
 
    // NURBS extension must be present and 1D
-   REQUIRE(mesh.NURBSext != nullptr);
-   REQUIRE(mesh.NURBSext->Dimension() == 1);
+   REQUIRE(mesh.NURBSExt() != nullptr);
+   REQUIRE(mesh.NURBSExt()->Dimension() == 1);
 
    // Check that we have the expected number of knotvectors
-   const int n_kv = mesh.NURBSext->GetNKV();
+   const int n_kv = mesh.NURBSExt()->GetNKV();
    REQUIRE(n_kv == expected.nkv);
 
-   const Array<int> &orders = mesh.NURBSext->GetOrders();
+   const Array<int> &orders = mesh.NURBSExt()->GetOrders();
    REQUIRE(orders.Size() == n_kv);
 
    // Validate each KnotVector's order and number of control points.
    for (int i = 0; i < n_kv; i++)
    {
-      const KnotVector *kv = mesh.NURBSext->GetKnotVector(i);
+      const KnotVector *kv = mesh.NURBSExt()->GetKnotVector(i);
       REQUIRE(kv != nullptr);
 
       const int o   = kv->GetOrder();
@@ -419,12 +419,12 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       const int max_order = orders.Max();
       mesh.DegreeElevate(max_order, max_order);
 
-      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.NURBSExt() != nullptr);
       REQUIRE(mesh.Dimension() == 1);
       REQUIRE(mesh.SpaceDimension() == expected.phys_dim);
-      REQUIRE(mesh.NURBSext->Dimension() == 1);
+      REQUIRE(mesh.NURBSExt()->Dimension() == 1);
 
-      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      const Array<int> &new_orders = mesh.NURBSExt()->GetOrders();
       REQUIRE(new_orders.Size() == orders.Size());
       for (int i = 0; i < new_orders.Size(); ++i)
       {
@@ -451,18 +451,18 @@ TEST_CASE("NURBS 1D shared KnotVector in patches", "[NURBS]")
       const auto mesh_fname = "./data/nurbs-segments-same-orientation.mesh";
       Mesh mesh(mesh_fname, 1, 0);
 
-      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.NURBSExt() != nullptr);
       REQUIRE(mesh.Dimension() == 1);
       REQUIRE(mesh.SpaceDimension() == 2);
-      REQUIRE(mesh.NURBSext->GetNP() == 2);
-      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+      REQUIRE(mesh.NURBSExt()->GetNP() == 2);
+      REQUIRE(mesh.NURBSExt()->GetNKV() == 1);
 
-      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      const KnotVector *unique_kv = mesh.NURBSExt()->GetKnotVector(0);
       REQUIRE(unique_kv != nullptr);
 
       Array<const KnotVector *> pkv0, pkv1;
-      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
-      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      mesh.NURBSExt()->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSExt()->GetPatchKnotVectors(1, pkv1);
       REQUIRE(pkv0.Size() == 1);
       REQUIRE(pkv1.Size() == 1);
 
@@ -476,18 +476,18 @@ TEST_CASE("NURBS 1D shared KnotVector in patches", "[NURBS]")
       const auto mesh_fname = "./data/nurbs-segments-opposite-orientation.mesh";
       Mesh mesh(mesh_fname, 1, 0);
 
-      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.NURBSExt() != nullptr);
       REQUIRE(mesh.Dimension() == 1);
       REQUIRE(mesh.SpaceDimension() == 2);
-      REQUIRE(mesh.NURBSext->GetNP() == 2);
-      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+      REQUIRE(mesh.NURBSExt()->GetNP() == 2);
+      REQUIRE(mesh.NURBSExt()->GetNKV() == 1);
 
-      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      const KnotVector *unique_kv = mesh.NURBSExt()->GetKnotVector(0);
       REQUIRE(unique_kv != nullptr);
 
       Array<const KnotVector *> pkv0, pkv1;
-      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
-      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      mesh.NURBSExt()->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSExt()->GetPatchKnotVectors(1, pkv1);
       REQUIRE(pkv0.Size() == 1);
       REQUIRE(pkv1.Size() == 1);
 
