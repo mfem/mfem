@@ -27,7 +27,7 @@ using dreal_t = real_t;
 using dreal_t = dual<real_t, real_t>;
 #endif
 
-static constexpr int U = 0, V = 1, 𝚵 = 2;
+static constexpr int U = 0, V = 1, X = 2;
 
 // ────────────────────────────────────────────────────────────────────────────
 template<int DIM>
@@ -143,11 +143,11 @@ void TestJvpVjp(const char *filename, int p)
    const auto ir = &IntRules.Get(geom, 2 * p + 1);
 
    using vfds_t = std::vector<FieldDescriptor>;
-   const vfds_t in_fds = { { U, &fes }, { V, &fes }, { 𝚵, nfes } };
+   const vfds_t in_fds = { { U, &fes }, { V, &fes }, { X, nfes } };
    const vfds_t out_fds = { { U, &fes } };
    DifferentiableOperator F(in_fds, out_fds, pmesh);
 
-   using IT = Inputs<Value<U>, Value<V>, Gradient<𝚵>, Weight>;
+   using IT = Inputs<Value<U>, Value<V>, Gradient<X>, Weight>;
    using OT = Outputs<Value<U>>;
    using DT = Derivatives<U, V>;
 
