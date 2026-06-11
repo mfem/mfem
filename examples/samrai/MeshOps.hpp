@@ -23,12 +23,12 @@ class MeshOps
 
    static Array<SAMRAI::pdat::NodeIndex::Corner> getCorners(const unsigned dimension);
 
-   inline SAMRAI::hier::Index toIndex(const Vector& vector);
+   static inline SAMRAI::hier::Index toIndex(const Vector& vector);
 
-   inline SAMRAI::hier::Index toIndex(const Array<int>& array,
+   static inline SAMRAI::hier::Index toIndex(const Array<int>& array,
       const unsigned dim, const int start);
 
-   Vector toVector(const SAMRAI::hier::IntVector& vector);
+   static Vector toVector(const SAMRAI::hier::IntVector& vector);
 
    const int element_info_tag = 0;
    const int samrai_values_tag = 1;
@@ -60,6 +60,8 @@ class MeshOps
 
       void SetBlock(const unsigned index, const Array<PODType> &values)
       {
+         MFEM_ASSERT(values.Size() == block_size,
+            "Provided array is not the correct size.");
          // TODO: consider replacing with memcpy
          for(unsigned i=0; i < block_size; i++)
          {
@@ -67,13 +69,15 @@ class MeshOps
          }
       }
 
-      void GetBlock(const unsigned index, Array<PODType> &values) const
+      Array<PODType> GetBlock(const unsigned index) const
       {
+         Array<PODType> values(block_size);
          // TODO: consider replacing with memcpy
          for(unsigned i=0; i < block_size; i++)
          {
             values[i] = data[index*block_size + i];
          }
+         return values;
       }
 
       unsigned NumBlocks() const
@@ -98,20 +102,55 @@ class MeshOps
             element_counts[i] = block_counts[i] * block_size;
       }
 
-      // provides read-only access to underlying Array object
-      const Array<PODType>& GetArray() const
-      {
-         return data;
-      }
-
    };
 
-   struct PatchData
+   struct PatchInfo
    {
+      const unsigned dimension;
       int rank;
       int level_number;
       SAMRAI::hier::Index lower_index;
       SAMRAI::hier::Index upper_index;
+
+      PatchInfo(const unsigned dimension) : dimension(dimension), rank(-1),
+         level_number(-1), lower_index(SAMRAI::tbox::Dimension(dimension)),
+         upper_index(SAMRAI::tbox::Dimension(dimension))
+      {
+         array.SetSize(Size());
+      }
+
+      PatchInfo(int rank, const Array<int>& values) :
+         dimension((values.Size()-1) / 2), rank(rank),
+         lower_index(SAMRAI::tbox::Dimension(dimension)),
+         upper_index(SAMRAI::tbox::Dimension(dimension))
+      {
+         MFEM_ASSERT((values.Size() - 1) % 2 == 0,
+            "Provided array is not a valid size.")
+         level_number = values[0];
+         lower_index = toIndex(values, dimension, 1);
+         upper_index = toIndex(values, dimension, 1+dimension);
+         array.SetSize(Size());
+      }
+
+      const Array<int>& AsArray() const
+      {
+         array[0] = level_number;
+         // TODO: consider replacing loops with memcpy
+         for (int d=0; d < dimension; d++)
+            array[1+d] = lower_index(d);
+         for (int d=0; d < dimension; d++)
+            array[1+dimension+d] = upper_index(d);
+         return array;
+      }
+
+      unsigned Size() const
+      {
+         return 1 + 2*dimension;
+      }
+
+   private:
+
+      mutable Array<int> array;
    };
 
    struct ElementInfo
@@ -119,19 +158,38 @@ class MeshOps
       int level_number;
       SAMRAI::hier::Index index;
 
-      Array<int> AsArray() const
+      ElementInfo(const unsigned dimension) : dimension(dimension),
+         level_number(-1), index(SAMRAI::tbox::Dimension(dimension))
       {
-         Array<int> array(1 + index.getDim().getValue());
+         array.SetSize(Size());
+      }
+
+      void operator =(const Array<int>& values)
+      {
+         MFEM_ASSERT(values.Size() > 1, "Provided array is not a valid size.");
+         level_number = values[0];
+         index = toIndex(values, dimension, 1);
+      }
+
+      const Array<int>& AsArray() const
+      {
          array[0] = level_number;
-         for (int d=0; d < index.getDim().getValue(); d++)
+         // TODO: consider replacing loops with memcpy
+         for (int d=0; d < dimension; d++)
             array[1+d] = index(d);
          return array;
       }
 
-      static inline unsigned Size(const unsigned dimension)
+      unsigned Size() const
       {
          return 1 + dimension;
-      };
+      }
+
+   private:
+
+      const unsigned dimension;
+      mutable Array<int> array;
+
    };
 
    struct CellInfo
@@ -207,8 +265,6 @@ public:
    // psi_hat the L^2_0 basis function on element E, and e_* is the unit vector
    // in the x_* direction
    void reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst);
-
-   void reconstructH1Field(const ParGridFunction& src, ParGridFunction& dst);
 
 private:
 

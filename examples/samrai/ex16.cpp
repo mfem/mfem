@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    std::cout.precision(precision);
 
    int ode_solver_type = 23;  // SDIRK33Solver
-   real_t kappa = 0.01;
+   real_t kappa = 1.0;
 
    bool visualization = true;
    bool visit = false;
