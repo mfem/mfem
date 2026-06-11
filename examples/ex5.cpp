@@ -3,13 +3,17 @@
 // Compile with: make ex5
 //
 // Sample runs:  ex5 -m ../data/square-disc.mesh
+//               ex5 -m ../data/square-disc.mesh -hb
 //               ex5 -m ../data/star.mesh
 //               ex5 -m ../data/star.mesh -pa
+//               ex5 -m ../data/star.mesh -hb
 //               ex5 -m ../data/beam-tet.mesh
 //               ex5 -m ../data/beam-hex.mesh
 //               ex5 -m ../data/beam-hex.mesh -pa
+//               ex5 -m ../data/beam-hex.mesh -hb
 //               ex5 -m ../data/escher.mesh
 //               ex5 -m ../data/fichera.mesh
+//               ex5 -m ../data/fichera.mesh -hb
 //
 // Device sample runs:
 //               ex5 -m ../data/star.mesh -pa -d cuda
@@ -30,9 +34,9 @@
 //               polynomials (pressure p).
 //
 //               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective saving
-//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               well as hybridization of mixed systems and the collective
+//               saving of several grid functions in VisIt (visit.llnl.gov) and
+//               ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -116,7 +120,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   // 6. Define the BlockStructure of the problem, i.e. define the array of
+   // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
@@ -131,14 +135,14 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double k = 1.0;
-   ConstantCoefficient kcoeff(k); //acoustic resistance
+   ConstantCoefficient kcoeff(k); // Acoustic resistance
 
-   VectorFunctionCoefficient fcoeff(dim, fFun); //velocity rhs
-   FunctionCoefficient fnatcoeff(f_natural); //boundary velocity rhs
-   FunctionCoefficient gcoeff(gFun); //pressure rhs
+   VectorFunctionCoefficient fcoeff(dim, fFun); // Velocity rhs
+   FunctionCoefficient fnatcoeff(f_natural); // Boundary velocity rhs
+   FunctionCoefficient gcoeff(gFun); // Pressure rhs
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex); //velocity
-   FunctionCoefficient pcoeff(pFun_ex); //pressure
+   VectorFunctionCoefficient ucoeff(dim, uFun_ex); // Velocity
+   FunctionCoefficient pcoeff(pFun_ex); // Pressure
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
@@ -171,7 +175,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient cdiv(-1.);
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
 
-   //set hybridization / assembly level
+   // Set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
 

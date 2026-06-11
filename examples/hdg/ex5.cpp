@@ -1,21 +1,19 @@
-//                                MFEM Example 5
+//                        MFEM Example 5 - HDG Version
 //
 // Compile with: make ex5
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  ex5 -m ../../data/square-disc.mesh -hb -dg -trbc
+//               ex5 -m ../../data/square-disc.mesh -hb -brt -trbc -trh1
+//               ex5 -m ../../data/star.mesh -hb
+//               ex5 -m ../../data/star.mesh -rd -dg
+//               ex5 -m ../../data/beam-tet.mesh -hb -brt -trbc
+//               ex5 -m ../../data/beam-hex.mesh -hb -dg -trh1
+//               ex5 -m ../../data/beam-hex.mesh -hb
+//               ex5 -m ../../data/escher.mesh -hb
+//               ex5 -m ../../data/fichera.mesh -hb
+//               ex5 -m ../../data/fichera.mesh -hb -dg
 //
 // Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
@@ -27,13 +25,13 @@
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p). Alternatively, the piecewise discontinuous
-//               polynomials are used for both quantities.
+//               polynomials (pressure p). Alternatively, the piecewise
+//               discontinuous polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective saving
-//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               well as hybridization of mixed systems and the collective
+//               saving of several grid functions in VisIt (visit.llnl.gov) and
+//               ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -160,7 +158,7 @@ int main(int argc, char *argv[])
                                                     mesh, R_coll_dg, dim)):(NULL);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   // 6. Define the BlockStructure of the problem, i.e. define the array of
+   // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    DarcyForm *darcy = new DarcyForm(R_space, W_space);
@@ -175,15 +173,15 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double k = 1.0;
-   ConstantCoefficient kcoeff(k); //acoustic resistance
-   RatioCoefficient ikcoeff(1., kcoeff); //inverse acoustic resistance
+   ConstantCoefficient kcoeff(k); // Acoustic resistance
+   RatioCoefficient ikcoeff(1., kcoeff); // Inverse acoustic resistance
 
-   VectorFunctionCoefficient fcoeff(dim, fFun); //velocity rhs
-   FunctionCoefficient fnatcoeff(f_natural); //boundary velocity rhs
-   FunctionCoefficient gcoeff(gFun); //pressure rhs
+   VectorFunctionCoefficient fcoeff(dim, fFun); // Velocity rhs
+   FunctionCoefficient fnatcoeff(f_natural); // Boundary velocity rhs
+   FunctionCoefficient gcoeff(gFun); // Pressure rhs
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex); //velocity
-   FunctionCoefficient pcoeff(pFun_ex); //pressure
+   VectorFunctionCoefficient ucoeff(dim, uFun_ex); // Velocity
+   FunctionCoefficient pcoeff(pFun_ex); // Pressure
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
@@ -194,7 +192,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt);
 
    LinearForm *fform = darcy->GetFluxRHS();
-   // domain rhs
+   // Domain rhs
    if (dg)
    {
       fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
@@ -204,7 +202,7 @@ int main(int argc, char *argv[])
       fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    }
 
-   // natural BC
+   // Natural BC
    if (!hybridization || !trace_ess_bc)
    {
       if (dg)
@@ -266,7 +264,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / reduction / assembly level
 
    Array<int> ess_flux_tdofs_list;
 
@@ -291,11 +289,11 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-      // set essential BC
+      // Set essential BC
       if (trace_ess_bc && mesh->bdr_attributes.Size() > 0)
       {
          X.SetSize(trace_space->GetTrueVSize());
-         // project essential BC
+         // Project essential BC
          Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
          bdr_is_ess = 1;
          GridFunction phat;
