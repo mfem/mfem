@@ -484,15 +484,14 @@ SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeSetupLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return setup_t::template derivative_setup_callback<LocalQFLOBackend<2>>;
+      return DispatchLOKernelByQ1D<typename setup_t::DerivativeSetupLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return setup_t::template derivative_setup_callback<LocalQFLOBackend<3>>;
+      return DispatchLOKernelByQ1D<typename setup_t::DerivativeSetupLO, 3>(q1d);
    }
    else
    {
@@ -522,16 +521,16 @@ template<int derivative_id,
 inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
-DerivativeSetupHO::Fallback(int dim, int)
+DerivativeSetupHO::Fallback(int dim, int q1d)
 {
    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return setup_t::template derivative_setup_callback<LocalQFHOBackend<2>>;
+      return DispatchHOKernelByQ1D<typename setup_t::DerivativeSetupHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return setup_t::template derivative_setup_callback<LocalQFHOBackend<3>>;
+      return DispatchHOKernelByQ1D<typename setup_t::DerivativeSetupHO, 3>(q1d);
    }
    else
    {

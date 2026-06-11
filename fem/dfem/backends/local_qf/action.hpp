@@ -450,19 +450,19 @@ template<typename qfunc_t, typename inputs_t, typename outputs_t>
 inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return action_t::template action_callback<LocalQFLOBackend<2>>;
+      return DispatchLOKernelByQ1D<typename action_t::ActionLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return action_t::template action_callback<LocalQFLOBackend<3>>;
+      return DispatchLOKernelByQ1D<typename action_t::ActionLO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
@@ -479,20 +479,21 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
 // High Order fallback
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
 inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int)
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
 {
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return action_t::template action_callback<LocalQFHOBackend<2>>;
+      return DispatchHOKernelByQ1D<typename action_t::ActionHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return action_t::template action_callback<LocalQFHOBackend<3>>;
+      return DispatchHOKernelByQ1D<typename action_t::ActionHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 

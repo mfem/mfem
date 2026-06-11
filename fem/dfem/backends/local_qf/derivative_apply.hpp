@@ -508,15 +508,14 @@ ApplyKernelType
 DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeApplyLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return apply_t::template derivative_apply_callback<LocalQFLOBackend<2>>;
+      return DispatchLOKernelByQ1D<typename apply_t::DerivativeApplyLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return apply_t::template derivative_apply_callback<LocalQFLOBackend<3>>;
+      return DispatchLOKernelByQ1D<typename apply_t::DerivativeApplyLO, 3>(q1d);
    }
    else
    {
@@ -546,16 +545,16 @@ template<int derivative_id,
 inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 ApplyKernelType
 DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
-DerivativeApplyHO::Fallback(int dim, int)
+DerivativeApplyHO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return apply_t::template derivative_apply_callback<LocalQFHOBackend<2>>;
+      return DispatchHOKernelByQ1D<typename apply_t::DerivativeApplyHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return apply_t::template derivative_apply_callback<LocalQFHOBackend<3>>;
+      return DispatchHOKernelByQ1D<typename apply_t::DerivativeApplyHO, 3>(q1d);
    }
    else
    {

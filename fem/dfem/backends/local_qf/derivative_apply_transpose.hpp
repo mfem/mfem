@@ -540,18 +540,17 @@ inline typename DerivativeApplyTranspose<derivative_id,
        DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
        DerivativeApplyTransposeLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return transpose_t::template derivative_apply_transpose_callback<
-                LocalQFLOBackend<2>>;
+      return DispatchLOKernelByQ1D<
+         typename transpose_t::DerivativeApplyTransposeLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return transpose_t::template derivative_apply_transpose_callback<
-                LocalQFLOBackend<3>>;
+      return DispatchLOKernelByQ1D<
+         typename transpose_t::DerivativeApplyTransposeLO, 3>(q1d);
    }
    else
    {
@@ -586,19 +585,19 @@ inline typename DerivativeApplyTranspose<derivative_id,
        inputs_t,
        outputs_t>::TransposeKernelType
        DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
-       DerivativeApplyTransposeHO::Fallback(int dim, int)
+       DerivativeApplyTransposeHO::Fallback(int dim, int q1d)
 {
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return transpose_t::template derivative_apply_transpose_callback<
-                LocalQFHOBackend<2>>;
+      return DispatchHOKernelByQ1D<
+         typename transpose_t::DerivativeApplyTransposeHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return transpose_t::template derivative_apply_transpose_callback<
-                LocalQFHOBackend<3>>;
+      return DispatchHOKernelByQ1D<
+         typename transpose_t::DerivativeApplyTransposeHO, 3>(q1d);
    }
    else
    {

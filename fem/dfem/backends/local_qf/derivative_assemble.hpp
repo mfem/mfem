@@ -934,17 +934,15 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
 {
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   MFEM_VERIFY(dim == 2 || dim == 3, "Unsupported dimension");
-   MFEM_VERIFY(q1d <= 8, "q1d must be <= 8");
    if (dim == 2)
    {
-      return assemble_t::template derivative_assemble_callback<
-                LocalQFHOBackend<2, 8>>;
+      return DispatchHOKernelByQ1D<typename assemble_t::DerivativeAssembleHO, 2>(
+                q1d);
    }
    else if (dim == 3)
    {
-      return assemble_t::template derivative_assemble_callback<
-                LocalQFHOBackend<3, 8>>;
+      return DispatchHOKernelByQ1D<typename assemble_t::DerivativeAssembleHO, 3>(
+                q1d);
    }
    else
    {

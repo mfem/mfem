@@ -428,18 +428,17 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
        DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
        DerivativeAssembleDiagonalLO::Fallback(int dim, int q1d)
 {
-   MFEM_VERIFY(q1d <= 8, "Unsupported quadrature order: " << q1d);
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return diag_t::template derivative_assemble_diagonal_callback<
-                LocalQFLOBackend<2>>;
+      return DispatchLOKernelByQ1D<
+         typename diag_t::DerivativeAssembleDiagonalLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return diag_t::template derivative_assemble_diagonal_callback<
-                LocalQFLOBackend<3>>;
+      return DispatchLOKernelByQ1D<
+         typename diag_t::DerivativeAssembleDiagonalLO, 3>(q1d);
    }
    else
    {
@@ -475,19 +474,19 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
        inputs_t,
        outputs_t>::DiagonalKernelType
        DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
-       DerivativeAssembleDiagonalHO::Fallback(int dim, int)
+       DerivativeAssembleDiagonalHO::Fallback(int dim, int q1d)
 {
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    if (dim == 2)
    {
-      return diag_t::template derivative_assemble_diagonal_callback<
-                LocalQFHOBackend<2>>;
+      return DispatchHOKernelByQ1D<
+         typename diag_t::DerivativeAssembleDiagonalHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return diag_t::template derivative_assemble_diagonal_callback<
-                LocalQFHOBackend<3>>;
+      return DispatchHOKernelByQ1D<
+         typename diag_t::DerivativeAssembleDiagonalHO, 3>(q1d);
    }
    else
    {
