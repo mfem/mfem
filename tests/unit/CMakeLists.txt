@@ -41,6 +41,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
+  dfem/test_multiple_inputs.cpp
   dfem/test_multiple_outputs.cpp
   general/test_array.cpp
   general/test_scan.cpp
