@@ -5955,6 +5955,7 @@ void DeviceSharedDofCommunicator::ReduceAndBcast(Vector &x_ldof, Op op) const
    ReduceAndBcast(x_ldof_view, op);
 }
 
+// @cond DOXYGEN_SKIP
 template void DeviceSharedDofCommunicator::ReduceBeginCopy<int>(
    const Array<int> &, Array<int> &) const;
 template void DeviceSharedDofCommunicator::ReduceLocalCopy<int>(
@@ -5992,6 +5993,7 @@ template void DeviceSharedDofCommunicator::Bcast<real_t>(
    const Array<real_t> &, Array<real_t> &) const;
 template void DeviceSharedDofCommunicator::ReduceAndBcast<real_t>(
    Array<real_t> &, Op) const;
+// @endcond
 
 } // namespace mfem
 
