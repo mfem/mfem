@@ -5574,103 +5574,139 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    }
 }
 
-void DeviceSharedDofCommunicator::ReduceBeginCopy(const Vector &x_ldof) const
+namespace internal
+{
+
+template <typename T>
+void DeviceSharedDofExtractSubArray(const Array<int> &indices,
+                                    const Array<T> &xin,
+                                    Array<T> &xout)
+{
+   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
+   auto y = xout.Write();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   });
+}
+
+template <typename T>
+void DeviceSharedDofSetSubArray(const Array<int> &indices,
+                                const Array<T> &xin,
+                                Array<T> &xout)
+{
+   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
+   auto y = xout.ReadWrite();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
+}
+
+template <typename T>
+void DeviceSharedDofApplyReduction(const Array<int> &unique_dst_indices,
+                                   const Array<int> &unique_to_src_offsets,
+                                   const Array<int> &unique_to_src_indices,
+                                   const Array<T> &src,
+                                   Array<T> &dst,
+                                   DeviceSharedDofCommunicator::Op op)
+{
+   auto y = dst.ReadWrite();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dst_idx = DST_I[i];
+      T val = y[dst_idx];
+      const int end = SRC_O[i+1];
+      switch (op)
+      {
+         case DeviceSharedDofCommunicator::Op::Sum:
+         {
+            for (int j = SRC_O[i]; j != end; ++j) { val += x[SRC_I[j]]; }
+            break;
+         }
+         case DeviceSharedDofCommunicator::Op::Min:
+         {
+            for (int j = SRC_O[i]; j != end; ++j)
+            {
+               const T xj = x[SRC_I[j]];
+               val = (xj < val) ? xj : val;
+            }
+            break;
+         }
+         case DeviceSharedDofCommunicator::Op::Max:
+         {
+            for (int j = SRC_O[i]; j != end; ++j)
+            {
+               const T xj = x[SRC_I[j]];
+               val = (xj > val) ? xj : val;
+            }
+            break;
+         }
+      }
+      y[dst_idx] = val;
+   });
+}
+
+} // namespace internal
+
+template <typename T>
+void DeviceSharedDofCommunicator::ReduceBeginCopy(const Array<T> &x_ldof,
+                                                  Array<T> &ext_buf_t) const
 {
    if (ext_ldof.Size() == 0) { return; }
-   ExtractSubVector(ext_ldof, x_ldof, ext_buf);
+   internal::DeviceSharedDofExtractSubArray(ext_ldof, x_ldof, ext_buf_t);
    if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
-void DeviceSharedDofCommunicator::ReduceLocalCopy(const Vector &x_ldof,
-                                                  Vector &x_tdof) const
+template <typename T>
+void DeviceSharedDofCommunicator::ReduceLocalCopy(const Array<T> &x_ldof,
+                                                  Array<T> &x_tdof) const
 {
    if (ltdof_ldof.Size() == 0) { return; }
-   ExtractSubVector(ltdof_ldof, x_ldof, x_tdof);
+   internal::DeviceSharedDofExtractSubArray(ltdof_ldof, x_ldof, x_tdof);
 }
 
-static void MinSubVector(const Array<int> &unique_dst_indices,
-                         const Array<int> &unique_to_src_offsets,
-                         const Array<int> &unique_to_src_indices,
-                         const Vector &src,
-                         Vector &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t min_val = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j)
-      {
-         min_val = fmin(min_val, x[SRC_I[j]]);
-      }
-      y[dst_idx] = min_val;
-   });
-}
-
-static void MaxSubVector(const Array<int> &unique_dst_indices,
-                         const Array<int> &unique_to_src_offsets,
-                         const Array<int> &unique_to_src_indices,
-                         const Vector &src,
-                         Vector &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t max_val = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j)
-      {
-         max_val = fmax(max_val, x[SRC_I[j]]);
-      }
-      y[dst_idx] = max_val;
-   });
-}
-
-void DeviceSharedDofCommunicator::ReduceEndAssemble(Vector &x_tdof, Op op) const
+template <typename T>
+void DeviceSharedDofCommunicator::ReduceEndAssemble(const Array<T> &shr_buf_t,
+                                                    Array<T> &x_tdof,
+                                                    Op op) const
 {
    if (unq_ltdof.Size() == 0) { return; }
-   switch (op)
-   {
-      case Op::Sum:
-         AddSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, x_tdof);
-         break;
-      case Op::Min:
-         MinSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, x_tdof);
-         break;
-      case Op::Max:
-         MaxSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, x_tdof);
-         break;
-   }
+   internal::DeviceSharedDofApplyReduction(unq_ltdof, unq_shr_i, unq_shr_j,
+                                           shr_buf_t, x_tdof, op);
 }
 
-void DeviceSharedDofCommunicator::BcastBeginCopy(const Vector &x_tdof) const
+template <typename T>
+void DeviceSharedDofCommunicator::BcastBeginCopy(const Array<T> &x_tdof,
+                                                 Array<T> &shr_buf_t) const
 {
    if (shr_ltdof.Size() == 0) { return; }
-   ExtractSubVector(shr_ltdof, x_tdof, shr_buf);
+   internal::DeviceSharedDofExtractSubArray(shr_ltdof, x_tdof, shr_buf_t);
    if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
-void DeviceSharedDofCommunicator::BcastLocalCopy(const Vector &x_tdof,
-                                                 Vector &x_ldof) const
+template <typename T>
+void DeviceSharedDofCommunicator::BcastLocalCopy(const Array<T> &x_tdof,
+                                                 Array<T> &x_ldof) const
 {
    if (ltdof_ldof.Size() == 0) { return; }
-   SetSubVector(ltdof_ldof, x_tdof, x_ldof);
+   internal::DeviceSharedDofSetSubArray(ltdof_ldof, x_tdof, x_ldof);
 }
 
-void DeviceSharedDofCommunicator::BcastEndCopy(Vector &x_ldof) const
+template <typename T>
+void DeviceSharedDofCommunicator::BcastEndCopy(const Array<T> &ext_buf_t,
+                                               Array<T> &x_ldof) const
 {
    if (ext_ldof.Size() == 0) { return; }
-   SetSubVector(ext_ldof, ext_buf, x_ldof);
+   internal::DeviceSharedDofSetSubArray(ext_ldof, ext_buf_t, x_ldof);
 }
 
 DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
@@ -5690,7 +5726,7 @@ DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
 
    // Temporary storage for true-dof data during reduce+broadcast sequences.
    true_buf.SetSize(tdofs);
-   true_buf.UseDevice(true);
+   true_buf.GetMemory().UseDevice(true);
    {
       // Shared true dofs that must be sent to neighbor ranks during broadcast,
       // stored in neighbor-grouped order.
@@ -5700,7 +5736,7 @@ DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
       shr_ltdof.SetSize(nb_connections);
       if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
       shr_buf.SetSize(nb_connections);
-      shr_buf.UseDevice(true);
+      shr_buf.GetMemory().UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
       {
          // Build a compact "unique true dof -> received buffer entries" map
@@ -5736,7 +5772,7 @@ DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
       if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
       ext_ldof.GetMemory().UseDevice(true);
       ext_buf.SetSize(nb_connections);
-      ext_buf.UseDevice(true);
+      ext_buf.GetMemory().UseDevice(true);
       ext_buf_offsets = nbr_ldof.GetIMemory();
       nbr_ldof.GetJMemory().Delete();
       nbr_ldof.LoseData();
@@ -5767,77 +5803,195 @@ DeviceSharedDofCommunicator::~DeviceSharedDofCommunicator()
    shr_buf_offsets.Delete();
 }
 
+template <typename T>
+void DeviceSharedDofCommunicator::Reduce(const Array<T> &x_ldof,
+                                         Array<T> &x_tdof,
+                                         Op op) const
+{
+   MFEM_ASSERT(x_tdof.Size() == ltdof_ldof.Size(), "incompatible sizes!");
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+   constexpr int reduce_tag = std::is_same_v<T, real_t> ? 41825 : 41827;
+   auto reduce_impl = [&](Array<T> &ext_buf_t, Array<T> &shr_buf_t)
+   {
+      int req_counter = 0;
+      ReduceBeginCopy(x_ldof, ext_buf_t);
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      {
+         const int send_offset = ext_buf_offsets[nbr];
+         const int send_size = ext_buf_offsets[nbr+1] - send_offset;
+         if (send_size > 0)
+         {
+            auto send_buf = mpi_gpu_aware ? ext_buf_t.Read() : ext_buf_t.HostRead();
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), reduce_tag,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+         const int recv_offset = shr_buf_offsets[nbr];
+         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? shr_buf_t.Write() : shr_buf_t.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), reduce_tag,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+      }
+      ReduceLocalCopy(x_ldof, x_tdof);
+      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      ReduceEndAssemble(shr_buf_t, x_tdof, op);
+   };
+
+   if constexpr (std::is_same_v<T, real_t>)
+   {
+      reduce_impl(ext_buf, shr_buf);
+   }
+   else
+   {
+      Array<T> ext_buf_t(ext_ldof.Size());
+      Array<T> shr_buf_t(shr_ltdof.Size());
+      ext_buf_t.GetMemory().UseDevice(true);
+      shr_buf_t.GetMemory().UseDevice(true);
+      reduce_impl(ext_buf_t, shr_buf_t);
+   }
+}
+
 void DeviceSharedDofCommunicator::Reduce(const Vector &x_ldof,
                                          Vector &x_tdof,
                                          Op op) const
 {
+   Array<real_t> x_ldof_view, x_tdof_view;
+   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
+                       x_ldof.Size());
+   x_tdof_view.MakeRef(const_cast<Memory<real_t>&>(x_tdof.GetMemory()), 0,
+                       x_tdof.Size());
+   Reduce(x_ldof_view, x_tdof_view, op);
+}
+
+template <typename T>
+void DeviceSharedDofCommunicator::Bcast(const Array<T> &x_tdof,
+                                        Array<T> &x_ldof) const
+{
+   MFEM_ASSERT(x_tdof.Size() == ltdof_ldof.Size(), "incompatible sizes!");
    const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   ReduceBeginCopy(x_ldof);
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   constexpr int bcast_tag = std::is_same_v<T, real_t> ? 41824 : 41826;
+   auto bcast_impl = [&](Array<T> &shr_buf_t, Array<T> &ext_buf_t)
    {
-      const int send_offset = ext_buf_offsets[nbr];
-      const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0)
+      int req_counter = 0;
+      x_ldof.Write();
+      BcastBeginCopy(x_tdof, shr_buf_t);
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
-         auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-         MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), 41825,
-                   gtopo.GetComm(), &requests[req_counter++]);
+         const int send_offset = shr_buf_offsets[nbr];
+         const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+         if (send_size > 0)
+         {
+            auto send_buf = mpi_gpu_aware ? shr_buf_t.Read() : shr_buf_t.HostRead();
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), bcast_tag,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+         const int recv_offset = ext_buf_offsets[nbr];
+         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? ext_buf_t.Write() : ext_buf_t.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), bcast_tag,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
       }
-      const int recv_offset = shr_buf_offsets[nbr];
-      const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0)
-      {
-         auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-         MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), 41825,
-                   gtopo.GetComm(), &requests[req_counter++]);
-      }
+      BcastLocalCopy(x_tdof, x_ldof);
+      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      BcastEndCopy(ext_buf_t, x_ldof);
+   };
+
+   if constexpr (std::is_same_v<T, real_t>)
+   {
+      bcast_impl(shr_buf, ext_buf);
    }
-   ReduceLocalCopy(x_ldof, x_tdof);
-   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-   ReduceEndAssemble(x_tdof, op);
+   else
+   {
+      Array<T> ext_buf_t(ext_ldof.Size());
+      Array<T> shr_buf_t(shr_ltdof.Size());
+      ext_buf_t.GetMemory().UseDevice(true);
+      shr_buf_t.GetMemory().UseDevice(true);
+      bcast_impl(shr_buf_t, ext_buf_t);
+   }
 }
 
 void DeviceSharedDofCommunicator::Bcast(const Vector &x_tdof,
                                         Vector &x_ldof) const
 {
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   x_ldof.Write();
-   BcastBeginCopy(x_tdof);
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   Array<real_t> x_tdof_view, x_ldof_view;
+   x_tdof_view.MakeRef(const_cast<Memory<real_t>&>(x_tdof.GetMemory()), 0,
+                       x_tdof.Size());
+   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
+                       x_ldof.Size());
+   Bcast(x_tdof_view, x_ldof_view);
+}
+
+template <typename T>
+void DeviceSharedDofCommunicator::ReduceAndBcast(Array<T> &x_ldof, Op op) const
+{
+   if constexpr (std::is_same_v<T, real_t>)
    {
-      const int send_offset = shr_buf_offsets[nbr];
-      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0)
-      {
-         auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-         MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), 41824,
-                   gtopo.GetComm(), &requests[req_counter++]);
-      }
-      const int recv_offset = ext_buf_offsets[nbr];
-      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0)
-      {
-         auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-         MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), 41824,
-                   gtopo.GetComm(), &requests[req_counter++]);
-      }
+      Reduce(x_ldof, true_buf, op);
+      Bcast(true_buf, x_ldof);
    }
-   BcastLocalCopy(x_tdof, x_ldof);
-   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-   BcastEndCopy(x_ldof);
+   else
+   {
+      Array<T> x_tdof(ltdof_ldof.Size());
+      x_tdof.GetMemory().UseDevice(true);
+      Reduce(x_ldof, x_tdof, op);
+      Bcast(x_tdof, x_ldof);
+   }
 }
 
 void DeviceSharedDofCommunicator::ReduceAndBcast(Vector &x_ldof, Op op) const
 {
-   Reduce(x_ldof, true_buf, op);
-   Bcast(true_buf, x_ldof);
+   Array<real_t> x_ldof_view;
+   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
+                       x_ldof.Size());
+   ReduceAndBcast(x_ldof_view, op);
 }
+
+template void DeviceSharedDofCommunicator::ReduceBeginCopy<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::ReduceLocalCopy<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::ReduceEndAssemble<int>(
+   const Array<int> &, Array<int> &, Op) const;
+template void DeviceSharedDofCommunicator::BcastBeginCopy<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::BcastLocalCopy<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::BcastEndCopy<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::Reduce<int>(
+   const Array<int> &, Array<int> &, Op) const;
+template void DeviceSharedDofCommunicator::Bcast<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::ReduceAndBcast<int>(
+   Array<int> &, Op) const;
+
+template void DeviceSharedDofCommunicator::ReduceBeginCopy<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::ReduceLocalCopy<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::ReduceEndAssemble<real_t>(
+   const Array<real_t> &, Array<real_t> &, Op) const;
+template void DeviceSharedDofCommunicator::BcastBeginCopy<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::BcastLocalCopy<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::BcastEndCopy<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::Reduce<real_t>(
+   const Array<real_t> &, Array<real_t> &, Op) const;
+template void DeviceSharedDofCommunicator::Bcast<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceSharedDofCommunicator::ReduceAndBcast<real_t>(
+   Array<real_t> &, Op) const;
 
 } // namespace mfem
 

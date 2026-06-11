@@ -692,25 +692,31 @@ protected:
    const GroupCommunicator &gc;
    bool mpi_gpu_aware;
    Array<int> shr_ltdof, ext_ldof;
-   mutable Vector shr_buf, ext_buf, true_buf;
+   mutable Array<real_t> shr_buf, ext_buf, true_buf;
    Memory<int> shr_buf_offsets, ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
 
    // Pack external local dof values into the neighbor send buffer.
-   void ReduceBeginCopy(const Vector &x_ldof) const;
+   template <typename T>
+   void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
    // Copy owned local dof values into the true-dof output vector.
-   void ReduceLocalCopy(const Vector &x_ldof, Vector &x_tdof) const;
+   template <typename T>
+   void ReduceLocalCopy(const Array<T> &x_ldof, Array<T> &x_tdof) const;
    // Combine received shared values into the true-dof output vector.
-   void ReduceEndAssemble(Vector &x_tdof, Op op) const;
+   template <typename T>
+   void ReduceEndAssemble(const Array<T> &shr_buf_t, Array<T> &x_tdof, Op op) const;
 
    // Pack owned shared true dofs into the neighbor send buffer.
-   void BcastBeginCopy(const Vector &x_tdof) const;
+   template <typename T>
+   void BcastBeginCopy(const Array<T> &x_tdof, Array<T> &shr_buf_t) const;
    // Scatter the owned true dofs to their local copies before MPI receives.
-   void BcastLocalCopy(const Vector &x_tdof, Vector &x_ldof) const;
+   template <typename T>
+   void BcastLocalCopy(const Array<T> &x_tdof, Array<T> &x_ldof) const;
    // Scatter received neighbor values to external local dof entries.
-   void BcastEndCopy(Vector &x_ldof) const;
+   template <typename T>
+   void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
 
 public:
    /// Construct from a conforming parallel finite element space.
@@ -720,22 +726,31 @@ public:
 
    /** @brief Reduce local dof values to the owning true/shared dof entries.
 
-       The input @a x_ldof is a local dof vector and the result is written to
+       The input @a x_ldof is a local dof array and the result is written to
        @a x_tdof, which must be sized on the true dofs of the associated
        space. */
+   template <typename T>
+   void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
+   /// Convenience version for Vectors.
    void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
 
    /** @brief Broadcast true/shared dof values to all local dof copies.
 
-       The input @a x_tdof is a true dof vector and the result is written to
+       The input @a x_tdof is a true dof array and the result is written to
        @a x_ldof, which must be sized on the local dofs of the associated
        space. */
+   template <typename T>
+   void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+   /// Convenience version for Vectors.
    void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
 
    /** @brief In-place shared-dof reduction followed by broadcast.
 
        This operation replaces each shared local dof value in @a x_ldof with
        the reduced value over all of its copies. */
+   template <typename T>
+   void ReduceAndBcast(Array<T> &x_ldof, Op op) const;
+   /// Convenience version for Vectors.
    void ReduceAndBcast(Vector &x_ldof, Op op) const;
 };
 
