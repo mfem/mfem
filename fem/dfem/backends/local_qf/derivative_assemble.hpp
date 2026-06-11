@@ -901,7 +901,7 @@ public:
       decltype(&DerivativeAssemble::derivative_assemble_callback<>);
    MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleHO,
                                      AssembleKernelType,
-                                     (int /*dim*/, int /*q1d*/));
+                                     (int, int));
 };
 
 template<int derivative_id,
@@ -934,19 +934,19 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
 {
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
    if (dim == 2)
    {
-      return DispatchHOKernelByQ1D<typename assemble_t::DerivativeAssembleHO, 2>(
-                q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<typename assemble_t::DerivativeAssembleHO, 3>(
-                q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 

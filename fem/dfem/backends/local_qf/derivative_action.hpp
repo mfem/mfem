@@ -689,19 +689,20 @@ DerivativeActionLO::Fallback(int dim, int q1d)
 {
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeActionLO =
+      typename derivative_action_t::DerivativeActionLO;
    if (dim == 2)
    {
-      return DispatchLOKernelByQ1D<typename derivative_action_t::DerivativeActionLO,
-                                   2>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeActionLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchLOKernelByQ1D<typename derivative_action_t::DerivativeActionLO,
-                                   3>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeActionLO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
@@ -734,19 +735,19 @@ DerivativeActionHO::Fallback(int dim, int q1d)
 {
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
    if (dim == 2)
    {
-      return DispatchHOKernelByQ1D<typename derivative_action_t::DerivativeActionHO,
-                                   2>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeActionHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<typename derivative_action_t::DerivativeActionHO,
-                                   3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeActionHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 

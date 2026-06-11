@@ -430,19 +430,20 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
 {
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeAssembleDiagonalLO =
+      typename diag_t::DerivativeAssembleDiagonalLO;
    if (dim == 2)
    {
-      return DispatchLOKernelByQ1D<
-         typename diag_t::DerivativeAssembleDiagonalLO, 2>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchLOKernelByQ1D<
-         typename diag_t::DerivativeAssembleDiagonalLO, 3>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
@@ -478,19 +479,20 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
 {
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeAssembleDiagonalHO =
+      typename diag_t::DerivativeAssembleDiagonalHO;
    if (dim == 2)
    {
-      return DispatchHOKernelByQ1D<
-         typename diag_t::DerivativeAssembleDiagonalHO, 2>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<
-         typename diag_t::DerivativeAssembleDiagonalHO, 3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 

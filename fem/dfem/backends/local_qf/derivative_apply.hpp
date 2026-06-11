@@ -509,17 +509,19 @@ DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeApplyLO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
    if (dim == 2)
    {
-      return DispatchLOKernelByQ1D<typename apply_t::DerivativeApplyLO, 2>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeApplyLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchLOKernelByQ1D<typename apply_t::DerivativeApplyLO, 3>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeApplyLO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
@@ -548,17 +550,19 @@ DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeApplyHO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
    if (dim == 2)
    {
-      return DispatchHOKernelByQ1D<typename apply_t::DerivativeApplyHO, 2>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeApplyHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<typename apply_t::DerivativeApplyHO, 3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeApplyHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 

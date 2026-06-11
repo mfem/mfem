@@ -542,19 +542,20 @@ inline typename DerivativeApplyTranspose<derivative_id,
 {
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeApplyTransposeLO =
+      typename transpose_t::DerivativeApplyTransposeLO;
    if (dim == 2)
    {
-      return DispatchLOKernelByQ1D<
-         typename transpose_t::DerivativeApplyTransposeLO, 2>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeApplyTransposeLO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchLOKernelByQ1D<
-         typename transpose_t::DerivativeApplyTransposeLO, 3>(q1d);
+      return DispatchLOKernelByQ1D<DerivativeApplyTransposeLO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
@@ -589,19 +590,20 @@ inline typename DerivativeApplyTranspose<derivative_id,
 {
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeApplyTransposeHO =
+      typename transpose_t::DerivativeApplyTransposeHO;
    if (dim == 2)
    {
-      return DispatchHOKernelByQ1D<
-         typename transpose_t::DerivativeApplyTransposeHO, 2>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeApplyTransposeHO, 2>(q1d);
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<
-         typename transpose_t::DerivativeApplyTransposeHO, 3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeApplyTransposeHO, 3>(q1d);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension");
+      return nullptr;
    }
 }
 
