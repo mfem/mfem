@@ -216,16 +216,11 @@ set(HDRS
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
-  dfem/assemble.hpp
   dfem/doperator.hpp
   dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
-  dfem/integrate.hpp
   dfem/integrator_ctx.hpp
-  dfem/interpolate.hpp
   dfem/parameterspace.hpp
-  dfem/qfunction_apply.hpp
-  dfem/qfunction_transform.hpp
   dfem/tuple.hpp
   dfem/util.hpp
   dfem/backends/util.hpp
