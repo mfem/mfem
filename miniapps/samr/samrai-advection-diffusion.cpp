@@ -1,25 +1,3 @@
-//                          MFEM-SAMRAI Example 16
-//
-// Compile with: make ex16
-//
-// Sample runs:  mpirun -np 1 ex16 -m ../data/inline-quad.mesh -i samrai_input.2d
-//               mpirun -np 1 ex16 -m ../data/star.mesh -i samrai_input.3d
-//               mpirun -np 4 ex16 -m ../data/inline-quad.mesh -i samrai_input.2d
-//
-// Description:  This example demonstrates basic interoperability between MFEM
-//               and SAMRAI by running both solvers side-by-side in an
-//               alternating time loop.
-//
-//               MFEM solves a time dependent nonlinear heat equation:
-//               du/dt = C(u), with C(u) = \nabla \cdot (\kappa + \alpha u) \nabla u
-//
-//               SAMRAI solves linear advection on structured AMR grid:
-//               du/dt + div(a*u) = 0
-//
-//               Both advance in an alternating time loop with no data sharing.
-//               This demonstrates that MFEM and SAMRAI can coexist and provides
-//               a foundation for future coupling with data exchange.
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -29,7 +7,6 @@
 
 // SAMRAI includes
 #include "SAMRAI/SAMRAI_config.h"
-#include "LinAdv.h"
 #include "SAMRAI/appu/VisItDataWriter.h"
 #include "SAMRAI/mesh/BergerRigoutsos.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -44,6 +21,7 @@
 #include "SAMRAI/tbox/InputDatabase.h"
 #include "SAMRAI/tbox/InputManager.h"
 #include "SAMRAI/tbox/SAMRAI_MPI.h"
+#include "samrai/LinAdv.h"
 
 using namespace mfem;
 
@@ -137,7 +115,7 @@ int main(int argc, char *argv[])
    bool solve_implicit_state = false;
 
    // Define command line argument defaults for SAMRAI
-   const char *samrai_input_file = "samrai_input.2d";
+   const char *samrai_input_file = "linadv_input.2d";
 
    // Parse command line arguments
    OptionsParser args(argc, argv);
