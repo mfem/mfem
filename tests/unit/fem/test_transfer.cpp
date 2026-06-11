@@ -425,6 +425,95 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    delete c_fec;
 }
 
+TEST_CASE("H1 L2 transfer with consistent mass", "[Transfer]")
+{
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1);
+   dimension = GENERATE(2, 3);
+
+   const int order = 2;
+   const int ne = 2;
+   const int vdim = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
+
+   CAPTURE(VecSpaceName(vectorspace), dimension, order);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL,
+                                   1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON,
+                                   1.0, 1.0, 1.0);
+   }
+
+   Mesh fineMesh(mesh);
+   fineMesh.UniformRefinement();
+
+   H1_FECollection fec(order, dimension);
+   FiniteElementSpace c_fespace(&mesh, &fec, vdim);
+   FiniteElementSpace f_fespace(&fineMesh, &fec, vdim);
+
+   L2ProjectionGridTransfer transfer(c_fespace, f_fespace);
+   transfer.UseConsistentMass();
+   const Operator &R = transfer.ForwardOperator();
+
+   GridFunction X(&c_fespace);
+   GridFunction Y(&f_fespace);
+   GridFunction Y_ref(&f_fespace);
+   coeff_order = 1;
+
+   LinearForm rhs(&f_fespace);
+   BilinearForm mass(&f_fespace);
+   FunctionCoefficient funcCoeff(&coeff);
+   VectorFunctionCoefficient vecCoeff(dimension, &vectorcoeff);
+   if (vectorspace == VecSpace::H1)
+   {
+      X.ProjectCoefficient(funcCoeff);
+      rhs.AddDomainIntegrator(new DomainLFIntegrator(funcCoeff));
+      mass.AddDomainIntegrator(new MassIntegrator);
+   }
+   else
+   {
+      X.ProjectCoefficient(vecCoeff);
+      rhs.AddDomainIntegrator(new VectorDomainLFIntegrator(vecCoeff));
+      mass.AddDomainIntegrator(new VectorMassIntegrator);
+   }
+
+   rhs.Assemble();
+   mass.Assemble();
+   SparseMatrix M;
+   Array<int> empty;
+   mass.FormSystemMatrix(empty, M);
+
+   GSSmoother M_prec(M);
+   Y_ref = 0.0;
+   PCG(M, M_prec, rhs, Y_ref, 0, 500, 1e-24, 0.0);
+
+   Y = 0.0;
+   R.Mult(X, Y);
+   Y -= Y_ref;
+   REQUIRE(Y.Norml2() < 1e-11 * Y_ref.Norml2());
+
+   Vector x(c_fespace.GetVSize());
+   Vector y(f_fespace.GetVSize());
+   Vector Ry(f_fespace.GetVSize());
+   Vector Rtx(c_fespace.GetVSize());
+   x.Randomize(1);
+   y.Randomize(2);
+
+   R.Mult(x, Ry);
+   R.MultTranspose(y, Rtx);
+
+   const real_t ip1 = InnerProduct(Ry, y);
+   const real_t ip2 = InnerProduct(x, Rtx);
+   REQUIRE(std::abs(ip1 - ip2) <
+           1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
+
+   REQUIRE_FALSE(transfer.SupportsBackwardsOperator());
+}
+
 TEST_CASE("Restriction Transpose Operator")
 {
    int order = GENERATE(1, 2);
@@ -582,6 +671,59 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    if (!geometric) { delete f_h1_fec; }
    delete c_h1_fec;
    delete pmesh;
+}
+
+TEST_CASE("Parallel H1 L2 transfer with consistent mass",
+          "[Transfer][Parallel]")
+{
+   dimension = GENERATE(2, 3);
+
+   const int order = 2;
+   const int ne = 2;
+   const int vdim = 1;
+
+   CAPTURE(dimension, order);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL,
+                                   1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON,
+                                   1.0, 1.0, 1.0);
+   }
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pfineMesh(MPI_COMM_WORLD, mesh);
+   pfineMesh.UniformRefinement();
+
+   H1_FECollection fec(order, dimension);
+   ParFiniteElementSpace c_fespace(&pmesh, &fec, vdim);
+   ParFiniteElementSpace f_fespace(&pfineMesh, &fec, vdim);
+
+   L2ProjectionGridTransfer transfer(c_fespace, f_fespace);
+   transfer.UseConsistentMass();
+   const Operator &R = transfer.TrueForwardOperator();
+
+   Vector x(c_fespace.GetTrueVSize());
+   Vector y(f_fespace.GetTrueVSize());
+   Vector Rx(f_fespace.GetTrueVSize());
+   Vector Rty(c_fespace.GetTrueVSize());
+   x.Randomize(1);
+   y.Randomize(2);
+
+   R.Mult(x, Rx);
+   R.MultTranspose(y, Rty);
+
+   const real_t ip1 = InnerProduct(MPI_COMM_WORLD, Rx, y);
+   const real_t ip2 = InnerProduct(MPI_COMM_WORLD, x, Rty);
+   REQUIRE(std::abs(ip1 - ip2) <
+           1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
+
+   REQUIRE_FALSE(transfer.SupportsBackwardsOperator());
 }
 
 #endif
