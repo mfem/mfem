@@ -157,8 +157,10 @@ private:
    real_t neutralizing_const;
    ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool precompute_neutralizing_const = false;
-   // Diffusion matrix
    HypreParMatrix* diffusion_matrix;
+
+   bool use_full_assembly = false;
+
    // Gradient operator for computing E = -∇φ
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
@@ -178,7 +180,8 @@ protected:
 public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_,
-               bool precompute_neutralizing_const_ = false);
+               bool precompute_neutralizing_const_ = false,
+               bool use_full_assembly_ = false);
 
    ~FieldSolver();
 
@@ -207,7 +210,16 @@ int main(int argc, char* argv[])
 
    if (Mpi::Root()) { display_banner(cout); }
 
+   const char *device_config = "cpu";
+   bool fa = false;
+
    OptionsParser args(argc, argv);
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, e.g. cpu, cuda, ceed-cuda.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly",
+                  "Use MFEM full assembly path with the selected device backend. "
+                  "This keeps the existing Hypre matrix solver.");
    args.AddOption(&ctx.dim, "-dim", "--dimension",
                   "Spatial dimension (2 or 3)");
    args.AddOption(&ctx.order, "-O", "--order",
@@ -247,6 +259,9 @@ int main(int argc, char* argv[])
       return 1;
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
+
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    // Assert that dimension is 2 or 3
    MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
@@ -301,7 +316,7 @@ int main(int argc, char* argv[])
    E_gf = 0.0;    // Initialize E_gf to zero
 
    // 6. Construct the field solver
-   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true);
+   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =
@@ -548,10 +563,12 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
-                         bool precompute_neutralizing_const_)
+                         bool precompute_neutralizing_const_,
+                         bool use_full_assembly_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
-     b(phi_fes)
+     b(phi_fes),
+     use_full_assembly(use_full_assembly_)
 {
    // compute domain volume
    ParMesh* pmesh = phi_fes->GetParMesh();
@@ -564,8 +581,12 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                  phi_fes->GetParMesh()->GetComm());
 
    {
-      // Par bilinear form for the gradgrad matrix
       ParBilinearForm dm(phi_fes);
+      if (use_full_assembly)
+      {
+         dm.SetAssemblyLevel(AssemblyLevel::FULL);
+         dm.EnableSparseMatrixSorting(Device::IsEnabled());
+      }
       ConstantCoefficient epsilon(EPSILON);  // ε_0
       dm.AddDomainIntegrator(
          new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
