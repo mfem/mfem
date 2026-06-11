@@ -45,7 +45,7 @@ struct multiply_inputs_qf<DIM, std::index_sequence<Vs...>,
                                            const real_t &w,
                                            dscalar_t &v) const
    {
-      v = (us * ...) * (1.0 + (w - w) * (gs(0) + ...)) * w * det(J);
+      v = (us * ...) * (real_t{1} + (w - w) * (gs(0) + ...)) * w * det(J);
    }
 };
 
