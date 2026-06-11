@@ -261,10 +261,10 @@ template<typename qfunction_t, int DIM>
 constexpr bool mass_qf =
    std::disjunction_v<
    std::is_same<qfunction_t, MF_Mass_global_qf<DIM>>,
-   // std::is_same<qfunction_t, PA_Mass_Setup_global_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Setup_global_qf<DIM>>,
    std::is_same<qfunction_t, PA_Mass_Apply_global_qf<DIM>>,
    std::is_same<qfunction_t, MF_Mass_local_qf<DIM>>,
-   // std::is_same<qfunction_t, PA_Mass_Setup_local_qf<DIM>>,
+   std::is_same<qfunction_t, PA_Mass_Setup_local_qf<DIM>>,
    std::is_same<qfunction_t, PA_Mass_Apply_local_qf<DIM>>>;
 
 template<typename qfunction_t, int DIM, int U>
@@ -520,7 +520,6 @@ template <int D1D, int Q1D, int D1N>
 MFStiffnessIntegrator::MFStiffnessKernelType
 MFStiffnessIntegrator::MFStiffnessKernels::Kernel()
 {
-   db1("\x1b[33mD1D:{} Q1D:{} D1N:{}", D1D, Q1D, D1N);
    return MFStiffnessMult<D1D, Q1D, D1N>;
 }
 
@@ -530,7 +529,6 @@ MFStiffnessIntegrator::MFStiffnessKernels::Fallback(int d1, int q1, int n1)
    MFEM_CONTRACT_VAR(d1);
    MFEM_CONTRACT_VAR(q1);
    MFEM_CONTRACT_VAR(n1);
-   db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
    return MFStiffnessMult;
 }
 
@@ -721,8 +719,6 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
-      dbg();
-      NVTX();
       fes = &fespace;
       auto *mesh = fes->GetMesh();
       const int DIM = mesh->Dimension();
@@ -854,7 +850,6 @@ template <int D1D, int Q1D>
 PAStiffnessIntegrator::StiffnessKernelType
 PAStiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   db1("\x1b[33mD1D:{} Q1D:{}", D1D, Q1D);
    return StiffnessMult<D1D, Q1D>;
 }
 
@@ -863,7 +858,6 @@ PAStiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    MFEM_CONTRACT_VAR(d1d);
    MFEM_CONTRACT_VAR(q1d);
-   db1("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    return StiffnessMult;
 }
 
@@ -1215,7 +1209,6 @@ REGISTER(BP, 3, PA_dfem_local);
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
-   dbg();
    static mfem::MPI_Session mpi(argc, argv);
 
    bm::ConsoleReporter CR;
@@ -1236,7 +1229,6 @@ int main(int argc, char *argv[])
          device_config = device->second;
       }
    }
-   dbg("device_config: {}", device_config);
    Device device(device_config.c_str());
    device_ptr = &device;
    device.Print();
