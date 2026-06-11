@@ -1149,7 +1149,7 @@ DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
    {
       return internal::SmemPADiffusionApplyTetrahedron<D1D, Q1D>;
    }
-   else { MFEM_ABORT(""); }
+   else { MFEM_ABORT(""); return nullptr;}
 }
 
 inline DiffusionIntegrator::ApplySimplexKernelType
