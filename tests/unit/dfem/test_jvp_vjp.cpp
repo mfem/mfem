@@ -168,7 +168,7 @@ void TestJvpVjp(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU][JVP][2D]")
+TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({ 1 }, { 2, 3 });
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -181,7 +181,7 @@ TEST_CASE("dFEM JVP-VJP 2D", "[Parallel][dFEM][GPU][JVP][2D]")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU][JVP][3D]")
+TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({ 1 }, { 2, 3 });
    const auto meshs = { "../../data/inline-hex.mesh" };

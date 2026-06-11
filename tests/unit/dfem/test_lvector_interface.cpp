@@ -107,7 +107,7 @@ void l_vector_interface(const char *filename, int p)
    REQUIRE(z.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("dFEM L-Vector 2D", "[Parallel][dFEM][GPU][2D]")
+TEST_CASE("dFEM L-Vector 2D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -119,7 +119,7 @@ TEST_CASE("dFEM L-Vector 2D", "[Parallel][dFEM][GPU][2D]")
    l_vector_interface<2>(GenAll(meshs, extra), p);
 }
 
-TEST_CASE("dFEM L-Vector 3D", "[Parallel][dFEM][GPU][3D]")
+TEST_CASE("dFEM L-Vector 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };

@@ -250,7 +250,7 @@ void functional(const char *filename, int p)
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
-          "[Parallel][dFEM][GPU][functional]")
+          "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    SECTION("2d")

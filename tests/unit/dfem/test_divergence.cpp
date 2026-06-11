@@ -177,7 +177,7 @@ void vectordivergence(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU][DIV]")
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
 

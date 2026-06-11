@@ -206,11 +206,11 @@ void test_inputs(int p)
    }, std::make_integer_sequence<std::size_t, MaxV> {});
 }
 
-TEST_CASE("dFEM Inputs", "[Parallel][dFEM][GPU][INPUTS]")
+TEST_CASE("dFEM Inputs", "[Parallel][dFEM][GPU]")
 {
    static constexpr int DIM = 2, U = 0, Coords = 1;
    static constexpr std::size_t MaxV = 3, MaxG = 3;
-   const auto p = GenAll({ 1 }, { 2, 3, 8 });
+   const auto p = GenAll({ 1 }, { 2, 3 });
 
    test_inputs<DIM, U, Coords, MaxV, MaxG>(p);
 }

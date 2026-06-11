@@ -493,7 +493,7 @@ void diffusion(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][DIFFUSION][2D]")
+TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -506,7 +506,7 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU][DIFFUSION][2D]")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU][DIFFUSION][3D]")
+TEST_CASE("dFEM Diffusion 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };

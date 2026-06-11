@@ -143,7 +143,7 @@ struct mass_local_qf
    }
 };
 
-TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU][OUTPUTS]")
+TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 

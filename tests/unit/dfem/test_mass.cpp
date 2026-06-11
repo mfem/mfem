@@ -410,7 +410,7 @@ void mass_mat_mixed(const char* filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
+TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -424,7 +424,7 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU][MASS][2D]")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU][MASS][3D]")
+TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
