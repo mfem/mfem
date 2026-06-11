@@ -16,6 +16,8 @@
 
 #ifdef MFEM_USE_MPI
 
+#include <vector>
+
 #include "../linalg/hypre.hpp"
 #include "../mesh/pmesh.hpp"
 #include "../mesh/nurbs.hpp"
@@ -696,7 +698,7 @@ protected:
    Memory<int> shr_buf_offsets, ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
-   MPI_Request *requests;
+   mutable std::vector<MPI_Request> requests;
 
    // Pack external local dof values into the neighbor send buffer.
    template <typename T>

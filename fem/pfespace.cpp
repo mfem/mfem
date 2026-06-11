@@ -5712,8 +5712,7 @@ void DeviceSharedDofCommunicator::BcastEndCopy(const Array<T> &ext_buf_t,
 DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
    const ParFiniteElementSpace &pfes)
    : gc(pfes.GroupComm()),
-     mpi_gpu_aware(Device::GetGPUAwareMPI()),
-     requests(nullptr)
+     mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
@@ -5791,14 +5790,13 @@ DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0) { req_counter++; }
    }
-   requests = new MPI_Request[req_counter];
+   requests.resize(req_counter);
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
 }
 
 DeviceSharedDofCommunicator::~DeviceSharedDofCommunicator()
 {
-   delete [] requests;
    ext_buf_offsets.Delete();
    shr_buf_offsets.Delete();
 }
@@ -5837,7 +5835,7 @@ void DeviceSharedDofCommunicator::Reduce(const Array<T> &x_ldof,
          }
       }
       ReduceLocalCopy(x_ldof, x_tdof);
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      MPI_Waitall(req_counter, requests.data(), MPI_STATUSES_IGNORE);
       ReduceEndAssemble(shr_buf_t, x_tdof, op);
    };
 
@@ -5901,7 +5899,7 @@ void DeviceSharedDofCommunicator::Bcast(const Array<T> &x_tdof,
          }
       }
       BcastLocalCopy(x_tdof, x_ldof);
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      MPI_Waitall(req_counter, requests.data(), MPI_STATUSES_IGNORE);
       BcastEndCopy(ext_buf_t, x_ldof);
    };
 
