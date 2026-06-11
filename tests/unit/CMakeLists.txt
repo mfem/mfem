@@ -150,6 +150,7 @@ set(UNIT_TESTS_SRCS
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
+  fem/test_dof_communicator.cpp
   fem/test_project_bdr_par.cpp
   fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
