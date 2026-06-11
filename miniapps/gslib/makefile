@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
-   PAR_MINIAPPS = pfindpts schwarz_ex1p
+   PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =
@@ -83,11 +83,16 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+ifeq ($(MFEM_USE_MPI),YES)
+   RUN_MPI_SER = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 1
+else
+   RUN_MPI_SER =
+endif
 TEST_NAME := GSLIB miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI_SER), $(TEST_NAME))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

@@ -38,6 +38,8 @@
 #include "batched/solver.hpp"
 #include "tensor.hpp"
 #include "filteredsolver.hpp"
+#include "ordering.hpp"
+#include "particlevector.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"
@@ -88,5 +90,9 @@
 #endif
 
 #endif // MFEM_USE_MPI
+
+#ifdef MFEM_USE_CUDSS
+#include "cudss.hpp"
+#endif
 
 #endif

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-// This is serac's tuple implementation
+// This is smith's tuple implementation
 
 #include <ostream>
 #include "../../config/config.hpp"

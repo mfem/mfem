@@ -85,6 +85,10 @@ groups_serial=(
    "DPG miniapps:"
    "miniapps/dpg"
    "{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
+'"isf"
+   "Schrodinger flow miniapps:"
+   "miniapps/fluids/schrodinger-flow"
+   "schrodinger_flow.cpp"'
 '"gslib"
    "GSLIB miniapps:"
    "miniapps/gslib"
@@ -166,6 +170,10 @@ groups_parallel=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
+'"isf"
+   "Schrodinger flow miniapps:"
+   "miniapps/fluids/schrodinger-flow"
+   "pschrodinger_flow.cpp"'
 '"adjoint"
    "Adjoint miniapps:"
    "miniapps/adjoint"
@@ -191,7 +199,7 @@ groups_parallel=(
 # todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
-   "miniapps/navier"
+   "miniapps/fluids/navier"
    "navier_cht.cpp"'
 # todo: add other navier miniapps
 '"nurbs"
@@ -281,6 +289,10 @@ groups_all=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
+'"isf"
+   "Schrodinger flow miniapps:"
+   "miniapps/fluids/schrodinger-flow"
+   "{,p}schrodinger_flow.cpp"'
 '"adjoint"
    "Adjoint miniapps:"
    "miniapps/adjoint"
@@ -308,7 +320,7 @@ groups_all=(
 # todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
-   "miniapps/navier"
+   "miniapps/fluids/navier"
    "navier_cht.cpp"'
 # todo: add other navier miniapps
 '"nurbs"

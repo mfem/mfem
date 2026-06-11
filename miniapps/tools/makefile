@@ -26,7 +26,7 @@ MFEM_FLAGS += -I$(LLVM)/include/c++/v1
 MFEM_LIBS += -L$(LLVM)/lib/c++ -L$(LLVM)/lib/unwind -Wl,-rpath,$(LLVM)/lib/c++ -Wl,-rpath,$(LLVM)/lib/unwind -lunwind
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
-	tmop-check-metric tmop-metric-magnitude
+	tmop-check-metric tmop-metric-magnitude compare-dc
 
 PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds
 
@@ -83,7 +83,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Testing: Specific execution options
 # Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
-	plor-transfer tmop-check-metric tmop-metric-magnitude gridfunction-bounds
+	plor-transfer tmop-check-metric tmop-metric-magnitude gridfunction-bounds \
+	compare-dc
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 

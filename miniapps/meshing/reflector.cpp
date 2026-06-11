@@ -33,8 +33,7 @@
 using namespace std;
 using namespace mfem;
 
-
-void ReflectPoint(Vector & p, Vector const& origin, Vector const& normal)
+void ReflectPoint(Vector &p, const Vector &origin, const Vector &normal)
 {
    Vector diff(3);
    Vector proj(3);
@@ -57,12 +56,12 @@ private:
    // Map from reflected to original mesh elements
    std::vector<int> *r2o;
 
-   std::vector<std::vector<int>> *perm;
+   std::vector<std::array<int, 8>> *perm;
 
 public:
    ReflectedCoefficient(VectorCoefficient &A, Vector const& origin_,
                         Vector const& normal_, std::vector<int> *r2o_,
-                        Mesh *mesh, std::vector<std::vector<int>> *refPerm) :
+                        Mesh *mesh, std::vector<std::array<int, 8>> *refPerm) :
       VectorCoefficient(3), a(&A), origin(origin_), normal(normal_),
       meshOrig(mesh), r2o(r2o_), perm(refPerm)
    { }
@@ -109,7 +108,7 @@ void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
       // give the columns of A.
 
       // Permutation p is such that hex_reflected[i] = hex_init[p[i]]
-      const std::vector<int>& p = (*perm)[elem];
+      const std::array<int, 8>& p = (*perm)[elem];
 
       // ip is on reflected hex. We map from the reflected hex to the initial
       // hex, in reference space. Thus we use y = Ax + b, where x is in the
@@ -164,7 +163,7 @@ void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
 
 // Find perm such that h1[i] = h2[perm[i]]
 void GetHexPermutation(Array<int> const& h1, Array<int> const& h2,
-                       std::vector<int> & perm)
+                       std::array<int, 8> &perm)
 {
    std::map<int, int> h2inv;
    const int n = perm.size();
@@ -236,7 +235,7 @@ public:
    int AddElement(Array<int> const& vertices, const bool reorder);
 
    Mesh *mesh;
-   std::vector<std::vector<int>> refPerm;
+   std::vector<std::array<int, 8>> refPerm;
 
 private:
    std::vector<std::vector<int>> faces;
@@ -279,13 +278,13 @@ int HexMeshBuilder::AddElement(Array<int> const& vertices, const bool reorder)
       }
       while (reordered);
 
-      std::vector<int> perm_e(8);
+      std::array<int, 8> perm_e;
       GetHexPermutation(rvert, vertices, perm_e);
       refPerm.push_back(perm_e);
    }
    else
    {
-      refPerm.push_back(std::vector<int> {0, 1, 2, 3, 4, 5, 6, 7});
+      refPerm.push_back(std::array<int, 8> {0, 1, 2, 3, 4, 5, 6, 7});
    }
 
    SaveHexFaces(mesh->GetNE(), rvert);
@@ -762,7 +761,10 @@ bool GetMeshElementOrder(Mesh const& mesh, Vector const& origin,
    return true;
 }
 
-Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
+Mesh* ReflectHighOrderMesh(Mesh &mesh,
+                           const Vector &origin, const Vector &normal,
+                           std::vector<std::array<int, 8>> &hexPerm,
+                           std::vector<int> &elOrder)
 {
    MFEM_VERIFY(mesh.Dimension() == 3, "Only 3D meshes can be reflected");
 
@@ -837,7 +839,6 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       }
    }
 
-   std::vector<int> elOrder;
    const bool onPlane = GetMeshElementOrder(mesh, origin, normal, elOrder);
 
    for (int eidx=0; eidx<mesh.GetNE(); eidx++)
@@ -1006,6 +1007,133 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       *reflected_nodes = newReflectedNodes;
    }
 
+   hexPerm = builder.refPerm;
+
+   return reflected;
+}
+
+void ReorderHexArray(const std::array<int, 3> &dim,
+                     const array<int, 8> &hexperm,
+                     std::array<int, 3> &dir, std::array<int, 3> &dims,
+                     Array3D<int> &permArray);
+
+NURBSPatch* ReflectPatch(NURBSPatch *patch, int nx, int ny, int nz,
+                         const Vector &origin, const Vector &normal,
+                         const std::array<int, 8> &hexPerm)
+{
+   // The hexahedral element for this patch in the reflected patch topology mesh
+   // is the reflection of an original patch topology mesh element, with
+   // reference vertices permuted according to hexPerm. The original grid of
+   // (nx + 1) x (ny + 1) x (nz + 1)
+   // control points has a new size and ordering, depending on hexPerm. Now,
+   // ReorderHexArray finds the new dimensions of this grid in `dims`, maps the
+   // directions in `dir`, and sets the permutation of grid indices as triples
+   // in `permArray`.
+   std::array<int, 3> dims, dir;
+   Array3D<int> permArray;
+   ReorderHexArray({nx+1, ny+1, nz+1}, hexPerm, dir, dims, permArray);
+
+   const KnotVector *kv0 = patch->GetKV(dir[0]);
+   const KnotVector *kv1 = patch->GetKV(dir[1]);
+   const KnotVector *kv2 = patch->GetKV(dir[2]);
+
+   NURBSPatch *rpatch = new NURBSPatch(kv0, kv1, kv2, 4);
+
+   // Reflect the control points in this reflected patch `rpatch`.
+   Vector vr(3);
+   for (int i=0; i<dims[0]; ++i)
+   {
+      for (int j=0; j<dims[1]; ++j)
+      {
+         for (int k=0; k<dims[2]; ++k)
+         {
+            const int old = permArray(i,j,k);
+            const int i0 = old / ((ny + 1) * (nz + 1));
+            const int j0 = (old - (i0 * (ny + 1) * (nz + 1))) / (nz + 1);
+            const int k0 = old - (i0 * (ny + 1) * (nz + 1)) - (j0 * (nz+1));
+
+            const real_t w = (*patch)(i0,j0,k0,3); // Weight
+            for (int l=0; l<3; ++l) { vr[l] = (*patch)(i0,j0,k0,l) / w; }
+
+            ReflectPoint(vr, origin, normal);
+
+            for (int l=0; l<3; ++l) { (*rpatch)(i,j,k,l) = vr[l] * w; }
+            (*rpatch)(i,j,k,3) = w;
+         }
+      }
+   }
+
+   return rpatch;
+}
+
+Mesh* ReflectNURBSMesh(Mesh &mesh, const Vector &origin, const Vector &normal)
+{
+   MFEM_VERIFY(mesh.NURBSext && mesh.Dimension() == 3,
+               "Only 3D NURBS meshes can be reflected");
+
+   Mesh patchTopo = mesh.NURBSext->GetPatchTopology(); // Deep copy
+
+   Array<NURBSPatch*> patchesOriginal, patches;
+   mesh.GetNURBSPatches(patchesOriginal); // Deep copy
+
+   NURBSPatchMap p2g(mesh.NURBSext);
+   const KnotVector *kv[3];
+
+   const int pnv = patchTopo.GetNV();
+   Vector vert_coord(3 * patchTopo.GetNV());
+   for (int p=0; p<patchesOriginal.Size(); ++p)
+   {
+      p2g.SetPatchDofMap(p, kv);
+      const int nx = p2g.nx();
+      const int ny = p2g.ny();
+      const int nz = p2g.nz();
+
+      Array<int> vert;
+      patchTopo.GetElementVertices(p, vert);
+
+      for (int l=0; l<3; ++l)
+      {
+         const int os = l * pnv;
+         vert_coord[vert[0] + os] = (*patchesOriginal[p])(0,0,0,l);
+         vert_coord[vert[1] + os] = (*patchesOriginal[p])(nx,0,0,l);
+         vert_coord[vert[2] + os] = (*patchesOriginal[p])(nx,ny,0,l);
+         vert_coord[vert[3] + os] = (*patchesOriginal[p])(0,ny,0,l);
+         vert_coord[vert[4] + os] = (*patchesOriginal[p])(0,0,nz,l);
+         vert_coord[vert[5] + os] = (*patchesOriginal[p])(nx,0,nz,l);
+         vert_coord[vert[6] + os] = (*patchesOriginal[p])(nx,ny,nz,l);
+         vert_coord[vert[7] + os] = (*patchesOriginal[p])(0,ny,nz,l);
+      }
+   }
+
+   patchTopo.SetVertices(vert_coord);
+
+   std::vector<std::array<int, 8>> hexPerm;
+   std::vector<int> elOrder;
+   Mesh *reflectedPatchTopo = ReflectHighOrderMesh(patchTopo, origin, normal,
+                                                   hexPerm, elOrder);
+
+   // Construct reflected patches. Note that reflectedPatchTopo has patch
+   // ordering depending on patchTopo.
+   for (int p=0; p<patchesOriginal.Size(); ++p)
+   {
+      const int p_orig = elOrder[p]; // TODO: use r2o instead?
+      p2g.SetPatchDofMap(p_orig, kv);
+      const int nx = p2g.nx();
+      const int ny = p2g.ny();
+      const int nz = p2g.nz();
+
+      patches.Append(patchesOriginal[p_orig]);
+      patches.Append(ReflectPatch(patchesOriginal[p_orig], nx, ny, nz,
+                                  origin, normal, hexPerm[(2 * p) + 1]));
+   }
+
+   NURBSExtension *ne = new NURBSExtension(reflectedPatchTopo, patches);
+   delete reflectedPatchTopo;
+
+   for (auto patch : patches) { delete patch; }
+
+   Mesh *reflected = new Mesh(*ne);
+   delete ne;
    return reflected;
 }
 
@@ -1045,7 +1173,19 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 0, 0);
 
-   Mesh *reflected = ReflectHighOrderMesh(mesh, origin, normal);
+   Mesh *reflected{nullptr};
+
+   //if (mesh.IsNURBS()) // TODO: available in PR 4936
+   if (mesh.NURBSext)
+   {
+      reflected = ReflectNURBSMesh(mesh, origin, normal);
+   }
+   else
+   {
+      std::vector<std::array<int, 8>> hexPerm;
+      std::vector<int> elOrder;
+      reflected = ReflectHighOrderMesh(mesh, origin, normal, hexPerm, elOrder);
+   }
 
    // Save the final mesh
    ofstream mesh_ofs("reflected.mesh");
@@ -1064,4 +1204,86 @@ int main(int argc, char *argv[])
    delete reflected;
 
    return 0;
+}
+
+void HexVertexIJK(const int idx, std::array<int, 3>& ijk)
+{
+   ijk[2] = idx / 4;
+   const int id2d = idx - (4 * ijk[2]);
+   ijk[1] = id2d / 2;
+   ijk[0] = (ijk[1] == 0) ? id2d : 3 - id2d;
+}
+
+void ReorderHexArray(const std::array<int, 3> &dim,
+                     const array<int, 8> &hexperm,
+                     std::array<int, 3> &dir, std::array<int, 3> &dims,
+                     Array3D<int> &permArray)
+{
+   int prinV[4] = {0, 1, 3, 4}; // Vertices in principal directions (after 0)
+   int newPrinV[4];
+
+   // newVertices[i] = oldVertices[hexperm[i]]
+   // Hence newPrinV[0] = hexperm[0] is the index
+   // of new vertex 0 in the old hex.
+
+   std::array<int, 3> newIJK[4];
+   for (int i = 0; i < 4; ++i)
+   {
+      newPrinV[i] = hexperm[prinV[i]];
+      HexVertexIJK(newPrinV[i], newIJK[i]);
+   }
+
+   // For direction i in the new hex, dir[i] is the direction in the old hex.
+   Array<bool> rev(3);
+   for (int i = 0; i < 3; ++i)
+   {
+      bool iset = false;
+      for (int j = 0; j < 3; ++j)
+      {
+         const int d = newIJK[i + 1][j] - newIJK[0][j];
+         if (d != 0)
+         {
+            MFEM_VERIFY(!iset, "");
+            MFEM_VERIFY(d == 1 || d == -1, "");
+            dir[i] = j;
+            rev[i] = (d == -1);
+            iset = true;
+         }
+      }
+
+      MFEM_VERIFY(iset, "");
+
+      dims[i] = dim[dir[i]];
+   }
+
+   MFEM_VERIFY(dir[0] + dir[1] + dir[2] == 3, "");
+
+   permArray.SetSize(dims[0], dims[1], dims[2]);
+
+   Array<int> old_ijk(3);
+   Array<int> new_ijk(3);
+   for (int i = 0; i < dims[0]; ++i)
+      for (int j = 0; j < dims[1]; ++j)
+         for (int k = 0; k < dims[2]; ++k)
+         {
+            new_ijk[0] = i;
+            new_ijk[1] = j;
+            new_ijk[2] = k;
+
+            for (int m = 0; m < 3; ++m)
+            {
+               const int d = dir[m]; // Old hex direction
+               if (rev[m])
+               {
+                  old_ijk[d] = dim[d] - 1 - new_ijk[m];
+               }
+               else
+               {
+                  old_ijk[d] = new_ijk[m];
+               }
+            }
+
+            permArray(i, j, k) =
+               old_ijk[2] + (old_ijk[1] * dim[2]) + (old_ijk[0] * dim[1] * dim[2]);
+         }
 }
