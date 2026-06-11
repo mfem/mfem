@@ -28,8 +28,369 @@
 #include <set>
 #include <vector>
 
+extern "C"
+{
+#include "HYPRE.h"
+#include "_hypre_parcsr_ls.h"
+#include "_hypre_utilities.h"
+
+void dpotrf_(const char *uplo, const int *n, double *a, const int *lda, int *info);
+void dgetrf_(const int *m, const int *n, double *a, const int *lda, int *ipiv, int *info);
+
+typedef struct
+{
+   HYPRE_Int      variant;
+   HYPRE_Int      domain_type;
+   HYPRE_Int      overlap;
+   HYPRE_Int      num_functions;
+   HYPRE_Int      use_nonsymm;
+   HYPRE_Real   relax_weight;
+
+   hypre_CSRMatrix *domain_structure;
+   hypre_CSRMatrix *A_boundary;
+   hypre_ParVector *Vtemp;
+   HYPRE_Real  *scale;
+   HYPRE_Int     *dof_func;
+   HYPRE_Int     *pivots;
+
+
+
+} hypre_SchwarzData;
+}
+
 using namespace std;
 using namespace mfem;
+
+
+HYPRE_Int DummyParSolverFcn(HYPRE_Solver solver,
+                            HYPRE_ParCSRMatrix A,
+                            HYPRE_ParVector b,
+                            HYPRE_ParVector x)
+{
+   (void)solver;
+   (void)A;
+   (void)b;
+   (void)x;
+   return 0;
+}
+
+class HypreSchwarz : public HypreSolver
+{
+   public:
+      HYPRE_Solver schwarz_solver;
+   void SetOperator(const Operator &op) override
+   {
+      const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+      MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+      //HYPRE_SchwarzDestroy(schwarz_solver); TODO: fix leak :)
+      //HYPRE_SchwarzCreate(&schwarz_solver);
+
+      // update base classes: Operator, Solver, HypreSolver
+      height = new_A->Height();
+      width  = new_A->Width();
+      A = const_cast<HypreParMatrix *>(new_A);
+      setup_called = 0;
+      delete X;
+      delete B;
+      B = X = NULL;
+      auxB.Delete(); auxB.Reset();
+      auxX.Delete(); auxX.Reset();
+   }
+
+   HYPRE_CSRMatrix BuildDomainStructure(
+    const std::vector<std::vector<HYPRE_Int>>& subdomains)
+   {
+      const HYPRE_Int num_domains = static_cast<HYPRE_Int>(subdomains.size());
+
+      HYPRE_Int max_domain_size = 0;
+      HYPRE_Int total_memberships = 0;
+      HYPRE_Int total_dense_data = 0;
+
+      for (const auto& domain : subdomains)
+      {
+         const HYPRE_Int sz = static_cast<HYPRE_Int>(domain.size());
+         max_domain_size = std::max(max_domain_size, sz);
+         total_memberships += sz;
+         total_dense_data += sz * sz;
+      }
+
+      hypre_CSRMatrix* csr =
+         hypre_CSRMatrixCreate(num_domains, max_domain_size, total_memberships);
+
+      hypre_CSRMatrixInitialize(csr);
+
+      HYPRE_Int* I = hypre_CSRMatrixI(csr);
+      HYPRE_Int* J = hypre_CSRMatrixJ(csr);
+
+      HYPRE_Int nnz_counter = 0;
+      I[0] = 0;
+
+      for (HYPRE_Int i = 0; i < num_domains; i++)
+      {
+         const auto& domain = subdomains[i];
+         for (HYPRE_Int k = 0; k < static_cast<HYPRE_Int>(domain.size()); k++)
+         {
+               J[nnz_counter++] = domain[k];
+         }
+         I[i + 1] = nnz_counter;
+      }
+
+      HYPRE_Real* data =
+         hypre_CTAlloc(HYPRE_Real, total_dense_data, HYPRE_MEMORY_HOST);
+
+      for (HYPRE_Int i = 0; i < total_dense_data; i++)
+      {
+         data[i] = 0.0;
+      }
+
+      hypre_CSRMatrixData(csr) = data;
+
+      return (HYPRE_CSRMatrix) csr;
+   }
+
+      HYPRE_CSRMatrix domain_structure = nullptr;
+   HYPRE_Int *pivots = nullptr;
+   HYPRE_Real *scale = nullptr;
+
+   void SetCustomSubdomains(const std::vector<std::vector<HYPRE_Int>> &subdomains,
+                           HypreParMatrix &A,
+                           HYPRE_Real relax_weight = 1.0,
+                           HYPRE_Int use_nonsymm = 0)
+   {
+      hypre_SchwarzData *sd = (hypre_SchwarzData *)schwarz_solver;
+      sd->relax_weight = relax_weight;
+      sd->use_nonsymm = use_nonsymm;
+      MFEM_VERIFY(sd != nullptr, "Invalid Schwarz solver.");
+
+      hypre_ParCSRMatrix *parA = (hypre_ParCSRMatrix *)A;
+      hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(parA);
+      MFEM_VERIFY(A_diag != nullptr, "A_diag is null.");
+
+      HYPRE_Int num_dofs = hypre_CSRMatrixNumRows(A_diag);
+
+      if (domain_structure)
+      {
+         hypre_CSRMatrixDestroy((hypre_CSRMatrix *)domain_structure);
+         domain_structure = nullptr;
+      }
+      if (pivots)
+      {
+         hypre_TFree(pivots, HYPRE_MEMORY_HOST);
+         pivots = nullptr;
+      }
+      if (scale)
+      {
+         hypre_TFree(scale, HYPRE_MEMORY_HOST);
+         scale = nullptr;
+      }
+
+      if (sd->Vtemp)
+      {
+         hypre_ParVectorDestroy(sd->Vtemp);
+         sd->Vtemp = nullptr;
+      }
+
+      if (sd->A_boundary)
+      {
+         hypre_CSRMatrixDestroy(sd->A_boundary);
+         sd->A_boundary = nullptr;
+      }
+
+      {
+         hypre_ParVector *Vtemp =
+            hypre_ParVectorCreate(hypre_ParCSRMatrixComm(parA),
+                                 hypre_ParCSRMatrixGlobalNumRows(parA),
+                                 hypre_ParCSRMatrixRowStarts(parA));
+         hypre_ParVectorInitialize(Vtemp);
+         sd->Vtemp = Vtemp;
+      }
+
+      const HYPRE_Int num_domains = (HYPRE_Int)subdomains.size();
+      HYPRE_Int max_domain_size = 0;
+      HYPRE_Int total_memberships = 0;
+      size_t total_dense_data_sz = 0;
+      HYPRE_Int total_pivots = 0;
+
+      for (const auto &dom : subdomains)
+      {
+         HYPRE_Int sz = (HYPRE_Int)dom.size();
+         MFEM_VERIFY(sz >= 0, "Invalid subdomain size.");
+         max_domain_size = std::max(max_domain_size, sz);
+         total_memberships += sz;
+         total_pivots += sz;
+
+         size_t ssz = (size_t)sz;
+         total_dense_data_sz += ssz * ssz;
+      }
+
+      MFEM_VERIFY(total_dense_data_sz <= (size_t)std::numeric_limits<HYPRE_Int>::max(),
+                  "Dense subdomain storage exceeds HYPRE_Int capacity.");
+
+      HYPRE_Int total_dense_data = (HYPRE_Int)total_dense_data_sz;
+
+      hypre_CSRMatrix *csr =
+         hypre_CSRMatrixCreate(num_domains, num_dofs, total_memberships);
+      hypre_CSRMatrixInitialize(csr);
+
+      HYPRE_Int *I = hypre_CSRMatrixI(csr);
+      HYPRE_Int *J = hypre_CSRMatrixJ(csr);
+
+      I[0] = 0;
+      HYPRE_Int p = 0;
+      for (HYPRE_Int d = 0; d < num_domains; d++)
+      {
+         const HYPRE_Int sz = (HYPRE_Int)subdomains[d].size();
+         for (HYPRE_Int k = 0; k < sz; k++)
+         {
+            HYPRE_Int gdof = subdomains[d][k];
+            MFEM_VERIFY(gdof >= 0 && gdof < num_dofs,
+                        "Subdomain DOF out of local A_diag range.");
+            J[p++] = gdof;
+         }
+         I[d + 1] = p;
+      }
+
+      HYPRE_Real *data = hypre_CTAlloc(HYPRE_Real, total_dense_data, HYPRE_MEMORY_HOST);
+      hypre_CSRMatrixData(csr) = data;
+
+      HYPRE_Int *local_to_global =
+         hypre_CTAlloc(HYPRE_Int, std::max<HYPRE_Int>(max_domain_size, 1), HYPRE_MEMORY_HOST);
+      HYPRE_Int *global_to_local =
+         hypre_CTAlloc(HYPRE_Int, std::max<HYPRE_Int>(num_dofs, 1), HYPRE_MEMORY_HOST);
+
+      for (HYPRE_Int i = 0; i < num_dofs; i++)
+      {
+         global_to_local[i] = -1;
+      }
+
+      HYPRE_Int *Ai = hypre_CSRMatrixI(A_diag);
+      HYPRE_Int *Aj = hypre_CSRMatrixJ(A_diag);
+      HYPRE_Real *Aa = hypre_CSRMatrixData(A_diag);
+
+      if (use_nonsymm)
+      {
+         pivots = hypre_CTAlloc(HYPRE_Int, std::max<HYPRE_Int>(total_pivots, 1), HYPRE_MEMORY_HOST);
+      }
+
+      HYPRE_Int data_offset = 0;
+      HYPRE_Int piv_offset = 0;
+      char uplo = 'L';
+
+      mfem::out << "Num domains: " << num_domains << endl;
+      for (HYPRE_Int d = 0; d < num_domains; d++)
+      {
+         HYPRE_Int n = I[d + 1] - I[d];
+         MFEM_VERIFY(n >= 0, "Negative subdomain size.");
+         MFEM_VERIFY((size_t)data_offset + (size_t)n * (size_t)n <= total_dense_data_sz,
+                     "Dense block exceeds allocated storage.");
+
+         mfem::out << "Subdomain: ";
+         for (HYPRE_Int i = 0; i < n; i++)
+         {
+            HYPRE_Int gdof = J[I[d] + i];
+            local_to_global[i] = gdof;
+            global_to_local[gdof] = i;
+            mfem::out << gdof << " ";
+         }
+         mfem::out << endl;
+
+         HYPRE_Real *AE = &data[data_offset];
+         std::fill(AE, AE + (size_t)n * (size_t)n, 0.0);
+
+         mfem::out << "Subdomain d = " << d << ", size n = " << n << std::endl;
+
+         for (HYPRE_Int i = 0; i < n; i++)
+         {
+            HYPRE_Int gdof = local_to_global[i];
+            mfem::out << "  local row i = " << i
+                     << ", global dof = " << gdof
+                     << ", Ai[" << gdof << "] = " << Ai[gdof]
+                     << ", Ai[" << gdof + 1 << "] = " << Ai[gdof + 1]
+                     << std::endl;
+
+            for (HYPRE_Int jj = Ai[gdof]; jj < Ai[gdof + 1]; jj++)
+            {
+               HYPRE_Int gj = Aj[jj];
+               HYPRE_Int jloc = (gj >= 0 && gj < num_dofs) ? global_to_local[gj] : -1;
+
+               mfem::out << "    jj = " << jj
+                        << ", gj = " << gj
+                        << ", jloc = " << jloc
+                        << ", Aa[jj] = " << Aa[jj]
+                        << std::endl;
+
+               if (jloc >= 0)
+               {
+                  AE[i + jloc * n] = Aa[jj];
+                  mfem::out << "      inserted AE(" << i << "," << jloc
+                           << ") = " << Aa[jj]
+                           << std::endl;
+               }
+            }
+         }
+
+         mfem::out << "  Dense AE block before factorization:" << std::endl;
+         for (HYPRE_Int row = 0; row < n; row++)
+         {
+            mfem::out << "    ";
+            for (HYPRE_Int col = 0; col < n; col++)
+            {
+               mfem::out << AE[row + col * n] << " ";
+            }
+            mfem::out << std::endl;
+         }
+
+         if (n > 0)
+         {
+            if (use_nonsymm)
+            {
+               int nn = (int)n;
+               int info = 0;
+               dgetrf_(&nn, &nn, AE, &nn,
+                     reinterpret_cast<int *>(&pivots[piv_offset]), &info);
+               MFEM_VERIFY(info == 0, "LU factorization failed for Schwarz subdomain.");
+               piv_offset += n;
+            }
+            else
+            {
+               int nn = (int)n;
+               int info = 0;
+               dpotrf_(&uplo, &nn, AE, &nn, &info);
+               MFEM_VERIFY(info == 0, "Cholesky factorization failed for Schwarz subdomain.");
+            }
+         }
+
+         data_offset += n * n;
+
+         for (HYPRE_Int i = 0; i < n; i++)
+         {
+            global_to_local[local_to_global[i]] = -1;
+         }
+      }
+
+      hypre_TFree(local_to_global, HYPRE_MEMORY_HOST);
+      hypre_TFree(global_to_local, HYPRE_MEMORY_HOST);
+
+      domain_structure = (HYPRE_CSRMatrix)csr;
+
+      hypre_GenerateScale(csr, num_dofs, relax_weight, &scale);
+
+      sd->domain_structure = csr;
+      sd->pivots = pivots;
+      sd->scale = scale;
+      sd->A_boundary = nullptr;
+
+      HYPRE_SchwarzSetDomainStructure(schwarz_solver, domain_structure);
+   }
+
+   operator HYPRE_Solver() const override { return schwarz_solver; }
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
+   { return (HYPRE_PtrToParSolverFcn) DummyParSolverFcn; }
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_SchwarzSolve; }
+   using HypreSolver::Mult;
+};
 
 // -----------------------------------------------------------------------------
 // Spectrum analysis helper
@@ -417,7 +778,8 @@ SparseMatrix BuildPenaltyModifiedMatrix(const HypreParMatrix &A,
                                         const std::map<HYPRE_BigInt, HYPRE_BigInt> &tied_pairs,
                                         const Array<HYPRE_BigInt> &all_tied_gdofs_array,
                                         double alpha,
-                                        MPI_Comm comm)
+                                        MPI_Comm comm,
+                                        bool even_weighting = true)
 {
    const HYPRE_BigInt row_start = A.GetRowStarts()[0];
    const HYPRE_BigInt row_end   = A.GetRowStarts()[1];
@@ -440,6 +802,7 @@ SparseMatrix BuildPenaltyModifiedMatrix(const HypreParMatrix &A,
       local_vals.push_back(v);
    };
 
+   HYPRE_BigInt paired_gdof;
    for (int local_row = 0; local_row < local_num_rows; ++local_row)
    {
       const HYPRE_BigInt global_row = row_start + local_row;
@@ -459,7 +822,7 @@ SparseMatrix BuildPenaltyModifiedMatrix(const HypreParMatrix &A,
          continue;
       }
 
-      const HYPRE_BigInt paired_gdof = it->second;
+      paired_gdof = it->second;
       const real_t value = alpha;
 
       std::vector<HYPRE_BigInt> group;
@@ -499,6 +862,7 @@ SparseMatrix BuildPenaltyModifiedMatrix(const HypreParMatrix &A,
       for (int k = 0; k < m; ++k)
       {
          const HYPRE_BigInt vk = group[k];
+         const real_t w = even_weighting ? 1.0 / m : vk == paired_gdof ? 0.5 : 0.5 / (static_cast<real_t>(m) - 1.0);
          emit(global_row, vk, -value * w);
          emit(vk, global_row, -value * w);
       }
@@ -506,10 +870,12 @@ SparseMatrix BuildPenaltyModifiedMatrix(const HypreParMatrix &A,
       for (int k = 0; k < m; ++k)
       {
          const HYPRE_BigInt vk = group[k];
+         const real_t wk = even_weighting ? 1.0 / m : vk == paired_gdof ? 0.5 : 0.5 / (static_cast<real_t>(m) - 1.0);
          for (int l = 0; l < m; ++l)
          {
             const HYPRE_BigInt vl = group[l];
-            emit(vk, vl, value * w * w);
+            const real_t wl = even_weighting ? 1.0 / m : vl == paired_gdof ? 0.5 : 0.5 / (static_cast<real_t>(m) - 1.0);
+            emit(vk, vl, value * wk * wl);
          }
       }
    }
@@ -740,8 +1106,11 @@ int main(int argc, char *argv[])
    double diffusion_ratio = 1.0;
    bool do_amgf = false;
    bool iterative_filter = false;
+   bool schwarz_filter = true;
+   int subdomain_cg_iters = 0;
    bool one_level_amg = false;
    bool symmetric_tie = false;
+   bool even_weighting = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -767,6 +1136,9 @@ int main(int argc, char *argv[])
                   "Enable or disable AMG with Filtering solver.");
    args.AddOption(&iterative_filter, "-iterative-filter", "--iterative-filter",
                   "-no-iterative-filter", "--no-iterative-filter",
+                  "Enable or disable use of iterative solver on subspace in AMGF.");
+   args.AddOption(&schwarz_filter, "-schwarz-filter", "--schwarz-filter",
+                  "-no-schwarz-filter", "--no-schwarz-filter",
                   "Enable or disable use of Schwarz solver on subspace in AMGF.");
    args.AddOption(&one_level_amg, "-one-level-amg", "--one-level-amg",
                   "-no-one-level-amg", "--no-one-level-amg",
@@ -774,6 +1146,11 @@ int main(int argc, char *argv[])
    args.AddOption(&symmetric_tie, "-symmetric-tie", "-no-symmetric-tie",
                   "--symmetric-tie", "--no-symmetric-tie",
                   "Tie both faces to each other.");
+   args.AddOption(&even_weighting, "-even-weighting", "-no-even-weighting",
+                  "--even-weighting", "--no-even-weighting",
+                  "Use an evenly weighted kernel to tied DoFs.");
+   args.AddOption(&subdomain_cg_iters, "-s", "--subdomain-pcg-max-iters",
+                  "Max PCG Iterations for subdomain (0 applies Schwarz only).");
    args.ParseCheck();
 
    // --------------------------------------------------------------------------
@@ -898,7 +1275,8 @@ int main(int argc, char *argv[])
                                  tied_pairs,
                                  all_tied_gdofs_array,
                                  alpha,
-                                 comm);
+                                 comm,
+                                 even_weighting);
 
    HypreParMatrix *tiedA = BuildHypreParMatrixFromMerged(modified_A, A);
 
@@ -926,32 +1304,6 @@ int main(int argc, char *argv[])
       {
          amgfprec->GetAMG().SetMaxLevels(1);
       }
-
-      if (iterative_filter)
-      {
-         subspacesolver = new HypreBoomerAMG();
-         HypreBoomerAMG *subspaceamgsolver =
-            dynamic_cast<HypreBoomerAMG *>(subspacesolver);
-         subspaceamgsolver->SetMaxLevels(1);
-         subspaceamgsolver->SetRelaxType(0);
-         subspaceamgsolver->SetPrintLevel(0);
-         HYPRE_BoomerAMGSetNumFunctions(*subspaceamgsolver, 1);
-         HYPRE_BoomerAMGSetDomainType(*subspaceamgsolver, 0);
-         HYPRE_BoomerAMGSetOverlap(*subspaceamgsolver, 1);
-         HYPRE_BoomerAMGSetVariant(*subspaceamgsolver, 0);
-         HYPRE_BoomerAMGSetSchwarzRlxWeight(*subspaceamgsolver, 0);
-         HYPRE_BoomerAMGSetSmoothType(*subspaceamgsolver, 6);
-         HYPRE_BoomerAMGSetSmoothNumLevels(*subspaceamgsolver, 1);
-      }
-      else
-      {
-         subspacesolver = new ParallelDirectSolver(comm, "superlu");
-         ParallelDirectSolver *subspacedirectsolver =
-            dynamic_cast<ParallelDirectSolver *>(subspacesolver);
-         subspacedirectsolver->SetPrintLevel(0);
-      }
-
-      amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
 
       Array<int> owned_tied_gdofs;
       for (int i = Mpi::WorldRank();
@@ -1007,6 +1359,63 @@ int main(int argc, char *argv[])
       P_tied = P_tied_T->Transpose();
       amgfprec->SetFilteredSubspaceTransferOperator(*P_tied);
 
+      if (iterative_filter)
+      {
+         subspacesolver = new HypreSchwarz();
+         auto scwharzprec = dynamic_cast<HypreSchwarz*>(subspacesolver);
+         HYPRE_SchwarzCreate(&scwharzprec->schwarz_solver);
+         HYPRE_SchwarzSetVariant(scwharzprec->schwarz_solver, 0);
+         std::vector<std::vector<HYPRE_Int>> subdomains(all_tied_gdofs_array.Size() / 2);
+         for (int i = 0; i < all_tied_gdofs_array.Size() / 2; ++i)
+         {
+            subdomains[i].push_back(owned_tied_gdofs.Find(all_tied_gdofs_array[2 * i]));
+            subdomains[i].push_back(owned_tied_gdofs.Find(all_tied_gdofs_array[2 * i + 1]));
+
+            const int *cols = merged_A.GetRowColumns(all_tied_gdofs_array[2 * i]);
+            const int row_size = merged_A.RowSize(all_tied_gdofs_array[2 * i]);
+
+            for (int j = 0; j < row_size; ++j)
+            {
+               const HYPRE_BigInt c = cols[j];
+
+               if (c == all_tied_gdofs_array[2 * i] || c == all_tied_gdofs_array[2 * i + 1])
+               {
+                  continue;
+               }
+
+               if (all_tied_gdofs_array.Find(c) != -1)
+               {
+                  subdomains[i].push_back(owned_tied_gdofs.Find(c));
+               }
+            }
+         }
+         auto PTAP = RAP(tiedA, P_tied);
+         scwharzprec->SetCustomSubdomains(subdomains, *PTAP);
+         delete PTAP; 
+         
+         if (subdomain_cg_iters > 0)
+         {
+            subspacesolver = new CGSolver();
+            CGSolver * cgsubspacesolver = dynamic_cast<CGSolver*>(subspacesolver);
+            cgsubspacesolver->SetMaxIter(subdomain_cg_iters);
+            cgsubspacesolver->SetRelTol(0);
+            cgsubspacesolver->SetAbsTol(0);
+            if (schwarz_filter)
+            {
+               cgsubspacesolver->SetPreconditioner(*scwharzprec);
+            }
+         }
+      }
+      else
+      {
+         subspacesolver = new ParallelDirectSolver(comm, "superlu");
+         ParallelDirectSolver *subspacedirectsolver =
+            dynamic_cast<ParallelDirectSolver *>(subspacesolver);
+         subspacedirectsolver->SetPrintLevel(0);
+      }
+
+      amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
+
 #ifdef HYPRE_BIGINT
       delete [] J;
 #endif
@@ -1048,12 +1457,78 @@ int main(int argc, char *argv[])
    // --------------------------------------------------------------------------
    if (visualization)
    {
-      x.Save("tied-poisson-sol");
-      pmesh.Save("tied-poisson-mesh");
+      //x.Save("tied-poisson-sol");
+      //pmesh.Save("tied-poisson-mesh");
 
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
+
+
+      int nev = 10;
+      HypreLOBPCG lobpcg(MPI_COMM_WORLD);
+      lobpcg.SetNumModes(nev);
+      lobpcg.SetPreconditioner(*prec);
+      lobpcg.SetMaxIter(100);
+      lobpcg.SetRelTol(1e-10);
+      lobpcg.SetPrecondUsageMode(1);
+      HypreParMatrix *minusTiedA = new HypreParMatrix(*tiedA);
+      *minusTiedA *= -1.0;
+      lobpcg.SetOperator(*minusTiedA);
+      lobpcg.Solve();
+      delete minusTiedA;
+      Array<real_t> eigenvalues;
+      lobpcg.GetEigenvalues(eigenvalues);
+
+      std::vector<std::vector<HYPRE_Int>> subdomains(all_tied_gdofs_array.Size() / 2);
+      for (int i = 0; i < all_tied_gdofs_array.Size() / 2; ++i)
+      {
+         subdomains[i].push_back(all_tied_gdofs_array[2 * i]);
+         subdomains[i].push_back(all_tied_gdofs_array[2 * i + 1]);
+
+         const int *cols = merged_A.GetRowColumns(all_tied_gdofs_array[2 * i]);
+         const int row_size = merged_A.RowSize(all_tied_gdofs_array[2 * i]);
+
+         for (int j = 0; j < row_size; ++j)
+         {
+            const HYPRE_BigInt c = cols[j];
+
+            if (c == all_tied_gdofs_array[2 * i] || c == all_tied_gdofs_array[2 * i + 1])
+            {
+               continue;
+            }
+
+            if (all_tied_gdofs_array.Find(c) != -1)
+            {
+               subdomains[i].push_back(c);
+            }
+         }
+      }
+
+      for (int eigi = 0; eigi < eigenvalues.Size(); ++eigi)
+      {
+         x = lobpcg.GetEigenvector(eigi);
+   
+         x = 0;
+         for (int j = 0; j < subdomains[eigi].size(); ++j)
+         {
+            x(subdomains[eigi][j]) = 1;
+         }
+
+         sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n"
+                  << "solution\n" << pmesh << x << flush
+                  << "window_title 'Eigenmode " << eigi+1 << '/' << nev
+                  << ", Lambda = " << -1.0 * eigenvalues[eigi] << "'" << endl;
+
+         char c;
+         mfem::out << "press (q)uit or (c)ontinue --> " << flush;
+         cin >> c;
+
+         if (c != 'c')
+         {
+            break;
+         }
+      }
       sol_sock << "parallel " << Mpi::WorldSize() << " "
                << Mpi::WorldRank() << "\n";
       sol_sock.precision(8);
