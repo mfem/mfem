@@ -706,7 +706,8 @@ protected:
    void ReduceLocalCopy(const Array<T> &x_ldof, Array<T> &x_tdof) const;
    // Combine received shared values into the true-dof output vector.
    template <typename T>
-   void ReduceEndAssemble(const Array<T> &shr_buf_t, Array<T> &x_tdof, Op op) const;
+   void ReduceEndAssemble(const Array<T> &shr_buf_t,
+                          Array<T> &x_tdof, Op op) const;
 
    // Pack owned shared true dofs into the neighbor send buffer.
    template <typename T>
