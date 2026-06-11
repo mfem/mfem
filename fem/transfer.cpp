@@ -1630,8 +1630,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 std::pair<
 std::unique_ptr<SparseMatrix>,
 std::unique_ptr<SparseMatrix>>
-L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH(
-   bool build_R)
+                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH(
+                               bool build_R)
 {
    std::pair<std::unique_ptr<SparseMatrix>,
        std::unique_ptr<SparseMatrix>> r_and_mlh;
