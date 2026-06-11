@@ -1030,12 +1030,52 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongateTranspose(
    BatchedLinAlg::MultTranspose(P_dt, x, y);
 }
 
+namespace
+{
+
+class H1ConsistentMassOperator : public Operator
+{
+private:
+   const Operator &M_LH;
+   const Solver &M_L_solver;
+
+public:
+   H1ConsistentMassOperator(const Operator &M_LH_, const Solver &M_L_solver_)
+      : Operator(M_LH_.Height(), M_LH_.Width()),
+        M_LH(M_LH_),
+        M_L_solver(M_L_solver_)
+   {
+      MFEM_VERIFY(M_LH.Height() == M_L_solver.Height() &&
+                  M_LH.Height() == M_L_solver.Width(),
+                  "incompatible consistent mass operator dimensions");
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      Vector tmp(M_LH.Height());
+      M_LH.Mult(x, tmp);
+      M_L_solver.Mult(tmp, y);
+   }
+
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      Vector tmp(M_LH.Height());
+      M_L_solver.Mult(x, tmp);
+      M_LH.MultTranspose(tmp, y);
+   }
+};
+
+}
+
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-   const bool use_ea_, MemoryType d_mt_)
+   const bool use_ea_, const bool use_consistent_mass_, MemoryType d_mt_)
    : L2Projection(fes_ho_, fes_lor_, d_mt_),
-     use_ea(use_ea_)
+     use_ea(use_ea_),
+     use_consistent_mass(use_consistent_mass_)
 {
+   MFEM_VERIFY(!(use_ea && use_consistent_mass),
+               "consistent mass is not supported with element assembly");
 
    // need scalar to keep dimensions matching (operators are built to apply
    // individually on each vdim)
@@ -1053,7 +1093,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::unique_ptr<SparseMatrix> R_mat, M_LH_mat;
 
-   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
+   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH(!use_consistent_mass);
 
    const SparseMatrix *P_ho = fes_ho_scalar->GetConformingProlongation();
    const SparseMatrix *P_lor = fes_lor_scalar->GetConformingProlongation();
@@ -1062,40 +1102,68 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    {
       if (P_ho && P_lor)
       {
-         R_mat.reset(RAP(*P_lor, *R_mat, *P_ho));
+         if (R_mat) { R_mat.reset(RAP(*P_lor, *R_mat, *P_ho)); }
          M_LH_mat.reset(RAP(*P_lor, *M_LH_mat, *P_ho));
       }
       else if (P_ho)
       {
-         R_mat.reset(mfem::Mult(*R_mat, *P_ho));
+         if (R_mat) { R_mat.reset(mfem::Mult(*R_mat, *P_ho)); }
          M_LH_mat.reset(mfem::Mult(*M_LH_mat, *P_ho));
       }
       else // P_lor != nullptr
       {
-         R_mat.reset(mfem::Mult(*P_lor, *R_mat));
+         if (R_mat) { R_mat.reset(mfem::Mult(*P_lor, *R_mat)); }
          M_LH_mat.reset(mfem::Mult(*P_lor, *M_LH_mat));
       }
    }
 
-   SparseMatrix *RTxM_LH_mat = TransposeMult(*R_mat, *M_LH_mat);
-   precon.reset(new DSmoother(*RTxM_LH_mat));
+   if (use_consistent_mass)
+   {
+      BilinearForm M_lor(fes_lor_scalar.get());
+      M_lor.AddDomainIntegrator(new MassIntegrator);
+      M_lor.Assemble();
+      M_lor.Finalize(0);
+      SparseMatrix *M_L_mat = new SparseMatrix(M_lor.SpMat());
 
-   // Set ownership
-   RTxM_LH.reset(RTxM_LH_mat);
-   R = std::move(R_mat);
-   M_LH = std::move(M_LH_mat);
+      ML_precon.reset(new DSmoother(*M_L_mat));
+      ML_pcg.SetPrintLevel(0);
+      ML_pcg.SetMaxIter(1000);
+      ML_pcg.SetRelTol(1e-13);
+      ML_pcg.SetAbsTol(1e-13);
+      ML_pcg.SetPreconditioner(*ML_precon);
+      ML_pcg.SetOperator(*M_L_mat);
 
-   SetupPCG();
+      M_L.reset(M_L_mat);
+      M_LH = std::move(M_LH_mat);
+      R.reset(new H1ConsistentMassOperator(*M_LH, ML_pcg));
+   }
+   else
+   {
+      SparseMatrix *RTxM_LH_mat = TransposeMult(*R_mat, *M_LH_mat);
+      precon.reset(new DSmoother(*RTxM_LH_mat));
+
+      // Set ownership
+      RTxM_LH.reset(RTxM_LH_mat);
+      R = std::move(R_mat);
+      M_LH = std::move(M_LH_mat);
+
+      SetupPCG();
+   }
 }
 
 #ifdef MFEM_USE_MPI
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
-   const bool use_ea_, MemoryType d_mt_)
+   const bool use_ea_, const bool use_consistent_mass_, MemoryType d_mt_)
    : L2Projection(pfes_ho, pfes_lor, d_mt_),
-     use_ea(use_ea_), pcg(pfes_ho.GetComm())
+     use_ea(use_ea_),
+     use_consistent_mass(use_consistent_mass_),
+     pcg(pfes_ho.GetComm()),
+     ML_pcg(pfes_ho.GetComm())
 {
+   MFEM_VERIFY(!(use_ea && use_consistent_mass),
+               "consistent mass is not supported with element assembly");
 
    // need scalar to keep dimensions matching (operators are built to apply
    // individually on each vdim)
@@ -1111,26 +1179,58 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       return;
    }
 
-   std::tie(R, M_LH) = ComputeSparseRAndM_LH();
+   std::unique_ptr<SparseMatrix> R_local_sp, M_LH_local_sp;
+   std::tie(R_local_sp, M_LH_local_sp) =
+      ComputeSparseRAndM_LH(!use_consistent_mass);
 
+   M_LH_local_sp->Finalize(0);
+   if (R_local_sp) { R_local_sp->Finalize(0); }
+
+   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
+                                              pfes_lor_scalar->GlobalVSize(),
+                                              pfes_ho_scalar->GlobalVSize(),
+                                              pfes_lor_scalar->GetDofOffsets(),
+                                              pfes_ho_scalar->GetDofOffsets(),
+                                              M_LH_local_sp.get());
+   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
+                                  &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
+
+   if (use_consistent_mass)
+   {
+      ParBilinearForm M_lor(pfes_lor_scalar.get());
+      M_lor.AddDomainIntegrator(new MassIntegrator);
+      M_lor.Assemble();
+      M_lor.Finalize(0);
+      HypreParMatrix *M_L_mat = M_lor.ParallelAssemble();
+
+      ML_pcg.SetPrintLevel(0);
+      ML_pcg.SetMaxIter(1000);
+      ML_pcg.SetRelTol(1e-13);
+      ML_pcg.SetAbsTol(1e-13);
+      ML_pcg.SetOperator(*M_L_mat);
+
+      M_L.reset(M_L_mat);
+      M_LH.reset(M_LH_mat);
+      HyprePCG *ML_hypre_pcg = new HyprePCG(*M_L_mat);
+      ML_hypre_pcg->SetPrintLevel(0);
+      ML_hypre_pcg->SetMaxIter(1000);
+      ML_hypre_pcg->SetTol(1e-13);
+      ML_hypre_pcg->SetAbsTol(1e-13);
+      ML_hypre_pcg->SetZeroInitialIterate();
+      ML_solver.reset(ML_hypre_pcg);
+      R.reset(new H1ConsistentMassOperator(*M_LH, *ML_solver));
+      return;
+   }
 
    HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
                                            pfes_lor_scalar->GlobalVSize(),
                                            pfes_ho_scalar->GlobalVSize(),
                                            pfes_lor_scalar->GetDofOffsets(),
                                            pfes_ho_scalar->GetDofOffsets(),
-                                           static_cast<SparseMatrix*>(R.get()));
-   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
-                                              pfes_lor_scalar->GlobalVSize(),
-                                              pfes_ho_scalar->GlobalVSize(),
-                                              pfes_lor_scalar->GetDofOffsets(),
-                                              pfes_ho_scalar->GetDofOffsets(),
-                                              static_cast<SparseMatrix*>(M_LH.get()));
+                                           R_local_sp.get());
 
    HypreParMatrix *R_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
                                &R_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
-   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
-                                  &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
 
    std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
    HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
@@ -1438,6 +1538,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    const Vector& x, Vector& y) const
 {
+   MFEM_VERIFY(!use_consistent_mass,
+               "BackwardOperator is not supported with consistent mass");
 
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(M_LH->Height());
@@ -1469,6 +1571,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    const Vector& x, Vector& y) const
 {
+   MFEM_VERIFY(!use_consistent_mass,
+               "BackwardOperator is not supported with consistent mass");
+
    Vector X(fes_ho.GetTrueVSize());
    Vector X_dim(pcg.Width());
    Vector Xbar(pcg.Height());
@@ -1499,17 +1604,34 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
    pcg.SetRelTol(p_rtol_);
+   ML_pcg.SetRelTol(p_rtol_);
+#ifdef MFEM_USE_MPI
+   if (ML_solver)
+   {
+      HyprePCG *hypre_pcg = dynamic_cast<HyprePCG*>(ML_solver.get());
+      if (hypre_pcg) { hypre_pcg->SetTol(p_rtol_); }
+   }
+#endif
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
    pcg.SetAbsTol(p_atol_);
+   ML_pcg.SetAbsTol(p_atol_);
+#ifdef MFEM_USE_MPI
+   if (ML_solver)
+   {
+      HyprePCG *hypre_pcg = dynamic_cast<HyprePCG*>(ML_solver.get());
+      if (hypre_pcg) { hypre_pcg->SetAbsTol(p_atol_); }
+   }
+#endif
 }
 
 std::pair<
 std::unique_ptr<SparseMatrix>,
 std::unique_ptr<SparseMatrix>>
-                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
+L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH(
+   bool build_R)
 {
    std::pair<std::unique_ptr<SparseMatrix>,
        std::unique_ptr<SparseMatrix>> r_and_mlh;
@@ -1542,69 +1664,76 @@ std::unique_ptr<SparseMatrix>>
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
 
-   // ML_inv contains the inverse lumped (row sum) mass matrix. Note that the
-   // method will also work with a full (consistent) mass matrix, though this is
-   // not implemented here. L refers to the low-order refined mesh
    Vector ML_inv(ndof_lor);
-   ML_inv = 0.0;
-
-   // Compute ML_inv
-   for (int iho = 0; iho < nel_ho; ++iho)
+   if (build_R)
    {
-      Array<int> lor_els;
-      ho2lor.GetRow(iho, lor_els);
-      int nref = ho2lor.RowSize(iho);
+      // ML_inv contains the inverse lumped (row sum) mass matrix. L refers to
+      // the low-order refined mesh.
+      ML_inv = 0.0;
 
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-      const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
-      int nedof_lor = fe_lor.GetDof();
-
-      // Instead of using a MassIntegrator, manually loop over integration
-      // points so we can row sum and store the diagonal as a Vector.
-      Vector ML_el(nedof_lor);
-      Vector shape_lor(nedof_lor);
-      Array<int> dofs_lor(nedof_lor);
-
-      for (int iref = 0; iref < nref; ++iref)
+      // Compute ML_inv
+      for (int iho = 0; iho < nel_ho; ++iho)
       {
-         int ilor = lor_els[iref];
-         ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+         Array<int> lor_els;
+         ho2lor.GetRow(iho, lor_els);
+         int nref = ho2lor.RowSize(iho);
 
-         int order = 2 * fe_lor.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir = &IntRules.Get(geom, order);
-         ML_el = 0.0;
-         for (int i = 0; i < ir->GetNPoints(); ++i)
+         Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+         const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
+         int nedof_lor = fe_lor.GetDof();
+
+         // Instead of using a MassIntegrator, manually loop over integration
+         // points so we can row sum and store the diagonal as a Vector.
+         Vector ML_el(nedof_lor);
+         Vector shape_lor(nedof_lor);
+         Array<int> dofs_lor(nedof_lor);
+
+         for (int iref = 0; iref < nref; ++iref)
          {
-            const IntegrationPoint& ip_lor = ir->IntPoint(i);
-            fe_lor.CalcShape(ip_lor, shape_lor);
-            el_tr->SetIntPoint(&ip_lor);
-            ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight));
+            int ilor = lor_els[iref];
+            ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+
+            int order = 2 * fe_lor.GetOrder() + el_tr->OrderW();
+            const IntegrationRule* ir = &IntRules.Get(geom, order);
+            ML_el = 0.0;
+            for (int i = 0; i < ir->GetNPoints(); ++i)
+            {
+               const IntegrationPoint& ip_lor = ir->IntPoint(i);
+               fe_lor.CalcShape(ip_lor, shape_lor);
+               el_tr->SetIntPoint(&ip_lor);
+               ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight));
+            }
+            fes_lor.GetElementDofs(ilor, dofs_lor);
+            ML_inv.AddElementVector(dofs_lor, ML_el);
          }
-         fes_lor.GetElementDofs(ilor, dofs_lor);
-         ML_inv.AddElementVector(dofs_lor, ML_el);
       }
+      // DOF by DOF inverse of non-zero entries
+      LumpedMassInverse(ML_inv);
    }
-   // DOF by DOF inverse of non-zero entries
-   LumpedMassInverse(ML_inv);
 
    // Compute sparsity pattern for R = M_L^(-1) M_LH and allocate
-   r_and_mlh.first = AllocR();
+   std::unique_ptr<SparseMatrix> pattern = AllocR();
+   if (build_R)
+   {
+      r_and_mlh.first = std::move(pattern);
+   }
    // Allocate M_LH (same sparsity pattern as R)
    // L refers to the low-order refined mesh (DOFs correspond to rows)
    // H refers to the higher-order mesh (DOFs correspond to columns)
-   Memory<int> I(r_and_mlh.first->Height() + 1);
-   for (int icol = 0; icol < r_and_mlh.first->Height() + 1; ++icol)
+   SparseMatrix &pattern_mat = build_R ? *r_and_mlh.first : *pattern;
+   Memory<int> I(pattern_mat.Height() + 1);
+   for (int icol = 0; icol < pattern_mat.Height() + 1; ++icol)
    {
-      I[icol] = r_and_mlh.first->GetI()[icol];
+      I[icol] = pattern_mat.GetI()[icol];
    }
-   Memory<int> J(r_and_mlh.first->NumNonZeroElems());
-   for (int jcol = 0; jcol < r_and_mlh.first->NumNonZeroElems(); ++jcol)
+   Memory<int> J(pattern_mat.NumNonZeroElems());
+   for (int jcol = 0; jcol < pattern_mat.NumNonZeroElems(); ++jcol)
    {
-      J[jcol] = r_and_mlh.first->GetJ()[jcol];
+      J[jcol] = pattern_mat.GetJ()[jcol];
    }
    r_and_mlh.second = std::unique_ptr<SparseMatrix>(
-                         new SparseMatrix(I, J, NULL, r_and_mlh.first->Height(),
-                                          r_and_mlh.first->Width(), true, true, true));
+                         new SparseMatrix(I, J, NULL, pattern_mat.Height(),
+                                          pattern_mat.Width(), true, true, true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -1647,15 +1776,21 @@ std::unique_ptr<SparseMatrix>>
          Array<int> dofs_lor(nedof_lor);
          fes_lor.GetElementDofs(ilor, dofs_lor);
          Vector R_row;
-         for (int i = 0; i < nedof_lor; ++i)
+         if (build_R)
          {
-            M_LH_el.GetRow(i, R_row);
-            R_el.SetRow(i, R_row.Set(ML_inv[dofs_lor[i]], R_row));
+            for (int i = 0; i < nedof_lor; ++i)
+            {
+               M_LH_el.GetRow(i, R_row);
+               R_el.SetRow(i, R_row.Set(ML_inv[dofs_lor[i]], R_row));
+            }
          }
          Array<int> dofs_ho(nedof_ho);
          fes_ho.GetElementDofs(iho, dofs_ho);
          r_and_mlh.second->AddSubMatrix(dofs_lor, dofs_ho, M_LH_el);
-         r_and_mlh.first->AddSubMatrix(dofs_lor, dofs_ho, R_el);
+         if (build_R)
+         {
+            r_and_mlh.first->AddSubMatrix(dofs_lor, dofs_ho, R_el);
+         }
 
       }
    }
@@ -2009,6 +2144,10 @@ const Operator &L2ProjectionGridTransfer::ForwardOperator()
 
 const Operator &L2ProjectionGridTransfer::BackwardOperator()
 {
+   MFEM_VERIFY(!(use_consistent_mass && !force_l2_space &&
+                 dom_fes.FEColl()->GetContType() ==
+                 FiniteElementCollection::CONTINUOUS),
+               "BackwardOperator is not supported with consistent mass");
    if (!B)
    {
       if (!F) { BuildF(); }
@@ -2017,15 +2156,24 @@ const Operator &L2ProjectionGridTransfer::BackwardOperator()
    return *B;
 }
 
+void L2ProjectionGridTransfer::UseConsistentMass(bool use_consistent_mass_)
+{
+   MFEM_VERIFY(!F && !B,
+               "UseConsistentMass must be called before constructing operators");
+   use_consistent_mass = use_consistent_mass_;
+}
+
 void L2ProjectionGridTransfer::BuildF()
 {
+   MFEM_VERIFY(!(use_ea && use_consistent_mass),
+               "consistent mass is not supported with element assembly");
    if (!force_l2_space &&
        dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
    {
       if (!Parallel())
       {
          F = new L2ProjectionH1Space(dom_fes, ran_fes,
-                                     use_ea, d_mt);
+                                     use_ea, use_consistent_mass, d_mt);
       }
       else
       {
@@ -2035,7 +2183,7 @@ void L2ProjectionGridTransfer::BuildF()
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
          F = new L2ProjectionH1Space(dom_pfes, ran_pfes,
-                                     use_ea, d_mt);
+                                     use_ea, use_consistent_mass, d_mt);
 #endif
       }
    }
@@ -2048,6 +2196,11 @@ void L2ProjectionGridTransfer::BuildF()
 
 bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
 {
+   if (use_consistent_mass && !force_l2_space &&
+       dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
+   {
+      return false;
+   }
    return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
 }
 

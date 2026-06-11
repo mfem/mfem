@@ -169,8 +169,10 @@ public:
     is the forward transfer matrix, and M_f is the mass matrix on the coarse
     element. For L2 spaces, M_f is the mass matrix on the union of all fine
     elements comprising the coarse element. For H1 spaces, M_f is a diagonal
-    (lumped) mass matrix computed through row-summation. Note that the backward
-    transfer operator, B, is a left inverse of the forward transfer operator, F,
+    (lumped) mass matrix computed through row-summation, unless
+    UseConsistentMass() is enabled for the forward H1 operator. Note that the
+    backward transfer operator, B, is a left inverse of the forward transfer
+    operator, F,
     i.e. B F = I. Both F and B are defined in physical space and, generally for
     L2 spaces, vary between different mesh elements.
 
@@ -352,16 +354,19 @@ public:
    class L2ProjectionH1Space : public L2Projection
    {
       const bool use_ea;
+      const bool use_consistent_mass;
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
                           const bool use_ea_,
+                          const bool use_consistent_mass_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
                           const bool use_ea_,
+                          const bool use_consistent_mass_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #endif
       /// Same as above but assembles action of R through 4 parts:
@@ -423,7 +428,8 @@ public:
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(
+             bool build_R = true);
 
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
@@ -454,7 +460,11 @@ public:
       std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
+      CGSolver ML_pcg;
       std::unique_ptr<Solver> precon;
+      std::unique_ptr<Solver> ML_precon;
+      std::unique_ptr<Solver> ML_solver;
+      std::unique_ptr<Operator> M_L;
       // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
       // M_L R), and hence, is not stored.
@@ -478,7 +488,6 @@ public:
       Vector M_LH_ea;
       // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
       Vector ML_inv_ea;
-
 #ifdef MFEM_USE_MPI
       std::unique_ptr<ParFiniteElementSpace> pfes_ho_scalar;
       std::unique_ptr<ParFiniteElementSpace> pfes_lor_scalar;
@@ -511,6 +520,7 @@ public:
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
    bool force_l2_space;
+   bool use_consistent_mass;
 
 public:
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
@@ -518,9 +528,14 @@ public:
                             bool force_l2_space_ = false,
                             MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
       : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+        F(NULL), B(NULL), force_l2_space(force_l2_space_),
+        use_consistent_mass(false)
    { }
    virtual ~L2ProjectionGridTransfer();
+
+   /** Use the consistent low-order mass matrix in H1 non-EA Mult() and
+       MultTranspose(). This option does not support BackwardOperator(). */
+   void UseConsistentMass(bool use_consistent_mass_ = true);
 
    const Operator &ForwardOperator() override;
 
