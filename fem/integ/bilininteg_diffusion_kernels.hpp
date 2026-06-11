@@ -1226,7 +1226,7 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<D1D, Q1D>; }
-   MFEM_ABORT("");
+   else { MFEM_ABORT(""); return nullptr; }
 }
 
 inline
@@ -1242,7 +1242,7 @@ DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   else { MFEM_ABORT(""); return nullptr; }
 }
 
 inline DiagonalKernelType
