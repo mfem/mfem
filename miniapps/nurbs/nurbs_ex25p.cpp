@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   int ref_levels = 8;
+   int ref_levels = 3;
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   device.Print();
+   if (myid == 0) { device.Print(); }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, NURBSext,
                                                               fec);
-   cout <<"Number of finite element unknowns in rank "<<myid<<": "
+   cout << "Number of finite element unknowns on rank " << myid << ": "
         << fespace->GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   cout << "Number of knowns in essential BCs: "
+   cout << "Number of knowns in essential BCs on rank " << myid << ": "
         << ess_tdof_list.Size() << endl;
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side
@@ -315,7 +315,10 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   if (myid == 0)
+   {
+      cout << "Size of linear system: " << A->Height() << endl;
+   }
 
    ConstantCoefficient absomeg(pow2(omega) * epsilon);
    RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -413,9 +416,9 @@ int main(int argc, char *argv[])
    }
 
    // 13. Save the refined mesh and the solution in parallel. This output can be
-   //     viewed later using GLVis: "glvis -np <np> -m refined.mesh -g sol_r.gf -g sol_i.gf".
+   //     viewed later using GLVis:
+   //        glvis -np <np> -m refined.mesh -g sol_r.gf -g sol_i.gf
    {
-      // Add rank number to filenames to prevent conflicts in parallel
       ostringstream mesh_name, sol_r_name, sol_i_name;
       mesh_name << "refined.mesh." << setfill('0') << setw(6) << myid;
       sol_r_name << "sol_r.gf." << setfill('0') << setw(6) << myid;

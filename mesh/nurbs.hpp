@@ -1078,8 +1078,14 @@ public:
                      const ParNURBSExtension *par_parent);
 
    /** @brief Create a parallel version of @a parent with partitioning as in
-       @a par_parent based on @a VNURBSExt in Hcurl space; the @a parent object is destroyed.
-       The @a parent can be either a local NURBSExtension or a global one. */
+       @a par_parent based on the component extensions @a VNURBSExt; the
+       @a parent object is destroyed. The @a parent can be either a local
+       NURBSExtension or a global one.
+
+       For H(curl) spaces, @a VNURBSExt is currently produced by
+       NURBSExtension::GetCurlExtension(), which is limited to single-patch
+       NURBS meshes. Multi-patch H(curl) support requires component-specific
+       tangential DOF matching and orientation across patch interfaces. */
    ParNURBSExtension(NURBSExtension *parent,
                      Array<NURBSExtension *> VNURBSExt,
                      const ParNURBSExtension *par_parent);

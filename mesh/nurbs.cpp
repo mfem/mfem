@@ -4777,7 +4777,10 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
 
 NURBSExtension* NURBSExtension::GetCurlExtension(int component)
 {
-   // Smarter routine
+   // The tensor-product H(curl) component space has the base order in the
+   // vector component direction and one higher order in transverse directions.
+   // Extending this construction to multiple patches requires tangential DOF
+   // matching and orientation across patch interfaces.
    if (GetNP() > 1)
    {
       mfem_error("NURBSExtension::GetCurlExtension currently "
@@ -5855,8 +5858,12 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    MFEM_VERIFY(par_parent->partitioning,
                "parent ParNURBSExtension has no partitioning!");
 
-   // Only Support for the case when 'parent' is a local NURBSExtension.
-   // Construct the gtopo and ldof_group
+   // Only support the case when 'parent' is a local NURBSExtension.
+   // Construct the gtopo and ldof_group by concatenating the component-wise
+   // global element-dof tables. For H(curl), these component extensions are
+   // single-patch because GetCurlExtension() is guarded against multi-patch
+   // meshes; this table merge is not a substitute for multi-patch tangential
+   // continuity.
    MFEM_ASSERT(VNURBSExt.Size()!=0,"No VNURBSext !!!");
    Table *global_elem_dof = nullptr;
 

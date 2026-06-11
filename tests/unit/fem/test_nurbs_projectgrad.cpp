@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,394 +24,382 @@ double LinearFunction2D(const Vector &x)
    return 2.0 * x[0] + 3.0 * x[1];
 }
 
-void GradLinearFunction2D(const Vector &x, Vector &grad)
-{
-   grad.SetSize(2);
-   grad[0] = 2.0;
-   grad[1] = 3.0;
-}
-
 double LinearFunction3D(const Vector &x)
 {
    return 2.0 * x[0] + 3.0 * x[1] + 4.0 * x[2];
 }
 
-void GradLinearFunction3D(const Vector &x, Vector &grad)
+double SmoothFunction2D(const Vector &x)
 {
-   grad.SetSize(3);
-   grad[0] = 2.0;
-   grad[1] = 3.0;
-   grad[2] = 4.0;
+   const real_t pi = 4.0*atan(1.0);
+   return sin(pi*x[0])*sin(pi*x[1]);
+}
+
+void GradSmoothFunction2D(const Vector &x, Vector &grad)
+{
+   const real_t pi = 4.0*atan(1.0);
+   grad.SetSize(2);
+   grad[0] = pi*cos(pi*x[0])*sin(pi*x[1]);
+   grad[1] = pi*sin(pi*x[0])*cos(pi*x[1]);
+}
+
+void CheckRows(const Vector &values, int first, int last, real_t expected)
+{
+   for (int i = first; i < last; i++)
+   {
+      REQUIRE(values(i) == MFEM_Approx(expected));
+   }
+}
+
+void CheckProjectGrad2D(FiniteElementSpace &h1_fes,
+                        FiniteElementSpace &nurbs_fes,
+                        GridFunction &h1_gf)
+{
+   Array<int> h1_dofs;
+   Vector h1_loc, projected_grad;
+
+   for (int el = 0; el < h1_fes.GetNE(); el++)
+   {
+      ElementTransformation *T = h1_fes.GetElementTransformation(el);
+      const FiniteElement *h1_fe = h1_fes.GetFE(el);
+      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
+
+      REQUIRE(T != nullptr);
+      REQUIRE(h1_fe != nullptr);
+      REQUIRE(nurbs_fe != nullptr);
+      REQUIRE(nurbs_fe->GetGeomType() == Geometry::SQUARE);
+
+      const NURBS_HCurl2DFiniteElement *hc_fe =
+         dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
+      REQUIRE(hc_fe != nullptr);
+
+      // The scalar NURBS mesh stores order p+1 for the component spaces used
+      // to build H(curl), while the local H(curl) blocks have order p in the
+      // differentiated component and p+1 in the transverse component.
+      const int p = nurbs_fe->GetOrder() - 1;
+      const int ndof_x = (p + 1)*(p + 2);
+      const int ndof_y = (p + 2)*(p + 1);
+
+      DenseMatrix grad;
+      hc_fe->ProjectGrad(*h1_fe, *T, grad);
+      REQUIRE(grad.Height() == nurbs_fe->GetDof());
+      REQUIRE(grad.Width() == h1_fe->GetDof());
+      REQUIRE(ndof_x + ndof_y == grad.Height());
+
+      h1_fes.GetElementDofs(el, h1_dofs);
+      h1_gf.GetSubVector(h1_dofs, h1_loc);
+      REQUIRE(h1_loc.Size() == grad.Width());
+      projected_grad.SetSize(grad.Height());
+      grad.Mult(h1_loc, projected_grad);
+
+      CheckRows(projected_grad, 0, ndof_x, 2.0);
+      CheckRows(projected_grad, ndof_x, ndof_x + ndof_y, 3.0);
+   }
+}
+
+void CheckProjectGrad3D(FiniteElementSpace &h1_fes,
+                        FiniteElementSpace &nurbs_fes,
+                        GridFunction &h1_gf)
+{
+   Array<int> h1_dofs;
+   Vector h1_loc, projected_grad;
+
+   for (int el = 0; el < h1_fes.GetNE(); el++)
+   {
+      ElementTransformation *T = h1_fes.GetElementTransformation(el);
+      const FiniteElement *h1_fe = h1_fes.GetFE(el);
+      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
+
+      REQUIRE(T != nullptr);
+      REQUIRE(h1_fe != nullptr);
+      REQUIRE(nurbs_fe != nullptr);
+      REQUIRE(nurbs_fe->GetGeomType() == Geometry::CUBE);
+
+      const NURBS_HCurl3DFiniteElement *hc_fe =
+         dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
+      REQUIRE(hc_fe != nullptr);
+
+      const int p = nurbs_fe->GetOrder() - 1;
+      const int ndof_x = (p + 1)*(p + 2)*(p + 2);
+      const int ndof_y = (p + 2)*(p + 1)*(p + 2);
+      const int ndof_z = (p + 2)*(p + 2)*(p + 1);
+
+      DenseMatrix grad;
+      hc_fe->ProjectGrad(*h1_fe, *T, grad);
+      REQUIRE(grad.Height() == nurbs_fe->GetDof());
+      REQUIRE(grad.Width() == h1_fe->GetDof());
+      REQUIRE(ndof_x + ndof_y + ndof_z == grad.Height());
+
+      h1_fes.GetElementDofs(el, h1_dofs);
+      h1_gf.GetSubVector(h1_dofs, h1_loc);
+      REQUIRE(h1_loc.Size() == grad.Width());
+      projected_grad.SetSize(grad.Height());
+      grad.Mult(h1_loc, projected_grad);
+
+      CheckRows(projected_grad, 0, ndof_x, 2.0);
+      CheckRows(projected_grad, ndof_x, ndof_x + ndof_y, 3.0);
+      CheckRows(projected_grad, ndof_x + ndof_y,
+                ndof_x + ndof_y + ndof_z, 4.0);
+   }
+}
+
+void CheckProject2D(FiniteElementSpace &h1_fes,
+                    FiniteElementSpace &nurbs_fes)
+{
+   Vector vector_dofs, projected;
+
+   for (int el = 0; el < h1_fes.GetNE(); el++)
+   {
+      ElementTransformation *T = h1_fes.GetElementTransformation(el);
+      const FiniteElement *h1_fe = h1_fes.GetFE(el);
+      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
+
+      REQUIRE(T != nullptr);
+      REQUIRE(h1_fe != nullptr);
+      REQUIRE(nurbs_fe != nullptr);
+
+      const NURBS_HCurl2DFiniteElement *hc_fe =
+         dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
+      REQUIRE(hc_fe != nullptr);
+
+      const int p = nurbs_fe->GetOrder() - 1;
+      const int ndof_x = (p + 1)*(p + 2);
+      const int ndof_y = (p + 2)*(p + 1);
+
+      DenseMatrix I;
+      hc_fe->Project(*h1_fe, *T, I);
+      REQUIRE(I.Height() == nurbs_fe->GetDof());
+      REQUIRE(I.Width() == 2*h1_fe->GetDof());
+      REQUIRE(ndof_x + ndof_y == I.Height());
+
+      vector_dofs.SetSize(I.Width());
+      for (int i = 0; i < h1_fe->GetDof(); i++)
+      {
+         vector_dofs(i) = 5.0;
+         vector_dofs(i + h1_fe->GetDof()) = 7.0;
+      }
+      projected.SetSize(I.Height());
+      I.Mult(vector_dofs, projected);
+
+      CheckRows(projected, 0, ndof_x, 5.0);
+      CheckRows(projected, ndof_x, ndof_x + ndof_y, 7.0);
+   }
+}
+
+void CheckProject3D(FiniteElementSpace &h1_fes,
+                    FiniteElementSpace &nurbs_fes)
+{
+   Vector vector_dofs, projected;
+
+   for (int el = 0; el < h1_fes.GetNE(); el++)
+   {
+      ElementTransformation *T = h1_fes.GetElementTransformation(el);
+      const FiniteElement *h1_fe = h1_fes.GetFE(el);
+      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
+
+      REQUIRE(T != nullptr);
+      REQUIRE(h1_fe != nullptr);
+      REQUIRE(nurbs_fe != nullptr);
+
+      const NURBS_HCurl3DFiniteElement *hc_fe =
+         dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
+      REQUIRE(hc_fe != nullptr);
+
+      const int p = nurbs_fe->GetOrder() - 1;
+      const int ndof_x = (p + 1)*(p + 2)*(p + 2);
+      const int ndof_y = (p + 2)*(p + 1)*(p + 2);
+      const int ndof_z = (p + 2)*(p + 2)*(p + 1);
+
+      DenseMatrix I;
+      hc_fe->Project(*h1_fe, *T, I);
+      REQUIRE(I.Height() == nurbs_fe->GetDof());
+      REQUIRE(I.Width() == 3*h1_fe->GetDof());
+      REQUIRE(ndof_x + ndof_y + ndof_z == I.Height());
+
+      vector_dofs.SetSize(I.Width());
+      for (int i = 0; i < h1_fe->GetDof(); i++)
+      {
+         vector_dofs(i) = 5.0;
+         vector_dofs(i + h1_fe->GetDof()) = 7.0;
+         vector_dofs(i + 2*h1_fe->GetDof()) = 11.0;
+      }
+      projected.SetSize(I.Height());
+      I.Mult(vector_dofs, projected);
+
+      CheckRows(projected, 0, ndof_x, 5.0);
+      CheckRows(projected, ndof_x, ndof_x + ndof_y, 7.0);
+      CheckRows(projected, ndof_x + ndof_y,
+                ndof_x + ndof_y + ndof_z, 11.0);
+   }
+}
+
+real_t ComputeProjectGradL2Error(FiniteElementSpace &h1_fes,
+                                 FiniteElementSpace &hcurl_fes,
+                                 GridFunction &h1_gf,
+                                 VectorCoefficient &grad_coeff)
+{
+   // Integrate the local H(curl) field produced by ProjectGrad directly. This
+   // keeps the convergence check focused on the element projector.
+   Array<int> h1_dofs;
+   Vector h1_loc, hcurl_loc, approx, exact;
+   DenseMatrix grad, vshape;
+   real_t error = 0.0;
+
+   for (int el = 0; el < h1_fes.GetNE(); el++)
+   {
+      ElementTransformation *T = h1_fes.GetElementTransformation(el);
+      const FiniteElement *h1_fe = h1_fes.GetFE(el);
+      const FiniteElement *hcurl_fe = hcurl_fes.GetFE(el);
+
+      REQUIRE(T != nullptr);
+      REQUIRE(h1_fe != nullptr);
+      REQUIRE(hcurl_fe != nullptr);
+
+      const NURBS_HCurl2DFiniteElement *hc_fe =
+         dynamic_cast<const NURBS_HCurl2DFiniteElement*>(hcurl_fe);
+      REQUIRE(hc_fe != nullptr);
+
+      hc_fe->ProjectGrad(*h1_fe, *T, grad);
+
+      h1_fes.GetElementDofs(el, h1_dofs);
+      h1_gf.GetSubVector(h1_dofs, h1_loc);
+      REQUIRE(h1_loc.Size() == grad.Width());
+      hcurl_loc.SetSize(grad.Height());
+      grad.Mult(h1_loc, hcurl_loc);
+
+      const IntegrationRule &ir =
+         IntRules.Get(hcurl_fe->GetGeomType(), 2*hcurl_fe->GetOrder() + 4);
+      vshape.SetSize(hcurl_fe->GetDof(), hcurl_fe->GetRangeDim());
+      approx.SetSize(hcurl_fe->GetRangeDim());
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         hcurl_fe->CalcVShape(*T, vshape);
+         vshape.MultTranspose(hcurl_loc, approx);
+         grad_coeff.Eval(exact, *T, ip);
+         approx -= exact;
+         error += ip.weight*T->Weight()*(approx*approx);
+      }
+   }
+
+   return sqrt(error);
+}
+
+real_t ComputeProjectGradError2D(int ref)
+{
+   const int order = 2;
+
+   Mesh mesh("data/square-nurbs.mesh");
+   REQUIRE(mesh.NURBSext != nullptr);
+   for (int l = 0; l < ref; l++)
+   {
+      mesh.UniformRefinement();
+   }
+
+   NURBSFECollection h1_fec(order);
+   FiniteElementSpace h1_fes(&mesh, &h1_fec);
+
+   NURBS_HCurlFECollection hcurl_fec(order, 2);
+   FiniteElementSpace hcurl_fes(&mesh, &hcurl_fec);
+
+   FunctionCoefficient f_coeff(SmoothFunction2D);
+   GridFunction h1_gf(&h1_fes);
+   h1_gf.ProjectCoefficient(f_coeff);
+
+   VectorFunctionCoefficient grad_coeff(2, GradSmoothFunction2D);
+   return ComputeProjectGradL2Error(h1_fes, hcurl_fes, h1_gf, grad_coeff);
 }
 
 TEST_CASE("NURBS ProjectGrad 2D", "[NURBSProjectGrad2D]")
 {
-   // Test ProjectGrad for NURBS_HCurl2DFiniteElement
-   int order = 2;
+   const int order = 2;
 
-   // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
+   Mesh mesh("data/square-nurbs.mesh");
+   REQUIRE(mesh.NURBSext != nullptr);
 
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space for the source function
-   H1_FECollection h1_fec(order, 2);
+   NURBSFECollection h1_fec(order);
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2); // 2D vector space
+   NURBS_HCurlFECollection nurbs_fec(order, 2);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2);
 
-   // Test with a simple linear function: f(x,y) = 2*x + 3*y
    FunctionCoefficient f_coeff(LinearFunction2D);
    GridFunction h1_gf(&h1_fes);
    h1_gf.ProjectCoefficient(f_coeff);
 
-   // For each element in the mesh, test ProjectGrad
-   for (int el = 0; el < mesh.GetNE(); el++)
-   {
-      ElementTransformation *T = mesh.GetElementTransformation(el);
-      const FiniteElement *h1_fe = h1_fes.GetFE(el);
-      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
-
-      if (T != nullptr && h1_fe != nullptr && nurbs_fe != nullptr &&
-          nurbs_fe->GetGeomType() == Geometry::SQUARE)
-      {
-         // Cast to NURBS_HCurl2DFiniteElement to access ProjectGrad
-         const NURBS_HCurl2DFiniteElement *hc_fe =
-            dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
-
-         if (hc_fe != nullptr)
-         {
-            // Test ProjectGrad
-            DenseMatrix grad;
-            hc_fe->ProjectGrad(*h1_fe, *T, grad);
-
-            // Verify the dimensions
-            REQUIRE(grad.Height() == nurbs_fe->GetDof());
-            REQUIRE(grad.Width() == h1_fe->GetDof());
-
-            // The gradient of f(x,y) = 2*x + 3*y is (2, 3)
-            // For x-directed DOFs, we expect grad(k,j) = dshape(j, 0) * 2
-            // For y-directed DOFs, we expect grad(k,j) = dshape(j, 1) * 3
-            // where dshape is the gradient of the H1 basis functions
-
-            // Test a few specific entries to ensure correctness
-            // For a simple test, we just verify that the matrix is not empty and has correct dimensions
-            REQUIRE(grad.Height() > 0);
-            REQUIRE(grad.Width() > 0);
-         }
-      }
-   }
+   CheckProjectGrad2D(h1_fes, nurbs_fes, h1_gf);
 }
 
 TEST_CASE("NURBS ProjectGrad 3D", "[NURBSProjectGrad3D]")
 {
-   // Test ProjectGrad for NURBS_HCurl3DFiniteElement
-   int order = 2;
+   const int order = 2;
 
-   // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
+   Mesh mesh("data/cube-nurbs.mesh");
+   REQUIRE(mesh.NURBSext != nullptr);
 
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space for the source function
-   H1_FECollection h1_fec(order, 3);
+   NURBSFECollection h1_fec(order);
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3); // 3D vector space
+   NURBS_HCurlFECollection nurbs_fec(order, 3);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3);
 
-   // Test with a simple linear function: f(x,y,z) = 2*x + 3*y + 4*z
    FunctionCoefficient f_coeff(LinearFunction3D);
    GridFunction h1_gf(&h1_fes);
    h1_gf.ProjectCoefficient(f_coeff);
 
-   // For each element in the mesh, test ProjectGrad
-   for (int el = 0; el < mesh.GetNE(); el++)
-   {
-      ElementTransformation *T = mesh.GetElementTransformation(el);
-      const FiniteElement *h1_fe = h1_fes.GetFE(el);
-      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
-
-      if (T != nullptr && h1_fe != nullptr && nurbs_fe != nullptr &&
-          nurbs_fe->GetGeomType() == Geometry::CUBE)
-      {
-         // Cast to NURBS_HCurl3DFiniteElement to access ProjectGrad
-         const NURBS_HCurl3DFiniteElement *hc_fe =
-            dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
-
-         if (hc_fe != nullptr)
-         {
-            // Test ProjectGrad
-            DenseMatrix grad;
-            hc_fe->ProjectGrad(*h1_fe, *T, grad);
-
-            // Verify the dimensions
-            REQUIRE(grad.Height() == nurbs_fe->GetDof());
-            REQUIRE(grad.Width() == h1_fe->GetDof());
-
-            // The gradient of f(x,y,z) = 2*x + 3*y + 4*z is (2, 3, 4)
-            // For x-directed DOFs, we expect grad(k,j) = dshape(j, 0) * 2
-            // For y-directed DOFs, we expect grad(k,j) = dshape(j, 1) * 3
-            // For z-directed DOFs, we expect grad(k,j) = dshape(j, 2) * 4
-
-            // Test a few specific entries to ensure correctness
-            REQUIRE(grad.Height() > 0);
-            REQUIRE(grad.Width() > 0);
-         }
-      }
-   }
+   CheckProjectGrad3D(h1_fes, nurbs_fes, h1_gf);
 }
 
-// Additional test for the ProjectGrad functionality with more detailed verification
-TEST_CASE("NURBS ProjectGrad Detailed 2D", "[NURBSProjectGrad2D][.]" )
-{
-   int order = 1;
-
-   // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
-
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space
-   H1_FECollection h1_fec(order, 2);
-   FiniteElementSpace h1_fes(&mesh, &h1_fec);
-
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2); // 2D vector space
-
-   // Create a quadratic function to test with: f(x,y) = x^2 + y^2
-   FunctionCoefficient f_coeff([](const Vector &x) { return x[0]*x[0] + x[1]*x[1]; });
-   GridFunction h1_gf(&h1_fes);
-   h1_gf.ProjectCoefficient(f_coeff);
-
-   // Get the finite elements
-   ElementTransformation *T = mesh.GetElementTransformation(0);
-   const FiniteElement *h1_fe = h1_fes.GetFE(0);
-   const FiniteElement *nurbs_fe = nurbs_fes.GetFE(0);
-
-   if (T == nullptr || h1_fe == nullptr || nurbs_fe == nullptr)
-   {
-      return; // Skip test if elements are not available
-   }
-
-   // Test ProjectGrad if it's a NURBS_HCurl element
-   const NURBS_HCurl2DFiniteElement *hc_fe =
-      dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
-
-   if (hc_fe != nullptr)
-   {
-      DenseMatrix grad;
-      hc_fe->ProjectGrad(*h1_fe, *T, grad);
-
-      // Verify dimensions
-      REQUIRE(grad.Height() == nurbs_fe->GetDof());
-      REQUIRE(grad.Width() == h1_fe->GetDof());
-
-      // For quadratic function f(x,y) = x^2 + y^2, grad = (2x, 2y)
-      // The test checks that the matrix is properly formed
-      REQUIRE(grad.Height() > 0);
-      REQUIRE(grad.Width() > 0);
-   }
-}
-
-// Additional test for the ProjectGrad functionality with more detailed verification in 3D
-TEST_CASE("NURBS ProjectGrad Detailed 3D", "[NURBSProjectGrad3D][.]" )
-{
-   int order = 1;
-
-   // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
-
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space
-   H1_FECollection h1_fec(order, 3);
-   FiniteElementSpace h1_fes(&mesh, &h1_fec);
-
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3); // 3D vector space
-
-   // Create a quadratic function to test with: f(x,y,z) = x^2 + y^2 + z^2
-   FunctionCoefficient f_coeff([](const Vector &x)
-   {
-      return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
-   });
-   GridFunction h1_gf(&h1_fes);
-   h1_gf.ProjectCoefficient(f_coeff);
-
-   // Get the finite elements
-   ElementTransformation *T = mesh.GetElementTransformation(0);
-   const FiniteElement *h1_fe = h1_fes.GetFE(0);
-   const FiniteElement *nurbs_fe = nurbs_fes.GetFE(0);
-
-   if (T == nullptr || h1_fe == nullptr || nurbs_fe == nullptr)
-   {
-      return; // Skip test if elements are not available
-   }
-
-   // Test ProjectGrad if it's a NURBS_HCurl element
-   const NURBS_HCurl3DFiniteElement *hc_fe =
-      dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
-
-   if (hc_fe != nullptr)
-   {
-      DenseMatrix grad;
-      hc_fe->ProjectGrad(*h1_fe, *T, grad);
-
-      // Verify dimensions
-      REQUIRE(grad.Height() == nurbs_fe->GetDof());
-      REQUIRE(grad.Width() == h1_fe->GetDof());
-
-      // For quadratic function f(x,y,z) = x^2 + y^2 + z^2, grad = (2x, 2y, 2z)
-      // The test checks that the matrix is properly formed
-      REQUIRE(grad.Height() > 0);
-      REQUIRE(grad.Width() > 0);
-   }
-}
-
-// Test for NURBS_HCurl2D Project function
 TEST_CASE("NURBS Project 2D", "[NURBSProject2D]" )
 {
-   int order = 2;
+   const int order = 2;
 
-   // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
+   Mesh mesh("data/square-nurbs.mesh");
+   REQUIRE(mesh.NURBSext != nullptr);
 
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space for the source function
-   H1_FECollection h1_fec(order, 2);
+   NURBSFECollection h1_fec(order);
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2); // 2D vector space
+   NURBS_HCurlFECollection nurbs_fec(order, 2);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2);
 
-   // Create a scalar function to project
-   FunctionCoefficient f_coeff([](const Vector &x) { return x[0] + x[1]; });
-   GridFunction h1_gf(&h1_fes);
-   h1_gf.ProjectCoefficient(f_coeff);
-
-   // Test Project for each element in the mesh
-   for (int el = 0; el < mesh.GetNE(); el++)
-   {
-      ElementTransformation *T = mesh.GetElementTransformation(el);
-      const FiniteElement *h1_fe = h1_fes.GetFE(el);
-      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
-
-      if (T != nullptr && h1_fe != nullptr && nurbs_fe != nullptr &&
-          nurbs_fe->GetGeomType() == Geometry::SQUARE)
-      {
-         // Cast to NURBS_HCurl2DFiniteElement to access Project
-         const NURBS_HCurl2DFiniteElement *hc_fe =
-            dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
-
-         if (hc_fe != nullptr)
-         {
-            // Test Project
-            DenseMatrix I;
-            hc_fe->Project(*h1_fe, *T, I);
-
-            // Verify the dimensions
-            REQUIRE(I.Height() == nurbs_fe->GetDof());
-            REQUIRE(I.Width() == 2 * h1_fe->GetDof()); // 2D vector space
-
-            // Verify that the matrix is properly formed
-            REQUIRE(I.Height() > 0);
-            REQUIRE(I.Width() > 0);
-         }
-      }
-   }
+   CheckProject2D(h1_fes, nurbs_fes);
 }
 
-// Test for NURBS_HCurl3D Project function
 TEST_CASE("NURBS Project 3D", "[NURBSProject3D]" )
 {
-   int order = 1;
+   const int order = 2;
 
-   // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
+   Mesh mesh("data/cube-nurbs.mesh");
+   REQUIRE(mesh.NURBSext != nullptr);
 
-   // Verify that the mesh is actually a NURBS mesh
-   if (!mesh.NURBSext)
-   {
-      // If not a NURBS mesh, skip the test
-      return;
-   }
-
-   // Create H1 finite element space for the source function
-   H1_FECollection h1_fec(order, 3);
+   NURBSFECollection h1_fec(order);
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
-   // Create NURBS HCurl finite element space
-   NURBS_HCurlFECollection nurbs_fec(order);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3); // 3D vector space
+   NURBS_HCurlFECollection nurbs_fec(order, 3);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3);
 
-   // Create a scalar function to project
-   FunctionCoefficient f_coeff([](const Vector &x) { return x[0] + x[1] + x[2]; });
-   GridFunction h1_gf(&h1_fes);
-   h1_gf.ProjectCoefficient(f_coeff);
+   CheckProject3D(h1_fes, nurbs_fes);
+}
 
-   // Test Project for each element in the mesh
-   for (int el = 0; el < mesh.GetNE(); el++)
-   {
-      ElementTransformation *T = mesh.GetElementTransformation(el);
-      const FiniteElement *h1_fe = h1_fes.GetFE(el);
-      const FiniteElement *nurbs_fe = nurbs_fes.GetFE(el);
+TEST_CASE("NURBS ProjectGrad convergence 2D",
+          "[NURBSProjectGradConvergence2D]")
+{
+   const real_t err0 = ComputeProjectGradError2D(0);
+   const real_t err1 = ComputeProjectGradError2D(1);
+   const real_t err2 = ComputeProjectGradError2D(2);
+   const real_t err3 = ComputeProjectGradError2D(3);
 
-      if (T != nullptr && h1_fe != nullptr && nurbs_fe != nullptr &&
-          nurbs_fe->GetGeomType() == Geometry::CUBE)
-      {
-         // Cast to NURBS_HCurl3DFiniteElement to access Project
-         const NURBS_HCurl3DFiniteElement *hc_fe =
-            dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
+   CAPTURE(err0);
+   CAPTURE(err1);
+   CAPTURE(err2);
+   CAPTURE(err3);
 
-         if (hc_fe != nullptr)
-         {
-            // Test Project
-            DenseMatrix I;
-            hc_fe->Project(*h1_fe, *T, I);
-
-            // Verify the dimensions
-            REQUIRE(I.Height() == nurbs_fe->GetDof());
-            REQUIRE(I.Width() == 3 * h1_fe->GetDof()); // 3D vector space
-
-            // Verify that the matrix is properly formed
-            REQUIRE(I.Height() > 0);
-            REQUIRE(I.Width() > 0);
-         }
-      }
-   }
+   REQUIRE(err1 < err0);
+   REQUIRE(err2 < err1);
+   REQUIRE(err3 < err2);
+   REQUIRE(err3 < 0.35*err0);
 }
 
 } // namespace unit_tests
