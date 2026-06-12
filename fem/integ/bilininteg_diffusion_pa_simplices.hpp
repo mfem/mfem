@@ -1149,7 +1149,8 @@ DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
    {
       return internal::SmemPADiffusionApplyTetrahedron<D1D, Q1D>;
    }
-   else { MFEM_ABORT(""); return nullptr;}
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline DiffusionIntegrator::ApplySimplexKernelType
@@ -1164,6 +1165,7 @@ DiffusionIntegrator::ApplySimplexPAKernels::Fallback(int dim, int, int)
       return internal::PADiffusionApplyTetrahedron;
    }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 /// \endcond DO_NOT_DOCUMENT
