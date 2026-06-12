@@ -87,8 +87,6 @@ struct InputsTestContext
 template<int DIM, int U, int Coords, std::size_t Nv, std::size_t Ng>
 void test_n_inputs(const InputsTestContext &ctx)
 {
-   CAPTURE(DIM, Nv, Ng);
-
    const std::size_t n_u = Nv + Ng;
 
    std::vector<FieldDescriptor> in_fds;
@@ -198,10 +196,7 @@ void test_inputs(int p)
    {
       for_constexpr([&](auto J)
       {
-         DYNAMIC_SECTION("Nv = " << (1 + I.value) << ", Ng = " << (1 + J.value))
-         {
-            test_n_inputs<DIM, U, Coords, 1 + I.value, 1 + J.value>(ctx);
-         }
+         test_n_inputs<DIM, U, Coords, 1 + I.value, 1 + J.value>(ctx);
       }, std::make_integer_sequence<std::size_t, MaxG> {});
    }, std::make_integer_sequence<std::size_t, MaxV> {});
 }
