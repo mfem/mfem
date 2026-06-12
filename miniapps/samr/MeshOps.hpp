@@ -64,6 +64,8 @@ public:
       transferToSAMRAI(node_fields, cell_fields);
    }
 
+   void synchronizeToHierarchy();
+
 private:
 
 
@@ -179,6 +181,8 @@ private:
 
    void RemoveOldPatchesFromGlobalPatchInfo();
 
+   void DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds);
+
    void RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds);
 
    void CreateTransferMaps();
@@ -187,13 +191,13 @@ private:
    const int element_info_tag = 0;
    const int samrai_values_tag = 1;
    const int element_values_tag = 2;
-   const int cell_ind_tag = 3;
 
    std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
    const Array<SAMRAI::pdat::NodeIndex::Corner> corners;
 
    ParMesh mesh;
    std::shared_ptr<GridFunction> mesh_grid_function;
+   Vector mesh_index_space_tdofs;
 
    H1_FECollection fe_collection_node;
    L2_FECollection fe_collection_cell;
