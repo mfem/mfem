@@ -5,52 +5,6 @@
 namespace mfem
 {
 
-Array<SAMRAI::pdat::NodeIndex::Corner> MeshOps::getCorners(const unsigned dimension)
-{
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners1D[] =
-      {SAMRAI::pdat::NodeIndex::Left, SAMRAI::pdat::NodeIndex::Right};
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners2D[] =
-      {SAMRAI::pdat::NodeIndex::LowerLeft, SAMRAI::pdat::NodeIndex::LowerRight,
-         SAMRAI::pdat::NodeIndex::UpperRight, SAMRAI::pdat::NodeIndex::UpperLeft};
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners3D[] =
-      {SAMRAI::pdat::NodeIndex::LLL, SAMRAI::pdat::NodeIndex::ULL,
-         SAMRAI::pdat::NodeIndex::UUL, SAMRAI::pdat::NodeIndex::LUL,
-         SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,
-         SAMRAI::pdat::NodeIndex::UUU, SAMRAI::pdat::NodeIndex::LUU};
-
-   switch (dimension)
-   {
-      case 1: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners1D);
-      case 2: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners2D);
-      case 3: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners3D);
-      default:
-         MFEM_ABORT("Invalid dimension value: " << dimension);
-   }
-}
-
-SAMRAI::hier::Index MeshOps::toIndex(const Vector& vector)
-{
-   return SAMRAI::hier::Index(std::vector<int>(vector.begin(),vector.end()));
-}
-
-SAMRAI::hier::Index MeshOps::toIndex(const Array<int>& array,
-   const unsigned dim, const int start)
-{
-   MFEM_VERIFY(start + dim <= array.Size(), "size mismatch");
-
-   const int* begin = array.begin() + start;
-   const int* end = begin + dim;
-   return SAMRAI::hier::Index(std::vector<int>(begin, end));
-}
-
-Vector MeshOps::toVector(const SAMRAI::hier::IntVector& vector)
-{
-   Vector result(vector.getDim().getValue());
-   for (int i=0; i < result.Size(); i++)
-      result[i] = vector[i];
-   return result;
-}
-
 MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    hierarchy(hierarchy), corners(getCorners( hierarchy->getDim().getValue())),
    fe_collection_node(1, hierarchy->getDim().getValue()),
@@ -167,7 +121,6 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    }
 
    // unserialize patch data and note rank that has each patch
-   std::vector<PatchInfo> global_patch_list;
    global_patch_list.reserve(global_patch_info.NumBlocks());
    int current_rank = 0;
    int current_patch_count = 0;
@@ -280,6 +233,15 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    mesh_grid_function =
       std::make_shared<ParGridFunction>(fe_spaces_node[mesh.Dimension()].get());
    mesh.SetNodalGridFunction(mesh_grid_function.get());
+
+   CreateTransferMaps();
+}
+
+void MeshOps::CreateTransferMaps()
+{
+   int rank, ranks;
+   MPI_Comm_rank(mesh.GetComm(), &rank);
+   MPI_Comm_size(mesh.GetComm(), &ranks);
 
    // map local elements to global rank, patch level, and index
    ElementInfo element_info(mesh.Dimension());
@@ -471,7 +433,7 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::transferToMFEM(
    Array<int> node_field_vector_dimensions;
    Array<int> node_field_offsets;
    std::tie(num_variables, node_field_vector_dimensions, node_field_offsets)
-      = extractBufferInfo(node_fields, cell_fields);
+      = ExtractBufferInfo(node_fields, cell_fields);
 
    // send local node/cell values to ranks that have corresponding elements
    std::vector<std::vector<double>> samrai_value_buffers(ranks);
@@ -642,7 +604,7 @@ void MeshOps::transferToSAMRAI(
    Array<int> node_field_vector_dimensions;
    Array<int> node_field_offsets;
    std::tie(num_variables, node_field_vector_dimensions, node_field_offsets)
-      = extractBufferInfo(node_fields, cell_fields);
+      = ExtractBufferInfo(node_fields, cell_fields);
 
    // get the cell field values averaged over elements
    L2_FECollection fe_collection(0, mesh.Dimension());
@@ -820,97 +782,7 @@ void MeshOps::transferToSAMRAI(
    MPI_Barrier(mesh.GetComm());
 }
 
-void MeshOps::reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst)
-{
-   // todo: improve checking when dst is L2, p=0
-   if (dst.FESpace()->GetOrder(0) == 0)
-   {
-      dst = src;
-      return;
-   }
-
-   MassIntegrator mass;
-   const FiniteElementSpace& src_fe_space = *(src.FESpace()); // u_hat space
-   const FiniteElementSpace& dst_fe_space = *(dst.FESpace()); // u space
-
-   std::unique_ptr<HypreParMatrix> matrix;
-
-   // compute <{u_hat} (xhat dot n), psi_hat>_E
-   VectorConstantCoefficient xhat(Vector({1.0,0.0}));
-   Vector b_xhat(mesh.GetNE());
-   ParBilinearForm B_xhat(src.ParFESpace());
-   B_xhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(xhat, 1.0, 0.0));
-   B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0, 0.0)); // note the 2 enforces du/dx=0 at the x boundaries
-   B_xhat.Assemble();
-   B_xhat.Finalize();
-   matrix = std::unique_ptr<HypreParMatrix>(B_xhat.ParallelAssemble());
-   matrix->Mult(*src.GetTrueDofs(), b_xhat);
-
-   // compute <{u_hat} (yhat dot n), psi_hat>_E
-   VectorConstantCoefficient yhat(Vector({0.0,1.0}));
-   Vector b_yhat(mesh.GetNE());
-   ParBilinearForm B_yhat(src.ParFESpace());
-   B_yhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(yhat, 1.0, 0.0));
-   B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0, 0.0)); // note the 2 enforces du/dy=0 at the y boundaries
-   B_yhat.Assemble();
-   B_yhat.Finalize();
-   matrix = std::unique_ptr<HypreParMatrix>(B_yhat.ParallelAssemble());
-   matrix->Mult(*src.GetTrueDofs(), b_yhat);
-
-   MixedDirectionalDerivativeIntegrator partial_x(xhat);
-   MixedDirectionalDerivativeIntegrator partial_y(yhat);
-   for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
-   {
-      const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
-      const FiniteElement& dst_element = *(dst_fe_space.GetFE(element_ind));
-      ElementTransformation& transform = *(src_fe_space.GetElementTransformation(element_ind));
-      DenseMatrix A(dst_element.GetDof());
-      Vector b(dst_element.GetDof());
-      DenseMatrix Arow;
-
-      // enforce (u, psi_hat)_E = ({u_hat}, psi_hat)_E
-      mass.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
-      A.SetSubMatrix(0, 0, Arow);
-      Vector bmean(b, 0, src_element.GetDof());
-      DenseMatrix Bmean;
-      mass.AssembleElementMatrix(src_element, transform, Bmean);
-      Vector src_dof_values;
-      src.GetElementDofValues(element_ind, src_dof_values);
-      Bmean.Mult(src_dof_values, bmean);
-
-      // enforce (div[ u xhat ], psi_hat)_E = <{u_hat} (xhat dot n), psi_hat>_E,
-      // i.e., (du/dx, psi_hat)_E = <{u_hat} (xhat dot n), psi_hat>_E
-      partial_x.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
-      A.SetSubMatrix(1, 0, Arow);
-      b[1] = b_xhat[element_ind];
-
-      // enforce (div[ u yhat ], psi_hat)_E = <{u_hat} (yhat dot n), psi_hat>_E,
-      // i.e., (du/dy, psi_hat)_E = <{u_hat} (yhat dot n), psi_hat>_E
-      partial_y.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
-      A.SetSubMatrix(2, 0, Arow);
-      b[2] = b_yhat[element_ind];
-
-      // enforce (div[ (xhat \otimes yhat) grad[u] ], psi_hat)_E = 0, i.e.,
-      // < du/dy (xhat dot n), psi_hat>_E = 0
-      // TODO: replace with actual face integration
-      A(3,0) = 1.0;
-      A(3,1) = -1.0;
-      A(3,2) = -1.0;
-      A(3,3) = 1.0;
-      b[3] = 0.0;
-
-      // solve for u dof values
-      A.Invert();
-      mfem::Vector solution(dst_element.GetDof());
-      A.Mult(b, solution);
-      Array<int> dst_dof_indices;
-      dst_fe_space.GetElementDofs(element_ind, dst_dof_indices);
-      dst.SetSubVector(dst_dof_indices, solution);
-   }
-   dst.ExchangeFaceNbrData();
-}
-
-std::tuple<int,Array<int>,Array<int>> MeshOps::extractBufferInfo(
+std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
    std::vector<std::pair<int, GridFunction&>> node_fields,
    std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
 {
@@ -929,6 +801,173 @@ std::tuple<int,Array<int>,Array<int>> MeshOps::extractBufferInfo(
    const int num_variables = node_field_offsets.Last() + cell_fields.size();
 
    return {num_variables, node_field_vector_dimensions, node_field_offsets};
+}
+
+Array<SAMRAI::pdat::NodeIndex::Corner> MeshOps::getCorners(const unsigned dimension)
+{
+   constexpr SAMRAI::pdat::NodeIndex::Corner corners1D[] =
+      {SAMRAI::pdat::NodeIndex::Left, SAMRAI::pdat::NodeIndex::Right};
+   constexpr SAMRAI::pdat::NodeIndex::Corner corners2D[] =
+      {SAMRAI::pdat::NodeIndex::LowerLeft, SAMRAI::pdat::NodeIndex::LowerRight,
+         SAMRAI::pdat::NodeIndex::UpperRight, SAMRAI::pdat::NodeIndex::UpperLeft};
+   constexpr SAMRAI::pdat::NodeIndex::Corner corners3D[] =
+      {SAMRAI::pdat::NodeIndex::LLL, SAMRAI::pdat::NodeIndex::ULL,
+         SAMRAI::pdat::NodeIndex::UUL, SAMRAI::pdat::NodeIndex::LUL,
+         SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,
+         SAMRAI::pdat::NodeIndex::UUU, SAMRAI::pdat::NodeIndex::LUU};
+
+   switch (dimension)
+   {
+      case 1: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners1D);
+      case 2: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners2D);
+      case 3: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners3D);
+      default:
+         MFEM_ABORT("Invalid dimension value: " << dimension);
+   }
+}
+
+SAMRAI::hier::Index MeshOps::toIndex(const Vector& vector)
+{
+   return SAMRAI::hier::Index(std::vector<int>(vector.begin(),vector.end()));
+}
+
+SAMRAI::hier::Index MeshOps::toIndex(const Array<int>& array,
+   const unsigned dim, const int start)
+{
+   MFEM_VERIFY(start + dim <= array.Size(), "size mismatch");
+
+   const int* begin = array.begin() + start;
+   const int* end = begin + dim;
+   return SAMRAI::hier::Index(std::vector<int>(begin, end));
+}
+
+Vector MeshOps::toVector(const SAMRAI::hier::IntVector& vector)
+{
+   Vector result(vector.getDim().getValue());
+   for (int i=0; i < result.Size(); i++)
+      result[i] = vector[i];
+   return result;
+}
+
+MeshOps::PatchInfo::PatchInfo(const unsigned dimension) : dimension(dimension),
+   rank(-1), level_number(-1), lower_index(SAMRAI::tbox::Dimension(dimension)),
+   upper_index(SAMRAI::tbox::Dimension(dimension))
+{
+   array.SetSize(Size());
+}
+
+MeshOps::PatchInfo::PatchInfo(int rank, const Array<int>& values) :
+         dimension((values.Size()-1) / 2), rank(rank),
+         lower_index(SAMRAI::tbox::Dimension(dimension)),
+         upper_index(SAMRAI::tbox::Dimension(dimension))
+{
+   MFEM_ASSERT((values.Size() - 1) % 2 == 0,
+      "Provided array is not a valid size.")
+   level_number = values[0];
+   lower_index = toIndex(values, dimension, 1);
+   upper_index = toIndex(values, dimension, 1+dimension);
+   array.SetSize(Size());
+}
+
+const Array<int>& MeshOps::PatchInfo::AsArray() const
+{
+   array[0] = level_number;
+   // TODO: consider replacing loops with memcpy
+   for (int d=0; d < dimension; d++)
+      array[1+d] = lower_index(d);
+   for (int d=0; d < dimension; d++)
+      array[1+dimension+d] = upper_index(d);
+   return array;
+}
+
+unsigned MeshOps::PatchInfo::Size() const
+{
+   return 1 + 2*dimension;
+}
+
+template<typename PODType>
+MeshOps::BlockArray<PODType>::BlockArray(const unsigned block_size,
+   const unsigned num_blocks) : block_size(block_size),num_blocks(num_blocks),
+   data(num_blocks*block_size) {}
+
+template<typename PODType>
+void MeshOps::BlockArray<PODType>::SetBlock(const unsigned index,
+   const Array<PODType> &values)
+{
+   MFEM_ASSERT(values.Size() == block_size,
+      "Provided array is not the correct size.");
+   // TODO: consider replacing with memcpy
+   for(unsigned i=0; i < block_size; i++)
+   {
+      data[index*block_size + i] = values[i];
+   }
+}
+
+template<typename PODType>
+Array<PODType> MeshOps::BlockArray<PODType>::GetBlock(const unsigned index) const
+{
+   Array<PODType> values(block_size);
+   // TODO: consider replacing with memcpy
+   for(unsigned i=0; i < block_size; i++)
+   {
+      values[i] = data[index*block_size + i];
+   }
+   return values;
+}
+
+template<typename PODType>
+unsigned MeshOps::BlockArray<PODType>::NumBlocks() const
+{
+   return num_blocks;
+}
+
+template<typename PODType>
+void* MeshOps::BlockArray<PODType>::GetData()
+{
+   return data.GetData();
+}
+
+template<typename PODType>
+int MeshOps::BlockArray<PODType>::Size() const
+{
+   return data.Size();
+}
+
+template<typename PODType>
+void MeshOps::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_counts,
+   Array<int> &element_counts) const
+{
+   element_counts.SetSize(block_counts.Size());
+   for (int i=0; i < block_counts.Size(); i++)
+      element_counts[i] = block_counts[i] * block_size;
+}
+
+MeshOps::ElementInfo::ElementInfo(const unsigned dimension) : level_number(-1),
+   index(SAMRAI::tbox::Dimension(dimension))
+{
+   array.SetSize(Size());
+}
+
+void MeshOps::ElementInfo::operator =(const Array<int>& values)
+{
+   MFEM_ASSERT(values.Size() == Size(),
+      "Provided array is not the correct size.");
+   level_number = values[0];
+   index = toIndex(values, index.getDim().getValue(), 1);
+}
+
+const Array<int>& MeshOps::ElementInfo::AsArray() const
+{
+   array[0] = level_number;
+   // TODO: consider replacing loops with memcpy
+   for (int d=0; d < index.getDim().getValue(); d++)
+      array[1+d] = index(d);
+   return array;
+}
+
+unsigned MeshOps::ElementInfo::Size() const
+{
+   return 1 + index.getDim().getValue();
 }
 
 }
