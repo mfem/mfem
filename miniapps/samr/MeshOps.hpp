@@ -66,17 +66,8 @@ public:
 
 private:
 
-   /***** helper functions *****/
 
-   // extracts the following information for the gather/scatter buffer:
-   //   1) the number of values per element
-   //   2) the vector dimension of each node field
-   //   3) the offsets with a specified element block of buffer for each node field
-   std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
-      std::vector<std::pair<int, GridFunction&>> node_fields,
-      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
-
-   void CreateTransferMaps();
+   /***** helper functions and utility classes *****/
 
    static Array<SAMRAI::pdat::NodeIndex::Corner> getCorners(const unsigned dimension);
 
@@ -87,58 +78,13 @@ private:
 
    static Vector toVector(const SAMRAI::hier::IntVector& vector);
 
-   // TODO: come up with better comment
-   /***** member variables *****/
-
-   const int element_info_tag = 0;
-   const int samrai_values_tag = 1;
-   const int element_values_tag = 2;
-
-   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
-   const Array<SAMRAI::pdat::NodeIndex::Corner> corners;
-
-   ParMesh mesh;
-   std::shared_ptr<GridFunction> mesh_grid_function;
-
-   H1_FECollection fe_collection_node;
-   L2_FECollection fe_collection_cell;
-   // maps are from field dimension to finite element space
-   std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_cell;
-   std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_node;
-
-   /***** transfer maps *****/
-
-   struct PatchInfo
-   {
-      const unsigned dimension;
-      int rank;
-      int level_number;
-      SAMRAI::hier::Index lower_index;
-      SAMRAI::hier::Index upper_index;
-
-      PatchInfo(const unsigned dimension);
-
-      PatchInfo(int rank, const Array<int>& values);
-
-      const Array<int>& AsArray() const;
-
-      unsigned Size() const;
-
-   private:
-
-      mutable Array<int> array;
-   };
-   std::vector<PatchInfo> global_patch_list;
-
-   struct CellInfo
-   {
-      SAMRAI::pdat::CellIndex index;
-      std::shared_ptr<SAMRAI::hier::Patch> patch;
-   };
-   std::vector<std::vector<CellInfo>> local_cell_info; // (rank) -> {CellInfo for local cell that corresponds to element on rank}
-   std::vector<std::vector<int>> local_element_inds; // (rank) -> {local element ind that corresponds to cell on rank}
-
-   /***** helper classes *****/
+   // extracts the following information for the gather/scatter buffer:
+   //   1) the number of values per element
+   //   2) the vector dimension of each node field
+   //   3) the offsets with a specified element block of buffer for each node field
+   std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
+      std::vector<std::pair<int, GridFunction&>> node_fields,
+      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
    template<typename PODType>
    class BlockArray
@@ -164,14 +110,48 @@ private:
 
    };
 
+   // TODO: consider creating a SerializableInfo template that is then
+   // specialized for PatchInfo and ElementInfo with structs of the individual
+   // information
+
+   struct PatchInfo
+   {
+      // TODO: can consider removing dimension variable
+      const unsigned dimension;
+      int rank;
+      int level_number;
+      SAMRAI::hier::Index lower_index;
+      SAMRAI::hier::Index upper_index;
+
+      PatchInfo(const int rank_, const int level_number_,
+         const SAMRAI::hier::Index lower_index_,
+         const SAMRAI::hier::Index upper_index_);
+
+      PatchInfo(const unsigned dimension);
+
+      PatchInfo(const Array<int>& values);
+
+      const Array<int>& AsArray() const;
+
+      unsigned Size() const;
+
+      bool operator==(const PatchInfo& other) const;
+
+   private:
+
+      mutable Array<int> array;
+   };
+
    struct ElementInfo
    {
+      // TODO: can consider removing dimension variable
+      const int dimension;
       int level_number;
       SAMRAI::hier::Index index;
 
       ElementInfo(const unsigned dimension);
 
-      void operator =(const Array<int>& values);
+      ElementInfo(const Array<int>& values);
 
       const Array<int>& AsArray() const;
 
@@ -182,6 +162,54 @@ private:
       mutable Array<int> array;
 
    };
+
+   void GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
+      std::vector<PatchInfo>& gathered_patch_info) const;
+
+   using PatchLevelBounds = std::vector<std::pair<const SAMRAI::hier::Index, const SAMRAI::hier::Index>>;
+   void GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const;
+
+
+   // TODO: come up with better comment
+   /***** member functions and variables *****/
+
+   std::vector<PatchInfo> global_patch_info;
+
+   void AddNewPatchesToGlobalPatchInfo();
+
+   void RemoveOldPatchesFromGlobalPatchInfo();
+
+   void RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds);
+
+   void CreateTransferMaps();
+
+
+   const int element_info_tag = 0;
+   const int samrai_values_tag = 1;
+   const int element_values_tag = 2;
+   const int cell_ind_tag = 3;
+
+   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners;
+
+   ParMesh mesh;
+   std::shared_ptr<GridFunction> mesh_grid_function;
+
+   H1_FECollection fe_collection_node;
+   L2_FECollection fe_collection_cell;
+   // maps are from field dimension to finite element space
+   std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_cell;
+   std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_node;
+
+   /***** transfer maps *****/
+
+   struct CellInfo
+   {
+      SAMRAI::pdat::CellIndex index;
+      std::shared_ptr<SAMRAI::hier::Patch> patch;
+   };
+   std::vector<std::vector<CellInfo>> local_cell_info; // (rank) -> {CellInfo for local cell that corresponds to element on rank}
+   std::vector<std::vector<int>> local_element_inds; // (rank) -> {local element ind that corresponds to cell on rank}
 
 };
 

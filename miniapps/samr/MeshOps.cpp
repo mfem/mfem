@@ -69,36 +69,45 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
          break;
       }
       default:
-         MFEM_ABORT("NDIM not valid");
+         MFEM_ABORT("dimension not valid");
    }
    serial_mesh.EnsureNCMesh();
    mesh = ParMesh(hierarchy->getMPI().getCommunicator(), serial_mesh);
    serial_mesh.Clear();
 
+   // create global patch info list by adding all SAMRAI patches to it
+   AddNewPatchesToGlobalPatchInfo();
+
+   // refine the mesh according to the global patch info list
+   std::vector<PatchLevelBounds> global_patch_bounds;
+   GetGlobalPatchBounds(global_patch_bounds);
+   RefineMesh(global_patch_bounds);
+
+   fe_spaces_node[mesh.Dimension()] =
+      std::make_unique<ParFiniteElementSpace>(&mesh, &fe_collection_node, mesh.Dimension());
+   mesh_grid_function =
+      std::make_shared<ParGridFunction>(fe_spaces_node[mesh.Dimension()].get());
+   mesh.SetNodalGridFunction(mesh_grid_function.get());
+
+   // create transfer maps between SAMRAI grid and refined MFEM mesh
+   CreateTransferMaps();
+}
+
+void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
+   std::vector<PatchInfo>& gathered_patch_info) const
+{
+   int rank, ranks;
+   MPI_Comm_rank(mesh.GetComm(), &rank);
+   MPI_Comm_size(mesh.GetComm(), &ranks);
+
    // serialize local patch data
-   PatchInfo patch_info(mesh.Dimension());
-   unsigned local_patch_count = 0;
-   for (int level_num = 0; level_num <= hierarchy->getFinestLevelNumber();
-      level_num++)
+   const unsigned patch_info_size = local_patch_info[0].Size();
+   const int local_patch_count = local_patch_info.size();
+   BlockArray<int> local_patch_info_buffer(patch_info_size, local_patch_count);
+   for (unsigned ind=0; ind < local_patch_info.size(); ind++)
    {
-      local_patch_count +=
-         hierarchy->getPatchLevel(level_num)->getLocalNumberOfPatches();
-   }
-   BlockArray<int> local_patch_info(patch_info.Size(), local_patch_count);
-   unsigned patch_ind = 0;
-   for (int level_number = 0; level_number <= hierarchy->getFinestLevelNumber();
-      level_number++)
-   {
-      patch_info.level_number = level_number;
-      std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
-         hierarchy->getPatchLevel(level_number);
-      for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-            patch_iter != patch_level->end(); patch_iter++)
-      {
-         patch_info.lower_index = patch_iter->getBox().lower();
-         patch_info.upper_index = patch_iter->getBox().upper();
-         local_patch_info.SetBlock(patch_ind++, patch_info.AsArray());
-      }
+      const PatchInfo& patch_info = local_patch_info[ind];
+      local_patch_info_buffer.SetBlock(ind, patch_info.AsArray());
    }
 
    // gather the number of patches from each rank
@@ -107,46 +116,138 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
       1, MPI_INT, mesh.GetComm());
 
    // gather the serialized global patch info on each rank
-   BlockArray<int> global_patch_info(patch_info.Size(), global_patch_counts.Sum());
+   BlockArray<int> gathered_patch_info_buffer(patch_info_size, global_patch_counts.Sum());
    {
       Array<int> gather_counts;
-      global_patch_info.GetElementCounts(global_patch_counts, gather_counts);
+      gathered_patch_info_buffer.GetElementCounts(global_patch_counts, gather_counts);
       Array<int> gather_offsets = gather_counts;
       gather_offsets.Prepend(0);
       gather_offsets.PartialSum();
-      MPI_Allgatherv(local_patch_info.GetData(),
-         local_patch_info.Size(), MPI_INT,
-         global_patch_info.GetData(), gather_counts.GetData(),
+      MPI_Allgatherv(local_patch_info_buffer.GetData(),
+         local_patch_info_buffer.Size(), MPI_INT,
+         gathered_patch_info_buffer.GetData(), gather_counts.GetData(),
          gather_offsets.GetData(), MPI_INT, mesh.GetComm());
    }
 
    // unserialize patch data and note rank that has each patch
-   global_patch_list.reserve(global_patch_info.NumBlocks());
-   int current_rank = 0;
-   int current_patch_count = 0;
-   for (int patch_ind = 0; patch_ind < global_patch_info.NumBlocks(); patch_ind++)
+   gathered_patch_info.reserve(gathered_patch_info_buffer.NumBlocks());
+   for (int block_ind=0; block_ind < gathered_patch_info_buffer.NumBlocks();
+      block_ind++)
    {
-      if (current_patch_count == global_patch_counts[current_rank])
-      {
-         current_rank++;
-         current_patch_count = 0;
-      }
-      global_patch_list.emplace_back(current_rank, global_patch_info.GetBlock(patch_ind));
-      current_patch_count++;
+      gathered_patch_info.emplace_back(gathered_patch_info_buffer.GetBlock(block_ind));
    }
+}
 
-   // organize patch bounds by level
-   using PatchLevelBounds = std::vector<std::pair<const SAMRAI::hier::Index, const SAMRAI::hier::Index>>;
-   std::vector<PatchLevelBounds> global_patch_bounds(hierarchy->getFinestLevelNumber()+1);
-   for (int patch_ind=0; patch_ind < global_patch_list.size(); patch_ind++)
+void MeshOps::AddNewPatchesToGlobalPatchInfo()
+{
+   int rank;
+   MPI_Comm_rank(mesh.GetComm(), &rank);
+
+   // collect local added patch info, followed by gathering global added patch
+   // info
+   std::vector<PatchInfo> local_added_patch_info;
+   for (int level_number = 0; level_number <= hierarchy->getFinestLevelNumber();
+      level_number++)
    {
-      const PatchInfo& current_patch = global_patch_list[patch_ind];
+      std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
+         hierarchy->getPatchLevel(level_number);
+      for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
+            patch_iter != patch_level->end(); patch_iter++)
+      {
+         bool added = true;
+         for (unsigned patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
+         {
+            const PatchInfo& patch_info = global_patch_info[patch_ind];
+            if (patch_info.rank == rank &&
+                  patch_info.lower_index == patch_iter->getBox().lower() &&
+                  patch_info.upper_index == patch_iter->getBox().upper())
+            {
+               added = false;
+               break;
+            }
+         }
+         if (added)
+         {
+            local_added_patch_info.emplace_back(rank, level_number,
+               patch_iter->getBox().lower(), patch_iter->getBox().upper());
+         }
+      }
+   }
+   std::vector<PatchInfo> global_added_patch_info;
+   GatherGlobalPatchInfo(local_added_patch_info, global_added_patch_info);
+
+   // add patches to theglobal patch info list
+   for (const PatchInfo& patch_info : global_added_patch_info)
+   {
+      global_patch_info.emplace_back(patch_info.AsArray());
+   }
+}
+
+void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
+{
+   int rank;
+   MPI_Comm_rank(mesh.GetComm(), &rank);
+
+   // collect local removed patch info, followed by gathering global removed
+   // patch info
+   std::vector<PatchInfo> local_removed_patch_info;
+   for (unsigned patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
+   {
+      const PatchInfo& patch_info = global_patch_info[patch_ind];
+      if (patch_info.rank != rank)
+         continue;
+      std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
+         hierarchy->getPatchLevel(patch_info.level_number);
+      for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
+            patch_iter != patch_level->end(); patch_iter++)
+      {
+         if (patch_info.lower_index == patch_iter->getBox().lower() &&
+               patch_info.upper_index == patch_iter->getBox().upper())
+         {
+            local_removed_patch_info.emplace_back(patch_info.AsArray());
+            break;
+         }
+      }
+   }
+   std::vector<PatchInfo> global_removed_patch_info;
+   GatherGlobalPatchInfo(local_removed_patch_info, global_removed_patch_info);
+
+   // create new global patch info list with only the remaining patches
+   std::vector<PatchInfo> new_global_patch_info;
+   for (const PatchInfo& patch_info : global_patch_info)
+   {
+      bool not_removed = true;
+      for (const PatchInfo& removed_patch_info : global_removed_patch_info)
+      {
+         if (patch_info == removed_patch_info)
+         {
+            not_removed = false;
+            break;
+         }
+      }
+      if (not_removed)
+      {
+         new_global_patch_info.emplace_back(patch_info.AsArray());
+      }
+   }
+   global_patch_info = std::move(new_global_patch_info);
+}
+
+void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const
+{
+   // organize patch bounds by level
+   global_patch_bounds.resize(hierarchy->getFinestLevelNumber()+1);
+   for (int patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
+   {
+      const PatchInfo& current_patch = global_patch_info[patch_ind];
       const int level_number = current_patch.level_number;
       global_patch_bounds[level_number].emplace_back(
          current_patch.lower_index, current_patch.upper_index);
    }
+}
 
-   // refine mesh at each level
+void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
+{
    for (int level_num=1; level_num <= hierarchy->getFinestLevelNumber(); level_num++)
    {
       const Vector level0_ratio = toVector(
@@ -207,7 +308,7 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
                Vector x0, h;
                ElementTransformation* transform =
                   mesh.GetElementTransformation(new_element_ind);
-               // TODO: support NDIM
+               // TODO: support 3D
                const IntegrationPoint ip0 = {0.0, 0.0};
                const IntegrationPoint ip1 = {1.0, 1.0};
                transform->Transform(ip0, x0);
@@ -227,14 +328,6 @@ MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
          mesh.GeneralRefinement(refinements);
       }
    }
-
-   fe_spaces_node[mesh.Dimension()] =
-      std::make_unique<ParFiniteElementSpace>(&mesh, &fe_collection_node, mesh.Dimension());
-   mesh_grid_function =
-      std::make_shared<ParGridFunction>(fe_spaces_node[mesh.Dimension()].get());
-   mesh.SetNodalGridFunction(mesh_grid_function.get());
-
-   CreateTransferMaps();
 }
 
 void MeshOps::CreateTransferMaps()
@@ -269,7 +362,7 @@ void MeshOps::CreateTransferMaps()
       SAMRAI::hier::Index index = toIndex(center);
       // use patch level coordinates to find associated patch to determine rank
       int index_rank = -1;
-      for (const PatchInfo& patch : global_patch_list)
+      for (const PatchInfo& patch : global_patch_info)
       {
          if (patch.level_number == level_number &&
                patch.lower_index <= index && index <= patch.upper_index)
@@ -294,8 +387,8 @@ void MeshOps::CreateTransferMaps()
       if (remote_rank == rank)
          continue;
 
-      const std::vector<ElementInfo>& element_info_for_rank
-         = local_element_info[remote_rank];
+      const std::vector<ElementInfo>& element_info_for_rank =
+         local_element_info[remote_rank];
 
       element_info_buffers[remote_rank] =
          std::make_unique<BlockArray<int>>(element_info.Size(), element_info_for_rank.size());
@@ -309,24 +402,12 @@ void MeshOps::CreateTransferMaps()
          element_info_tag, mesh.GetComm(), &requests[remote_rank]);
    }
 
-   // receive remote element info that correspond to local cells
-   local_cell_info.resize(ranks);
-   int messages_received = 0;
-   MPI_Status status;
-   int count;
-   while (messages_received < ranks - 1)
+   // define utility lambda function for setting local cell info
+   auto SetLocalCellInfo = [&](int source_rank,
+      const std::vector<ElementInfo>& element_info_list)
    {
-      MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh.GetComm(), &status);
-      MPI_Get_count(&status, MPI_INT, &count);
-      MFEM_ASSERT(count % element_info.Size() == 0, "Unexpected message size");
-      BlockArray<int> remote_element_info(element_info.Size(), count / element_info.Size());
-      MPI_Recv(remote_element_info.GetData(), remote_element_info.Size(),
-         MPI_INT, status.MPI_SOURCE, element_info_tag, mesh.GetComm(), &status);
-      messages_received++;
-
-      for (int i=0; i < remote_element_info.NumBlocks(); i++)
+      for (const ElementInfo& element_info : element_info_list)
       {
-         element_info = remote_element_info.GetBlock(i);
          const SAMRAI::hier::Index& index = element_info.index;
          std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
             hierarchy->getPatchLevel(element_info.level_number);
@@ -341,31 +422,41 @@ void MeshOps::CreateTransferMaps()
             }
          }
          MFEM_VERIFY(patch != nullptr, "Level " << element_info.level_number
-            << ", index " << index << " received from rank " << status.MPI_SOURCE
-            << " is not on any patches local to rank " << rank);
-         local_cell_info[status.MPI_SOURCE].push_back({SAMRAI::pdat::CellIndex(index), patch});
+            << ", index " << index << " received from rank " << source_rank
+            << " is not on any local patches");
+         local_cell_info[source_rank].push_back({SAMRAI::pdat::CellIndex(index), patch});
       }
+   };
+
+   // receive remote element info that correspond to local cells
+   local_cell_info.resize(ranks);
+   int messages_received = 0;
+   MPI_Status status;
+   int count;
+   while (messages_received < ranks - 1)
+   {
+      MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh.GetComm(), &status);
+      MPI_Get_count(&status, MPI_INT, &count);
+      MFEM_ASSERT(count % element_info.Size() == 0, "Unexpected message size");
+      BlockArray<int> remote_element_info(element_info.Size(),
+         count / element_info.Size());
+      MPI_Recv(remote_element_info.GetData(), remote_element_info.Size(),
+         MPI_INT, status.MPI_SOURCE, element_info_tag, mesh.GetComm(), &status);
+      messages_received++;
+
+      // unserialize and store cell info for received remote elements
+      std::vector<ElementInfo> element_info_list;
+      element_info_list.reserve(remote_element_info.NumBlocks());
+      for (unsigned block_ind=0; block_ind < remote_element_info.NumBlocks();
+            block_ind++)
+      {
+         element_info_list.push_back(remote_element_info.GetBlock(block_ind));
+      }
+      SetLocalCellInfo(status.MPI_SOURCE, element_info_list);
    }
 
    // account for local elements that correspond to local cells
-   for (const ElementInfo& element_info : local_element_info[rank])
-   {
-      const SAMRAI::hier::Index& index = element_info.index;
-      std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
-         hierarchy->getPatchLevel(element_info.level_number);
-      std::shared_ptr<SAMRAI::hier::Patch> patch;
-      for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-            patch_iter != patch_level->end(); patch_iter++)
-      {
-         if (patch_iter->getBox().contains(index))
-         {
-            patch = *patch_iter;
-            break;
-         }
-      }
-      MFEM_VERIFY(patch != nullptr, "Index is not on any local patches");
-      local_cell_info[rank].push_back({SAMRAI::pdat::CellIndex(index), patch});
-   }
+   SetLocalCellInfo(rank, local_element_info[rank]);
 
    MPI_Barrier(mesh.GetComm());
 }
@@ -496,7 +587,6 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::transferToMFEM(
    // receive remote node/cell values that correspond to local elements
    int messages_received = 0;
    MPI_Status status;
-   int count;
    while (messages_received < ranks - 1)
    {
       MPI_Probe(MPI_ANY_SOURCE, samrai_values_tag, mesh.GetComm(), &status);
@@ -679,7 +769,6 @@ void MeshOps::transferToSAMRAI(
    // receive remote element values that correspond to local cells
    int messages_received = 0;
    MPI_Status status;
-   int count;
    while (messages_received < ranks - 1)
    {
       MPI_Probe(MPI_ANY_SOURCE, element_values_tag, mesh.GetComm(), &status);
@@ -849,42 +938,6 @@ Vector MeshOps::toVector(const SAMRAI::hier::IntVector& vector)
    return result;
 }
 
-MeshOps::PatchInfo::PatchInfo(const unsigned dimension) : dimension(dimension),
-   rank(-1), level_number(-1), lower_index(SAMRAI::tbox::Dimension(dimension)),
-   upper_index(SAMRAI::tbox::Dimension(dimension))
-{
-   array.SetSize(Size());
-}
-
-MeshOps::PatchInfo::PatchInfo(int rank, const Array<int>& values) :
-         dimension((values.Size()-1) / 2), rank(rank),
-         lower_index(SAMRAI::tbox::Dimension(dimension)),
-         upper_index(SAMRAI::tbox::Dimension(dimension))
-{
-   MFEM_ASSERT((values.Size() - 1) % 2 == 0,
-      "Provided array is not a valid size.")
-   level_number = values[0];
-   lower_index = toIndex(values, dimension, 1);
-   upper_index = toIndex(values, dimension, 1+dimension);
-   array.SetSize(Size());
-}
-
-const Array<int>& MeshOps::PatchInfo::AsArray() const
-{
-   array[0] = level_number;
-   // TODO: consider replacing loops with memcpy
-   for (int d=0; d < dimension; d++)
-      array[1+d] = lower_index(d);
-   for (int d=0; d < dimension; d++)
-      array[1+dimension+d] = upper_index(d);
-   return array;
-}
-
-unsigned MeshOps::PatchInfo::Size() const
-{
-   return 1 + 2*dimension;
-}
-
 template<typename PODType>
 MeshOps::BlockArray<PODType>::BlockArray(const unsigned block_size,
    const unsigned num_blocks) : block_size(block_size),num_blocks(num_blocks),
@@ -942,32 +995,86 @@ void MeshOps::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_
       element_counts[i] = block_counts[i] * block_size;
 }
 
-MeshOps::ElementInfo::ElementInfo(const unsigned dimension) : level_number(-1),
-   index(SAMRAI::tbox::Dimension(dimension))
+MeshOps::PatchInfo::PatchInfo(const unsigned dimension) : dimension(dimension),
+   rank(-1), level_number(-1), lower_index(SAMRAI::tbox::Dimension(dimension)),
+   upper_index(SAMRAI::tbox::Dimension(dimension))
 {
    array.SetSize(Size());
 }
 
-void MeshOps::ElementInfo::operator =(const Array<int>& values)
+MeshOps::PatchInfo::PatchInfo(const Array<int>& values) :
+         dimension((values.Size()-2) / 2),
+         lower_index(SAMRAI::tbox::Dimension(dimension)),
+         upper_index(SAMRAI::tbox::Dimension(dimension))
 {
-   MFEM_ASSERT(values.Size() == Size(),
-      "Provided array is not the correct size.");
+   MFEM_ASSERT((values.Size() - 2) % 2 == 0,
+      "Provided array is not a valid size.")
+   rank = values[0];
+   level_number = values[1];
+   lower_index = toIndex(values, dimension, 2);
+   upper_index = toIndex(values, dimension, 2+dimension);
+   array.SetSize(Size());
+}
+
+MeshOps::PatchInfo::PatchInfo(const int rank_, const int level_number_,
+   const SAMRAI::hier::Index lower_index_, const SAMRAI::hier::Index upper_index_) :
+   dimension(lower_index_.getDim().getValue()), rank(rank_), level_number(level_number_),
+   lower_index(lower_index_), upper_index(upper_index_)
+{
+   array.SetSize(Size());
+}
+
+const Array<int>& MeshOps::PatchInfo::AsArray() const
+{
+   array[0] = rank;
+   array[1] = level_number;
+   // TODO: consider replacing loops with memcpy
+   for (int d=0; d < dimension; d++)
+      array[2+d] = lower_index(d);
+   for (int d=0; d < dimension; d++)
+      array[2+dimension+d] = upper_index(d);
+   return array;
+}
+
+unsigned MeshOps::PatchInfo::Size() const
+{
+   return 2 + 2*dimension;
+}
+
+bool MeshOps::PatchInfo::operator==(const PatchInfo& other) const
+{
+   return rank == other.rank && level_number == other.level_number &&
+            lower_index == other.lower_index && upper_index == other.upper_index;
+}
+
+
+MeshOps::ElementInfo::ElementInfo(const unsigned dimension) :
+   dimension(dimension), level_number(-1), index(SAMRAI::tbox::Dimension(dimension))
+{
+   array.SetSize(Size());
+}
+
+MeshOps::ElementInfo::ElementInfo(const Array<int>& values) :
+   dimension(values.Size()-1), index(SAMRAI::tbox::Dimension(dimension))
+{
+   MFEM_ASSERT(values.Size() > 1, "Provided array is not a valid size.");
    level_number = values[0];
-   index = toIndex(values, index.getDim().getValue(), 1);
+   index = toIndex(values, dimension, 1);
+   array.SetSize(Size());
 }
 
 const Array<int>& MeshOps::ElementInfo::AsArray() const
 {
    array[0] = level_number;
    // TODO: consider replacing loops with memcpy
-   for (int d=0; d < index.getDim().getValue(); d++)
+   for (int d=0; d < dimension; d++)
       array[1+d] = index(d);
    return array;
 }
 
 unsigned MeshOps::ElementInfo::Size() const
 {
-   return 1 + index.getDim().getValue();
+   return 1 + dimension;
 }
 
 }
