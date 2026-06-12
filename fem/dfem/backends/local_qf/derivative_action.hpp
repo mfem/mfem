@@ -7,7 +7,6 @@
 #include "../../qfunction_transform.hpp"
 
 #include <array>
-#include <type_traits>
 #include <utility>
 
 namespace mfem::future
@@ -342,7 +341,7 @@ struct DerivativeAction
          (void (*)(const qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
          enzyme_const, &qfunc,
          enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-         &get<Is>(shadow_args)...);
+         &get<Is>(shadow_args)..., enzyme_runtime_activity);
 #else
       MFEM_ABORT("Enzyme not available");
 #endif

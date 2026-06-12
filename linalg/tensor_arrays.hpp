@@ -295,6 +295,16 @@ public:
          });
          return *this;
       }
+
+      /** @brief For 0D (scalar) tensor arrays, allow direct binding as a
+          scalar reference so that @c array(i) can be passed to functions
+          expecting a @c scalar_t& in/out parameter. */
+      template <bool Enable = (sizeof...(tensor_sizes) == 0),
+                std::enable_if_t<Enable, int> = 0>
+      operator scalar_t &()
+      {
+         return *offset_data;
+      }
    };
 
    /** @brief Get a tensor_accessor object referencing the tensor stored at the
