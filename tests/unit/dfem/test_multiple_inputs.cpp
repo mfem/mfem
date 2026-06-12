@@ -195,7 +195,12 @@ void test_multiple_inputs(int p)
    };
 
    // with current dFEM tuple: max 9 = J + 3 + 3 + weights + output
+#ifndef _WIN32
    test_nv_ng_inputs<DIM, 3, 3>(ctx);
+#else
+   // avoiding 'number of sections exceeded object file format limit' error
+   test_nv_ng_inputs<DIM, 2, 2>(ctx);
+#endif // _WIN32
 }
 
 // ────────────────────────────────────────────────────────────────────────────
