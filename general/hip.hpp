@@ -55,7 +55,7 @@ constexpr bool mfem_use_gpu = true;
 #define MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)               \
    if (int ix = hipThreadIdx_##k % SX, iy = hipThreadIdx_##k / SX,             \
        iz = iy / SY;                                                           \
-       hipThreadIdx_##k < SX * SY * SZ)
+       (iy %= SY), (hipThreadIdx_##k < SX * SY * SZ))
 // Assigns a thread block shaped (OX,OY,OZ) to work on items (SX,SY,SZ),
 // contiguous in x. This intentionally offsets threads
 #define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
