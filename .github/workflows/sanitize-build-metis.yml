@@ -30,7 +30,7 @@ jobs:
         uses: ./.github/actions/sanitize/mpi
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/build-metis@update-num-tasks
         with:
           archive: ${{env.METIS_TGZ}}
           dir: ${{env.METIS_DIR}}

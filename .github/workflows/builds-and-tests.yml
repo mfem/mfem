@@ -233,7 +233,7 @@ jobs:
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
-        uses: mfem/github-actions/build-hypre@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/build-hypre@update-num-tasks
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
@@ -243,7 +243,7 @@ jobs:
 
       - name: get hypre (Windows)
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
-        uses: mfem/github-actions/build-hypre@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/build-hypre@update-num-tasks
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
@@ -263,7 +263,7 @@ jobs:
 
       - name: install metis
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/build-metis@update-num-tasks
         with:
           archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
           dir: ${{ env.METIS_TOP_DIR }}
@@ -305,7 +305,7 @@ jobs:
 
       # MFEM build and test
       - name: build
-        uses: mfem/github-actions/build-mfem@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/build-mfem@update-num-tasks
         env:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         with:
@@ -376,7 +376,7 @@ jobs:
       # Code coverage (process and upload reports)
       - name: codecov
         if: matrix.codecov == 'YES'
-        uses: mfem/github-actions/upload-coverage@${{env.ACTIONS_VERSION}}
+        uses: mfem/github-actions/upload-coverage@update-num-tasks
         with:
           name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
           project_dir: ${{ env.MFEM_TOP_DIR }}
