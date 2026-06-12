@@ -302,30 +302,24 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
 
             // threads assigned to mitigate bank conflicts
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, Q1D, D1Dy, D1Dz,
+                                                 Q1D, Q1D, Q1D)
             {
-               int qx = ix % Q1D;
-               int dy = ix / Q1D;
-               int dz = dy / Q1D;
-               dy %= Q1D;
-               if (dy < D1Dy && dz < D1Dz)
+               real_t u = 0;
+               for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  real_t u = 0;
-                  for (int dx = 0; dx < D1Dx; ++dx)
+                  real_t b;
+                  if (dim1 == 0)
                   {
-                     real_t b;
-                     if (dim1 == 0)
-                     {
-                        b = BO(qx, dx);
-                     }
-                     else
-                     {
-                        b = BC(qx, dx);
-                     }
-                     u += X[dim1][tidz][dx + (dy + dz * D1Dy) * D1Dx] * b;
+                     b = BO(qx, dx);
                   }
-                  DDQ[dim1][tidz][dz][dy][qx] = u;
+                  else
+                  {
+                     b = BC(qx, dx);
+                  }
+                  u += X[dim1][tidz][dx + (dy + dz * D1Dy) * D1Dx] * b;
                }
+               DDQ[dim1][tidz][dz][dy][qx] = u;
             }
          }
          MFEM_SYNC_THREAD;
@@ -335,30 +329,24 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
             // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
             // threads assigned to mitigate bank conflicts
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, Q1D, Q1D, D1Dz,
+                                                 Q1D, Q1D, Q1D)
             {
-               int qx = ix % Q1D;
-               int qy = ix / Q1D;
-               int dz = qy / Q1D;
-               qy %= Q1D;
-               if (dz < D1Dz)
+               real_t u = 0;
+               for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  real_t u = 0;
-                  for (int dy = 0; dy < D1Dy; ++dy)
+                  real_t b;
+                  if (dim1 == 1)
                   {
-                     real_t b;
-                     if (dim1 == 1)
-                     {
-                        b = BO(qy, dy);
-                     }
-                     else
-                     {
-                        b = BC(qy, dy);
-                     }
-                     u += DDQ[dim1][tidz][dz][dy][qx] * b;
+                     b = BO(qy, dy);
                   }
-                  DQQ[dim1][tidz][dz][qy][qx] = u;
+                  else
+                  {
+                     b = BC(qy, dy);
+                  }
+                  u += DDQ[dim1][tidz][dz][dy][qx] * b;
                }
+               DQQ[dim1][tidz][dz][qy][qx] = u;
             }
          }
          MFEM_SYNC_THREAD;
@@ -367,13 +355,8 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
             // const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
             // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
+            MFEM_FOREACH_THREAD_DIRECT_3D(qx, qy, qz, x, Q1D, Q1D, Q1D)
             {
-               int qx = ix % Q1D;
-               int qy = ix / Q1D;
-               int qz = qy / Q1D;
-               qy %= Q1D;
-
                real_t u = 0;
                for (int dz = 0; dz < D1Dz; ++dz)
                {
@@ -422,72 +405,57 @@ inline void SmemPAHcurlMassApply3D(
             const int D1Dy = (dim0 == 1) ? D1D - 1 : D1D;
             const int D1Dx = (dim0 == 0) ? D1D - 1 : D1D;
             // threads assigned to mitigate bank conflicts
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, D1Dz, Q1D, Q1D,
+                                                 Q1D, Q1D, Q1D)
             {
-               int dz = ix % Q1D;
-               int qx = ix / Q1D;
-               int qy = qx / Q1D;
-               qx %= Q1D;
-               if (dz < D1Dz)
+               for (int dim1 = 0; dim1 < VDIM; ++dim1)
                {
-                  for (int dim1 = 0; dim1 < VDIM; ++dim1)
+                  real_t u = 0;
+                  for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     real_t u = 0;
-                     for (int qz = 0; qz < Q1D; ++qz)
+                     real_t b = 0;
+                     if (dim0 == 2)
                      {
-                        real_t b = 0;
-                        if (dim0 == 2)
-                        {
-                           b = BO(qz, dz);
-                        }
-                        else
-                        {
-                           b = BC(qz, dz);
-                        }
-                        u += QQQ[dim1][tidz][qz][qy][qx] * b;
+                        b = BO(qz, dz);
                      }
-                     QQD[dim1][tidz][qy][qx][dz] = u;
+                     else
+                     {
+                        b = BC(qz, dz);
+                     }
+                     u += QQQ[dim1][tidz][qz][qy][qx] * b;
                   }
+                  QQD[dim1][tidz][qy][qx][dz] = u;
                }
             }
             MFEM_SYNC_THREAD;
             // threads assigned to mitigate bank conflicts
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, Q1D * Q1D * Q1D)
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, D1Dy, D1Dz, Q1D,
+                                                 Q1D, Q1D, Q1D)
             {
-               int dy = ix % Q1D;
-               int dz = ix / Q1D;
-               int qx = dz / Q1D;
-               dz %= Q1D;
-               if (dy < D1Dy && dz < D1Dz)
+               for (int dim1 = 0; dim1 < VDIM; ++dim1)
                {
-                  for (int dim1 = 0; dim1 < VDIM; ++dim1)
+                  real_t u = 0;
+                  for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     real_t u = 0;
-                     for (int qy = 0; qy < Q1D; ++qy)
+                     real_t b;
+                     if (dim0 == 1)
                      {
-                        real_t b;
-                        if (dim0 == 1)
-                        {
-                           b = BO(qy, dy);
-                        }
-                        else
-                        {
-                           b = BC(qy, dy);
-                        }
-                        u += QQD[dim1][tidz][qy][qx][dz] * b;
+                        b = BO(qy, dy);
                      }
-                     QDD[dim1][tidz][qx][dz][dy] = u;
+                     else
+                     {
+                        b = BC(qy, dy);
+                     }
+                     u += QQD[dim1][tidz][qy][qx][dz] * b;
                   }
+                  QDD[dim1][tidz][qx][dz][dy] = u;
                }
             }
             MFEM_SYNC_THREAD;
 
-            MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
+            MFEM_FOREACH_THREAD_DIRECT_3D(dx, dy, dz, x, D1Dx, D1Dy, D1Dz)
             {
-               int dx = ix % D1Dx;
-               int dy = ix / D1Dx;
-               int dz = dy / D1Dy;
-               dy %= D1Dy;
+               int ix = dx + D1Dx * (dy + D1Dy * dz);
                real_t u = 0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
