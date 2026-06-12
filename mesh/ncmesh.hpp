@@ -919,8 +919,6 @@ protected:
 
    int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
 
-   mfem::Element* NewMeshElement(int geom) const;
-
    /**
     * @brief Given a quad face defined by four vertices, establish which edges
     * of this face have been split, and if so optionally return the mid points
