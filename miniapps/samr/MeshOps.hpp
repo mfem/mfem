@@ -112,14 +112,8 @@ private:
 
    };
 
-   // TODO: consider creating a SerializableInfo template that is then
-   // specialized for PatchInfo and ElementInfo with structs of the individual
-   // information
-
    struct PatchInfo
    {
-      // TODO: can consider removing dimension variable
-      const unsigned dimension;
       int rank;
       int level_number;
       SAMRAI::hier::Index lower_index;
@@ -129,40 +123,27 @@ private:
          const SAMRAI::hier::Index lower_index_,
          const SAMRAI::hier::Index upper_index_);
 
-      PatchInfo(const unsigned dimension);
-
-      PatchInfo(const Array<int>& values);
-
-      const Array<int>& AsArray() const;
-
-      unsigned Size() const;
+      Array<int> AsArray() const;
 
       bool operator==(const PatchInfo& other) const;
 
-   private:
+      static unsigned Size(const unsigned dimension);
 
-      mutable Array<int> array;
+      static PatchInfo FromArray(const Array<int>& values);
    };
 
    struct ElementInfo
    {
-      // TODO: can consider removing dimension variable
-      const int dimension;
       int level_number;
       SAMRAI::hier::Index index;
 
-      ElementInfo(const unsigned dimension);
+      ElementInfo(const int level_number_, const SAMRAI::hier::Index index_);
 
-      ElementInfo(const Array<int>& values);
+      Array<int> AsArray() const;
 
-      const Array<int>& AsArray() const;
+      static unsigned Size(const unsigned dimension);
 
-      unsigned Size() const;
-
-   private:
-
-      mutable Array<int> array;
-
+      static ElementInfo FromArray(const Array<int>& values);
    };
 
    void GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,

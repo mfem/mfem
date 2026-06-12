@@ -105,7 +105,7 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
    MPI_Comm_size(mesh.GetComm(), &ranks);
 
    // serialize local patch data
-   const unsigned patch_info_size = local_patch_info[0].Size();
+   const unsigned patch_info_size = PatchInfo::Size(mesh.Dimension());
    const int local_patch_count = local_patch_info.size();
    BlockArray<int> local_patch_info_buffer(patch_info_size, local_patch_count);
    for (unsigned ind=0; ind < local_patch_info.size(); ind++)
@@ -138,7 +138,8 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
    for (int block_ind=0; block_ind < gathered_patch_info_buffer.NumBlocks();
       block_ind++)
    {
-      gathered_patch_info.emplace_back(gathered_patch_info_buffer.GetBlock(block_ind));
+      gathered_patch_info.emplace_back(
+         PatchInfo::FromArray(gathered_patch_info_buffer.GetBlock(block_ind)));
    }
 }
 
@@ -183,7 +184,7 @@ void MeshOps::AddNewPatchesToGlobalPatchInfo()
    // add patches to theglobal patch info list
    for (const PatchInfo& patch_info : global_added_patch_info)
    {
-      global_patch_info.emplace_back(patch_info.AsArray());
+      global_patch_info.push_back(patch_info);
    }
 }
 
@@ -208,7 +209,7 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
          if (patch_info.lower_index == patch_iter->getBox().lower() &&
                patch_info.upper_index == patch_iter->getBox().upper())
          {
-            local_removed_patch_info.emplace_back(patch_info.AsArray());
+            local_removed_patch_info.push_back(patch_info);
             break;
          }
       }
@@ -231,7 +232,7 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
       }
       if (not_removed)
       {
-         new_global_patch_info.emplace_back(patch_info.AsArray());
+         new_global_patch_info.push_back(patch_info);
       }
    }
    global_patch_info = std::move(new_global_patch_info);
@@ -401,7 +402,6 @@ void MeshOps::CreateTransferMaps()
    MPI_Comm_size(mesh.GetComm(), &ranks);
 
    // map local elements to global rank, patch level, and index
-   ElementInfo element_info(mesh.Dimension());
    std::vector<std::vector<ElementInfo>> local_element_info(ranks);
    local_element_inds.resize(ranks);
    for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
@@ -436,13 +436,12 @@ void MeshOps::CreateTransferMaps()
          }
       }
       MFEM_VERIFY(index_rank >= 0, "Index not found in global patch list");
-      element_info.level_number = level_number;
-      element_info.index = index;
-      local_element_info[index_rank].push_back(element_info);
+      local_element_info[index_rank].emplace_back(level_number, index);
       local_element_inds[index_rank].push_back(element_ind);
    }
 
    // send local element info to ranks that have corresponding cells
+   const unsigned element_info_size = ElementInfo::Size(mesh.Dimension());
    std::vector<std::unique_ptr<BlockArray<int>>> element_info_buffers(ranks);
    std::vector<MPI_Request> requests(ranks);
    for (int remote_rank=0; remote_rank < ranks; remote_rank++)
@@ -455,7 +454,8 @@ void MeshOps::CreateTransferMaps()
          local_element_info[remote_rank];
 
       element_info_buffers[remote_rank] =
-         std::make_unique<BlockArray<int>>(element_info.Size(), element_info_for_rank.size());
+         std::make_unique<BlockArray<int>>(element_info_size,
+            element_info_for_rank.size());
       for (unsigned data_ind=0; data_ind < element_info_for_rank.size(); data_ind++)
       {
          element_info_buffers[remote_rank]->SetBlock(data_ind,
@@ -501,9 +501,8 @@ void MeshOps::CreateTransferMaps()
    {
       MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh.GetComm(), &status);
       MPI_Get_count(&status, MPI_INT, &count);
-      MFEM_ASSERT(count % element_info.Size() == 0, "Unexpected message size");
-      BlockArray<int> remote_element_info(element_info.Size(),
-         count / element_info.Size());
+      MFEM_ASSERT(count % element_info_size == 0, "Unexpected message size");
+      BlockArray<int> remote_element_info(element_info_size, count / element_info_size);
       MPI_Recv(remote_element_info.GetData(), remote_element_info.Size(),
          MPI_INT, status.MPI_SOURCE, element_info_tag, mesh.GetComm(), &status);
       messages_received++;
@@ -514,7 +513,8 @@ void MeshOps::CreateTransferMaps()
       for (unsigned block_ind=0; block_ind < remote_element_info.NumBlocks();
             block_ind++)
       {
-         element_info_list.push_back(remote_element_info.GetBlock(block_ind));
+         element_info_list.emplace_back(
+            ElementInfo::FromArray(remote_element_info.GetBlock(block_ind)));
       }
       SetLocalCellInfo(status.MPI_SOURCE, element_info_list);
    }
@@ -1090,37 +1090,27 @@ void MeshOps::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_
       element_counts[i] = block_counts[i] * block_size;
 }
 
-MeshOps::PatchInfo::PatchInfo(const unsigned dimension) : dimension(dimension),
-   rank(-1), level_number(-1), lower_index(SAMRAI::tbox::Dimension(dimension)),
-   upper_index(SAMRAI::tbox::Dimension(dimension))
-{
-   array.SetSize(Size());
-}
-
-MeshOps::PatchInfo::PatchInfo(const Array<int>& values) :
-         dimension((values.Size()-2) / 2),
-         lower_index(SAMRAI::tbox::Dimension(dimension)),
-         upper_index(SAMRAI::tbox::Dimension(dimension))
+MeshOps::PatchInfo MeshOps::PatchInfo::FromArray(const Array<int>& values)
 {
    MFEM_ASSERT((values.Size() - 2) % 2 == 0,
       "Provided array is not a valid size.")
-   rank = values[0];
-   level_number = values[1];
-   lower_index = toIndex(values, dimension, 2);
-   upper_index = toIndex(values, dimension, 2+dimension);
-   array.SetSize(Size());
+   const unsigned dimension = (values.Size()-2) / 2;
+   const int rank = values[0];
+   const int level_number = values[1];
+   const SAMRAI::hier::Index lower_index = toIndex(values, dimension, 2);
+   const SAMRAI::hier::Index upper_index = toIndex(values, dimension, 2+dimension);
+   return PatchInfo(rank, level_number, lower_index, upper_index);
 }
 
 MeshOps::PatchInfo::PatchInfo(const int rank_, const int level_number_,
    const SAMRAI::hier::Index lower_index_, const SAMRAI::hier::Index upper_index_) :
-   dimension(lower_index_.getDim().getValue()), rank(rank_), level_number(level_number_),
-   lower_index(lower_index_), upper_index(upper_index_)
-{
-   array.SetSize(Size());
-}
+   rank(rank_), level_number(level_number_), lower_index(lower_index_),
+   upper_index(upper_index_) {}
 
-const Array<int>& MeshOps::PatchInfo::AsArray() const
+Array<int> MeshOps::PatchInfo::AsArray() const
 {
+   const unsigned dimension = lower_index.getDim().getValue();
+   Array<int> array(Size(dimension));
    array[0] = rank;
    array[1] = level_number;
    // TODO: consider replacing loops with memcpy
@@ -1131,7 +1121,7 @@ const Array<int>& MeshOps::PatchInfo::AsArray() const
    return array;
 }
 
-unsigned MeshOps::PatchInfo::Size() const
+unsigned MeshOps::PatchInfo::Size(const unsigned dimension)
 {
    return 2 + 2*dimension;
 }
@@ -1142,24 +1132,23 @@ bool MeshOps::PatchInfo::operator==(const PatchInfo& other) const
             lower_index == other.lower_index && upper_index == other.upper_index;
 }
 
+MeshOps::ElementInfo::ElementInfo(const int level_number_,
+   const SAMRAI::hier::Index index_) : level_number(level_number_),
+   index(index_) {}
 
-MeshOps::ElementInfo::ElementInfo(const unsigned dimension) :
-   dimension(dimension), level_number(-1), index(SAMRAI::tbox::Dimension(dimension))
-{
-   array.SetSize(Size());
-}
-
-MeshOps::ElementInfo::ElementInfo(const Array<int>& values) :
-   dimension(values.Size()-1), index(SAMRAI::tbox::Dimension(dimension))
+MeshOps::ElementInfo MeshOps::ElementInfo::FromArray(const Array<int>& values)
 {
    MFEM_ASSERT(values.Size() > 1, "Provided array is not a valid size.");
-   level_number = values[0];
-   index = toIndex(values, dimension, 1);
-   array.SetSize(Size());
+   const unsigned dimension = values.Size()-1;
+   const int level_number = values[0];
+   const SAMRAI::hier::Index index = toIndex(values, dimension, 1);
+   return ElementInfo(level_number, index);
 }
 
-const Array<int>& MeshOps::ElementInfo::AsArray() const
+Array<int> MeshOps::ElementInfo::AsArray() const
 {
+   const unsigned dimension = index.getDim().getValue();
+   Array<int> array(Size(dimension));
    array[0] = level_number;
    // TODO: consider replacing loops with memcpy
    for (int d=0; d < dimension; d++)
@@ -1167,7 +1156,7 @@ const Array<int>& MeshOps::ElementInfo::AsArray() const
    return array;
 }
 
-unsigned MeshOps::ElementInfo::Size() const
+unsigned MeshOps::ElementInfo::Size(const unsigned dimension)
 {
    return 1 + dimension;
 }
