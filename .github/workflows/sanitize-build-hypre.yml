@@ -24,13 +24,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{env.HYPRE_DIR}}
-          key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-v2.5
+          key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{ env.ACTIONS_VERSION }}
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/sanitize/mpi
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-hypre@v2.6
+        uses: mfem/github-actions/build-hypre@${{env.ACTIONS_VERSION}}
         with:
           archive: ${{env.HYPRE_TGZ}}
           dir: ${{env.HYPRE_DIR}}

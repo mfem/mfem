@@ -24,13 +24,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{env.METIS_DIR}}
-          key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
+          key: ${{runner.os}}-build-${{env.METIS_DIR}}-${{env.ACTIONS_VERSION}}
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/sanitize/mpi
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@v2.6
+        uses: mfem/github-actions/build-metis@${{env.ACTIONS_VERSION}}
         with:
           archive: ${{env.METIS_TGZ}}
           dir: ${{env.METIS_DIR}}
