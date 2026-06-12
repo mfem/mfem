@@ -2070,60 +2070,6 @@ void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
                         y);
 }
 
-namespace internal
-{
-
-void CurlInterpolatorApply3D(const int ne, const int ndof_o, const int nquad_o,
-                             const Vector &pa, const Vector &x, Vector &y)
-{
-   const int ndof_c = ndof_o + 1;
-   const int nquad_c = nquad_o + 1;
-   const int mnq = std::max(ndof_c, nquad_c);
-   auto pa_data = pa.Read();
-
-   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
-   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
-
-   mfem::forall_2D(
-      ne, mnq * mnq * mnq, 1, [=] MFEM_HOST_DEVICE(int e)
-   {
-      // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
-      // TODO
-
-      // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
-      // TODO
-
-      // z: Vy Gco Boo Boc - Vx Boo Gco Bcc
-      // TODO
-   });
-}
-
-void CurlInterpolatorTApply3D(const int ne, const int ndof_o, const int nquad_o,
-                              const Vector &pa, const Vector &x, Vector &y)
-{
-   const int ndof_c = ndof_o + 1;
-   const int nquad_c = nquad_o + 1;
-   const int mnq = std::max(ndof_c, nquad_c);
-   auto pa_data = pa.Read();
-
-   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
-   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
-
-   mfem::forall_2D(
-      ne, mnq * mnq * mnq, 1, [=] MFEM_HOST_DEVICE(int e)
-   {
-      // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
-      // TODO
-
-      // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
-      // TODO
-
-      // z: Vy Gco Boo Boc - Vx Boo Gco Bcc
-      // TODO
-   });
-}
-}
-
 /// \cond DO_NOT_DOCUMENT
 
 CurlInterpolator::ApplyKernelType
@@ -2131,7 +2077,7 @@ CurlInterpolator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 3)
    {
-      return internal::CurlInterpolatorApply3D;
+      return internal::CurlInterpolatorApply3DSmem<0, 0>;
    }
    MFEM_ABORT("Bad dimension!");
 }
@@ -2141,7 +2087,7 @@ CurlInterpolator::ApplyTPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 3)
    {
-      return internal::CurlInterpolatorTApply3D;
+      return internal::CurlInterpolatorTApply3DSmem<0, 0>;
    }
    MFEM_ABORT("Bad dimension!");
 }
