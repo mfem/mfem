@@ -12,9 +12,6 @@
 name: Sanitizer Config
 description: Sets up environment variables for MFEM sanitizer workflow
 
-env:
-  ACTIONS_VERSION: update-num-tasks
-
 inputs:
   DEBUG:
     description: If true, use intermediate caches to speed up the workflow
@@ -97,6 +94,10 @@ inputs:
     description: If true, do not set any CXXFLAGS or LDFLAGS.
     default: false
 
+  ACTIONS_VERSION:
+    description: Version (branch or tag) of the mfem/github-actions to use.
+    default: update-num-tasks
+
 runs:
   using: 'composite'
   steps:
@@ -121,6 +122,7 @@ runs:
         echo UBSAN_LDFLAGS=${{inputs.UBSAN_LDFLAGS}} >> $GITHUB_ENV
         echo MSAN_CXXFLAGS=${{inputs.MSAN_CXXFLAGS}} >> $GITHUB_ENV
         echo MSAN_LDFLAGS=${{inputs.MSAN_LDFLAGS}} >> $GITHUB_ENV
+        echo ACTIONS_VERSION=${{inputs.ACTIONS_VERSION}} >> $GITHUB_ENV
       shell: bash
 
     - name: Env (dir)
