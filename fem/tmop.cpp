@@ -3907,9 +3907,7 @@ EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
    init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
    for (int c = 0; c < nal; c++)
    {
-      const real_t *src = adapt_lim_gf0[c]->Read();
-      real_t *dst = init_field_vec.Write() + c * ndofs;
-      mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
+      init_field_vec.SetVector(*adapt_lim_gf0[c], c * ndofs);
    }
    adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
 }
@@ -4264,9 +4262,7 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
       init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
       for (int c = 0; c < nal; c++)
       {
-         const real_t *src = adapt_lim_gf0[c]->Read();
-         real_t *dst = init_field_vec.Write() + c * ndofs;
-         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
+         init_field_vec.SetVector(*adapt_lim_gf0[c], c * ndofs);
       }
       adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
@@ -4297,9 +4293,7 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
       init_field_vec.UseDevice(adapt_lim_gf0[0]->UseDevice());
       for (int c = 0; c < nal; c++)
       {
-         const real_t *src = adapt_lim_gf0[c]->Read();
-         real_t *dst = init_field_vec.Write() + c * ndofs;
-         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
+         init_field_vec.SetVector(*adapt_lim_gf0[c], c * ndofs);
       }
       adapt_lim_eval->SetInitialField(adapt_lim_init_nodes, init_field_vec);
    }
@@ -5854,7 +5848,7 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       {
          const real_t *src = new_field_vec.Read() + c * ndofs;
          real_t *dst = adapt_lim_gf[c]->Write();
-         mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
+         internal::device_copy(dst, src, ndofs);
       }
 
       if (PA.enabled)
