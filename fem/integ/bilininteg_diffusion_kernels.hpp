@@ -1226,7 +1226,8 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); return nullptr; }
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline
@@ -1242,7 +1243,8 @@ DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); return nullptr; }
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline DiagonalKernelType
@@ -1251,6 +1253,7 @@ DiffusionIntegrator::DiagonalPAKernels::Fallback(int dim, int, int)
    if (dim == 2) { return internal::PADiffusionDiagonal2D; }
    else if (dim == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 /// \endcond DO_NOT_DOCUMENT

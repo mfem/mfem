@@ -980,7 +980,8 @@ MassIntegrator::ApplySimplexPAKernels::Kernel()
    {
       return internal::SmemPAMassApplyTetrahedron<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT(""); return nullptr; }
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline MassIntegrator::ApplySimplexKernelType
@@ -995,6 +996,7 @@ MassIntegrator::ApplySimplexPAKernels::Fallback(int dim, int, int)
       return internal::PAMassApplyTetrahedron;
    }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 /// \endcond DO_NOT_DOCUMENT
