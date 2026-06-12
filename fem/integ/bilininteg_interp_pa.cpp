@@ -1963,14 +1963,14 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
       dynamic_cast<const VectorTensorFiniteElement *>(ran_fes.GetTypicalFE());
    MFEM_VERIFY(dom_el != NULL, "Only VectorTensorFiniteElement is supported!");
    MFEM_VERIFY(ran_el != NULL, "Only VectorTensorFiniteElement is supported!");
-   // TODO: support other spaces
+   // only supports H(curl) -> H(div) because of discontinuity requirements
    MFEM_VERIFY(dom_el->GetDerivType() == FiniteElement::CURL,
                "Domain space must be H(curl)");
    MFEM_VERIFY(ran_el->GetDerivType() == FiniteElement::DIV,
                "Range space must be H(div)");
 
    const int dims = dom_el->GetDim();
-   MFEM_VERIFY(dims == 2 || dims == 3, "");
+   MFEM_VERIFY(dims == 3, "");
    dim = mesh->Dimension();
 
    ne = dom_fes.GetNE();
@@ -2006,66 +2006,43 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
       }
    }
 
-   // evaluate all closed/open 1D basis (and their derivatives) at closed and
+   // evaluate closed/open 1D basis (and their derivatives) at closed and
    // open quads
-   // storage order: CC, CO, OC, OO
-   pa_data.SetSize(2 * (ndof_o * nquad_o + ndof_o * nquad_c + ndof_c * nquad_o +
-                        ndof_c * nquad_c));
-   auto b_ptr = pa_data.HostWrite();
-   auto g_ptr = b_ptr + (ndof_o * nquad_o + ndof_o * nquad_c +
-                         ndof_c * nquad_o + ndof_c * nquad_c);
+   // storage order: GCO, BCC, BOO
+   pa_data.SetSize(ndof_c * nquad_o + ndof_c * nquad_c + ndof_o * nquad_o);
+   auto ptr = pa_data.HostWrite();
    auto &cbasis1d = dom_el->GetBasis1D();
    auto &obasis1d = dom_el->GetOpenBasis1D();
    Vector b, g;
    b.SetSize(ndof_c);
    g.SetSize(ndof_c);
-   for (int j = 0; j < nquad_c; ++j)
-   {
-      cbasis1d.Eval(qc[j], b, g);
-      for (int i = 0; i < ndof_c; ++i)
-      {
-         *b_ptr = b[i];
-         *g_ptr = g[i];
-         ++b_ptr;
-         ++g_ptr;
-      }
-   }
-
    for (int j = 0; j < nquad_o; ++j)
    {
       cbasis1d.Eval(qo[j], b, g);
       for (int i = 0; i < ndof_c; ++i)
       {
-         *b_ptr = b[i];
-         *g_ptr = g[i];
-         ++b_ptr;
-         ++g_ptr;
+         ptr[j + i * nquad_o] = g[i];
       }
    }
+   ptr += nquad_o * ndof_c;
 
-   b.SetSize(ndof_o);
-   g.SetSize(ndof_o);
    for (int j = 0; j < nquad_c; ++j)
    {
-      obasis1d.Eval(qc[j], b, g);
-      for (int i = 0; i < ndof_o; ++i)
+      cbasis1d.Eval(qo[j], b);
+      for (int i = 0; i < ndof_c; ++i)
       {
-         *b_ptr = b[i];
-         *g_ptr = g[i];
-         ++b_ptr;
-         ++g_ptr;
+         ptr[j + i * nquad_c] = b[i];
       }
    }
+   ptr += ndof_c * nquad_c;
 
+   b.SetSize(ndof_o);
    for (int j = 0; j < nquad_o; ++j)
    {
-      obasis1d.Eval(qo[j], b, g);
+      obasis1d.Eval(qc[j], b);
       for (int i = 0; i < ndof_o; ++i)
       {
-         *b_ptr = b[i];
-         *g_ptr = g[i];
-         ++b_ptr;
-         ++g_ptr;
+         ptr[j + i * nquad_o] = b[i];
       }
    }
 }
@@ -2093,6 +2070,60 @@ void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
                         y);
 }
 
+namespace internal
+{
+
+void CurlInterpolatorApply3D(const int ne, const int ndof_o, const int nquad_o,
+                             const Vector &pa, const Vector &x, Vector &y)
+{
+   const int ndof_c = ndof_o + 1;
+   const int nquad_c = nquad_o + 1;
+   const int mnq = std::max(ndof_c, nquad_c);
+   auto pa_data = pa.Read();
+
+   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
+   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
+
+   mfem::forall_2D(
+      ne, mnq * mnq * mnq, 1, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
+      // TODO
+
+      // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
+      // TODO
+
+      // z: Vy Gco Boo Boc - Vx Boo Gco Bcc
+      // TODO
+   });
+}
+
+void CurlInterpolatorTApply3D(const int ne, const int ndof_o, const int nquad_o,
+                              const Vector &pa, const Vector &x, Vector &y)
+{
+   const int ndof_c = ndof_o + 1;
+   const int nquad_c = nquad_o + 1;
+   const int mnq = std::max(ndof_c, nquad_c);
+   auto pa_data = pa.Read();
+
+   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
+   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
+
+   mfem::forall_2D(
+      ne, mnq * mnq * mnq, 1, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
+      // TODO
+
+      // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
+      // TODO
+
+      // z: Vy Gco Boo Boc - Vx Boo Gco Bcc
+      // TODO
+   });
+}
+}
+
 /// \cond DO_NOT_DOCUMENT
 
 CurlInterpolator::ApplyKernelType
@@ -2100,7 +2131,7 @@ CurlInterpolator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 3)
    {
-      return internal::CurlInterpolatorApply3DSmem<0, 0>;
+      return internal::CurlInterpolatorApply3D;
    }
    MFEM_ABORT("Bad dimension!");
 }
@@ -2110,7 +2141,7 @@ CurlInterpolator::ApplyTPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 3)
    {
-      return internal::CurlInterpolatorTApply3DSmem<0, 0>;
+      return internal::CurlInterpolatorTApply3D;
    }
    MFEM_ABORT("Bad dimension!");
 }

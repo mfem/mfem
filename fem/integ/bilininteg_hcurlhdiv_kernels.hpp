@@ -873,47 +873,413 @@ constexpr int NBZ3D(int ndof_o, int nquad_o)
 }
 }
 
-template <int NDOF_O, int NQUAD_O>
+void CurlInterpolatorApply3D(const int ne, const int ndof_o, const int nquad_o,
+                             const Vector &pa, const Vector &x, Vector &y);
+
+void CurlInterpolatorTApply3D(const int ne, const int ndof_o, const int nquad_o,
+                              const Vector &pa, const Vector &x, Vector &y);
+
+template <int T_NDOF_O, int T_NQUAD_O>
 void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
                                  const int nquad_o, const Vector &pa,
                                  const Vector &x, Vector &y)
 {
-   constexpr int MND_O = NDOF_O ? NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
-   constexpr int MNQ_O = NQUAD_O ? NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
-   constexpr int MNDQ = std::max(MND_O, MNQ_O);
+   constexpr int MND_O = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+   constexpr int MNQ_O = T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
+   constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
    constexpr int TBATCH = curlinterp::NBZ3D(MND_O, MNQ_O);
-   // TODO: batching
    MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
    MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
    const int ndof_c = ndof_o + 1;
    const int nquad_c = nquad_o + 1;
-   auto tmp = pa.Read();
+   const int mnq = std::max(ndof_c, nquad_c);
+   auto pa_data = pa.Read();
 
-   auto Bcc = Reshape(tmp, ndof_c, nquad_c);
-   tmp += ndof_c * nquad_c;
-   auto Bco = Reshape(tmp, ndof_c, nquad_o);
-   tmp += ndof_c * nquad_o;
-   auto Boc = Reshape(tmp, ndof_o, nquad_c);
-   tmp += ndof_o * nquad_c;
-   auto Boo = Reshape(tmp, ndof_o, nquad_o);
-   tmp += ndof_o * nquad_o;
-
-   auto Gcc = Reshape(tmp, ndof_c, nquad_c);
-   tmp += ndof_c * nquad_c;
-   auto Gco = Reshape(tmp, ndof_c, nquad_o);
-   tmp += ndof_c * nquad_o;
-   auto Goc = Reshape(tmp, ndof_o, nquad_c);
-   tmp += ndof_o * nquad_c;
-   auto Goo = Reshape(tmp, ndof_o, nquad_o);
-
-   auto X = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
+   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
    auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
 
-   // TODO: best thread block shape?
    mfem::forall_2D_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
-      ne, MNDQ * MNDQ * MNDQ, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+      ne, mnq * mnq * mnq, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
    {
-      // TODO
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+      constexpr int nbz = TBATCH ? TBATCH : 1;
+      int tidz = MFEM_THREAD_ID(z);
+#else
+      constexpr int nbz = 1;
+      constexpr int tidz = 0;
+#endif
+      const int NDOF_O = T_NDOF_O ? T_NDOF_O : ndof_o;
+      const int NQUAD_O = T_NQUAD_O ? T_NQUAD_O : nquad_o;
+      const int NDOF_C = NDOF_O + 1;
+      const int NQUAD_C = NQUAD_O + 1;
+      MFEM_SHARED real_t
+      sBG[(MND_O + 1) * MNQ_O + (MND_O + 1) * (MNQ_O + 1) + MND_O * MNQ_O];
+      auto Gco = Reshape(sBG, NQUAD_O, NDOF_C);
+      auto Bcc = Reshape(sBG + NDOF_C * NQUAD_O, NQUAD_C, NDOF_C);
+      auto Boo =
+         Reshape(sBG + NDOF_C * NQUAD_O + NDOF_C * NQUAD_C, NQUAD_O, NDOF_O);
+      MFEM_SHARED real_t sX[3 * nbz * MND_O * (MND_O + 1) * (MND_O + 1)];
+      MFEM_SHARED real_t sm0[nbz * 2 * MNDQ * MNDQ * MNDQ];
+      MFEM_SHARED real_t sm1[nbz * 2 * MNDQ * MNDQ * MNDQ];
+
+      real_t(*X)[nbz][MND_O * (MND_O + 1) * (MND_O + 1)] =
+         (real_t(*)[nbz][MND_O * (MND_O + 1) * (MND_O + 1)])(sX);
+      // shapes of buffers always use MNDQ to mitigate shared memory bank
+      // conflicts
+      real_t(*DDQ)[nbz][MNDQ][MNDQ][MNDQ] =
+         (real_t(*)[nbz][MNDQ][MNDQ][MNDQ])(sm0);
+      real_t(*DQQ)[nbz][MNDQ][MNDQ][MNDQ] =
+         (real_t(*)[nbz][MNDQ][MNDQ][MNDQ])(sm1);
+      real_t(*QQQ)[nbz][MNDQ][MNDQ][MNDQ] =
+         (real_t(*)[nbz][MNDQ][MNDQ][MNDQ])(sm0);
+      const int offset = NDOF_O * NDOF_C * NDOF_C;
+      const int offsetq = NQUAD_C * NQUAD_O * NQUAD_O;
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
+      {
+         for (int dim = 0; dim < 3; ++dim)
+         {
+            X[dim][tidz][ix] = X_(ix + dim * offset, e);
+         }
+      }
+      // load basis functions data
+      if (tidz == 0)
+      {
+         auto npts = NDOF_C * NQUAD_O + NDOF_C * NQUAD_C + NDOF_O * NQUAD_O;
+         MFEM_FOREACH_THREAD(ix, x, npts) { sBG[ix] = pa_data[ix]; }
+      }
+      MFEM_SYNC_THREAD;
+      // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_C && dy < NDOF_C & dz < NDOF_O)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_C; ++dx)
+            {
+               u += X[2][tidz][dx + (dy + dz * NDOF_C) * NDOF_C] * Bcc(qx, dx);
+            }
+            DDQ[0][tidz][dz][dy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_C && dy < NDOF_O & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_C; ++dx)
+            {
+               u += X[1][tidz][dx + (dy + dz * NDOF_O) * NDOF_C] * Bcc(qx, dx);
+            }
+            DDQ[1][tidz][dz][dy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_C && qy < NQUAD_O & dz < NDOF_O)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_C; ++dy)
+            {
+               u += DDQ[0][tidz][dz][dy][qx] * Gco(qy, dy);
+            }
+            DQQ[0][tidz][dz][qy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_C && qy < NQUAD_O & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_O; ++dy)
+            {
+               u += DDQ[1][tidz][dz][dy][qx] * Boo(qy, dy);
+            }
+            DQQ[1][tidz][dz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_C && qy < NQUAD_O & qz < NQUAD_O)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_O; ++dz)
+            {
+               u += DQQ[0][tidz][dz][qy][qx] * Boo(qz, dz);
+            }
+            QQQ[0][tidz][qz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_C && qy < NQUAD_O & qz < NQUAD_O)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_C; ++dz)
+            {
+               u += DQQ[1][tidz][dz][qy][qx] * Gco(qz, dz);
+            }
+            Y(qx + (qy + qz * NQUAD_O) * NQUAD_C, e) =
+               QQQ[0][tidz][qz][qy][qx] - u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_O && dy < NDOF_C & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_O; ++dx)
+            {
+               u += X[0][tidz][dx + (dy + dz * NDOF_C) * NDOF_O] * Boo(qx, dx);
+            }
+            DDQ[0][tidz][dz][dy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_O && dy < NDOF_C & dz < NDOF_O)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_C; ++dx)
+            {
+               u += X[2][tidz][dx + (dy + dz * NDOF_C) * NDOF_C] * Gco(qx, dx);
+            }
+            DDQ[1][tidz][dz][dy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_C & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_C; ++dy)
+            {
+               u += DDQ[0][tidz][dz][dy][qx] * Bcc(qy, dy);
+            }
+            DQQ[0][tidz][dz][qy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_C & dz < NDOF_O)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_C; ++dy)
+            {
+               u += DDQ[1][tidz][dz][dy][qx] * Bcc(qy, dy);
+            }
+            DQQ[1][tidz][dz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_C & qz < NQUAD_O)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_C; ++dz)
+            {
+               u += DQQ[0][tidz][dz][qy][qx] * Gco(qz, dz);
+            }
+            QQQ[0][tidz][qz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_C & qz < NQUAD_O)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_O; ++dz)
+            {
+               u += DQQ[1][tidz][dz][qy][qx] * Boo(qz, dz);
+            }
+            Y(qx + (qy + qz * NQUAD_C) * NQUAD_O + offsetq, e) =
+               QQQ[0][tidz][qz][qy][qx] - u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // z: Vy Gco Boo Bcc - Vx Boo Gco Bcc
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_O && dy < NDOF_O & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_C; ++dx)
+            {
+               u += X[1][tidz][dx + (dy + dz * NDOF_O) * NDOF_C] * Gco(qx, dx);
+            }
+            DDQ[0][tidz][dz][dy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int dy = ix / mnq;
+         int dz = dy / mnq;
+         dy %= mnq;
+         if (qx < NQUAD_O && dy < NDOF_C & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dx = 0; dx < NDOF_O; ++dx)
+            {
+               u += X[0][tidz][dx + (dy + dz * NDOF_C) * NDOF_O] * Boo(qx, dx);
+            }
+            DDQ[1][tidz][dz][dy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_O & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_O; ++dy)
+            {
+               u += DDQ[0][tidz][dz][dy][qx] * Boo(qy, dy);
+            }
+            DQQ[0][tidz][dz][qy][qx] = u;
+         }
+      }
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int dz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_O & dz < NDOF_C)
+         {
+            real_t u = 0;
+            for (int dy = 0; dy < NDOF_C; ++dy)
+            {
+               u += DDQ[1][tidz][dz][dy][qx] * Gco(qy, dy);
+            }
+            DQQ[1][tidz][dz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_O & qz < NQUAD_C)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_C; ++dz)
+            {
+               u += DQQ[0][tidz][dz][qy][qx] * Bcc(qz, dz);
+            }
+            QQQ[0][tidz][qz][qy][qx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // threads assigned to mitigate bank conflicts
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, mnq * mnq * mnq)
+      {
+         int qx = ix % mnq;
+         int qy = ix / mnq;
+         int qz = qy / mnq;
+         qy %= mnq;
+         if (qx < NQUAD_O && qy < NQUAD_O & qz < NQUAD_C)
+         {
+            real_t u = 0;
+            for (int dz = 0; dz < NDOF_C; ++dz)
+            {
+               u += DQQ[1][tidz][dz][qy][qx] * Bcc(qz, dz);
+            }
+            Y(qx + (qy + qz * NQUAD_O) * NQUAD_O + 2 * offsetq, e) =
+               QQQ[0][tidz][qz][qy][qx] - u;
+         }
+      }
+      MFEM_SYNC_THREAD;
    });
 }
 
@@ -933,7 +1299,14 @@ CurlInterpolator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 3)
    {
-      return internal::CurlInterpolatorApply3DSmem<NDOF_O, NQUAD_O>;
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::CurlInterpolatorApply3DSmem<NDOF_O, NQUAD_O>;
+      }
+      else
+      {
+         return internal::CurlInterpolatorTApply3D;
+      }
    }
    MFEM_ABORT("Bad dimension!");
 }
@@ -944,7 +1317,14 @@ CurlInterpolator::ApplyTPAKernels::Kernel()
 {
    if constexpr (DIM == 3)
    {
-      return internal::CurlInterpolatorTApply3DSmem<NDOF_O, NQUAD_O>;
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::CurlInterpolatorTApply3DSmem<NDOF_O, NQUAD_O>;
+      }
+      else
+      {
+         return internal::CurlInterpolatorTApply3D;
+      }
    }
    MFEM_ABORT("Bad dimension!");
 }
