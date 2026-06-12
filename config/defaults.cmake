@@ -48,6 +48,7 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
+option(MFEM_USE_SAMRAI "Enable SAMRAI support." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
@@ -96,6 +97,7 @@ option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" 
 option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
 option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
 option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
+option(MFEM_FETCH_SAMRAI "Enable fetching of SAMRAI" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.

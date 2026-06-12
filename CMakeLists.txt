@@ -460,7 +460,11 @@ endif()
 
 # SAMRAI
 if (MFEM_USE_SAMRAI)
-  find_package(SAMRAI REQUIRED)
+  if (MFEM_USE_MPI)
+    find_package(SAMRAI REQUIRED)
+  else()
+    message(FATAL_ERROR " *** SAMRAI requires that MPI be enabled.")
+  endif()
 endif()
 
 if (MFEM_USE_CEED)
