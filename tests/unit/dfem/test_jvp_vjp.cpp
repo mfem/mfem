@@ -14,6 +14,7 @@
 #include "mfem.hpp"
 
 #ifdef MFEM_USE_MPI
+#ifndef _WIN32
 
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
@@ -162,9 +163,7 @@ void TestJvpVjp(const char *filename, int p)
    local_qf<DIM> q_lfn{};
    F.AddDomainIntegrator<LocalQFBackend>(
       q_lfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
-#ifndef _WIN32
    AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT>();
-#endif
 
    VerifyJvpVjp<DIM>(F, fes, *nodes);
 }
@@ -195,4 +194,5 @@ TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU]")
    TestJvpVjp<3>(GenAll(meshs, extra), p);
 }
 
+#endif // _WIN32
 #endif // MFEM_USE_MPI
