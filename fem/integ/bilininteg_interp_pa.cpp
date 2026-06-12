@@ -1990,16 +1990,8 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
          int idx = UnsignIndex(quad_map[i]);
          qc[i] = ran_nodes.IntPoint(idx).x;
       }
-      int offset;
-      switch (dim)
-      {
-         case 3:
-            offset = ndof_c * ndof_o * ndof_o;
-            break;
-         default:
-            mfem_error("Bad dimension!");
-      }
-      for (int i = 0; i < nquad_c; ++i)
+      int offset = ndof_c * ndof_o * ndof_o;
+      for (int i = 0; i < nquad_o; ++i)
       {
          int idx = UnsignIndex(quad_map[i + offset]);
          qo[i] = ran_nodes.IntPoint(idx).x;

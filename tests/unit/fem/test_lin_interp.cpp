@@ -1069,4 +1069,67 @@ TEST_CASE("Exact Sequence Properties: d(df)=0",
    }
 }
 
+TEST_CASE("Partial Assemble Linear Interpolator",
+          "[CurlInterpolator]"
+          "[GPU]")
+{
+   const int maxOrder = 3;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+   CAPTURE(order);
+
+   int n = 3, dim = -1;
+   real_t tol = 1e-10;
+
+   auto type = Element::HEXAHEDRON;
+   CAPTURE(type);
+
+   Mesh mesh;
+
+   {
+      dim = 3;
+      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                   2.0, 3.0, 5.0);
+   }
+
+   ND_FECollection    fec_nd(order, dim);
+   RT_FECollection    fec_rt(order - 1, dim);
+
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+   // 3D
+   {
+      DiscreteLinearOperator CurlFA(&fespace_nd, &fespace_rt);
+      CurlFA.AddDomainInterpolator(new CurlInterpolator());
+      CurlFA.Assemble();
+      CurlFA.Finalize();
+      DiscreteLinearOperator CurlPA(&fespace_nd, &fespace_rt);
+      CurlPA.AddDomainInterpolator(new CurlInterpolator());
+      CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      CurlPA.Assemble();
+
+      SECTION("Curl (3D)")
+      {
+         SparseMatrix &Curl = CurlFA.SpMat();
+         GridFunction x(&fespace_nd), y_fa(&fespace_rt), y_pa(&fespace_rt);
+         VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = sin(2 * M_PI * x[2] / 5) - cos(2 * M_PI * x[1] / 3);
+            y[1] = sin(2 * M_PI * x[0] / 2) - cos(2 * M_PI * x[2] / 5);
+            y[2] = sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2);
+         });
+         x.ProjectCoefficient(coeff);
+         REQUIRE(x.Size() == Curl.Width());
+         REQUIRE(y_fa.Size() == Curl.Height());
+         REQUIRE(x.Size() == CurlPA.Width());
+         REQUIRE(y_pa.Size() == CurlPA.Height());
+         Curl.Mult(x, y_fa);
+         CurlPA.Mult(x, y_pa);
+         y_pa -= y_fa;
+         REQUIRE(y_pa.Normlinf() < tol);
+      }
+   }
+}
+
 } // namespace lin_interp

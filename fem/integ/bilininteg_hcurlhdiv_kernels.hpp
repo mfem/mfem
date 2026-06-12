@@ -873,16 +873,10 @@ constexpr int NBZ3D(int ndof_o, int nquad_o)
 }
 }
 
-void CurlInterpolatorApply3D(const int ne, const int ndof_o, const int nquad_o,
-                             const Vector &pa, const Vector &x, Vector &y);
-
-void CurlInterpolatorTApply3D(const int ne, const int ndof_o, const int nquad_o,
-                              const Vector &pa, const Vector &x, Vector &y);
-
 template <int T_NDOF_O, int T_NQUAD_O>
 void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
                                  const int nquad_o, const Vector &pa,
-                                 const Vector &x, Vector &y)
+                                 const Vector &x_, Vector &y_)
 {
    constexpr int MND_O = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
    constexpr int MNQ_O = T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
@@ -890,20 +884,19 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
    constexpr int TBATCH = curlinterp::NBZ3D(MND_O, MNQ_O);
    MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
    MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
-   const int ndof_c = ndof_o + 1;
-   const int nquad_c = nquad_o + 1;
-   const int mnq = std::max(ndof_c, nquad_c);
+   int mnq = std::max(ndof_o + 1, nquad_o + 1);
    auto pa_data = pa.Read();
-
-   auto X_ = Reshape(x.Read(), 3 * ndof_o * ndof_c * ndof_c, ne);
-   auto Y = Reshape(y.ReadWrite(), 3 * nquad_c * nquad_o * nquad_o, ne);
-
-   mfem::forall_2D_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
-      ne, mnq * mnq * mnq, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   auto x_d = x_.Read();
+   auto y_d = y_.ReadWrite();
+   mfem::forall_2D_batch(ne, mnq * mnq * mnq, 1, TBATCH,
+                         [=] MFEM_HOST_DEVICE(int e)
    {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       constexpr int nbz = TBATCH ? TBATCH : 1;
       int tidz = MFEM_THREAD_ID(z);
+      // Make mnq a local variable since capturing would result in different
+      // captures between host/device versions, and spuriously fails
+      int mnq = std::max(ndof_o + 1, nquad_o + 1);
 #else
       constexpr int nbz = 1;
       constexpr int tidz = 0;
@@ -914,6 +907,8 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       const int NQUAD_C = NQUAD_O + 1;
       MFEM_SHARED real_t
       sBG[(MND_O + 1) * MNQ_O + (MND_O + 1) * (MNQ_O + 1) + MND_O * MNQ_O];
+      auto X_ = Reshape(x_d, 3 * NDOF_C * NDOF_C * NDOF_O, ne);
+      auto Y = Reshape(y_d, 3 * NQUAD_C * NQUAD_O * NQUAD_O, ne);
       auto Gco = Reshape(sBG, NQUAD_O, NDOF_C);
       auto Bcc = Reshape(sBG + NDOF_C * NQUAD_O, NQUAD_C, NDOF_C);
       auto Boo =
@@ -948,6 +943,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
          MFEM_FOREACH_THREAD(ix, x, npts) { sBG[ix] = pa_data[ix]; }
       }
       MFEM_SYNC_THREAD;
+
       // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_C, NDOF_C,
@@ -1202,14 +1198,7 @@ CurlInterpolator::ApplyTPAKernels::Kernel()
 {
    if constexpr (DIM == 3)
    {
-      if (Device::Allows(Backend::DEVICE_MASK))
-      {
-         return internal::CurlInterpolatorTApply3DSmem<NDOF_O, NQUAD_O>;
-      }
-      else
-      {
-         return internal::CurlInterpolatorTApply3D;
-      }
+      return internal::CurlInterpolatorTApply3DSmem<NDOF_O, NQUAD_O>;
    }
    MFEM_ABORT("Bad dimension!");
 }
