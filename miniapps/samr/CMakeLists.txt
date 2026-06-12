@@ -20,7 +20,7 @@ endif()
 if (MFEM_USE_SAMRAI)
   enable_language(Fortran)
   add_mfem_miniapp(samrai-advection-diffusion
-    MAIN samrai-advection-diffusion.cpp LIBRARIES mfem
+    MAIN samrai-advection-diffusion.cpp LIBRARIES mfem ${SAMRAI_LIBRARIES}
     EXTRA_SOURCES MeshOps.cpp samrai/LinAdv.cpp samrai/fortran/flux2d.f
                   samrai/fortran/flux3d.f samrai/fortran/fluxcorner3d.f
                   samrai/fortran/grad2d.f samrai/fortran/grad3d.f
@@ -28,6 +28,7 @@ if (MFEM_USE_SAMRAI)
                   samrai/fortran/stable2d.f samrai/fortran/stable3d.f
                   samrai/fortran/stufprobc.f samrai/fortran/trace1d.f
                   samrai/fortran/trace2d.f samrai/fortran/trace3d.f)
+  target_include_directories(samrai-advection-diffusion PUBLIC ${SAMRAI_INCLUDE_DIRS})
   # Copy SAMRAI input files to build directory
   configure_file(samrai/linadv_input.2d linadv_input.2d COPYONLY)
   configure_file(samrai/linadv_input.3d linadv_input.3d COPYONLY)

@@ -22,7 +22,7 @@ if (MFEM_FETCH_SAMRAI OR MFEM_FETCH_TPLS)
   set(SAMRAI_CMAKE_OPTIONS "")
   list(APPEND SAMRAI_CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
                                    -DENABLE_HDF5:BOOL=OFF)
-  message(STATUS "Will fetch SAMRAI ${SAMRAI_FETCH_TAG}")
+  message(STATUS "Will fetch SAMRAI ${SAMRAI_FETCH_TAG} to be built with ${SAMRAI_CMAKE_OPTIONS}")
   set(SAMRAI_INSTALL ${CMAKE_BINARY_DIR}/fetch/samrai)
   include(ExternalProject)
   ExternalProject_Add(samrai
@@ -35,10 +35,10 @@ if (MFEM_FETCH_SAMRAI OR MFEM_FETCH_TPLS)
     CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${SAMRAI_INSTALL} ${SAMRAI_CMAKE_OPTIONS})
 
   add_library(SAMRAI_tbox STATIC IMPORTED)
-  target_link_libraries(SAMRAI_tbox INTERFACE MPI_CXX)
+  target_link_libraries(SAMRAI_tbox INTERFACE MPI::MPI_CXX)
 
   add_library(SAMRAI_hier STATIC IMPORTED)
-  target_link_libraries(SAMRAI_hier INTERFACE SAMRAI_tbox MPI_CXX)
+  target_link_libraries(SAMRAI_hier INTERFACE SAMRAI_tbox MPI::MPI_CXX)
 
   add_library(SAMRAI_xfer STATIC IMPORTED)
   target_link_libraries(SAMRAI_xfer INTERFACE SAMRAI_hier SAMRAI_tbox)
