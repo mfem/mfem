@@ -223,10 +223,17 @@ public:
          e_offset += elem_sz * ne;
       });
 
-      if (q1d <= 8) { run_kernels<DerivativeApplyTransposeLO>(ye); }
-      else
+      if (q1d <= LocalQFLOBackendMQ1())
+      {
+         run_kernels<DerivativeApplyTransposeLO>(ye);
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeApplyTransposeHO>(ye);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
    }
 

@@ -129,10 +129,17 @@ public:
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      if (q1d <= 8) { run_kernels<ActionLO>(xe, ye); }
-      else
+      if (q1d <= LocalQFLOBackendMQ1())
+      {
+         run_kernels<ActionLO>(xe, ye);
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
       {
          run_kernels<ActionHO>(xe, ye);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
    }
 
@@ -440,7 +447,7 @@ template<int DIM, int Q1D>
 inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
-   static_assert(Q1D <= 8);
+   static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
 }

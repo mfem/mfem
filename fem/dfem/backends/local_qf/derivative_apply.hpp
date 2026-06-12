@@ -189,10 +189,17 @@ public:
                                    *direction_l,
                                    direction_e,
                                    ElementDofOrdering::LEXICOGRAPHIC);
-      if (q1d <= 8) { run_kernels<DerivativeApplyLO>(ye); }
-      else
+      if (q1d <= LocalQFLOBackendMQ1())
+      {
+         run_kernels<DerivativeApplyLO>(ye);
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeApplyHO>(ye);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
    }
 

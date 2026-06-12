@@ -120,10 +120,17 @@ public:
       auto cache_tensor = DeviceTensor<3, real_t>(
                              qp_cache.ReadWrite(), residual_size_on_qp, nq, ne);
 
-      if (q1d <= 8) { run_kernels<DerivativeSetupLO>(xe, cache_tensor); }
-      else
+      if (q1d <= LocalQFLOBackendMQ1())
+      {
+         run_kernels<DerivativeSetupLO>(xe, cache_tensor);
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeSetupHO>(xe, cache_tensor);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
    }
 

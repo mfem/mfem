@@ -21,6 +21,9 @@ namespace mfem::future
 {
 
 // ────────────────────────────────────────────────────────────────────────────
+inline constexpr int LocalQFLOBackendMQ1() { return 8; }
+
+// ────────────────────────────────────────────────────────────────────────────
 /// Register type for one LO q-function parameter
 template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
 struct lo_qreg;
@@ -374,7 +377,7 @@ struct lo_ker_backend
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int T_DIM, int T_Q1D = 8>
+template<int T_DIM, int T_Q1D = LocalQFLOBackendMQ1()>
 struct LocalQFLOBackend
 {
    // ─────────────────────────────────────────────────────

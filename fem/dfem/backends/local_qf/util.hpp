@@ -523,57 +523,31 @@ inline int compute_kernel_thread_1d(
 }
 
 /// @brief Dispatch to a compile-time LO kernel matching runtime @a q1d.
-///
-/// Used by LO Fallback paths so scratch/register banks are sized to the actual
-/// quadrature order (MQ1 == q1d) instead of the default T_Q1D = 8 backend.
 template <typename LOKernelTable, int DIM>
 inline typename LOKernelTable::KernelSignature
 DispatchLOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= 8,
                "Unsupported LO quadrature order: " << q1d);
-   switch (q1d)
+   if (q1d <= 4)
    {
-      case 2: return LOKernelTable::template Kernel<DIM, 2>();
-      case 3: return LOKernelTable::template Kernel<DIM, 3>();
-      case 4: return LOKernelTable::template Kernel<DIM, 4>();
-      case 5: return LOKernelTable::template Kernel<DIM, 5>();
-      case 6: return LOKernelTable::template Kernel<DIM, 6>();
-      case 7: return LOKernelTable::template Kernel<DIM, 7>();
-      case 8: return LOKernelTable::template Kernel<DIM, 8>();
-      default:
-         MFEM_ABORT("Unsupported LO quadrature order: " << q1d);
+      return LOKernelTable::template Kernel<DIM, 4>();
    }
+   return LOKernelTable::template Kernel<DIM, 8>();
 }
 
 /// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
-///
-/// HO kernels are instantiated only for Q1D in {8, 10, 12, 16, 20}. This picks
-/// the smallest registered order that fits @a q1d so Fallback avoids the
-/// default T_Q1D = 20 backend when a smaller specialization suffices.
 template <typename HOKernelTable, int DIM>
 inline typename HOKernelTable::KernelSignature
 DispatchHOKernelByQ1D(int q1d)
 {
-   MFEM_VERIFY(q1d >= 2 && q1d <= 20,
+   MFEM_VERIFY(q1d >= 2 && q1d <= 16,
                "Unsupported HO quadrature order: " << q1d);
    if (q1d <= 8)
    {
       return HOKernelTable::template Kernel<DIM, 8>();
    }
-   if (q1d <= 10)
-   {
-      return HOKernelTable::template Kernel<DIM, 10>();
-   }
-   if (q1d <= 12)
-   {
-      return HOKernelTable::template Kernel<DIM, 12>();
-   }
-   if (q1d <= 16)
-   {
-      return HOKernelTable::template Kernel<DIM, 16>();
-   }
-   return HOKernelTable::template Kernel<DIM, 20>();
+   return HOKernelTable::template Kernel<DIM, 16>();
 }
 
 } // namespace mfem::future

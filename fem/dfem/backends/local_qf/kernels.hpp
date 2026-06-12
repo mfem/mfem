@@ -58,24 +58,20 @@ extern template struct ho_ker_backend<2, 8>;
 extern template struct ho_ker_backend<2, 10>;
 extern template struct ho_ker_backend<2, 12>;
 extern template struct ho_ker_backend<2, 16>;
-extern template struct ho_ker_backend<2, 20>;
 
 extern template struct ho_ker_backend<3, 8>;
 extern template struct ho_ker_backend<3, 10>;
 extern template struct ho_ker_backend<3, 12>;
 extern template struct ho_ker_backend<3, 16>;
-extern template struct ho_ker_backend<3, 20>;
 
 extern template struct LocalQFHOBackend<2, 8>;
 extern template struct LocalQFHOBackend<2, 10>;
 extern template struct LocalQFHOBackend<2, 12>;
 extern template struct LocalQFHOBackend<2, 16>;
-extern template struct LocalQFHOBackend<2, 20>;
 
 extern template struct LocalQFHOBackend<3, 8>;
 extern template struct LocalQFHOBackend<3, 10>;
 extern template struct LocalQFHOBackend<3, 12>;
 extern template struct LocalQFHOBackend<3, 16>;
-extern template struct LocalQFHOBackend<3, 20>;
 
 } // namespace mfem::future

@@ -20,6 +20,9 @@ namespace mfem::future
 {
 
 // ────────────────────────────────────────────────────────────────────────────
+inline constexpr int LocalQFHOBackendMQ1() { return 16; }
+
+// ────────────────────────────────────────────────────────────────────────────
 /// Register type for one HO q-function parameter
 template<typename KerOps, typename T, int rank = qf_param_shape<T>::rank>
 struct ho_qreg;
@@ -413,7 +416,7 @@ struct ho_ker_backend
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int T_DIM, int T_Q1D = 20>
+template<int T_DIM, int T_Q1D = LocalQFHOBackendMQ1()>
 struct LocalQFHOBackend
 {
    // ─────────────────────────────────────────────────────
