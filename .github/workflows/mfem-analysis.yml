@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ env.ACTIONS_VERSION }}
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-int32-fp64-${{ env.ACTIONS_VERSION }}
 
       - name: Get Hypre
         if: steps.hypre-cache.outputs.cache-hit != 'true'
@@ -63,6 +63,7 @@ jobs:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
           target: int32
+          precision: fp64
 
       - name: Cache Metis Install
         id: metis-cache
