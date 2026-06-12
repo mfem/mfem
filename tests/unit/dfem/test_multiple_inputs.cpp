@@ -27,6 +27,7 @@ using dscalar_t = real_t;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
+// ────────────────────────────────────────────────────────────────────────────
 template<int DIM, typename ValSeq, typename GradSeq>
 struct multiply_inputs_qf;
 
@@ -35,42 +36,44 @@ struct multiply_inputs_qf<DIM, std::index_sequence<Vs...>,
           std::index_sequence<Gs...>>
 {
    template<std::size_t>
-   using scalar_ref = const dscalar_t &;
-   template<std::size_t>
-   using grad_ref = const tensor<dscalar_t, DIM> &;
+   using value_t = const dscalar_t &;
 
-   inline MFEM_HOST_DEVICE void operator()(scalar_ref<Vs>... us,
-                                           grad_ref<Gs>... gs,
-                                           const tensor<real_t, DIM, DIM> &J,
-                                           const real_t &w,
-                                           dscalar_t &v) const
+   template<std::size_t>
+   using gradient_t = const tensor<dscalar_t, DIM> &;
+
+   inline MFEM_HOST_DEVICE void operator()(
+      const tensor<real_t, DIM, DIM> &J,
+      value_t<Vs>... vs,
+      gradient_t<Gs>... gs,
+      const real_t &w,
+      dscalar_t &v) const
    {
-      v = (us * ...) * (real_t{1} + (w - w) * (gs(0) + ...)) * w * det(J);
+      v = (vs * ...) * (real_t{1} + (w - w) * (gs(0) + ...)) * w * det(J);
    }
 };
 
 template<int DIM, std::size_t Nv, std::size_t Ng>
-using multiply_inputs_qf_t = multiply_inputs_qf<
-                             DIM, std::make_index_sequence<Nv>, std::make_index_sequence<Ng>>;
+using multiply_inputs_qf_t =
+   multiply_inputs_qf<DIM,
+   std::make_index_sequence<Nv>,
+   std::make_index_sequence<Ng>>;
 
-template<int U, int /*I*/>
-using value_input = Value<U>;
+// ────────────────────────────────────────────────────────────────────────────
+template<int I>
+using Values = Value<I>;
 
-template<int U, int /*I*/>
-using gradient_input = Gradient<U>;
+template<int I>
+using Gradients = Gradient<I>;
 
-template<int U, int Coords, int... Vs, int... Gs>
+template<int... Vs, int... Gs>
 constexpr auto make_inputs(std::integer_sequence<int, Vs...>,
                            std::integer_sequence<int, Gs...>)
 {
-   return Inputs<
-          value_input<U, Vs>...,
-          gradient_input<U, Gs>...,
-          Gradient<Coords>,
-          Weight
-          > {};
+   return Inputs<Gradient<0>, Values<1 + Vs>...,
+          Gradients<1 + sizeof...(Vs) + Gs>..., Weight> {};
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 struct InputsTestContext
 {
    ParMesh &pmesh;
@@ -84,39 +87,39 @@ struct InputsTestContext
    int tvsize;
 };
 
-template<int DIM, int U, int Coords, std::size_t Nv, std::size_t Ng>
-void test_n_inputs(const InputsTestContext &ctx)
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM, std::size_t Nv, std::size_t Ng>
+void test_nv_ng_inputs(const InputsTestContext &ctx)
 {
-   const std::size_t n_u = Nv + Ng;
+   constexpr std::size_t Ni = Nv + Ng;
 
+   // inputs & output
    std::vector<FieldDescriptor> in_fds;
-   in_fds.reserve(n_u + 1);
-   for (std::size_t i = 0; i < n_u; ++i)
+   in_fds.reserve(Ni + 1);
+   in_fds.emplace_back(0, ctx.mfes); // Coords
+   for (std::size_t i = 1; i <= Ni; ++i)
    {
-      in_fds.emplace_back(U, &ctx.pfes);
+      in_fds.emplace_back(i, &ctx.pfes);
    }
-   in_fds.emplace_back(Coords, ctx.mfes);
-   const auto out_fds = std::vector{ FieldDescriptor{ U, &ctx.pfes } };
+   const auto out_fds = std::vector{ FieldDescriptor{ 1, &ctx.pfes } };
 
-   Array<int> mx_sizes(n_u + 1);
-   for (std::size_t i = 0; i < n_u; ++i)
-   {
-      mx_sizes[i] = ctx.tvsize;
-   }
-   mx_sizes[n_u] = ctx.N_vec.Size();
+   // Prepare the MultiVector inputs
+   Array<int> mx_sizes(Ni + 1);
+   mx_sizes[0] = ctx.N_vec.Size(); // Coords
+   for (std::size_t i = 1; i <= Ni; ++i) { mx_sizes[i] = ctx.tvsize; }
 
    MultiVector MX;
    MX.SetSizes(mx_sizes);
-   for (std::size_t i = 0; i < n_u; ++i)
+   MX.MakeRef(0, ctx.N_vec);
+   for (std::size_t i = 1; i <= Ni; ++i)
    {
       MX.MakeRef(static_cast<int>(i), ctx.input);
    }
-   MX.MakeRef(static_cast<int>(n_u), ctx.N_vec);
 
-   using IT = decltype(make_inputs<U, Coords>(
+   using IT = decltype(make_inputs(
                           std::make_integer_sequence<int, Nv> {},
                           std::make_integer_sequence<int, Ng> {}));
-   using OT = Outputs<Value<U>>;
+   using OT = Outputs<Value<1>>;
 
    multiply_inputs_qf_t<DIM, Nv, Ng> qfn;
 
@@ -137,9 +140,10 @@ void test_n_inputs(const InputsTestContext &ctx)
    REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
 }
 
-template<int DIM, int U, int Coords, std::size_t MaxV, std::size_t MaxG>
-void test_inputs(int p)
+// ────────────────────────────────────────────────────────────────────────────
+void test_multiple_inputs(int p)
 {
+   static constexpr int DIM = 2;
    CAPTURE(DIM, p);
 
    Mesh smesh("../../data/inline-quad.mesh");
@@ -149,8 +153,6 @@ void test_inputs(int p)
    pmesh.EnsureNodes();
    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
    smesh.Clear();
-
-   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
 
    Array<int> all_domain_attr;
    if (pmesh.attributes.Size() > 0)
@@ -167,10 +169,10 @@ void test_inputs(int p)
    const int tvsize = pfes.GetTrueVSize();
 
    ParGridFunction x(&pfes), y(&pfes);
-   Vector X(tvsize), Y_ref(tvsize);
+   Vector X_ref(tvsize), Y_ref(tvsize);
 
-   X = 1.0;
-   x.SetFromTrueDofs(X);
+   X_ref = 1.0;
+   x.SetFromTrueDofs(X_ref);
 
    ConstantCoefficient one(1.0);
 
@@ -192,22 +194,15 @@ void test_inputs(int p)
       pmesh, pfes, mfes, ir, all_domain_attr, Y_ref, N_vec, input, tvsize
    };
 
-   for_constexpr([&](auto I)
-   {
-      for_constexpr([&](auto J)
-      {
-         test_n_inputs<DIM, U, Coords, 1 + I.value, 1 + J.value>(ctx);
-      }, std::make_integer_sequence<std::size_t, MaxG> {});
-   }, std::make_integer_sequence<std::size_t, MaxV> {});
+   // with current dFEM tuple: max 9 = J + 3 + 3 + weights + output
+   test_nv_ng_inputs<DIM, 3, 3>(ctx);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Inputs", "[Parallel][dFEM][GPU]")
 {
-   static constexpr int DIM = 2, U = 0, Coords = 1;
-   static constexpr std::size_t MaxV = 3, MaxG = 3;
-   const auto p = GenAll({ 1 }, { 2, 3 });
-
-   test_inputs<DIM, U, Coords, MaxV, MaxG>(p);
+   const auto p = GenAll({1}, {2, 3, 8});
+   test_multiple_inputs(p);
 }
 
 #endif // MFEM_USE_MPI

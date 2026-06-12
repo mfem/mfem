@@ -748,8 +748,11 @@ void DifferentiableOperator::AddIntegrator(
       count_unique_field_ids(filtered_inout_tuple);
 
    MFEM_VERIFY(num_fields == unionfds.size(),
-               "Total number of fields in the Q-function doesn't match "
-               "the union of FieldDescriptors.");
+               "Total number of fields (" +
+               std::to_string(num_fields) + ") "
+               "in the Q-function doesn't match "
+               "the union of FieldDescriptors (" +
+               std::to_string(unionfds.size()) + ")");
 
    auto dependency_map = make_dependency_map(inputs);
 
