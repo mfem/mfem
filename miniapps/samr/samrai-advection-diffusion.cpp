@@ -251,14 +251,19 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         std::cout << "Unable to connect to GLVis server at "
-                   << vishost << ':' << visport << std::endl;
+         if (mesh_ops->getMesh().GetMyRank() == 0)
+         {
+            std::cout << "Unable to connect to GLVis server at "
+                     << vishost << ':' << visport << std::endl;
+            std::cout << "GLVis visualization disabled.\n";
+         }
          visualization = false;
-         std::cout << "GLVis visualization disabled.\n";
       }
       else
       {
          sout.precision(precision);
+         sout << "parallel " << mesh_ops->getMesh().GetNRanks() << " "
+                             << mesh_ops->getMesh().GetMyRank() << "\n";
          sout << "solution\n" << mesh_ops->getMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
@@ -308,10 +313,13 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         std::cout << "step " << ti << ", t = " << time << std::endl;
+         if (mesh_ops->getMesh().GetMyRank() == 0)
+            std::cout << "step " << ti << ", t = " << time << std::endl;
 
          if (visualization)
          {
+            sout << "parallel " << mesh_ops->getMesh().GetNRanks() << " "
+                                << mesh_ops->getMesh().GetMyRank() << "\n";
             sout << "solution\n" << mesh_ops->getMesh() << *u_gf << std::flush;
          }
 
@@ -339,7 +347,8 @@ int main(int argc, char *argv[])
       u_gf->Save(osol);
    }
 
-   std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
+   if (mesh_ops->getMesh().GetMyRank() == 0)
+      std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
 
    SAMRAI::tbox::SAMRAIManager::shutdown();
    SAMRAI::tbox::SAMRAIManager::finalize();
