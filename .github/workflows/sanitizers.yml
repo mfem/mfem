@@ -24,9 +24,6 @@ concurrency:
   group: ${{github.workflow}}-${{github.ref}}
   cancel-in-progress: true
 
-env:
-  ACTIONS_VERSION: update-num-tasks
-
 jobs:
 
   # Build steps for dependencies

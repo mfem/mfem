@@ -12,6 +12,9 @@
 name: Sanitizer Config
 description: Sets up environment variables for MFEM sanitizer workflow
 
+env:
+  ACTIONS_VERSION: update-num-tasks
+
 inputs:
   DEBUG:
     description: If true, use intermediate caches to speed up the workflow
