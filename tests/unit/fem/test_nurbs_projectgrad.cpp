@@ -322,7 +322,7 @@ TEST_CASE("NURBS ProjectGrad 2D", "[NURBSProjectGrad2D]")
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
    NURBS_HCurlFECollection nurbs_fec(order, 2);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec);
 
    FunctionCoefficient f_coeff(LinearFunction2D);
    GridFunction h1_gf(&h1_fes);
@@ -342,7 +342,7 @@ TEST_CASE("NURBS ProjectGrad 3D", "[NURBSProjectGrad3D]")
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
    NURBS_HCurlFECollection nurbs_fec(order, 3);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec);
 
    FunctionCoefficient f_coeff(LinearFunction3D);
    GridFunction h1_gf(&h1_fes);
@@ -362,7 +362,7 @@ TEST_CASE("NURBS Project 2D", "[NURBSProject2D]" )
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
    NURBS_HCurlFECollection nurbs_fec(order, 2);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 2);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec);
 
    CheckProject2D(h1_fes, nurbs_fes);
 }
@@ -378,7 +378,7 @@ TEST_CASE("NURBS Project 3D", "[NURBSProject3D]" )
    FiniteElementSpace h1_fes(&mesh, &h1_fec);
 
    NURBS_HCurlFECollection nurbs_fec(order, 3);
-   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3);
+   FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec);
 
    CheckProject3D(h1_fes, nurbs_fes);
 }

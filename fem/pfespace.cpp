@@ -358,6 +358,7 @@ void ParFiniteElementSpace::GetGroupComm(
       }
    }
 
+   bool have_sign_flips = false;
    if (g_ldof_sign)
    {
       g_ldof_sign->SetSize(GetNDofs());
@@ -433,10 +434,11 @@ void ParFiniteElementSpace::GetGroupComm(
             {
                if (ind[l] < 0)
                {
-                  dofs[l] = m + (-1-ind[l]);
+                  dofs[l] = m + FlipIndexSign(ind[l]);
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -471,10 +473,11 @@ void ParFiniteElementSpace::GetGroupComm(
             {
                if (ind[l] < 0)
                {
-                  dofs[l] = m + (-1-ind[l]);
+                  dofs[l] = m + FlipIndexSign(ind[l]);
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -509,10 +512,11 @@ void ParFiniteElementSpace::GetGroupComm(
             {
                if (ind[l] < 0)
                {
-                  dofs[l] = m + (-1-ind[l]);
+                  dofs[l] = m + FlipIndexSign(ind[l]);
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -536,27 +540,33 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof.GetI()[gr+1] = group_ldof_counter;
    }
 
+   if (g_ldof_sign && have_sign_flips == false)
+   {
+      g_ldof_sign->DeleteAll();
+   }
+
    gc.Finalize();
 }
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
+   if (!HaveDofSigns()) { return; }
 
    for (int i = 0; i < dofs.Size(); i++)
    {
       if (dofs[i] < 0)
       {
-         if (ldof_sign[-1-dofs[i]] < 0)
+         if (ldof_sign[FlipIndexSign(dofs[i])] < 0)
          {
-            dofs[i] = -1-dofs[i];
+            dofs[i] = FlipIndexSign(dofs[i]);
          }
       }
       else
       {
          if (ldof_sign[dofs[i]] < 0)
          {
-            dofs[i] = -1-dofs[i];
+            dofs[i] = FlipIndexSign(dofs[i]);
          }
       }
    }
@@ -566,6 +576,24 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 {
    Array<int> all_dofs(el_dof.GetJ(), el_dof.Size_of_connections());
    ApplyLDofSigns(all_dofs);
+}
+
+void ParFiniteElementSpace::ApplyDofSigns(real_t *h_data) const
+{
+   if (!HaveDofSigns()) { return; }
+
+   const bool byvdim = (ordering == Ordering::byVDIM);
+   for (int i = 0; i < ndofs; i++)
+   {
+      if (ldof_sign[i] < 0)
+      {
+         for (int d = 0; d < vdim; d++)
+         {
+            const int idx = byvdim ? d+vdim*i : i+ndofs*d;
+            h_data[idx] = -h_data[idx];
+         }
+      }
+   }
 }
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
@@ -655,39 +683,38 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new ParL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParL2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParNCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
          if (Conforming())
          {
-            res = new ConformingFaceRestriction(*this, f_ordering, type);
+            res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
          }
          else
          {
-            res = new ParNCH1FaceRestriction(*this, f_ordering, type);
+            res.reset(new ParNCH1FaceRestriction(*this, f_ordering, type));
          }
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
    }
 }
 
@@ -709,7 +736,8 @@ void ParFiniteElementSpace::GetSharedEdgeDofs(
       for (int i = 0; i < dofs.Size(); i++)
       {
          const int di = dofs[i];
-         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+         dofs[i] = di >= 0 ? rdofs[di] :
+                   FlipIndexSign(rdofs[FlipIndexSign(di)]);
       }
    }
 }
@@ -733,7 +761,8 @@ void ParFiniteElementSpace::GetSharedTriangleDofs(
       for (int i = 0; i < dofs.Size(); i++)
       {
          const int di = dofs[i];
-         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+         dofs[i] = di >= 0 ? rdofs[di] :
+                   FlipIndexSign(rdofs[FlipIndexSign(di)]);
       }
    }
 }
@@ -757,7 +786,8 @@ void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
       for (int i = 0; i < dofs.Size(); i++)
       {
          const int di = dofs[i];
-         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+         dofs[i] = (di >= 0) ? rdofs[di] :
+                   FlipIndexSign(rdofs[FlipIndexSign(di)]);
       }
    }
 }
@@ -1200,14 +1230,14 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
    MFEM_VERIFY(IsVariableOrder() && R,
                "GetEssentialTrueDofsVar is only for variable-order spaces");
 
-   true_ess_dofs.SetSize(R->Height(), Device::GetDeviceMemoryType());
+   true_ess_dofs.SetSize(R->Height());
+   true_ess_dofs.HostWrite();
+   true_ess_dofs = 0;
 
    const int ntdofs = tdof2ldof.Size();
    MFEM_VERIFY(vdim * ntdofs == R->NumRows() &&
                vdim * ntdofs == true_ess_dofs.Size(), "");
    MFEM_VERIFY(ldof_ltdof.Size() == ndofs && ess_dofs.Size() == vdim * ndofs, "");
-
-   true_ess_dofs = 0;
 
    const bool bynodes = (ordering == Ordering::byNODES);
    const int vdim_factor = bynodes ? 1 : vdim;
@@ -1497,7 +1527,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
          GetElementVDofs(my_elems[i], ldofs);
          for (int j = 0; j < ldofs.Size(); j++)
          {
-            int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
+            int ldof = UnsignIndex(ldofs[j]);
 
             if (ldof_marker[ldof] != fn)
             {
@@ -1558,7 +1588,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
          GetElementVDofs(my_elems[i], ldofs);
          for (int j = 0; j < ldofs.Size(); j++)
          {
-            int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
+            int ldof = UnsignIndex(ldofs[j]);
 
             if (ldof_marker[ldof] != fn)
             {
@@ -1583,14 +1613,15 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
       for (int i = 0; i < num_ldofs; i++)
       {
-         int ldof = (ldofs_fn[i] >= 0 ? ldofs_fn[i] : -1-ldofs_fn[i]);
+         int ldof = UnsignIndex(ldofs_fn[i]);
          ldof_marker[ldof] = i;
       }
 
       for ( ; j < j_end; j++)
       {
-         int ldof = (send_J[j] >= 0 ? send_J[j] : -1-send_J[j]);
-         send_J[j] = (send_J[j] >= 0 ? ldof_marker[ldof] : -1-ldof_marker[ldof]);
+         const int ldof = UnsignIndex(send_J[j]);
+         send_J[j] = (send_J[j] >= 0 ? ldof_marker[ldof] :
+                      FlipIndexSign(ldof_marker[ldof]));
       }
    }
 
@@ -1682,12 +1713,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    {
       for (int j_end = face_nbr_ldof.GetI()[fn+1]; j < j_end; j++)
       {
-         int ldof = face_nbr_ldof.GetJ()[j];
-         if (ldof < 0)
-         {
-            ldof = -1-ldof;
-         }
-
+         const int ldof = UnsignIndex(face_nbr_ldof.GetJ()[j]);
          face_nbr_glob_dof_map[j] = dof_face_nbr_offsets[fn] + ldof;
       }
    }
@@ -1731,7 +1757,7 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    MFEM_ASSERT(Nonconforming() && i >= pmesh->GetNumFaces(), "");
    int el1, el2, inf1, inf2;
    pmesh->GetFaceElements(i, &el1, &el2);
-   el2 = -1 - el2;
+   el2 = FlipIndexSign(el2);
    pmesh->GetFaceInfos(i, &inf1, &inf2);
    MFEM_ASSERT(0 <= el2 && el2 < face_nbr_element_dof.Size(), "");
    const int nd = face_nbr_element_dof.RowSize(el2);
@@ -1747,7 +1773,8 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    for (int j = 0; j < vdofs.Size(); j++)
    {
       const int ldof = vdofs[j];
-      vdofs[j] = (ldof >= 0) ? vol_vdofs[ldof] : -1-vol_vdofs[-1-ldof];
+      vdofs[j] = (ldof >= 0) ? vol_vdofs[ldof] :
+                 FlipIndexSign(vol_vdofs[FlipIndexSign(ldof)]);
    }
 }
 
@@ -2071,8 +2098,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 
          for (int j = 0; j < ne; j++)
          {
-            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
-                             /*         */ : (-1 - (first + (-1 - ind[j])));
+            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j]) :
+                             FlipIndexSign(first + FlipIndexSign(ind[j]));
          }
       }
       else
@@ -2082,8 +2109,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
          const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
          for (int j = 0; j < ne; j++)
          {
-            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
-                             /*         */ : (-1 - (first + (-1 - ind[j])));
+            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j]) :
+                             FlipIndexSign(first + FlipIndexSign(ind[j]));
          }
       }
    }
@@ -2876,7 +2903,7 @@ void NeighborRowMessage::Encode(int rank)
 
             if (ind && (edof = ind[edof]) < 0)
             {
-               edof = -1 - edof;
+               edof = FlipIndexSign(edof);
                s = -1;
             }
 
@@ -3077,10 +3104,10 @@ void NeighborRowMessage::Decode(int rank)
 
          // If edof arrived with a negative index, flip it, and the scaling.
          real_t s = (edof < 0) ? -1.0 : 1.0;
-         edof = (edof < 0) ? -1 - edof : edof;
+         edof = UnsignIndex(edof);
          if (ind && (edof = ind[edof]) < 0)
          {
-            edof = -1 - edof;
+            edof = FlipIndexSign(edof);
             s *= -1.0;
          }
 
@@ -3131,10 +3158,10 @@ void NeighborRowMessage::Decode(int rank)
 
             // If edof arrived with a negative index, flip it, and the scaling.
             s = (edof < 0) ? -1.0 : 1.0;
-            edof = (edof < 0) ? -1 - edof : edof;
+            edof = UnsignIndex(edof);
             if (ind && (edof = ind[edof]) < 0)
             {
-               edof = -1 - edof;
+               edof = FlipIndexSign(edof);
                s *= -1.0;
             }
 
@@ -4415,12 +4442,9 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
          {
             for (int j = 0; j < dofs.Size(); j++)
             {
-               int row = DofToVDof(dofs[j], vd);
-               if (row < 0) { row = -1 - row; }
-
-               int col = DofToVDof(old_dofs[j], vd, old_ndofs);
-               if (col < 0) { col = -1 - col; }
-
+               const int row = UnsignIndex(DofToVDof(dofs[j], vd));
+               const int col = UnsignIndex(DofToVDof(old_dofs[j], vd,
+                                                     old_ndofs));
                i_diag[row] = col;
             }
          }
@@ -4445,9 +4469,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
       {
          for (int j = 0; j < dofs.Size(); j++)
          {
-            int row = DofToVDof(dofs[j], vd);
-            if (row < 0) { row = -1 - row; }
-
+            const int row = UnsignIndex(DofToVDof(dofs[j], vd));
             if (i_diag[row] == i_diag[row+1]) // diag row empty?
             {
                i_offd[row] = old_dofs[j + vd * dofs.Size()];
@@ -4556,9 +4578,9 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    {
       const Embedding &emb = dtrans.embeddings[k];
 
-      int fine_rank = old_ranks[k];
-      int coarse_rank = (emb.parent < 0) ? (-1 - emb.parent)
-                        : old_pncmesh->ElementRank(emb.parent);
+      const int fine_rank = old_ranks[k];
+      const int coarse_rank = (emb.parent < 0) ? FlipIndexSign(emb.parent)
+                              : old_pncmesh->ElementRank(emb.parent);
 
       if (coarse_rank != MyRank && fine_rank == MyRank)
       {
@@ -4646,8 +4668,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
             {
                if (!std::isfinite(lR(i, 0))) { continue; }
 
-               int r = DofToVDof(dofs[i], vd);
-               int m = (r >= 0) ? r : (-1 - r);
+               const int r = DofToVDof(dofs[i], vd);
+               const int m = UnsignIndex(r);
 
                if (is_dg || !mark[m])
                {
@@ -4696,8 +4718,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
             {
                if (!std::isfinite(lR(i, 0))) { continue; }
 
-               int r = DofToVDof(dofs[i], vd);
-               int m = (r >= 0) ? r : (-1 - r);
+               const int m = UnsignIndex(DofToVDof(dofs[i], vd));
 
                if (is_dg || !mark[m])
                {

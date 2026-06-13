@@ -433,6 +433,15 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
+# cuDSS can only be enabled in CUDA
+if (MFEM_USE_CUDSS)
+  if (MFEM_USE_CUDA)
+    find_package(CUDSS REQUIRED)
+  else()
+    message(FATAL_ERROR " *** cuDSS requires that CUDA be enabled.")
+  endif()
+endif()
+
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
@@ -631,7 +640,7 @@ find_package(Threads REQUIRED)
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
+    ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CUDSS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
     ALGOIM ENZYME CUDA::cudart)
 
@@ -652,6 +661,8 @@ foreach(TPL IN LISTS MFEM_TPLS)
   endif()
 endforeach(TPL)
 
+# reverse to remove the first instance of entries in TPL_LIBRARIES
+# so later duplicates are kept (for dependency ordering)
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
@@ -870,11 +881,12 @@ add_dependencies(exec
 #  - https://cmake.org/Bug/view.php?id=8438
 
 # Add a target to copy the mfem data directory to the build directory
-add_custom_command(OUTPUT data_is_copied
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/data data
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying the data directory ...")
-add_custom_target(copy_data DEPENDS data_is_copied)
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the data directory ...")
 # Add 'copy_data' as a prerequisite for all executables, if the source and the
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
@@ -1006,9 +1018,15 @@ install(FILES
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
 
+# Install the data directory if present, i.e. if the copy_data target is built
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+  DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
-
+if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+  option(MFEM_EXPORT_GPU_CONFIG "Export config.mk for GPU-enabled downstream packages" ON)
+endif()
 mfem_export_mk_files()
