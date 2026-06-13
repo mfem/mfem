@@ -517,10 +517,10 @@ struct get_function_signature<T, void_t<decltype(&T::operator())>>
 };
 
 // Helper to create tuples for e.g. FieldOperators
-template <class... Ops>
+template <typename... Ops>
 using Inputs = tuple<Ops...>;
 
-template <class... Ops>
+template <typename... Ops>
 using Outputs = tuple<Ops...>;
 
 // Convenience wrapper to encode Derivatives as integer sequence

@@ -1097,7 +1097,7 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
       (void (*)(const qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
       enzyme_const, &qfunc,
       enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-      &get<Is>(shadow_args)...);
+      &get<Is>(shadow_args)..., enzyme_runtime_activity);
 #else
    MFEM_CONTRACT_VAR(qfunc);
    MFEM_CONTRACT_VAR(primal_args);

@@ -319,7 +319,6 @@ public:
                         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                         {
                            const int q = qx + q1d * (qy + q1d * qz);
-
 #ifdef MFEM_USE_ENZYME
                            args_tuple_t primal_args {}, shadow_args {};
                            for_constexpr<n_inputs>([&](auto ic)
