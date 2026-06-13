@@ -80,6 +80,9 @@ private:
 
    static Vector toVector(const SAMRAI::hier::IntVector& vector);
 
+   static Vector getElementDimensions(Mesh& mesh, const int element_ind);
+
+
    // extracts the following information for the gather/scatter buffer:
    //   1) the number of values per element
    //   2) the vector dimension of each node field
@@ -87,6 +90,7 @@ private:
    std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
       std::vector<std::pair<int, GridFunction&>> node_fields,
       std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
+
 
    template<typename PODType>
    class BlockArray
@@ -156,8 +160,6 @@ private:
    // TODO: come up with better comment
    /***** member functions and variables *****/
 
-   std::vector<PatchInfo> global_patch_info;
-
    void AddNewPatchesToGlobalPatchInfo();
 
    void RemoveOldPatchesFromGlobalPatchInfo();
@@ -173,13 +175,13 @@ private:
    const int samrai_values_tag = 1;
    const int element_values_tag = 2;
 
-   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
    const Array<SAMRAI::pdat::NodeIndex::Corner> corners;
+   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
+   std::vector<PatchInfo> global_patch_info;
 
    ParMesh mesh;
    std::shared_ptr<GridFunction> mesh_grid_function;
    Vector mesh_index_space_tdofs;
-
    H1_FECollection fe_collection_node;
    L2_FECollection fe_collection_cell;
    // maps are from field dimension to finite element space

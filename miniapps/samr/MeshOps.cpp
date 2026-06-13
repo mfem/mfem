@@ -181,7 +181,7 @@ void MeshOps::AddNewPatchesToGlobalPatchInfo()
    std::vector<PatchInfo> global_added_patch_info;
    GatherGlobalPatchInfo(local_added_patch_info, global_added_patch_info);
 
-   // add patches to theglobal patch info list
+   // add patches to the global patch info list
    for (const PatchInfo& patch_info : global_added_patch_info)
    {
       global_patch_info.push_back(patch_info);
@@ -190,6 +190,7 @@ void MeshOps::AddNewPatchesToGlobalPatchInfo()
 
 void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
 {
+   // TODO: replace with mesh.GetMyRank
    int rank;
    MPI_Comm_rank(mesh.GetComm(), &rank);
 
@@ -198,6 +199,7 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
    std::vector<PatchInfo> local_removed_patch_info;
    for (unsigned patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
    {
+      bool removed = true;
       const PatchInfo& patch_info = global_patch_info[patch_ind];
       if (patch_info.rank != rank)
          continue;
@@ -209,9 +211,13 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
          if (patch_info.lower_index == patch_iter->getBox().lower() &&
                patch_info.upper_index == patch_iter->getBox().upper())
          {
-            local_removed_patch_info.push_back(patch_info);
+            removed = false;
             break;
          }
+      }
+      if (removed)
+      {
+         local_removed_patch_info.push_back(patch_info);
       }
    }
    std::vector<PatchInfo> global_removed_patch_info;
@@ -256,7 +262,7 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
    const real_t error_threshold = 1.0;
    Array<real_t> pseudo_error(mesh.GetNE());
 
-   for (int level_num=hierarchy->getFinestLevelNumber(); level_num >= 0; level_num--)
+   for (int level_num=hierarchy->getFinestLevelNumber(); level_num > 0; level_num--)
    {
       const Vector level0_ratio = toVector(
          hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
@@ -273,16 +279,8 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
       pseudo_error = error_threshold;
       for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
       {
-         Vector x0, h;
-         ElementTransformation* transform =
-            mesh.GetElementTransformation(element_ind);
-         // TODO: support 3D
-         const IntegrationPoint ip0 = {0.0, 0.0};
-         const IntegrationPoint ip1 = {1.0, 1.0};
-         transform->Transform(ip0, x0);
-         transform->Transform(ip1, h);
-         h -= x0;
-
+         const Vector h = getElementDimensions(mesh, element_ind);
+         // TODO: adjust for 3D
          if (std::abs(h[0] - dx) < 1e-12 && std::abs(h[1] - dy) < 1e-12)
          {
             // get center in current level coordinates
@@ -292,14 +290,19 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
             SAMRAI::hier::Index index = toIndex(center);
 
             // check if center is in any patches from current level
+            bool derefine = true;
             for (const auto& bounds : global_patch_bounds[level_num])
             {
                if (bounds.first <= index && index <= bounds.second + 1)
                {
-                  derefine_element_inds.Append(element_ind);
-                  pseudo_error[element_ind] = 0.0;
+                  derefine = false;
                   break;
                }
+            }
+            if (derefine)
+            {
+               pseudo_error[element_ind] = 0.0;
+               derefine_element_inds.Append(element_ind);
             }
          }
       }
@@ -320,10 +323,21 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
       const SAMRAI::hier::IntVector level_ratio =
          hierarchy->getPatchLevel(level_num)->getRatioToCoarserLevel();
 
+      // TODO: support 3D
+      MFEM_VERIFY(mesh.Dimension() == 2, "3D refinement not yet supported")
+      const double dx = 1.0/level0_ratio[0];
+      const double dy = 1.0/level0_ratio[1];
+
       // determine which elements to refine at this level
       Array<int> refine_element_inds;
       for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
       {
+         // skip element if already refined at or more than this level
+         const Vector h = getElementDimensions(mesh, element_ind);
+         // TODO: adjust for 3D
+         if (h[0] < dx + 1e-12 && h[1] < dy + 1e-12)
+            continue;
+
          // get center in current level coordinates
          Vector center;
          mesh.GetElementCenter(element_ind, center);
@@ -579,6 +593,7 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::transferToMFEM(
       cell_fields.emplace_back(cell_id, *grid_functions.back());
    }
 
+   // TODO: replace with mesh.GetMyRank, mesh.GetNRanks
    int rank, ranks;
    MPI_Comm_rank(mesh.GetComm(), &rank);
    MPI_Comm_size(mesh.GetComm(), &ranks);
@@ -939,6 +954,7 @@ void MeshOps::synchronizeToHierarchy()
 {
    // restore mesh topology to index space
    mesh_grid_function->SetFromTrueDofs(mesh_index_space_tdofs);
+   mesh.NodesUpdated();
 
    // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
@@ -946,24 +962,32 @@ void MeshOps::synchronizeToHierarchy()
    AddNewPatchesToGlobalPatchInfo();
    GetGlobalPatchBounds(global_patch_bounds);
 
-   // derefine and then refine mesh
+   // derefine and then refine mesh, updating the finite element spaces along
+   // the way
    DerefineMesh(global_patch_bounds);
-   RefineMesh(global_patch_bounds);
-
-   // create new transfer maps
-   CreateTransferMaps();
-
-   // update the finite element spaces and mesh grid function
-   for (auto& entry : fe_spaces_cell)
-   {
-      entry.second->Update();
-   }
    for (auto& entry : fe_spaces_node)
    {
       entry.second->Update();
    }
-   mesh_grid_function->Update();
+   for (auto& entry : fe_spaces_cell)
+   {
+      entry.second->Update();
+   }
+   RefineMesh(global_patch_bounds);
+   for (auto& entry : fe_spaces_node)
+   {
+      entry.second->Update();
+   }
+   for (auto& entry : fe_spaces_cell)
+   {
+      entry.second->Update();
+   }
 
+   // create new transfer maps
+   CreateTransferMaps();
+
+   mesh_grid_function->Update();
+   mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
 }
 
 std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
@@ -1031,6 +1055,20 @@ Vector MeshOps::toVector(const SAMRAI::hier::IntVector& vector)
    for (int i=0; i < result.Size(); i++)
       result[i] = vector[i];
    return result;
+}
+
+Vector MeshOps::getElementDimensions(Mesh& mesh, const int element_ind)
+{
+   // TODO: support 3D
+   MFEM_VERIFY(mesh.Dimension() == 2, "3D not yet supported");
+   Vector x0, h;
+   ElementTransformation* transform = mesh.GetElementTransformation(element_ind);
+   const IntegrationPoint ip0 = {0.0, 0.0};
+   const IntegrationPoint ip1 = {1.0, 1.0};
+   transform->Transform(ip0, x0);
+   transform->Transform(ip1, h);
+   h -= x0;
+   return h;
 }
 
 template<typename PODType>
