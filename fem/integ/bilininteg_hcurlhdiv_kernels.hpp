@@ -866,10 +866,22 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
 namespace curlinterp
 {
-constexpr int NBZ3D(int ndof_o, int nquad_o)
+constexpr int NBZ3D(int ndof_o, int nquad_o, int mdq)
 {
-   // TODO
-   return 1;
+   if (ndof_o <= 0 || nquad_o <= 0)
+   {
+      return 1;
+   }
+   int ndof_c = ndof_o + 1;
+   int nquad_c = nquad_o + 1;
+   // z dimension is capped at 64 on nvidia and amd gpus
+   int tmp = std::min((128 + mdq * mdq * mdq - 1) / (mdq * mdq * mdq), 64);
+   int smem_req =
+      sizeof(mfem::real_t) *
+      ((3 * ndof_c * ndof_c * ndof_o + 2 * 2 * mdq * mdq * mdq) * tmp +
+       ndof_c * nquad_o + ndof_c * nquad_c + ndof_o * nquad_o);
+   // assume GPU has at least 48k shared memory
+   return std::max(std::min(tmp, (48 * 1024 + smem_req - 1) / smem_req), 1);
 }
 }
 
@@ -881,7 +893,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
    constexpr int MND_O = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
    constexpr int MNQ_O = T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
    constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
-   constexpr int TBATCH = curlinterp::NBZ3D(MND_O, MNQ_O);
+   constexpr int TBATCH = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
    MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
    MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
    int mnq = std::max(ndof_o + 1, nquad_o + 1);
