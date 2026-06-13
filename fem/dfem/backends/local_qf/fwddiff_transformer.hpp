@@ -245,20 +245,20 @@ struct FwdDiff
 
    template <size_t... Is> static void print_impl(std::index_sequence<Is...>)
    {
-      std::cout << "for d in [0, " << grad_components
+      mfem::out << "for d in [0, " << grad_components
                 << "): __enzyme_fwddiff<void>(fptr, enzyme_dup";
-      ((std::cout << ", "
+      ((mfem::out << ", "
         << get_type_name<std::tuple_element_t<Is, args_tuple>>()),
        ...);
-      std::cout << ", enzyme_interleave";
+      mfem::out << ", enzyme_interleave";
       (([&]
       {
-         if constexpr (Is == active_input) { std::cout << ", e_d seed"; }
-         else if constexpr (Is == active_output) { std::cout << ", tangent out"; }
-         else { std::cout << ", zero tangent"; }
+         if constexpr (Is == active_input) { mfem::out << ", e_d seed"; }
+         else if constexpr (Is == active_output) { mfem::out << ", tangent out"; }
+         else { mfem::out << ", zero tangent"; }
       }()),
       ...);
-      std::cout << ")\n";
+      mfem::out << ")\n";
    }
 };
 
