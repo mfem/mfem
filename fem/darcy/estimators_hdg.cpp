@@ -64,6 +64,13 @@ void HDGErrorEstimator::ComputeEstimates()
    }
 
    total_error = error_estimates.Sum();
+#ifdef MFEM_USE_MPI
+   if (psol_tr)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &total_error, 1, MFEM_MPI_REAL_T, MPI_SUM,
+                    psol_tr->ParFESpace()->GetComm());
+   }
+#endif
 
    if (type == Type::Energy)
    {
