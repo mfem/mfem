@@ -1128,6 +1128,14 @@ TEST_CASE("Partial Assemble Linear Interpolator",
          CurlPA.Mult(x, y_pa);
          y_pa -= y_fa;
          REQUIRE(y_pa.Normlinf() < tol);
+
+         // transpose
+         y_fa.ProjectCoefficient(coeff);
+         GridFunction x_fa(&fespace_nd), x_pa(&fespace_nd);
+         Curl.MultTranspose(y_fa, x_fa);
+         CurlPA.MultTranspose(y_fa, x_pa);
+         x_pa -= x_fa;
+         REQUIRE(x_pa.Normlinf() < tol);
       }
    }
 }

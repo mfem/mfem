@@ -2020,7 +2020,7 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
 
    for (int j = 0; j < nquad_c; ++j)
    {
-      cbasis1d.Eval(qo[j], b);
+      cbasis1d.Eval(qc[j], b);
       for (int i = 0; i < ndof_c; ++i)
       {
          ptr[j + i * nquad_c] = b[i];
@@ -2031,7 +2031,7 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
    b.SetSize(ndof_o);
    for (int j = 0; j < nquad_o; ++j)
    {
-      obasis1d.Eval(qc[j], b);
+      obasis1d.Eval(qo[j], b);
       for (int i = 0; i < ndof_o; ++i)
       {
          ptr[j + i * nquad_o] = b[i];
