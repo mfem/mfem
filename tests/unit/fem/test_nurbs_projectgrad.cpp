@@ -51,6 +51,45 @@ void CheckRows(const Vector &values, int first, int last, real_t expected)
    }
 }
 
+void CheckNodes2D(const FiniteElement &fe)
+{
+   const IntegrationRule &nodes = fe.GetNodes();
+   bool has_nonzero_node = false;
+
+   REQUIRE(nodes.GetNPoints() == fe.GetDof());
+   for (int i = 0; i < nodes.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = nodes.IntPoint(i);
+      REQUIRE(ip.x >= -1e-12);
+      REQUIRE(ip.x <= 1.0 + 1e-12);
+      REQUIRE(ip.y >= -1e-12);
+      REQUIRE(ip.y <= 1.0 + 1e-12);
+      has_nonzero_node = has_nonzero_node || ip.x != 0.0 || ip.y != 0.0;
+   }
+   REQUIRE(has_nonzero_node);
+}
+
+void CheckNodes3D(const FiniteElement &fe)
+{
+   const IntegrationRule &nodes = fe.GetNodes();
+   bool has_nonzero_node = false;
+
+   REQUIRE(nodes.GetNPoints() == fe.GetDof());
+   for (int i = 0; i < nodes.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = nodes.IntPoint(i);
+      REQUIRE(ip.x >= -1e-12);
+      REQUIRE(ip.x <= 1.0 + 1e-12);
+      REQUIRE(ip.y >= -1e-12);
+      REQUIRE(ip.y <= 1.0 + 1e-12);
+      REQUIRE(ip.z >= -1e-12);
+      REQUIRE(ip.z <= 1.0 + 1e-12);
+      has_nonzero_node = has_nonzero_node ||
+                         ip.x != 0.0 || ip.y != 0.0 || ip.z != 0.0;
+   }
+   REQUIRE(has_nonzero_node);
+}
+
 void CheckProjectGrad2D(FiniteElementSpace &h1_fes,
                         FiniteElementSpace &nurbs_fes,
                         GridFunction &h1_gf)
@@ -72,6 +111,7 @@ void CheckProjectGrad2D(FiniteElementSpace &h1_fes,
       const NURBS_HCurl2DFiniteElement *hc_fe =
          dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
       REQUIRE(hc_fe != nullptr);
+      CheckNodes2D(*nurbs_fe);
 
       // The scalar NURBS mesh stores order p+1 for the component spaces used
       // to build H(curl), while the local H(curl) blocks have order p in the
@@ -118,6 +158,7 @@ void CheckProjectGrad3D(FiniteElementSpace &h1_fes,
       const NURBS_HCurl3DFiniteElement *hc_fe =
          dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
       REQUIRE(hc_fe != nullptr);
+      CheckNodes3D(*nurbs_fe);
 
       const int p = nurbs_fe->GetOrder() - 1;
       const int ndof_x = (p + 1)*(p + 2)*(p + 2);

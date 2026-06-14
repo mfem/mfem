@@ -19,6 +19,11 @@ namespace mfem
 
 using namespace std;
 
+static real_t NURBSLocalNode(const int i, const int n)
+{
+   return (n == 1) ? 0.5 : real_t(i)/real_t(n - 1);
+}
+
 void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
@@ -1080,10 +1085,32 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
 
    order = max(orders[0]+1, orders[1]+1);
    dof = (orders[0] + 1)*(orders[1] + 2)
-         + (orders[1] + 2)*(orders[1] + 1);
+         + (orders[0] + 2)*(orders[1] + 1);
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+
+   Nodes.SetSize(dof);
+
+   // Use tensor-product reference nodes matching the component spaces:
+   // x-directed dofs use (p_x, p_y+1), y-directed dofs use (p_x+1, p_y).
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t y = NURBSLocalNode(j, orders[1] + 2);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         Nodes.IntPoint(o).Set2(NURBSLocalNode(i, orders[0] + 1), y);
+      }
+   }
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t y = NURBSLocalNode(j, orders[1] + 1);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         Nodes.IntPoint(o).Set2(NURBSLocalNode(i, orders[0] + 2), y);
+      }
+   }
 }
 
 void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -1378,6 +1405,49 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+
+   Nodes.SetSize(dof);
+
+   // Use tensor-product reference nodes matching the component spaces:
+   // x-directed dofs use (p_x, p_y+1, p_z+1), y-directed dofs use
+   // (p_x+1, p_y, p_z+1), and z-directed dofs use (p_x+1, p_y+1, p_z).
+   int o = 0;
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 2);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 2);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 1), y, z);
+         }
+      }
+   }
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 2);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 1);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 2), y, z);
+         }
+      }
+   }
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 1);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 2);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 2), y, z);
+         }
+      }
+   }
 }
 
 void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
