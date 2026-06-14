@@ -9,12 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//    ------------------------------------------------------------------
-//      Fitting of Selected Mesh Nodes to Specified Physical Positions
-//    ------------------------------------------------------------------
+//    -------------------------------------------------------------------
+//    Tangential relaxation of boundary nodes to a given analytic surface
+//    -------------------------------------------------------------------
 //
-// This example fits a selected set of the mesh nodes to given physical
-// positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
 // mpirun -np 4 tmop-tangent -rs 2 -m square01.mesh -o 2 -qo 6
