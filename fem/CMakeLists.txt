@@ -171,14 +171,19 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findptsedge_local_2.cpp
+  gslib/findptsedge_local_3.cpp
+  gslib/findptssurf_local_3.cpp
   gslib/findpts_local_2.cpp
   gslib/findpts_local_3.cpp
+  gslib/interpolate_local_1.cpp
   gslib/interpolate_local_2.cpp
   gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
   bounds.cpp
+  particleset.cpp
   )
 
 set(HDRS
@@ -308,6 +313,7 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   bounds.hpp
+  particleset.hpp
   )
 
 if (MFEM_USE_SIDRE)

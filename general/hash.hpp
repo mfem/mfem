@@ -15,8 +15,8 @@
 #include "../config/config.hpp"
 #include "array.hpp"
 #include "globals.hpp"
+#include "hash_util.hpp"
 
-#include <array>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
@@ -455,75 +455,6 @@ protected:
        @param[in] idx The index of the bin.
        @return The size of the bin. */
    int BinSize(int idx) const;
-};
-
-///
-/// @brief streaming implementation for murmurhash3 128 (x64).
-/// Constructs the hash in 3 stages: init, append, finalize.
-///
-struct Hasher
-{
-   /// where the final hash result is stored after finalize. Use data[1] when
-   /// only 64 bits are required.
-   uint64_t data[2] = {0, 0};
-
-private:
-   uint64_t nbytes = 0;
-
-   uint64_t buf_[2] = {0, 0};
-
-public:
-
-   /// resets this hasher back to an initial seed
-   void init(uint64_t seed = 0);
-   void append(const uint8_t *vs, uint64_t bytes);
-
-   void finalize();
-
-private:
-   // add 16 bytes
-   void add_block(uint64_t k1, uint64_t k2);
-
-   // add [1-8] more bytes, then finalize
-   void finalize(uint64_t k1, int num);
-
-   // add [1-15] more bytes, then finalize
-   // 0 < num < 16
-   void finalize(uint64_t k1, uint64_t k2, int num);
-};
-
-/// Helper class for hashing std::pair. Usable in place of std::hash<std::pair<T,U>>
-struct PairHasher
-{
-   template <class T, class V>
-   size_t operator()(const std::pair<T, V> &v) const noexcept
-   {
-      Hasher hash;
-      // chosen randomly with a 2^64-sided dice
-      hash.init(0xfebd1fe69813c14full);
-      hash.append(reinterpret_cast<const uint8_t *>(&v.first), sizeof(T));
-      hash.append(reinterpret_cast<const uint8_t *>(&v.second), sizeof(V));
-      hash.finalize();
-      return hash.data[1];
-   }
-};
-
-/// Helper class for hashing std::array. Usable in place of std::hash<std::array<T,N>>
-struct ArrayHasher
-{
-   template <class T, size_t N>
-   size_t operator()(const std::array<T, N> &v) const noexcept
-   {
-      Hasher hash;
-      // chosen randomly with a 2^64-sided dice
-      hash.init(0xfebd1fe69813c14full);
-      for (size_t i = 0; i < N; ++i)
-      {
-         hash.append(reinterpret_cast<const uint8_t *>(&v[i]), sizeof(T));
-      }
-      hash.finalize();
-      return hash.data[1];
-   }
 };
 
 /// Hash function for data sequences.

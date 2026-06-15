@@ -363,14 +363,19 @@ void SuperLUSolver::Init(MPI_Comm comm)
    // Set default options:
    //    options.Fact = DOFACT;
    //    options.Equil = YES;
+   //    options.ParSymbFact = NO;
    //    options.ColPerm = METIS_AT_PLUS_A;
    //    options.RowPerm = LargeDiag_MC64;
    //    options.ReplaceTinyPivot = NO;
-   //    options.Trans = NOTRANS;
    //    options.IterRefine = SLU_DOUBLE;
+   //    options.Trans = NOTRANS;
    //    options.SolveInitialized = NO;
    //    options.RefineInitialized = NO;
    //    options.PrintStat = YES;
+   //    options.lookahead_etree = NO;
+   //    options.num_lookaheads = 10;
+   //    options.superlu_acc_offload = 1;
+   //    options.SymPattern = NO;
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    set_default_options_dist(options);
 #if SUPERLU_DIST_MAJOR_VERSION > 7 || \
@@ -470,6 +475,12 @@ void SuperLUSolver::SetFact(superlu::Fact fact)
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    fact_t opt = (fact_t)fact;
    options->Fact = opt;
+}
+
+void SuperLUSolver::SetDeviceOffload(bool offload)
+{
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_acc_offload = offload;
 }
 
 void SuperLUSolver::SetOperator(const Operator &op)

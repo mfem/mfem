@@ -381,11 +381,24 @@ public:
       ADDITIVE_TERM_2
    };
 
+   /** Used to specify the variable being returned by ImplicitSolve(). This can
+    * be queried by ODESolver to identify the variable being solved for.
+    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariableType() */
+   enum ImplicitVariableType
+   {
+      SLOPE, ///< stage slope, $k = \frac{du}{dt}$.
+      STATE  ///< stage state, $k = u$.
+   };
+
 protected:
    real_t t;  ///< Current time.
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+   ImplicitVariableType implicit_variable_type =
+      ImplicitVariableType::SLOPE; /**< @brief
+                                                        Return variable for
+                                                        ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -429,6 +442,24 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve()*/
+   virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   { implicit_variable_type = variable_type; }
+
+   /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
+   virtual ImplicitVariableType GetImplicitVariableType() const
+   { return implicit_variable_type; }
+
+   /** @brief Returns @a true if implicit variable is #STATE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsState() const
+   { return (implicit_variable_type == ImplicitVariableType::STATE); }
+
+   /** @brief Returns @a true if implicit variable is #SLOPE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsSlope() const
+   { return (implicit_variable_type == ImplicitVariableType::SLOPE); }
+
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
@@ -462,7 +493,8 @@ public:
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
-       F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
+        1. $F( u + \gamma k, k, t) = G( u +  \gamma k, t)$, if solving for stage-slope (default)
+        2. $F( u , \frac{k-u}{\gamma}, t) = G(k, t)$, if solving for stage-state
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
@@ -472,8 +504,9 @@ public:
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
          3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-       Regardless of the choice of F and G, this function should solve for @a k
-       in M @a k = g(@a u + @a gamma @a k, t).
+        Regardless of the choice of F and G, this function should solve for @a k:
+        - $~Mk = g( u + \gamma k, t)~$, if solving for stage-slope.
+        - $~Mk  = \gamma g(k, t) + Mu~$, if solving for stage-state
 
        To see how @a k can be useful, consider the backward Euler method defined
        by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
@@ -491,6 +524,7 @@ public:
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
        $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
+       See SetImplicitVariableType() to switch between different variable modes.
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 

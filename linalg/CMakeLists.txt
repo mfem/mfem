@@ -29,6 +29,8 @@ list(APPEND SRCS
   mma.cpp
   ode.cpp
   operator.cpp
+  ordering.cpp
+  particlevector.cpp
   solvers.cpp
   sparsemat.cpp
   sparsesmoothers.cpp
@@ -63,6 +65,8 @@ list(APPEND HDRS
   mma.hpp
   ode.hpp
   operator.hpp
+  ordering.hpp
+  particlevector.hpp
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp
@@ -142,6 +146,12 @@ endif()
 if (MFEM_USE_MKL_PARDISO)
   list(APPEND SRCS pardiso.cpp)
   list(APPEND HDRS pardiso.hpp)
+endif()
+
+# cudss solver
+if (MFEM_USE_CUDSS)
+  list(APPEND SRCS cudss.cpp)
+  list(APPEND HDRS cudss.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

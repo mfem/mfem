@@ -464,4 +464,80 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
          REQUIRE(rel_error_norm == MFEM_Approx(0.0));
       }
    }
+
+   SECTION("Surface Determinants: 1D surface in 2D/3D and 2D surface in 3D")
+   {
+      const auto mesh_fname = GENERATE(
+                                 "../../data/diag-segment-2d.mesh", // 1D in 2D
+                                 "../../data/diag-segment-3d.mesh", // 1D in 3D
+                                 "../../data/star-surf.mesh"        // 2D in 3D
+                              );
+
+      // Using order > 1 to ensure curvature is used if supported by mesh
+      const int order = 3;
+
+      Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+      const int dim = mesh.Dimension();
+      const int sdim = mesh.SpaceDimension();
+
+      REQUIRE(dim < sdim);
+
+      // Ensure high-order curvature for non-trivial Jacobians where possible
+      mesh.SetCurvature(order);
+
+      const FiniteElementSpace *fes = mesh.GetNodalFESpace();
+      GridFunction *nodes = mesh.GetNodes();
+
+      // Quadrature space
+      QuadratureSpace qs(&mesh, 2*order);
+      const QuadratureInterpolator *qi = fes->GetQuadratureInterpolator(qs);
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+
+      // Prepare E-vector from nodes
+      const ElementDofOrdering ordering =
+         (mesh.Dimension() == 1 || mesh.MeshGenerator() == 2) ?
+         ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+
+      const Operator *R = fes->GetElementRestriction(ordering);
+      Vector e_vec(R->Height());
+      R->Mult(*nodes, e_vec);
+
+      // Compute determinants (weights) via QI
+      // Output vector size: qs.GetSize() * 1 (since determinant is scalar)
+      Vector q_det(qs.GetSize());
+      qi->Determinants(e_vec, q_det);
+
+      // Verify against ElementTransformation::Weight()
+      Vector q_weights(qs.GetSize());
+      const int ne = qs.GetNE();
+      int idx_counter = 0;
+      for (int i = 0; i < ne; i++)
+      {
+         ElementTransformation *T = mesh.GetElementTransformation(i);
+         const IntegrationRule &ir = qs.GetIntRule(i);
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            T->SetIntPoint(&ip);
+            q_weights(idx_counter++) = T->Weight();
+         }
+      }
+
+      // Compare
+      Vector diff = q_det;
+      diff -= q_weights;
+      const real_t norm_w = q_weights.Normlinf();
+      const real_t norm_d = diff.Normlinf();
+
+      // If weights are effectively zero (e.g. degenerate), direct comparison might differ
+      // but for these valid meshes, weight should be > 0.
+      if (norm_w > 1e-12)
+      {
+         REQUIRE(norm_d / norm_w < 1e-12);
+      }
+      else
+      {
+         REQUIRE(norm_d < 1e-12);
+      }
+   }
 }

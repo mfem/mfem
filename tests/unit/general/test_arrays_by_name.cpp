@@ -200,3 +200,39 @@ TEST_CASE("ArraysByName Sort/Unique Methods", "[ArraysByName]")
       }
    }
 }
+
+TEST_CASE("ArraysByName Print/Load Methods", "[ArraysByName]")
+{
+   ArraysByName<int> abn;
+
+   FillArraysByName(abn);
+
+   // Print object to string using default format
+   std::ostringstream oss1;
+   abn.Print(oss1);
+
+   // Load new object from printed output
+   ArraysByName<int> abn_load1;
+   std::istringstream iss1(oss1.str());
+   abn_load1.Load(iss1);
+   REQUIRE(abn == abn_load1);
+
+   // Print object to string using one line per array
+   std::ostringstream oss2;
+   oss2 << abn.Size() << '\n';
+   for (auto a : abn)
+   {
+      oss2 << '"' << a.first << "\" " << a.second.Size();
+      for (auto d : a.second)
+      {
+         oss2 << ' ' << d;
+      }
+      oss2 << '\n';
+   }
+
+   // Load new object from printed output
+   ArraysByName<int> abn_load2;
+   std::istringstream iss2(oss2.str());
+   abn_load2.Load(iss2);
+   REQUIRE(abn == abn_load2);
+}

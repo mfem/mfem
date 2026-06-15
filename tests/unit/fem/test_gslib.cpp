@@ -47,13 +47,14 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    int point_ordering       = GENERATE(0, 1);
    int ncomp                = GENERATE(1, 2);
    int gf_ordering          = GENERATE(0, 1);
+   int func_out_ordering    = GENERATE(0, 1);
    bool href                = GENERATE(true, false);
    bool pref                = GENERATE(true, false);
 
    int ne = 4;
 
    CAPTURE(space, simplex, dim, func_order, mesh_order, mesh_node_ordering,
-           point_ordering, ncomp, gf_ordering, href, pref);
+           point_ordering, ncomp, gf_ordering, func_out_ordering, href, pref);
 
    if (ncomp == 1 && gf_ordering == 1)
    {
@@ -145,7 +146,8 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    FindPointsGSLIB finder;
    finder.Setup(mesh);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
-   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering,
+                      func_out_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
 
@@ -168,7 +170,7 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
       {
          if (code_out[i] < 2)
          {
-            err = gf_ordering == Ordering::byNODES ?
+            err = func_out_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                   fabs(exact_val(j) - interp_vals[i*ncomp + j]);
             max_err  = std::max(max_err, err);
