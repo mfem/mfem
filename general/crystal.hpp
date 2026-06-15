@@ -19,19 +19,24 @@ public:
    CrystalRouter(MPI_Comm comm);
    ~CrystalRouter();
 
-   void Route(ParticleVector &data, Array<int> &ranks);
+   void Route(ParticleVector &data, Array<unsigned long long> &ids,
+              Array<int> &tags, Array<int> &ranks);
 
 private:
    MPI_Comm comm;
    int rank, nprocs;
 
-   Array<int> send_rank_buf;
-   Array<real_t> send_data_buf;
+   int tag_vdim;
 
-   void Move(ParticleVector &data, Array<int> &ranks, int cutoff, bool send_hi);
+   Array<char> send_buf;
+   Array<char> recv_buf;
 
-   void Exchange(ParticleVector &data, Array<int> &ranks,
-                 int target, int recvn, int tag);
+   void Move(ParticleVector &data, Array<unsigned long long> &ids,
+             Array<int> &tags, Array<int> &ranks, int cutoff, bool send_hi);
+
+   void Exchange(ParticleVector &data, Array<unsigned long long> &ids,
+                 Array<int> &tags, Array<int> &ranks,
+                 int target, int recvn, int msg_tag);
 };
 
 }
