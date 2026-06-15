@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ list(APPEND SRCS
   gecko.cpp
   globals.cpp
   hash.cpp
+  hash_util.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -46,6 +47,7 @@ list(APPEND HDRS
   globals.hpp
   zstr.hpp
   hash.hpp
+  hash_util.hpp
   isockstream.hpp
   kdtree.hpp
   mem_alloc.hpp

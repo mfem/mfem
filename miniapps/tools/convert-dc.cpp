@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -223,6 +223,17 @@ int main(int argc, char *argv[])
    {
       out_dc->RegisterField(it->first,it->second);
    }
+
+   // loop over all quad funcs in the source dc, and add them to the output dc
+   const DataCollection::QFieldMapType &src_qfields = src_dc->GetQFieldMap();
+
+   for (DataCollection::QFieldMapType::const_iterator it = src_qfields.begin();
+        it != src_qfields.end();
+        ++it)
+   {
+      out_dc->RegisterQField(it->first,it->second);
+   }
+
 
    out_dc->Save();
 

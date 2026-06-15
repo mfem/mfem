@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -123,21 +123,18 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
 
   # If CUDA is enabled, tag source files to be compiled with nvcc.
   if (MFEM_USE_CUDA)
-    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
-    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTIES LANGUAGE CUDA)
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
       list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
-    else()
-      set(LIST_)
-      foreach(item IN LISTS EXTRA_OPTIONS_LIST)
-        list(APPEND LIST_ "-Xcompiler=${item}")
-      endforeach()
-      set(EXTRA_OPTIONS_LIST ${LIST_})
     endif()
   endif()
 
   # Actually add the executable
   mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  install(TARGETS ${MFEM_EXE_NAME}
+          RUNTIME DESTINATION miniapps)
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -152,6 +149,21 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
+  endif()
+endmacro()
+
+# Macro for setting variables like '<culib>_LIBRARIES' where <culib> is a CUDA
+# library like cublas. This macro assumes that the CUDAToolkit module was loaded
+# successfully. Example usage:
+#   mfem_culib_set_libraries(CUBLAS cublas)
+macro(mfem_culib_set_libraries _CULIB _culib)
+  # The following command does not work with older CMake versions, e.g. 3.20:
+  #   get_target_property(${_CULIB}_LIBRARIES CUDA::${_culib} LOCATION)
+  # Therefore, we use the respective internal variable:
+  set(${_CULIB}_LIBRARIES ${CUDA_${_culib}_LIBRARY})
+  if (NOT ${_CULIB}_LIBRARIES)
+    message(FATAL_ERROR
+      "Error setting ${_CULIB}_LIBRARIES: ${${_CULIB}_LIBRARIES}")
   endif()
 endmacro()
 
@@ -689,7 +701,6 @@ endfunction(mfem_find_library)
 # Extract compile and link options needed by the given target.
 #
 function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
-
   if (NOT TARGET ${Target})
     return()
   endif()
@@ -706,7 +717,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   get_target_property(IsImported ${tgt} IMPORTED)
   # message(STATUS "${tgt}[IMPORTED]: ${IsImported}")
   # Generally, the possible target types are: STATIC_LIBRARY, MODULE_LIBRARY,
-  # SHARED_LIBRARY, INTERFACE_LIBRARY, EXECUTABLE.
+  # SHARED_LIBRARY, INTERFACE_LIBRARY, UNKNOWN_LIBRARY, EXECUTABLE.
   get_target_property(type ${tgt} TYPE)
   # message(STATUS "${tgt}[TYPE]: ${type}")
   unset(ImportConfig)
@@ -754,7 +765,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
-  elseif ("${type}" STREQUAL "SHARED_LIBRARY")
+  elseif ("${type}" STREQUAL "SHARED_LIBRARY" OR "${type}" STREQUAL "UNKNOWN_LIBRARY")
     get_target_property(Location ${tgt} LOCATION)
     if (Location)
       get_filename_component(Dir ${Location} DIRECTORY)
@@ -787,7 +798,12 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
           # message(STATUS "Lib = ${Lib}")
           # Filter-out generator expressions
           if (NOT ("${Lib}" MATCHES "^\\$"))
-            list(APPEND LinkOpts "${Lib}")
+            if(NOT ("${Lib}" STREQUAL "dl"))
+              list(APPEND LinkOpts "${Lib}")
+            else()
+              # for some reason libdl doesn't include the "-l"
+              list(APPEND LinkOpts "-ldl")
+            endif()
           endif()
         else()
           mfem_get_target_options(${Lib} COpts LOpts)
@@ -826,6 +842,20 @@ endfunction(mfem_get_target_options)
 
 
 #
+# If ${Path} is not an absolute path, assign ${Prefix}/${Path} to the variable
+# ${OutVar}. If ${Path} is an absolute path, assign ${Path} to the variable
+# ${OutVar}.
+#
+function(mfem_path_to_fullpath Path Prefix OutVar)
+  if(IS_ABSOLUTE "${Path}")
+    set(${OutVar} "${Path}" PARENT_SCOPE)
+  else()
+    set(${OutVar} "${Prefix}/${Path}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+
+#
 #   Function that creates 'config.mk' from 'config.mk.in' for the both the
 #   build- and the install-locations and define install rules for 'config.mk'
 #   and 'test.mk'.
@@ -846,14 +876,15 @@ function(mfem_export_mk_files)
       MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE
       MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS
       MFEM_USE_SUITESPARSE MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS
-      MFEM_USE_STRUMPACK MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_GNUTLS
-      MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE
-      MFEM_USE_FMS MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB
-      MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED
-      MFEM_USE_CALIPER MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2
-      MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_ADFORWARD
-      MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL
-      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
+      MFEM_USE_STRUMPACK MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_MAGMA
+      MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC
+      MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT MFEM_USE_PUMI
+      MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_RAJA
+      MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER MFEM_USE_UMPIRE MFEM_USE_SIMD
+      MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO
+      MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
+      MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME
+      MFEM_USE_HDF5)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -861,9 +892,18 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
-  # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
-  set(MFEM_HOST_CXX ${MFEM_CXX})
+  if (MFEM_USE_CUDA AND MFEM_EXPORT_GPU_CONFIG)
+    set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+    if(MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_HOST_CXX ${CMAKE_CUDA_HOST_COMPILER})
+    else()
+      set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
+    endif()
+  else()
+    # mfem doesn't use enable_language(HIP)
+    set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+    set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
+  endif()
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
   # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
@@ -873,6 +913,50 @@ function(mfem_export_mk_files)
   string(STRIP
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
+  if(MFEM_EXPORT_GPU_CONFIG)
+    if (MFEM_USE_CUDA)
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
+      if (MFEM_CUDA_COMPILER_IS_NVCC)
+        set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
+        # The following intentionally hides CUDA deprecation warnings
+        foreach(ENTRY IN LISTS CUDAToolkit_INCLUDE_DIRS)
+          set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${ENTRY}")
+        endforeach()
+        if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+          # architecture flags not part of CMAKE_CUDA_FLAGS
+          if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -arch=${CMAKE_CUDA_ARCHITECTURES}")
+          else()
+            foreach (ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+              set(MFEM_CXXFLAGS
+                "${MFEM_CXXFLAGS} -gencode arch=compute_${ENTRY},code=sm_${ENTRY}")
+            endforeach()
+          endif()
+        endif()
+      else()
+        set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xcuda --cuda-path=${CUDAToolkit_LIBRARY_ROOT}")
+        if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+          # architecture flags not part of CMAKE_CUDA_FLAGS
+          if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            # TODO: not supported
+          else()
+            foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+              set(MFEM_CXXFLAGS "-cuda-gpu-arch=sm_${ENTRY} ${MFEM_CXXFLAGS}")
+            endforeach()
+          endif()
+        endif()
+      endif()
+    elseif (MFEM_USE_HIP)
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xhip")
+      foreach(ENTRY IN LISTS CMAKE_HIP_ARCHITECTURES)
+        set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS}")
+      endforeach()
+    endif()
+  endif()
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
@@ -903,14 +987,26 @@ function(mfem_export_mk_files)
     set(MFEM_SHARED NO)
     set(MFEM_STATIC YES)
   endif()
+  if (MFEM_USE_CUDA)
+    set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} -lcudart")
+  endif()
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
-  # For the next 4 variable, these are the values for the build-tree version of
+  # For the next 4 variables, these are the values for the build-tree version of
   # 'config.mk'
   set(MFEM_INC_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_LIB_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
+  if (MFEM_USE_CUDA AND MFEM_EXPORT_GPU_CONFIG)
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_XLINKER "-Xlinker=")
+    else()
+      set(MFEM_XLINKER "${CMAKE_CUDA_LINKER_WRAPPER_FLAG}")
+    endif()
+  else()
+    set(MFEM_XLINKER "${CMAKE_CXX_LINKER_WRAPPER_FLAG}")
+  endif()
   set(MFEM_MPIEXEC ${MPIEXEC})
   if (NOT MFEM_MPIEXEC)
     set(MFEM_MPIEXEC "mpirun")
@@ -958,16 +1054,21 @@ function(mfem_export_mk_files)
     # handle interfaces (e.g., SCOREC::apf)
     if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
     elseif (TARGET "${lib}")
-      mfem_get_target_options(${lib} CompileOpts LinkOpts)
+      mfem_get_target_options(${lib} CompileOpts2 LinkOpts2)
+      # remove generator expressions
+      string(GENEX_STRIP "${CompileOpts2}" CompileOpts)
+      string(GENEX_STRIP "${LinkOpts2}" LinkOpts)
       # Removing duplicates may lead to issues:
       # list(REMOVE_DUPLICATES CompileOpts)
       # list(REMOVE_DUPLICATES LinkOpts)
-      string(REPLACE ";" " " COpts "${CompileOpts}")
-      string(REPLACE ";" " " LOpts "${LinkOpts}")
-      # message(STATUS "${lib}[COpts]: '${COpts}'")
-      # message(STATUS "${lib}[LOpts]: '${LOpts}'")
-      set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpts}")
-      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpts}")
+      # message(WARNING "${lib}[LinkOpts]: ${LinkOpts}")      
+      # message(WARNING "${lib}[CompileOpts]: ${CompileOpts}")
+      foreach(LOpt IN LISTS LinkOpts)
+        set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpt}")
+      endforeach()
+      foreach(COpt IN LISTS CompileOpts)
+        set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpt}")
+      endforeach()
       # message(FATAL_ERROR "***** interface lib found ... exiting *****")
       # handle static and shared libs
     elseif ("${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -975,7 +1076,7 @@ function(mfem_export_mk_files)
       get_filename_component(fullLibName ${lib} NAME_WE)
       string(REGEX REPLACE "^lib" "" libname ${fullLibName})
       set(MFEM_EXT_LIBS
-          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+        "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
     else()
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
@@ -984,27 +1085,52 @@ function(mfem_export_mk_files)
   # Create the build-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config.mk")
+    "${PROJECT_BINARY_DIR}/config/config.mk" @ONLY)
   # Copy 'test.mk' from the source-tree to the build-tree
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/test.mk"
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
-  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  mfem_path_to_fullpath(
+    "${INSTALL_INCLUDE_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_INC_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_LIB_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_SHARE_DIR}/mfem/test.mk" "${CMAKE_INSTALL_PREFIX}" MFEM_TEST_MK)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config-install.mk")
+    "${PROJECT_BINARY_DIR}/config/config-install.mk" @ONLY)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/
+    RENAME config.mk)
 
+endfunction()
+
+
+#
+# Function similar to the macro _GNUInstallDirs_cache_path from the module
+# GNUInstallDirs. Used to process variables like INSTALL_LIB_DIR if they are
+# set on the cmake command line without specifying type: -DINSTALL_LIB_DIR=lib.
+# Without this special treatment, relative paths are expanded to full paths
+# and we want to avoid that.
+#
+function(mfem_cache_path PathVar DefaultPath HelpStr)
+  if(NOT DEFINED ${PathVar})
+    set(${PathVar} "${DefaultPath}" CACHE PATH "${HelpStr}")
+  endif()
+  get_property(cache_type CACHE ${PathVar} PROPERTY TYPE)
+  if(cache_type STREQUAL "UNINITIALIZED")
+    file(TO_CMAKE_PATH "${${PathVar}}" cmakepath)
+    set_property(CACHE ${PathVar} PROPERTY TYPE PATH)
+    set_property(CACHE ${PathVar} PROPERTY VALUE "${cmakepath}")
+    set_property(CACHE ${PathVar} PROPERTY HELPSTRING "${HelpStr}")
+  endif()
 endfunction()

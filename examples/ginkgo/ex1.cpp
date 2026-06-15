@@ -35,7 +35,7 @@
 //               ex1 -m ../../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
             Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
             Ginkgo::CGSolver ginkgo_solver(exec, ginkgo_precond);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
             Ginkgo::MFEMPreconditioner gko_M(exec, M);
             Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
                Ginkgo::MFEMPreconditioner gko_M(exec, M);
                Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
                ginkgo_solver.SetPrintLevel(print_lvl);
-               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetRelTol(sqrt(1e-12));
                ginkgo_solver.SetAbsTol(0.0);
                ginkgo_solver.SetMaxIter(400);
                ginkgo_solver.SetOperator(*(A.Ptr()));

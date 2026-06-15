@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
 
 #ifndef MFEM_ENZYME_HPP
 #define MFEM_ENZYME_HPP
@@ -25,11 +26,28 @@ extern int enzyme_dup;
 extern int enzyme_dupnoneed;
 extern int enzyme_out;
 extern int enzyme_const;
+extern int enzyme_interleave;
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+#define MFEM_DEVICE_EXTERN_STMT(name) extern __device__ int name;
+#else
+#define MFEM_DEVICE_EXTERN_STMT(name)
+#endif
+
+MFEM_DEVICE_EXTERN_STMT(enzyme_dup)
+MFEM_DEVICE_EXTERN_STMT(enzyme_dupnoneed)
+MFEM_DEVICE_EXTERN_STMT(enzyme_out)
+MFEM_DEVICE_EXTERN_STMT(enzyme_const)
+MFEM_DEVICE_EXTERN_STMT(enzyme_interleave)
+
+// warning: if inlined, triggers function '__enzyme_autodiff' is not defined
 template <typename return_type, typename... Args>
+MFEM_HOST_DEVICE
 return_type __enzyme_autodiff(Args...);
 
+// warning: if inlined, triggers function '__enzyme_fwddiff' is not defined
 template <typename return_type, typename... Args>
+MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))

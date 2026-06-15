@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,6 @@ namespace mfem
 {
 
 const char vishost[] = "localhost";
-const int  visport   = 19916;
 int wsize            = 350; // glvis window size
 
 AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
@@ -52,7 +51,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
 {
    ParFiniteElementSpace &pfes = *M.ParFESpace();
    const int NE = pfes.GetNE();
-   const int nd = pfes.GetFE(0)->GetDof();
+   const int nd = pfes.GetTypicalFE()->GetDof();
    Array<int> dofs(nd);
 
    if (adv_mode == LO)
@@ -101,7 +100,7 @@ void AdvectionOper::ComputeElementsMinMax(const ParGridFunction &gf,
                                           Vector &el_min, Vector &el_max) const
 {
    ParFiniteElementSpace &pfes = *gf.ParFESpace();
-   const int NE = pfes.GetNE(), ndof = pfes.GetFE(0)->GetDof();
+   const int NE = pfes.GetNE(), ndof = pfes.GetTypicalFE()->GetDof();
    for (int k = 0; k < NE; k++)
    {
       el_min(k) = numeric_limits<real_t>::infinity();
@@ -165,7 +164,8 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
 void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
                                const real_t time_period,
-                               ParGridFunction &xtrap)
+                               ParGridFunction &xtrap,
+                               int visport)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
    const int order = input.ParFESpace()->GetOrder(0),
@@ -445,7 +445,7 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
 
 void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
                             real_t t_final, real_t dt,
-                            int vis_x_pos, std::string vis_name)
+                            int vis_x_pos, std::string vis_name, int visport)
 {
    socketstream sock;
 

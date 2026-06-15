@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
    real_t wy = 1.0, hz = 1.0;
    bool trans = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -75,6 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -159,7 +161,6 @@ int main(int argc, char *argv[])
       {
          // GLVis server to visualize to
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          sol_sock.precision(8);
          sol_sock << "mesh\n" << *mesh << flush;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,50 +118,35 @@ TEST_CASE("Face Orientation", "[FaceOrientation]")
    }
 }
 
-template <Geometry::Type geom_t>
-constexpr Geometry::Type GetFaceType();
-
-template <>
-constexpr Geometry::Type GetFaceType<Geometry::SEGMENT>()
+constexpr Geometry::Type GetFaceType(Geometry::Type geom_t)
 {
-   return Geometry::POINT;
+   switch (geom_t)
+   {
+      case Geometry::SEGMENT:
+         return Geometry::POINT;
+      case Geometry::TRIANGLE:
+         return Geometry::SEGMENT;
+      case Geometry::SQUARE:
+         return Geometry::SEGMENT;
+      case Geometry::TETRAHEDRON:
+         return Geometry::TRIANGLE;
+      case Geometry::CUBE:
+         return Geometry::SQUARE;
+      default:
+         return Geometry::INVALID;
+   }
 }
 
-template <>
-constexpr Geometry::Type GetFaceType<Geometry::TRIANGLE>()
+template <Geometry::Type geom>
+void test_geom()
 {
-   return Geometry::SEGMENT;
-}
-
-template <>
-constexpr Geometry::Type GetFaceType<Geometry::SQUARE>()
-{
-   return Geometry::SEGMENT;
-}
-
-template <>
-constexpr Geometry::Type GetFaceType<Geometry::TETRAHEDRON>()
-{
-   return Geometry::TRIANGLE;
-}
-
-template <>
-constexpr Geometry::Type GetFaceType<Geometry::CUBE>()
-{
-   return Geometry::SQUARE;
-}
-
-TEMPLATE_TEST_CASE_SIG("Boundary Element Face Orientation", "[FaceOrientation]",
-                       ((Geometry::Type geom_t), geom_t),
-                       Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE,
-                       Geometry::TETRAHEDRON, Geometry::CUBE)
-{
-   constexpr auto face_t = GetFaceType<geom_t>();
+   constexpr auto face_t = GetFaceType(geom);
    using face_t_consts = Geometry::Constants<face_t>;
 
    Mesh mesh;
    constexpr int n1d = 1;
-   switch (geom_t)
+
+   switch (geom)
    {
       case Geometry::SEGMENT:
          mesh = Mesh::MakeCartesian1D(n1d, Element::SEGMENT);
@@ -181,6 +166,7 @@ TEMPLATE_TEST_CASE_SIG("Boundary Element Face Orientation", "[FaceOrientation]",
       default:
          MFEM_ABORT("");
    }
+
    Element *be0 = mesh.GetBdrElement(0);
    MFEM_VERIFY(be0->GetGeometryType() == face_t, "");
    int f, o;
@@ -209,5 +195,29 @@ TEMPLATE_TEST_CASE_SIG("Boundary Element Face Orientation", "[FaceOrientation]",
       bdr_tr.Transform(bdr_ip, bdr_pt);
       face_tr.Transform(face_ip, face_pt);
       REQUIRE(bdr_pt.DistanceTo(face_pt) == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("Boundary Element Face Orientation", "[FaceOrientation]")
+{
+   SECTION("SEGMENT")
+   {
+      test_geom<Geometry::SEGMENT>();
+   }
+   SECTION("TRIANGLE")
+   {
+      test_geom<Geometry::TRIANGLE>();
+   }
+   SECTION("SQUARE")
+   {
+      test_geom<Geometry::SQUARE>();
+   }
+   SECTION("TETRAHEDRON")
+   {
+      test_geom<Geometry::TETRAHEDRON>();
+   }
+   SECTION("CUBE")
+   {
+      test_geom<Geometry::CUBE>();
    }
 }

@@ -62,7 +62,7 @@ public:
 #endif
    }
 
-   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final);
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final) override;
 
 private:
    const std::string prefix;
@@ -73,7 +73,7 @@ private:
 void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
-   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   if ((print_level == 1 && !final) || (print_level == 3 && (final || it == 0)))
    {
       mfem::out << prefix << " iteration " << setw(2) << it
                 << " : ||r|| = " << norm;
@@ -130,10 +130,10 @@ public:
    JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
                           Operator &mass, Array<int> &offsets);
 
-   virtual void Mult(const Vector &k, Vector &y) const;
-   virtual void SetOperator(const Operator &op);
+   void Mult(const Vector &k, Vector &y) const override;
+   void SetOperator(const Operator &op) override;
 
-   virtual ~JacobianPreconditioner();
+   ~JacobianPreconditioner() override;
 };
 
 // After spatial discretization, the rubber model can be written as:
@@ -175,13 +175,13 @@ public:
                   int iter, Coefficient &mu);
 
    // Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
-   virtual void Mult(const Vector &k, Vector &y) const;
+   Operator &GetGradient(const Vector &xp) const override;
+   void Mult(const Vector &k, Vector &y) const override;
 
    // Driver for the newton solver
    void Solve(Vector &xp) const;
 
-   virtual ~RubberOperator();
+   ~RubberOperator() override;
 };
 
 // Visualization driver

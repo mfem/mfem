@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,9 +16,7 @@ namespace mfem
 
 void DofTransformation::TransformPrimal(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -48,9 +46,7 @@ void DofTransformation::TransformPrimal(real_t *v) const
 
 void DofTransformation::InvTransformPrimal(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Height();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -80,9 +76,7 @@ void DofTransformation::InvTransformPrimal(real_t *v) const
 
 void DofTransformation::TransformDual(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -112,9 +106,7 @@ void DofTransformation::TransformDual(real_t *v) const
 
 void DofTransformation::InvTransformDual(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -142,33 +134,33 @@ void DofTransformation::InvTransformDual(real_t *v) const
    }
 }
 
-void TransformPrimal(const DofTransformation *ran_dof_trans,
-                     const DofTransformation *dom_dof_trans,
+void TransformPrimal(const DofTransformation &ran_dof_trans,
+                     const DofTransformation &dom_dof_trans,
                      DenseMatrix &elmat)
 {
    // No action if both transformations are NULL
-   if (ran_dof_trans)
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformPrimalCols(elmat);
+      ran_dof_trans.TransformPrimalCols(elmat);
    }
-   if (dom_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      dom_dof_trans->TransformDualRows(elmat);
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 
-void TransformDual(const DofTransformation *ran_dof_trans,
-                   const DofTransformation *dom_dof_trans,
+void TransformDual(const DofTransformation &ran_dof_trans,
+                   const DofTransformation &dom_dof_trans,
                    DenseMatrix &elmat)
 {
    // No action if both transformations are NULL
-   if (ran_dof_trans)
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformDualCols(elmat);
+      ran_dof_trans.TransformDualCols(elmat);
    }
-   if (dom_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      dom_dof_trans->TransformDualRows(elmat);
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 
@@ -201,13 +193,16 @@ const DenseTensor ND_DofTransformation
 ::TInv(const_cast<real_t *>(TInv_data), 2, 2, 6);
 
 ND_DofTransformation::ND_DofTransformation(int size, int p, int num_edges,
-                                           int num_tri_faces)
+                                           int num_faces,
+                                           int face_types[])
    : StatelessDofTransformation(size)
    , order(p)
    , nedofs(p)
-   , nfdofs(p*(p-1))
+   , ntdofs(p*(p-1))
+   , nqdofs(2*p*(p-1))
    , nedges(num_edges)
-   , nfaces(num_tri_faces)
+   , nfaces(num_faces)
+   , ftypes(face_types)
 {
 }
 
@@ -221,6 +216,7 @@ void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
                "Face orientation array is shorter than the number of faces in "
                "ND_DofTransformation");
 
+   int of = 0;
    real_t data[2];
    Vector v2(data, 2);
    DenseMatrix T2;
@@ -228,11 +224,19 @@ void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
-         T2.Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
+            T2.Mult(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
+      }
+      else
+      {
+         of += nqdofs;
       }
    }
 }
@@ -247,6 +251,7 @@ void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
                "Face orientation array is shorter than the number of faces in "
                "ND_DofTransformation");
 
+   int of = 0;
    real_t data[2];
    Vector v2(data, 2);
    DenseMatrix T2Inv;
@@ -254,11 +259,19 @@ void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
-         T2Inv.Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
+            T2Inv.Mult(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
+      }
+      else
+      {
+         of += nqdofs;
       }
    }
 }
@@ -272,6 +285,7 @@ void ND_DofTransformation::TransformDual(const Array<int> & Fo, real_t *v) const
                "Face orientation array is shorter than the number of faces in "
                "ND_DofTransformation");
 
+   int of = 0;
    real_t data[2];
    Vector v2(data, 2);
    DenseMatrix T2Inv;
@@ -279,12 +293,21 @@ void ND_DofTransformation::TransformDual(const Array<int> & Fo, real_t *v) const
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
-         T2Inv.MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
+            T2Inv.MultTranspose(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
       }
+      else
+      {
+         of += nqdofs;
+      }
+
    }
 }
 
@@ -298,6 +321,7 @@ void ND_DofTransformation::InvTransformDual(const Array<int> & Fo,
                "Face orientation array is shorter than the number of faces in "
                "ND_DofTransformation");
 
+   int of = 0;
    real_t data[2];
    Vector v2(data, 2);
    DenseMatrix T2;
@@ -305,11 +329,19 @@ void ND_DofTransformation::InvTransformDual(const Array<int> & Fo,
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
-         T2.MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
+            T2.MultTranspose(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
+      }
+      else
+      {
+         of += nqdofs;
       }
    }
 }

@@ -53,7 +53,7 @@ public:
                                     real_t min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 class ExponentialGridFunctionCoefficient : public Coefficient
@@ -69,7 +69,7 @@ public:
                                       real_t min_val_=0.0, real_t max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 int main(int argc, char *argv[])
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
          MixedBilinearForm a10(&H1fes,&L2fes);
          a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
          a10.Assemble();
-         a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+         a10.EliminateTrialEssentialBC(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
          a10.Finalize();
          SparseMatrix &A10 = a10.SpMat();
 

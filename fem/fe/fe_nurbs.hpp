@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,7 +47,7 @@ public:
    int                  GetPatch   ()         const { return patch; }
    /// Set which patch should be evaluated
    void                 SetPatch   (int p)    const { patch = p; }
-   /// Set which elemenet should be evaluated
+   /// Set which element should be evaluated
    int                  GetElement ()         const { return elem; }
    /// Get which element is currently considered
    void                 SetElement (int e)    const { elem = e; }
@@ -80,12 +80,24 @@ public:
         NURBSFiniteElement(1),
         shape_x(p + 1) { }
 
-   virtual void SetOrder() const;
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &hessian) const;
+   void SetOrder() const override;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian (const IntegrationPoint &ip,
+                     DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -115,12 +127,24 @@ public:
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(dof,2)
    { orders[0] = px; orders[1] = py; }
 
-   virtual void SetOrder() const;
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &hessian) const;
+   void SetOrder() const override;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian (const IntegrationPoint &ip,
+                     DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -155,12 +179,24 @@ public:
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(dof,3)
    { orders[0] = px; orders[1] = py; orders[2] = pz; }
 
-   virtual void SetOrder() const;
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &hessian) const;
+   void SetOrder() const override;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian (const IntegrationPoint &ip,
+                     DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -221,10 +257,10 @@ public:
       kv1[1] = nullptr;
    }
 
-   virtual void SetOrder() const;
+   void SetOrder() const override;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
@@ -232,15 +268,22 @@ public:
        one vector shape function. The size (#dof x SDim) of @a shape must be set
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -315,10 +358,10 @@ public:
       kv1[2] = nullptr;
    }
 
-   virtual void SetOrder() const;
+   void SetOrder() const override;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
@@ -326,15 +369,22 @@ public:
        one vector shape function. The size (#dof x SDim) of @a shape must be set
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
-   virtual void CalcDivShape(const IntegrationPoint &ip,
-                             Vector &divshape) const;
+   void CalcDivShape(const IntegrationPoint &ip,
+                     Vector &divshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HDiv3DFiniteElement();
 };
@@ -392,10 +442,10 @@ public:
       kv1[1] = nullptr;
    }
 
-   virtual void SetOrder() const;
+   void SetOrder() const override;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
@@ -403,8 +453,8 @@ public:
        one vector shape function. The size (#dof x SDim) of @a shape must be set
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -412,8 +462,15 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -483,10 +540,10 @@ public:
       kv1[2] = nullptr;
    }
 
-   virtual void SetOrder() const;
+   void SetOrder() const override;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
@@ -494,8 +551,8 @@ public:
        one vector shape function. The size (#dof x SDim) of @a shape must be set
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -503,8 +560,15 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl3DFiniteElement();
 };

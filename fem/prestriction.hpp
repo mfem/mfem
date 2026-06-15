@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -326,9 +326,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -364,9 +362,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
