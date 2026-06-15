@@ -14,7 +14,7 @@
 //
 // Description:  This example code demonstrates the use of the Discontinuous
 //               Petrov-Galerkin (DPG) method in its primal 2x2 block form as a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = f with homogeneous Dirichlet boundary conditions. We
 //               use high-order continuous trial space, a high-order interfacial
 //               (trace) space, and a high-order discontinuous test space

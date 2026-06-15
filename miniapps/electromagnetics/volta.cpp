@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
 
@@ -163,6 +164,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -264,6 +266,7 @@ int main(int argc, char *argv[])
 
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("Volta-AMR-Parallel", &pmesh);
+   visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
 
    if ( visit )
    {
@@ -305,7 +308,7 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Volta.DisplayToGLVis();
+         Volta.DisplayToGLVis(visport);
       }
 
       if (Mpi::Root())

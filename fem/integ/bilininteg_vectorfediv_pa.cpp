@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,8 +24,8 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    // Assumes tensor-product elements, with a vector test space and
    // scalar trial space.
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
 
    const VectorTensorFiniteElement *trial_el =
       dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
@@ -37,7 +37,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
                                   *trial_el, *trial_el,
-                                  *mesh->GetElementTransformation(0));
+                                  *mesh->GetTypicalElementTransformation());
 
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");

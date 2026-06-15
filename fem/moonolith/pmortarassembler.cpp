@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 #include "../../config/config.hpp"
 
+#ifdef MFEM_USE_MOONOLITH
 #ifdef MFEM_USE_MPI
 
 #include "pmortarassembler.hpp"
@@ -31,6 +33,8 @@
 #include <memory>
 
 using namespace mfem::internal;
+
+static const bool dof_transformation = false;
 
 namespace mfem
 {
@@ -54,44 +58,25 @@ public:
 
    void ensure_solver()
    {
-      if(!solver) {
+      if (!solver)
+      {
          solver = std::make_shared<BiCGSTABSolver>(comm);
          solver->SetMaxIter(20000);
          solver->SetRelTol(1e-6);
       }
    }
 
-   bool is_vector_fe() const
+   BilinearFormIntegrator *newBFormIntegrator() const
    {
-      bool is_vector_fe = false;
-      for (auto i_ptr : integrators)
-      {
-         if (i_ptr->is_vector_fe())
-         {
-            is_vector_fe = true;
-            break;
-         }
-      }
-
-      return is_vector_fe;
-   }
-
-   BilinearFormIntegrator * new_mass_integrator() const
-   {
-      if (is_vector_fe())
-      {
-         return new VectorFEMassIntegrator();
-      }
-      else
-      {
-         return new MassIntegrator();
-      }
+      assert(!integrators.empty());
+      return integrators[0]->newBFormIntegrator();
    }
 };
 
 ParMortarAssembler::~ParMortarAssembler() = default;
 
-void ParMortarAssembler::SetSolver(const std::shared_ptr<IterativeSolver> &solver)
+void ParMortarAssembler::SetSolver(
+   const std::shared_ptr<IterativeSolver> &solver)
 {
    impl_->solver = solver;
 }
@@ -101,7 +86,8 @@ void ParMortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
    impl_->assemble_mass_and_coupling_together = value;
 }
 
-void ParMortarAssembler::SetMaxSolverIterations(const int max_solver_iterations)
+void ParMortarAssembler::SetMaxSolverIterations(
+   const int max_solver_iterations)
 {
    impl_->ensure_solver();
 
@@ -385,11 +371,13 @@ private:
    inline static void copy_global_dofs(ParFiniteElementSpace &fe,
                                        std::vector<ElementDofMap> &dof_map)
    {
+
       dof_map.resize(fe.GetNE());
       Array<int> vdofs;
       for (int i = 0; i < fe.GetNE(); ++i)
       {
          fe.GetElementVDofs(i, vdofs);
+
          for (int k = 0; k < vdofs.Size(); ++k)
          {
             long g_dof = 0;
@@ -567,6 +555,7 @@ static FiniteElementCollection *FECollFromName(const std::string &comp_name)
 }
 
 static void read_space(moonolith::InputStream &is,
+                       const int vdim,
                        std::shared_ptr<FiniteElementSpace> &space,
                        std::vector<ElementDofMap> &dof_map)
 {
@@ -628,10 +617,11 @@ static void read_space(moonolith::InputStream &is,
    Finalize(*mesh_ptr, true);
    // }
 
-   space = make_shared<FiniteElementSpace>(mesh_ptr, fe_coll);
+   space = make_shared<FiniteElementSpace>(mesh_ptr, fe_coll, vdim);
 }
 
-static void read_spaces(moonolith::InputStream &is, Spaces &spaces)
+static void read_spaces(moonolith::InputStream &is, const int vdim,
+                        Spaces &spaces)
 {
    bool has_source, has_destination;
    is >> has_source >> has_destination;
@@ -640,7 +630,7 @@ static void read_spaces(moonolith::InputStream &is, Spaces &spaces)
 
    if (has_source)
    {
-      read_space(is, spaces.spaces()[0], spaces.dof_map(0));
+      read_space(is, vdim, spaces.spaces()[0], spaces.dof_map(0));
       spaces.set_must_destroy_attached(0, true);
    }
    else
@@ -650,7 +640,7 @@ static void read_spaces(moonolith::InputStream &is, Spaces &spaces)
 
    if (has_destination)
    {
-      read_space(is, spaces.spaces()[1], spaces.dof_map(1));
+      read_space(is, vdim, spaces.spaces()[1], spaces.dof_map(1));
       spaces.set_must_destroy_attached(1, true);
    }
    else
@@ -718,7 +708,7 @@ static bool Assemble(moonolith::Communicator &comm,
    std::map<long, std::shared_ptr<Spaces>> spaces;
    std::map<long, std::vector<std::shared_ptr<Spaces>>> migrated_spaces;
 
-   auto read = [&spaces, &migrated_spaces,
+   auto read = [&spaces, &migrated_spaces, &source,
                          comm](const long ownerrank, const long /*senderrank*/,
                       bool is_forwarding, DataContainer &data, InputStream &in)
    {
@@ -726,7 +716,7 @@ static bool Assemble(moonolith::Communicator &comm,
 
       std::shared_ptr<Spaces> proc_space = std::make_shared<Spaces>(comm);
 
-      read_spaces(in, *proc_space);
+      read_spaces(in, source->GetVDim(), *proc_space);
 
       if (!is_forwarding)
       {
@@ -765,7 +755,7 @@ static bool Assemble(moonolith::Communicator &comm,
                                 &comm](const long ownerrank, const long /*recvrank*/,
                         const std::vector<long>::const_iterator &begin,
                         const std::vector<long>::const_iterator &end,
-                        const DataContainer &/*data*/, OutputStream &out)
+                        const DataContainer & /*data*/, OutputStream &out)
    {
       CHECK_STREAM_WRITE_BEGIN("vol_proj", out);
 
@@ -828,9 +818,12 @@ static bool Assemble(moonolith::Communicator &comm,
    return true;
 }
 
-static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &source_vdofs,
-                       const DenseMatrix &elem_mat, moonolith::SparseMatrix<double> &mat_buffer)
+static void add_matrix(const Array<int> &destination_vdofs,
+                       const Array<int> &source_vdofs,
+                       const DenseMatrix &elem_mat,
+                       moonolith::SparseMatrix<double> &mat_buffer)
 {
+
    for (int i = 0; i < destination_vdofs.Size(); ++i)
    {
       long dof_I = destination_vdofs[i];
@@ -862,11 +855,12 @@ static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &so
 
 std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
    const std::vector<moonolith::Integer> &destination_ranges,
-    HYPRE_BigInt *s_offsets,
-    HYPRE_BigInt *m_offsets,
-   moonolith::SparseMatrix<double> &mat_buffer)  {
+   HYPRE_BigInt *s_offsets,
+   HYPRE_BigInt *m_offsets,
+   moonolith::SparseMatrix<double> &mat_buffer)
+{
 
-   auto && comm = mat_buffer.comm();
+   auto &&comm = mat_buffer.comm();
 
    moonolith::Redistribute<moonolith::SparseMatrix<double>> redist(comm.get());
    redist.apply(destination_ranges, mat_buffer, moonolith::AddAssign<double>());
@@ -877,7 +871,7 @@ std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
    std::vector<HYPRE_Int> J;
    std::vector<double> data;
    J.reserve(mat_buffer.n_local_entries());
-   data.reserve(J.size());
+   data.reserve(J.capacity());
 
    for (auto it = mat_buffer.iter(); it; ++it)
    {
@@ -891,31 +885,29 @@ std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
       I[i] += I[i - 1];
    }
 
-   return std::make_shared<HypreParMatrix>(
-             comm.get(), s_offsets[1] - s_offsets[0], mat_buffer.rows(),
-             mat_buffer.cols(), &I[0], &J[0], &data[0], s_offsets, m_offsets);
+   auto ret = std::make_shared<HypreParMatrix>(
+                 comm.get(), s_offsets[1] - s_offsets[0], mat_buffer.rows(),
+                 mat_buffer.cols(), &I[0], &J[0], &data[0], s_offsets, m_offsets);
+   return ret;
 }
-
 
 int order_multiplier(const Geometry::Type type, const int dim)
 {
    return
-   (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
-      type == Geometry::SEGMENT)? 1 : dim;
+      (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+       type == Geometry::SEGMENT)? 1 : dim;
 }
 
 template <int Dimensions>
 static bool
-Assemble(moonolith::Communicator &comm,
-         ParMortarAssembler::Impl &impl,
+Assemble(moonolith::Communicator &comm, ParMortarAssembler::Impl &impl,
          const moonolith::SearchSettings &settings, const bool verbose)
 {
    auto &source = impl.source;
    auto &destination = impl.destination;
 
    auto &integrators = impl.integrators;
-   auto &pmat  = impl.coupling_matrix;
-
+   auto &pmat = impl.coupling_matrix;
 
    bool lump_mass = false;
    int max_q_order = 0;
@@ -939,13 +931,13 @@ Assemble(moonolith::Communicator &comm,
    IntegrationRule src_ir;
    IntegrationRule dest_ir;
 
+   const HYPRE_BigInt m_global_n_dofs = source->GlobalTrueVSize();
+   HYPRE_BigInt *m_offsets = source->GetTrueDofOffsets();
+
+   const HYPRE_BigInt s_global_n_dofs = destination->GlobalTrueVSize();
+   HYPRE_BigInt *s_offsets = destination->GetTrueDofOffsets();
+
    double local_element_matrices_sum = 0.0;
-
-   const auto m_global_n_dofs = source->GlobalVSize();
-   auto *m_offsets = source->GetDofOffsets();
-
-   const auto s_global_n_dofs = destination->GlobalVSize();
-   auto *s_offsets = destination->GetDofOffsets();
 
    moonolith::SparseMatrix<double> mat_buffer(comm);
    mat_buffer.set_size(s_global_n_dofs, m_global_n_dofs);
@@ -953,7 +945,8 @@ Assemble(moonolith::Communicator &comm,
    moonolith::SparseMatrix<double> mass_mat_buffer(comm);
    mass_mat_buffer.set_size(s_global_n_dofs, s_global_n_dofs);
 
-   std::unique_ptr<BilinearFormIntegrator> mass_integr(impl.new_mass_integrator());
+   std::unique_ptr<BilinearFormIntegrator> mass_integr(
+      impl.newBFormIntegrator());
 
    auto fun = [&](const ElementAdapter<Dimensions> &source,
                   const ElementAdapter<Dimensions> &destination) -> bool
@@ -979,11 +972,13 @@ Assemble(moonolith::Communicator &comm,
       const int dest_order = dest_order_mult * dest_fe.GetOrder();
 
       int contraction_order = src_order + dest_order;
-      if(impl.assemble_mass_and_coupling_together) {
+      if (impl.assemble_mass_and_coupling_together)
+      {
          contraction_order = std::max(contraction_order, 2 * dest_order);
       }
 
-      const int order = contraction_order + dest_order_mult * dest_Trans.OrderW() + max_q_order;
+      const int order =
+      contraction_order + dest_order_mult * dest_Trans.OrderW() + max_q_order;
 
       cut->SetIntegrationOrder(order);
 
@@ -1015,18 +1010,23 @@ Assemble(moonolith::Communicator &comm,
          }
 
          local_element_matrices_sum += Sum(cumulative_elemmat);
-         add_matrix(destination_vdofs, source_vdofs, cumulative_elemmat, mat_buffer);
+         add_matrix(destination_vdofs, source_vdofs, cumulative_elemmat,
+                    mat_buffer);
 
-         if(impl.assemble_mass_and_coupling_together) {
+         if (impl.assemble_mass_and_coupling_together)
+         {
             mass_integr->SetIntRule(&dest_ir);
             mass_integr->AssembleElementMatrix(dest_fe, dest_Trans, elemmat);
 
-            if(lump_mass) {
+            if (lump_mass)
+            {
                int n = destination_vdofs.Size();
 
-               for(int i = 0; i < n; ++i) {
+               for (int i = 0; i < n; ++i)
+               {
                   double row_sum = 0.;
-                  for(int j = 0; j < n; ++j) {
+                  for (int j = 0; j < n; ++j)
+                  {
                      row_sum += elemmat(i, j);
                      elemmat(i, j) = 0.;
                   }
@@ -1035,7 +1035,8 @@ Assemble(moonolith::Communicator &comm,
                }
             }
 
-            add_matrix(destination_vdofs, destination_vdofs, elemmat, mass_mat_buffer);
+            add_matrix(destination_vdofs, destination_vdofs, elemmat,
+                       mass_mat_buffer);
          }
 
          return true;
@@ -1071,14 +1072,13 @@ Assemble(moonolith::Communicator &comm,
    comm.all_reduce(&destination_ranges[0], destination_ranges.size(),
                    moonolith::MPIMax());
 
-   pmat = convert_to_hypre_matrix(
-      destination_ranges,
-      s_offsets,
-       m_offsets,
-      mat_buffer);
+   pmat = convert_to_hypre_matrix(destination_ranges, s_offsets, m_offsets,
+                                  mat_buffer);
 
-   if(impl.assemble_mass_and_coupling_together) {
-      impl.mass_matrix = convert_to_hypre_matrix(destination_ranges, s_offsets, s_offsets, mass_mat_buffer);
+   if (impl.assemble_mass_and_coupling_together)
+   {
+      impl.mass_matrix = convert_to_hypre_matrix(destination_ranges, s_offsets,
+                                                 s_offsets, mass_mat_buffer);
    }
 
    return true;
@@ -1108,14 +1108,12 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
    moonolith::Communicator comm(impl_->comm);
    if (impl_->source->GetMesh()->Dimension() == 2)
    {
-      ok = mfem::Assemble<2>(comm, *impl_, settings,
-                               impl_->verbose);
+      ok = mfem::Assemble<2>(comm, *impl_, settings, impl_->verbose);
    }
 
    if (impl_->source->GetMesh()->Dimension() == 3)
    {
-      ok = mfem::Assemble<3>(comm, *impl_, settings,
-                               impl_->verbose);
+      ok = mfem::Assemble<3>(comm, *impl_, settings, impl_->verbose);
    }
 
    pmat = impl_->coupling_matrix;
@@ -1144,9 +1142,7 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
 
    auto &B = *impl_->coupling_matrix;
    auto &D = *impl_->mass_matrix;
-
-   auto &P_source = *impl_->source->Dof_TrueDof_Matrix();
-   auto &P_destination = *impl_->destination->Dof_TrueDof_Matrix();
+   auto &P_destination = *impl_->destination->GetProlongationMatrix();
 
    impl_->ensure_solver();
 
@@ -1155,26 +1151,51 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
 
    impl_->solver->SetOperator(D);
 
-   if(verbose) {
+   if (verbose)
+   {
       impl_->solver->SetPrintLevel(3);
    }
 
-   Vector P_x_src_fun(B.Width());
-   P_source.MultTranspose(src_fun, P_x_src_fun);
+   if (dof_transformation)
+   {
+      // Maybe delete in the future!?
 
-   Vector B_x_src_fun(B.Height());
-   B_x_src_fun = 0.0;
+      Vector P_x_src_fun(B.Width());
+      auto &P_source = *impl_->source->GetProlongationMatrix();
+      P_source.MultTranspose(src_fun, P_x_src_fun);
 
-   B.Mult(P_x_src_fun, B_x_src_fun);
+      Vector B_x_src_fun(B.Height());
+      B_x_src_fun = 0.0;
 
-   Vector R_x_dest_fun(D.Height());
-   R_x_dest_fun = 0.0;
+      B.Mult(P_x_src_fun, B_x_src_fun);
 
-   impl_->solver->Mult(B_x_src_fun, R_x_dest_fun);
+      Vector R_x_dest_fun(D.Height());
+      R_x_dest_fun = 0.0;
 
-   P_destination.Mult(R_x_dest_fun, dest_fun);
+      impl_->solver->Mult(B_x_src_fun, R_x_dest_fun);
 
-   dest_fun.Update();
+      P_destination.Mult(R_x_dest_fun, dest_fun);
+
+      dest_fun.Update();
+   }
+   else
+   {
+
+      std::unique_ptr<HypreParVector> td_src_fun =
+         std::unique_ptr<HypreParVector>(src_fun.ParallelProject());
+
+      Vector B_x_src_fun(B.Height());
+      B_x_src_fun = 0.0;
+      B.Mult(*td_src_fun, B_x_src_fun);
+
+
+      Vector R_x_dest_fun(D.Height());
+      R_x_dest_fun = 0.0;
+      impl_->solver->Mult(B_x_src_fun, R_x_dest_fun);
+
+      P_destination.Mult(R_x_dest_fun, dest_fun);
+
+   }
 
    // Sanity check!
    int converged = impl_->solver->GetFinalNorm() < 1e-5;
@@ -1186,7 +1207,6 @@ bool ParMortarAssembler::Update()
 {
    using namespace std;
    const bool verbose = impl_->verbose;
-   static const bool dof_transformation = true;
 
    moonolith::Communicator comm(impl_->comm);
 
@@ -1221,14 +1241,14 @@ bool ParMortarAssembler::Update()
 
    auto &B = *impl_->coupling_matrix;
 
-   if(!impl_->assemble_mass_and_coupling_together) {
+   if (!impl_->assemble_mass_and_coupling_together)
+   {
       ParBilinearForm b_form(impl_->destination.get());
-      b_form.AddDomainIntegrator(impl_->new_mass_integrator());
+      b_form.AddDomainIntegrator(impl_->newBFormIntegrator());
       b_form.Assemble();
       b_form.Finalize();
       impl_->mass_matrix = shared_ptr<HypreParMatrix>(b_form.ParallelAssemble());
    }
-
 
    comm.barrier();
 
@@ -1290,3 +1310,4 @@ bool ParMortarAssembler::Update()
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
+#endif // MFEM_USE_MOONOLITH

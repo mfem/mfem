@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -284,12 +284,12 @@ GeometricMultigrid::GeometricMultigrid(
    ownedProlongations.SetSize(nlevels - 1);
    ownedProlongations = have_ess_bdr;
 
-   if (have_ess_bdr)
+   essentialTrueDofs.SetSize(nlevels);
+   for (int level = 0; level < nlevels; ++level)
    {
-      essentialTrueDofs.SetSize(nlevels);
-      for (int level = 0; level < nlevels; ++level)
+      essentialTrueDofs[level] = new Array<int>;
+      if (have_ess_bdr)
       {
-         essentialTrueDofs[level] = new Array<int>;
          fespaces.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
             ess_bdr, *essentialTrueDofs[level]);
       }

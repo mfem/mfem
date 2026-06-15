@@ -98,6 +98,5 @@ int main (int argc, char *argv[])
       std::cout << " DOF # " << dof_ids[i]  << "    " << shape(0) << std::endl;
    }
 
-
    return 0;
 }

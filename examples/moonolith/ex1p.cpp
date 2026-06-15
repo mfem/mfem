@@ -8,17 +8,22 @@
 //   mpirun -np 4 ex1p -s ../../data/inline-hex.mesh -d ../../data/inline-tet.mesh
 //
 // Description:  This example code demonstrates the use of MFEM for transferring
-//               discrete fields from one finite element mesh to another. The
+//               discrete fields from one conforming finite element mesh to another. The
 //               meshes can be of arbitrary shape and completely unrelated with
 //               each other. This feature can be used for implementing immersed
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
 //               This particular example is for parallel runtimes. Vector FE is
-//               an experimental feature in parallel.
+//               an experimental feature in parallel. For non-conforming meshes
+//               please have a look at example "ex2p.cpp".
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
+
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
 
 using namespace mfem;
 using namespace std;
@@ -50,6 +55,8 @@ int main(int argc, char *argv[])
    int dest_fe_order = 1;
    bool visualization = true;
    bool use_vector_fe = false;
+   bool use_h1 = true;
+   bool use_vector_space = false;
    bool verbose = false;
    bool assemble_mass_and_coupling_together = true;
 
@@ -72,13 +79,27 @@ int main(int argc, char *argv[])
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
                   "Enable/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
-                  "--no-vector_fe", "Use vector finite elements (Experimental)");
+                  "--no-vector_fe",
+                  "Use RT|ND vector finite elements (Experimental)");
+   args.AddOption(&use_vector_space, "-vfs", "--use_vector_space", "-no-vfs",
+                  "--no-vector_space",
+                  "Use Lagrange vector finite elements (Experimental)");
+   args.AddOption(&use_h1, "-h1", "--use-h1", "-nh1", "--no-h1",
+                  "Use H1 collection");
    args.AddOption(&assemble_mass_and_coupling_together, "-act",
                   "--assemble_mass_and_coupling_together", "-no-act",
                   "--no-assemble_mass_and_coupling_together",
-                  "Assemble mass and coupling operators together (better for non-affine elements)");
+                  "Assemble mass and coupling operators together (better for "
+                  "non-affine elements)");
    args.Parse();
    check_options(args);
+
+   if (use_vector_fe && use_vector_space)
+   {
+      mfem::err <<
+                "WARNING: use_vector_fe and use_vector_space options"
+                "are both true, ignoring use_vector_fe\n";
+   }
 
    shared_ptr<Mesh> src_mesh, dest_mesh;
 
@@ -169,17 +190,30 @@ int main(int argc, char *argv[])
    }
    else
    {
-      src_fe_coll =
-         make_shared<L2_FECollection>(source_fe_order, src_mesh->Dimension());
-      dest_fe_coll =
-         make_shared<L2_FECollection>(dest_fe_order, dest_mesh->Dimension());
+
+      if (use_h1)
+      {
+         src_fe_coll =
+            make_shared<H1_FECollection>(source_fe_order, src_mesh->Dimension());
+         dest_fe_coll =
+            make_shared<H1_FECollection>(dest_fe_order, dest_mesh->Dimension());
+      }
+      else
+      {
+         src_fe_coll =
+            make_shared<L2_FECollection>(source_fe_order, src_mesh->Dimension());
+         dest_fe_coll =
+            make_shared<L2_FECollection>(dest_fe_order, dest_mesh->Dimension());
+      }
    }
 
-   auto src_fe =
-      make_shared<ParFiniteElementSpace>(p_src_mesh.get(), src_fe_coll.get());
+   auto src_fe = make_shared<ParFiniteElementSpace>(
+                    p_src_mesh.get(), src_fe_coll.get(),
+                    use_vector_space ? src_mesh->Dimension() : 1);
 
-   auto dest_fe =
-      make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
+   auto dest_fe = make_shared<ParFiniteElementSpace>(
+                     p_dest_mesh.get(), dest_fe_coll.get(),
+                     use_vector_space ? dest_mesh->Dimension() : 1);
 
    ParGridFunction src_fun(src_fe.get());
 
@@ -189,7 +223,7 @@ int main(int argc, char *argv[])
    // To be used with vector fe
    VectorFunctionCoefficient vector_coeff(dim, &vector_fun);
 
-   if (use_vector_fe)
+   if (use_vector_fe || use_vector_space)
    {
       src_fun.ProjectCoefficient(vector_coeff);
       src_fun.Update();
@@ -209,7 +243,11 @@ int main(int argc, char *argv[])
       assemble_mass_and_coupling_together);
    assembler.SetVerbose(verbose);
 
-   if (use_vector_fe)
+   if (use_vector_space)
+   {
+      assembler.AddMortarIntegrator(make_shared<LagrangeVectorL2MortarIntegrator>());
+   }
+   else if (use_vector_fe)
    {
       assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
    }
@@ -243,8 +281,8 @@ int main(int argc, char *argv[])
                       << std::endl;
          }
 
-         plot(*p_src_mesh, src_fun, "source");
-         plot(*p_dest_mesh, dest_fun, "destination");
+         plot(*p_src_mesh, src_fun, "source", 0);
+         plot(*p_dest_mesh, dest_fun, "destination", 1);
       }
    }
    else

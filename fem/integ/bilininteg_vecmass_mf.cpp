@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,9 +20,8 @@ void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation *T = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
    if (DeviceCanUseCeed())

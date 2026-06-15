@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -383,6 +383,12 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
             }
 }
 
+const IntegrationRule* HyperelasticNLFIntegrator::GetDefaultIntegrationRule(
+   const FiniteElement& trial_fe, const FiniteElement& test_fe,
+   const ElementTransformation& trans) const
+{
+   return &(IntRules.Get(test_fe.GetGeomType(), 2*test_fe.GetOrder() + 3));
+}
 
 real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
                                                    ElementTransformation &Ttr,
@@ -397,11 +403,7 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
 
    energy = 0.0;
    model->SetTransformation(Ttr);
@@ -436,7 +438,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -475,7 +477,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -733,7 +735,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
 
 const IntegrationRule&
 VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
-                                       ElementTransformation &T)
+                                       const ElementTransformation &T)
 {
    const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
    return IntRules.Get(fe.GetGeomType(), order);
@@ -757,7 +759,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
    Vector vec1(dim), vec2(dim);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   const IntegrationRule *ir = GetIntegrationRule(el, T);
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -797,7 +799,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    real_t w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -868,7 +870,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -919,7 +921,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
    elmat_comp_T = 0.0;

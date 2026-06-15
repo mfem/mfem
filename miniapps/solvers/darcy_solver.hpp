@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,13 +13,10 @@
 #define MFEM_DARCY_SOLVER_HPP
 
 #include "mfem.hpp"
-#include <memory>
-#include <vector>
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 struct IterSolveParameters
 {
    int print_level = 0;
@@ -32,8 +29,6 @@ struct IterSolveParameters
    real_t rel_tol = 1e-5;
 #else
 #error "Only single and double precision are supported!"
-   real_t abs_tol = 1e-12;
-   real_t rel_tol = 1e-9;
 #endif
 };
 
@@ -63,12 +58,12 @@ public:
    BDPMinresSolver(const HypreParMatrix& M,
                    const HypreParMatrix& B,
                    IterSolveParameters param);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector & x, Vector & y) const override;
+   void SetOperator(const Operator &op) override { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+   int GetNumIterations() const override { return solver_.GetNumIterations(); }
 };
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_DARCY_SOLVER_HPP
