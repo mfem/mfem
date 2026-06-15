@@ -909,7 +909,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
          T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
       constexpr int MNQ_O =
          T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
-      constexpr int MNDQ = std::max(mnd_o + 1, mnq_o + 1);
+      constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       constexpr int nbz = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
       int tidz = MFEM_THREAD_ID(z);
@@ -1211,7 +1211,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
          T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
       constexpr int MNQ_O =
          T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
-      constexpr int MNDQ = std::max(mnd_o + 1, mnq_o + 1);
+      constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       constexpr int nbz = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
       int tidz = MFEM_THREAD_ID(z);
