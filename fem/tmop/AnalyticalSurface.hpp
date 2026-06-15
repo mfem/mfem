@@ -75,8 +75,16 @@ protected:
 public:
    AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
 
+   int GetNumSurfaces() const { return surfaces.Size(); }
+
    /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
+
+   const AnalyticSurface *GetSurfaceID(int s_id) const
+   {
+      MFEM_VERIFY(s_id < surfaces.Size(), "wrong index");
+      return surfaces[s_id];
+   }
 
    /// Surface corresponding to dof_id.
    const AnalyticSurface *GetSurface(int dof_id) const;
