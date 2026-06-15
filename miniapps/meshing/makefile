@@ -26,9 +26,9 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
 	phpref mesh-bounding-boxes tmop-tangent
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -43,16 +43,12 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 # Remove built-in rule
 %: %.cpp
-%.o: %.cpp 
 
-%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Replace the default implicit rule for *.cpp files
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 all: $(MINIAPPS)
-
-
-tmop-tangent: $(EX_TMOP_TANGENT_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_TMOP_TANGENT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -75,9 +71,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := Stokes miniapp
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 toroid-test-seq: toroid
