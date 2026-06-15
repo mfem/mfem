@@ -53,16 +53,16 @@ constexpr bool mfem_use_gpu = true;
    if(const int i=hipThreadIdx_ ##k; i<N)
 // Assigns a thread block shaped (SX,SY,SZ) contiguous in x.
 #define MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)               \
-   if (int ix = hipThreadIdx_##k % SX, iy = hipThreadIdx_##k / SX,             \
-       iz = iy / SY;                                                           \
-       (iy %= SY), (hipThreadIdx_##k < SX * SY * SZ))
+   if (int ix = hipThreadIdx_##k % (SX), iy = hipThreadIdx_##k / (SX),         \
+       iz = iy / (SY);                                                         \
+       (iy %= (SY)), (hipThreadIdx_##k < (SX) * (SY) * (SZ)))
 // Assigns a thread block shaped (OX,OY,OZ) to work on items (SX,SY,SZ),
 // contiguous in x. This intentionally offsets threads
 #define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
                                              OY, OZ)                           \
-   if (int ix = hipThreadIdx_##k % OX, iy = hipThreadIdx_##k / OX,             \
-       iz = iy / OY;                                                           \
-       (ix < SX) && ((iy %= OY) < SY) && (iz < SZ))
+   if (int ix = hipThreadIdx_##k % (OX), iy = hipThreadIdx_##k / (OX),         \
+       iz = iy / (OY);                                                         \
+       (ix < (SX)) && ((iy %= (OY)) < (SY)) && (iz < (SZ)))
 #endif // defined(__HIP_DEVICE_COMPILE__)
 #endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
