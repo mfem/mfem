@@ -11,44 +11,212 @@
 
 #include "doperator.hpp"
 
+#include <algorithm>
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
 using namespace mfem::future;
 
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
+DifferentiableOperator::DifferentiableOperator(
+   const std::vector<FieldDescriptor> &infds,
+   const std::vector<FieldDescriptor> &outfds,
+   const ParMesh &mesh) :
+   Operator(),
+   mesh(mesh),
+   infds(infds),
+   outfds(outfds)
 {
-   MFEM_ASSERT(parameters.size() == p.size(),
-               "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < parameters.size(); i++)
+   unionfds.clear();
+   unionfds.insert(unionfds.end(), infds.begin(), infds.end());
+   unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
+   std::sort(unionfds.begin(), unionfds.end());
+   auto last = std::unique(unionfds.begin(), unionfds.end());
+   unionfds.erase(last, unionfds.end());
+
+   infields_l.resize(infds.size());
+   for (size_t i = 0; i < infds.size(); i++)
    {
-      p[i]->Read();
-      parameters_l[i] = *p[i];
+      infields_l[i] = new Vector(GetVSize(infds[i]));
    }
+
+   infields_e.resize(infds.size());
 }
 
-DifferentiableOperator::DifferentiableOperator(
-   const std::vector<FieldDescriptor> &solutions,
-   const std::vector<FieldDescriptor> &parameters,
-   const ParMesh &mesh) :
-   mesh(mesh),
-   solutions(solutions),
-   parameters(parameters)
+void DifferentiableOperator::SetMultLevel(MultLevel level)
 {
-   fields.resize(solutions.size() + parameters.size());
-   fields_e.resize(fields.size());
-   solutions_l.resize(solutions.size());
-   parameters_l.resize(parameters.size());
+   mult_level = level;
+}
 
-   for (size_t i = 0; i < solutions.size(); i++)
+void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(!action_callbacks.empty(),
+               "no integrators have been set");
+
+   MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+               "x needs to be a BlockVector");
+
+   MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
+               "y needs to be a BlockVector");
+
+   const auto &bx = static_cast<const BlockVector &>(x);
+   auto &by = static_cast<BlockVector &>(y);
+
+   Mult(bx, by);
+}
+
+void DifferentiableOperator::DisableTensorProductStructure(bool disable)
+{
+   use_tensor_product_structure = !disable;
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id, const Vector &x)
+{
+   MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
+               derivative_action_callbacks.end(),
+               "no derivative action has been found for ID " << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != daction_transpose_callbacks.end())
    {
-      fields[i] = solutions[i];
+      transpose_callbacks = it_transpose->second;
    }
 
-   for (size_t i = 0; i < parameters.size(); i++)
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse = assemble_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_derivative_sparsematrix_callbacks.end())
    {
-      fields[i + solutions.size()] = parameters[i];
+      assemble_sparse_cbs = it_sparse->second;
    }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(
+                      derivative_id);
+   if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
+
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
+   // If derivative setup callbacks are available, run them to populate the cache
+   std::vector<derivative_setup_t> derivative_setup_cbs;
+   auto it_setup = derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != derivative_setup_callbacks.end())
+   {
+      derivative_setup_cbs = it_setup->second;
+   }
+
+   // Prefer cached apply when setup filled qp_cache
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+   auto it_apply = derivative_apply_callbacks.find(derivative_id);
+   if (it_apply != derivative_apply_callbacks.end() &&
+       !it_apply->second.empty())
+   {
+      mult_callbacks = &it_apply->second;
+   }
+
+   return std::make_shared<DerivativeOperator>(
+             height,
+             GetTrueVSize(infds[dfidx]),
+             *mult_callbacks,
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             outfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             derivative_setup_cbs);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
+{
+   MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
+               derivative_action_callbacks.end(),
+               "no derivative action has been found for ID " << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it_transpose->second;
+   }
+
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse = assemble_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_derivative_sparsematrix_callbacks.end())
+   {
+      assemble_sparse_cbs = it_sparse->second;
+   }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre = assemble_derivative_hypreparmatrix_callbacks.find(
+                      derivative_id);
+   if (it_hypre != assemble_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
+
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag = assemble_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
+   std::vector<derivative_setup_t> derivative_setup_cbs;
+   auto it_setup = derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != derivative_setup_callbacks.end())
+   {
+      derivative_setup_cbs = it_setup->second;
+   }
+
+   // Prefer cached apply when setup filled qp_cache
+   // and use_cached_setup is true
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &derivative_action_callbacks[derivative_id];
+   if (use_cached_setup)
+   {
+      auto it_apply = derivative_apply_callbacks.find(derivative_id);
+      if (it_apply != derivative_apply_callbacks.end() &&
+          !it_apply->second.empty())
+      {
+         mult_callbacks = &it_apply->second;
+      }
+   }
+
+   return std::make_shared<DerivativeOperator>(
+             height,
+             GetTrueVSize(infds[dfidx]),
+             *mult_callbacks,
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             outfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             derivative_setup_cbs);
 }
 
 #endif // MFEM_USE_MPI

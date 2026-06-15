@@ -65,6 +65,7 @@ set(SRCS
   dgmassinv.cpp
   doftrans.cpp
   dfem/doperator.cpp
+  dfem/backends/local_qf/kernels.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
@@ -121,6 +122,11 @@ set(SRCS
   qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
+  qinterp/grad_transpose.cpp
+  qinterp/grad_transpose_by_nodes.cpp
+  qinterp/grad_transpose_by_vdim.cpp
+  qinterp/eval_transpose.cpp
+  qinterp/eval_transpose_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -133,7 +139,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
@@ -211,13 +217,31 @@ set(HDRS
   dgmassinv_kernels.hpp
   doftrans.hpp
   dfem/doperator.hpp
+  dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
-  dfem/integrate.hpp
+  dfem/integrator_ctx.hpp
   dfem/parameterspace.hpp
-  dfem/qfunction_apply.hpp
-  dfem/qfunction_transform.hpp
   dfem/tuple.hpp
   dfem/util.hpp
+  dfem/backends/util.hpp
+  dfem/backends/global_qf/action.hpp
+  dfem/backends/global_qf/derivative_action.hpp
+  dfem/backends/global_qf/derivative_apply.hpp
+  dfem/backends/global_qf/derivative_apply_transpose.hpp
+  dfem/backends/global_qf/derivative_setup.hpp
+  dfem/backends/global_qf/prelude.hpp
+  dfem/backends/local_qf/action.hpp
+  dfem/backends/local_qf/derivative_action.hpp
+  dfem/backends/local_qf/derivative_apply.hpp
+  dfem/backends/local_qf/derivative_apply_transpose.hpp
+  dfem/backends/local_qf/derivative_assemble.hpp
+  dfem/backends/local_qf/derivative_assemble_diagonal.hpp
+  dfem/backends/local_qf/derivative_setup.hpp
+  dfem/backends/local_qf/kernels.hpp
+  dfem/backends/local_qf/kernels_ho.hpp
+  dfem/backends/local_qf/kernels_lo.hpp
+  dfem/backends/local_qf/prelude.hpp
+  dfem/backends/local_qf/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -282,8 +306,10 @@ set(HDRS
   qfunction.hpp
   qinterp/det.hpp
   qinterp/eval.hpp
+  qinterp/eval_transpose.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
+  qinterp/grad_transpose.hpp
   qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
@@ -317,36 +343,36 @@ set(HDRS
   )
 
 if (MFEM_USE_SIDRE)
-  list(APPEND SRCS sidredatacollection.cpp)
-  list(APPEND HDRS sidredatacollection.hpp)
+    list(APPEND SRCS sidredatacollection.cpp)
+    list(APPEND HDRS sidredatacollection.hpp)
 endif()
 
 if (MFEM_USE_CONDUIT)
-  list(APPEND SRCS conduitdatacollection.cpp)
-  list(APPEND HDRS conduitdatacollection.hpp)
+    list(APPEND SRCS conduitdatacollection.cpp)
+    list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
 if (MFEM_USE_ADIOS2)
-  list(APPEND SRCS adios2datacollection.cpp)
-  list(APPEND HDRS adios2datacollection.hpp)
+    list(APPEND SRCS adios2datacollection.cpp)
+    list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
 if (MFEM_USE_FMS)
-  list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
-  list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
+    list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
+    list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
 endif()
 
 if (MFEM_USE_MPI)
-  list(APPEND SRCS
+    list(APPEND SRCS
     pbilinearform.cpp
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
     pnonlinearform.cpp
     prestriction.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # headers added all the time.
-  list(APPEND HDRS
+    # If this list (HDRS -> HEADERS) is used for install, we probably want the
+    # headers added all the time.
+    list(APPEND HDRS
     pbilinearform.hpp
     pfespace.hpp
     pgridfunc.hpp
