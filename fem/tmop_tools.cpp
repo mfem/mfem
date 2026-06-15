@@ -696,6 +696,13 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
       if (co) { co->SetInitialMeshPos(&x_0); }
    }
 
+   // Check if there's a surface parametrization.
+   auto integ = dynamic_cast<TMOP_Integrator *>(integs[0]);
+   parametric = (integ->GetAnalyticSurface() == nullptr) ? false : true;
+
+   MFEM_VERIFY((periodic && parametric) == false,
+               "Periodic meshes + parametrization is not supported");
+
    // Solve for the displacement, which always starts from zero.
    Vector dx(height); dx = 0.0;
    if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
@@ -974,12 +981,22 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
 {
    real_t min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
-   Array<int> xdofs;
-   DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh ||
+   if (1 || dim == 1 || mixed_mesh ||
        UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
+      const AnalyticCompositeSurface *surf = nullptr;
+      if (parametric)
+      {
+         const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+         const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+         auto ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
+         surf = ti->GetAnalyticSurface();
+      }
+
+      Array<int> xdofs;
+      DenseMatrix Jpr(dim);
+
       for (int i = 0; i < NE; i++)
       {
          const int dof = fes.GetFE(i)->GetDof();
@@ -997,6 +1014,13 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
          fes.GetElementVDofs(i, xdofs);
          d_loc.GetSubVector(xdofs, d_loc_el);
          posV += d_loc_el;
+
+         Vector convertedX(posV.Size());
+         if (parametric)
+         {
+            surf->ConvertParamToPhys(xdofs, posV, convertedX);
+            posV = convertedX;
+         }
 
          const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
          const int nsp = irule.GetNPoints();

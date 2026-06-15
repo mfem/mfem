@@ -901,30 +901,31 @@ public:
    }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
+   /// Assembled by BilinearFormIntegrator::AssembleElementMatrix2().
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds a domain integrator. Assumes ownership of @a bfi.
+   /// Adds a domain integrator restricted to certain elements.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi,
                             Array<int> &elem_marker);
 
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
+   /// Assembled by BilinearFormIntegrator::AssembleElementMatrix2().
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds a boundary integrator. Assumes ownership of @a bfi.
-   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
+   /// Adds a boundary integrator restricted to certain boundary elements.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
                               Array<int> &bdr_marker);
 
    /// Adds an interior face integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   /// Assembled by BilinearFormIntegrator::AssembleFaceMatrix().
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   /// Adds a boundary face integrator restricted to certain boundary faces.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+       Assembled by BilinearFormIntegrator::AssembleFaceMatrix().
 
        This type of integrator assembles terms over all faces of the mesh using
        the face FE from the trial space and the two adjacent volume FEs from
@@ -932,9 +933,9 @@ public:
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   /// Assembled by BilinearFormIntegrator::AssembleFaceMatrix().
    void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi);
-
-   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   /// Adds a boundary trace face integrator over certain boundary faces.
    void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi,
                                   Array<int> &bdr_marker);
 
@@ -962,6 +963,7 @@ public:
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
+
    Array<Array<int>*> *GetBFBFI_Marker() { return &boundary_face_integs_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
