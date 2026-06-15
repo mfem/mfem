@@ -1616,7 +1616,9 @@ Element::Type Mesh::GetFaceElementType(int Face) const
 
 Array<int> Mesh::GetFaceToBdrElMap() const
 {
-   Array<int> face_to_be(Dim == 2 ? NumOfEdges : NumOfFaces);
+   Array<int> face_to_be(Dim == 1 ? NumOfVertices :
+                         Dim == 2 ? NumOfEdges :
+                         Dim == 3 ? NumOfFaces : 0);
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -5067,7 +5069,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
    else if (mesh_type == "$MeshFormat") // Gmsh
    {
-      ReadGmshMesh(input, curved, read_gf);
+      ReadGmshMesh(input);
+      finalize_topo = false; // Gmsh mesh reader already finalizes the topology
+      curved = Nodes != nullptr;
+      read_gf = false;
    }
    else if
    ((mesh_type.size() > 2 &&
@@ -11330,6 +11335,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
+   mfem::Swap(attribute_sets.attr_sets, other.attribute_sets.attr_sets);
+   mfem::Swap(bdr_attribute_sets.attr_sets, other.bdr_attribute_sets.attr_sets);
 
    mfem::Swap(geom_factors, other.geom_factors);
    mfem::Swap(face_geom_factors, other.face_geom_factors);

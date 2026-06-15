@@ -345,27 +345,6 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
    }
 }
 
-int GridFunction::VectorDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
-}
-
-int GridFunction::CurlDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
-}
-
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
@@ -2050,6 +2029,18 @@ void GridFunction::AccumulateAndCountBdrValues(
    Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr,
    Array<int> &values_counter)
 {
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalBE()->GetMapType() == FiniteElement::VALUE &&
+                  fes->GetTypicalBE()->GetRangeType() ==
+                  FiniteElement::SCALAR,
+                  "Can only call ProjectBdrCoefficient on scalar value-type "
+                  "boundary elements. "
+                  "Did you intended to call ProjectBdrCoefficientNormal or "
+                  "ProjectBdrCoefficientTangent for vector finite elements?");
+   }
    Array<int> vdofs;
    Vector vc;
 
@@ -2202,6 +2193,9 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
+   MFEM_VERIFY(fes->GetTypicalBE()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
@@ -2429,6 +2423,9 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar Coefficient onto vector GridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
    Array<int> vdofs;
@@ -2704,6 +2701,7 @@ void GridFunction::ProjectCoefficient(
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                       ProjectType type)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    Array<int> vdofs;
    Vector vals;
    DofTransformation doftrans;
@@ -3067,6 +3065,7 @@ void GridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
 void GridFunction::ProjectCoefficient(
    VectorCoefficient &vcoeff, Array<int> &dofs)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int el = -1;
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
@@ -3096,6 +3095,7 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int i;
    Array<int> vdofs;
    Vector vals;
@@ -3152,9 +3152,14 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
    }
 }
 
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
-                                          Array<int> &dof_attr)
+void GridFunction::ProjectDiscCoefficient(
+   std::variant<Coefficient*, VectorCoefficient*> coeff, Array<int> &dof_attr)
 {
+   std::visit([&](auto* c)
+   {
+      MFEM_VERIFY(VectorDim() == c->GetVDim(), "coeff vdim != VectorDim()");
+   }, coeff);
+
    Array<int> vdofs;
    Vector vals;
 
@@ -3168,7 +3173,10 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    {
       fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+      std::visit([&](auto* c)
+      {
+         fes->GetFE(i)->Project(*c, *fes->GetElementTransformation(i), vals);
+      }, coeff);
 
       // the values in shared dofs are determined from the element with maximal
       // attribute
@@ -3184,16 +3192,14 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    }
 }
 
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
-{
-   Array<int> dof_attr;
-   ProjectDiscCoefficient(coeff, dof_attr);
-}
-
 void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project a scalar coefficient onto a vector GridFunction");
 
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
@@ -3204,6 +3210,7 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
                                           AvgType type)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
@@ -3261,12 +3268,16 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    Coefficient *coeff, VectorCoefficient *vcoeff, const Array<int> &bdr_attr)
 {
-   if (fes->GetNBE() > 0)
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR &&
+               fes->GetTypicalBE()->GetMapType() == FiniteElement::INTEGRAL,
+               "Not an RT FE space!");
+   if (vcoeff)
    {
-      // TODO: Replace this by GetTypicalBdrElement() once implemented
-      const FiniteElement *be = fes->GetBE(0);
-      MFEM_VERIFY(be->GetRangeType() == FiniteElement::SCALAR &&
-                  be->GetMapType() == FiniteElement::INTEGRAL, "Not an RT FE space!");
+      MFEM_VERIFY(vcoeff->GetVDim() == fes->GetMesh()->SpaceDimension(),
+                  "vcoeff vdim (" << vcoeff->GetVDim()
+                  << ") != SpaceDimension ("
+                  << fes->GetMesh()->SpaceDimension() << ")");
    }
 
    // implementation for the case when the face dofs are scaled point

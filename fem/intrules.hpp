@@ -43,56 +43,52 @@ public:
       index = i;
    }
 
+   void Set3w(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { x = x1; y = x2; z = x3; weight = w; }
+   void Set2w(const real_t x1, const real_t x2, const real_t w)
+   { x = x1; y = x2; weight = w; }
+   void Set1w(const real_t x1, const real_t w)
+   { x = x1; weight = w; }
+
+   void Set3w(const real_t *p) { Set3w(p[0], p[1], p[2], p[3]); }
+   void Set2w(const real_t *p) { Set2w(p[0], p[1], p[2]); }
+   void Set1w(const real_t *p) { Set1w(p[0], p[1]); }
+
+   void Set3(const real_t x1, const real_t x2, const real_t x3)
+   { x = x1; y = x2; z = x3; }
+   void Set2(const real_t x1, const real_t x2)
+   { x = x1; y = x2; }
+   void Set1(const real_t x1)
+   { x = x1; }
+
+   void Set3(const real_t *p) { Set3(p[0], p[1], p[2]); }
+   void Set2(const real_t *p) { Set2(p[0], p[1]); }
+   void Set1(const real_t *p) { Set1(p[0]); }
+
+   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { Set3w(x1, x2, x3, w); }
+
    void Set(const real_t *p, const int dim)
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      x = p[0];
-      if (dim > 1)
+      switch (dim)
       {
-         y = p[1];
-         if (dim > 2)
-         {
-            z = p[2];
-         }
+         case 3: Set3(p); break;
+         case 2: Set2(p); break;
+         case 1: Set1(p); break;
       }
    }
 
    void Get(real_t *p, const int dim) const
    {
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      p[0] = x;
-      if (dim > 1)
+      switch (dim)
       {
-         p[1] = y;
-         if (dim > 2)
-         {
-            p[2] = z;
-         }
+         case 3: p[2] = z;
+         case 2: p[1] = y;
+         case 1: p[0] = x;
       }
    }
-
-   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
-   { x = x1; y = x2; z = x3; weight = w; }
-
-   void Set3w(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; weight = p[3]; }
-
-   void Set3(const real_t x1, const real_t x2, const real_t x3)
-   { x = x1; y = x2; z = x3; }
-
-   void Set3(const real_t *p) { x = p[0]; y = p[1]; z = p[2]; }
-
-   void Set2w(const real_t x1, const real_t x2, const real_t w)
-   { x = x1; y = x2; weight = w; }
-
-   void Set2w(const real_t *p) { x = p[0]; y = p[1]; weight = p[2]; }
-
-   void Set2(const real_t x1, const real_t x2) { x = x1; y = x2; }
-
-   void Set2(const real_t *p) { x = p[0]; y = p[1]; }
-
-   void Set1w(const real_t x1, const real_t w) { x = x1; weight = w; }
-
-   void Set1w(const real_t *p) { x = p[0]; weight = p[1]; }
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
