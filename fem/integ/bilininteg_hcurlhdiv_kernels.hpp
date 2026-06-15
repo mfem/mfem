@@ -875,7 +875,8 @@ constexpr int NBZ3D(int ndof_o, int nquad_o, int mdq)
    int ndof_c = ndof_o + 1;
    int nquad_c = nquad_o + 1;
    // z dimension is capped at 64 on nvidia and amd gpus
-   int tmp = std::min((128 + mdq * mdq * mdq - 1) / (mdq * mdq * mdq), 64);
+   int tmp =
+      std::min((128 + mdq * mdq * (mdq - 1) - 1) / (mdq * mdq * (mdq - 1)), 64);
    int smem_req =
       sizeof(mfem::real_t) *
       ((3 * ndof_c * ndof_c * ndof_o + 2 * 2 * mdq * mdq * mdq) * tmp +
@@ -901,8 +902,8 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
    auto pa_data = pa.Read();
    auto x_d = x_.Read();
    auto y_d = y_.ReadWrite();
-   mfem::forall_2D_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
-      ne, mnq * mnq * mnq, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch<MNDQ * MNDQ *(MNDQ - 1) * TBATCH>(
+      ne, mnq * mnq * (mnq - 1), 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
    {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       constexpr int nbz = TBATCH ? TBATCH : 1;
@@ -958,7 +959,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       // x: Vz Bcc Gco Boo - Vy Bcc Boo Gco
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_C, NDOF_C,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_C; ++dx)
@@ -969,7 +970,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_C, NDOF_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_C; ++dx)
@@ -982,7 +983,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_C, NQUAD_O,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_C; ++dy)
@@ -993,7 +994,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_C, NQUAD_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_O; ++dy)
@@ -1006,7 +1007,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_C, NQUAD_O,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_O; ++dz)
@@ -1018,7 +1019,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_C, NQUAD_O,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_C; ++dz)
@@ -1033,7 +1034,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       // y: Vx Boo Bcc Gco - Vz Gco Bcc Boo
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_O, NDOF_C,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_O; ++dx)
@@ -1044,7 +1045,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_O, NDOF_C,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_C; ++dx)
@@ -1057,7 +1058,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_O, NQUAD_C,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_C; ++dy)
@@ -1068,7 +1069,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_O, NQUAD_C,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_C; ++dy)
@@ -1081,7 +1082,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_O, NQUAD_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_C; ++dz)
@@ -1093,7 +1094,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_O, NQUAD_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_O; ++dz)
@@ -1108,7 +1109,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       // z: Vy Gco Boo Bcc - Vx Boo Gco Bcc
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_O, NDOF_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_C; ++dx)
@@ -1119,7 +1120,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, NQUAD_O, NDOF_C,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int dx = 0; dx < NDOF_O; ++dx)
@@ -1132,7 +1133,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_O, NQUAD_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_O; ++dy)
@@ -1156,7 +1157,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_O, NQUAD_O,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_C; ++dz)
@@ -1168,7 +1169,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, qz, x, NQUAD_O, NQUAD_O,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int dz = 0; dz < NDOF_C; ++dz)
@@ -1198,8 +1199,8 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
    auto pa_data = pa.Read();
    auto x_d = x_.Read();
    auto y_d = y_.ReadWrite();
-   mfem::forall_2D_batch<MNDQ * MNDQ * MNDQ * TBATCH>(
-      ne, mnq * mnq * mnq, 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch<MNDQ * MNDQ * (MNDQ - 1) * TBATCH>(
+      ne, mnq * mnq * (mnq - 1), 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
    {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       constexpr int nbz = TBATCH ? TBATCH : 1;
@@ -1256,7 +1257,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       // x: Vy Boo Bcc Gco - Vz Boo Gco Bcc
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_C, NQUAD_O,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_O; ++qz)
@@ -1267,7 +1268,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_C, NQUAD_O,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_C; ++qz)
@@ -1280,7 +1281,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_C, NDOF_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_C; ++qy)
@@ -1291,7 +1292,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_C, NDOF_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_O; ++qy)
@@ -1304,7 +1305,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_O, NDOF_C,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_O; ++qx)
@@ -1316,7 +1317,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_O, NDOF_C,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_O; ++qx)
@@ -1331,7 +1332,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       // y: Vz Gco Boo Bcc - Vx Bcc Boo Gco
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_C, NQUAD_O,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_C; ++qz)
@@ -1342,7 +1343,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_C, NQUAD_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_O; ++qz)
@@ -1355,7 +1356,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_O, NDOF_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_O; ++qy)
@@ -1366,7 +1367,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_O, NDOF_C,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq - 1, mnq, mnq)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_O; ++qy)
@@ -1379,7 +1380,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_C, NDOF_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_O; ++qx)
@@ -1391,7 +1392,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_C, NDOF_O,
-                                           NDOF_C, mnq, mnq, mnq)
+                                           NDOF_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_C; ++qx)
@@ -1406,7 +1407,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       // z: Vx Bcc Gco Boo - Vy Gco Bcc Boo
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_O, NQUAD_C,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_O; ++qz)
@@ -1417,7 +1418,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_O, NQUAD_O,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int qz = 0; qz < NQUAD_O; ++qz)
@@ -1430,7 +1431,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_C, NDOF_O,
-                                           NQUAD_C, mnq, mnq, mnq)
+                                           NQUAD_C, mnq, mnq - 1, mnq)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_O; ++qy)
@@ -1441,7 +1442,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, NDOF_C, NDOF_O,
-                                           NQUAD_O, mnq, mnq, mnq)
+                                           NQUAD_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qy = 0; qy < NQUAD_C; ++qy)
@@ -1454,7 +1455,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
 
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_C, NDOF_C,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_C; ++qx)
@@ -1466,7 +1467,7 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       MFEM_SYNC_THREAD;
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dx, dy, dz, x, NDOF_C, NDOF_C,
-                                           NDOF_O, mnq, mnq, mnq)
+                                           NDOF_O, mnq, mnq, mnq - 1)
       {
          real_t u = 0;
          for (int qx = 0; qx < NQUAD_O; ++qx)
