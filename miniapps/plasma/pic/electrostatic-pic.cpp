@@ -157,9 +157,12 @@ private:
    real_t neutralizing_const;
    ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool precompute_neutralizing_const = false;
-   HypreParMatrix* diffusion_matrix;
+
+   HypreParMatrix* diffusion_matrix = nullptr;
+   ParBilinearForm* diffusion_form = nullptr;
 
    bool use_full_assembly = false;
+   bool use_partial_assembly = false;
 
    // Gradient operator for computing E = -∇φ
    ParDiscreteLinearOperator* grad_interpolator;
@@ -181,7 +184,8 @@ public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_,
                bool precompute_neutralizing_const_ = false,
-               bool use_full_assembly_ = false);
+               bool use_full_assembly_ = false,
+               bool use_partial_assembly_ = false);
 
    ~FieldSolver();
 
@@ -212,6 +216,7 @@ int main(int argc, char* argv[])
 
    const char *device_config = "cpu";
    bool fa = false;
+   bool pa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -220,6 +225,9 @@ int main(int argc, char* argv[])
                   "--no-full-assembly",
                   "Use MFEM full assembly path with the selected device backend. "
                   "This keeps the existing Hypre matrix solver.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly",
+                  "Use MFEM partial assembly path with a matrix-free CG solve.");
    args.AddOption(&ctx.dim, "-dim", "--dimension",
                   "Spatial dimension (2 or 3)");
    args.AddOption(&ctx.order, "-O", "--order",
@@ -259,6 +267,9 @@ int main(int argc, char* argv[])
       return 1;
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
+
+   MFEM_VERIFY(!(pa && fa),
+               "Cannot use both partial and full assembly.");
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
@@ -316,7 +327,7 @@ int main(int argc, char* argv[])
    E_gf = 0.0;    // Initialize E_gf to zero
 
    // 6. Construct the field solver
-   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa);
+   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa, pa);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =
@@ -564,11 +575,13 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
                          bool precompute_neutralizing_const_,
-                         bool use_full_assembly_)
+                         bool use_full_assembly_,
+                         bool use_partial_assembly_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
      b(phi_fes),
-     use_full_assembly(use_full_assembly_)
+     use_full_assembly(use_full_assembly_),
+     use_partial_assembly(use_partial_assembly_)
 {
    // compute domain volume
    ParMesh* pmesh = phi_fes->GetParMesh();
@@ -581,20 +594,27 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                  phi_fes->GetParMesh()->GetComm());
 
    {
-      ParBilinearForm dm(phi_fes);
-      if (use_full_assembly)
+      diffusion_form = new ParBilinearForm(phi_fes);
+
+      if (use_partial_assembly)
       {
-         dm.SetAssemblyLevel(AssemblyLevel::FULL);
-         dm.EnableSparseMatrixSorting(Device::IsEnabled());
+         diffusion_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
+      else if (use_full_assembly)
+      {
+         diffusion_form->SetAssemblyLevel(AssemblyLevel::FULL);
+         diffusion_form->EnableSparseMatrixSorting(Device::IsEnabled());
+      }
+
       ConstantCoefficient epsilon(EPSILON);  // ε_0
-      dm.AddDomainIntegrator(
-         new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
+      diffusion_form->AddDomainIntegrator(new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
+      diffusion_form->Assemble();
 
-      dm.Assemble();
-      dm.Finalize();
-
-      diffusion_matrix = dm.ParallelAssemble();  // global gradgrad matrix
+      if (!use_partial_assembly)
+      {
+         diffusion_form->Finalize();
+         diffusion_matrix = diffusion_form->ParallelAssemble();
+      }
    }
 
    {
@@ -608,6 +628,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 FieldSolver::~FieldSolver()
 {
    delete diffusion_matrix;
+   delete diffusion_form;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -737,25 +758,52 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    // 3) Solve A * phi = B with zero-mean enforcement via OrthoSolver
    // ------------------------------------------------------------------
    phi_gf = 0.0;
-   HypreParVector Phi_true(pfes);
-   Phi_true = 0.0;
 
-   HyprePCG solver(diffusion_matrix->GetComm());
-   solver.SetOperator(*diffusion_matrix);
-   solver.SetTol(1e-12);
-   solver.SetMaxIter(200);
-   solver.SetPrintLevel(0);
+   if (use_partial_assembly)
+   {
+      Array<int> ess_tdof_list;
 
-   HypreBoomerAMG prec(*diffusion_matrix);
-   prec.SetPrintLevel(0);
-   solver.SetPreconditioner(prec);
+      OperatorPtr A;
+      Vector X, B_pa;
+      diffusion_form->FormLinearSystem(ess_tdof_list, phi_gf, b, A, X, B_pa);
 
-   OrthoSolver ortho(comm);
-   ortho.SetSolver(solver);
-   ortho.Mult(B, Phi_true);
+      CGSolver solver(comm);
+      solver.SetRelTol(1e-10);
+      solver.SetAbsTol(0.0);
+      solver.SetMaxIter(10000);
+      solver.SetPrintLevel(0);
+      solver.SetOperator(*A);
 
-   // Map true-dof solution back to the ParGridFunction
-   phi_gf.Distribute(Phi_true);
+      OperatorJacobiSmoother prec(*diffusion_form, ess_tdof_list);
+      solver.SetPreconditioner(prec);
+
+      OrthoSolver ortho(comm);
+      ortho.SetSolver(solver);
+      ortho.Mult(B_pa, X);
+
+      diffusion_form->RecoverFEMSolution(X, b, phi_gf);
+   }
+   else
+   {
+      HypreParVector Phi_true(pfes);
+      Phi_true = 0.0;
+
+      HyprePCG solver(diffusion_matrix->GetComm());
+      solver.SetOperator(*diffusion_matrix);
+      solver.SetTol(1e-12);
+      solver.SetMaxIter(200);
+      solver.SetPrintLevel(0);
+
+      HypreBoomerAMG prec(*diffusion_matrix);
+      prec.SetPrintLevel(0);
+      solver.SetPreconditioner(prec);
+
+      OrthoSolver ortho(comm);
+      ortho.SetSolver(solver);
+      ortho.Mult(B, Phi_true);
+
+      phi_gf.Distribute(Phi_true);
+   }
 }
 
 void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
