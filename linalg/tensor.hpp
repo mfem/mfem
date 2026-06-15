@@ -37,11 +37,17 @@ struct tensor<T>
    static constexpr int ndim = 1;
    static constexpr int first_dim = 0;
 
+   MFEM_HOST_DEVICE tensor() = default;
+   MFEM_HOST_DEVICE tensor(T val) : values(val) {}
+
    MFEM_HOST_DEVICE T& operator[](int) { return values; }
    MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
    MFEM_HOST_DEVICE T& operator()(int) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
+   MFEM_HOST_DEVICE tensor& operator=(T val) { values = val; return *this; }
 
    T values;
 };
@@ -1211,6 +1217,28 @@ decltype(S {} * T{})
       }
    }
    return AB;
+}
+
+// tensor<T> (rank-0 scalar wrapper) acts as a scalar in multiplication
+template <typename S, typename T, int... m> MFEM_HOST_DEVICE
+auto operator*(const tensor<S, m...>& A, const tensor<T>& scale) ->
+tensor<decltype(S{} * T{}), m...>
+{
+   return A * static_cast<T>(scale);
+}
+
+template <typename S, typename T, int... m> MFEM_HOST_DEVICE
+auto operator*(const tensor<T>& scale, const tensor<S, m...>& A) ->
+tensor<decltype(T{} * S{}), m...>
+{
+   return static_cast<T>(scale) * A;
+}
+
+template <typename S, typename T> MFEM_HOST_DEVICE
+auto operator*(const tensor<S>& A, const tensor<T>& B) ->
+tensor<decltype(S{} * T{})>
+{
+   return tensor<decltype(S{} * T{})>{A.values * B.values};
 }
 
 /**
