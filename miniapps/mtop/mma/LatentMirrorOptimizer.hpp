@@ -1,7 +1,8 @@
 /**
  * @file LatentMirrorOptimizer.hpp
- * @brief Latent-variable mirror-gradient optimizer for bound-constrained
- *        minimization with a general positive-definite inner product.
+ * @brief Device-aware latent-variable mirror-gradient optimizer for
+ *        bound-constrained minimization with a general positive-definite
+ *        inner product.
  *
  * Implements the algorithm described in:
  *   "A Latent-Variable Mirror-Gradient Algorithm for Bound-Constrained
@@ -9,58 +10,76 @@
  *
  * The method solves
  * @code
- *   min   Φ(λ)   s.t.  lᵢ ≤ λᵢ ≤ uᵢ,   i = 1 … m
+ *   min   Φ(λ)   s.t.  lᵢ ≤ λᵢ ≤ uᵢ,   i = 1 … n
  * @endcode
- * by working entirely in the unconstrained latent space z ∈ ℝⁿ and mapping
- * back to the feasible primal λ = T(z) ∈ int(K) via invertible Legendre maps:
+ * by working in the unconstrained latent space z ∈ ℝⁿ and recovering
+ * the feasible primal via λ = T(z) ∈ int(K):
  *
- *   Unbounded  (lᵢ=-∞, uᵢ=+∞):  zᵢ = λᵢ                         (identity)
+ *   Unbounded  (lᵢ=-∞, uᵢ=+∞):  zᵢ = λᵢ
  *   LowerOnly  (lᵢ>-∞, uᵢ=+∞):  zᵢ = log(λᵢ − lᵢ)
  *   UpperOnly  (lᵢ=-∞, uᵢ<+∞):  zᵢ = −log(uᵢ − λᵢ)
  *   TwoSided   (lᵢ>-∞, uᵢ<+∞):  zᵢ = log((λᵢ−lᵢ)/(uᵢ−λᵢ))
  *
- * @section user_interface User interface
- * The user holds a latent vector z (not the primal λ).  The optimizer steps
- * z in-place; the caller reads the primal value on demand via LatentToPrimal.
+ * @section device Device execution
+ * Device awareness follows the MMA_MFEM convention exactly:
+ *   - The device flag is read from the user's latent vector z via
+ *     z.UseDevice() at each Update() call and propagated to all internal
+ *     vectors.  Moving z to the GPU is sufficient; no other API change is
+ *     needed.
+ *   - All O(n) loops use mfem::forall_switch(use_dev, n, lambda).
+ *   - Device memory is accessed only through Read()/Write()/ReadWrite().
+ *
+ * @section branching GPU-optimal loop structure (no warp divergence)
+ * A naive single kernel with switch(BoundType) causes warp divergence:
+ * threads in the same warp execute different branches serializing execution.
+ *
+ * The solution used here is **four separate branch-free kernels**, one per
+ * bound type, each launched over a compact index array for that type:
  *
  * @code
- *   // --- serial, identity M ---
- *   mfem::Vector z(n);                       // latent variable (user-owned)
- *   PrimalToLatent(lam0, lo, hi, types, z);  // initialize from a primal point
+ *   // Instead of:
+ *   forall(n, [=](int i){ switch(type[i]) { ... } });  // divergent
+ *
+ *   // We use:
+ *   forall(n_unbounded, [=](int k){ int i = idx_unbounded[k]; ... });
+ *   forall(n_lower,     [=](int k){ int i = idx_lower[k];     ... });
+ *   forall(n_upper,     [=](int k){ int i = idx_upper[k];     ... });
+ *   forall(n_twosided,  [=](int k){ int i = idx_twosided[k];  ... });
+ * @endcode
+ *
+ * Each kernel contains only the arithmetic for its bound type: no branches,
+ * no divergence.  The index arrays are built once at construction and stored
+ * on device.  This strategy also allows the compiler to specialize exp/log/σ
+ * calls and vectorize independently for each bound type.
+ *
+ * The compact index arrays are managed by the BoundPartition helper class.
+ *
+ * @section usage Typical usage
+ * @code
+ *   std::vector<BoundType> types;
+ *   ClassifyBounds(lo, hi, types);
+ *
+ *   mfem::Vector z(n);
+ *   z.UseDevice(true);                // optional: run on GPU
+ *   PrimalToLatent(lam0, lo, hi, types, z);
  *
  *   LatentMirrorOptimizer opt(z, lo, hi);
  *
+ *   mfem::Vector lam(n), d(n);
  *   for (int k = 0; k < max_iter; ++k) {
- *       mfem::Vector lam(n);
- *       LatentToPrimal(z, lo, hi, types, lam);       // λ = T(z)
- *       double phi = EvalObjective(lam);
- *       mfem::Vector d(n);
- *       EvalGradient(lam, d);                        // d = ∇_E Φ(λ)
+ *       LatentToPrimal(z, lo, hi, types, lam);
+ *       real_t phi = EvalObjective(lam);
+ *       EvalGradient(lam, d);
  *       opt.Update(z, d, phi,
- *           [&](const mfem::Vector& z_trial, mfem::real_t& phi_out) {
+ *           [&](const mfem::Vector& zt, real_t& phi_out) {
  *               mfem::Vector lt(n);
- *               LatentToPrimal(z_trial, lo, hi, types, lt);
+ *               lt.UseDevice(z.UseDevice());
+ *               LatentToPrimal(zt, lo, hi, types, lt);
  *               phi_out = EvalObjective(lt);
  *           });
  *       if (opt.StationarityResidual() < tol) break;
  *   }
  * @endcode
- *
- * @section inner_product Inner product
- * The M-gradient is gᵏ = M⁻¹ dᵏ.  Pass an mfem::Operator for M and an
- * mfem::Solver for M⁻¹; null pointers fall back to the Euclidean identity.
- * Typical PDE-constrained choice: M = FEM mass matrix.
- *
- * @section parallel Parallel variant
- * LatentMirrorOptimizerParallel distributes z across MPI ranks.  The GBB
- * numerator/denominator and Armijo objective are assembled via MPI_Allreduce
- * so every rank takes identical steps.  Guarded by MFEM_USE_MPI.
- *
- * @section refs References
- *   - Bregman (1967); Nemirovsky & Yudin (1983); Beck & Teboulle (2003).
- *   - Barzilai & Borwein (1988) — two-point step-size estimate.
- *   - Kim, Lazarov, Surowiec & Keith (2025) — SiMPL / GBB strategy.
- *   - Schwedes et al. (2017); Petra et al. (2023) — Riesz-map gradient.
  */
 
 #pragma once
@@ -89,7 +108,7 @@ enum class BoundType : uint8_t {
 };
 
 namespace detail {
-/** Numerically stable sigmoid (eq. 42). */
+/** Numerically stable sigmoid (eq. 42): no overflow for |z| up to ~700. */
 MFEM_HOST_DEVICE inline mfem::real_t Sigmoid(mfem::real_t z)
 {
     if (z >= mfem::real_t(0))
@@ -101,25 +120,185 @@ MFEM_HOST_DEVICE inline mfem::real_t Sigmoid(mfem::real_t z)
 
 
 // ============================================================
-//           Primal ↔ Latent helpers (free functions)
+/**
+ * @class BoundPartition
+ * @brief Compact per-type index arrays for branch-free GPU kernels.
+ *
+ * Built once from the bound vectors at construction time.  The four index
+ * arrays (idx_unbounded, idx_lower, idx_upper, idx_twosided) are stored
+ * as mfem::Arrays, which live on the same device as the user's z vector.
+ * Each array is densely packed so that a forall over its length visits
+ * every variable of that type exactly once without branching.
+ *
+ * Alongside each index array the corresponding lower/upper bound values
+ * for those indices are stored in compact, aligned device vectors so that
+ * the GPU kernel reads contiguous memory rather than scatter-loading from
+ * the full-length lo/hi vectors.
+ *
+ * Layout principle:
+ * @code
+ *   // Branch-free kernel for TwoSided variables:
+ *   const int* idx = partition.IdxTwoSided();
+ *   const real_t* li = partition.LoTwoSided();
+ *   const real_t* ui = partition.HiTwoSided();
+ *   forall_switch(use_dev, partition.NumTwoSided(), [=](int k) {
+ *       const int i = idx[k];
+ *       z[i] = log((lam[i]-li[k]) / (ui[k]-lam[i]));  // no branch
+ *   });
+ * @endcode
+ */
+// ============================================================
+class BoundPartition {
+public:
+    /**
+     * @brief Classify bounds and build compact index + bound arrays.
+     *
+     * @param lo  Full lower-bound vector (n entries; ±∞ for absent bound).
+     * @param hi  Full upper-bound vector (n entries).
+     * @param ref Reference vector whose device flag is inherited.
+     */
+    BoundPartition(const mfem::Vector& lo,
+                   const mfem::Vector& hi,
+                   const mfem::Vector& ref);
+
+    // ── Counts ────────────────────────────────────────────────────────────
+    int NumUnbounded() const { return n_unbounded_; }
+    int NumLower()     const { return n_lower_;     }
+    int NumUpper()     const { return n_upper_;     }
+    int NumTwoSided()  const { return n_twosided_;  }
+    int Total()        const { return n_unbounded_ + n_lower_ +
+                                      n_upper_ + n_twosided_; }
+
+    // ── Raw device pointers (valid inside forall kernels) ─────────────────
+
+    /// Global index of the k-th Unbounded variable.
+    const int* IdxUnbounded() const { return idx_unbounded_.Read(); }
+    /// Global index of the k-th LowerOnly variable.
+    const int* IdxLower()     const { return idx_lower_.Read();     }
+    /// Global index of the k-th UpperOnly variable.
+    const int* IdxUpper()     const { return idx_upper_.Read();     }
+    /// Global index of the k-th TwoSided variable.
+    const int* IdxTwoSided()  const { return idx_twosided_.Read();  }
+
+    /// Compact lower bounds for LowerOnly variables (length NumLower()).
+    const mfem::real_t* LoLower()    const { return lo_lower_.Read();    }
+    /// Compact upper bounds for UpperOnly variables (length NumUpper()).
+    const mfem::real_t* HiUpper()    const { return hi_upper_.Read();    }
+    /// Compact lower bounds for TwoSided variables (length NumTwoSided()).
+    const mfem::real_t* LoTwoSided() const { return lo_twosided_.Read(); }
+    /// Compact upper bounds for TwoSided variables (length NumTwoSided()).
+    const mfem::real_t* HiTwoSided() const { return hi_twosided_.Read(); }
+
+    /** @brief Build the std::vector<BoundType> classification for host use. */
+    void GetTypes(std::vector<BoundType>& types) const;
+
+private:
+    int n_unbounded_, n_lower_, n_upper_, n_twosided_;
+
+    mfem::Array<int> idx_unbounded_, idx_lower_, idx_upper_, idx_twosided_;
+
+    // Compact bound values aligned with the index arrays.
+    mfem::Vector lo_lower_;     ///< lᵢ for LowerOnly  (length n_lower_)
+    mfem::Vector hi_upper_;     ///< uᵢ for UpperOnly  (length n_upper_)
+    mfem::Vector lo_twosided_;  ///< lᵢ for TwoSided   (length n_twosided_)
+    mfem::Vector hi_twosided_;  ///< uᵢ for TwoSided   (length n_twosided_)
+};
+
+
+// ============================================================
+//           Primal ↔ Latent free functions
+//           (device-aware; use the BoundPartition overloads for GPU)
 // ============================================================
 
 /**
  * @brief Classify each variable into one of the four BoundType categories.
- *
- * Use ±std::numeric_limits<real_t>::infinity() to denote absent bounds.
+ * ±std::numeric_limits<real_t>::infinity() denotes absent bounds.
  */
 void ClassifyBounds(const mfem::Vector& lo,
                     const mfem::Vector& hi,
                     std::vector<BoundType>& types);
 
 /**
- * @brief λ → z  (eq. 9).  λ must be strictly inside K.
+ * @brief λ → z  (eq. 9).  Device-aware, branch-free, boundary-safe.
  *
- *   Unbounded : z = λ
- *   LowerOnly : z = log(λ − l)
- *   UpperOnly : z = −log(u − λ)
- *   TwoSided  : z = log((λ−l)/(u−λ))
+ * Launches four separate forall kernels, one per bound type.  No branching
+ * inside any kernel.  The device flag is inherited from lam.
+ *
+ * @par Boundary safety
+ * The argument of every log() is clamped to a minimum positive value before
+ * evaluation so that a primal point at or beyond a bound produces a
+ * large-but-finite latent value rather than -Inf or NaN.  The minimum gap is
+ *
+ *   δ = max(kPrimalMinGap, kPrimalRelGap × (u − l))
+ *
+ * where kPrimalMinGap = exp(-kLatentClipDefault) ≈ 4×10⁻¹⁸ (double) and
+ * kPrimalRelGap = machine epsilon.  This keeps z within the clipping range
+ * [-kLatentClipDefault, +kLatentClipDefault] even when λ is exactly at a
+ * bound, consistent with the latent clipping applied after each step.
+ *
+ * The clamp is a branchless fmax/fmin with no GPU divergence.
+ *
+ * @note Use BoundSafetyCheck() to count bound violations on the host before
+ *       calling this function.
+ */
+void PrimalToLatent(const mfem::Vector& lam,
+                    const BoundPartition& part,
+                    mfem::Vector& z);
+
+/**
+ * @brief Host-side diagnostic: count primal entries at or beyond their bounds.
+ *
+ * Reads lam on the host and counts entries where
+ *   λᵢ ≤ lᵢ + tol  (LowerOnly or TwoSided lower side)
+ *   λᵢ ≥ uᵢ − tol  (UpperOnly or TwoSided upper side)
+ *
+ * Returns the total violation count (0 = all strictly feasible).
+ * Does not modify any vector.
+ *
+ * @param lam  Primal variable to check (transferred to host if on device).
+ * @param part BoundPartition built from the same lo/hi.
+ * @param lo   Full lower-bound vector.
+ * @param hi   Full upper-bound vector.
+ * @param tol  Proximity threshold (default 0 = exact boundary only).
+ */
+int BoundSafetyCheck(const mfem::Vector& lam,
+                     const BoundPartition& part,
+                     const mfem::Vector& lo,
+                     const mfem::Vector& hi,
+                     mfem::real_t tol = mfem::real_t(0));
+
+/**
+ * @brief z → λ = T(z) ∈ int(K)  (eqs. 10–12).  Device-aware, branch-free.
+ *
+ * Launches four separate forall kernels.  Strict feasibility holds for
+ * every finite z.
+ */
+void LatentToPrimal(const mfem::Vector& z,
+                    const BoundPartition& part,
+                    mfem::Vector& lam);
+
+/**
+ * @brief Diagonal of JT(z) = dλ/dz.  Device-aware, branch-free.
+ *
+ * All entries are strictly positive.
+ */
+void LatentJacobianDiag(const mfem::Vector& z,
+                        const BoundPartition& part,
+                        mfem::Vector& diag);
+
+/**
+ * @brief Default strictly-feasible primal initialization (eq. 35).
+ * Device-aware, branch-free.
+ */
+void DefaultPrimalInit(const BoundPartition& part,
+                       const mfem::Vector& lo,
+                       const mfem::Vector& hi,
+                       mfem::Vector& lam);
+
+// ── Convenience overloads (host-only, builds a temporary BoundPartition) ──
+
+/**
+ * @brief Classify bounds (host-only helper; result stored in types vector).
  */
 void PrimalToLatent(const mfem::Vector& lam,
                     const mfem::Vector& lo,
@@ -127,46 +306,12 @@ void PrimalToLatent(const mfem::Vector& lam,
                     const std::vector<BoundType>& types,
                     mfem::Vector& z);
 
-/**
- * @brief z → λ = T(z) ∈ int(K)  (eqs. 10–12).
- *
- *   Unbounded : λ = z
- *   LowerOnly : λ = l + exp(z)
- *   UpperOnly : λ = u − exp(−z)
- *   TwoSided  : λ = l + (u−l) σ(z)
- *
- * Strict feasibility holds for every finite z.
- */
 void LatentToPrimal(const mfem::Vector& z,
                     const mfem::Vector& lo,
                     const mfem::Vector& hi,
                     const std::vector<BoundType>& types,
                     mfem::Vector& lam);
 
-/**
- * @brief Diagonal of JT(z) = dλ/dz (eqs. 43–44 support).
- *
- *   Unbounded : 1
- *   LowerOnly : exp(z)
- *   UpperOnly : exp(−z)
- *   TwoSided  : (u−l) σ(z)(1−σ(z))
- *
- * All entries are strictly positive.
- */
-void LatentJacobianDiag(const mfem::Vector& z,
-                        const mfem::Vector& lo,
-                        const mfem::Vector& hi,
-                        const std::vector<BoundType>& types,
-                        mfem::Vector& diag);
-
-/**
- * @brief Default strictly-feasible primal initialization (eq. 35).
- *
- *   Unbounded : λ = 0
- *   LowerOnly : λ = l + 1
- *   UpperOnly : λ = u − 1
- *   TwoSided  : λ = (l + u) / 2
- */
 void DefaultPrimalInit(const mfem::Vector& lo,
                        const mfem::Vector& hi,
                        const std::vector<BoundType>& types,
@@ -176,93 +321,50 @@ void DefaultPrimalInit(const mfem::Vector& lo,
 // ============================================================
 /**
  * @class LatentMirrorOptimizer
- * @brief Serial latent-variable mirror-gradient optimizer.
+ * @brief Serial device-aware latent-variable mirror-gradient optimizer.
  *
- * The user holds the latent vector z.  Each call to Update() advances z
- * by one GBB+Armijo mirror-gradient step.  The primal variable λ = T(z)
- * is read on demand by calling LatentToPrimal().
+ * The device is determined by the user's latent vector z passed to Update():
+ * @code
+ *   z.UseDevice(true);   // all O(n) kernels run on GPU
+ *   z.UseDevice(false);  // all O(n) kernels run on CPU (default)
+ * @endcode
+ *
+ * All internal vectors inherit the device flag of z at the first Update()
+ * call and stay on the same device for the lifetime of the optimizer.
  *
  * ### Algorithm per iteration (§8 of the paper)
- *  1. gᵏ = M⁻¹ dᵏ  (M-gradient, eq. 3 / 38).
- *  2. Trial step αₜ from GBB estimate (eq. 18) or eq. (22) on first step.
+ *  1. gᵏ = M⁻¹ dᵏ.
+ *  2. αₜ from GBB (eq. 18) or eq. (22) on first step.
  *  3. Backtracking Armijo line search (eqs. 23–26):
- *       repeat: z⁺ = zᵏ − α gᵏ;  λ⁺ = T(z⁺)
- *               check Φ(λ⁺) ≤ Φ(λᵏ) + c₁ (dᵏ)ᵀ(λ⁺−λᵏ)
- *               if not: α ← β α
- *  4. Accept: zᵏ⁺¹ = z⁺.
- *
- * The Armijo objective evaluation is provided by the caller as a callback
- * (type EvalPhi) so the optimizer remains objective-agnostic.
- *
- * ### Typical usage
- * @code
- *   std::vector<BoundType> types;
- *   ClassifyBounds(lo, hi, types);
- *
- *   mfem::Vector z(n);
- *   PrimalToLatent(lam0, lo, hi, types, z);   // initialize z from lam0
- *
- *   LatentMirrorOptimizer opt(z, lo, hi);
- *
- *   mfem::Vector lam(n), d(n);
- *   for (int k = 0; k < max_iter; ++k) {
- *       LatentToPrimal(z, lo, hi, types, lam);
- *       double phi = EvalObjective(lam);
- *       EvalGradient(lam, d);
- *
- *       opt.Update(z, d, real_t(phi),
- *           [&](const mfem::Vector& z_trial, mfem::real_t& phi_out) {
- *               mfem::Vector lt(n);
- *               LatentToPrimal(z_trial, lo, hi, types, lt);
- *               phi_out = real_t(EvalObjective(lt));
- *           });
- *       if (opt.StationarityResidual() < tol) break;
- *   }
- * @endcode
+ *       z⁺ = zᵏ − α gᵏ;  λ⁺ = T(z⁺)
+ *       check  Φ(λ⁺) ≤ Φ(λᵏ) + c₁ (dᵏ)ᵀ(λ⁺−λᵏ)
+ *  4. Accept zᵏ⁺¹ = z⁺.
  */
 // ============================================================
 class LatentMirrorOptimizer {
 public:
-
     /**
-     * @brief Callback type for Armijo objective evaluation.
-     *
-     * Called inside the backtracking loop with the trial latent vector.
-     * The implementation must set phi_out = Φ(T(z_trial)).
-     *
-     * @param z_trial  Trial latent vector (do not modify).
-     * @param phi_out  Output: objective value at the trial point.
+     * Callback for Armijo objective evaluation.
+     * Called with z_trial (on the same device as z); must set phi_out to
+     * the GLOBAL objective Φ(T(z_trial)).
      */
     using EvalPhi = std::function<void(const mfem::Vector& z_trial,
-                                       mfem::real_t&       phi_out)>;
+                                       mfem::real_t& phi_out)>;
 
     // ── Constructors ──────────────────────────────────────────────────────
 
-    /**
-     * @brief Construct with identity M.
-     *
-     * @param z0  Initial latent vector (user-owned; copied into internal
-     *            state — further modifications of z0 outside this class
-     *            have no effect until the user passes it to Update()).
-     * @param lo  Lower bounds (±∞ for absent bound).
-     * @param hi  Upper bounds.
+    /** @brief Construct with identity M.
+     *  @param z0  Initial latent vector.  Its device flag is inherited.
+     *  @param lo  Lower bounds (use ±∞ for absent).
+     *  @param hi  Upper bounds.
      */
     LatentMirrorOptimizer(const mfem::Vector& z0,
                           const mfem::Vector& lo,
                           const mfem::Vector& hi);
 
-    /**
-     * @brief Construct with a user-supplied inner product M and inverse M⁻¹.
-     *
-     * @param z0        Initial latent vector.
-     * @param lo        Lower bounds.
-     * @param hi        Upper bounds.
-     * @param M_op      SPD operator M (null → identity).  Used for pairings
-     *                  ⟨·,·⟩_M = (·)ᵀ M (·).
-     * @param M_solver  Solver for Mx = b (null → identity).  Used to compute
-     *                  gᵏ = M⁻¹ dᵏ.
-     *
-     * The caller retains ownership of M_op and M_solver.
+    /** @brief Construct with user-supplied inner product M and inverse M⁻¹.
+     *  @param M_op     SPD operator M (null → identity).
+     *  @param M_solver Solver for Mx=b  (null → identity).
      */
     LatentMirrorOptimizer(const mfem::Vector& z0,
                           const mfem::Vector& lo,
@@ -274,116 +376,86 @@ public:
 
     // ── Configuration ─────────────────────────────────────────────────────
 
-    /**
-     * @brief Set Armijo line-search parameters.
-     * @param c1     Sufficient-decrease constant ∈ (0,1).  Default 1e-4.
-     * @param beta   Step-reduction factor ∈ (0,1).        Default 0.5.
-     * @param max_ls Maximum backtracking steps.            Default 50.
+    /** @brief Armijo line-search parameters.
+     *  @param c1     Sufficient-decrease constant ∈ (0,1).  Default 1e-4.
+     *  @param beta   Step-reduction factor ∈ (0,1).        Default 0.5.
+     *  @param max_ls Maximum backtracking steps.            Default 50.
      */
     void SetLineSearchParams(mfem::real_t c1   = mfem::real_t(1e-4),
                              mfem::real_t beta = mfem::real_t(0.5),
                              int          max_ls = 50);
 
-    /**
-     * @brief Set GBB step-size safeguards.
-     * @param alpha_min  Lower clamp on accepted step.  Default 1e-12.
-     * @param alpha_max  Upper clamp on accepted step.  Default 1e4.
-     * @param eps_bb     Skip GBB if |numerator| or |denominator| < eps_bb.
-     *                   Default 1e-14.
+    /** @brief GBB safeguards.
+     *  @param alpha_min  Lower clamp.   Default 1e-12.
+     *  @param alpha_max  Upper clamp.   Default 1e4.
+     *  @param eps_bb     Threshold below which GBB is skipped. Default 1e-14.
      */
     void SetStepSizeSafeguards(mfem::real_t alpha_min = mfem::real_t(1e-12),
                                 mfem::real_t alpha_max = mfem::real_t(1e4),
                                 mfem::real_t eps_bb   = mfem::real_t(1e-14));
 
-    /**
-     * @brief Clip latent variables to [−zmax, zmax] after each step.
-     *
-     * Prevents sigmoid saturation.  Default 40 (σ(40) ≈ 1 − 4×10⁻¹⁸).
+    /** @brief Clip latent variables to [−zmax, zmax] after each step.
+     *  Default 40.
      */
     void SetLatentClipping(mfem::real_t zmax = mfem::real_t(40));
 
-    /** @brief Stationarity tolerance used by HasConverged().  Default 1e-6. */
+    /** @brief Stationarity tolerance for HasConverged().  Default 1e-6. */
     void SetStationarityTol(mfem::real_t tol = mfem::real_t(1e-6));
 
     // ── Outer iteration ───────────────────────────────────────────────────
 
     /**
-     * @brief Perform one GBB + Armijo mirror-gradient step.
+     * @brief One GBB + Armijo mirror-gradient step.
      *
-     * @param[in,out] z       Latent variable (user-owned; updated in-place).
-     * @param[in]     d       Euclidean derivative dᵏ = ∇_E Φ(T(z)).
-     * @param[in]     phi_k   Objective value Φ(T(z)) at the current z.
-     *                        Must match z on entry (not the updated value).
-     * @param[in]     eval_phi  Callback for Armijo objective evaluation.
-     *                          Called at each trial step inside the backtrack.
-     *                          If null, the Armijo check is skipped and the
-     *                          initial GBB trial step is accepted directly
-     *                          (useful when the objective is cheap enough to
-     *                          not need a line search, or for testing).
+     * @param[in,out] z        Latent variable (updated in-place; device
+     *                         determined by z.UseDevice()).
+     * @param[in]     d        Euclidean derivative dᵏ = ∇_E Φ(T(z)).
+     * @param[in]     phi_k    Objective Φ(T(z)) at current z.
+     * @param[in]     eval_phi Armijo callback (null → skip check).
      * @return Accepted step size αᵏ.
      */
-    mfem::real_t Update(mfem::Vector&      z,
+    mfem::real_t Update(mfem::Vector&       z,
                         const mfem::Vector& d,
                         mfem::real_t        phi_k,
                         EvalPhi             eval_phi = nullptr);
 
-    // ── Convergence diagnostics ───────────────────────────────────────────
+    // ── Convergence ───────────────────────────────────────────────────────
 
-    /**
-     * @brief Euclidean projected-gradient stationarity residual (eq. 33).
-     *
-     * Computes  ‖λ − Π_K(λ − d)‖₂ / max(1, ‖λ‖₂)  from the given
-     * latent z (converted internally).  Requires the Euclidean derivative d.
-     */
+    /** Euclidean projected-gradient residual (eq. 33) from z and d. */
     mfem::real_t StationarityResidual(const mfem::Vector& z,
                                       const mfem::Vector& d) const;
 
-    /**
-     * @brief Cached residual from the last Update() call.
-     * Returns −1 before the first call.
-     */
+    /** Cached residual from the last Update(). Returns −1 before first call. */
     mfem::real_t StationarityResidual() const { return last_stat_res_; }
 
-    /** @brief True if cached residual < stationarity tolerance. */
     bool HasConverged() const {
         return last_stat_res_ >= mfem::real_t(0) &&
                last_stat_res_ < stat_tol_;
     }
 
-    /**
-     * @brief Relative M-norm step size ‖λᵏ⁺¹−λᵏ‖_M / max(1,‖λᵏ‖_M) (eq. 34).
-     * Returns −1 before the first call.
-     */
-    mfem::real_t RelativeStepSize() const { return last_rel_step_; }
+    /** Relative M-norm step ‖λᵏ⁺¹−λᵏ‖_M / max(1,‖λᵏ‖_M) (eq. 34). */
+    mfem::real_t RelativeStepSize()    const { return last_rel_step_;  }
+    int          LastLineSearchSteps() const { return last_ls_steps_;  }
+    int          NumIterations()       const { return iter_;           }
 
-    /** @brief Number of backtracking reductions in the last step. */
-    int LastLineSearchSteps() const { return last_ls_steps_; }
-
-    /** @brief Total completed Update() calls. */
-    int NumIterations() const { return iter_; }
-
-    /** @brief Bound-type classification built at construction. */
-    const std::vector<BoundType>& GetBoundTypes() const { return types_; }
+    /** BoundPartition built at construction (useful for LatentToPrimal). */
+    const BoundPartition& GetPartition() const { return part_; }
 
 private:
-    int n_;
-    mfem::Vector lo_, hi_;
-    std::vector<BoundType> types_;
+    int            n_;
+    BoundPartition part_;
+    mfem::Vector   lo_full_, hi_full_;   ///< full-length lo/hi on device
 
     mfem::Operator* M_op_;
     mfem::Solver*   M_solver_;
 
-    // History for GBB (stored as latent vectors).
-    mfem::Vector z_prev_;    ///< zᵏ⁻¹
-    mfem::Vector lam_prev_;  ///< T(zᵏ⁻¹)
-    mfem::Vector g_prev_;    ///< gᵏ⁻¹
+    // GBB history (live on same device as z).
+    mfem::Vector z_prev_, lam_prev_, g_prev_;
 
-    // Work vectors (avoid repeated allocation).
-    mfem::Vector g_;          ///< current M-gradient
-    mfem::Vector Mg_;         ///< M gᵏ = dᵏ  (for Armijo pairing)
-    mfem::Vector z_trial_;    ///< trial latent vector
-    mfem::Vector lam_cur_;    ///< T(zᵏ)    — current primal
-    mfem::Vector lam_trial_;  ///< T(z_trial_) — trial primal
+    // Work vectors.
+    mfem::Vector g_, Mg_, z_trial_, lam_cur_, lam_trial_;
+
+    bool initialized_;   ///< false until first Update(); deferred device init
 
     mfem::real_t alpha_prev_;
     mfem::real_t alpha_min_, alpha_max_, eps_bb_;
@@ -397,18 +469,25 @@ private:
     mfem::real_t last_stat_res_;
     mfem::real_t last_rel_step_;
 
+    /** Resize and set UseDevice on all internal vectors to match ref. */
+    void InitDeviceVectors(const mfem::Vector& ref);
+
     void         ApplyM   (const mfem::Vector& x, mfem::Vector& Mx)    const;
     void         ApplyMinv(const mfem::Vector& x, mfem::Vector& Minvx) const;
     mfem::real_t InnerProductM(const mfem::Vector& x,
                                 const mfem::Vector& y) const;
     mfem::real_t NormM(const mfem::Vector& x) const {
-        return std::sqrt(InnerProductM(x, x));
+        return std::sqrt(std::max(mfem::real_t(0), InnerProductM(x, x)));
     }
     mfem::real_t ComputeGBBStepSize(const mfem::Vector& dz,
                                      const mfem::Vector& dlam,
                                      const mfem::Vector& dg,
                                      mfem::real_t fallback) const;
     void ClipLatent(mfem::Vector& z) const;
+
+    /** Compute projected-gradient residual on device; returns scalar. */
+    mfem::real_t ProjectedGradResidual(const mfem::Vector& lam,
+                                        const mfem::Vector& d) const;
 };
 
 
@@ -416,78 +495,28 @@ private:
 #ifdef MFEM_USE_MPI
 /**
  * @class LatentMirrorOptimizerParallel
- * @brief MPI-parallel latent-variable mirror-gradient optimizer.
+ * @brief MPI-parallel device-aware latent-variable mirror-gradient optimizer.
  *
- * Distributes the n latent variables z across MPI ranks.  Each rank owns a
- * contiguous local chunk.  Global scalars (GBB numerator/denominator, Armijo
- * objective) are assembled via MPI_Allreduce so every rank takes identical
- * steps.
+ * Distributes z across MPI ranks.  Each rank owns a local chunk.  Global
+ * inner products (GBB, Armijo pairing) are assembled via MPI_Allreduce.
+ * The device flag is read from the local z passed to Update().
  *
- * The Armijo objective callback must return the GLOBAL objective value
- * (same on all ranks).  The caller is responsible for any reductions needed
- * to compute that global value from local contributions.
- *
- * ### Typical parallel usage
- * @code
- *   std::vector<BoundType> types;
- *   ClassifyBounds(lo_loc, hi_loc, types);
- *
- *   mfem::Vector z_loc(n_local);
- *   PrimalToLatent(lam0_loc, lo_loc, hi_loc, types, z_loc);
- *
- *   LatentMirrorOptimizerParallel opt(MPI_COMM_WORLD, z_loc, lo_loc, hi_loc);
- *
- *   mfem::Vector lam_loc(n_local), d_loc(n_local);
- *   for (int k = 0; k < max_iter; ++k) {
- *       LatentToPrimal(z_loc, lo_loc, hi_loc, types, lam_loc);
- *       double phi = EvalGlobalObjective(lam_loc);   // MPI reduction inside
- *       EvalLocalGradient(lam_loc, d_loc);
- *
- *       opt.Update(z_loc, d_loc, real_t(phi),
- *           [&](const mfem::Vector& zt, mfem::real_t& phi_out) {
- *               mfem::Vector lt(n_local);
- *               LatentToPrimal(zt, lo_loc, hi_loc, types, lt);
- *               phi_out = real_t(EvalGlobalObjective(lt)); // all ranks call this
- *           });
- *       if (opt.StationarityResidual() < tol) break;
- *   }
- * @endcode
- *
- * @note Compiled only when MFEM_USE_MPI is defined.
+ * The Armijo eval_phi callback must return the GLOBAL objective value
+ * (same on all ranks; the callback is responsible for any MPI reduction).
  */
 // ============================================================
 class LatentMirrorOptimizerParallel {
 public:
-    /** @copydoc LatentMirrorOptimizer::EvalPhi */
     using EvalPhi = std::function<void(const mfem::Vector& z_trial_local,
-                                       mfem::real_t&       phi_out)>;
+                                       mfem::real_t& phi_out)>;
 
     // ── Constructors ──────────────────────────────────────────────────────
 
-    /**
-     * @brief Construct with identity M.
-     * @param comm      MPI communicator.
-     * @param z0_local  Initial local latent chunk.
-     * @param lo_local  Local lower bounds.
-     * @param hi_local  Local upper bounds.
-     */
     LatentMirrorOptimizerParallel(MPI_Comm            comm,
                                    const mfem::Vector& z0_local,
                                    const mfem::Vector& lo_local,
                                    const mfem::Vector& hi_local);
 
-    /**
-     * @brief Construct with user-supplied local M operator and solver.
-     * @param comm           MPI communicator.
-     * @param z0_local       Initial local latent chunk.
-     * @param lo_local       Local lower bounds.
-     * @param hi_local       Local upper bounds.
-     * @param M_op_local     Local block of M (null → identity).
-     * @param M_solver_local Local solver for the M-block (null → identity).
-     *
-     * Global inner products ⟨x,y⟩_M are assembled as
-     *   Σ_rank  xlocᵀ Mlocal ylocal  via MPI_Allreduce.
-     */
     LatentMirrorOptimizerParallel(MPI_Comm            comm,
                                    const mfem::Vector& z0_local,
                                    const mfem::Vector& lo_local,
@@ -499,91 +528,58 @@ public:
 
     // ── Configuration ─────────────────────────────────────────────────────
 
-    /** @copydoc LatentMirrorOptimizer::SetLineSearchParams */
     void SetLineSearchParams(mfem::real_t c1   = mfem::real_t(1e-4),
                              mfem::real_t beta = mfem::real_t(0.5),
                              int          max_ls = 50);
-
-    /** @copydoc LatentMirrorOptimizer::SetStepSizeSafeguards */
     void SetStepSizeSafeguards(mfem::real_t alpha_min = mfem::real_t(1e-12),
                                 mfem::real_t alpha_max = mfem::real_t(1e4),
                                 mfem::real_t eps_bb   = mfem::real_t(1e-14));
-
-    /** @copydoc LatentMirrorOptimizer::SetLatentClipping */
     void SetLatentClipping(mfem::real_t zmax = mfem::real_t(40));
-
-    /** @copydoc LatentMirrorOptimizer::SetStationarityTol */
     void SetStationarityTol(mfem::real_t tol = mfem::real_t(1e-6));
 
     // ── Outer iteration ───────────────────────────────────────────────────
 
     /**
-     * @brief Perform one parallel GBB + Armijo mirror-gradient step.
-     *
-     * @param[in,out] z_local   Local latent chunk (updated in-place).
-     * @param[in]     d_local   Local Euclidean derivative ∇_E Φ at T(z_local).
-     * @param[in]     phi_k     Global objective value Φ(T(z)) — same on all
-     *                          ranks.
-     * @param[in]     eval_phi  Callback returning the GLOBAL objective at a
-     *                          trial z_local.  Called on ALL ranks.  Null
-     *                          disables the Armijo check.
-     * @return Accepted step size αᵏ (same on all ranks).
+     * @param[in,out] z_local   Local latent chunk (device flag inherited).
+     * @param[in]     d_local   Local Euclidean derivative.
+     * @param[in]     phi_k     Global objective (same on all ranks).
+     * @param[in]     eval_phi  Callback returning global Φ at a trial z_local.
+     *                          Called on ALL ranks.  Null disables Armijo.
      */
-    mfem::real_t Update(mfem::Vector&      z_local,
+    mfem::real_t Update(mfem::Vector&       z_local,
                         const mfem::Vector& d_local,
                         mfem::real_t        phi_k,
                         EvalPhi             eval_phi = nullptr);
 
-    // ── Convergence diagnostics ───────────────────────────────────────────
+    // ── Convergence ───────────────────────────────────────────────────────
 
-    /**
-     * @brief Global projected-gradient stationarity residual (eq. 33).
-     *
-     * Global 2-norms assembled via MPI_Allreduce; identical on all ranks.
-     */
     mfem::real_t StationarityResidual(const mfem::Vector& z_local,
                                        const mfem::Vector& d_local) const;
-
-    /** @copydoc LatentMirrorOptimizer::StationarityResidual() const */
     mfem::real_t StationarityResidual() const { return last_stat_res_; }
-
-    /** @copydoc LatentMirrorOptimizer::HasConverged */
     bool HasConverged() const {
         return last_stat_res_ >= mfem::real_t(0) &&
                last_stat_res_ < stat_tol_;
     }
+    mfem::real_t RelativeStepSize()    const { return last_rel_step_;  }
+    int          LastLineSearchSteps() const { return last_ls_steps_;  }
+    int          NumIterations()       const { return iter_;           }
 
-    /** @copydoc LatentMirrorOptimizer::RelativeStepSize */
-    mfem::real_t RelativeStepSize()     const { return last_rel_step_; }
-
-    /** @brief Number of backtracking reductions in the last step. */
-    int LastLineSearchSteps()           const { return last_ls_steps_; }
-
-    /** @brief Total completed Update() calls. */
-    int NumIterations()                 const { return iter_; }
-
-    /** @brief Bound-type classification for this rank's local chunk. */
-    const std::vector<BoundType>& GetBoundTypes() const { return types_; }
+    const BoundPartition& GetPartition() const { return part_; }
 
 private:
-    MPI_Comm     comm_;
-    int          n_local_;
-
-    mfem::Vector lo_local_, hi_local_;
-    std::vector<BoundType> types_;
+    MPI_Comm       comm_;
+    int            n_local_;
+    BoundPartition part_;
+    mfem::Vector   lo_full_local_, hi_full_local_;
 
     mfem::Operator* M_op_;
     mfem::Solver*   M_solver_;
 
-    mfem::Vector z_prev_local_;
-    mfem::Vector lam_prev_local_;
-    mfem::Vector g_prev_local_;
+    mfem::Vector z_prev_local_, lam_prev_local_, g_prev_local_;
+    mfem::Vector g_local_, Mg_local_, z_trial_local_;
+    mfem::Vector lam_cur_local_, lam_trial_local_;
 
-    mfem::Vector g_local_;
-    mfem::Vector Mg_local_;
-    mfem::Vector z_trial_local_;
-    mfem::Vector lam_cur_local_;
-    mfem::Vector lam_trial_local_;
+    bool initialized_;
 
     mfem::real_t alpha_prev_;
     mfem::real_t alpha_min_, alpha_max_, eps_bb_;
@@ -597,18 +593,23 @@ private:
     mfem::real_t last_stat_res_;
     mfem::real_t last_rel_step_;
 
-    void         ApplyM       (const mfem::Vector& x, mfem::Vector& Mx)    const;
-    void         ApplyMinv    (const mfem::Vector& x, mfem::Vector& Minvx) const;
+    void InitDeviceVectors(const mfem::Vector& ref);
+
+    void         ApplyM   (const mfem::Vector& x, mfem::Vector& Mx)    const;
+    void         ApplyMinv(const mfem::Vector& x, mfem::Vector& Minvx) const;
     mfem::real_t InnerProductM(const mfem::Vector& x,
                                 const mfem::Vector& y) const; // global via Allreduce
-    mfem::real_t NormM        (const mfem::Vector& x) const {
-        return std::sqrt(InnerProductM(x, x));
+    mfem::real_t NormM(const mfem::Vector& x) const {
+        return std::sqrt(std::max(mfem::real_t(0), InnerProductM(x, x)));
     }
     mfem::real_t ComputeGBBStepSize(const mfem::Vector& dz,
                                      const mfem::Vector& dlam,
                                      const mfem::Vector& dg,
                                      mfem::real_t fallback) const;
     void ClipLatent(mfem::Vector& z) const;
+
+    mfem::real_t ProjectedGradResidualGlobal(const mfem::Vector& lam_local,
+                                              const mfem::Vector& d_local) const;
 };
 #endif // MFEM_USE_MPI
 

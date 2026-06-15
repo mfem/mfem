@@ -1,292 +1,268 @@
 #!/usr/bin/env bash
 # =============================================================================
-# run_tests.sh  —  MMA/GCMMA/SQ MFEM test runner
+# run_tests.sh  —  Human-readable test runner for the MMA/GCMMA/SQ test suite
 #
 # Usage:
-#   ./run_tests.sh [OPTIONS]
+#   bash run_tests.sh -b BUILD_DIR [-n NRANKS] [-m MODE]
 #
 # Options:
-#   -b DIR      Build directory (default: ./build)
-#   -j N        MPI ranks for parallel tests (default: 4)
-#   --serial    Run only serial (1-rank) tests
-#   --gpu       Also run GPU device test (requires CUDA/HIP MFEM build)
-#   --large     Pass --large to test_nonconvex / test_sq_nonconvex (very slow, 100k–1M DOF)
-#   --units     Include unit tests (test_solvedense, test_packfival)
-#   --legacy    Include legacy test_mma_mfem
-#   --debug     Include test_eq_debug
-#   -h          Show this help
+#   -b BUILD_DIR   Path to the cmake build directory (required).
+#   -n NRANKS      Number of MPI ranks for parallel tests (default: 4).
+#   -m MODE        What to run: serial | parallel | all  (default: all).
 #
-# Exit code: 0 if all selected tests pass, 1 if any fail.
+# Adding a new test
+# -----------------
+# 1. Write the test binary (cmake target) — see CMakeLists.txt.
 #
-# Examples:
-#   ./run_tests.sh                          # full suite, 4 MPI ranks
-#   ./run_tests.sh --serial                 # no mpirun required
-#   ./run_tests.sh -b ./build -j 8         # custom build dir and rank count
-#   ./run_tests.sh --gpu --large            # include GPU and large tests
+# 2. Add a call to one of the helper functions below in the appropriate section:
+#
+#    run_serial   LABEL  BINARY [ARGS...]
+#      Runs ./BINARY [ARGS...] as a single process.
+#      LABEL is the display name shown in the output.
+#
+#    run_parallel LABEL  BINARY [ARGS...]
+#      Runs mpirun -np $NRANKS ./BINARY [ARGS...].
+#      Skipped silently when mpirun is not available.
+#
+#    run_serial_and_parallel LABEL_SER LABEL_PAR BINARY [ARGS...]
+#      Runs both a serial (1-rank) and a parallel (NRANKS-rank) entry.
+#
+# 3. Place the call in the relevant section:
+#    ── Core: serial          → MMA/GCMMA serial tests
+#    ── Core: parallel        → MMA/GCMMA parallel tests
+#    ── Device (CPU)          → device-backend tests
+#    ── SQ: serial            → SQ optimizer serial tests
+#    ── SQ: parallel          → SQ optimizer parallel tests
+#    ── Relaxed equalities    → PackFivalRelaxed / WithRelaxedEqualities tests
+#    ── [add your section]    → new sections can be inserted anywhere
+#
+# The BINARY name must match the cmake target name exactly (without a path).
 # =============================================================================
 
-set -euo pipefail
+set -uo pipefail
 
-# ---------------------------------------------------------------------------
-# Defaults
-# ---------------------------------------------------------------------------
-BUILD_DIR="./build"
-NP=4
-SERIAL_ONLY=0
-GPU=0
-LARGE=0
-UNITS=0
-LEGACY=0
-DEBUG=0
-MPIRUN="${MPIRUN:-mpirun}"
+# ── Defaults ──────────────────────────────────────────────────────────────────
+BUILD_DIR=""
+NRANKS=4
+MODE="all"          # serial | parallel | all
 
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
+# ── Parse arguments ───────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -b)         BUILD_DIR="$2"; shift 2 ;;
-        -j)         NP="$2";        shift 2 ;;
-        --serial)   SERIAL_ONLY=1;  shift   ;;
-        --gpu)      GPU=1;          shift   ;;
-        --large)    LARGE=1;        shift   ;;
-        --units)    UNITS=1;        shift   ;;
-        --legacy)   LEGACY=1;       shift   ;;
-        --debug)    DEBUG=1;        shift   ;;
-        -h|--help)
-            sed -n '/^# Usage:/,/^# ====/p' "$0" | sed 's/^# \?//'
-            exit 0 ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
+        -b) BUILD_DIR="$2"; shift 2 ;;
+        -n) NRANKS="$2";    shift 2 ;;
+        -m) MODE="$2";      shift 2 ;;
+        *)  echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
-BUILD_DIR="${BUILD_DIR%/}"   # strip trailing slash
+if [[ -z "$BUILD_DIR" ]]; then
+    echo "Error: -b BUILD_DIR is required." >&2
+    echo "Usage: bash run_tests.sh -b BUILD_DIR [-n NRANKS] [-m MODE]" >&2
+    exit 1
+fi
 
-# ---------------------------------------------------------------------------
-# Terminal colours and counters
-# ---------------------------------------------------------------------------
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+if [[ ! -d "$BUILD_DIR" ]]; then
+    echo "Error: build directory not found: $BUILD_DIR" >&2
+    exit 1
+fi
 
-PASS=0; FAIL=0; SKIP=0
-FAILED_TESTS=()
+# ── Detect mpirun ─────────────────────────────────────────────────────────────
+MPIRUN=""
+for cmd in mpirun mpiexec; do
+    if command -v "$cmd" &>/dev/null; then
+        MPIRUN="$cmd"; break
+    fi
+done
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ── State ─────────────────────────────────────────────────────────────────────
+PASS=0
+FAIL=0
+SKIP=0
+declare -a FAILED_TESTS=()
 
-# run LABEL CMD [ARGS…]
-#   Runs a test, prints PASS/FAIL/ERROR, records the result.
-run() {
+# ── Helpers ───────────────────────────────────────────────────────────────────
+COL=45   # column at which PASS/FAIL is printed
+
+print_result() {
+    local label="$1" status="$2" detail="${3:-}"
+    local pad=$(( COL - ${#label} ))
+    [[ $pad -lt 1 ]] && pad=1
+    printf "  %-${COL}s %s\n" "$label" "$status"
+    [[ -n "$detail" ]] && printf "    %s\n" "$detail"
+}
+
+# Run a single-process test.
+# Usage: run_serial LABEL BINARY [ARGS...]
+run_serial() {
     local label="$1"; shift
-    printf "  %-45s " "$label"
-    local out
-    if out=$("$@" 2>&1); then
-        if echo "$out" | grep -q '^\s*\[FAIL\]'; then
-            echo -e "${RED}FAIL${NC}"
-            echo "$out" | grep '^\s*\[FAIL\]' | sed 's/^/    /'
-            (( FAIL++ )) || true
-            FAILED_TESTS+=("$label")
-        else
-            echo -e "${GREEN}PASS${NC}"
-            (( PASS++ )) || true
-        fi
+    local binary="$1"; shift
+    local bin_path="$BUILD_DIR/$binary"
+
+    if [[ ! -x "$bin_path" ]]; then
+        print_result "$label" "SKIP  (binary not found)"
+        (( SKIP++ )) || true
+        return
+    fi
+
+    local output exit_code
+    output=$("$bin_path" "$@" 2>&1) && exit_code=0 || exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        print_result "$label" "PASS"
+        (( PASS++ )) || true
     else
-        local code=$?
-        echo -e "${RED}ERROR (exit ${code})${NC}"
-        if echo "$out" | grep -q '^\s*\[FAIL\]'; then
-            echo "$out" | grep '^\s*\[FAIL\]' | sed 's/^/    /'
-        else
-            echo "$out" | tail -8 | sed 's/^/    /'
-        fi
+        local first_fail
+        first_fail=$(echo "$output" | grep '\[FAIL\]' | head -1)
+        print_result "$label" "ERROR (exit $exit_code)" "$first_fail"
         (( FAIL++ )) || true
         FAILED_TESTS+=("$label")
     fi
 }
 
-# skip LABEL  — record a deliberate skip
-skip() {
-    printf "  %-45s " "$1"
-    echo -e "${YELLOW}SKIP${NC}"
-    (( SKIP++ )) || true
-}
+# Run a parallel (multi-rank) test.
+# Usage: run_parallel LABEL BINARY [ARGS...]
+run_parallel() {
+    local label="$1"; shift
+    local binary="$1"; shift
+    local bin_path="$BUILD_DIR/$binary"
 
-# section TITLE — print a section header
-section() { echo; echo -e "${CYAN}── $1${NC}"; }
-
-# require BIN — abort if the binary doesn't exist
-require() {
-    if [[ ! -x "$BUILD_DIR/$1" ]]; then
-        echo -e "${RED}Error:${NC} $BUILD_DIR/$1 not found. Build the project first."
-        exit 1
+    if [[ -z "$MPIRUN" ]]; then
+        print_result "$label" "SKIP  (no mpirun)"
+        (( SKIP++ )) || true
+        return
     fi
-}
 
-# serial  BIN [ARGS…] — run 1-rank test
-serial()   { "$BUILD_DIR/$1" "${@:2}"; }
+    if [[ ! -x "$bin_path" ]]; then
+        print_result "$label" "SKIP  (binary not found)"
+        (( SKIP++ )) || true
+        return
+    fi
 
-# par BIN [ARGS…] — run NP-rank test
-par()      { "$MPIRUN" -np "$NP" "$BUILD_DIR/$1" "${@:2}"; }
+    local output exit_code
+    output=$("$MPIRUN" -np "$NRANKS" "$bin_path" "$@" 2>&1) && exit_code=0 || exit_code=$?
 
-# ---------------------------------------------------------------------------
-# Pre-flight
-# ---------------------------------------------------------------------------
-echo
-echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║  MMA/GCMMA MFEM test suite                              ║${NC}"
-echo -e "${BOLD}╠══════════════════════════════════════════════════════════╣${NC}"
-printf  "${BOLD}║  Build dir : %-43s║${NC}\n" "$BUILD_DIR"
-printf  "${BOLD}║  MPI ranks : %-43s║${NC}\n" "$NP"
-printf  "${BOLD}║  Mode      : %-43s║${NC}\n" \
-    "$([ $SERIAL_ONLY -eq 1 ] && echo "serial only" || echo "serial+parallel")"
-echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
-
-[[ -d "$BUILD_DIR" ]] || { echo "Error: build directory '$BUILD_DIR' not found."; exit 1; }
-
-# ---------------------------------------------------------------------------
-# Core MMA / GCMMA  —  serial
-# ---------------------------------------------------------------------------
-section "Core: serial"
-require test_mma_serial
-run "mma_serial"              serial test_mma_serial
-run "mma_unconstrained"       serial test_mma_unconstrained
-run "gcmma_serial"            serial test_gcmma
-run "gcmma_callback_serial"   serial test_gcmma_callback
-run "zero_ranks_1"            serial test_zero_ranks
-run "overconstrained_serial"  serial test_overconstrained
-run "equalities_serial"       serial test_equalities
-
-# ---------------------------------------------------------------------------
-# Device test (CPU)
-# ---------------------------------------------------------------------------
-section "Device (CPU)"
-require test_mma_device
-run "mma_device_cpu"  serial test_mma_device --device cpu
-
-# ---------------------------------------------------------------------------
-# Device test (GPU) — opt-in with --gpu
-# ---------------------------------------------------------------------------
-if [[ $GPU -eq 1 ]]; then
-    section "Device (GPU)"
-    if command -v nvidia-smi &>/dev/null; then
-        run "mma_device_cuda"  serial test_mma_device --device cuda
-    elif command -v rocm-smi &>/dev/null; then
-        run "mma_device_hip"   serial test_mma_device --device hip
+    if [[ $exit_code -eq 0 ]]; then
+        print_result "$label" "PASS"
+        (( PASS++ )) || true
     else
-        skip "mma_device_gpu (no GPU detected)"
+        local first_fail
+        first_fail=$(echo "$output" | grep '\[FAIL\]' | head -1)
+        print_result "$label" "ERROR (exit $exit_code)" "$first_fail"
+        (( FAIL++ )) || true
+        FAILED_TESTS+=("$label")
     fi
-fi
+}
 
-# ---------------------------------------------------------------------------
-# SQ approximation  —  serial
-# ---------------------------------------------------------------------------
+# Run a binary as both 1-rank serial and NRANKS-rank parallel.
+# Usage: run_serial_and_parallel LABEL_SER LABEL_PAR BINARY [ARGS...]
+run_serial_and_parallel() {
+    local lser="$1" lpar="$2"; shift 2
+    run_serial   "$lser" "$@"
+    run_parallel "$lpar" "$@"
+}
+
+# Print a section header.
+section() { printf "\n── %s\n" "$1"; }
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+printf "╔══════════════════════════════════════════════════════════╗\n"
+printf "║  MMA/GCMMA/SQ test suite                                ║\n"
+printf "╠══════════════════════════════════════════════════════════╣\n"
+printf "║  Build dir : %-43s║\n" "$BUILD_DIR"
+printf "║  MPI ranks : %-43s║\n" "$NRANKS"
+printf "║  Mode      : %-43s║\n" "$MODE"
+printf "╚══════════════════════════════════════════════════════════╝\n"
+
+# =============================================================================
+# ── Core: serial ─────────────────────────────────────────────────────────────
+# =============================================================================
+if [[ "$MODE" == "serial" || "$MODE" == "all" ]]; then
+
+section "Core: serial"
+run_serial  mma_serial              test_mma_serial
+run_serial  mma_unconstrained       test_mma_unconstrained
+run_serial  gcmma_serial            test_gcmma
+run_serial  gcmma_callback_serial   test_gcmma_callback
+run_serial  zero_ranks_1            test_zero_ranks
+run_serial  overconstrained_serial  test_overconstrained
+run_serial  equalities_serial       test_equalities
+
+# ── Device (CPU) ─────────────────────────────────────────────────────────────
+
+section "Device (CPU)"
+run_serial  mma_device_cpu          test_mma_device  --device cpu
+run_serial  sq_device_cpu           test_sq_device   --device cpu
+
+# ── SQ approximation: serial ─────────────────────────────────────────────────
+
 section "SQ approximation: serial"
-require test_sq_serial
-run "sq_combined"             serial test_sq
-run "sq_serial"               serial test_sq_serial
-run "sq_unconstrained"        serial test_sq_unconstrained
-run "sq_gcmma_serial"         serial test_sq_gcmma
-run "sq_gcmma_cb_serial"      serial test_sq_gcmma_callback
-run "sq_device_cpu"           serial test_sq_device --device cpu
-run "sq_overconstrained"      serial test_sq_overconstrained
-run "sq_equalities_serial"    serial test_sq_equalities
-run "sq_nonconvex_serial"     serial test_sq_nonconvex
+run_serial  sq_combined             test_sq
+run_serial  sq_serial               test_sq_serial
+run_serial  sq_unconstrained        test_sq_unconstrained
+run_serial  sq_gcmma_serial         test_sq_gcmma
+run_serial  sq_gcmma_cb_serial      test_sq_gcmma_callback
+run_serial  sq_overconstrained      test_sq_overconstrained
+run_serial  sq_equalities_serial    test_sq_equalities
+run_serial  sq_nonconvex_serial     test_sq_nonconvex
 
-# ---------------------------------------------------------------------------
-# SQ approximation  —  parallel
-# ---------------------------------------------------------------------------
-if [[ $SERIAL_ONLY -eq 0 ]]; then
-    section "SQ approximation: parallel (${NP} ranks)"
-    run "sq_combined_par_${NP}r"        par test_sq
-    run "sq_par_serial_${NP}r"          par test_sq_serial
-    run "sq_unconstrained_par_${NP}r"   par test_sq_unconstrained
-    run "sq_gcmma_par_${NP}r"           par test_sq_gcmma
-    run "sq_gcmma_cb_par_${NP}r"        par test_sq_gcmma_callback
-    run "sq_zero_ranks_${NP}r"          par test_sq_zero_ranks
-    run "sq_overconstrained_par_${NP}r" par test_sq_overconstrained
-    run "sq_equalities_par_${NP}r"      par test_sq_equalities
-    run "sq_nonconvex_par_${NP}r"       par test_sq_nonconvex
-    run "sq_parallel_${NP}r"            par test_sq_parallel
-fi
+# ── Relaxed equalities: serial ───────────────────────────────────────────────
+# Tests for PackFivalRelaxed() and WithRelaxedEqualities() — serial classes only.
+# Binary: test_relaxed_equalities_serial (no MPI_Init required).
 
-# ---------------------------------------------------------------------------
-# Nonconvex SIMP
-# ---------------------------------------------------------------------------
-section "Nonconvex SIMP"
-require test_nonconvex
-run "nonconvex_serial"  serial test_nonconvex
-if [[ $LARGE -eq 1 ]]; then
-    run "nonconvex_serial_large"    serial test_nonconvex    --large
-    run "sq_nonconvex_serial_large" serial test_sq_nonconvex --large
-fi
+section "Relaxed equalities: serial"
+run_serial  relaxed_eq_serial       test_relaxed_equalities_serial
 
-# ---------------------------------------------------------------------------
-# Core MMA / GCMMA  —  parallel
-# ---------------------------------------------------------------------------
-if [[ $SERIAL_ONLY -eq 0 ]]; then
-    section "Parallel (${NP} ranks)"
-    require test_mma_parallel
-    run "mma_parallel_${NP}r"           par test_mma_parallel
-    run "mma_serial_par_${NP}r"         par test_mma_serial
-    run "gcmma_parallel_${NP}r"         par test_gcmma
-    run "gcmma_callback_par_${NP}r"     par test_gcmma_callback
-    run "zero_ranks_${NP}r"             par test_zero_ranks
-    run "overconstrained_par_${NP}r"    par test_overconstrained
-    run "equalities_parallel_${NP}r"    par test_equalities
-    run "nonconvex_parallel_${NP}r"     par test_nonconvex
-    if [[ $LARGE -eq 1 ]]; then
-        run "nonconvex_par_large_${NP}r"     par test_nonconvex    --large
-        run "sq_nonconvex_par_large_${NP}r" par test_sq_nonconvex --large
-    fi
-fi
+fi  # MODE serial | all
 
-# ---------------------------------------------------------------------------
-# Unit tests  —  opt-in with --units
-# ---------------------------------------------------------------------------
-if [[ $UNITS -eq 1 ]]; then
-    section "Unit tests"
-    [[ -x "$BUILD_DIR/test_solvedense" ]] && \
-        run "solvedense"  serial test_solvedense || \
-        skip "test_solvedense (not built)"
-    [[ -x "$BUILD_DIR/test_packfival" ]] && \
-        run "packfival"   serial test_packfival  || \
-        skip "test_packfival (not built)"
-fi
+# =============================================================================
+# ── Core: parallel ───────────────────────────────────────────────────────────
+# =============================================================================
+if [[ "$MODE" == "parallel" || "$MODE" == "all" ]]; then
 
-# ---------------------------------------------------------------------------
-# Debug  —  opt-in with --debug
-# ---------------------------------------------------------------------------
-if [[ $DEBUG -eq 1 ]] && [[ -x "$BUILD_DIR/test_eq_debug" ]]; then
-    section "Debug"
-    run "eq_debug_serial"  serial test_eq_debug
-fi
+section "Core: parallel ($NRANKS ranks)"
+run_parallel  mma_parallel          test_mma_parallel
+run_parallel  mma_unconstrained_par test_mma_unconstrained
+run_parallel  equalities_par        test_equalities
 
-# ---------------------------------------------------------------------------
-# Legacy  —  opt-in with --legacy
-# ---------------------------------------------------------------------------
-if [[ $LEGACY -eq 1 ]] && [[ -x "$BUILD_DIR/test_mma_mfem" ]]; then
-    section "Legacy"
-    run "mma_mfem_legacy"  serial test_mma_mfem
-fi
+# ── SQ approximation: parallel ───────────────────────────────────────────────
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
-echo
-TOTAL=$(( PASS + FAIL ))
-echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
+section "SQ approximation: parallel ($NRANKS ranks)"
+run_parallel  sq_combined_par       test_sq
+run_parallel  sq_par_serial         test_sq_parallel
+run_parallel  sq_unconstrained_par  test_sq_unconstrained
+
+# ── Relaxed equalities: parallel ─────────────────────────────────────────────
+# Tests for MMAOptimizerParallel and SQOptimizerParallel with relaxed bands.
+# Binary: test_relaxed_equalities_parallel (requires MPI).
+#   Serial entry  — runs the parallel binary with 1 rank (tests the serial fallback).
+#   Parallel entry — runs with NRANKS ranks.
+
+section "Relaxed equalities: parallel ($NRANKS ranks)"
+run_serial_and_parallel \
+    relaxed_eq_par_serial  \
+    relaxed_eq_par_${NRANKS}r \
+    test_relaxed_equalities_parallel
+
+fi  # MODE parallel | all
+
+# =============================================================================
+# ── Summary ───────────────────────────────────────────────────────────────────
+# =============================================================================
+TOTAL=$(( PASS + FAIL + SKIP ))
+printf "\n╔══════════════════════════════════════════════════════════╗\n"
+printf "║  Results: %d passed  %d failed  %d skipped  (%d total)%*s║\n" \
+    $PASS $FAIL $SKIP $TOTAL \
+    $(( 20 - ${#PASS} - ${#FAIL} - ${#SKIP} - ${#TOTAL} )) ""
+
 if [[ $FAIL -eq 0 ]]; then
-    printf "${BOLD}║  ${GREEN}All %d test(s) PASSED${NC}${BOLD}%-36s║${NC}\n" "$TOTAL" ""
+    printf "║  All tests PASSED.%-39s║\n" ""
 else
-    printf "${BOLD}║  ${RED}%d of %d test(s) FAILED${NC}${BOLD}%-34s║${NC}\n" "$FAIL" "$TOTAL" ""
+    printf "║  FAILED tests:%-43s║\n" ""
+    for t in "${FAILED_TESTS[@]}"; do
+        printf "║    %-54s║\n" "$t"
+    done
 fi
-[[ $SKIP -gt 0 ]] && printf "${BOLD}║  %d test(s) skipped%-38s║${NC}\n" "$SKIP" ""
-echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
+printf "╚══════════════════════════════════════════════════════════╝\n"
 
-if [[ $FAIL -gt 0 ]]; then
-    echo
-    echo "Failed tests:"
-    for t in "${FAILED_TESTS[@]}"; do echo "  • $t"; done
-    exit 1
-fi
-exit 0
+[[ $FAIL -eq 0 ]]

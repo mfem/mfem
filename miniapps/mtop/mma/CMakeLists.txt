@@ -395,6 +395,8 @@ mma_add_test(NAME test_sq_device ARGS --device cpu)
 
 mma_add_test(NAME test_lmg_serial) #serial test
 mma_add_test(NAME test_lmg_parallel  PARALLEL) #parallel test
+mma_add_test(NAME test_lmg_wiki_parallel PARALLEL) #parallel test
+mma_add_test(NAME test_lmg_wiki_serial) #serial test
 
 
 
