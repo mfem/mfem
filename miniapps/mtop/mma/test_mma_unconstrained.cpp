@@ -64,6 +64,7 @@ static double GlobalMax(double v)
     return g;
 }
 
+#ifdef MFEM_USE_MPI
 // Deterministic LCG pseudo-random [0,1) — same sequence on all ranks for
 // reproducible global targets; seeded by global index so results are
 // independent of rank count.
@@ -354,6 +355,8 @@ static void Test_Serial_QuadraticBowl(int n)
     Check(maxerr < 0.01, (tag + " max_err < 0.01").c_str());
 }
 
+#endif // MFEM_USE_MPI
+
 // ============================================================
 // main
 // ============================================================
@@ -375,6 +378,7 @@ int main(int argc, char** argv)
     Test_Serial_QuadraticBowl(100000);
     MPI_Barrier(MPI_COMM_WORLD);
 
+#ifdef MFEM_USE_MPI
     // ── Parallel tests (all ranks) ───────────────────────────────────────
     if (g_rank == 0)
         printf("\n── Parallel MMAOptimizerParallel ────────────────────────\n");
@@ -394,6 +398,8 @@ int main(int argc, char** argv)
     Test_MixedSeparable(10000);
     Test_MixedSeparable(50000);
     Test_MixedSeparable(100000);
+
+#endif // MFEM_USE_MPI
 
     if (g_rank == 0) {
         printf("\n========================================\n");

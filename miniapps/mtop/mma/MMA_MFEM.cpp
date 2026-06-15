@@ -72,9 +72,39 @@ namespace mfem_mma {
 
 // ─── Small internal helpers ───────────────────────────────────────────────────
 
+#ifdef MFEM_USE_MPI
 // Pick the right MPI type for mfem::real_t (double or float build).
 static MPI_Datatype MpiTypeReal()
 { return (sizeof(mfem::real_t)==sizeof(double)) ? MPI_DOUBLE : MPI_FLOAT; }
+#endif // MFEM_USE_MPI
+
+// MMA_SERIAL_COMM: sentinel communicator passed by serial optimizer classes
+// (MMAOptimizer, SQOptimizer) to SolveDualIP / SolveDualSQ.
+// Value is 0 — not a valid MPI communicator in any implementation — so
+// mma_Allreduce can detect it and do a plain copy without calling MPI.
+// This lets serial optimizers work without MPI_Init even when linked
+// against MPICH or OpenMPI.
+static constexpr MPI_Comm MMA_SERIAL_COMM = 0;
+
+// Thin wrapper around MPI_Allreduce(SUM) that compiles away to a plain
+// memcpy when MPI is not available.  All internal reduces use this helper
+// so the serial optimizers (MMAOptimizer, SQOptimizer) never call MPI.
+static inline void mma_Allreduce(const double* src, double* dst, int n,
+                                  MPI_Comm comm)
+{
+#ifdef MFEM_USE_MPI
+    // Bypass MPI for the serial sentinel (comm==0): just copy.
+    // This avoids requiring MPI_Init when MMAOptimizer/SQOptimizer are
+    // used in a program that never calls MPI_Init.
+    if (comm == MMA_SERIAL_COMM)
+        std::copy(src, src+n, dst);
+    else
+        MPI_Allreduce(src, dst, n, MPI_DOUBLE, MPI_SUM, comm);
+#else
+    (void)comm;
+    std::copy(src, src+n, dst);
+#endif
+}
 
 // Convert an mfem::Vector (real_t) to a host std::vector<double>.
 // Used when penalty parameters are supplied as mfem::Vector.
@@ -104,12 +134,14 @@ static void DefaultPenalty(int n_global, int m,
  * @brief Compute the global DOF count from the local count via MPI_Allreduce.
  * Called once in each MMAOptimizerParallel constructor.
  */
+#ifdef MFEM_USE_MPI
 static int ComputeNGlobal(MPI_Comm comm, int n_local)
 {
     int ng = 0;
     MPI_Allreduce(&n_local, &ng, 1, MPI_INT, MPI_SUM, comm);
     return ng;
 }
+#endif // MFEM_USE_MPI
 
 // ── Allocate a device Vector matching another's memory type ──────────────
 static mfem::Vector DeviceVector(int n, const mfem::Vector& ref)
@@ -280,7 +312,7 @@ void SolveDualIP(
     // in lockstep.  MPI_Allreduce n_loc to get n_global.
     double _n_global = 0.0;
     { double _nl = double(n_loc);
-      MPI_Allreduce(&_nl, &_n_global, 1, MPI_DOUBLE, MPI_SUM, comm); }
+      mma_Allreduce(&_nl, &_n_global, 1, comm); }
     const double tol = std::sqrt(_n_global + double(m)) * 1e-9;
 
     // ── Temporary device Vectors for computations ─────────────────────────
@@ -379,7 +411,7 @@ void SolveDualIP(
             });
             loc[i] = d_tmp.Sum();  // device-aware sum (cuBLAS dot on GPU)
         }
-        MPI_Allreduce(loc.data(), grad.data(), m, MPI_DOUBLE, MPI_SUM, comm);
+        mma_Allreduce(loc.data(), grad.data(), m, comm);
         for (int i=0;i<m;++i)
             grad[i] -= b[i] + a_pen[i]*z + y[i];
     };
@@ -492,7 +524,7 @@ void SolveDualIP(
                 if (r!=c) loc[c*m+r] = v;
             }
         }
-        MPI_Allreduce(loc.data(), hess.data(), m*m, MPI_DOUBLE, MPI_SUM, comm);
+        mma_Allreduce(loc.data(), hess.data(), m*m, comm);
 
         // Diagonal corrections (host-only)
         double lamai=0.0;
@@ -538,7 +570,7 @@ void SolveDualIP(
             loc[i] = d_tmp.Sum();
         }
         std::vector<double> res(m);
-        MPI_Allreduce(loc.data(), res.data(), m, MPI_DOUBLE, MPI_SUM, comm);
+        mma_Allreduce(loc.data(), res.data(), m, comm);
         double nrI=0.0;
         for (int i=0;i<m;++i){
             // Equality slots (last 2*n_eq): no barrier, only constraint stationarity
@@ -681,12 +713,30 @@ void SolveDualSQ(
     const double* rho_sq,
     const double* fival_sq)
 {
+    // Fast path for unconstrained problems (m = 0):
+    //   x_j* = clip( x_j^k − G̃_j / ρ₀,  α_j, β_j )
+    // No dual system needed; a single forall kernel suffices.
+    // This MUST come first: lam is empty when m=0, so any dereference
+    // of lam iterators (lam clamping, lam_max) is undefined behaviour.
+    if (m==0){
+        double D=rho_sq[0]; if(D<1e-30) D=1e-30;
+        const auto* xkr=xk_sq;
+        mfem::forall_switch(use_dev,n_loc,[=] MFEM_HOST_DEVICE (int j){
+            double gj=p0_loc[j]-q0_loc[j];
+            double xj=double(xkr[j])-gj/D;
+            xj=xj<double(alpha_loc[j])?double(alpha_loc[j]):xj;
+            xj=xj>double(beta_loc[j])?double(beta_loc[j]):xj;
+            x_loc[j]=mfem::real_t(xj);
+        });
+        return;
+    }
+
     for (int i=0;i<m-2*n_eq;++i){ lam[i]=std::max(lam[i],1.0); mu[i]=std::max(mu[i],1.0); }
     for (int i=m-2*n_eq;i<m;++i){ mu[i]=std::max(mu[i],1.0); }
 
     double _n_global=0.0;
     { double _nl=double(n_loc);
-      MPI_Allreduce(&_nl,&_n_global,1,MPI_DOUBLE,MPI_SUM,comm); }
+      mma_Allreduce(&_nl, &_n_global, 1, comm); }
     const double tol=std::sqrt(_n_global+double(m))*1e-9;
 
     // epsi declared before lambdas so they can capture it
@@ -766,10 +816,14 @@ void SolveDualSQ(
                 d_t[j]=dfi_j*dj+0.5*rho_i*dj*dj/sig2;
             });
             loc[i]=d_tmp.Sum();
-            if (fival_sq) loc[i]+=fival_sq[i];
+            // fival_sq[i] is a global (replicated) scalar — add AFTER the reduce,
+            // not before, to avoid accumulating nranks copies of it.
         }
-        MPI_Allreduce(loc.data(),grad.data(),m,MPI_DOUBLE,MPI_SUM,comm);
-        for (int i=0;i<m;++i) grad[i]-=a_pen[i]*z+y[i];
+        mma_Allreduce(loc.data(), grad.data(), m, comm);
+        for (int i=0;i<m;++i){
+            if (fival_sq) grad[i]+=fival_sq[i];  // add once, post-reduce
+            grad[i]-=a_pen[i]*z+y[i];
+        }
     };
 
     // DualHess (SQ version): H_rc = Σⱼ dfi_r_j · (−σⱼ²/D) · dfi_c_j
@@ -804,10 +858,14 @@ void SolveDualSQ(
                 if(sig2<1e-20) sig2=1e-20;
                 raw[j]=(double(pij_c[j])-double(qij_c[j]))/sig2;
             });
-            double v=mfem::InnerProduct(comm,d_PQ[r],d_tmp);
+            // Use the comm-free InnerProduct for the serial sentinel to avoid
+            // MPICH aborting on MPI calls before MPI_Init.
+            double v = (comm == MMA_SERIAL_COMM)
+                       ? mfem::InnerProduct(d_PQ[r], d_tmp)
+                       : mfem::InnerProduct(comm, d_PQ[r], d_tmp);
             loc[r*m+c]=v; if(r!=c) loc[c*m+r]=v;
         }
-        MPI_Allreduce(loc.data(),hess.data(),m*m,MPI_DOUBLE,MPI_SUM,comm);
+        mma_Allreduce(loc.data(), hess.data(), m*m, comm);
         double lamai=0.0;
         for (int i=0;i<m;++i) lamai+=lam[i]*a_pen[i];
         for (int i=0;i<m;++i){
@@ -847,10 +905,12 @@ void SolveDualSQ(
                 d_t[j]=dfi_j*dj+0.5*rho_i*dj*dj/sig2;
             });
             loc[i]=d_tmp.Sum();
-            if (fival_sq) loc[i]+=fival_sq[i];
+            // fival_sq[i] is a global (replicated) scalar — add AFTER the reduce.
         }
         std::vector<double> res(m);
-        MPI_Allreduce(loc.data(),res.data(),m,MPI_DOUBLE,MPI_SUM,comm);
+        mma_Allreduce(loc.data(), res.data(), m, comm);
+        // Add fival_sq once (post-reduce) to avoid nranks-fold accumulation.
+        if (fival_sq) for (int i=0;i<m;++i) res[i]+=fival_sq[i];
         // For equality pairs: use the range-space residual |(res[+h]-res[-h])/2|
         // to avoid the symmetric quad term (rho/2*||delta||^2/sig^2) inflating
         // the residual and preventing inner-loop convergence.
@@ -885,23 +945,6 @@ void SolveDualSQ(
         for (int i=0;i<m;++i) lam[i]+=theta*s[i];
         for (int i=0;i<m-2*n_eq;++i) mu[i]+=theta*s[m+i];
     };
-
-    // Fast path for unconstrained problems (m = 0):
-    //   x_j* = clip( x_j^k − G̃_j / ρ₀,  α_j, β_j )
-    // No dual system needed; a single forall kernel suffices.
-    //
-    if (m==0){
-        double D=rho_sq[0]; if(D<1e-30) D=1e-30;
-        const auto* xkr=xk_sq;
-        mfem::forall_switch(use_dev,n_loc,[=] MFEM_HOST_DEVICE (int j){
-            double gj=p0_loc[j]-q0_loc[j];
-            double xj=double(xkr[j])-gj/D;
-            xj=xj<double(alpha_loc[j])?double(alpha_loc[j]):xj;
-            xj=xj>double(beta_loc[j])?double(beta_loc[j]):xj;
-            x_loc[j]=mfem::real_t(xj);
-        });
-        return;
-    }
 
     // Main Newton–barrier loop (same structure as SolveDualIP).
     // The equality-specific logic (gradient projection, analytic pair solve,
@@ -1263,10 +1306,25 @@ void MMAOptimizer::Update(
     bool ud = x.UseDevice();
     BuildSubproblem_(x,df0dx,fival,dfidx,xmin,xmax);
     xo2_=xo1_; xo1_=x;
-    detail::SolveDualIP(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+    detail::SolveDualIP(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         b_,a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite());
+    // Renormalize equality multiplier pairs: extract net nu = lam[+h] - lam[-h]
+    // and reset each slot so the larger carries |nu| and the smaller a floor of
+    // 1e-3.  Without this, both slots drift to large values of the same sign
+    // across iterations, inflating the epsi warm-start in SolveDualIP and
+    // stalling convergence (especially from infeasible starting points).
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     ++iter_;
 }
 
@@ -1318,11 +1376,21 @@ void MMAOptimizer::UpdateGCMMA(
 
     mfem::Vector xk(x);  // device copy
     BuildSubproblemRho_(xk,df0dx,fival,dfidx,xmin,xmax,rho_);
-    detail::SolveDualIP(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+    detail::SolveDualIP(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         b_,a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite());
     if (innerIter) *innerIter=1;
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     xo2_=xo1_; xo1_=xk; ++iter_;
 }
 
@@ -1388,14 +1456,24 @@ mfem::real_t MMAOptimizer::KKTresidual(
     double primal = d_tmp.Sum();
     double dual = 0.0;
     for (int i=0;i<m_-2*n_eq_;++i){ double cs=lam_[i]*double(fival(i)); dual+=cs*cs; }
-    for (int k=0;k<n_eq_;++k){ double hk=double(fival(m_-2*n_eq_+k)); dual+=hk*hk; }
+    // For each equality pair sum max(0, fi_pos)^2 + max(0, fi_neg)^2.
+    // For strict equalities fi_pos=h, fi_neg=-h: only one term is nonzero, sum = h^2.
+    // For relaxed equalities fi_pos=h-ueps, fi_neg=-h-leps: measures both bound
+    // violations independently, giving the correct relaxed KKT residual.
+    for (int k=0;k<n_eq_;++k){
+        const int ni=m_-2*n_eq_;
+        double vp=double(fival(ni+k));       // +h slot: h - ueps (or h for strict)
+        double vn=double(fival(ni+n_eq_+k)); // -h slot: -h - leps (or -h for strict)
+        if (vp>0) dual+=vp*vp;
+        if (vn>0) dual+=vn*vn;
+    }
     return (primal+dual)/(double)n_;
 }
 
 // ============================================================
 // MMAOptimizerParallel
 // ============================================================
-
+#ifdef MFEM_USE_MPI
 
 /**
  * @brief (Serial) GCMMA with full inner conservatism loop.
@@ -1454,7 +1532,7 @@ void MMAOptimizer::UpdateGCMMA(
     while (nu < max_inner) {
         x = xk;
         BuildSubproblemRho_(xk,df0dx,fival,dfidx,xmin,xmax,rho_);
-        detail::SolveDualIP(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+        detail::SolveDualIP(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
             L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
             p0_.HostRead(),q0_.HostRead(),pij_,qij_,
             b_,a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite());
@@ -1524,6 +1602,16 @@ void MMAOptimizer::UpdateGCMMA(
     }
 
     if (innerIter) *innerIter=nu;
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     xo2_=xo1_; xo1_=xk; ++iter_;
 }
 
@@ -1632,6 +1720,17 @@ void MMAOptimizerParallel::Update(
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         b_,a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite());
+    // Renormalize equality multiplier pairs (replicated on all ranks).
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     ++iter_;
 }
 
@@ -1686,6 +1785,17 @@ void MMAOptimizerParallel::UpdateGCMMA(
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         b_,a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite());
     if (innerIter) *innerIter=1;
+    // Renormalize equality multiplier pairs (replicated on all ranks).
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     xo2_=xo1_; xo1_=xk; ++iter_;
 }
 
@@ -1745,7 +1855,13 @@ mfem::real_t MMAOptimizerParallel::KKTresidual(
     MPI_Allreduce(&primal_loc,&primal_global,1,MPI_DOUBLE,MPI_SUM,comm_);
     double dual=0.0;
     for (int i=0;i<m_-2*n_eq_;++i){ double cs=lam_[i]*double(fival(i)); dual+=cs*cs; }
-    for (int k=0;k<n_eq_;++k){ double hk=double(fival(m_-2*n_eq_+k)); dual+=hk*hk; }
+    for (int k=0;k<n_eq_;++k){
+        const int ni=m_-2*n_eq_;
+        double vp=double(fival(ni+k));
+        double vn=double(fival(ni+n_eq_+k));
+        if (vp>0) dual+=vp*vp;
+        if (vn>0) dual+=vn*vn;
+    }
     return (primal_global+dual)/(double)n_global_;
 }
 
@@ -1885,10 +2001,23 @@ void MMAOptimizerParallel::UpdateGCMMA(
     }
 
     if (innerIter) *innerIter=nu;
+    // Renormalize equality multiplier pairs (replicated on all ranks).
+    if (n_eq_ > 0) {
+        const int ni = m_ - 2*n_eq_;
+        for (int k = 0; k < n_eq_; ++k) {
+            double nu = lam_[ni+k] - lam_[ni+n_eq_+k];
+            lam_[ni+k]       = std::max( nu, 1e-3);
+            lam_[ni+n_eq_+k] = std::max(-nu, 1e-3);
+            mu_[ni+k]        = lam_[ni+k];
+            mu_[ni+n_eq_+k]  = lam_[ni+n_eq_+k];
+        }
+    }
     xo2_=xo1_; xo1_=xk; ++iter_;
 }
 
 
+
+#endif // MFEM_USE_MPI
 
 // ============================================================
 // SQOptimizer / SQOptimizerParallel implementations
@@ -2032,7 +2161,7 @@ void SQOptimizer::Update(
     BuildSubproblem_(x,df0dx,fival,dfidx,xmin,xmax,rho_.data());
     std::vector<double> fival_sq(m_);
     for(int i=0;i<m_;++i) fival_sq[i]=(m_>0)?double(fival(i)):0.0;
-    detail::SolveDualSQ(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+    detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
@@ -2086,7 +2215,7 @@ void SQOptimizer::UpdateGCMMA(
     std::vector<double> fival_sq(m_);
     for(int i=0;i<m_;++i) fival_sq[i]=(m_>0)?double(fival(i)):0.0;
     BuildSubproblem_(xk,df0dx,fival,dfidx,xmin,xmax,rho_.data());
-    detail::SolveDualSQ(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+    detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
         a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
@@ -2102,7 +2231,7 @@ void SQOptimizer::UpdateGCMMA(
             if(ok) break;
             for(int i=0;i<m_;++i) fival_sq[i]=(m_>0)?double(fival(i)):0.0;
             BuildSubproblem_(xk,df0dx,fival,dfidx,xmin,xmax,rho_.data());
-            detail::SolveDualSQ(MPI_COMM_SELF,n_,m_,n_eq_,ud,
+            detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
                 L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
                 p0_.HostRead(),q0_.HostRead(),pij_,qij_,
                 a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
@@ -2173,13 +2302,20 @@ mfem::real_t SQOptimizer::KKTresidual(
           double pg=(xj<=xn+t&&g>0)?0.0:(xj>=xx-t&&g<0)?0.0:g; dt[j]=pg*pg; }); }
     double primal=d_tmp.Sum(), dual=0.0;
     for(int i=0;i<m_-2*n_eq_;++i){ double cs=lam_[i]*double(fival(i)); dual+=cs*cs; }
-    for(int k=0;k<n_eq_;++k){ double hk=double(fival(m_-2*n_eq_+k)); dual+=hk*hk; }
+    for(int k=0;k<n_eq_;++k){
+        const int ni=m_-2*n_eq_;
+        double vp=double(fival(ni+k));
+        double vn=double(fival(ni+n_eq_+k));
+        if(vp>0) dual+=vp*vp;
+        if(vn>0) dual+=vn*vn;
+    }
     return (primal+dual)/(double)n_;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SQOptimizerParallel  —  MPI-parallel implementation
 // ─────────────────────────────────────────────────────────────────────────────
+#ifdef MFEM_USE_MPI
 //
 // Mirrors SQOptimizer exactly.  The only differences are:
 //
@@ -2395,8 +2531,16 @@ mfem::real_t SQOptimizerParallel::KKTresidual(
     MPI_Allreduce(&primal_loc,&primal_global,1,MPI_DOUBLE,MPI_SUM,comm_);
     double dual=0.0;
     for(int i=0;i<m_-2*n_eq_;++i){ double cs=lam_[i]*double(fival(i)); dual+=cs*cs; }
-    for(int k=0;k<n_eq_;++k){ double hk=double(fival(m_-2*n_eq_+k)); dual+=hk*hk; }
+    for(int k=0;k<n_eq_;++k){
+        const int ni=m_-2*n_eq_;
+        double vp=double(fival(ni+k));
+        double vn=double(fival(ni+n_eq_+k));
+        if(vp>0) dual+=vp*vp;
+        if(vn>0) dual+=vn*vn;
+    }
     return (primal_global+dual)/(double)n_global_;
 }
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem_mma

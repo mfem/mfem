@@ -288,7 +288,6 @@ static void Test_RedundantConstraints()
 
 int main()
 {
-    MPI_Init(nullptr, nullptr);
     printf("=== SQOptimizer Serial test suite ===\n");
     printf("    (Svanberg 2007 §5.1 separable quadratic)\n\n");
 
@@ -314,6 +313,5 @@ int main()
     if (g_nfail==0) printf("All SQ serial tests PASSED.\n");
     else            printf("%d SQ serial test(s) FAILED.\n", g_nfail);
     printf("========================================\n");
-    MPI_Finalize();
     return g_nfail>0 ? 1 : 0;
 }

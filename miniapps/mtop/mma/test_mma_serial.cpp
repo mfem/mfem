@@ -411,7 +411,6 @@ static void Test_RedundantConstraints()
 
 int main()
 {
-    MPI_Init(nullptr, nullptr);   // needed because MMA_MFEM links MPI
     printf("=== MFEM MMA Serial test suite ===\n");
 
     // ── MMA ──────────────────────────────────────────────────────────────
@@ -439,6 +438,5 @@ int main()
     if (g_nfail == 0) printf("All serial tests PASSED.\n");
     else              printf("%d serial test(s) FAILED.\n", g_nfail);
     printf("========================================\n");
-    MPI_Finalize();
     return g_nfail > 0 ? 1 : 0;
 }

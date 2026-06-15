@@ -60,7 +60,15 @@
 #pragma once
 
 #include <mfem.hpp>
-#include <mpi.h>
+#ifdef MFEM_USE_MPI
+#  include <mpi.h>
+#else
+// When MFEM is built without MPI (MFEM_USE_MPI not defined), provide a
+// minimal stub so the serial API compiles without any MPI headers.
+// MPI_Comm is an int in most implementations; we alias it to the same type
+// so that internal detail:: functions have a consistent signature.
+using MPI_Comm = int;
+#endif
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -253,6 +261,64 @@ inline mfem::Vector PackFival(const mfem::Vector& fi_ineq,
     for (int i=0; i<ne; ++i) out(ni + i)          =  h_eq(i);
     for (int i=0; i<ne; ++i) out(ni + ne + i)     = -h_eq(i);
     return out;
+}
+
+/**
+ * @brief Pack fival for relaxed equality constraints  −leps_i < h_i(x) < ueps_i.
+ *
+ * Each relaxed equality  −leps_i < h_i(x) < ueps_i  is encoded as two
+ * shifted inequalities:
+ *
+ *   fi_pos_i(x) = h_i(x) − ueps_i  ≤  0     (upper bound)
+ *   fi_neg_i(x) = −h_i(x) − leps_i  ≤  0     (lower bound)
+ *
+ * Both must be satisfied simultaneously for x to be feasible.
+ * At the optimum the constraint is satisfied when both are ≤ 0, i.e.
+ * when  −leps_i ≤ h_i(x) ≤ ueps_i.
+ *
+ * The gradients are unchanged from the strict-equality case
+ * (PackedDfidx works without modification).
+ *
+ * @param fi_ineq  Values of the n_ineq inequality constraints fᵢ(x) ≤ 0.
+ * @param h_eq     Values of the n_eq equality function values hᵢ(x).
+ * @param leps     Lower tolerances lepsᵢ > 0 (length n_eq).
+ *                 Satisfy −leps_i < h_i(x) at the optimum.
+ * @param ueps     Upper tolerances uepsᵢ > 0 (length n_eq).
+ *                 Satisfy  h_i(x) < ueps_i   at the optimum.
+ * @return Vector of length n_ineq + 2*n_eq:
+ *         [fi_ineq | (h_eq − ueps) | (−h_eq − leps)].
+ */
+inline mfem::Vector PackFivalRelaxed(const mfem::Vector& fi_ineq,
+                                      const mfem::Vector& h_eq,
+                                      const mfem::Vector& leps,
+                                      const mfem::Vector& ueps)
+{
+    const int ni = fi_ineq.Size(), ne = h_eq.Size();
+    mfem::Vector out(ni + 2*ne);
+    for (int i=0; i<ni; ++i) out(i)          = fi_ineq(i);
+    for (int i=0; i<ne; ++i) out(ni + i)      =  h_eq(i) - ueps(i);   // +h slot
+    for (int i=0; i<ne; ++i) out(ni + ne + i) = -h_eq(i) - leps(i);   // −h slot
+    return out;
+}
+
+/**
+ * @brief Symmetric-tolerance overload: −eps < h_i(x) < eps for all i.
+ *
+ * Convenience wrapper for the common case leps_i = ueps_i = eps.
+ *
+ * @param fi_ineq  Values of the n_ineq inequality constraints.
+ * @param h_eq     Values of the n_eq equality functions.
+ * @param eps      Scalar tolerance applied to all equalities.
+ */
+inline mfem::Vector PackFivalRelaxed(const mfem::Vector& fi_ineq,
+                                      const mfem::Vector& h_eq,
+                                      double eps)
+{
+    const int ne = h_eq.Size();
+    mfem::Vector leps(ne), ueps(ne);
+    leps = mfem::real_t(eps);
+    ueps = mfem::real_t(eps);
+    return PackFivalRelaxed(fi_ineq, h_eq, leps, ueps);
 }
 
 /**
@@ -559,6 +625,28 @@ public:
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
 
+    /** @brief Build optimiser with relaxed equality constraints −leps_i < h_i(x) < ueps_i.
+     *
+     * Each relaxed equality is represented as two standard INEQUALITY slots:
+     *   fi_pos_i = h_i(x) − ueps_i ≤ 0  and  fi_neg_i = −h_i(x) − leps_i ≤ 0.
+     *
+     * These are registered as inequality slots (n_eq_ is NOT incremented).
+     * This avoids the range-space projection in the dual solver, which is
+     * designed for strict equalities (fival[+h]=−fival[−h]) and silently
+     * cancels the ueps/leps shift for relaxed constraints.
+     *
+     * Call-site API is identical to WithEqualities(): use PackFivalRelaxed()
+     * to pack fival and PackedDfidx (unchanged) for dfidx at every call.
+     */
+    static MMAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq,
+                                              const mfem::Vector& x)
+    {
+        MMAOptimizer o(n, n_ineq + 2*n_eq, x); // n_eq_ stays 0
+        for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) o.c_[i] = 1e4;
+        return o;
+    }
+
+
     int NumEqualities()   const { return n_eq_; }
     int NumInequalities() const { return m_ - 2*n_eq_; }
     int NumConstraints()  const { return m_ - n_eq_; }  // n_ineq + n_eq (user-visible)
@@ -724,6 +812,7 @@ private:
  * @endcode
  */
 // ============================================================
+#ifdef MFEM_USE_MPI
 class MMAOptimizerParallel {
 public:
     // ── Constructors ────────────────────────────────────────────────────
@@ -952,6 +1041,18 @@ public:
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
 
+    /** @brief Relaxed equality variant for MMAOptimizerParallel.
+     *  Encoded as 2*n_eq standard inequality slots; n_eq_ stays 0.
+     *  Use PackFivalRelaxed() at call sites; PackedDfidx unchanged. */
+    static MMAOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
+                                                       int n_ineq, int n_eq,
+                                                       const mfem::Vector& x_local)
+    {
+        MMAOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq, x_local);
+        for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) o.c_[i] = 1e4;
+        return o;
+    }
+
     int NumEqualities()   const { return n_eq_; }
     int NumInequalities() const { return m_ - 2*n_eq_; }
     int NumConstraints()  const { return m_ - n_eq_; }  // n_ineq + n_eq (user-visible)
@@ -1081,6 +1182,7 @@ private:
                               const mfem::Vector& xmax_local,
                               const std::vector<double>& rho);
 };
+#endif // MFEM_USE_MPI
 
 
 // ============================================================
@@ -1220,6 +1322,25 @@ public:
           o.mu_[i]  = 1e-3;
       }
       return o; }
+
+    /** @brief Build SQOptimizer with relaxed equality constraints −leps_i < h_i(x) < ueps_i.
+     *
+     * Encoded as 2*n_eq standard INEQUALITY slots (n_eq_ stays 0).
+     * Avoids the range-space gradient projection in SolveDualSQ, which
+     * silently cancels the ueps/leps shift for non-antisymmetric fival pairs.
+     * Use PackFivalRelaxed() to pack fival; PackedDfidx unchanged.
+     */
+    static SQOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq,
+                                             const mfem::Vector& x)
+    {
+        SQOptimizer o(n, n_ineq + 2*n_eq, x); // n_eq_ stays 0
+        for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) {
+            o.c_[i]   = 1e4;
+            o.lam_[i] = 1e-3;
+            o.mu_[i]  = 1e-3;
+        }
+        return o;
+    }
 
     // ── Query ─────────────────────────────────────────────────────────────
 
@@ -1411,7 +1532,7 @@ private:
  * @see MMAOptimizerParallel for the MMA-based parallel optimiser.
  */
 // ============================================================
-
+#ifdef MFEM_USE_MPI
 class SQOptimizerParallel {
 public:
     /**
@@ -1470,11 +1591,27 @@ public:
     { SQOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local);
       o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) {
-          o.c_[i]   = 1e30;  // equality: c=∞ so lam is unconstrained
-          o.lam_[i] = 1e-3;  // small init so epsi=1e-3; IP grows lam to lam_opt
+          o.c_[i]   = 1e30;
+          o.lam_[i] = 1e-3;
           o.mu_[i]  = 1e-3;
       }
       return o; }
+
+    /** @brief Relaxed equality variant for SQOptimizerParallel.
+     *  Encoded as 2*n_eq standard inequality slots; n_eq_ stays 0.
+     *  Use PackFivalRelaxed() at call sites; PackedDfidx unchanged. */
+    static SQOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
+                                                      int n_ineq, int n_eq,
+                                                      const mfem::Vector& x_local)
+    {
+        SQOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq, x_local);
+        for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) {
+            o.c_[i]   = 1e4;
+            o.lam_[i] = 1e-3;
+            o.mu_[i]  = 1e-3;
+        }
+        return o;
+    }
 
     // ── Query ─────────────────────────────────────────────────────────────
 
@@ -1615,5 +1752,6 @@ private:
                           const mfem::Vector& xmax_local,
                           const double* rho_override = nullptr);
 };
+#endif // MFEM_USE_MPI
 
 } // namespace mfem_mma

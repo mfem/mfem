@@ -175,9 +175,8 @@ else()
 endif()  # MFEM target detection
 
 # ---------------------------------------------------------------------------
-# Dependencies: MPI, LAPACK, BLAS
+# Dependencies: LAPACK, BLAS  (MPI is inherited from MFEM, not found here)
 # ---------------------------------------------------------------------------
-find_package(MPI    REQUIRED CXX)
 find_package(LAPACK REQUIRED)
 find_package(BLAS   REQUIRED)
 
@@ -189,6 +188,22 @@ find_package(BLAS   REQUIRED)
 # the include/link flags.
 
 add_library(mma_mfem_lib STATIC MMA_MFEM.cpp)
+target_sources(mma_mfem_lib PRIVATE LatentMirrorOptimizer.cpp)
+
+
+# ── Adding extra library source files ────────────────────────────────────────
+# Add the .cpp file with target_sources(); the matching .hpp is found
+# automatically because CMAKE_CURRENT_SOURCE_DIR is already on the include path.
+#
+# Same directory:
+#   target_sources(mma_mfem_lib PRIVATE MyOptimizer.cpp)
+#
+# Subdirectory (also expose the header path to consumers):
+#   target_include_directories(mma_mfem_lib PUBLIC
+#     "${CMAKE_CURRENT_SOURCE_DIR}/mysubdir")
+#   target_sources(mma_mfem_lib PRIVATE mysubdir/MyOptimizer.cpp)
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
 target_include_directories(mma_mfem_lib PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -196,7 +211,6 @@ target_include_directories(mma_mfem_lib PUBLIC
 
 target_link_libraries(mma_mfem_lib PUBLIC
   ${MFEM_LIBRARIES}
-  MPI::MPI_CXX
   LAPACK::LAPACK
   BLAS::BLAS)
 
@@ -205,8 +219,10 @@ target_compile_features(mma_mfem_lib PUBLIC cxx_std_14)
 set_target_properties(mma_mfem_lib PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
 
-# Forward any compile flags / definitions that MFEM requires
-# (e.g. -DMFEM_USE_LAPACK, -DMFEM_USE_MPI).
+# Forward all compile flags and definitions that MFEM requires, including
+# -DMFEM_USE_MPI when MFEM was built with MPI.  This is the authoritative
+# source: the parallel optimizer classes (#ifdef MFEM_USE_MPI) compile iff
+# MFEM itself was built with MPI — no separate find_package(MPI) needed.
 if(MFEM_COMPILE_FLAGS)
   target_compile_options(mma_mfem_lib PUBLIC ${MFEM_COMPILE_FLAGS})
 endif()
@@ -214,18 +230,56 @@ if(MFEM_DEFINITIONS)
   target_compile_definitions(mma_mfem_lib PUBLIC ${MFEM_DEFINITIONS})
 endif()
 
+# Report MPI status based on MFEM_DEFINITIONS so the message is reliable.
+if("MFEM_USE_MPI" IN_LIST MFEM_DEFINITIONS)
+  message(STATUS "mma_mfem: MFEM_USE_MPI set — parallel optimizers enabled")
+else()
+  message(STATUS "mma_mfem: MFEM_USE_MPI not set — serial optimizers only")
+endif()
+
 # ---------------------------------------------------------------------------
 # Helper: register one test executable
 # ---------------------------------------------------------------------------
+#
 # Usage:
 #   mma_add_test(NAME <name> [PARALLEL] [ARGS arg1 arg2 ...] [LABELS lbl ...])
 #
-# Creates the executable, links it against mma_mfem_lib, and registers:
-#   - a serial CTest entry  (<name>_serial)
-#   - a 4-rank CTest entry  (<name>_parallel_4)  when PARALLEL is given
-#     and MPIEXEC_EXECUTABLE is available
+# <name> must match the .cpp filename exactly (without the extension).
+# The macro creates the executable, links it against mma_mfem_lib, and
+# registers CTest entries:
+#   <name>_serial       — runs the binary directly (always created)
+#   <name>_parallel_4   — runs under mpirun -np 4 (only when PARALLEL is
+#                         specified AND MPIEXEC_EXECUTABLE is available)
 #
-# ARGS are appended to both entries (e.g. --device cpu).
+# Keyword arguments:
+#   PARALLEL            — also register the 4-rank CTest entry
+#   ARGS  arg …         — extra arguments appended to both CTest commands
+#                         (e.g. ARGS --device cpu)
+#   LABELS lbl …        — CTest labels, e.g. LABELS large for slow tests
+#                         selectable with: ctest -L large
+#
+# ── Adding a new test ─────────────────────────────────────────────────────────
+#
+# 1. Write test_my_feature.cpp in this directory.  main() must return 0 on
+#    success and non-zero on failure.
+#
+# 2. Add one line in the "Test targets" section below:
+#
+#      mma_add_test(NAME test_my_feature)              # serial-only test
+#      mma_add_test(NAME test_my_feature PARALLEL)     # serial + 4-rank MPI
+#
+#    To pass a fixed argument to the test binary (e.g. a flag):
+#      mma_add_test(NAME test_my_feature ARGS --verbose)
+#
+#    To mark a test as slow so it can be skipped with  ctest -LE large:
+#      mma_add_test(NAME test_my_feature PARALLEL LABELS large)
+#
+# 3. Re-run cmake (or just make; CMake re-checks automatically).
+#
+# The macro silently skips entries whose .cpp file is absent, so it is safe
+# to commit a CMakeLists.txt entry before the source file exists.
+#
+# ---------------------------------------------------------------------------
 
 function(mma_add_test)
   cmake_parse_arguments(T "PARALLEL" "NAME" "ARGS;LABELS" ${ARGN})
@@ -261,9 +315,11 @@ endfunction()
 # ---------------------------------------------------------------------------
 # Test targets
 # ---------------------------------------------------------------------------
+# Add new tests here with mma_add_test() — see the helper documentation above.
+# ---------------------------------------------------------------------------
 enable_testing()
 
-# ---- Core MMA / GCMMA -------------------------------------------------------
+# ── Core MMA / GCMMA ---------------------------------------------------------
 
 mma_add_test(NAME test_mma_serial        PARALLEL)
 mma_add_test(NAME test_mma_parallel      PARALLEL)
@@ -273,7 +329,9 @@ mma_add_test(NAME test_gcmma_callback    PARALLEL)
 mma_add_test(NAME test_zero_ranks        PARALLEL)
 mma_add_test(NAME test_overconstrained   PARALLEL)
 mma_add_test(NAME test_nonconvex         PARALLEL)
-mma_add_test(NAME test_equalities        PARALLEL)
+mma_add_test(NAME test_equalities                    PARALLEL)
+mma_add_test(NAME test_relaxed_equalities_serial)
+mma_add_test(NAME test_relaxed_equalities_parallel   PARALLEL)
 
 # Large nonconvex run: opt-in via ctest -L large  (slow, 100k-1M DOF)
 if(MPIEXEC_EXECUTABLE)
@@ -332,6 +390,13 @@ mma_add_test(NAME test_sq_equalities     PARALLEL)
 mma_add_test(NAME test_sq_parallel       PARALLEL)
 
 mma_add_test(NAME test_sq_device ARGS --device cpu)
+
+# ---- LMG optimizer ---------------------------------------------------------
+
+mma_add_test(NAME test_lmg_serial) #serial test
+mma_add_test(NAME test_lmg_parallel  PARALLEL) #parallel test
+
+
 
 # ---- Unit tests (internal helpers, no MPI parallel runs needed) -------------
 # These files are part of the standalone development tree but are not

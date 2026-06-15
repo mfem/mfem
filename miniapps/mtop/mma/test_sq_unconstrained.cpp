@@ -25,6 +25,7 @@ static int g_rank=0, g_nfail=0;
 static void Check(bool c,const char* m){ if(g_rank!=0)return; if(c)printf("  [PASS] %s\n",m); else{printf("  [FAIL] %s\n",m);++g_nfail;} }
 static double GSum(double v){double g;MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);return g;}
 static double GMax(double v){double g;MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);return g;}
+#ifdef MFEM_USE_MPI
 static uint64_t lcg(uint64_t& s){s=s*6364136223846793005ULL+1442695040888963407ULL;return s>>33;}
 static double lcgd(uint64_t& s){return double(lcg(s))/double(1ULL<<31);}
 static std::pair<int,int> Dist(int n){int nr;MPI_Comm_size(MPI_COMM_WORLD,&nr);int b=n/nr,r=n%nr;return{b+(g_rank<r?1:0),g_rank*b+std::min(g_rank,r)};}
@@ -110,6 +111,8 @@ static void Test_MixedSeparable(int n)
 }
 
 // ── Test 4: Serial SQOptimizer ────────────────────────────────────────────
+#endif // MFEM_USE_MPI
+
 static void Test_Serial_QuadraticBowl(int n)
 {
     if(g_rank!=0) return;
@@ -148,6 +151,7 @@ int main(int argc,char** argv)
     Test_Serial_QuadraticBowl(10000);
     Test_Serial_QuadraticBowl(50000);
     Test_Serial_QuadraticBowl(100000);
+#ifdef MFEM_USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Parallel
@@ -156,6 +160,8 @@ int main(int argc,char** argv)
     Test_QuadraticBowl(10000,true);  Test_QuadraticBowl(50000,true);
     Test_InverseSum(10000); Test_InverseSum(100000);
     Test_MixedSeparable(10000); Test_MixedSeparable(50000); Test_MixedSeparable(100000);
+
+#endif // MFEM_USE_MPI
 
     if(g_rank==0){printf("\n========================================\n");
     if(g_nfail==0)printf("All SQ unconstrained tests PASSED.\n");
