@@ -237,7 +237,7 @@ void PerturbParticleDataOnDevice(ParticleSet &pset)
       const real_t scale = (f == -1) ? 0.001 : 1.0;
       auto d_field = field.ReadWrite();
 
-      MFEM_FORALL(i, np,
+      mfem::forall(np, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int c = 0; c < vdim; c++)
          {
@@ -252,7 +252,7 @@ void PerturbParticleDataOnDevice(ParticleSet &pset)
       Array<int> &tag = pset.Tag(t);
       auto d_tag = tag.ReadWrite();
 
-      MFEM_FORALL(i, np,
+      mfem::forall(np, [=] MFEM_HOST_DEVICE (int i)
       {
          d_tag[i] += t + 1;
       });

@@ -162,11 +162,12 @@ protected:
       mutable double surf_dist_tol;
    } DEV;
 
-   /// Use GSLIB for communication and interpolation
+   /// Use GSLIB for communication and interpolation. Updates field_out on
+   /// host.
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out,
                               const int field_out_ordering);
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
-   /// interpolation functions
+   /// interpolation functions. Updates field_out on host.
    virtual void InterpolateGeneral(const GridFunction &field_in,
                                    Vector &field_out,
                                    const int field_out_ordering);
