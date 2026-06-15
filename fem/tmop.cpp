@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-/* AD related definitions below ========================================*/
+/* AD related definitions below */
 
 /// MFEM native AD-type for first derivatives
 using AD1Type = future::dual<real_t, real_t>;
@@ -485,7 +485,216 @@ void ADHessian(std::function<AD2Type(std::vector<AD2Type>&,
    }
    return;
 }
-/* end AD related definitions ========================================*/
+/* end AD related definitions */
+
+// I1 = |M|^2 / det(M).
+double TMOP_QualityMetric::Dim2Invariant1(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   return M.FNorm2() / M.Det();
+}
+
+// I2 = det(M).
+double TMOP_QualityMetric::Dim2Invariant2(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   return M.Det();
+}
+
+// dI1_dM = [ 2 det(M) M - |M|^2 adj(M)^T ] / det(M)^2.
+void TMOP_QualityMetric::Dim2Invariant1_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   const double fnorm2 = M.FNorm2(), det = M.Det();
+
+   Dim2Invariant2_dM(M, dM);
+   dM *= - fnorm2/(det*det);
+   dM.Add(2.0/det, M);
+}
+
+// dI2_dM = d(det(M))_dM = adj(M)^T.
+void TMOP_QualityMetric::Dim2Invariant2_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
+   dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
+}
+
+// (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(M)^2]_d[Mij].
+void TMOP_QualityMetric::Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   // Compute d(det(M))_d(Mij), d(|M|^2)_d(Mij).
+   DenseMatrix dI(2);
+   Dim2Invariant2_dM(M, dI);
+   const double ddet   = dI(i,j);
+   const double dfnorm2 = 2.0 * M(i,j);
+
+   const double det    = M.Det();
+   const double det2   = det * det;
+   const double fnorm2 = M.FNorm2();
+
+   DenseMatrix dM(2); dM = 0.0; dM(i, j) = 1.0;
+   DenseMatrix ddI(2);
+   Dim2Invariant2_dMdM(M, i, j, ddI);
+   for (int r = 0; r < 2; r++)
+   {
+      for (int c = 0; c < 2; c++)
+      {
+         dMdM(r,c) =
+             (det2 *
+                  (2.0 * ddet * M(r,c) + 2.0 * det * dM(r,c)
+                   - dfnorm2 * dI(r,c) - fnorm2 * ddI(r,c))
+              - 2.0 * det * ddet *
+                    (2.0 * det * M(r,c) - fnorm2 * dI(r,c)) ) / (det2 * det2);
+      }
+   }
+}
+
+// (dI2_dM)_d(Mij) = ...
+void TMOP_QualityMetric::Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
+
+   dMdM = 0.0;
+   dMdM(1-i,1-j) = (i == j) ? 1.0 : -1.0;
+}
+
+// I1 = |M|^2/ det(M)^(2/3).
+double TMOP_QualityMetric::Dim3Invariant1(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   const double fnorm = M.FNorm(), det = M.Det();
+   return fnorm * fnorm / pow(det, 2.0/3.0);
+}
+
+
+// I2 = |adj(M)|^2 / det(M)^(4/3).
+double TMOP_QualityMetric::Dim3Invariant2(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+
+   const double fnorm = Madj.FNorm(), det = M.Det();
+   return fnorm * fnorm / pow(det, 4.0/3.0);
+}
+
+
+// I3 = det(M).
+double TMOP_QualityMetric::Dim3Invariant3(const DenseMatrix &M)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   return M.Det();
+}
+
+// dI1_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
+void TMOP_QualityMetric::Dim3Invariant1_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+   const double fnorm = M.FNorm(), det = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(2./3.)* fnorm * fnorm * pow(det, -1./3.);
+   dM.Add(2.0 * pow(det, 2./3.), M);
+   dM *= 1.0 / pow(det, 4./3.);
+}
+
+// dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
+void TMOP_QualityMetric::Dim3Invariant2_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix Madj(3);
+   // dM will have Madj^t because it is the third invariant's derivative.
+   CalcAdjugate(M, Madj);
+   const double fnorm = Madj.FNorm(), det = M.Det();
+
+   Dim3Invariant3_dM(M, dM);
+   dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
+   dM *= 1.0 / (pow(det, 8./3.));
+}
+
+// dI3_dM = d(det(M))_dM = adj(M)^T.
+void TMOP_QualityMetric::Dim3Invariant3_dM(const DenseMatrix &M,
+                                           DenseMatrix &dM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   CalcAdjugateTranspose(M, dM);
+}
+
+void TMOP_QualityMetric::Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   const double fnorm  = M.FNorm(), det = M.Det();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) = (2.0 * det * det * dM(r,c)
+                       + dI(i,j) * (10./9.) * fnorm * fnorm * dI(r,c)
+                       - (4./3.) * dI(i,j) * det * M(r,c)
+                       - (4./3.) * det * M(i,j) * dI(r,c))
+                      / pow(det, 8./3.);
+      }
+   }
+}
+
+void TMOP_QualityMetric::Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   DenseMatrix dI(3);
+   Dim3Invariant3_dM(M, dI);
+   DenseMatrix Madj(3);
+   CalcAdjugate(M, Madj);
+   const double det   = M.Det();
+   const double fnorm = Madj.FNorm();
+
+   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
+   for (int r = 0; r < 3; r++)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         dMdM(r,c) = (28./9.) * fnorm * fnorm *
+                      det * det * dI(i,j) * dI(r,c) / pow(det, 16./3.);
+      }
+   }
+}
+
+// (dI3_dM)_d(Mij) = 0.
+void TMOP_QualityMetric::Dim3Invariant3_dMdM(const DenseMatrix &M, int i, int j,
+                                             DenseMatrix &dMdM)
+{
+   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+
+   dMdM(i, j) = 0.0;
+}
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
@@ -975,12 +1184,24 @@ real_t TMOP_Metric_002::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 real_t TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
+   if (use_old_invariants_code)
+   {
+      return 0.5 * Dim2Invariant1(Jpt) - 1.0;
+   }
+
    ie.SetJacobian(Jpt.GetData());
    return 0.5 * ie.Get_I1b() - 1.0;
 }
 
 void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
+   if (use_old_invariants_code)
+   {
+      Dim2Invariant1_dM(Jpt, P);
+      P *= 0.5;
+      return;
+   }
+
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5, ie.Get_dI1b());
 }
@@ -990,9 +1211,81 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
+   if (use_old_invariants_code)
+   {
+      const int dof = DS.Height(), dim = DS.Width();
+      DenseMatrix dI1_dMdM(dim);
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
+}
+
+void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const DenseMatrix &dx_dt,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   const int dof = DS.Height(), dim = DS.Width();
+   DenseMatrix dI1_dMdM(dim);
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
+
+               for (int i = 0; i < dof; i++)
+               {
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                         weight * DS(i, c)  * dx_dt(i, r)
+                                * DS(j, cc) * dx_dt(j, rr) * entry_rr_cc;
+                  }
+               }
+            }
+         }
+      }
+   }
 }
 
 real_t TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
@@ -4086,6 +4379,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 {
    MFEM_VERIFY(periodic == false,
                "Fitting is not supported for periodic meshes.");
+   MFEM_VERIFY(tan_analytic_surf == nullptr,
+               "Fitting is not supported for parametrized optimization.");
 
    Vector pos(d_loc.Size());
    if (x_0) { add(*x_0, d_loc, pos); }
@@ -4219,9 +4514,21 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    const IntegrationRule &ir = EnergyIntegrationRule(el);
 
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
+   Vector convertedX(elfun);
+   if (tan_analytic_surf)
+   {
+      Array<int> vdofs;
+      fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
+      tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
+      // Use converted coordinates for PMatI
+      PMatI.UseExternalData(convertedX.GetData(), dof, dim);
+   }
+
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
-   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
+   targetC->ComputeElementTargets(el_id, el, ir, convertedX, Jtr);
 
    // Limited case.
    Vector shape, p, p0, d_vals;
@@ -4536,6 +4843,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  Vector &elvect)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
+
    const int el_id = T.ElementNo;
 
    // Form the Vector of node positions, depending on what's the input.
@@ -4566,11 +4874,21 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    const IntegrationRule &ir = ActionIntegrationRule(el);
    const int nqp = ir.GetNPoints();
 
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
+   Vector convertedX(elfun);
+   MFEM_VERIFY(tan_analytic_surf, "only for analytic surfaces");
+   Array<int> vdofs;
+   fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
+   tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
+   // Use converted coordinates for PMatI
+   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
+
    elvect = 0.0;
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
    DenseTensor dJtr(dim, dim, dim*nqp);
-   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
+   targetC->ComputeElementTargets(T.ElementNo, el, ir, convertedX, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -4630,6 +4948,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       real_t weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
+      // change comes here for DSh?
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -4637,7 +4956,29 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
       P *= weight_m;
-      AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
+
+      // This expands the old call AddMultABt(DS, P, PMatO);
+      // TODO assumes identity W.
+      double dxy_dt[2];
+      for (int i = 0; i < dof; i++)
+      {
+         const AnalyticSurface *surf = tan_analytic_surf->GetSurface(vdofs[i]);
+         if (surf)
+         {
+            surf->Deriv_1(&elfun(i), dxy_dt);
+         }
+         else { dxy_dt[0] = 1.0, dxy_dt[1] = 1.0; }
+
+         for (int c = 0; c < dim; c++)
+         {
+            real_t d = 0.0;
+            for (int k = 0; k < dim; k++)
+            {
+               d += DS(i, k) * dxy_dt[c] * P(c, k);
+            }
+            PMatO(i, c) += d;
+         }
+      }
 
       if (exact_action)
       {
@@ -4700,6 +5041,15 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       }
    }
 
+   // TODO assumes 2D.
+   for (int i = 0; i < dof; i++)
+   {
+      if (tan_analytic_surf->GetSurface(vdofs[i]))
+      {
+         PMatO(i, 0) += PMatO(i, 1);
+      }
+   }
+
    if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
    if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
@@ -4738,6 +5088,16 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    const IntegrationRule &ir = GradientIntegrationRule(el);
    const int nqp = ir.GetNPoints();
+
+   // Convert parametric coordinates to physical to compute Jpt.
+   // Needed as elfun has the surface parameters for some entries.
+   Vector convertedX(elfun);
+   MFEM_VERIFY(tan_analytic_surf, "only for analytic surfaces");
+   Array<int> vdofs;
+   fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
+   tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
+   // Use converted coordinates for PMatI
+   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
 
    elmat = 0.0;
    Vector weights(nqp);
@@ -4785,6 +5145,30 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
+   // TODO assumes 2D.
+   DenseMatrix dx_dt(dof, dim), dx_dtdt(dof, dim);
+   for (int i = 0; i < dof; i++)
+   {
+      const AnalyticSurface *surf = tan_analytic_surf->GetSurface(vdofs[i]);
+      if (surf)
+      {
+         double dxy_dt[2], dxy_dtdt[2];
+         surf->Deriv_1(&elfun(i), dxy_dt);
+         surf->Deriv_2(&elfun(i), dxy_dtdt);
+         dx_dt(i, 0) = dxy_dt[0];
+         dx_dt(i, 1) = dxy_dt[1];
+         dx_dtdt(i, 0) = dxy_dtdt[0];
+         dx_dtdt(i, 1) = dxy_dtdt[1];
+      }
+      else
+      {
+         dx_dt(i, 0)   = 1.0;
+         dx_dt(i, 1)   = 1.0;
+         dx_dtdt(i, 0) = 0.0;
+         dx_dtdt(i, 1) = 0.0;
+      }
+   }
+
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
@@ -4800,7 +5184,27 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
 
-      metric->AssembleH(Jpt, DS, weight_m, elmat);
+      if (tan_analytic_surf)
+      {
+         metric->AssembleH(Jpt, DS, dx_dt, weight_m, elmat);
+      }
+      else { metric->AssembleH(Jpt, DS, weight_m, elmat); }
+
+      // TODO assumes identity W.
+      metric->EvalP(Jpt, P);
+      P *= weight_m;
+      for (int i = 0; i < dof; i++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            real_t d = 0.0;
+            for (int k = 0; k < dim; k++)
+            {
+               d += DS(i, k) * dx_dtdt(i, c) * P(c, k);
+            }
+            elmat(i + c*dof, i + c*dof) += d;
+         }
+      }
 
       // TODO: derivatives of adaptivity-based targets.
 
@@ -4825,6 +5229,20 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                   }
                }
             }
+         }
+      }
+   }
+
+   // TODO assumes 2D.
+   for (int i = 0; i < dof; i++)
+   {
+      if (tan_analytic_surf->GetSurface(vdofs[i]))
+      {
+         elmat(i, i) += elmat(i + dof, i + dof);
+         for (int j = 0; j < dof*dim; j++)
+         {
+            elmat(i, j) += elmat(i + dof, j);
+            elmat(j, i) += elmat(j, i + dof);
          }
       }
    }

@@ -24,7 +24,7 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref mesh-bounding-boxes
+	phpref mesh-bounding-boxes tmop-tangent
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -123,6 +123,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -f tmop-tangent.mesh tmop-tangent.gf
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
