@@ -34,6 +34,8 @@ public:
    AnalyticSurface() : dof_marker(0), dof_pos_offset(0) { }
    AnalyticSurface(const Array<bool> &marker);
 
+   const Array<bool> &GetMarker() const { return dof_marker; }
+
    // Go from physical to parametric coordinates on the whole mesh.
    // If the point is not on the curve, computes its offset.
    // 2D curve: (x, y)    -> t.
