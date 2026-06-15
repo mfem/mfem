@@ -4379,6 +4379,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 {
    MFEM_VERIFY(periodic == false,
                "Fitting is not supported for periodic meshes.");
+   MFEM_VERIFY(tan_analytic_surf == nullptr,
+               "Fitting is not supported for parametrized optimization.");
 
    Vector pos(d_loc.Size());
    if (x_0) { add(*x_0, d_loc, pos); }

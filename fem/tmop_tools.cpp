@@ -460,20 +460,12 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 #endif
 
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   auto ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
-   MFEM_VERIFY(ti, "Didn't get the integrator.");
-   auto surfaces = ti->GetAnalyticSurface();
-   MFEM_VERIFY(surfaces, "There are no surfaces");
-   Vector d_loc_x(d_loc);
-   surfaces->ConvertParamCoordToPhys(d_loc, d_loc_x);
-
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(d_loc_x, init_fit_avg_err, init_fit_max_err);
+      GetSurfaceFittingError(d_loc, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
       {
@@ -501,7 +493,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = ComputeMinDet(d_loc_x, *fes);
+   const real_t min_detT_in = ComputeMinDet(d_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -551,10 +543,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       else { fes->GetProlongationMatrix()->Mult(d_out, d_loc); }
 #endif
 
-      surfaces->ConvertParamCoordToPhys(d_loc, d_loc_x);
-
       // Check the changes in detJ.
-      min_detT_out = ComputeMinDet(d_loc_x, *fes);
+      min_detT_out = ComputeMinDet(d_loc, *fes);
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -586,7 +576,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
-         GetSurfaceFittingError(d_loc_x, avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(d_loc, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
@@ -705,6 +695,13 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
       auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co) { co->SetInitialMeshPos(&x_0); }
    }
+
+   // Check if there's a surface parametrization.
+   auto integ = dynamic_cast<TMOP_Integrator *>(integs[0]);
+   parametric = (integ->GetAnalyticSurface() == nullptr) ? false : true;
+
+   MFEM_VERIFY((periodic && parametric) == false,
+               "Periodic meshes + parametrization is not supported");
 
    // Solve for the displacement, which always starts from zero.
    Vector dx(height); dx = 0.0;
@@ -984,12 +981,22 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
 {
    real_t min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
-   Array<int> xdofs;
-   DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
    if (1 || dim == 1 || mixed_mesh ||
        UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
+      const AnalyticCompositeSurface *surf = nullptr;
+      if (parametric)
+      {
+         const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+         const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+         auto ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
+         surf = ti->GetAnalyticSurface();
+      }
+
+      Array<int> xdofs;
+      DenseMatrix Jpr(dim);
+
       for (int i = 0; i < NE; i++)
       {
          const int dof = fes.GetFE(i)->GetDof();
@@ -1007,6 +1014,13 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
          fes.GetElementVDofs(i, xdofs);
          d_loc.GetSubVector(xdofs, d_loc_el);
          posV += d_loc_el;
+
+         Vector convertedX(posV.Size());
+         if (parametric)
+         {
+            surf->ConvertParamToPhys(xdofs, posV, convertedX);
+            posV = convertedX;
+         }
 
          const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
          const int nsp = irule.GetNPoints();
