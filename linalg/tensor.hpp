@@ -27,244 +27,124 @@ namespace mfem
 namespace future
 {
 
-template <typename T, int... n>
+template <typename T, int... Dims>
 struct tensor;
-
-/// The implementation can be drastically generalized by using concepts of the
-/// c++17 standard.
 
 template <typename T>
 struct tensor<T>
 {
    using type = T;
-   static constexpr int ndim      = 1;
+   static constexpr int ndim = 1;
    static constexpr int first_dim = 0;
-
-   tensor() = default;
-   MFEM_HOST_DEVICE tensor(T v) : values(v) {}
 
    MFEM_HOST_DEVICE T& operator[](int) { return values; }
    MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
-   MFEM_HOST_DEVICE T& operator()() { return values; }
-   MFEM_HOST_DEVICE const T& operator()() const { return values; }
-
    MFEM_HOST_DEVICE operator T() const { return values; }
-
-   MFEM_HOST_DEVICE constexpr const T& scalar() const { return values; }
-
-   // A * tensor<T>  ->  A * T
-   template <typename A,
-             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
-   MFEM_HOST_DEVICE friend auto operator*(const A& a, const tensor& s)
-   -> decltype(std::declval<const A&>() * std::declval<const T&>())
-   {
-      return a * s.scalar();
-   }
-
-   // tensor<T> * A  ->  T * A
-   template <typename A,
-             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
-   MFEM_HOST_DEVICE friend auto operator*(const tensor& s, const A& a)
-   -> decltype(std::declval<const T&>() * std::declval<const A&>())
-   {
-      return s.scalar() * a;
-   }
-
-   // A / tensor<T>, tensor<T> / A
-   template <typename A,
-             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
-   MFEM_HOST_DEVICE friend auto operator/(const A& a, const tensor& s)
-   -> decltype(std::declval<const A&>() / std::declval<const T&>())
-   {
-      return a / s.scalar();
-   }
-
-   template <typename A,
-             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
-   MFEM_HOST_DEVICE friend auto operator/(const tensor& s, const A& a)
-   -> decltype(std::declval<const T&>() / std::declval<const A&>())
-   {
-      return s.scalar() / a;
-   }
 
    T values;
 };
 
-template <typename T, int n0>
-struct tensor<T, n0>
+template <typename T, int N0>
+struct tensor<T, N0>
 {
    using type = T;
-   static constexpr int ndim      = 1;
-   static constexpr int first_dim = n0;
+   static constexpr int ndim = 1;
+   static constexpr int first_dim = N0;
+
    MFEM_HOST_DEVICE T& operator[](int i) { return values[i]; }
    MFEM_HOST_DEVICE const T& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i) { return values[i]; }
    MFEM_HOST_DEVICE const T& operator()(int i) const { return values[i]; }
-   T values[n0];
+
+   T values[N0];
 };
 
 template <typename T>
 struct tensor<T, 0>
 {
    using type = T;
-   static constexpr int ndim      = 1;
+   static constexpr int ndim = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+
+   MFEM_HOST_DEVICE T& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
+
    T values;
 };
 
-template <typename T, int n0, int n1>
-struct tensor<T, n0, n1>
+template <typename T, int N0, int N1, int... Rest>
+struct tensor<T, N0, N1, Rest...>
 {
    using type = T;
-   static constexpr int ndim      = 2;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
-   tensor<T, n1> values[n0];
-};
+   using sub_tensor = tensor<T, N1, Rest...>;
+   static constexpr int ndim = 2 + sizeof...(Rest);
+   static constexpr int first_dim = N0;
 
-template <typename T, int n1>
-struct tensor<T, 0, n1>
-{
-   using type = T;
-   static constexpr int ndim      = 2;
-   static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
-   tensor<T, n1> values;
-};
+   static constexpr bool is_zero_dim = (N0 == 0);
+   static constexpr int storage_size = is_zero_dim ? 1 : N0;
+   using storage_type =
+      std::conditional_t<is_zero_dim, sub_tensor, sub_tensor[storage_size]>;
+   storage_type values;
 
-template < typename T, int n0, int n1, int n2 >
-struct tensor<T, n0, n1, n2>
-{
-   using type = T;
-   static constexpr int ndim      = 3;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   tensor<T, n1, n2> values[n0];
-};
+   MFEM_HOST_DEVICE sub_tensor& operator[](int i)
+   {
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
+      else { return values[i]; }
+   }
 
-template < typename T, int n1, int n2 >
-struct tensor<T, 0, n1, n2>
-{
-   using type = T;
-   static constexpr int ndim      = 3;
-   static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int /*i*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int /*i*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int /*i*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int /*i*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int /*i*/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k) { return values[j][k]; }
-   MFEM_HOST_DEVICE const T& operator()(int /*i*/, int j, int k) const { return values[j][k]; }
-   tensor<T, n1, n2> values;
-};
+   MFEM_HOST_DEVICE const sub_tensor& operator[](int i) const
+   {
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
+      else { return values[i]; }
+   }
 
-template < typename T, int n0, int n1, int n2, int n3 >
-struct tensor<T, n0, n1, n2, n3>
-{
-   using type = T;
-   static constexpr int ndim      = 4;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
-   tensor<T, n1, n2, n3> values[n0];
-};
+   MFEM_HOST_DEVICE sub_tensor& operator()(int i)
+   {
+      return (*this)[i];
+   }
 
-template < typename T, int n1, int n2, int n3 >
-struct tensor<T, 0, n1, n2, n3>
-{
-   using type = T;
-   static constexpr int ndim      = 4;
-   static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int /*i*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int /*i*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int /*i*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int /*i*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int /*i*/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int /*i*/, int j) const { return values[j]; }
-   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int /*i*/, int j, int k) { return values[j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int /*i*/, int j,
-                                                      int k) const { return values[j][k]; }
-   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k, int l) { return values[j][k][l]; }
-   MFEM_HOST_DEVICE const T&  operator()(int /*i*/, int j, int k, int l) const { return values[j][k][l]; }
-   tensor<T, n1, n2, n3> values;
-};
+   MFEM_HOST_DEVICE const sub_tensor& operator()(int i) const
+   {
+      return (*this)[i];
+   }
 
-template <typename T, int n0, int n1, int n2, int n3, int n4>
-struct tensor<T, n0, n1, n2, n3, n4>
-{
-   using type = T;
-   static constexpr int ndim      = 5;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int i,
-                                                              int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int i, int j,
-                                                         int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int i, int j, int k,
-                                                      int l) const { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l, int m) { return values[i][j][k][l][m]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
-   tensor<T, n1, n2, n3, n4> values[n0];
-};
+   template <typename... Is>
+   MFEM_HOST_DEVICE auto& operator()(int i, int j, Is... rest)
+   {
+      if constexpr (sizeof...(rest) == 0)
+      {
+         return (*this)[i][j];
+      }
+      else
+      {
+         return (*this)[i](j, rest...);
+      }
+   }
 
-template <typename T, int n1, int n2, int n3, int n4>
-struct tensor<T, 0, n1, n2, n3, n4>
-{
-   using type = T;
-   static constexpr int ndim      = 5;
-   static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int, int j) const { return values[j]; }
-   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int, int j, int k) { return values[j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int, int j, int k) const { return values[j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int, int j, int k, int l) { return values[j][k][l]; }
-   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int, int j, int k,
-                                                      int l) const { return values[j][k][l]; }
-   MFEM_HOST_DEVICE T& operator()(int, int j, int k, int l, int m) { return values[j][k][l][m]; }
-   MFEM_HOST_DEVICE const T& operator()(int, int j, int k, int l, int m) const { return values[j][k][l][m]; }
-   tensor<T, n1, n2, n3, n4> values;
+   template <typename... Is>
+   MFEM_HOST_DEVICE const auto& operator()(int i, int j, Is... rest) const
+   {
+      if constexpr (sizeof...(rest) == 0)
+      {
+         return (*this)[i][j];
+      }
+      else
+      {
+         return (*this)[i](j, rest...);
+      }
+   }
 };
 
 /**
