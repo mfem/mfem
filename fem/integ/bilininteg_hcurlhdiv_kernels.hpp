@@ -891,22 +891,27 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
                                  const int nquad_o, const Vector &pa,
                                  const Vector &x_, Vector &y_)
 {
-   constexpr int MND_O = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
-   constexpr int MNQ_O =
+   constexpr int mnd_o = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+   constexpr int mnq_o =
       T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
-   constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
-   constexpr int TBATCH = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
-   MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
-   MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
+   constexpr int mndq = std::max(mnd_o + 1, mnq_o + 1);
+   constexpr int tbatch = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, mndq);
+   MFEM_VERIFY(ndof_o <= mnd_o, "Error: H(curl) order larger than supported");
+   MFEM_VERIFY(nquad_o <= mnq_o, "Error: H(div) order larger than supported");
    int mnq = std::max(ndof_o + 1, nquad_o + 1);
    auto pa_data = pa.Read();
    auto x_d = x_.Read();
    auto y_d = y_.ReadWrite();
-   mfem::forall_2D_batch<MNDQ * MNDQ *(MNDQ - 1) * TBATCH>(
-      ne, mnq * mnq * (mnq - 1), 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch<mndq * mndq * (mndq - 1) * tbatch>(
+      ne, mnq * mnq * (mnq - 1), 1, tbatch, [=] MFEM_HOST_DEVICE(int e)
    {
+      constexpr int MND_O =
+         T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+      constexpr int MNQ_O =
+         T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
+      constexpr int MNDQ = std::max(mnd_o + 1, mnq_o + 1);
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      constexpr int nbz = TBATCH ? TBATCH : 1;
+      constexpr int nbz = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
       int tidz = MFEM_THREAD_ID(z);
       // Make mnq a local variable since capturing would result in different
       // captures between host/device versions, and spuriously fails
@@ -1188,22 +1193,27 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
                                   const int nquad_o, const Vector &pa,
                                   const Vector &x_, Vector &y_)
 {
-   constexpr int MND_O = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
-   constexpr int MNQ_O =
+   constexpr int mnd_o = T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+   constexpr int mnq_o =
       T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
-   constexpr int MNDQ = std::max(MND_O + 1, MNQ_O + 1);
-   constexpr int TBATCH = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
-   MFEM_VERIFY(ndof_o <= MND_O, "Error: H(curl) order larger than supported");
-   MFEM_VERIFY(nquad_o <= MNQ_O, "Error: H(div) order larger than supported");
+   constexpr int mndq = std::max(mnd_o + 1, mnq_o + 1);
+   constexpr int tbatch = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, mndq);
+   MFEM_VERIFY(ndof_o <= mnd_o, "Error: H(curl) order larger than supported");
+   MFEM_VERIFY(nquad_o <= mnq_o, "Error: H(div) order larger than supported");
    int mnq = std::max(ndof_o + 1, nquad_o + 1);
    auto pa_data = pa.Read();
    auto x_d = x_.Read();
    auto y_d = y_.ReadWrite();
-   mfem::forall_2D_batch<MNDQ * MNDQ * (MNDQ - 1) * TBATCH>(
-      ne, mnq * mnq * (mnq - 1), 1, TBATCH, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch<mndq * mndq * (mndq - 1) * tbatch>(
+      ne, mnq * mnq * (mnq - 1), 1, tbatch, [=] MFEM_HOST_DEVICE(int e)
    {
+      constexpr int MND_O =
+         T_NDOF_O ? T_NDOF_O : DofQuadLimits::HCURL_MAX_D1D - 1;
+      constexpr int MNQ_O =
+         T_NQUAD_O ? T_NQUAD_O : DofQuadLimits::HDIV_MAX_D1D - 1;
+      constexpr int MNDQ = std::max(mnd_o + 1, mnq_o + 1);
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      constexpr int nbz = TBATCH ? TBATCH : 1;
+      constexpr int nbz = curlinterp::NBZ3D(T_NDOF_O, T_NQUAD_O, MNDQ);
       int tidz = MFEM_THREAD_ID(z);
       // Make mnq a local variable since capturing would result in different
       // captures between host/device versions, and spuriously fails
