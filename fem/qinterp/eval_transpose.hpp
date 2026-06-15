@@ -286,6 +286,8 @@ static void ValuesTranspose3D(const int NE,
 } // namespace quadrature_interpolator
 } // namespace internal
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int DIM, QVectorLayout Q_LAYOUT,
          int VDIM, int D1D, int Q1D, int NBZ>
 QuadratureInterpolator::TensorEvalTransposeKernelType
@@ -296,5 +298,7 @@ QuadratureInterpolator::TensorEvalTransposeKernels::Kernel()
    else if (DIM == 3) { return internal::quadrature_interpolator::ValuesTranspose3D<Q_LAYOUT, VDIM, D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

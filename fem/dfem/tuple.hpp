@@ -839,6 +839,10 @@ struct tuple_element<0, tuple<Head, Tail...>>
    using type = Head;  ///< the type at the specified index
 };
 
+/// @brief Type alias mirroring std::tuple_element_t for mfem::future::tuple
+template <size_t I, class T>
+using tuple_element_t = typename tuple_element<I, T>::type;
+
 /**
  * @brief Trait for checking if a type is a @p mfem::tuple
  */

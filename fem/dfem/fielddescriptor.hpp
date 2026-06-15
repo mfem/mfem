@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../fespace.hpp"
+#include "../qspace.hpp"
 #include "parameterspace.hpp"
 
 namespace mfem::future

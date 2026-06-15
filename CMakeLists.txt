@@ -790,7 +790,7 @@ set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
 # inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  target_compile_definitions(mfem PRIVATE
+  target_compile_definitions(mfem PUBLIC
     "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endif()
 

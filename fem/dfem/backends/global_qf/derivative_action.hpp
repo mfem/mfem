@@ -10,34 +10,28 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../util.hpp"
 #include "../../integrator_ctx.hpp"
-
+#include "../util.hpp"
 #include <utility>
 
-namespace mfem::future
-{
-
-namespace GlobalQFImpl
+namespace mfem::future::GlobalQFImpl
 {
 
 template<
+   int derivative_id,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
-struct Action
+struct DerivativeAction
 {
-   Action(
+   DerivativeAction(
       IntegratorContext ctx,
       qfunc_t qfunc,
       inputs_t inputs,
-      outputs_t outputs) :
-      ctx(ctx),
-      qfunc(std::move(qfunc)),
-      inputs(inputs),
-      outputs(outputs)
+      outputs_t outputs):
+      ctx(ctx), qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
@@ -46,7 +40,8 @@ struct Action
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases(
+         outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
@@ -54,7 +49,6 @@ struct Action
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
 
-      // prepare xq and yq BlockVectors
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
@@ -74,10 +68,29 @@ struct Action
       });
       yq_offsets.PartialSum();
       InitBlockVector(yq, yq_offsets);
+
+      // Shadow blocks use the same offsets as xq so tensor_array views
+      shadow_xq_offsets.SetSize(xq_offsets.Size());
+      shadow_xq_offsets = xq_offsets;
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
+
+      dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
+      for (size_t i = 0; i < ctx.infds.size(); i++)
+      {
+         if (static_cast<int>(ctx.infds[i].id) == derivative_id)
+         {
+            direction_fd = ctx.infds[i];
+            break;
+         }
+      }
+      MFEM_ASSERT(direction_fd.id != SIZE_MAX,
+                  "derivative direction field not found in infds");
    }
 
    void operator()(
       const std::vector<Vector *> &xe,
+      const Vector *de,
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
@@ -85,13 +98,35 @@ struct Action
       // E -> Q
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      // Q -> Q
-      static_assert(
-         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
-         "qfunc signature not supported by default backend Action");
+      constexpr auto input_active =
+         detail::make_activity_map<derivative_id>(inputs_t{});
 
-      detail::call_qfunc(
-         qfunc, xq, yq, gnqp, input_qlayouts, output_qlayouts,
+      MFEM_ASSERT(de != nullptr, "derivative direction vector is null");
+      restriction<Entity::Element>(
+         direction_fd, *de, direction_e, dof_ordering);
+
+      shadow_xq = 0.0;
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         if (!input_active[i]) { return; }
+         input_bases[i].forward(direction_e, shadow_xq.GetBlock(i));
+      });
+
+      static_assert(detail::supports_tensor_array_qfunc<qfunc_t,
+                    inputs_t,
+                    outputs_t>::value,
+                    "qfunc signature not supported by default backend Action");
+
+      // Q -> Q
+      yq = 0.0;
+      detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+         qfunc,
+         xq,
+         shadow_xq,
+         yq,
+         gnqp,
+         input_qlayouts,
+         output_qlayouts,
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
@@ -110,13 +145,16 @@ struct Action
    std::array<FieldBasis, ninputs> input_bases;
    std::array<FieldBasis, noutputs> output_bases;
 
-   std::array<std::vector<int>, ninputs>  input_qlayouts;
+   std::array<std::vector<int>, ninputs> input_qlayouts;
    std::array<std::vector<int>, noutputs> output_qlayouts;
 
    int gnqp = 0;
-   Array<int> xq_offsets, yq_offsets;
-   mutable BlockVector xq, yq;
+   Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
+   mutable BlockVector xq, shadow_xq, yq;
+
+   FieldDescriptor direction_fd;
+   ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   mutable Vector direction_e;
 };
 
-}
-}
+} // namespace mfem::future::GlobalQFImpl

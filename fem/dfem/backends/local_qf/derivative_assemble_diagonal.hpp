@@ -1,189 +1,214 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include "../../integrator_ctx.hpp"
-#include "../../../kernel_dispatch.hpp"
+
+#include "kernels.hpp"
+#include "util.hpp"
 
 #include <array>
 
-namespace mfem::future
+namespace mfem::future::LocalQFImpl
 {
 
-namespace LocalQFImpl
-{
+// Assemble diagonal of cached Jacobian (square trial == test, tensor 2D/3D)
 
-template<
-   int derivative_id,
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t,
-   size_t ninputs = tuple_size<inputs_t>::value,
-   size_t noutputs = tuple_size<outputs_t>::value>
-struct DerivativeAssembleDiagonal
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+class DerivativeAssembleDiagonal
 {
    static constexpr auto inout_tuple =
-   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
+   static constexpr size_t nfields =
+      count_unique_field_ids(filtered_inout_tuple);
 
-   template <typename fop_t>
-   MFEM_HOST_DEVICE static inline real_t EvalFactor1D(
-      const DofToQuadMap &dtq,
-      const int k,
-      const int axis,
-      const int q,
-      const int d)
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+
+   const IntegratorContext ctx;
+   const Vector &qp_cache;
+   inputs_t inputs;
+   outputs_t outputs;
+   const bool use_sum_factorization;
+   const std::vector<const DofToQuad *> dtqs;
+   const std::array<DofToQuadMap, n_inputs> input_dtq_maps;
+   const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
+   const std::array<bool, n_inputs> input_is_dependent;
+   const size_t trial_field_uf;
+   const size_t test_field_uf;
+   const bool is_square;
+   const int test_vdim;
+   const int test_op_dim;
+   const int num_test_dof;
+   const int num_test_dof_1d;
+   const int trial_vdim;
+   const int total_trial_op_dim;
+   const int num_trial_dof_1d;
+   const int residual_size_on_qp;
+   const int dim, ne, nq, q1d;
+   const std::array<int, n_inputs> inputs_trial_op_dim;
+   mutable Vector Ye_mem;
+
+public:
+   DerivativeAssembleDiagonal() = delete;
+
+   DerivativeAssembleDiagonal(IntegratorContext ctx_in,
+                              qfunc_t /*qfunc*/,
+                              inputs_t inputs_in,
+                              outputs_t outputs_in,
+                              const Vector &qp_cache_in):
+      ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
+      outputs(outputs_in), use_sum_factorization(
+         [&]
    {
-      if constexpr (is_value_fop<fop_t>::value)
+      const Element::Type etype =
+         Element::TypeFromGeometry(ctx_in.mesh.GetTypicalElementGeometry());
+      return (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
+   }()),
+   dtqs(
+      [&]
+   {
+      const DofToQuad::Mode dtq_mode = use_sum_factorization
+      ? DofToQuad::Mode::TENSOR
+      : DofToQuad::Mode::FULL;
+      std::vector<const DofToQuad *> maps;
+      maps.reserve(ctx_in.unionfds.size());
+      for (const auto &field : ctx_in.unionfds)
       {
-         return (k == 0) ? dtq.B(q, 0, d) : 0.0;
+         maps.emplace_back(
+            GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
       }
-      else if constexpr (is_gradient_fop<fop_t>::value)
+      return maps;
+   }()),
+   input_dtq_maps(create_dtq_maps<Entity::Element>(
+                     inputs,
+                     dtqs,
+                     create_union_field_map_for_dtq(ctx_in, inputs),
+                     ctx_in.unionfds,
+                     ctx_in.ir)),
+   output_dtq_maps(create_dtq_maps<Entity::Element>(
+                      outputs,
+                      dtqs,
+                      create_union_field_map_for_dtq(ctx_in, outputs),
+                      ctx_in.unionfds,
+                      ctx_in.ir)),
+   input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
+   trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
+   test_field_uf(
+      find_union_field_index(ctx_in, get<0>(outputs).GetFieldId())),
+   is_square(
+      [&]
+   {
+      const auto *test_fes = std::get_if<const ParFiniteElementSpace *>(
+         &ctx_in.unionfds[test_field_uf].data);
+      const auto *trial_fes = std::get_if<const ParFiniteElementSpace *>(
+         &ctx_in.unionfds[trial_field_uf].data);
+      return test_fes && trial_fes && *test_fes && *trial_fes &&
+      (*test_fes == *trial_fes);
+   }()),
+   test_vdim(get<0>(outputs).vdim),
+   test_op_dim(get<0>(outputs).size_on_qp / test_vdim), num_test_dof(
+      [&]
+   {
+      const auto *test_fes = std::get_if<const ParFiniteElementSpace *>(
+         &ctx_in.unionfds[test_field_uf].data);
+      MFEM_ASSERT(test_fes != nullptr && *test_fes != nullptr,
+                  "LocalQFBackend: test space is not a ParFiniteElementSpace");
+      return (*test_fes)->GetFE(0)->GetDof();
+   }()),
+   num_test_dof_1d(tensor_1d_size(num_test_dof, ctx_in.mesh.Dimension())),
+   trial_vdim(compute_trial_vdim(inputs, derivative_id)), total_trial_op_dim(
+      [&]
+   {
+      const auto input_size_on_qp =
+      get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs>{});
+      return compute_total_trial_op_dim(
+         inputs, input_is_dependent, input_size_on_qp);
+   }()),
+   num_trial_dof_1d(
+      [&]
+   {
+      const auto *trial_fes = std::get_if<const ParFiniteElementSpace *>(
+         &ctx_in.unionfds[trial_field_uf].data);
+      MFEM_ASSERT(trial_fes != nullptr && *trial_fes != nullptr,
+                  "LocalQFBackend: trial space is not a ParFiniteElementSpace");
+      const int num_trial_dof = (*trial_fes)->GetFE(0)->GetDof();
+      return tensor_1d_size(num_trial_dof, ctx_in.mesh.Dimension());
+   }()),
+   residual_size_on_qp(test_vdim * test_op_dim * trial_vdim *
+                       total_trial_op_dim),
+   dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
+   nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
+   inputs_trial_op_dim(
+      [&]
+   {
+      std::array<int, n_inputs> itod{};
+      for_constexpr<n_inputs>([&](auto i)
       {
-         return (k == axis) ? dtq.G(q, 0, d) : dtq.B(q, 0, d);
-      }
-      else
-      {
-         return 0.0;
-      }
-   }
-
-   DerivativeAssembleDiagonal(
-      IntegratorContext ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs,
-      const Vector &qp_cache) :
-      ctx(ctx),
-      qfunc(std::move(qfunc)),
-      inputs(inputs),
-      outputs(outputs),
-      qp_cache(qp_cache)
+         itod[i] = input_is_dependent[i]
+                   ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
+                   : 0;
+      });
+      return itod;
+   }()),
+   Ye_mem()
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
-
-      input_to_field =
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->inputs);
-      output_to_field =
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->outputs);
-
-      dimension = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
-      num_qp = ctx.ir.GetNPoints();
-
-      const Element::Type etype =
-         Element::TypeFromGeometry(ctx.mesh.GetTypicalElementGeometry());
-      use_sum_factorization =
-         (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
-
-      dof_ordering = use_sum_factorization ? ElementDofOrdering::LEXICOGRAPHIC
-                     : ElementDofOrdering::NATIVE;
-      const DofToQuad::Mode dtq_mode =
-         use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
-
-      const real_t dim_r = static_cast<real_t>(dimension);
-      q1d = (dimension > 0)
-            ? static_cast<int>(std::floor(std::pow(num_qp, 1.0 / dim_r) + 0.5))
-            : 0;
-
-      trial_field_idx = -1;
-      test_field_idx = -1;
-
-      for (size_t uf = 0; uf < nfields; uf++)
-      {
-         if (static_cast<int>(ctx.unionfds[uf].id) == derivative_id)
-         {
-            trial_field_idx = static_cast<int>(uf);
-         }
-         if (ctx.unionfds[uf].id == get<0>(this->outputs).GetFieldId())
-         {
-            test_field_idx = static_cast<int>(uf);
-         }
-      }
-
-      MFEM_ASSERT(trial_field_idx != -1, "LocalQFBackend: trial field not found");
-      MFEM_ASSERT(test_field_idx != -1, "LocalQFBackend: test field not found");
-
-      test_fes = std::get_if<const ParFiniteElementSpace *>(
-                    &ctx.unionfds[test_field_idx].data);
-      trial_fes = std::get_if<const ParFiniteElementSpace *>(
-                     &ctx.unionfds[trial_field_idx].data);
-
-      MFEM_ASSERT(test_fes != nullptr && *test_fes != nullptr,
-                  "LocalQFBackend: test space is not a ParFiniteElementSpace");
-      MFEM_ASSERT(trial_fes != nullptr && *trial_fes != nullptr,
-                  "LocalQFBackend: trial space is not a ParFiniteElementSpace");
-
-      is_square = (*test_fes == *trial_fes);
-
-      test_vdim = get<0>(this->outputs).vdim;
-      test_op_dim = get<0>(this->outputs).size_on_qp / test_vdim;
-      num_test_dof = (*test_fes)->GetFE(0)->GetDof();
-      num_test_dof_1d = (dimension > 0)
-                        ? static_cast<int>(
-                           std::floor(std::pow(num_test_dof, 1.0 / dimension) + 0.5))
-                        : 0;
-
-      trial_vdim = 0;
-      trial_op_dim = 0;
-      total_trial_op_dim = 0;
-
-      auto dependency_map = make_dependency_map(inputs);
-      auto it = dependency_map.find(derivative_id);
-      MFEM_ASSERT(it != dependency_map.end(),
-                  "Derivative ID not found in dependency map");
-      input_is_dependent = it->second;
-
-      for_constexpr<ninputs>([&](auto i)
-      {
-         if (get<i>(this->inputs).GetFieldId() == derivative_id)
-         {
-            trial_vdim = get<i>(this->inputs).vdim;
-            trial_op_dim = get<i>(this->inputs).size_on_qp / trial_vdim;
-         }
-         if (input_is_dependent[i])
-         {
-            total_trial_op_dim +=
-               get<i>(this->inputs).size_on_qp / get<i>(this->inputs).vdim;
-         }
-      });
-
-      MFEM_ASSERT(trial_vdim > 0, "LocalQFBackend: could not determine trial vdim");
+      MFEM_ASSERT(
+         trial_field_uf != SIZE_MAX,
+         "DerivativeAssembleDiagonal: trial field not found in unionfds");
+      MFEM_ASSERT(
+         test_field_uf != SIZE_MAX,
+         "DerivativeAssembleDiagonal: test field not found in unionfds");
+      MFEM_ASSERT(trial_vdim > 0,
+                  "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
                   "LocalQFBackend: no dependent inputs found");
 
-      num_trial_dof = (*trial_fes)->GetFE(0)->GetDof();
-      num_trial_dof_1d = (dimension > 0) ?
-                         static_cast<int>(
-                            std::floor(std::pow(num_trial_dof, 1.0 / dimension) + 0.5))
-                         : 0;
-
-      dtqs.reserve(ctx.unionfds.size());
-      for (const auto &field : ctx.unionfds)
+      if (is_square)
       {
-         dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
+         Ye_mem.SetSize(num_test_dof * test_vdim * ne);
+         Ye_mem.UseDevice(true);
       }
-      input_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field,
-                                          ctx.unionfds, ctx.ir);
-      output_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field,
-                                          ctx.unionfds, ctx.ir);
+   }
 
-      residual_size_on_qp = test_vdim * test_op_dim * trial_vdim * total_trial_op_dim;
-
-      for_constexpr<ninputs>([&](auto i)
-      {
-         inputs_trial_op_dim[i] = input_is_dependent[i]
-                                  ? get<i>(this->inputs).size_on_qp /
-                                  get<i>(this->inputs).vdim
-                                  : 0;
-      });
-
-      if (!is_square) { return; }
-
-      Ye_mem.SetSize(num_test_dof * test_vdim * num_entities);
-      Ye_mem.UseDevice(true);
+   template<typename Backend>
+   void run_kernels() const
+   {
+      Backend::Run(dim,
+                   q1d,
+                   ctx,
+                   qp_cache,
+                   Ye_mem,
+                   inputs,
+                   outputs,
+                   output_dtq_maps[0],
+                   input_dtq_maps,
+                   test_vdim,
+                   test_op_dim,
+                   num_test_dof,
+                   num_test_dof_1d,
+                   trial_vdim,
+                   total_trial_op_dim,
+                   residual_size_on_qp,
+                   inputs_trial_op_dim,
+                   nq,
+                   ne,
+                   q1d,
+                   dim);
    }
 
    void operator()(Vector &diag_e) const
@@ -191,277 +216,291 @@ struct DerivativeAssembleDiagonal
       if (!is_square) { return; }
       if (ctx.attr.Size() == 0) { return; }
 
-      if (!(use_sum_factorization && (dimension == 2 || dimension == 3)))
+      if (!(use_sum_factorization && (dim == 2 || dim == 3)))
       {
-         MFEM_ABORT_KERNEL("DerivativeAssembleDiagonal optimized path is implemented "
-                           "for tensor-product 2D/3D elements only");
-         return;
+         MFEM_ABORT("DerivativeAssembleDiagonal optimized path is implemented "
+                    "for tensor-product 2D/3D elements only");
       }
       MFEM_VERIFY(num_test_dof_1d == num_trial_dof_1d,
                   "DerivativeAssembleDiagonal requires matching tensor dofs");
       MFEM_VERIFY(num_test_dof_1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
       MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_attr = ctx.attr.Read();
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      Ye_mem = 0.0;
 
-      auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, num_qp, num_entities);
-
-      const int num_dofs_per_elem = num_test_dof * test_vdim;
-      auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, num_entities);
-
-      const auto output_dtq_map_local = output_dtq_maps[0];
-      const auto input_dtq_maps_local = input_dtq_maps;
-      const auto output_local = get<0>(outputs);
-      const auto inputs_local = inputs;
-
-      const int num_qp_local = num_qp;
-      const int q1d_local = q1d;
-      const int test_op_dim_local = test_op_dim;
-      const int num_test_dof_local = num_test_dof;
-      const int num_test_dof_1d_local = num_test_dof_1d;
-      const int num_trial_dof_1d_local = num_trial_dof_1d;
-      const int total_trial_op_dim_local = total_trial_op_dim;
-      const int test_vdim_local = test_vdim;
-      const int trial_vdim_local = trial_vdim;
-      const int dimension_local = dimension;
-      const auto itod = inputs_trial_op_dim;
-
-      using test_fop_t = std::decay_t<decltype(output_local)>;
-
-      mfem::forall(num_entities, [=] MFEM_HOST_DEVICE (int e) mutable
+      if (q1d <= LocalQFLOBackendMQ1())
       {
-         constexpr int MD1 = DofQuadLimits::MAX_D1D;
-         constexpr int MQ1 = DofQuadLimits::MAX_Q1D;
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-         auto qpdc = Reshape(&cache_tensor(0, 0, e),
-                             test_vdim_local, test_op_dim_local,
-                             trial_vdim_local, total_trial_op_dim_local,
-                             num_qp_local);
-
-         if (dimension_local == 2)
-         {
-            real_t QD[MQ1][MD1];
-            for (int vd = 0; vd < test_vdim_local; vd++)
-            {
-               auto Y = Reshape(&Ye(vd * num_test_dof_local, e),
-                                num_test_dof_1d_local, num_test_dof_1d_local);
-               for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-               {
-                  for (int dx = 0; dx < num_test_dof_1d_local; dx++)
-                  {
-                     Y(dx,dy) = 0.0;
-                  }
-               }
-               for (int k = 0; k < test_op_dim_local; k++)
-               {
-                  int m_offset = 0;
-                  [[maybe_unused]] const auto &inputs_ref = inputs_local;
-                  for_constexpr<ninputs>([&](auto s)
-                  {
-                     using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
-                     const int trial_op_dim = itod[static_cast<int>(s)];
-                     if (trial_op_dim == 0) { return; }
-
-                     for (int m = 0; m < trial_op_dim; m++)
-                     {
-                        for (int qx = 0; qx < q1d_local; qx++)
-                        {
-                           for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-                           {
-                              QD[qx][dy] = 0.0;
-                              for (int qy = 0; qy < q1d_local; qy++)
-                              {
-                                 const int q = qx + qy * q1d_local;
-                                 const real_t Ly =
-                                    EvalFactor1D<test_fop_t>(output_dtq_map_local,
-                                                             k, 1, qy, dy);
-                                 const real_t Ry =
-                                    EvalFactor1D<fop_t>(input_dtq_maps_local[s],
-                                                        m, 1, qy, dy);
-                                 QD[qx][dy] += Ly * Ry *
-                                               qpdc(vd, k, vd, m_offset + m, q);
-                              }
-                           }
-                        }
-                        for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-                        {
-                           for (int dx = 0; dx < num_test_dof_1d_local; dx++)
-                           {
-                              real_t accum = 0.0;
-                              for (int qx = 0; qx < q1d_local; qx++)
-                              {
-                                 const real_t Lx =
-                                    EvalFactor1D<test_fop_t>(output_dtq_map_local,
-                                                             k, 0, qx, dx);
-                                 const real_t Rx =
-                                    EvalFactor1D<fop_t>(input_dtq_maps_local[s],
-                                                        m, 0, qx, dx);
-                                 accum += Lx * Rx * QD[qx][dy];
-                              }
-                              Y(dx,dy) += accum;
-                           }
-                        }
-                     }
-                     m_offset += trial_op_dim;
-                  });
-               }
-            }
-         }
-         else
-         {
-            real_t QQD[MQ1][MQ1][MD1];
-            real_t QDD[MQ1][MD1][MD1];
-            for (int vd = 0; vd < test_vdim_local; vd++)
-            {
-               auto Y = Reshape(&Ye(vd * num_test_dof_local, e),
-                                num_test_dof_1d_local, num_test_dof_1d_local,
-                                num_test_dof_1d_local);
-               for (int dz = 0; dz < num_test_dof_1d_local; dz++)
-               {
-                  for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-                  {
-                     for (int dx = 0; dx < num_test_dof_1d_local; dx++)
-                     {
-                        Y(dx,dy,dz) = 0.0;
-                     }
-                  }
-               }
-               for (int k = 0; k < test_op_dim_local; k++)
-               {
-                  int m_offset = 0;
-                  [[maybe_unused]] const auto &inputs_ref = inputs_local;
-                  for_constexpr<ninputs>([&](auto s)
-                  {
-                     using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
-                     const int trial_op_dim = itod[static_cast<int>(s)];
-                     if (trial_op_dim == 0) { return; }
-
-                     for (int m = 0; m < trial_op_dim; m++)
-                     {
-                        for (int qx = 0; qx < q1d_local; qx++)
-                        {
-                           for (int qy = 0; qy < q1d_local; qy++)
-                           {
-                              for (int dz = 0; dz < num_test_dof_1d_local; dz++)
-                              {
-                                 QQD[qx][qy][dz] = 0.0;
-                                 for (int qz = 0; qz < q1d_local; qz++)
-                                 {
-                                    const int q = qx + (qy + qz * q1d_local) * q1d_local;
-                                    const real_t Lz =
-                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
-                                                                k, 2, qz, dz);
-                                    const real_t Rz =
-                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
-                                                           m, 2, qz, dz);
-                                    QQD[qx][qy][dz] += Lz * Rz *
-                                                       qpdc(vd, k, vd, m_offset + m, q);
-                                 }
-                              }
-                           }
-                        }
-                        for (int qx = 0; qx < q1d_local; qx++)
-                        {
-                           for (int dz = 0; dz < num_test_dof_1d_local; dz++)
-                           {
-                              for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-                              {
-                                 QDD[qx][dy][dz] = 0.0;
-                                 for (int qy = 0; qy < q1d_local; qy++)
-                                 {
-                                    const real_t Ly =
-                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
-                                                                k, 1, qy, dy);
-                                    const real_t Ry =
-                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
-                                                           m, 1, qy, dy);
-                                    QDD[qx][dy][dz] += Ly * Ry * QQD[qx][qy][dz];
-                                 }
-                              }
-                           }
-                        }
-                        for (int dz = 0; dz < num_test_dof_1d_local; dz++)
-                        {
-                           for (int dy = 0; dy < num_test_dof_1d_local; dy++)
-                           {
-                              for (int dx = 0; dx < num_test_dof_1d_local; dx++)
-                              {
-                                 real_t accum = 0.0;
-                                 for (int qx = 0; qx < q1d_local; qx++)
-                                 {
-                                    const real_t Lx =
-                                       EvalFactor1D<test_fop_t>(output_dtq_map_local,
-                                                                k, 0, qx, dx);
-                                    const real_t Rx =
-                                       EvalFactor1D<fop_t>(input_dtq_maps_local[s],
-                                                           m, 0, qx, dx);
-                                    accum += Lx * Rx * QDD[qx][dy][dz];
-                                 }
-                                 Y(dx,dy,dz) += accum;
-                              }
-                           }
-                        }
-                     }
-                     m_offset += trial_op_dim;
-                  });
-               }
-            }
-         }
-      });
+         run_kernels<DerivativeAssembleDiagonalLO>();
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
+      {
+         run_kernels<DerivativeAssembleDiagonalHO>();
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
+      }
 
       diag_e += Ye_mem;
    }
 
-   IntegratorContext ctx;
-   qfunc_t qfunc;
-   inputs_t inputs;
-   outputs_t outputs;
-   const Vector &qp_cache;
+   template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
+   static void derivative_assemble_diagonal_callback(
+      const IntegratorContext &ctx,
+      const Vector &qp_cache,
+      Vector &Ye_mem,
+      const inputs_t &inputs,
+      const outputs_t &outputs,
+      const DofToQuadMap &output_dtq,
+      const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
+      const int test_vdim,
+      const int test_op_dim,
+      const int num_test_dof,
+      const int num_test_dof_1d,
+      const int trial_vdim,
+      const int total_trial_op_dim,
+      const int residual_size_on_qp,
+      const std::array<int, n_inputs> &inputs_trial_op_dim,
+      const int nq,
+      const int ne,
+      const int q1d,
+      const int dim)
+   {
+      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      if (ctx.attr.Size() == 0) { return; }
 
-   std::array<size_t, ninputs> input_to_field;
-   std::array<size_t, noutputs> output_to_field;
+      static constexpr bool B2D = backend_t::DIM == 2;
+      static constexpr int MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-   int dimension = 0;
-   int num_entities = 0;
-   int num_qp = 0;
-   int q1d = 0;
-   bool use_sum_factorization = false;
-   ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   bool is_square = false;
+      const auto d_attr = ctx.attr.Read();
+      const bool has_attr = ctx.attr.Size() > 0;
+      const auto d_elem_attr = ctx.elem_attr->Read();
 
-   std::vector<const DofToQuad *> dtqs;
-   std::array<DofToQuadMap, ninputs> input_dtq_maps;
-   std::array<DofToQuadMap, noutputs> output_dtq_maps;
+      auto cache_tensor = DeviceTensor<3, const real_t>(
+                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+      const int num_dofs_per_elem = num_test_dof * test_vdim;
+      auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, ne);
 
-   int trial_field_idx = -1;
-   int test_field_idx = -1;
+      using test_fop_t = std::decay_t<decltype(get<0>(outputs))>;
 
-   const ParFiniteElementSpace * const *test_fes = nullptr;
-   const ParFiniteElementSpace * const *trial_fes = nullptr;
+      dfem::forall<MTPB>(
+         [=] MFEM_HOST_DEVICE(const int e, void *)
+      {
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-   int test_vdim = 0;
-   int test_op_dim = 0;
-   int num_test_dof = 0;
-   int num_test_dof_1d = 0;
+         auto qpdc = Reshape(&cache_tensor(0, 0, e),
+                             test_vdim,
+                             test_op_dim,
+                             trial_vdim,
+                             total_trial_op_dim,
+                             nq);
 
-   int trial_vdim = 0;
-   int trial_op_dim = 0;
-   int num_trial_dof = 0;
-   int num_trial_dof_1d = 0;
-   int total_trial_op_dim = 0;
+         // Test-basis factor along a spatial axis
+         const auto eval_test =
+            [&](const int k, const int axis, const int q, const int d)
+         {
+            const auto &B = output_dtq.B;
+            const auto &G = output_dtq.G;
+            if constexpr (is_value_fop<test_fop_t>::value)
+            {
+               return (k == 0) ? B(q, 0, d) : 0.0;
+            }
+            else if constexpr (is_gradient_fop<test_fop_t>::value)
+            {
+               return (k == axis) ? G(q, 0, d) : B(q, 0, d);
+            }
+            else
+            {
+               return 0.0;
+            }
+         };
 
-   std::array<bool, ninputs> input_is_dependent;
-   std::array<int, ninputs> inputs_trial_op_dim {};
+         // Backend-owned shared scratch for the sum-factorized contraction.
+         MFEM_SHARED typename backend_t::Shared s_diag;
+         const int nz_dof = B2D ? 1 : num_test_dof_1d;
 
-   mutable Vector Ye_mem;
+         for (int vd = 0; vd < test_vdim; vd++)
+         {
+            auto Y = Reshape(&Ye(vd * num_test_dof, e),
+                             num_test_dof_1d,
+                             num_test_dof_1d,
+                             nz_dof);
 
-   int residual_size_on_qp = 0;
+            MFEM_FOREACH_THREAD(dz_t, z, nz_dof)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dy_t, y, num_test_dof_1d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(dx_t, x, num_test_dof_1d)
+                  { Y(dx_t, dy_t, dz_t) = 0.0; }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            // Accumulate every (test op k, dependent input s, trial op m) block
+            // of the cached Jacobian into the diagonal via the backend driver.
+            for (int k = 0; k < test_op_dim; k++)
+            {
+               int m_offset = 0;
+               for_constexpr<n_inputs>([&](auto s)
+               {
+                  using fop_t = std::decay_t<decltype(get<s>(inputs))>;
+                  const int trial_op_dim =
+                     inputs_trial_op_dim[static_cast<int>(s)];
+                  if (trial_op_dim == 0) { return; }
+
+                  const auto &in_dtq = input_dtq_maps[s];
+                  const auto eval_input =
+                     [&](const int m, const int axis, const int q, const int d)
+                  {
+                     if constexpr (is_value_fop<fop_t>::value)
+                     {
+                        return (m == 0) ? in_dtq.B(q, 0, d) : 0.0;
+                     }
+                     else if constexpr (is_gradient_fop<fop_t>::value)
+                     {
+                        return (m == axis) ? in_dtq.G(q, 0, d)
+                               : in_dtq.B(q, 0, d);
+                     }
+                     else
+                     {
+                        return 0.0;
+                     }
+                  };
+
+                  for (int m = 0; m < trial_op_dim; m++)
+                  {
+                     const int col = m_offset + m;
+                     backend_t::DiagContract(
+                        s_diag,
+                        num_test_dof_1d,
+                        q1d,
+                        nz_dof,
+                        [&](int axis, int q, int d)
+                     { return eval_test(k, axis, q, d); },
+                     [&](int axis, int q, int d)
+                     { return eval_input(m, axis, q, d); },
+                     [&](int q) { return qpdc(vd, k, vd, col, q); },
+                     [&](int dx, int dy, int dz, real_t u)
+                     { Y(dx, dy, dz) += u; });
+                  }
+                  m_offset += trial_op_dim;
+               });
+            }
+         }
+      },
+      ne,
+      backend_t::thread_blocks(std::max(q1d, num_test_dof_1d)),
+      0,
+      nullptr);
+   }
+
+   using DiagonalKernelType =
+      decltype(&DerivativeAssembleDiagonal::
+               derivative_assemble_diagonal_callback<>);
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleDiagonalLO,
+                                     DiagonalKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeAssembleDiagonalHO,
+                                     DiagonalKernelType,
+                                     (int, int) );
 };
 
-} // namespace LocalQFImpl
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+template<int DIM, int Q1D>
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalLO::Kernel()
+{
+   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return diag_t::template derivative_assemble_diagonal_callback<
+             LocalQFLOBackend<DIM, Q1D>>;
+}
 
-} // namespace mfem::future
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalLO::Fallback(int dim, int q1d)
+{
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeAssembleDiagonalLO =
+      typename diag_t::DerivativeAssembleDiagonalLO;
+   if (dim == 2)
+   {
+      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 2>(q1d);
+   }
+   else if (dim == 3)
+   {
+      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 3>(q1d);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+      return nullptr;
+   }
+}
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+template<int DIM, int Q1D>
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalHO::Kernel()
+{
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   return diag_t::template derivative_assemble_diagonal_callback<
+             LocalQFHOBackend<DIM>,
+             Q1D>;
+}
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+inline typename DerivativeAssembleDiagonal<derivative_id,
+       qfunc_t,
+       inputs_t,
+       outputs_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       DerivativeAssembleDiagonalHO::Fallback(int dim, int q1d)
+{
+   using diag_t =
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using DerivativeAssembleDiagonalHO =
+      typename diag_t::DerivativeAssembleDiagonalHO;
+   if (dim == 2)
+   {
+      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 2>(q1d);
+   }
+   else if (dim == 3)
+   {
+      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 3>(q1d);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+      return nullptr;
+   }
+}
+
+} // namespace mfem::future::LocalQFImpl

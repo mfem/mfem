@@ -10,7 +10,11 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_ENZYME
+
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../fem/dfem/backends/local_qf/fwddiff_transformer.hpp"
@@ -103,11 +107,11 @@ public:
       q(qspace_vec)
    {
 
-      const auto &mesh = *fes.GetParMesh();
+      const auto &pmesh = *fes.GetParMesh();
       Array<int> all_domain_attr;
-      if (mesh.attributes.Size() > 0)
+      if (pmesh.attributes.Size() > 0)
       {
-         all_domain_attr.SetSize(mesh.attributes.Max());
+         all_domain_attr.SetSize(pmesh.attributes.Max());
          all_domain_attr = 1;
       }
 
@@ -145,7 +149,7 @@ public:
             FieldDescriptor{U, &fes}
          };
 
-         residual_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
+         residual_dop = std::make_unique<DifferentiableOperator>(in, out, pmesh);
          MinimalSurfaceResidual<real_t, dim> residual;
          auto derivatives = std::integer_sequence<size_t, U> {};
          residual_dop->AddDomainIntegrator<LocalQFBackend>(
@@ -380,3 +384,5 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
 }
 
 #endif // MFEM_USE_MPI
+
+#endif // MFEM_USE_ENZYME

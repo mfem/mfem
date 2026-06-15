@@ -1,13 +1,20 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 #include <utility>
 
-namespace mfem::future
-{
-
-namespace GlobalQFImpl
+namespace mfem::future::GlobalQFImpl
 {
 
 template<
@@ -55,7 +62,11 @@ struct DerivativeSetup
          xq_offsets[i + 1] = nqp * get<i>(inputs).size_on_qp * nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
+      InitBlockVector(xq, xq_offsets);
+
+      shadow_xq_offsets.SetSize(xq_offsets.Size());
+      shadow_xq_offsets = xq_offsets;
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -64,20 +75,7 @@ struct DerivativeSetup
          yq_offsets[o + 1] = nqp * get<o>(outputs).size_on_qp * nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
-
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
-      shadow_xq_offsets.SetSize(ninputs + 1);
-      shadow_xq_offsets = 0;
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         if (activity_map[i])
-         {
-            shadow_xq_offsets[i + 1] = xq_offsets[i + 1] - xq_offsets[i];
-         }
-      });
-      shadow_xq_offsets.PartialSum();
-      shadow_xq.Update(shadow_xq_offsets);
+      InitBlockVector(yq, yq_offsets);
 
       total_out_size_on_qp = 0;
       constexpr_for<0, noutputs>([&](auto o)
@@ -87,16 +85,16 @@ struct DerivativeSetup
          out_op_dim[o] = get<o>(outputs).size_on_qp / get<o>(outputs).vdim;
       });
 
+      activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
+
       trial_vdim = 0;
       total_trial_op_dim = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
-         if (activity_map[i])
-         {
-            const auto inp = get<i>(inputs);
-            trial_vdim = inp.vdim;
-            total_trial_op_dim += inp.size_on_qp / inp.vdim;
-         }
+         if (!activity_map[i]) { return; }
+         const auto inp = get<i>(inputs);
+         trial_vdim = inp.vdim;
+         total_trial_op_dim += inp.size_on_qp / inp.vdim;
       });
 
       constexpr_for<0, ninputs>([&](auto i)
@@ -113,9 +111,13 @@ struct DerivativeSetup
    {
       if (ctx.attr.Size() == 0) { return; }
 
+      qp_cache = 0.0;
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      const auto activity_map = detail::make_activity_map<derivative_id>(inputs_t {});
+      xq.HostRead();
+      xq.SyncToBlocks();
+      yq.HostReadWrite();
+      yq.SyncToBlocks();
 
       const int gnqp_local = gnqp;
       const int trial_vdim_local = trial_vdim;
@@ -136,25 +138,25 @@ struct DerivativeSetup
             for (int m = 0; m < trial_op_dim_s; m++)
             {
                shadow_xq = 0.0;
+               shadow_xq.HostReadWrite();
+               shadow_xq.SyncToBlocks();
 
-               // Set component (j + input_vdim_s * m) to 1 at all QPs.
-               // shadow block layout: [input_size_s, gnqp] column-major (byVDIM).
+               // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s).HostReadWrite();
                for (int gq = 0; gq < gnqp_local; gq++)
                {
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
                }
-
-               detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+               detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
                   qfunc, xq, shadow_xq, yq, gnqp,
                   input_qlayouts, output_qlayouts,
                   std::make_index_sequence<ninputs> {},
                   std::make_index_sequence<noutputs> {});
+               const real_t *yq_mono = yq.HostRead();
+               real_t *cache_ptr = qp_cache.HostReadWrite();
 
-               // Write yq into the cache column (j, m + m_offset).
-               // Both yq block and cache use [size, gnqp] column-major (byVDIM),
-               // so gq = e * num_qp + q is the shared stride index.
+               // Write yq into the cache column
                const int m_global = m + m_offset;
                const int j_cur    = j;
                int out_offset = 0;
@@ -164,8 +166,7 @@ struct DerivativeSetup
                   const int test_op_dim_o = out_op_dim[o];
                   const int yq_out_size   = test_vdim_o * test_op_dim_o;
                   const int out_offset_o  = out_offset;
-                  const real_t *yq_ptr    = yq.GetBlock(o).HostRead();
-                  real_t       *cache_ptr = qp_cache.HostReadWrite();
+                  const real_t *yq_ptr    = yq_mono + yq_offsets[o.value];
 
                   for (int gq = 0; gq < gnqp_local; gq++)
                   {
@@ -174,9 +175,9 @@ struct DerivativeSetup
                         for (int k = 0; k < test_op_dim_o; k++)
                         {
                            const int c_out = i * test_op_dim_o + k;
+                           const int out_comp = out_offset_o + c_out;
                            const int cache_idx =
-                              (out_offset_o + i * test_op_dim_o + k) * trial_vdim_local *
-                              total_trial_op_dim_local +
+                              out_comp * trial_vdim_local * total_trial_op_dim_local +
                               j_cur * total_trial_op_dim_local +
                               m_global;
                            cache_ptr[cache_idx + residual_size_local * gq] =
@@ -222,8 +223,7 @@ struct DerivativeSetup
    std::array<int, noutputs> out_vdim {};
    std::array<int, noutputs> out_op_dim {};
    std::array<int, ninputs>  input_size_on_qp_arr {};
+   std::array<bool, ninputs> activity_map {};
 };
 
-} // namespace GlobalQFImpl
-
-} // namespace mfem::future
+} // namespace mfem::future::GlobalQFImpl

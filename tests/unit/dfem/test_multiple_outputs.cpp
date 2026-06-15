@@ -9,22 +9,24 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <memory>
+
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
 
-#ifdef MFEM_USE_MPI
-
 using namespace mfem;
 using namespace mfem::future;
-using mfem::future::tensor;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
-using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
@@ -35,7 +37,7 @@ class DummyParameterSpace : public ParameterSpace
 public:
    class Bimpl : public Operator
    {
-      virtual void Mult(const Vector &x, Vector &y) const
+      void Mult(const Vector &x, Vector &y) const override
       {
          for (int i = 0; i < y.Size(); i++)
          {
@@ -46,7 +48,7 @@ public:
 
    class Btimpl : public Operator
    {
-      virtual void Mult(const Vector &x, Vector &y) const
+      void Mult(const Vector &x, Vector &y) const override
       {
          y(0) = x(0);
       }
@@ -54,109 +56,86 @@ public:
 
    DummyParameterSpace() : ParameterSpace(1) {}
 
-   virtual int GetTrueVSize() const override
+   int GetTrueVSize() const override
    {
       return 1;
    }
 
-   virtual int GetVSize() const override
+   int GetVSize() const override
    {
       return 1;
    }
 
-   virtual const Operator* GetB() const override
+   const Operator* GetB() const override
    {
       if (!B)
       {
-         B.reset(new Bimpl());
+         B = std::make_unique<Bimpl>();
       }
       return B.get();
    }
 
-   virtual const Operator* GetBt() const override
+   const Operator* GetBt() const override
    {
       if (!Bt)
       {
-         Bt.reset(new Btimpl());
+         Bt = std::make_unique<Btimpl>();
       }
       return Bt.get();
    }
 };
 
-struct massqf
+/*struct mass_global_qf
 {
-   inline MFEM_HOST_DEVICE
    void operator()(
-      tensor_array<const real_t> &u,
+      tensor_array<const dscalar_t> &u,
       tensor_array<const real_t, DIM, DIM> &J,
       tensor_array<const real_t> &w,
-      tensor_array<real_t> &out1,
-      tensor_array<real_t> &out2) const
+      tensor_array<dscalar_t> &out1,
+      tensor_array<dscalar_t> &out2) const
    {
-      for (size_t q = 0; q < u.size(); q++)
+      mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto v = u(q) * det(J(q)) * w(q);
          out1(q) = v;
          out2(q) = v;
-      }
+      });
    }
-};
+};*/
 
-struct mass_diffusion_qdata_qf
+struct mass_diffusion_global_qf
 {
-   inline MFEM_HOST_DEVICE
    void operator()(
-      tensor_array<const real_t> &u,
-      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const dscalar_t> &u,
+      tensor_array<const dscalar_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t, DIM, DIM> &qdata,
+      [[maybe_unused]] tensor_array<const real_t, DIM, DIM> &qdata,
       tensor_array<const real_t> &w,
-      tensor_array<const real_t> &dummy_parameter,
-      tensor_array<real_t> &out1,
-      tensor_array<real_t, DIM> &out2,
+      [[maybe_unused]] tensor_array<const real_t> &dummy_parameter,
+      tensor_array<dscalar_t> &out1,
+      tensor_array<dscalar_t, DIM> &out2,
       tensor_array<real_t, DIM, DIM> &out3) const
    {
-      for (size_t q = 0; q < u.size(); q++)
+      mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
-
          out1(q) = u(q) * detJq * w(q);
-         // out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
+         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
-      }
-
-      jit_bounds(dudxi, J, w, out2, u.size());
-   }
-
-   // XXX: Attribute instrumentation does not work due to ABI differences that
-   // change the argument number.
-   //__attribute__((annotate("jit", 5)))
-   void jit_bounds(
-      tensor_array<const real_t, DIM> &dudxi,
-      tensor_array<const real_t, DIM, DIM> &J,
-      tensor_array<const real_t> &w,
-      tensor_array<real_t, DIM> &out,
-      size_t NQ) const
-   {
-      for (size_t q = 0; q < NQ; q++)
-      {
-         const auto invJq = inv(J(q));
-         const auto detJq = det(J(q));
-         out(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
-      }
+      });
    }
 };
 
-struct massqflocal
+struct mass_local_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor<real_t> &u,
+      const dscalar_t &u,
       const tensor<real_t, DIM, DIM> &J,
-      const tensor<real_t> &w,
-      tensor<real_t> &out1,
-      tensor<real_t> &out2) const
+      const real_t &w,
+      dscalar_t &out1,
+      dscalar_t &out2) const
    {
       const auto v = u * det(J) * w;
       out1 = v;
@@ -164,7 +143,7 @@ struct massqflocal
    }
 };
 
-TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
+TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -294,39 +273,40 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       qdata = 123.0;
       Vector yqdata(qdata.Size());
 
-      MultiVector X{xtvec, nodestvec, qdata, dpf};
-      MultiVector Z{ytvec, yqdata};
-
-      ParBilinearForm blf(&fes);
-      blf.AddDomainIntegrator(new MassIntegrator(ir));
-      blf.AddDomainIntegrator(new DiffusionIntegrator(ir));
-      blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      blf.Assemble();
-      blf.Mult(x, y);
-      fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
-
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
-      const std::vector<FieldDescriptor> in
-      {
-         {U, &fes},
-         {COORDINATES, nodes->ParFESpace()},
-         {S, &vqs},
-         {L, &dps}
-      };
-
-      const std::vector<FieldDescriptor> out
-      {
-         {V, &fes},
-         {S, &vqs}
-      };
 
       {
-         DifferentiableOperator dop(in, out, pmesh);
+         MultiVector X {xtvec, nodestvec, qdata, dpf};
+         MultiVector Z{ytvec, yqdata};
+
+         ParBilinearForm blf(&fes);
+         blf.AddDomainIntegrator(new MassIntegrator(ir));
+         blf.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+            {S, &vqs},
+            {L, &dps}
+         };
+
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+            {S, &vqs}
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
          auto derivatives = Derivatives<U> {};
-         auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
+         auto mass_diffusion_qfunc = mass_diffusion_global_qf{};
          dop.AddDomainIntegrator(
             mass_diffusion_qfunc,
             Inputs<Value<U>, Gradient<U>, Gradient<COORDINATES>, Identity<S>, Weight, Value<L>> {},
@@ -357,6 +337,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+
       {
          static constexpr int W = 0;
 
@@ -367,21 +348,21 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
 
-         const std::vector<FieldDescriptor> in
+         const std::vector<FieldDescriptor> in_fds
          {
             {U, &fes},
             {COORDINATES, nodes->ParFESpace()},
          };
 
-         const std::vector<FieldDescriptor> out
+         const std::vector<FieldDescriptor> out_fds
          {
             {V, &fes},
             {W, &fes},
          };
 
-         DifferentiableOperator dop(in, out, pmesh);
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
-         auto mass_qfunclocal = massqflocal{};
+         auto mass_qfunclocal = mass_local_qf{};
          dop.AddDomainIntegrator<LocalQFBackend>(
             mass_qfunclocal,
             tuple{Value<U>{}, Gradient<COORDINATES>{}, Weight{}},

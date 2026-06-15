@@ -1,442 +1,509 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
-#include "../util.hpp"
+#include "kernels.hpp"
+#include "util.hpp"
+
 #include "../../integrator_ctx.hpp"
-#include "../../integrate.hpp"
-#include "../../interpolate.hpp"
-#include "../../qfunction_transform.hpp"
+#include "../util.hpp"
 
-#include <cmath>
-#include <utility>
-
-namespace mfem::future
+namespace mfem::future::LocalQFImpl
 {
 
-namespace LocalQFImpl
-{
-
-template<
-   typename qfunc_t,
-   typename inputs_t,
-   typename outputs_t,
-   size_t ninputs = tuple_size<inputs_t>::value,
-   size_t noutputs = tuple_size<outputs_t>::value>
-struct Action
+template<typename qfunc_t, typename inputs_t, typename outputs_t>
+class Action
 {
    static constexpr auto inout_tuple =
-   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t {});
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   static constexpr size_t nfields = count_unique_field_ids(filtered_inout_tuple);
+   static constexpr size_t nfields =
+      count_unique_field_ids(filtered_inout_tuple);
 
-   Action(
-      IntegratorContext ctx,
-      qfunc_t qfunc,
-      inputs_t inputs,
-      outputs_t outputs) :
-      ctx(ctx),
-      qfunc(std::move(qfunc)),
-      inputs(inputs),
-      outputs(outputs)
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
+
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+   static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
+                 "LocalQF: q-function arity must match inputs + outputs");
+
+   const qfunc_t qfunc;
+   const inputs_t inputs;
+   const outputs_t outputs;
+   const IntegratorContext ctx;
+   const std::vector<const DofToQuad *> dtqs;
+   // inputs: dtq, idx, B, G, d1d, q1d, vdim
+   const std::array<DofToQuadMap, n_inputs> input_dtq;
+   const std::array<size_t, n_inputs> input_idx; // input to field
+   const std::array<const real_t *, n_inputs> input_B, input_G;
+   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
+   // outputs: dtq, idx, B, G, d1d, q1d, vdim
+   const std::array<DofToQuadMap, n_outputs> output_dtq;
+   const std::array<size_t, n_outputs> output_idx; // output to field
+   const std::array<const real_t *, n_outputs> output_B, output_G;
+   const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
+   // other constants
+   const int dim, ne, nq, q1d;
+
+public:
+   ////////////////////////////////////////////////////////
+   Action() = delete;
+
+   Action(IntegratorContext ctx,
+          qfunc_t qfunc,
+          inputs_t inputs,
+          outputs_t outputs):
+      qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
+      dtqs(make_dtqs(ctx)),
+      // inputs: dtq, idx, B, G, d1d, q1d, vdim
+      input_dtq(create_dtq_maps<Entity::Element>(
+                   inputs,
+                   dtqs,
+                   create_union_field_map_for_dtq(ctx, inputs),
+                   ctx.unionfds,
+                   ctx.ir)),
+      input_idx(create_input_vector_map(ctx, inputs)),
+      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
+      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
+      input_vdim(get_vdim(inputs)),
+      // outputs: dtq, idx, B, G, d1d, q1d, vdim
+      output_dtq(create_dtq_maps<Entity::Element>(
+                    outputs,
+                    dtqs,
+                    create_union_field_map_for_dtq(ctx, outputs),
+                    ctx.unionfds,
+                    ctx.ir)),
+      output_idx(create_output_vector_map(ctx, outputs)),
+      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
+      output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
+      output_vdim(get_vdim(outputs)),
+      // other constants
+      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+      q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
+   }
 
-      // Maps from qfunc inputs/outputs -> union field indices.
-      input_to_field =
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->inputs);
-      output_to_field =
-         create_descriptors_to_fields_map<Entity::Element>(ctx.unionfds, this->outputs);
+   template<typename Backend>
+   void run_kernels(const std::vector<Vector *> &xe,
+                    std::vector<Vector *> &ye) const
+   {
+      Backend::Run(dim,
+                   q1d,
+                   // arguments
+                   ctx,
+                   qfunc,
+                   // inputs
+                   input_idx,
+                   input_B,
+                   input_G,
+                   input_vdim,
+                   input_d1d,
+                   input_q1d,
+                   // outputs
+                   output_idx,
+                   output_B,
+                   output_G,
+                   output_vdim,
+                   output_d1d,
+                   output_q1d,
+                   // input and output vectors
+                   xe,
+                   ye,
+                   // fallback arguments
+                   dim,
+                   q1d);
+   }
 
-      // Map outputs to the operator's output field descriptor list.
-      create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
-
-      dimension = ctx.mesh.Dimension();
-      num_entities = ctx.nentities;
-      num_qp = ctx.ir.GetNPoints();
-      gnqp = num_qp * num_entities;
-
-      const Element::Type etype =
-         Element::TypeFromGeometry(ctx.mesh.GetTypicalElementGeometry());
-      use_sum_factorization =
-         (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
-
-      dof_ordering = use_sum_factorization ? ElementDofOrdering::LEXICOGRAPHIC
-                     : ElementDofOrdering::NATIVE;
-      const DofToQuad::Mode dtq_mode =
-         use_sum_factorization ? DofToQuad::Mode::TENSOR : DofToQuad::Mode::FULL;
-
-      const real_t dim_r = static_cast<real_t>(dimension);
-      q1d = (dimension > 0)
-            ? static_cast<int>(std::floor(std::pow(num_qp, 1.0 / dim_r) + 0.5))
-            : 0;
-
-      thread_blocks = {};
-      if (use_sum_factorization)
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector *> &ye) const
+   {
+      if (q1d <= LocalQFLOBackendMQ1())
       {
-         thread_blocks.x = q1d;
-         thread_blocks.y = (dimension >= 2) ? q1d : 1;
-         thread_blocks.z = (dimension >= 3) ? q1d : 1;
+         run_kernels<ActionLO>(xe, ye);
+      }
+      else if (q1d <= LocalQFHOBackendMQ1())
+      {
+         run_kernels<ActionHO>(xe, ye);
       }
       else
       {
-         // The FULL (non-tensor) mapping routines are not thread-parallel and
-         // must run without intra-element write races.
-         thread_blocks.x = 1;
-         thread_blocks.y = 1;
-         thread_blocks.z = 1;
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
-
-      // Build DofToQuad maps.
-      dtqs.reserve(ctx.unionfds.size());
-      for (const auto &field : ctx.unionfds)
-      {
-         dtqs.emplace_back(GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode));
-      }
-      input_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->inputs, dtqs, input_to_field,
-                                          ctx.unionfds, ctx.ir);
-      output_dtq_maps =
-         create_dtq_maps<Entity::Element>(this->outputs, dtqs, output_to_field,
-                                          ctx.unionfds, ctx.ir);
-
-      // Output sizes on quadrature points (per output).
-      out_qp_size.fill(0);
-      for_constexpr<noutputs>([&](auto o)
-      {
-         const auto out = get<o>(this->outputs);
-         out_qp_size[o] = out.size_on_qp;
-         out_vdim[o] = out.vdim;
-         out_op_dim[o] = out.size_on_qp / out.vdim;
-      });
-
-      input_size_on_qp =
-         get_input_size_on_qp(this->inputs, std::make_index_sequence<ninputs> {});
-
-      shmem_info = get_shmem_info<Entity::Element, nfields, ninputs, noutputs>(
-                      input_dtq_maps, output_dtq_maps, ctx.unionfds, num_entities,
-                      this->inputs, num_qp, input_size_on_qp,
-                      std::accumulate(out_qp_size.begin(), out_qp_size.end(), 0),
-                      dof_ordering);
-      shmem_cache.SetSize(shmem_info.total_size);
-
-      // Map union fields -> operator input field descriptors (infds).
-      union_to_infd.fill(SIZE_MAX);
-      for (size_t uf = 0; uf < nfields; uf++)
-      {
-         const auto id = ctx.unionfds[uf].id;
-         for (size_t i = 0; i < ctx.infds.size(); i++)
-         {
-            if (ctx.infds[i].id == id) { union_to_infd[uf] = i; break; }
-         }
-      }
-
-      // Dummy element data for output-only fields in unionfds.
-      dummy_fields.resize(nfields);
-      for (size_t uf = 0; uf < nfields; uf++)
-      {
-         if (union_to_infd[uf] != SIZE_MAX) { continue; }
-         const int elem_sz = shmem_info.field_sizes[uf];
-         dummy_fields[uf].SetSize(elem_sz * num_entities);
-         dummy_fields[uf].UseDevice(true);
-         dummy_fields[uf] = 0.0;
-      }
-
-      // Per-output element dof counts.
-      out_num_dof.fill(0);
-      for_constexpr<noutputs>([&](auto o)
-      {
-         const size_t outfd = output_to_outfd[o];
-         const auto &fd = ctx.outfds[outfd];
-         auto R = get_restriction<Entity::Element>(fd, dof_ordering);
-         MFEM_ASSERT(R != nullptr,
-                     "LocalQFBackend: missing element restriction for output");
-         const int elem_sz = num_entities ? (R->Height() / num_entities) : 0;
-         const int vdim = out_vdim[o];
-         MFEM_ASSERT(vdim > 0, "LocalQFBackend: invalid output vdim");
-         MFEM_ASSERT(elem_sz % vdim == 0,
-                     "LocalQFBackend: output elem size not divisible by vdim");
-         out_num_dof[o] = elem_sz / vdim;
-      });
    }
 
-   void operator()(
-      const std::vector<Vector *> &xe,
-      std::vector<Vector *> &ye) const
+   ////////////////////////////////////////////////////////
+   template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
+   static void
+   action_callback(const IntegratorContext &ctx,
+                   const qfunc_t &qfunc,
+                   // inputs: idx, B, G, vdim, d1d, q1d
+                   const std::array<size_t, n_inputs> &in_idx,
+                   const std::array<const real_t *, n_inputs> in_B,
+                   const std::array<const real_t *, n_inputs> in_G,
+                   const std::array<int, n_inputs> &in_vdim,
+                   const std::array<int, n_inputs> &in_d1d,
+                   const std::array<int, n_inputs> &in_q1d,
+                   // outputs: idx, B, G, vdim, d1d, q1d
+                   const std::array<size_t, n_outputs> &out_idx,
+                   const std::array<const real_t *, n_outputs> out_B,
+                   const std::array<const real_t *, n_outputs> out_G,
+                   const std::array<int, n_outputs> &out_vdim,
+                   const std::array<int, n_outputs> &out_d1d,
+                   const std::array<int, n_outputs> &out_q1d,
+                   const std::vector<Vector *> &xe,
+                   std::vector<Vector *> &ye,
+                   // fallback arguments
+                   const int dim,
+                   const int q1d)
    {
       if (ctx.attr.Size() == 0) { return; }
+      MFEM_CONTRACT_VAR(dim);
+      MFEM_ASSERT(dim == ctx.mesh.Dimension(), "Dimension mismatch");
 
-      // Q -> Q
-      using qf_signature = typename get_function_signature<qfunc_t>::type;
-      using qf_param_ts = typename qf_signature::parameter_ts;
+      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::Q1D;
+      static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      static_assert(tuple_size<qf_param_ts>::value == ninputs + noutputs,
-                    "qfunc parameter count must match inputs+outputs");
+      const int ne = ctx.nentities;
 
-      // Wrap union field data (element-restricted vectors) as [elem_dof, entity].
-      std::array<DeviceTensor<2>, nfields> wrapped_fields_e;
-      for (size_t uf = 0; uf < nfields; uf++)
+      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
+
+      // --------------------------------------------------
+      // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
+      // --------------------------------------------------
+      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
+      for_constexpr<n_inputs>([&](auto ic)
       {
-         Vector *src = nullptr;
-         if (union_to_infd[uf] != SIZE_MAX) { src = xe[union_to_infd[uf]]; }
-         else { src = const_cast<Vector *>(&dummy_fields[uf]); }
-
-         MFEM_ASSERT(src != nullptr, "LocalQFBackend: missing field data pointer");
-         MFEM_ASSERT(num_entities == 0 ||
-                     src->Size() == shmem_info.field_sizes[uf] * num_entities,
-                     "LocalQFBackend: unexpected field vector size");
-
-         wrapped_fields_e[uf] =
-            DeviceTensor<2>(src->ReadWrite(), shmem_info.field_sizes[uf], num_entities);
-      }
-
-      // Raw pointers to output element vectors.
-      std::array<real_t*, noutputs> ye_ptrs{};
-      for_constexpr<noutputs>([&](auto o)
-      {
-         const size_t outfd = output_to_outfd[o];
-         ye_ptrs[o] = ye[outfd]->ReadWrite();
-      });
-
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_attr = ctx.attr.Read();
-      const auto d_elem_attr = ctx.elem_attr->Read();
-      const auto ir_weights = Reshape(ctx.ir.GetWeights().Read(), num_qp);
-
-      // Avoid capturing `this` in the device lambda.
-      const auto shmem_info_local = shmem_info;
-      const auto input_dtq_maps_local = input_dtq_maps;
-      const auto output_dtq_maps_local = output_dtq_maps;
-      const auto input_to_field_local = input_to_field;
-      const auto out_qp_size_local = out_qp_size;
-      const auto out_vdim_local = out_vdim;
-      const auto out_op_dim_local = out_op_dim;
-      const auto out_num_dof_local = out_num_dof;
-      const int dimension_local = dimension;
-      const int num_entities_local = num_entities;
-      const int num_qp_local = num_qp;
-      const int q1d_local = q1d;
-      const bool use_sum_factorization_local = use_sum_factorization;
-      const auto qfunc_local = qfunc;
-      const auto inputs_local = inputs;
-      const auto outputs_local = outputs;
-
-      forall([=] MFEM_HOST_DEVICE (int e, void *shmem) mutable
-      {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-         auto packed =
-         unpack_shmem(shmem, shmem_info_local, input_dtq_maps_local,
-                      output_dtq_maps_local, wrapped_fields_e, num_qp_local, e);
-         auto input_dtq_shmem = get<0>(packed);
-         auto output_dtq_shmem = get<1>(packed);
-         auto fields_shmem = get<2>(packed);
-         auto input_shmem = get<3>(packed);
-         // The generic unpack returns a strided residual tensor
-         // (residual_size_on_qp x num_qp). For multiple outputs we need each
-         // output block to be stored contiguously as (out_size_on_qp x num_qp)
-         // to match the expected layout in `map_quadrature_data_to_fields`.
-         const int out_offset = shmem_info_local.offsets[SharedMemory::Index::OUTPUT];
-         real_t *out_base = reinterpret_cast<real_t *>(shmem) + out_offset;
-         std::array<DeviceTensor<2>, noutputs> out_shmem;
-         int out_mem_offset = 0;
-         for_constexpr<noutputs>([&](auto o)
+         constexpr size_t i = ic.value;
+         const size_t k = in_idx[i];
+         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
+         using FOP = tuple_element_t<i, inputs_t>;
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
-            const int osz = out_qp_size_local[o];
-            out_shmem[o] = DeviceTensor<2>(out_base + out_mem_offset, osz, num_qp_local);
-            out_mem_offset += osz * num_qp_local;
-         });
-         auto scratch_shmem = get<5>(packed);
-
-         map_fields_to_quadrature_data(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field_local,
-            inputs_local, ir_weights, scratch_shmem, dimension_local, use_sum_factorization_local);
-
-         call_local_qfunction<qf_param_ts>(
-            qfunc_local, input_shmem, out_shmem,
-            num_qp_local, q1d_local, dimension_local, use_sum_factorization_local);
-
-         for_constexpr<noutputs>([&](auto o)
-         {
-            const int vdim = out_vdim_local[o];
-            const int op_dim = out_op_dim_local[o];
-            const int ndof = out_num_dof_local[o];
-
-            auto fhat = Reshape(&out_shmem[o](0, 0), vdim, op_dim, num_qp_local);
-
-            auto ye_out = DeviceTensor<3, real_t>(ye_ptrs[o], vdim, ndof,
-                                                  num_entities_local);
-            auto y = Reshape(&ye_out(0, 0, e), ndof, vdim);
-
-            map_quadrature_data_to_fields(
-               y, fhat, get<o>(outputs_local), output_dtq_shmem[o],
-               scratch_shmem, dimension_local, use_sum_factorization_local);
-         });
-      }, num_entities_local, thread_blocks, shmem_info_local.total_size,
-      shmem_cache.ReadWrite());
-   }
-
-   template <typename func_t, typename args_t, int... Is>
-   MFEM_HOST_DEVICE static void call_qfunc_no_move_impl(
-      const func_t &func, args_t &args, std::integer_sequence<int, Is...>)
-   {
-      (void)func(get<Is>(args)...);
-   }
-
-   template <typename func_t, typename args_t>
-   MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
-                                                   args_t &args)
-   {
-      constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
-      call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
-   }
-
-   template <typename qf_param_ts>
-   MFEM_HOST_DEVICE static void call_local_qfunction(
-      const qfunc_t &qfunc,
-      const std::array<DeviceTensor<2>, ninputs> &input_shmem,
-      std::array<DeviceTensor<2>, noutputs> &output_shmem,
-      const int &num_qp,
-      const int &q1d,
-      const int &dimension,
-      const bool &use_sum_factorization)
-   {
-      if (use_sum_factorization)
-      {
-         if (dimension == 1)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
-            {
-               auto args = decay_tuple<qf_param_ts> {};
-               for_constexpr<ninputs>([&](auto i)
-               {
-                  process_qf_arg(input_shmem[i], get<i>(args), q);
-               });
-               call_qfunc_no_move(qfunc, args);
-               for_constexpr<noutputs>([&](auto o)
-               {
-                  constexpr std::size_t arg_idx = ninputs + o;
-                  auto out_q =
-                     Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
-                  process_qf_result(out_q, get<arg_idx>(args));
-               });
-            }
+            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
          }
-         else if (dimension == 2)
+         else if constexpr (is_identity_fop_v<FOP>)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-               {
-                  const int q = qx + q1d * qy;
-                  auto args = decay_tuple<qf_param_ts> {};
-                  for_constexpr<ninputs>([&](auto i)
-                  {
-                     process_qf_arg(input_shmem[i], get<i>(args), q);
-                  });
-                  call_qfunc_no_move(qfunc, args);
-                  for_constexpr<noutputs>([&](auto o)
-                  {
-                     constexpr std::size_t arg_idx = ninputs + o;
-                     auto out_q =
-                        Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
-                     process_qf_result(out_q, get<arg_idx>(args));
-                  });
-               }
-            }
+            MFEM_VERIFY(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
+            in_XE[i] = Reshape(xe[k]->Read(), v, q, q, B2D ? 1 : q, ne);
          }
-         else if (dimension == 3)
+         else if constexpr (is_weight_fop_v<FOP>)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
-                  {
-                     const int q = qx + q1d * (qy + q1d * qz);
-                     auto args = decay_tuple<qf_param_ts> {};
-                     for_constexpr<ninputs>([&](auto i)
-                     {
-                        process_qf_arg(input_shmem[i], get<i>(args), q);
-                     });
-                     call_qfunc_no_move(qfunc, args);
-                     for_constexpr<noutputs>([&](auto o)
-                     {
-                        constexpr std::size_t arg_idx = ninputs + o;
-                        auto out_q =
-                           Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
-                        process_qf_result(out_q, get<arg_idx>(args));
-                     });
-                  }
-               }
-            }
+            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d),
+                        "tensor-product IR expected");
+            in_XE[i] = Reshape(
+                          ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
          else
          {
-            MFEM_ABORT_KERNEL("unsupported dimension");
+            static_assert(false, "Unsupported");
          }
-         MFEM_SYNC_THREAD;
-      }
-      else
+      });
+
+      // --------------------------------------------------
+      // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
+      // --------------------------------------------------
+      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
+      for_constexpr<n_outputs>([&](auto ic)
       {
-         MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+         constexpr size_t i = ic.value;
+         const size_t k = out_idx[i];
+         const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
+         using FOP = tuple_element_t<i, outputs_t>;
+         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
          {
-            auto args = decay_tuple<qf_param_ts> {};
-            for_constexpr<ninputs>([&](auto i)
+            MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
+         }
+         else if constexpr (is_identity_fop_v<FOP>)
+         {
+            MFEM_ASSERT(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
+            out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
+         }
+         else
+         {
+            static_assert(false, "Unsupported FieldOperator");
+         }
+      });
+
+      const auto d_attr = ctx.attr.Read();
+      const bool has_attr = ctx.attr.Size() > 0;
+      const auto d_elem_attr = ctx.elem_attr->Read();
+
+      dfem::forall<MTPB>(
+         [=] MFEM_HOST_DEVICE(const int e, void *)
+      {
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+
+         // -----------------------------------------------
+         // Inputs and outputs argument registers
+         // -----------------------------------------------
+         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+
+         // -----------------------------------------------
+         // Shared memory
+         // -----------------------------------------------
+         MFEM_SHARED typename backend_t::Shared smem;
+
+         // -----------------------------------------------
+         // Load inputs
+         // -----------------------------------------------
+         for_constexpr<n_inputs>([&](auto ic)
+         {
+            constexpr size_t i = ic.value;
+            const auto &XE = in_XE[i];
+            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
+            ;
+            const real_t *B = in_B[i], *G = in_G[i];
+            auto &rarg = get<i>(rargs);
+            using FOP = tuple_element_t<i, inputs_t>;
+            if constexpr (is_value_fop<FOP>::value)
             {
-               process_qf_arg(input_shmem[i], get<i>(args), q);
-            });
-            call_qfunc_no_move(qfunc, args);
-            for_constexpr<noutputs>([&](auto o)
+               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
+            }
+            else if constexpr (is_gradient_fop_v<FOP>)
             {
-               constexpr std::size_t arg_idx = ninputs + o;
-               auto out_q =
-                  Reshape(&output_shmem[o](0, q), output_shmem[o].GetShape()[0]);
-               process_qf_result(out_q, get<arg_idx>(args));
-            });
+               using XE_t = decltype(XE);
+               using rarg_t = decltype(rarg);
+               using qf_param_t =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+               backend_t::template LoadGradient<RNK, rarg_t, XE_t, qf_param_t>(
+                  smem, e, d, q, q1d, B, G, XE, rarg);
+            }
+            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+            {
+               // qp values are read directly from in_XE / IR
+            }
+            else
+            {
+               static_assert(false, "Unsupported");
+            }
+         });
+
+         // -----------------------------------------------
+         // Evaluate the quadrature function
+         // Warning: no 'DIRECT' on the 'Z' direction,
+         // as one backend may need to iterate over it.
+         // -----------------------------------------------
+         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+               {
+                  args_tuple_t qargs;
+
+                  // --------------------------------------
+                  // Pulling arguments from registers to qargs tuple
+                  // --------------------------------------
+                  for_constexpr<n_inputs>([&](auto ic)
+                  {
+                     constexpr size_t i = ic.value;
+                     auto &qarg = get<i>(qargs);
+                     const auto &XE = in_XE[i];
+                     using FOP = tuple_element_t<i, inputs_t>;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                     if constexpr (is_identity_fop_v<FOP>)
+                     {
+                        using DT =
+                           typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                        if constexpr (qf_param_uses_dual_v<DT>)
+                        {
+                           qarg = backend_t::template identity_qp_pull_dual<DT>(
+                              false, XE, XE, qx, qy, qz, e);
+                        }
+                        else
+                        {
+                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                        }
+                     }
+                     else if constexpr (is_weight_fop_v<FOP>)
+                     {
+                        qarg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
+                     {
+                        qarg = backend_t::template qp_pull<ARG>(
+                           get<i>(rargs), qx, qy, qz);
+                     }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                  });
+
+                  // --------------------------------------
+                  // Call the quadrature function
+                  // --------------------------------------
+                  call_qfunc_no_move(qfunc, qargs);
+
+                  // --------------------------------------
+                  // Pushing arguments from qargs tuple to registers
+                  // --------------------------------------
+                  for_constexpr<n_outputs>([&](auto ic)
+                  {
+                     constexpr size_t i = ic.value, o = n_inputs + i;
+                     const auto &qarg = get<o>(qargs);
+                     const auto &YE = out_YE[i];
+                     using FOP = tuple_element_t<i, outputs_t>;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                     if constexpr (is_identity_fop_v<FOP>)
+                     {
+                        using DT =
+                           typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                        if constexpr (qf_param_uses_dual_v<DT>)
+                        {
+                           backend_t::identity_qp_write_value(
+                              YE, qx, qy, qz, e, qarg);
+                        }
+                        else
+                        {
+                           as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                        }
+                     }
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
+                     {
+                        auto &rarg = get<o>(rargs);
+                        backend_t::template qp_push<ARG>(
+                           rarg, qx, qy, qz, qarg);
+                     }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                  });
+               }
+            }
          }
          MFEM_SYNC_THREAD;
-      }
+
+         // -----------------------------------------------
+         // Integrate outputs
+         // -----------------------------------------------
+         for_constexpr<n_outputs>([&](auto ic)
+         {
+            constexpr size_t i = ic.value, o = n_inputs + i;
+            const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
+            const auto B = out_B[i], G = out_G[i];
+            const auto &YE = out_YE[i];
+            auto &rarg = get<o>(rargs);
+            using FOP = tuple_element_t<i, outputs_t>;
+            if constexpr (is_value_fop_v<FOP>)
+            {
+               backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
+            }
+            else if constexpr (is_gradient_fop_v<FOP>)
+            {
+               using YE_t = decltype(YE);
+               using rarg_t = decltype(rarg);
+               using qf_param_t =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
+                  smem, e, d, q, Q1D, B, G, YE, rarg);
+            }
+            else if constexpr (is_identity_fop_v<FOP>)
+            {
+               // nothing to do
+            }
+            else
+            {
+               static_assert(false, "Unsupported");
+            }
+         });
+      },
+      ne,
+      backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
+                                  q1d, in_d1d, out_d1d)),
+      0,
+      nullptr);
    }
-
-
-   IntegratorContext ctx;
-   qfunc_t qfunc;
-   inputs_t inputs;
-   outputs_t outputs;
-
-   std::array<size_t, noutputs> output_to_outfd;
-
-   std::array<size_t, ninputs> input_to_field;
-   std::array<size_t, noutputs> output_to_field;
-
-   int dimension = 0;
-   int num_entities = 0;
-   int num_qp = 0;
-   int q1d = 0;
-   int gnqp = 0;
-   bool use_sum_factorization = false;
-   ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-
-   ThreadBlocks thread_blocks;
-
-   std::vector<const DofToQuad*> dtqs;
-   std::array<DofToQuadMap, ninputs> input_dtq_maps;
-   std::array<DofToQuadMap, noutputs> output_dtq_maps;
-
-   std::array<int, noutputs> out_qp_size;
-   std::array<int, noutputs> out_vdim;
-   std::array<int, noutputs> out_op_dim;
-   std::array<int, noutputs> out_num_dof;
-
-   std::vector<int> input_size_on_qp;
-
-   SharedMemoryInfo<nfields, ninputs, noutputs> shmem_info;
-   mutable Vector shmem_cache;
-
-   std::array<size_t, nfields> union_to_infd;
-   mutable std::vector<Vector> dummy_fields;
-
+   using KernelType = decltype(&Action::action_callback<>);
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionLO, KernelType, (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionHO, KernelType, (int, int) );
 };
 
+// Low Order kernels
+template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<int DIM, int Q1D>
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
+{
+   static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
 }
+
+// Low Order fallback
+template<typename qfunc_t, typename inputs_t, typename outputs_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using ActionLO = typename action_t::ActionLO;
+   if (dim == 2)
+   {
+      return DispatchLOKernelByQ1D<ActionLO, 2>(q1d);
+   }
+   else if (dim == 3)
+   {
+      return DispatchLOKernelByQ1D<ActionLO, 3>(q1d);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+      return nullptr;
+   }
 }
+
+// High Order kernels
+template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<int DIM, int Q1D>
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   return action_t::template action_callback<LocalQFHOBackend<DIM>, Q1D>;
+}
+
+// High Order fallback
+template<typename qfunc_t, typename inputs_t, typename outputs_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
+{
+   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using ActionHO = typename action_t::ActionHO;
+   if (dim == 2)
+   {
+      return DispatchHOKernelByQ1D<ActionHO, 2>(q1d);
+   }
+   else if (dim == 3)
+   {
+      return DispatchHOKernelByQ1D<ActionHO, 3>(q1d);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+      return nullptr;
+   }
+}
+
+} // namespace mfem::future::LocalQFImpl

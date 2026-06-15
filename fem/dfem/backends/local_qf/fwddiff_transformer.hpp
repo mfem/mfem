@@ -1,9 +1,22 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #pragma once
 
 #include "../util.hpp"
 
+#ifdef MFEM_USE_ENZYME
+
 namespace mfem::future
 {
+
 template <typename T> struct function_traits;
 
 template <typename R, typename C, typename... Args>
@@ -232,20 +245,20 @@ struct FwdDiff
 
    template <size_t... Is> static void print_impl(std::index_sequence<Is...>)
    {
-      std::cout << "for d in [0, " << grad_components
+      mfem::out << "for d in [0, " << grad_components
                 << "): __enzyme_fwddiff<void>(fptr, enzyme_dup";
-      ((std::cout << ", "
+      ((mfem::out << ", "
         << get_type_name<std::tuple_element_t<Is, args_tuple>>()),
        ...);
-      std::cout << ", enzyme_interleave";
+      mfem::out << ", enzyme_interleave";
       (([&]
       {
-         if constexpr (Is == active_input) { std::cout << ", e_d seed"; }
-         else if constexpr (Is == active_output) { std::cout << ", tangent out"; }
-         else { std::cout << ", zero tangent"; }
+         if constexpr (Is == active_input) { mfem::out << ", e_d seed"; }
+         else if constexpr (Is == active_output) { mfem::out << ", tangent out"; }
+         else { mfem::out << ", zero tangent"; }
       }()),
       ...);
-      std::cout << ")\n";
+      mfem::out << ")\n";
    }
 };
 
@@ -257,3 +270,5 @@ struct create_function_signature<FwdDiff<Func, active_input, active_output>>
 };
 
 } // namespace mfem::future
+
+#endif // MFEM_USE_ENZYME

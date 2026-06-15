@@ -10,20 +10,20 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+
 #include "mfem.hpp"
-#include "../../../fem/dfem/doperator.hpp"
-#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
+
 using namespace mfem;
 using namespace mfem::future;
-using mfem::future::tensor;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
-using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
@@ -64,144 +64,143 @@ void vectordivergence(const char *filename, int p)
 
    MixedBilinearForm mblf_fa(&pvfes, &psfes);
    mblf_fa.AddDomainIntegrator(new VectorDivergenceIntegrator);
-   mblf_fa.Assemble(), mblf_fa.Finalize();
+   mblf_fa.Assemble();
+   mblf_fa.Finalize();
    mblf_fa.Mult(xv, ys);
 
+   static constexpr int P = 0, V = 1, Coords = 2;
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   const auto inputs = std::vector
    {
-      static constexpr int P = 0, V = 1, Coords = 2;
-      ParFiniteElementSpace *mfes = nodes->ParFESpace();
+      FieldDescriptor{V, &pvfes},
+      FieldDescriptor{Coords, mfes}
+   };
+   const auto outputs = std::vector
+   {
+      FieldDescriptor{P, &psfes}
+   };
 
-      const auto inputs = std::vector
-      {
-         FieldDescriptor{V, &pvfes},
-         FieldDescriptor{Coords, mfes}
-      };
-      const auto outputs = std::vector
-      {
-         FieldDescriptor{P, &psfes}
-      };
+   DifferentiableOperator dop_mf(inputs, outputs, pmesh);
 
-      DifferentiableOperator dop_mf(inputs, outputs, pmesh);
+   const auto mf_vector_divergence_qf =
+      [] MFEM_HOST_DEVICE(const tensor<dscalar_t, DIM, DIM> &dudxi,
+                          const tensor<real_t, DIM, DIM> &J,
+                          const real_t &w,
+                          dscalar_t &v)
+   {
+      const auto invJ = inv(J);
+      const auto dudx = dudxi * invJ;
+      v = tr(dudx) * det(J) * w;
+   };
 
-      const auto mf_vector_divergence_qf =
-         [] MFEM_HOST_DEVICE(const tensor<dscalar_t, DIM, DIM> &dudxi,
-                             const tensor<mfem::real_t, DIM, DIM> &J,
-                             const real_t &w,
-                             real_t &v)
-      {
-         const auto invJ = inv(J);
-         const auto dudx = dudxi * invJ;
-         v = tr(dudx) * det(J) * w;
-      };
+   const auto derivatives = std::integer_sequence<size_t, V> {};
+   dop_mf.AddDomainIntegrator<LocalQFBackend>(
+      mf_vector_divergence_qf,
+      tuple{Gradient<V>{}, Gradient<Coords>{}, Weight{}},
+      tuple{Value<P>{}},
+      *ir, all_domain_attr, derivatives);
 
-      const auto derivatives = std::integer_sequence<size_t, V> {};
-      dop_mf.AddDomainIntegrator<LocalQFBackend>(
-         mf_vector_divergence_qf,
-         tuple{Gradient<V>{}, Gradient<Coords>{}, Weight{}},
-         tuple{Value<P>{}},
-         *ir, all_domain_attr, derivatives);
+   SECTION("Action")
+   {
+      Vector nodestv;
+      nodes->GetTrueDofs(nodestv);
+      MultiVector X{Xv, nodestv};
+      MultiVector Z{Zs};
+      dop_mf.Mult(X, Z);
 
-      SECTION("Action")
-      {
-         Vector nodestv;
-         nodes->GetTrueDofs(nodestv);
-         MultiVector X{Xv, nodestv};
-         MultiVector Z{Zs};
-         dop_mf.Mult(X, Z);
+      mblf_fa.Mult(xv, ys);
+      psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
 
-         mblf_fa.Mult(xv, ys);
-         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+      Ys -= Zs;
+      real_t norm_global = 0.0;
+      real_t norm_local = Ys.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 
-         Ys -= Zs;
-         real_t norm_global = 0.0;
-         real_t norm_local = Ys.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-         REQUIRE(norm_global == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
+   SECTION("Derivative Action")
+   {
+      Vector nodestv;
+      nodes->GetTrueDofs(nodestv);
+      MultiVector X{Xv, nodestv};
+      MultiVector Z{Zs};
+      auto dRdV = dop_mf.GetDerivative(V, X);
+      dRdV->Mult(X[0], Z);
 
-      SECTION("Derivative Action")
-      {
-         Vector nodestv;
-         nodes->GetTrueDofs(nodestv);
-         MultiVector X{Xv, nodestv};
-         MultiVector Z{Zs};
-         auto dRdV = dop_mf.GetDerivative(V, X);
-         dRdV->Mult(X[0], Z);
+      mblf_fa.Mult(xv, ys);
+      psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
 
-         mblf_fa.Mult(xv, ys);
-         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+      Ys -= Zs;
+      real_t norm_global = 0.0;
+      real_t norm_local = Ys.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 
-         Ys -= Zs;
-         real_t norm_global = 0.0;
-         real_t norm_local = Ys.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-         REQUIRE(norm_global == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
+   SECTION("Derivative Transpose Action")
+   {
+      Vector nodestv;
+      nodes->GetTrueDofs(nodestv);
 
-      SECTION("Derivative Transpose Action")
-      {
-         Vector nodestv;
-         nodes->GetTrueDofs(nodestv);
+      // Build cache with full primal state
+      MultiVector state{Xv, nodestv};
+      auto dRdV = dop_mf.GetDerivative(V, state);
 
-         // Build cache with full primal state
-         MultiVector state{Xv, nodestv};
-         auto dRdV = dop_mf.GetDerivative(V, state);
+      // Direction in output (test) T-space: use Ys computed from mblf_fa.
+      psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
+      MultiVector direction{Ys};
 
-         // Direction in output (test) T-space: use Ys computed from mblf_fa.
-         psfes.GetProlongationMatrix()->MultTranspose(ys, Ys);
-         MultiVector direction{Ys};
+      // Result in derivative (trial) T-space.
+      Vector result_v(pvfes.GetTrueVSize());
+      result_v = 0.0;
+      MultiVector result{result_v};
+      dRdV->MultTranspose(direction, result);
 
-         // Result in derivative (trial) T-space.
-         Vector result_v(pvfes.GetTrueVSize());
-         result_v = 0.0;
-         MultiVector result{result_v};
-         dRdV->MultTranspose(direction, result);
+      psfes.GetProlongationMatrix()->Mult(Ys, ys);
+      mblf_fa.MultTranspose(ys, xv);
+      Vector ref_v(pvfes.GetTrueVSize());
+      pvfes.GetProlongationMatrix()->MultTranspose(xv, ref_v);
 
-         psfes.GetProlongationMatrix()->Mult(Ys, ys);
-         mblf_fa.MultTranspose(ys, xv);
-         Vector ref_v(pvfes.GetTrueVSize());
-         pvfes.GetProlongationMatrix()->MultTranspose(xv, ref_v);
-
-         result_v -= ref_v;
-         real_t norm_global = 0.0;
-         real_t norm_local = result_v.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-         REQUIRE(norm_global == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
+      result_v -= ref_v;
+      real_t norm_global = 0.0;
+      real_t norm_local = result_v.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
    }
 }
 
-TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM]")
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   const auto p = GenAll({1}, {2, 3});
 
    SECTION("2D p=" + std::to_string(p))
    {
-      const auto filename =
-         GENERATE("../../data/star.mesh",
-                  "../../data/star-q3.mesh",
-                  "../../data/rt-2d-q3.mesh",
-                  "../../data/inline-quad.mesh",
-                  "../../data/periodic-square.mesh");
-      vectordivergence<2>(filename, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      vectordivergence<2>(GenAll(meshs, extra), p);
    }
 
    SECTION("3D p=" + std::to_string(p))
    {
-      const auto filename =
-         GENERATE("../../data/fichera.mesh",
-                  "../../data/fichera-q3.mesh",
-                  "../../data/inline-hex.mesh",
-                  "../../data/toroid-hex.mesh",
-                  "../../data/periodic-cube.mesh");
-      vectordivergence<3>(filename, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      vectordivergence<3>(GenAll(meshs, extra), p);
    }
 }
 

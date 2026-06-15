@@ -23,10 +23,8 @@
 //               mpirun -np 4 dfem-minimal-surface -der 2
 //
 // Device sample runs:
-//               mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d cuda
-//               mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d cuda
-//             * mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d hip
-//             * mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d hip
+//               mpirun -np 4 dfem-minimal-surface -der 0 -r 1 -o 2 -d gpu
+//               mpirun -np 4 dfem-minimal-surface -der 1 -r 1 -o 2 -d gpu
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               minimal surface problem in 2D:
@@ -166,13 +164,8 @@ public:
          z(minsurface->Height())
       {
          minsurface->u.SetFromTrueDofs(x);
-         auto mesh_nodes = static_cast<ParGridFunction*>
-                           (minsurface->H1.GetParMesh()->GetNodes());
 
-         // One can retrieve the derivative of a DifferentiableOperator wrt a
-         // field variable if the derivative has been requested during the
-         // DifferentiableOperator::AddDomainIntegrator call.
-         MultiVector X{minsurface->u, *mesh_nodes};
+         MultiVector X{x, minsurface->mesh_nodes_tdofs};
          dres_du = minsurface->res->GetDerivative(SOLUTION_U, X);
       }
 
@@ -221,15 +214,11 @@ public:
          Array<int> all_domain_attr(minsurface->H1.GetMesh()->attributes.Max());
          all_domain_attr = 1;
 
-         mesh_nodes = static_cast<ParGridFunction *>
-                      (minsurface->H1.GetParMesh()->GetNodes());
-         auto &mesh_nodes_fes = *mesh_nodes->ParFESpace();
-
          std::vector<FieldDescriptor> inputs =
          {
             {DIRECTION_U, &minsurface->H1},
             {SOLUTION_U, &minsurface->H1},
-            {MESH_NODES, &mesh_nodes_fes}
+            {MESH_NODES, minsurface->mesh_nodes_fes}
          };
 
          std::vector<FieldDescriptor> outputs =
@@ -259,7 +248,8 @@ public:
                                                       output_operators, minsurface->ir,
                                                       all_domain_attr);
 
-         minsurface->u.SetFromTrueDofs(x);
+         x0.SetSize(x.Size());
+         x0 = x;
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -267,7 +257,7 @@ public:
          z = x;
          z.SetSubVector(minsurface->ess_tdofs, 0.0);
 
-         MultiVector X{z, minsurface->u, *mesh_nodes};
+         MultiVector X{z, x0, minsurface->mesh_nodes_tdofs};
          MultiVector Y{y};
          dres_du->Mult(X, Y);
 
@@ -281,7 +271,7 @@ public:
 
       const MinimalSurface *minsurface = nullptr;
       std::shared_ptr<DifferentiableOperator> dres_du;
-      ParGridFunction *mesh_nodes = nullptr;
+      Vector x0;
       mutable Vector z;
    };
 
@@ -300,7 +290,8 @@ public:
 
       auto &mesh_nodes =
          *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes());
-      auto &mesh_nodes_fes = *mesh_nodes.ParFESpace();
+      mesh_nodes_fes = mesh_nodes.ParFESpace();
+      mesh_nodes.GetTrueDofs(mesh_nodes_tdofs);
 
       // The following section is the heart of this example. It shows how to
       // create and interact with the DifferentialOperator class.
@@ -309,11 +300,11 @@ public:
       // FieldDescriptors. A FieldDescriptor can be viewed as a a pair of an
       // identifier (the field ID) and it's accompanying space.
       std::vector<FieldDescriptor> inputs;
-      inputs.push_back(FieldDescriptor(SOLUTION_U, &H1));
-      inputs.push_back(FieldDescriptor(MESH_NODES, &mesh_nodes_fes));
+      inputs.emplace_back(SOLUTION_U, &H1);
+      inputs.emplace_back(MESH_NODES, mesh_nodes_fes);
 
       std::vector<FieldDescriptor> outputs;
-      outputs.push_back(FieldDescriptor(SOLUTION_U, &H1));
+      outputs.emplace_back(SOLUTION_U, &H1);
 
       // Create the DifferentiableOperator on the desired mesh.
       res = std::make_shared<DifferentiableOperator>(
@@ -375,7 +366,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      MultiVector X{x, *static_cast<ParGridFunction *>(H1.GetParMesh()->GetNodes())};
+      MultiVector X{x, mesh_nodes_tdofs};
       MultiVector Y{y};
       res->Mult(X, Y);
       y.SetSubVector(ess_tdofs, 0.0);
@@ -414,10 +405,11 @@ public:
    }
 
 private:
-   ParFiniteElementSpace &H1;
+   ParFiniteElementSpace &H1, *mesh_nodes_fes = nullptr;
    const IntegrationRule &ir;
 
    mutable ParGridFunction u;
+   Vector mesh_nodes_tdofs;
 
    Array<int> ess_tdofs;
 

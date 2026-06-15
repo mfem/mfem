@@ -343,8 +343,8 @@ static void DerivativesTranspose3D(const int NE,
                                    const real_t *b_,
                                    const real_t *g_,
                                    const real_t *j_,
-                                   const real_t *q_,
-                                   real_t *e_,
+                                   const real_t *q_,    // q_der
+                                   real_t *e_,          // e_vec
                                    const int sdim = 3,
                                    const int vdim = 0,
                                    const int d1d = 0,
@@ -375,8 +375,8 @@ static void DerivativesTranspose3D(const int NE,
       DeviceMatrix B(BG[0], D1D, Q1D);
       DeviceMatrix G(BG[1], D1D, Q1D);
 
-      MFEM_SHARED real_t sm0[3][MQ1*MQ1*MQ1];
-      MFEM_SHARED real_t sm1[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t sm0[1][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t sm1[1][MQ1*MQ1*MQ1];
       DeviceCube QQQ(sm0[0], MQ1, MQ1, MQ1);
       DeviceCube DQQ(sm1[0], MD1, MQ1, MQ1);
       DeviceCube DDQ(sm0[0], MD1, MD1, MQ1);
@@ -662,7 +662,7 @@ static void DerivativesTranspose3D(const int NE,
                   {
                      u += G(dz,qz) * QQQ(qx,qy,qz);
                   }
-                  DQQ(qx,qy,dz) = u;
+                  DQQ(dz,qy,qx) = u;
                }
             }
          }
@@ -678,9 +678,9 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     u += B(dy,qy) * DQQ(qx,qy,dz);
+                     u += B(dy,qy) * DQQ(dz,qy,qx);
                   }
-                  DDQ(qx,dy,dz) = u;
+                  DDQ(dz,dy,qx) = u;
                }
             }
          }
@@ -696,7 +696,7 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     u += B(dx,qx) * DDQ(qx,dy,dz);
+                     u += B(dx,qx) * DDQ(dz,dy,qx);
                   }
                   DDD(dx,dy,dz) = u;
                }
@@ -723,6 +723,8 @@ static void DerivativesTranspose3D(const int NE,
 } // namespace quadrature_interpolator
 } // namespace internal
 
+/// \cond DO_NOT_DOCUMENT
+
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
          int Q1D, int NBZ>
 QuadratureInterpolator::GradTransposeKernelType
@@ -733,5 +735,7 @@ QuadratureInterpolator::GradTransposeKernels::Kernel()
    else if (DIM == 3) { return internal::quadrature_interpolator::DerivativesTranspose3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

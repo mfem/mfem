@@ -11,19 +11,18 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../../../fem/dfem/doperator.hpp"
-#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 
 #ifdef MFEM_USE_MPI
 
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/local_qf/prelude.hpp"
+
 using namespace mfem;
 using namespace mfem::future;
-using mfem::future::tensor;
 
 #ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
 #else
-using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
@@ -38,7 +37,7 @@ struct CubicH1Functional
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -67,12 +66,12 @@ public:
       qspace_vec(qspace, 1),
       q(qspace_vec)
    {
-      const auto in = std::vector
+      const auto in_fds = std::vector
       {
          FieldDescriptor{U, &fes},
          FieldDescriptor{Coords, &mfes}
       };
-      const auto out = std::vector
+      const auto out_fds = std::vector
       {
          FieldDescriptor{Q, &qspace_vec}
       };
@@ -85,8 +84,8 @@ public:
          all_domain_attr = 1;
       }
 
-      dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
-      CubicH1Functional<real_t, dim> apply;
+      dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, mesh);
+      CubicH1Functional<dscalar_t, dim> apply;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop->AddDomainIntegrator<LocalQFBackend>(
          apply,
@@ -186,16 +185,17 @@ void functional(const char *filename, int p)
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
-
    pmesh.EnsureNodes();
    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
-   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
+   smesh.Clear();
 
    H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace fes(&pmesh, &fec);
 
-   const IntegrationRule &ir =
-      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   const auto ir = IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    Vector u(fes.GetTrueVSize());
    Vector du(fes.GetTrueVSize());
@@ -247,39 +247,32 @@ void functional(const char *filename, int p)
    MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, pmesh.GetComm());
    REQUIRE(diff.Normlinf() / scale < 1e-5);
-
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",
-          "[Parallel][dFEM][functional]")
+          "[Parallel][dFEM][GPU]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
-
+   const auto p = GenAll({1}, {2, 3});
    SECTION("2d")
    {
-      const auto f =
-         GENERATE(
-            "../../data/star.mesh",
-            "../../data/star-q3.mesh",
-            "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh"
-         );
-      functional<2>(f, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      functional<2>(GenAll(meshs, extra), p);
    }
 
    SECTION("3d")
    {
-      const auto f =
-         GENERATE(
-            "../../data/fichera.mesh",
-            "../../data/fichera-q3.mesh",
-            "../../data/inline-hex.mesh",
-            "../../data/toroid-hex.mesh",
-            "../../data/periodic-cube.mesh"
-         );
-      functional<3>(f, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      functional<3>(GenAll(meshs, extra), p);
    }
 }
 

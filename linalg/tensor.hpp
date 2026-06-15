@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "../general/backends.hpp"
 #include "dual.hpp"
 #include <limits>
+#include <utility>
 #include <type_traits> // for std::false_type
 
 namespace mfem
@@ -40,7 +40,7 @@ struct tensor<T>
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
 
-   MFEM_HOST_DEVICE tensor() = default;
+   tensor() = default;
    MFEM_HOST_DEVICE tensor(T v) : values(v) {}
 
    MFEM_HOST_DEVICE T& operator[](int) { return values; }
@@ -58,7 +58,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator*(const A& a, const tensor& s)
-   -> decltype(a * s.scalar())
+   -> decltype(std::declval<const A&>() * std::declval<const T&>())
    {
       return a * s.scalar();
    }
@@ -67,7 +67,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator*(const tensor& s, const A& a)
-   -> decltype(s.scalar() * a)
+   -> decltype(std::declval<const T&>() * std::declval<const A&>())
    {
       return s.scalar() * a;
    }
@@ -76,7 +76,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator/(const A& a, const tensor& s)
-   -> decltype(a / s.scalar())
+   -> decltype(std::declval<const A&>() / std::declval<const T&>())
    {
       return a / s.scalar();
    }
@@ -84,7 +84,7 @@ struct tensor<T>
    template <typename A,
              std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
    MFEM_HOST_DEVICE friend auto operator/(const tensor& s, const A& a)
-   -> decltype(s.scalar() / a)
+   -> decltype(std::declval<const T&>() / std::declval<const A&>())
    {
       return s.scalar() / a;
    }
@@ -92,7 +92,7 @@ struct tensor<T>
    T values;
 };
 
-template < typename T, int n0 >
+template <typename T, int n0>
 struct tensor<T, n0>
 {
    using type = T;
@@ -105,7 +105,7 @@ struct tensor<T, n0>
    T values[n0];
 };
 
-template < typename T >
+template <typename T>
 struct tensor<T, 0>
 {
    using type = T;
@@ -118,7 +118,7 @@ struct tensor<T, 0>
    T values;
 };
 
-template < typename T, int n0, int n1 >
+template <typename T, int n0, int n1>
 struct tensor<T, n0, n1>
 {
    using type = T;
@@ -130,10 +130,10 @@ struct tensor<T, n0, n1>
    MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
-   tensor < T, n1 > values[n0];
+   tensor<T, n1> values[n0];
 };
 
-template < typename T, int n1 >
+template <typename T, int n1>
 struct tensor<T, 0, n1>
 {
    using type = T;
@@ -145,7 +145,7 @@ struct tensor<T, 0, n1>
    MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
    MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
-   tensor < T, n1 > values;
+   tensor<T, n1> values;
 };
 
 template < typename T, int n0, int n1, int n2 >
@@ -162,7 +162,24 @@ struct tensor<T, n0, n1, n2>
    MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k) { return values[i][j][k]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   tensor < T, n1, n2 > values[n0];
+   tensor<T, n1, n2> values[n0];
+};
+
+template < typename T, int n1, int n2 >
+struct tensor<T, 0, n1, n2>
+{
+   using type = T;
+   static constexpr int ndim      = 3;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int /*i*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const T& operator()(int /*i*/, int j, int k) const { return values[j][k]; }
+   tensor<T, n1, n2> values;
 };
 
 template < typename T, int n0, int n1, int n2, int n3 >
@@ -181,10 +198,30 @@ struct tensor<T, n0, n1, n2, n3>
    MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int i, int j, int k) const { return values[i][j][k]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
    MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
-   tensor < T, n1, n2, n3 > values[n0];
+   tensor<T, n1, n2, n3> values[n0];
 };
 
-template < typename T, int n0, int n1, int n2, int n3, int n4 >
+template < typename T, int n1, int n2, int n3 >
+struct tensor<T, 0, n1, n2, n3>
+{
+   using type = T;
+   static constexpr int ndim      = 4;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int /*i*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int /*i*/, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int /*i*/, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int /*i*/, int j,
+                                                      int k) const { return values[j][k]; }
+   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k, int l) { return values[j][k][l]; }
+   MFEM_HOST_DEVICE const T&  operator()(int /*i*/, int j, int k, int l) const { return values[j][k][l]; }
+   tensor<T, n1, n2, n3> values;
+};
+
+template <typename T, int n0, int n1, int n2, int n3, int n4>
 struct tensor<T, n0, n1, n2, n3, n4>
 {
    using type = T;
@@ -205,7 +242,29 @@ struct tensor<T, n0, n1, n2, n3, n4>
                                                       int l) const { return values[i][j][k][l]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l, int m) { return values[i][j][k][l][m]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
-   tensor < T, n1, n2, n3, n4 > values[n0];
+   tensor<T, n1, n2, n3, n4> values[n0];
+};
+
+template <typename T, int n1, int n2, int n3, int n4>
+struct tensor<T, 0, n1, n2, n3, n4>
+{
+   using type = T;
+   static constexpr int ndim      = 5;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int, int j, int k) const { return values[j][k]; }
+   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int, int j, int k, int l) { return values[j][k][l]; }
+   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int, int j, int k,
+                                                      int l) const { return values[j][k][l]; }
+   MFEM_HOST_DEVICE T& operator()(int, int j, int k, int l, int m) { return values[j][k][l][m]; }
+   MFEM_HOST_DEVICE const T& operator()(int, int j, int k, int l, int m) const { return values[j][k][l][m]; }
+   tensor<T, n1, n2, n3, n4> values;
 };
 
 /**
@@ -315,10 +374,10 @@ MFEM_HOST_DEVICE constexpr zero operator/(zero, T /*other*/)
    return zero{};
 }
 
-/** @brief `zero` plus `zero` is `zero */
+/** @brief `zero` plus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator+=(zero, zero) { return zero{}; }
 
-/** @brief `zero` minus `zero` is `zero */
+/** @brief `zero` minus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator-=(zero, zero) { return zero{}; }
 
 /** @brief let `zero` be accessed like a tuple */
@@ -350,13 +409,10 @@ MFEM_HOST_DEVICE zero dot(zero, const T&)
  * @tparam n2 The second dimension
  */
 template <typename T, int n1, int n2 = 1>
-using reduced_tensor = typename std::conditional<
-                       (n1 == 1 && n2 == 1), T,
-                       typename std::conditional<n1 == 1, tensor<T, n2>,
-                       typename std::conditional<n2 == 1, tensor<T, n1>, tensor<T, n1, n2>
-                       >::type
-                       >::type
-                       >::type;
+using reduced_tensor =
+   std::conditional_t<(n1 == 1 && n2 == 1), T,
+   std::conditional_t<(n1 == 1), tensor<T, n2>,
+   std::conditional_t<(n2 == 1), tensor<T, n1>, tensor<T, n1, n2>>>>;
 
 /**
  * @brief Creates a tensor of requested dimension by subsequent calls to a functor
@@ -507,7 +563,7 @@ tensor<T, n> get_col(tensor<T, m, n> A, int j)
 
 /// @overload
 template <typename T> MFEM_HOST_DEVICE
-tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
+tensor<T, 1> get_col(tensor<T, 1, 1> A, [[maybe_unused]] int j)
 {
    return tensor<T, 1> {A[0][0]};
 }
@@ -599,7 +655,6 @@ tensor<decltype(S {} * T{}), n...>
    }
    return C;
 }
-
 
 /**
  * @brief multiply a tensor by a scalar value
@@ -789,9 +844,9 @@ auto outer(S A, T B) -> decltype(A * B)
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n + m> flatten(tensor<T, n, m> A)
+tensor<T, n * m> flatten(tensor<T, n, m> A)
 {
-   tensor<T, n + m> B{};
+   tensor<T, n * m> B{};
    for (int i = 0; i < n; i++)
    {
       for (int j = 0; j < m; j++)
@@ -1567,7 +1622,7 @@ void GetScalingFactor(const T &d_max, T &mult)
 }
 
 template <typename T> MFEM_HOST_DEVICE
-T calcsv(const tensor<T, 1, 1> A, const int i)
+T calcsv(const tensor<T, 1, 1> A, [[maybe_unused]] const int i)
 {
    return A[0][0];
 }

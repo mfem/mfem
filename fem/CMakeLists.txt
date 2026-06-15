@@ -65,6 +65,7 @@ set(SRCS
   dgmassinv.cpp
   doftrans.cpp
   dfem/doperator.cpp
+  dfem/backends/local_qf/kernels.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
@@ -216,13 +217,31 @@ set(HDRS
   dgmassinv_kernels.hpp
   doftrans.hpp
   dfem/doperator.hpp
+  dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
-  dfem/integrate.hpp
+  dfem/integrator_ctx.hpp
   dfem/parameterspace.hpp
-  dfem/qfunction_apply.hpp
-  dfem/qfunction_transform.hpp
   dfem/tuple.hpp
   dfem/util.hpp
+  dfem/backends/util.hpp
+  dfem/backends/global_qf/action.hpp
+  dfem/backends/global_qf/derivative_action.hpp
+  dfem/backends/global_qf/derivative_apply.hpp
+  dfem/backends/global_qf/derivative_apply_transpose.hpp
+  dfem/backends/global_qf/derivative_setup.hpp
+  dfem/backends/global_qf/prelude.hpp
+  dfem/backends/local_qf/action.hpp
+  dfem/backends/local_qf/derivative_action.hpp
+  dfem/backends/local_qf/derivative_apply.hpp
+  dfem/backends/local_qf/derivative_apply_transpose.hpp
+  dfem/backends/local_qf/derivative_assemble.hpp
+  dfem/backends/local_qf/derivative_assemble_diagonal.hpp
+  dfem/backends/local_qf/derivative_setup.hpp
+  dfem/backends/local_qf/kernels.hpp
+  dfem/backends/local_qf/kernels_ho.hpp
+  dfem/backends/local_qf/kernels_lo.hpp
+  dfem/backends/local_qf/prelude.hpp
+  dfem/backends/local_qf/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
