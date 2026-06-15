@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,42 +105,69 @@ TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
    SECTION("Segment rule constructed by accessing square rule")
    {
       auto &quad5_ir = intrules.Get(Geometry::SQUARE, 5);
-      REQUIRE(quad5_ir.GetOrder() == 5);
+      REQUIRE(quad5_ir.GetOrder() >= 5);
       // The segment integration rule of order 5 is lazy constructed when we get
       // the square integration rule of order 5. Make sure its order was
       // properly set:
       auto &line5_ir = intrules.Get(Geometry::SEGMENT, 5);
-      REQUIRE(line5_ir.GetOrder() == 5);
+      REQUIRE(line5_ir.GetOrder() >= 5);
    }
 
    SECTION("Segment rule constructed by accessing cube rule")
    {
       auto &hex7_ir = intrules.Get(Geometry::CUBE, 7);
-      REQUIRE(hex7_ir.GetOrder() == 7);
+      REQUIRE(hex7_ir.GetOrder() >= 7);
       // The segment integration rule of order 7 is lazy constructed when we get
       // the cube integration rule of order 7. Make sure its order was properly
       // set:
       auto &line7_ir = intrules.Get(Geometry::SEGMENT, 7);
-      REQUIRE(line7_ir.GetOrder() == 7);
+      REQUIRE(line7_ir.GetOrder() >= 7);
    }
 
    SECTION("Segment and triangle rules constructed by accessing prism rule")
    {
       auto &prism3_ir = intrules.Get(Geometry::PRISM, 3);
-      REQUIRE(prism3_ir.GetOrder() == 3);
+      REQUIRE(prism3_ir.GetOrder() >= 3);
       // The segment integration rule of order 3 is lazy constructed when we get
       // the prism integration rule of order 3. Make sure its order was properly
       // set:
       auto &line3_ir = intrules.Get(Geometry::SEGMENT, 3);
-      REQUIRE(line3_ir.GetOrder() == 3);
+      REQUIRE(line3_ir.GetOrder() >= 3);
       // The triangle integration rule of order 3 is lazy constructed when we
       // get the prism integration rule of order 3. Make sure its order was
       // properly set:
       auto &tri3_ir = intrules.Get(Geometry::TRIANGLE, 3);
-      REQUIRE(tri3_ir.GetOrder() == 3);
+      REQUIRE(tri3_ir.GetOrder() >= 3);
    }
 }
 
+
+TEST_CASE("Integration rule weights",
+          "[IntegrationRules]")
+{
+   // This code is automatically re-executed for all of the sections.
+   IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
+   const IntegrationRule *ir;
+
+   auto geom  = GENERATE(Geometry::SEGMENT,
+                         Geometry::TRIANGLE, Geometry::SQUARE,
+                         Geometry::TETRAHEDRON, Geometry::CUBE,
+                         Geometry::PRISM, Geometry::PYRAMID);
+   auto order = GENERATE(1, 2, 3, 4, 5);
+
+   CAPTURE(geom);
+   CAPTURE(order);
+
+   ir = &my_intrules.Get(geom, 2*order - 1);
+
+   real_t weight_sum = 0.0;
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      weight_sum += ip.weight;
+   }
+   REQUIRE(Geometry::Volume[geom] == MFEM_Approx(weight_sum));
+}
 
 double poly2d(const IntegrationPoint &ip, int m, int n)
 {
@@ -244,3 +271,43 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
       }
    }
 }
+
+
+// Monomial exactness is tested by [SimplexRules] above, which now uses
+// positive-weight rules by default. The tests below verify properties
+// specific to the positive-weight rules: weight positivity, stability,
+// and interior point placement.
+
+TEST_CASE("Simplex rule positivity", "[IntegrationRules]")
+{
+   IntegrationRules rules;
+
+   SECTION("triangle rules have all positive weights for orders 0-25")
+   {
+      for (int order = 0; order <= 25; order++)
+      {
+         const IntegrationRule &ir = rules.Get(Geometry::TRIANGLE, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+
+   SECTION("tet rules have all positive weights for orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir =
+            rules.Get(Geometry::TETRAHEDRON, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+}
+
+

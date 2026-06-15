@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,10 @@
 
 #ifndef MFEM_L2P_MESH_UTILS_HPP
 #define MFEM_L2P_MESH_UTILS_HPP
+
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
 
 #include "../../mesh/hexahedron.hpp"
 #include "../../mesh/quadrilateral.hpp"
@@ -76,4 +80,5 @@ double Sum(const DenseMatrix &mat);
 
 } // namespace mfem
 
+#endif // MFEM_USE_MOONOLITH
 #endif // MFEM_L2P_MESH_UTILS_HPP

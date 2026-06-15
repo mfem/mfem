@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,15 +15,23 @@
 
 using namespace mfem;
 
-TEST_CASE("Vector init-list construction", "[Vector]")
+TEST_CASE("Vector init-list and C-style array constructors", "[Vector]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   // Point and size constructor
    Vector a(ContigData, 6);
+   // Braced-list constructor
    Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+   // Statically sized C-style array constructor
+   Vector c(ContigData);
+   // Convertible type constructor
+   Vector d({6, 5, 4, 3, 2, 1});
 
    for (int i = 0; i < a.Size(); i++)
    {
-      REQUIRE(a(i) == b(i));
+      REQUIRE(a[i] == b[i]);
+      REQUIRE(a[i] == c[i]);
+      REQUIRE(a[i] == d[i]);
    }
 }
 
@@ -227,7 +235,7 @@ TEST_CASE("Vector Tests", "[Vector]")
    }
 }
 
-TEST_CASE("Vector Sum", "[Vector],[CUDA]")
+TEST_CASE("Vector Sum", "[Vector],[GPU]")
 {
    Vector x(1024);
    x.Randomize(1);
@@ -238,4 +246,25 @@ TEST_CASE("Vector Sum", "[Vector],[CUDA]")
    const real_t sum_2 = x.Sum();
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
+}
+
+TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
+{
+   for (int use_dev = 0; use_dev < 2; use_dev++)
+   {
+      Vector           test({0,1,2,3,4,5,6,7,8});
+      Array<int> rm_indices({0,    3,4,  6,  8});
+      Vector         result({  1,2,    5,  7  });
+
+      test.UseDevice(use_dev);
+      test.DeleteAt(rm_indices);
+
+      REQUIRE(test.Size() == result.Size());
+
+      test.HostReadWrite();
+      for (int i = 0; i < test.Size(); i++)
+      {
+         CHECK(test[i] == result[i]);
+      }
+   }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "array.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
+#include <type_traits>
 
 namespace mfem
 {
@@ -110,9 +111,38 @@ void Array<T>::PartialSum()
    }
 }
 
+template <typename U>
+MFEM_HOST_DEVICE inline U abs_signed(U v) { return (v < U(0)) ? -v : v; }
+
+template <typename U>
+void AbsImpl(std::true_type /*signed*/, U* y, int N, bool useDevice)
+{
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = abs_signed(y[i]);
+   });
+}
+
+template <typename U>
+void AbsImpl(std::false_type /*unsigned*/, U* /*y*/, int /*N*/,
+             bool /*useDevice*/)
+{
+   // no-op
+}
+
+template <class T>
+void Array<T>::Abs()
+{
+   static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
+   const bool useDevice = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(useDevice);
+   AbsImpl<T>(std::is_signed<T> {}, y, N, useDevice);
+}
+
 // Sum
 template <class T>
-T Array<T>::Sum()
+T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
@@ -140,6 +170,21 @@ int Array<T>::IsSorted() const
    return 1;
 }
 
+template <class T>
+bool Array<T>::IsConstant() const
+{
+   if (size < 2) { return true; }
+   const T v0 = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (data[i] != v0)
+      {
+         return false;
+      }
+   }
+
+   return true;
+}
 
 template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)
@@ -178,6 +223,7 @@ void Array2D<T>::Print(std::ostream &os, int width_)
 template class Array<char>;
 template class Array<int>;
 template class Array<long long>;
+template class Array<unsigned int>;
 template class Array<real_t>;
 template class Array2D<int>;
 template class Array2D<real_t>;

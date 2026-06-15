@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
 
    geometric_factors_ = h1_fes_.GetParMesh()->GetGeometricFactors(
                            *ir_, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
-   maps_ = &h1_fes_.GetFE(0)->GetDofToQuad(*ir_, DofToQuad::TENSOR);
+   maps_ = &h1_fes_.GetTypicalFE()->GetDofToQuad(*ir_, DofToQuad::TENSOR);
    d1d_ = maps_->ndof;
    q1d_ = maps_->nqpt;
 

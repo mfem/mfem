@@ -36,11 +36,6 @@
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
-// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
-//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
-//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -66,6 +61,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -82,6 +78,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -412,7 +409,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,12 +14,12 @@
 #   - UMPIRE_LIBRARIES
 #   - UMPIRE_INCLUDE_DIRS
 
-if (NOT umpire_DIR AND UMPIRE_DIR)
-  set(umpire_DIR ${UMPIRE_DIR}/lib/cmake/umpire)
+if (NOT umpire_ROOT AND UMPIRE_DIR)
+  set(umpire_ROOT ${UMPIRE_DIR})
 endif()
 message(STATUS "Looking for UMPIRE ...")
 message(STATUS "   in UMPIRE_DIR = ${UMPIRE_DIR}")
-message(STATUS "      umpire_DIR = ${umpire_DIR}")
+message(STATUS "      umpire_ROOT = ${umpire_ROOT}")
 find_package(umpire CONFIG)
 set(UMPIRE_FOUND ${umpire_FOUND})
 set(UMPIRE_LIBRARIES "umpire")

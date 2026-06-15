@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,56 @@
 
 namespace mfem
 {
+
+// PA Diffusion Integrator
+
+DiffusionIntegrator::Kernels::Kernels()
+{
+   // 2D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<2,1,1>();
+   DiffusionIntegrator::AddSpecialization<2,2,2>();
+   DiffusionIntegrator::AddSpecialization<2,3,3>();
+   DiffusionIntegrator::AddSpecialization<2,4,4>();
+   DiffusionIntegrator::AddSpecialization<2,5,5>();
+   DiffusionIntegrator::AddSpecialization<2,6,6>();
+   DiffusionIntegrator::AddSpecialization<2,7,7>();
+   DiffusionIntegrator::AddSpecialization<2,8,8>();
+   DiffusionIntegrator::AddSpecialization<2,9,9>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<2,1,2>();
+   DiffusionIntegrator::AddSpecialization<2,2,3>();
+   DiffusionIntegrator::AddSpecialization<2,3,4>();
+   DiffusionIntegrator::AddSpecialization<2,4,5>();
+   DiffusionIntegrator::AddSpecialization<2,5,6>();
+   DiffusionIntegrator::AddSpecialization<2,6,7>();
+   DiffusionIntegrator::AddSpecialization<2,7,8>();
+   DiffusionIntegrator::AddSpecialization<2,8,9>();
+   DiffusionIntegrator::AddSpecialization<2,9,10>();
+   // others
+   // 3D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<3,1,1>();
+   DiffusionIntegrator::AddSpecialization<3,2,2>();
+   DiffusionIntegrator::AddSpecialization<3,3,3>();
+   DiffusionIntegrator::AddSpecialization<3,4,4>();
+   DiffusionIntegrator::AddSpecialization<3,5,5>();
+   DiffusionIntegrator::AddSpecialization<3,6,6>();
+   DiffusionIntegrator::AddSpecialization<3,7,7>();
+   DiffusionIntegrator::AddSpecialization<3,8,8>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<3,1,2>();
+   DiffusionIntegrator::AddSpecialization<3,2,3>();
+   DiffusionIntegrator::AddSpecialization<3,3,4>();
+   DiffusionIntegrator::AddSpecialization<3,4,5>();
+   DiffusionIntegrator::AddSpecialization<3,5,6>();
+   DiffusionIntegrator::AddSpecialization<3,6,7>();
+   DiffusionIntegrator::AddSpecialization<3,7,8>();
+   DiffusionIntegrator::AddSpecialization<3,8,9>();
+   // others
+   DiffusionIntegrator::AddSpecialization<3,4,6>();
+   DiffusionIntegrator::AddSpecialization<3,5,8>();
+}
 
 namespace internal
 {
@@ -84,14 +134,19 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            Vector &d)
 {
    const bool symmetric = (coeffDim != 4);
-   const bool const_c = c.Size() == 1;
-   MFEM_VERIFY(coeffDim < 3 ||
-               !const_c, "Constant matrix coefficient not supported");
+   const bool const_c = c.Size() == coeffDim;
    const auto W = Reshape(w.Read(), Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,2,2,NE);
-   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
+   const auto C = const_c ? Reshape(c.Read(), coeffDim,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, symmetric ? 3 : 4, NE);
+
+   auto get_coeff = [const_c] MFEM_HOST_DEVICE
+                    (const decltype(C) &C, int i, int qx, int qy, int e)
+   {
+      return const_c ? C(i,0,0,0) : C(i,qx,qy,e);
+   };
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -106,10 +161,11 @@ void PADiffusionSetup2D<2>(const int Q1D,
             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
             {
                // First compute entries of R = MJ^{-T}, without det J factor.
-               const real_t M11 = C(0,qx,qy,e);
-               const real_t M12 = C(1,qx,qy,e);
-               const real_t M21 = symmetric ? M12 : C(2,qx,qy,e);
-               const real_t M22 = symmetric ? C(2,qx,qy,e) : C(3,qx,qy,e);
+               const real_t M11 = get_coeff(C,0,qx,qy,e);
+               const real_t M12 = get_coeff(C,1,qx,qy,e);
+               const real_t M21 = symmetric ? M12 : get_coeff(C,2,qx,qy,e);
+               const real_t M22 = symmetric ? get_coeff(C,2,qx,qy,e)
+                                  : get_coeff(C,3,qx,qy,e);
                const real_t R11 = M11*J22 - M12*J12;
                const real_t R21 = M21*J22 - M22*J12;
                const real_t R12 = -M11*J21 + M12*J11;
@@ -127,9 +183,8 @@ void PADiffusionSetup2D<2>(const int Q1D,
             }
             else // Vector or scalar coefficient
             {
-               const real_t C1 = const_c ? C(0,0,0,0) : C(0,qx,qy,e);
-               const real_t C2 = const_c ? C(0,0,0,0) :
-                                 (coeffDim == 2 ? C(1,qx,qy,e) : C(0,qx,qy,e));
+               const real_t C1 = get_coeff(C,0,qx,qy,e);
+               const real_t C2 = get_coeff(C,coeffDim==2?1:0,qx,qy,e);
 
                D(qx,qy,0,e) =  w_detJ * (C2*J12*J12 + C1*J22*J22); // 1,1
                D(qx,qy,1,e) = -w_detJ * (C2*J12*J11 + C1*J22*J21); // 1,2
@@ -174,7 +229,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
             const real_t E = J11*J11 + J21*J21 + J31*J31;
             const real_t G = J12*J12 + J22*J22 + J32*J32;
             const real_t F = J11*J12 + J21*J22 + J31*J32;
-            const real_t iw = 1.0 / sqrt(E*G - F*F);
+            const real_t iw = 1.0 / std::sqrt(E*G - F*F);
             const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
             const real_t alpha = wq * coeff * iw;
             D(qx,qy,0,e) =  alpha * G; // 1,1
@@ -194,14 +249,19 @@ void PADiffusionSetup3D(const int Q1D,
                         Vector &d)
 {
    const bool symmetric = (coeffDim != 9);
-   const bool const_c = c.Size() == 1;
-   MFEM_VERIFY(coeffDim < 6 ||
-               !const_c, "Constant matrix coefficient not supported");
+   const bool const_c = c.Size() == coeffDim;
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
-   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1,1) :
+   const auto C = const_c ? Reshape(c.Read(), coeffDim,1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, symmetric ? 6 : 9, NE);
+
+   auto get_coeff = [const_c] MFEM_HOST_DEVICE
+                    (const decltype(C) &C, int i, int qx, int qy, int qz, int e)
+   {
+      return const_c ? C(i,0,0,0,0) : C(i,qx,qy,qz,e);
+   };
+
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -237,15 +297,18 @@ void PADiffusionSetup3D(const int Q1D,
                if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
                {
                   // Compute entries of R = MJ^{-T} = M adj(J)^T, without det J.
-                  const real_t M11 = C(0, qx,qy,qz, e);
-                  const real_t M12 = C(1, qx,qy,qz, e);
-                  const real_t M13 = C(2, qx,qy,qz, e);
-                  const real_t M21 = (!symmetric) ? C(3, qx,qy,qz, e) : M12;
-                  const real_t M22 = (!symmetric) ? C(4, qx,qy,qz, e) : C(3, qx,qy,qz, e);
-                  const real_t M23 = (!symmetric) ? C(5, qx,qy,qz, e) : C(4, qx,qy,qz, e);
-                  const real_t M31 = (!symmetric) ? C(6, qx,qy,qz, e) : M13;
-                  const real_t M32 = (!symmetric) ? C(7, qx,qy,qz, e) : M23;
-                  const real_t M33 = (!symmetric) ? C(8, qx,qy,qz, e) : C(5, qx,qy,qz, e);
+                  const real_t M11 = get_coeff(C, 0, qx,qy,qz, e);
+                  const real_t M12 = get_coeff(C, 1, qx,qy,qz, e);
+                  const real_t M13 = get_coeff(C, 2, qx,qy,qz, e);
+                  const real_t M21 = (!symmetric) ? get_coeff(C, 3, qx,qy,qz, e) : M12;
+                  const real_t M22 = (!symmetric) ? get_coeff(C, 4, qx,qy,qz, e)
+                                     : get_coeff(C, 3, qx,qy,qz, e);
+                  const real_t M23 = (!symmetric) ? get_coeff(C, 5, qx,qy,qz, e)
+                                     : get_coeff(C, 4, qx,qy,qz, e);
+                  const real_t M31 = (!symmetric) ? get_coeff(C, 6, qx,qy,qz, e) : M13;
+                  const real_t M32 = (!symmetric) ? get_coeff(C, 7, qx,qy,qz, e) : M23;
+                  const real_t M33 = (!symmetric) ? get_coeff(C, 8, qx,qy,qz, e)
+                                     : get_coeff(C, 5, qx,qy,qz, e);
 
                   const real_t R11 = M11*A11 + M12*A12 + M13*A13;
                   const real_t R12 = M11*A21 + M12*A22 + M13*A23;
@@ -285,11 +348,9 @@ void PADiffusionSetup3D(const int Q1D,
                }
                else  // Vector or scalar coefficient version
                {
-                  const real_t C1 = const_c ? C(0,0,0,0,0) : C(0,qx,qy,qz,e);
-                  const real_t C2 = const_c ? C(0,0,0,0,0) :
-                                    (coeffDim == 3 ? C(1,qx,qy,qz,e) : C(0,qx,qy,qz,e));
-                  const real_t C3 = const_c ? C(0,0,0,0,0) :
-                                    (coeffDim == 3 ? C(2,qx,qy,qz,e) : C(0,qx,qy,qz,e));
+                  const real_t C1 = get_coeff(C,0,qx,qy,qz,e);
+                  const real_t C2 = get_coeff(C,coeffDim==3?1:0,qx,qy,qz,e);
+                  const real_t C3 = get_coeff(C,coeffDim==3?2:0,qx,qy,qz,e);
 
                   // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
                   D(qx,qy,qz,0,e) = w_detJ * (C1*A11*A11 + C2*A12*A12 + C3*A13*A13); // 1,1
@@ -361,121 +422,7 @@ void OccaPADiffusionSetup3D(const int D1D,
    }
    OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
-#endif // MFEM_USE_OCCA
 
-void PADiffusionAssembleDiagonal(const int dim,
-                                 const int D1D,
-                                 const int Q1D,
-                                 const int NE,
-                                 const bool symm,
-                                 const Array<real_t> &B,
-                                 const Array<real_t> &G,
-                                 const Vector &D,
-                                 Vector &Y)
-{
-   if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
-         case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
-         case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
-         case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
-         case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);
-         case 0x77: return SmemPADiffusionDiagonal2D<7,7,2>(NE,symm,B,G,D,Y);
-         case 0x88: return SmemPADiffusionDiagonal2D<8,8,1>(NE,symm,B,G,D,Y);
-         case 0x99: return SmemPADiffusionDiagonal2D<9,9,1>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionDiagonal3D<2,2>(NE,symm,B,G,D,Y);
-         case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,symm,B,G,D,Y);
-         case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,symm,B,G,D,Y);
-         case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,symm,B,G,D,Y);
-         case 0x46: return SmemPADiffusionDiagonal3D<4,6>(NE,symm,B,G,D,Y);
-         case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,symm,B,G,D,Y);
-         case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,symm,B,G,D,Y);
-         case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,symm,B,G,D,Y);
-         case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,symm,B,G,D,Y);
-         case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal3D(NE,symm,B,G,D,Y,D1D,Q1D);
-      }
-   }
-   MFEM_ABORT("Unknown kernel.");
-}
-
-void PADiffusionApply(const int dim,
-                      const int D1D,
-                      const int Q1D,
-                      const int NE,
-                      const bool symm,
-                      const Array<real_t> &B,
-                      const Array<real_t> &G,
-                      const Array<real_t> &Bt,
-                      const Array<real_t> &Gt,
-                      const Vector &D,
-                      const Vector &X,
-                      Vector &Y)
-{
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      if (dim == 2)
-      {
-         OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
-         return;
-      }
-      if (dim == 3)
-      {
-         OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
-         return;
-      }
-      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
-   const int id = (D1D << 4) | Q1D;
-
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
-      }
-   }
-
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
-      }
-   }
-   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
-}
-
-#ifdef MFEM_USE_OCCA
 void OccaPADiffusionApply2D(const int D1D,
                             const int Q1D,
                             const int NE,

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             }
          }
 
+
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
          int globalN = 0;
@@ -102,8 +103,10 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the global indices range from 0 to globalN-1.
             {
-               const HYPRE_BigInt localMin = gi.Min();
-               const HYPRE_BigInt localMax = gi.Max();
+               const HYPRE_BigInt localMin = gi.Size() > 0 ? gi.Min() :
+                                             std::numeric_limits<HYPRE_BigInt>::max();
+               const HYPRE_BigInt localMax = gi.Size() > 0 ? gi.Max() :
+                                             std::numeric_limits<HYPRE_BigInt>::min();
 
                HYPRE_BigInt globalMin, globalMax;
                MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_BIG_INT, MPI_MIN,
@@ -116,6 +119,31 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
          }
       }
    }
+}
+
+TEST_CASE("ParMeshSharedFaces", "[Parallel], [ParMesh]")
+{
+   const char *mesh_file = "../../data/fichera-amr.mesh";
+
+   Mesh mesh(mesh_file);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   pmesh.ExchangeFaceNbrData();
+
+   const int nshared = pmesh.GetNSharedFaces();
+   int local_ghosts_nonmatching = 0;
+   for (int sf = 0; sf < nshared; sf++)
+   {
+      const int f = pmesh.GetSharedFace(sf);
+      FaceElementTransformations *ftr =
+         pmesh.GetSharedFaceTransformationsByLocalIndex(f, false);
+      if (f != ftr->ElementNo) { local_ghosts_nonmatching++; }
+   }
+
+   int global_ghosts_nonmatching = 0;
+   MPI_Allreduce(&local_ghosts_nonmatching, &global_ghosts_nonmatching, 1, MPI_INT,
+                 MPI_SUM, pmesh.GetComm());
+
+   REQUIRE(global_ghosts_nonmatching == 0);
 }
 
 namespace simplicial
@@ -180,6 +208,10 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
    // to solver tolerance.
 
    Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   if (GENERATE(false,true))
+   {
+      mesh.SetCurvature(2);
+   }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
 

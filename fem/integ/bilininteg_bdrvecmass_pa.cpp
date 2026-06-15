@@ -172,7 +172,6 @@ void BoundaryVectorMassIntegrator::
       ir = &IntRules.Get(mesh->GetFaceGeometry(0), order);
    }
 
-   nq = ir->GetNPoints();
    dim = mesh->Dimension();
 
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
