@@ -89,9 +89,9 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
 /* check reduction in objective against prediction, and adjust
    trust region radius (p->tr) accordingly;
    may reject the prior step, returning 1; otherwise returns 0
-   sets out->dist2, out->index, out->x, out->oldr in any event,
-   leaving out->r, out->dr, out->flags to be set when returning 0 */
-static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
+   sets out_pt->dist2, out_pt->index, out_pt->x, out_pt->oldr in any event,
+   leaving out_pt->r, out_pt->dr, out_pt->flags to be set when returning 0 */
+static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out_pt,
                                                  const double resid[3],
                                                  const findptsElementPoint_t *p,
                                                  const double tol)
@@ -101,19 +101,19 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
    const double pred  = p->dist2p;
    for (int d=0; d<sDIM; ++d)
    {
-      out->x[d] = p->x[d];
+      out_pt->x[d] = p->x[d];
    }
-   out->oldr = p->r;
-   out->dist2 = dist2;
+   out_pt->oldr = p->r;
+   out_pt->dist2 = dist2;
    if (decr>=0.01*pred)
    {
       if (decr>=0.9*pred)   // very good iteration
       {
-         out->tr = 2*p->tr;
+         out_pt->tr = 2*p->tr;
       }
       else   // good iteration
       {
-         out->tr = p->tr;
+         out_pt->tr = p->tr;
       }
       return false;
    }
@@ -124,21 +124,21 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
          "very good iteration" --- this doubles the trust radius,
          which is why we divide by 4 below */
       double v0 = fabs(p->r - p->oldr);
-      out->tr = v0/4.0;
-      out->dist2 = p->dist2;
-      out->r = p->oldr;
-      out->flags = p->flags>>3;
-      out->dist2p = -HUGE_VAL;
+      out_pt->tr = v0/4.0;
+      out_pt->dist2 = p->dist2;
+      out_pt->r = p->oldr;
+      out_pt->flags = p->flags>>3;
+      out_pt->dist2p = -HUGE_VAL;
       if (pred<dist2*tol)
       {
-         out->flags |= CONVERGED_FLAG;
+         out_pt->flags |= CONVERGED_FLAG;
       }
       return true;
    }
 }
 
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
-                                                out,
+                                                out_pt,
                                                 const double jac[sDIM*rDIM],
                                                 const double rhes,
                                                 const double resid[sDIM],
@@ -212,9 +212,9 @@ newton_edge_fin:
    {
       new_flags |= CONVERGED_FLAG;
    }
-   out->r = nr;
-   out->dist2p = -v;
-   out->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<3);
+   out_pt->r = nr;
+   out_pt->dist2p = -v;
+   out_pt->flags = flags | new_flags | ((p->flags & FLAG_MASK)<<3);
 #undef EVAL
 }
 

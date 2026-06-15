@@ -49,6 +49,7 @@
 //    findpts -m ../../data/ref-square.mesh -o 2 -mo 1 -random 1 -surf
 //    findpts -m ../../data/ref-cube.mesh -o 2 -mo 1 -random 1 -surf
 //    findpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -random 1 -surf
+// Surface meshes + bounding box size increase:
 //    findpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -random 1 -surf -sabs 0.1
 //    findpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -random 1 -surf -sabs 0.1
 

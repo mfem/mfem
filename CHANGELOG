@@ -15,8 +15,12 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
-- Added NVIDIA cuDSS library interface. Implementation examples have been 
-  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more 
+- Improved FindPointsGSLIB surface mesh capability with support for simplices
+  and an option to specify axis-aligned bounding box padding for near-surface
+  point queries.
+
+- Added NVIDIA cuDSS library interface. Implementation examples have been
+  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
 
 - Extend FindPointsGSLIB to support surface meshes.

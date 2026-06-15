@@ -318,19 +318,19 @@ double dbl_range_diag_expand_3(struct gslib::dbl_range *b, double tol)
    return len;
 }
 
-static void bbox_2_tfm(double *out, const double x0[2], const double Ji[4],
+static void bbox_2_tfm(double *tfm, const double x0[2], const double Ji[4],
                        const double *x, const double *y, unsigned n)
 {
    unsigned i;
    for (i=0; i<n; ++i)
    {
       const double dx = x[i]-x0[0], dy = y[i]-x0[1];
-      out[  i] = Ji[0]*dx + Ji[1]*dy;
-      out[n+i] = Ji[2]*dx + Ji[3]*dy;
+      tfm[  i] = Ji[0]*dx + Ji[1]*dy;
+      tfm[n+i] = Ji[2]*dx + Ji[3]*dy;
    }
 }
 
-static void bbox_3_tfm(double *out, const double x0[3], const double Ji[9],
+static void bbox_3_tfm(double *tfm, const double x0[3], const double Ji[9],
                        const double *x, const double *y, const double *z,
                        unsigned n)
 {
@@ -338,9 +338,9 @@ static void bbox_3_tfm(double *out, const double x0[3], const double Ji[9],
    for (i=0; i<n; ++i)
    {
       const double dx = x[i]-x0[0], dy = y[i]-x0[1], dz = z[i]-x0[2];
-      out[    i] = Ji[0]*dx + Ji[1]*dy + Ji[2]*dz;
-      out[  n+i] = Ji[3]*dx + Ji[4]*dy + Ji[5]*dz;
-      out[2*n+i] = Ji[6]*dx + Ji[7]*dy + Ji[8]*dz;
+      tfm[    i] = Ji[0]*dx + Ji[1]*dy + Ji[2]*dz;
+      tfm[  n+i] = Ji[3]*dx + Ji[4]*dy + Ji[5]*dz;
+      tfm[2*n+i] = Ji[6]*dx + Ji[7]*dy + Ji[8]*dz;
    }
 }
 
