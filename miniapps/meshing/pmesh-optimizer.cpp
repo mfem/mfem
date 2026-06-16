@@ -82,6 +82,8 @@
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape + bounded Jacobian determinant:
+//     * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db
 //   Blade shape (AD):
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -173,6 +175,7 @@ int main (int argc, char *argv[])
    int mesh_node_order   = 0;
    int barrier_type      = 0;
    int worst_case_type   = 0;
+   bool detj_bound       = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -331,7 +334,10 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
-
+   args.AddOption(&detj_bound, "-db", "--detj-bound",
+                  "-no-db", "--no-detj-bound",
+                  "Enable or disable strict enforcement of positive Jacobian "
+                  "determinants to guarantee mesh validity for tensor-product " "elements.");
    args.Parse();
    if (!args.Good())
    {
@@ -599,7 +605,7 @@ int main (int argc, char *argv[])
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
                                                                     2,
                                                                     1.5,
-                                                                    0.001,//0.01 for pseudo barrier
+                                                                    1e-4,
                                                                     0.001,
                                                                     btype,
                                                                     wctype);
@@ -1212,6 +1218,12 @@ int main (int argc, char *argv[])
    if (solver_art_type > 0)
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
+   if (detj_bound)
+   {
+      const int bound_refs = 4; // number of refinements to compute bounds
+      const int bound_recs = 4; // number of recursions for the bound search
+      solver.EnsurePositiveDeterminantBound(*pmesh, bound_refs, bound_recs);
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;

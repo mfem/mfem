@@ -269,6 +269,22 @@ IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim)
    {
       MFEM_ABORT("Duffy transformation not implemented for this dimension!");
    }
+
+IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
+{
+   const int np = GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
 }
 
 #ifdef MFEM_USE_MPFR
