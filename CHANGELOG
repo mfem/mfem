@@ -34,7 +34,7 @@ Discretization improvements
 - Improved the gridfunction projection routines. Projections work for Scalar,
   Vector and VectorFE, also NURBS versions. Optionally different types of
   projections can be selected, default behaviour has not changed.
-- Added gridfunction projection methods for trace spaces, i.e., project 
+- Added grid function projection methods for trace spaces, i.e., project
   coefficients on the mesh skeleton.   
 
 - Added methods to estimate function extremum using piecewise linear bounds +
