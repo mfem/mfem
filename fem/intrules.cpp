@@ -269,6 +269,7 @@ IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim)
    {
       MFEM_ABORT("Duffy transformation not implemented for this dimension!");
    }
+}
 
 IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
 {
