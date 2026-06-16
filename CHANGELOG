@@ -58,8 +58,9 @@ New and updated examples and miniapps
 
 Linear and nonlinear solvers
 ----------------------------
-- Added support for trace spaces in PRefinementTransferOperator. This is used in 
-  PRefinement multigrid methods for problems posed on trace spaces (see DPG miniapps)
+- Added support for trace spaces in PRefinementTransferOperator. This is used in
+  PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
+  DPG miniapps).
 
 GPU computing
 -------------
