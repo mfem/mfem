@@ -79,13 +79,13 @@ void BramblePasciakSolver::Init(HypreParMatrix &M,
       temp_tri->SetBlock(0, 0, id_m);
       temp_tri->SetBlock(1, 1, id_b, -1.0);
       temp_tri->SetBlock(1, 0, BinvQ);
-      temp_tri->owns_blocks = 1;
+      temp_tri->SetBlockOwnership(1);
 
       ppc_ = std::make_unique<ProductOperator>(temp_cpc, temp_tri, true, true);
 
       ipc_ = std::make_unique<BlockOperator>(offsets_);
       ipc_->SetDiagonalBlock(0, invQ);
-      ipc_->owns_blocks = 1;
+      ipc_->SetBlockOwnership(1);
 
       // bpcg
       solver_ = std::make_unique<BPCGSolver>(M.GetComm(), ipc_.get(), ppc_.get());
@@ -102,7 +102,7 @@ void BramblePasciakSolver::Init(HypreParMatrix &M,
       // ipc_ unused in cg
       auto temp_ipc = new BlockOperator(offsets_);
       temp_ipc->SetDiagonalBlock(0, invQ);
-      temp_ipc->owns_blocks = 1;
+      temp_ipc->SetBlockOwnership(1);
 
       // temp_AN = temp_oop * temp_ipc
       auto temp_AN = new ProductOperator(temp_oop, temp_ipc, true, true);

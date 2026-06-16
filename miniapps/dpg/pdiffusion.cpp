@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
       BlockOperator * A = Ah.As<BlockOperator>();
 
       BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
+      M.SetBlockOwnership(1);
       int skip = 0;
       if (!static_cond)
       {

@@ -161,9 +161,9 @@ void ComplexBlockStaticCondensation::Init()
    ComputeOffsets();
 
    S_r = new BlockMatrix(rdof_offsets);
-   S_r->owns_blocks = 1;
+   S_r->SetBlockOwnership(1);
    S_i = new BlockMatrix(rdof_offsets);
-   S_i->owns_blocks = 1;
+   S_i->SetBlockOwnership(1);
 
    for (int i = 0; i<S_r->NumRowBlocks(); i++)
    {
@@ -564,8 +564,8 @@ void ComplexBlockStaticCondensation::BuildProlongation()
 {
    P = new BlockMatrix(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
    {
@@ -587,8 +587,8 @@ void ComplexBlockStaticCondensation::BuildParallelProlongation()
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
    pP = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   pP->owns_blocks = 0;
-   R->owns_blocks = 0;
+   pP->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
    {
@@ -615,10 +615,10 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
    pS_e_r = new BlockOperator(rtdof_offsets);
    pS_i = new BlockOperator(rtdof_offsets);
    pS_e_i = new BlockOperator(rtdof_offsets);
-   pS_r->owns_blocks = 1;
-   pS_i->owns_blocks = 1;
-   pS_e_r->owns_blocks = 1;
-   pS_e_i->owns_blocks = 1;
+   pS_r->SetBlockOwnership(1);
+   pS_i->SetBlockOwnership(1);
+   pS_e_r->SetBlockOwnership(1);
+   pS_e_i->SetBlockOwnership(1);
    HypreParMatrix * A_r = nullptr;
    HypreParMatrix * A_i = nullptr;
    HypreParMatrix * PtAP_r = nullptr;
@@ -877,8 +877,8 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
 
       S_e_r = new BlockMatrix(offsets);
       S_e_i = new BlockMatrix(offsets);
-      S_e_r->owns_blocks = 1;
-      S_e_i->owns_blocks = 1;
+      S_e_r->SetBlockOwnership(1);
+      S_e_i->SetBlockOwnership(1);
       for (int i = 0; i<S_e_r->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
