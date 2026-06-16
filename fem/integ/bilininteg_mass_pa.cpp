@@ -159,6 +159,9 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int D1D = dofs1D;
       const int Q1D = quad1D;
       const Vector &D = pa_data;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
@@ -196,8 +199,6 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else
       {
-         const Array<real_t> &B = maps->B;
-         const Array<real_t> &Bt = maps->Bt;
          ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
       }
    }
