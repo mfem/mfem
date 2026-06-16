@@ -52,6 +52,7 @@ public:
 
    enum class SubspaceSelectionMethod
    {
+      NONE,
       GRADIENT,
       KNEE,
       GMM,
@@ -99,6 +100,7 @@ protected:
    /// Initialize work vectors.
    void InitVectors() const;
    bool mutable solver_set = false;
+   SubspaceSelectionMethod selectionMethod = SubspaceSelectionMethod::NONE;
 private:
 
    /// Build and/or return cached projected operator $ P^T A P $.

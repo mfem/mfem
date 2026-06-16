@@ -281,36 +281,50 @@ def main() -> int:
                 if r.alpha == alpha
                 and r.schwarz_filter == schwarz_filter
                 and r.iterative_filter == args.iterative_filter
+                and r.pcg_iters is not None
             ]
             subset.sort(key=lambda r: r.subdomain_iters)
 
-            converged = [r for r in subset if r.pcg_iters is not None and not r.no_convergence]
-            not_converged = [r for r in subset if r.pcg_iters is not None and r.no_convergence]
-
             label = f"alpha={alpha:g}, {'schwarz' if schwarz_filter else 'no schwarz'}"
 
-            if converged:
+            if subset:
+                xs = [r.subdomain_iters for r in subset]
+                ys = [r.pcg_iters for r in subset]
+
+                # Draw connecting line through all points
                 ax.plot(
-                    [r.subdomain_iters for r in converged],
-                    [r.pcg_iters for r in converged],
+                    xs,
+                    ys,
                     color=color,
-                    marker=style_map[schwarz_filter]["marker"],
                     linestyle=style_map[schwarz_filter]["linestyle"],
                     linewidth=2,
                     label=label,
                 )
 
-            if not_converged:
-                ax.plot(
-                    [r.subdomain_iters for r in not_converged],
-                    [r.pcg_iters for r in not_converged],
-                    color=color,
-                    marker="x",
-                    linestyle="None",
-                    markersize=8,
-                    markeredgewidth=2,
-                    label=f"{label}, no convergence",
-                )
+                # Overlay converged markers
+                conv = [r for r in subset if not r.no_convergence]
+                if conv:
+                    ax.plot(
+                        [r.subdomain_iters for r in conv],
+                        [r.pcg_iters for r in conv],
+                        color=color,
+                        marker=style_map[schwarz_filter]["marker"],
+                        linestyle="None",
+                        markersize=6,
+                    )
+
+                # Overlay non-converged markers
+                no_conv = [r for r in subset if r.no_convergence]
+                if no_conv:
+                    ax.plot(
+                        [r.subdomain_iters for r in no_conv],
+                        [r.pcg_iters for r in no_conv],
+                        color=color,
+                        marker="x",
+                        linestyle="None",
+                        markersize=8,
+                        markeredgewidth=2,
+                    )
 
         baseline = [
             r for r in results

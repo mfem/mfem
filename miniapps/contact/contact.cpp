@@ -88,6 +88,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    // Enable/disable ParaView output
    bool paraview = false;
+   // Enable/disable screenshot generation
+   bool screenshots = false;
    // Problem choice (0,1,2)
    int prob_no = 0;
    // number of times steps in the z-direction (problem 0)
@@ -134,6 +136,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&screenshots, "-screenshot", "--screenshots", "-no-screenshot",
+                  "--no-screenshots",
+                  "Enable or disable screenshot generation of eigenvectors.");
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
                   "Tribol-proximity-parameter.");
 
@@ -515,17 +520,41 @@ int main(int argc, char *argv[])
                      << "window_title 'Eigenmode " << eigi+1 << '/' << nev
                      << ", Lambda = " << eigenvalues[eigi] << "'" << endl;
 
-            char c;
-            if (myid == 0)
+            if (screenshots)
             {
-               mfem::out << "press (q)uit or (c)ontinue --> " << flush;
-               cin >> c;
-            }
-            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+               // Wait for user input on the first eigenmode to allow camera adjustment
+               if (eigi == 0)
+               {
+                  char tempc;
+                  if (myid == 0)
+                  {
+                     mfem::out << "Adjust camera, then press any key to start screenshots --> " << flush;
+                     cin >> tempc;
+                  }
+                  MPI_Bcast(&tempc, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+               }
 
-            if (c != 'c')
+               // Generate screenshot filename
+               std::ostringstream screenshot_name;
+               screenshot_name << "eigenmode_step_" << i << "_mode_" << eigi
+                             << "_lambda_" << eigenvalues[eigi] << ".png";
+               sol_sock << "screenshot " << screenshot_name.str() << "\n";
+            }
+
+            if (!screenshots)
             {
-               break;
+               char c;
+               if (myid == 0)
+               {
+                  mfem::out << "press (q)uit or (c)ontinue --> " << flush;
+                  cin >> c;
+               }
+               MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+               if (c != 'c')
+               {
+                  break;
+               }
             }
          }
 

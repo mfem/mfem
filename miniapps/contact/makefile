@@ -48,7 +48,7 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
-		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
+		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE)))) -ltribol_shared -framework Accelerate
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
  $(CONFIG_MK) | 
