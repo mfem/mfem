@@ -901,11 +901,6 @@ void AmpereOperator::ImplicitSolve(const real_t dt, const Vector &B,
    }
 }
 
-/// TODO: for now this always does full assembly into a hypre matrix.
-/// CurlInterpolator from H(curl) to H(div) doesn't support partial assembly
-/// yet.
-// #define FARADAY_HAS_PA
-
 FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
                                  ParFiniteElementSpace &hdiv,
                                  size_t assembly_type,
@@ -920,7 +915,6 @@ FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
       case 0:
          // partial assembly
          hdiv_mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-#ifdef FARADAY_HAS_PA
          hdiv_mass.AddDomainIntegrator(new VectorFEMassIntegrator(inv_mu_coeff));
          hdiv_mass.Assemble();
          hdiv_mass.Finalize();
@@ -928,9 +922,6 @@ FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
          curl_op.Assemble();
          curl_op.Finalize();
          break;
-#else
-         [[fallthrough]];
-#endif
       case 1:
          // full assembly
          curl_op.Assemble();
@@ -942,10 +933,7 @@ FaradayOperator::FaradayOperator(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
          hdiv_mass.AddDomainIntegrator(new VectorFEMassIntegrator(inv_mu_coeff));
          hdiv_mass.Assemble();
          hdiv_mass.Finalize();
-#ifndef FARADAY_HAS_PA
-         if (assembly_type)
-#endif
-            par_hdiv_mass.reset(hdiv_mass.ParallelAssemble());
+         par_hdiv_mass.reset(hdiv_mass.ParallelAssemble());
          break;
    }
 }
@@ -1372,75 +1360,86 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
    HypreParVector *v1_tdof = hcurl_buf2.get();
    HypreParVector *hd_tdof = hdiv_buf.get();
    std::unique_ptr<ParGridFunction> u0_ldof;
-   HypreParVector *u0_tdof = faraday.dBdt_work.get();
    std::unique_ptr<ParGridFunction> hd_ldof;
-   if (!faraday.par_hdiv_mass)
-   {
-      u0_ldof.reset(new ParGridFunction(faraday.hdiv_space));
-      hd_ldof.reset(new ParGridFunction(faraday.hdiv_space));
-   }
+   std::unique_ptr<ParGridFunction> hc_ldof;
+   std::unique_ptr<HypreParVector> hcurl_buf3;
+   std::unique_ptr<HypreParVector> hdiv_buf2;
+   HypreParVector *u0_tdof;
+   HypreParVector *rhs_tdof;
    const Operator *Rhcurl = faraday.hcurl_space->GetRestrictionOperator();
    const Operator *Phcurl = faraday.hcurl_space->GetProlongationMatrix();
 
    const Operator *Rhdiv = faraday.hdiv_space->GetRestrictionOperator();
    const Operator *Phdiv = faraday.hdiv_space->GetProlongationMatrix();
-   HypreParVector *rhs_tdof = faraday.E_work.get();
+
+   if (faraday.neg_curl)
+   {
+      // use exisint vectors
+      u0_tdof = faraday.dBdt_work.get();
+      rhs_tdof = faraday.E_work.get();
+   }
+   else
+   {
+      // partial assembly
+      hcurl_buf3.reset(faraday.hcurl_space->NewTrueDofVector());
+      rhs_tdof = hcurl_buf3.get();
+      hdiv_buf2.reset(faraday.hdiv_space->NewTrueDofVector());
+      u0_tdof = hdiv_buf2.get();
+      u0_ldof.reset(new ParGridFunction(faraday.hdiv_space));
+      if (Phcurl)
+      {
+         hc_ldof.reset(new ParGridFunction(faraday.hcurl_space));
+      }
+      hd_ldof.reset(new ParGridFunction(faraday.hdiv_space));
+   }
 
    ampere.action.dt = 0;
    ampere.action.apply_bcs_in_mult = false;
 
    while (iter < niters && change > ptol)
    {
-
       real_t normV0 = InnerProduct(*v0_tdof, *v0_tdof);
       *v0_tdof /= sqrt(normV0);
       if (faraday.neg_curl)
       {
          faraday.neg_curl->Mult(*v0_tdof, *u0_tdof);
-         if (faraday.par_hdiv_mass)
-         {
-            faraday.par_hdiv_mass->Mult(*u0_tdof, *hd_tdof);
-         }
-         else
-         {
-            // !defined(FARADAY_HAS_PA) case with partial assembly
-            if (Phdiv)
-            {
-               Phdiv->Mult(*u0_tdof, *u0_ldof);
-            }
-            else
-            {
-               *u0_ldof = *u0_tdof;
-            }
-            faraday.hdiv_mass.Mult(*u0_ldof, *hd_ldof);
-            if (Phdiv)
-            {
-               Phdiv->MultTranspose(*hd_ldof, *hd_tdof);
-            }
-            else
-            {
-               static_cast<Vector &>(*hd_tdof) =
-                  static_cast<Vector &>(*hd_ldof);
-            }
-         }
+         faraday.par_hdiv_mass->Mult(*u0_tdof, *hd_tdof);
          faraday.neg_curl->MultTranspose(*hd_tdof, *rhs_tdof);
-         if (faraday.par_hdiv_mass)
-         {
-            // TODO: full assembly on the ampere part
-         }
-         else
-         {
-            // !defined(FARADAY_HAS_PA) case with partial assembly
-            // TODO: this also sets the essential bcs, is this ok?
-            ampere.solver.Mult(*rhs_tdof, *v1_tdof);
-         }
-         real_t lambda = InnerProduct(*v0_tdof, *v1_tdof);
-         dt1 = 2_r / sqrt(lambda);
+         // TODO: full assembly on the ampere part
+         // pcg needs to not have BC's applied
+         // ampere.pcg.Mult(*rhs_tdof, *v1_tdof)
       }
       else
       {
-         // TODO: partial assembly
+         if (Phcurl)
+         {
+            Phcurl->Mult(*v0_tdof, *hc_ldof);
+            faraday.curl_op.Mult(*hc_ldof, *u0_ldof);
+         }
+         else
+         {
+            faraday.curl_op.Mult(*v0_tdof, *u0_ldof);
+         }
+         faraday.hdiv_mass.Mult(*u0_ldof, *hd_ldof);
+         if (Phdiv)
+         {
+            Phdiv->MultTranspose(*hd_ldof, *hd_tdof);
+            Phdiv->Mult(*hd_tdof, *hd_ldof);
+         }
+         if (Phcurl)
+         {
+            faraday.curl_op.MultTranspose(*hd_ldof, *hc_ldof);
+            Phcurl->MultTranspose(*hc_ldof, *rhs_tdof);
+         }
+         else
+         {
+            faraday.curl_op.MultTranspose(*hd_ldof, *rhs_tdof);
+         }
+         ampere.solver.Mult(*rhs_tdof, *v1_tdof);
       }
+      real_t lambda = InnerProduct(*v0_tdof, *v1_tdof);
+      dt1 = 2_r / sqrt(lambda);
+
       change = fabs((dt1 - dt0) / dt0);
       dt0 = dt1;
       std::swap(v0_tdof, v1_tdof);
