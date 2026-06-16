@@ -198,12 +198,16 @@ protected:
    // Flag to compute minimum determinant and maximum metric in ProcessNewState,
    // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
    mutable bool compute_metric_quantile_flag = true;
+   // Tangential relaxation
+   bool tangential_relaxation = false;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
+   // Bounding determinant grid function
+   bool detj_bound = false;
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
@@ -218,6 +222,10 @@ protected:
 
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
+
+   real_t GetDeterminantLowerBound(const Vector &d,
+                                   const FiniteElementSpace &fes,
+                                   bool update_det_gf) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
    real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
@@ -260,6 +268,11 @@ public:
    }
 
    void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
+
+   void EnsurePositiveDeterminantBound()
+   {
+      detj_bound = true;
+   }
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
@@ -380,15 +393,23 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
+
+   void SetTangentialRelaxationFlag(bool flag)
+   {
+      tangential_relaxation = flag;
+   }
+
+   bool TangentialRelaxation(const Vector &d_loc_in, Vector &d_loc_out) const;
+
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &pmesh,
-                       char *title, int position);
+                       const char *title, int posx, int posy=0, int size=600);
 #ifdef MFEM_USE_MPI
 void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position);
+                       const char *title, int posx, int posy=0, int size=400);
 #endif
 
 // Compute x = x_0 + d, where x and x_0 are L2, d is H1p, all ldof vectors.

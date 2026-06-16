@@ -199,8 +199,7 @@ real_t csg_cubecylsph(const Vector &x)
    return in_return_val;
 }
 
-#ifdef MFEM_USE_MPI
-void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
+void ModifyBoundaryAttributesForNodeMovement(Mesh *pmesh, GridFunction &x)
 {
    const int dim = pmesh->Dimension();
    for (int i = 0; i < pmesh->GetNBE(); i++)
@@ -270,6 +269,7 @@ void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
    }
 }
 
+#ifdef MFEM_USE_MPI
 void ModifyAttributeForMarkingDOFS(ParMesh *pmesh, ParGridFunction &mat,
                                    int attr_to_switch)
 {

@@ -12,6 +12,7 @@
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
+#include "gslib_kernel_helpers.hpp"
 
 #include <climits>
 
@@ -59,128 +60,15 @@ struct findptsElemPt
    double x[DIM], jac[DIM * DIM], hes[18];
 };
 
-struct dbl_range_t
-{
-   double min, max;
-};
-
-struct obbox_t
-{
-   double c0[DIM], A[DIM * DIM];
-   dbl_range_t x[DIM];
-};
-
-struct findptsLocalHashData_t
-{
-   int hash_n;
-   dbl_range_t bnd[DIM];
-   double fac[DIM];
-   unsigned int *offset;
-   // int max;
-};
-
-// Eval the ith Lagrange interpolant and its first derivative at x.
-// Note: lCoeff stores pre-computed coefficients for fast evaluation.
-static MFEM_HOST_DEVICE inline void lag_eval_first_der(double *p0, double x,
-                                                       int i, const double *z,
-                                                       const double *lCoeff,
-                                                       int pN)
-{
-   double u0 = 1, u1 = 0;
-   for (int j = 0; j < pN; ++j)
-   {
-      if (i != j)
-      {
-         double d_j = 2*(x-z[j]);
-         u1 = d_j*u1+u0;
-         u0 = d_j*u0;
-      }
-   }
-   p0[i] = lCoeff[i]*u0;
-   p0[pN+i] = 2.0*lCoeff[i]*u1;
-}
-
-// Eval the ith Lagrange interpolant and its first and second derivative at x.
-// Note: lCoeff stores pre-computed coefficients for fast evaluation.
-static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
-                                                        int i, const double *z,
-                                                        const double *lCoeff,
-                                                        int pN)
-{
-   double u0 = 1, u1 = 0, u2 = 0;
-   for (int j = 0; j < pN; ++j)
-   {
-      if (i != j)
-      {
-         double d_j = 2*(x-z[j]);
-         u2 = d_j*u2+u1;
-         u1 = d_j*u1+u0;
-         u0 = d_j*u0;
-      }
-   }
-   p0[i] = lCoeff[i]*u0;
-   p0[pN+i] = 2.0*lCoeff[i]*u1;
-   p0[2*pN+i] = 8.0*lCoeff[i]*u2;
-}
-
-// Axis-aligned bounding box test.
-static MFEM_HOST_DEVICE inline double AABB_test(const obbox_t *const b,
-                                                const double x[3])
-{
-   double b_d;
-   for (int d = 0; d < 3; ++d)
-   {
-      b_d = (x[d]-b->x[d].min)*(b->x[d].max-x[d]);
-      if (b_d < 0) { return b_d; }
-   }
-   return b_d;
-}
-
-// Axis-aligned bounding box test followed by oriented bounding-box test.
-static MFEM_HOST_DEVICE inline double bbox_test(const obbox_t *const b,
-                                                const double x[3])
-{
-   const double bxyz = AABB_test(b, x);
-   if (bxyz < 0)
-   {
-      return bxyz;
-   }
-   else
-   {
-      double dxyz[3];
-      for (int d = 0; d < 3; ++d)
-      {
-         dxyz[d] = x[d]-b->c0[d];
-      }
-      double test = 1;
-      for (int d = 0; d < 3; ++d)
-      {
-         double rst = 0;
-         for (int e = 0; e < 3; ++e)
-         {
-            rst += b->A[d*3+e]*dxyz[e];
-         }
-         double brst = (rst+1)*(1-rst);
-         test = test < 0 ? test : brst;
-      }
-      return test;
-   }
-}
-
-// Element index corresponding to hash mesh that the point is located in.
-static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
-                                              const double x[3])
-{
-   const int n = p->hash_n;
-   int sum = 0;
-   for (int d = 3-1; d >= 0; --d)
-   {
-      sum *= n;
-      int i = (int)floor((x[d]-p->bnd[d].min)*p->fac[d]);
-      sum += i < 0 ? 0 : (n-1 < i ? n-1 : i);
-   }
-   return sum;
-}
+using dbl_range_t = gslib::dbl_range_t;
+using obbox_t = gslib::obbox_t<DIM>;
+using findptsLocalHashData_t = gslib::findptsLocalHashData_t<DIM>;
+using gslib::bbox_test;
+using gslib::hash_index;
+using gslib::l2norm2;
+using gslib::lag_eval_first_der;
+using gslib::lag_eval_second_der;
+using gslib::lin_solve_sym_2;
 
 // Solve Ax=y. A is row-major.
 static MFEM_HOST_DEVICE inline void lin_solve_3(double x[3], const double A[9],
@@ -197,22 +85,6 @@ static MFEM_HOST_DEVICE inline void lin_solve_3(double x[3], const double A[9],
    x[0] = idet*(inv0*y[0]+inv1*y[1]+inv2*y[2]);
    x[1] = idet*(inv3*y[0]+inv4*y[1]+inv5*y[2]);
    x[2] = idet*(inv6*y[0]+inv7*y[1]+inv8*y[2]);
-}
-
-// Solve Ax=y. A is a symmetric 2x2 matrix.
-static MFEM_HOST_DEVICE inline void lin_solve_sym_2(double x[2],
-                                                    const double A[3],
-                                                    const double y[2])
-{
-   const double idet = 1 / (A[0]*A[2]-A[1]*A[1]);
-   x[0] = idet*(A[2]*y[0]-A[1]*y[1]);
-   x[1] = idet*(A[0]*y[1]-A[1]*y[0]);
-}
-
-// L2 norm.
-static MFEM_HOST_DEVICE inline double l2norm2(const double x[3])
-{
-   return x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
 }
 
 /* the bit structure of flags is CTTSSRR
@@ -459,7 +331,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *res,
                                                  const findptsPt *p,
                                                  const double tol)
 {
-   const double dist2 = l2norm2(resid);
+   const double dist2 = l2norm2<3>(resid);
    const double decr = p->dist2-dist2;
    const double pred = p->dist2p;
    for (int d = 0; d < 3; ++d)
@@ -1809,33 +1681,36 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    {
       case 2:
          FindPointsLocal3DKernel<2>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+                                    pgslm, NE_split_total, pwt, pbb,
+                                    DEV.lh_nx, plhm, plhf, plho,
+                                    pcode, pelem, pref, pdist, pgll1d, plc);
          break;
       case 3:
          FindPointsLocal3DKernel<3>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+                                    pgslm, NE_split_total, pwt, pbb,
+                                    DEV.lh_nx, plhm, plhf, plho,
+                                    pcode, pelem, pref, pdist, pgll1d, plc);
          break;
       case 4:
          FindPointsLocal3DKernel<4>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+                                    pgslm, NE_split_total, pwt, pbb,
+                                    DEV.lh_nx, plhm, plhf, plho,
+                                    pcode, pelem, pref, pdist, pgll1d, plc);
          break;
       case 5:
          FindPointsLocal3DKernel<5>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
-                                    plhf, plho, pcode, pelem, pref, pdist, pgll1d,
-                                    plc);
+                                    pgslm, NE_split_total, pwt, pbb,
+                                    DEV.lh_nx, plhm, plhf, plho,
+                                    pcode, pelem, pref, pdist, pgll1d, plc);
          break;
       default:
-         FindPointsLocal3DKernel(npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
-                                 NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-                                 plho, pcode, pelem, pref, pdist, pgll1d, plc,
+         FindPointsLocal3DKernel(npt, DEV.newt_tol, pp,
+                                 point_pos_ordering, pgslm,
+                                 NE_split_total, pwt, pbb,
+                                 DEV.lh_nx, plhm, plhf, plho,
+                                 pcode, pelem, pref, pdist, pgll1d, plc,
                                  DEV.dof1d);
+         break;
    }
 }
 #undef pMax

@@ -13,8 +13,14 @@
 #define MFEM_TMOP_HPP
 
 #include "../linalg/invariants.hpp"
-#include "nonlininteg.hpp"
+#include "gridfunc.hpp"
 #include "../linalg/dual.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#else
+#include "gridfunc.hpp"
+#endif
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -2065,6 +2071,11 @@ protected:
    Array<int> surf_fit_dof_count;            // Number of dofs per node.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
+   // Determinant bounding
+   mutable GridFunction *det_gf = nullptr;
+   std::unique_ptr<PLBound> det_plb;
+   int plb_rec_depth = 0;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -2080,6 +2091,13 @@ protected:
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
+
+   bool tangential_relaxation = false;
+#ifdef MFEM_USE_GSLIB
+   Array<FindPointsGSLIB *> finder_arr;
+   Array<Array<int> *> fdofs_arr;
+   Array<GridFunction *> nodes_int_arr;
+#endif
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -2508,6 +2526,33 @@ public:
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
 
+   // Tangential relaxation
+#ifdef MFEM_USE_GSLIB
+   void EnableTangentialRelaxation(Array<FindPointsGSLIB *> finder_arr_,
+                                   Array<Array<int> *> fdofs_arr_,
+                                   Array<GridFunction *> nodes_int_arr_)
+   {
+      tangential_relaxation = true;
+      finder_arr = finder_arr_;
+      fdofs_arr = fdofs_arr_;
+      nodes_int_arr = nodes_int_arr_;
+   }
+
+   void TangentialRelaxation(const Vector &d_in,
+                             FiniteElementSpace *d_fes,
+                             Vector &d_out);
+
+   bool PreprocessTangentialRelaxation(const Vector &d_loc,
+                                       const FiniteElementSpace *d_fes);
+#endif
+
+   // Mesh nodal locations are set as x_0+d_loc
+   // u is the displacement on top of that
+   void BlendDisplacement(ParFiniteElementSpace *pfes,
+                          const Vector &d_loc,
+                          Vector &uvals,
+                          double beta=1.0);
+
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
@@ -2604,6 +2649,25 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
+
+
+   /// Enable determinant bounding with given refinement factor for line-search
+   /// validity checks in TMOPNewtonSolver.
+   void EnableDeterminantPLBounds(GridFunction *det_gf_, int ref_factor,
+                                  int max_recursion_depth = 0)
+   {
+      det_gf = det_gf_;
+      int max_order = det_gf->FESpace()->GetMaxElementOrder();
+      det_plb = std::make_unique<PLBound>(det_gf->FESpace(),
+                                          ref_factor*(max_order+1));
+      plb_rec_depth = max_recursion_depth;
+   }
+
+   void UpdateDeterminantGridFunction(const Vector &x_loc,
+                                      const FiniteElementSpace &fes);
+   real_t GetDeterminantLowerBound(const Vector &d,
+                                   const FiniteElementSpace &fes,
+                                   bool update_det_gf);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

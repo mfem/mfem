@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tmop.hpp"
-#include "linearform.hpp"
+#include "plinearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
@@ -3769,6 +3769,7 @@ TMOP_Integrator::~TMOP_Integrator()
       delete ElemDer[i];
       delete ElemPertEnergy[i];
    }
+   // det_plb is automatically deleted by std::unique_ptr
 }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
@@ -4238,6 +4239,205 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 
    err_avg = (dof_cnt > 0) ? err_sum / dof_cnt : 0.0;
 }
+
+#ifdef MFEM_USE_GSLIB
+bool TMOP_Integrator::PreprocessTangentialRelaxation(const Vector &d_loc,
+                                                     const FiniteElementSpace *d_fes)
+{
+   Vector pos(d_loc.Size());
+   MFEM_VERIFY(x_0, "x_0 must be set to use TangentialRelaxation.");
+   if (x_0) { add(*x_0, d_loc, pos); }
+   const int dim = x_0->FESpace()->GetMesh()->Dimension();
+
+   int ordering = x_0->FESpace()->GetOrdering();
+   int n_m_nodes = pos.Size()/dim;
+
+   for (int ii = 0; ii < fdofs_arr.Size(); ii++)
+   {
+      Array<int> facedofs = *(fdofs_arr[ii]);
+
+      Vector fnodes(facedofs.Size()*dim);
+      Vector fnodes0(facedofs.Size()*dim);
+      int n_f_nodes = facedofs.Size();
+      for (int i = 0; i < facedofs.Size(); i++)
+      {
+         int dof_index = facedofs[i];
+         for (int d = 0; d < dim; d++)
+         {
+            int offset_in = ordering == Ordering::byNODES ?
+                            (dof_index + d*n_m_nodes) :
+                            (dof_index*dim + d);
+            fnodes(i+n_f_nodes*d) = pos(offset_in);
+            fnodes0(i+n_f_nodes*d) = (*x_0)(offset_in);
+         }
+      }
+
+      FindPointsGSLIB *finder = finder_arr[ii];
+      finder->FindPointsSurf(fnodes);
+      unsigned int maxcode = 0;
+      Array<unsigned int> code = finder->GetCode();
+      Array<unsigned int> elems = finder->GetElem();
+      for (int i = 0; i < code.Size(); i++)
+      {
+         maxcode = std::max(maxcode, code[i]);
+      }
+      // do global reduction
+#ifdef MFEM_USE_MPI
+      const ParFiniteElementSpace *pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(d_fes);
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &maxcode, 1,
+                       MPI_UNSIGNED, MPI_MAX, pfes->GetComm());
+      }
+#endif
+      if (maxcode == 2) {  return false; }
+   }
+   return true;
+}
+
+void TMOP_Integrator::BlendDisplacement(ParFiniteElementSpace *pfes,
+                                        const Vector &d_loc,
+                                        Vector &uvals,
+                                        double beta)
+{
+   Vector pos(d_loc.Size());
+   if (x_0) { add(*x_0, d_loc, pos); }
+   else     { pos = d_loc; }
+
+   ParMesh *pmesh = pfes->GetParMesh();
+   ParGridFunction u(pfes);
+   u = uvals;
+
+   int order = pmesh->GetNodalFESpace()->GetMaxElementOrder();
+   int dim = pmesh->Dimension();
+
+   Array<int> ess_vdofs;
+   for (int i = 0; i < fdofs_arr.Size(); i++)
+   {
+      Array<int> facedofs = *(fdofs_arr[i]);
+      ess_vdofs.Append(facedofs);
+   }
+   ess_vdofs.Sort();
+   ess_vdofs.Unique();
+
+   for (int i = 0; i < dim; i++)
+   {
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(pmesh, &fec, 1);
+
+      ParLinearForm b(&fespace);
+      b = 0.0;
+
+      ParBilinearForm a(&fespace);
+      // Use the legacy assembled operator here. The EA/FA diffusion path
+      // expects tensor-product elements and aborts on simplex meshes.
+
+      ConstantCoefficient one(beta);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one)); // For ∇^2
+      a.Assemble();
+
+      Array<int> ess_tdof_list(0);
+      Array<int> bdr(pmesh->bdr_attributes.Max());
+      bdr = 1;
+      fespace.GetEssentialTrueDofs(bdr, ess_tdof_list);
+      if (true) // interface fitting - also get DOFs marked for projection
+      {
+         Array<int> ess_tdof_marker, ess_tdof_list2;
+
+         for (int v = 0; v < ess_vdofs.Size(); v++)
+         {
+            int vdof = ess_vdofs[v];
+            int tdof = fespace.GetLocalTDofNumber(vdof);
+            if (tdof > -1)
+            {
+               ess_tdof_list2.Append(tdof);
+            }
+         }
+         ess_tdof_list.Append(ess_tdof_list2);
+      }
+
+      OperatorPtr A;
+      Vector B, X;
+
+      int nnodes = u.Size()/dim;
+      Vector ucomp(u.GetData()+i*nnodes, nnodes);
+      a.FormLinearSystem(ess_tdof_list, ucomp, b, A, X, B);
+
+      HypreBoomerAMG *amg = new HypreBoomerAMG;
+      amg->SetPrintLevel(0);
+      HyprePCG pcg(pfes->GetComm());
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(2000);
+      pcg.SetPrintLevel(-1);
+      pcg.SetPreconditioner(*amg);
+      pcg.SetOperator(*A);
+      pcg.SetPrintLevel(-1);
+      pcg.Mult(B, X);
+      delete amg;
+
+      a.RecoverFEMSolution(X, b, ucomp);
+   }
+   uvals = u;
+}
+
+void TMOP_Integrator::TangentialRelaxation(const Vector &d_loc,
+                                           FiniteElementSpace *d_fes,
+                                           Vector &d_out)
+{
+   Vector pos(d_loc.Size());
+   MFEM_VERIFY(x_0, "x_0 must be set to use TangentialRelaxation.");
+   if (x_0) { add(*x_0, d_loc, pos); }
+
+   const int dim = x_0->FESpace()->GetMesh()->Dimension();
+   Vector dx(d_loc.Size());
+   dx = 0.0;
+   int n_m_nodes = pos.Size()/dim;
+   d_out = d_loc;
+   int ordering = x_0->FESpace()->GetOrdering();
+
+   for (int i = 0; i < fdofs_arr.Size(); i++)
+   {
+      Array<int> facedofs = *(fdofs_arr[i]);
+      FindPointsGSLIB *finder = finder_arr[i];
+      GridFunction *intnodes = nodes_int_arr[i];
+
+      Array<unsigned int> elems = finder->GetElem();
+      Vector rst = finder->GetReferencePosition();
+      Vector int_nodes_vals;
+      finder->InterpolateSurf(*intnodes, int_nodes_vals);
+      int node_val_ordering = intnodes->FESpace()->GetOrdering();
+      for (int e = 0; e < elems.Size(); e++)
+      {
+         int dof_index = facedofs[e];
+         for (int d = 0; d < dim; d++)
+         {
+            int offset_in = ordering == Ordering::byNODES ?
+                            (dof_index + d*n_m_nodes) :
+                            (dof_index*dim + d);
+            int offset_val = node_val_ordering == Ordering::byNODES ?
+                             (e + d*int_nodes_vals.Size()/dim) :
+                             e*dim + d;
+            dx(offset_in) = int_nodes_vals(offset_val)-pos(offset_in);
+            d_out(offset_in) += dx(offset_in);
+         }
+      }
+   }
+
+   d_out = d_loc;
+
+   // Blend displacement
+   ParFiniteElementSpace *pfes =
+      dynamic_cast<ParFiniteElementSpace *>(d_fes);
+   if (!pfes)
+   {
+      MFEM_ABORT("TangentialRelaxation only works with ParFiniteElementSpace");
+   }
+   BlendDisplacement(pfes, d_loc, dx, 1.0);
+
+   d_out += dx;
+}
+#endif // MFEM_USE_GSLIB
 
 void TMOP_Integrator::UpdateAfterMeshTopologyChange()
 {
@@ -6087,7 +6287,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
 #endif
 
-   if (wcuo && wcuo->GetBarrierType() ==
+   if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
       real_t min_detT = ComputeMinDetT(x_loc, fes);
@@ -6099,7 +6299,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
                        MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
       }
 #endif
-      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      wcuo->SetMinDetT(min_detT_all);
    }
 
    real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
@@ -6112,6 +6312,75 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    }
 #endif
    wcuo->SetMaxMuT(max_muT_all);
+}
+
+void TMOP_Integrator::UpdateDeterminantGridFunction(const Vector &x_loc,
+                                                    const FiniteElementSpace &fes)
+{
+   MFEM_VERIFY(det_gf != nullptr,
+               "Determinant gridfunction has not been setup.");
+   Mesh *mesh = fes.GetMesh();
+   FiniteElementSpace *det_fes = det_gf->FESpace();
+   Array<int> dofs;
+   DenseMatrix PMat, dshape;
+   Array<int> xdofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const int dof = fe->GetDof(), dim = fe->GetDim();
+      DenseMatrix Jac(dim);
+      dshape.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMat.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(e, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const IntegrationRule &irule = det_fes->GetFE(e)->GetNodes();
+      const int nsp = irule.GetNPoints();
+      Vector detvals(nsp);
+      det_fes->GetElementDofs(e, xdofs);
+      for (int q = 0; q < nsp; q++)
+      {
+         fes.GetFE(e)->CalcDShape(irule.IntPoint(q), dshape);
+         MultAtB(PMat, dshape, Jpr);
+         detvals(q) = Jpr.Det();
+      }
+      det_gf->SetSubVector(xdofs, detvals);
+   }
+}
+
+real_t TMOP_Integrator::GetDeterminantLowerBound(const Vector &d,
+                                                 const FiniteElementSpace &d_fes,
+                                                 bool update_det_gf)
+{
+   if (update_det_gf)
+   {
+      Vector x_loc;
+      if (periodic)
+      {
+         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
+         UpdateDeterminantGridFunction(x_loc, *x_0->FESpace());
+      }
+      else
+      {
+         if (x_0)
+         {
+            x_loc.SetSize(x_0->Size());
+            add(*x_0, d, x_loc);
+            UpdateDeterminantGridFunction(x_loc, *x_0->FESpace());
+         }
+         else
+         {
+            UpdateDeterminantGridFunction(d, d_fes);
+         }
+      }
+   }
+
+   auto minbounds = det_gf->EstimateFunctionMinimum(0, *det_plb,
+                                                    plb_rec_depth, 1e-5);
+   return minbounds.first;
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
