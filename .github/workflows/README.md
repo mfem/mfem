@@ -13,7 +13,7 @@ Note that some of these scripts use the shared MFEM GitHub Actions from the exte
 
   <https://github.com/mfem/github-actions>
 
-For a particular action, e.g. `mfem/github-actions/build-mfem@v2.5`, the `v2.5` suffix denotes the branch in the above from which the action is taken.
+For a particular action, e.g. `mfem/github-actions/build-mfem@v2.5`, the `v2.5` suffix denotes the branch (or tag) in the above from which the action is taken.
 
 The current CI workflows are:
 
