@@ -54,7 +54,7 @@ New and updated examples and miniapps
 -------------------------------------
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
-- Added (Complex)PRefinementMultigrid solver option in DPG miniapps. 
+- Added (Complex)PRefinementMultigrid solver option in DPG miniapps.
 
 Linear and nonlinear solvers
 ----------------------------
