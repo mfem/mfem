@@ -253,9 +253,6 @@ struct AmpereAction : public Operator
    // current dt, needed if there are loss terms
    mutable real_t dt = 0;
 
-   // temporarily set to false for computing max dt
-   bool apply_bcs_in_mult = true;
-
    struct AmperePA : public Operator
    {
       AmpereAction *action;
@@ -803,7 +800,7 @@ AmpereOperator::AmpereOperator(
    // TODO: make configurable parameters
    solver.SetAbsTol(0);
    solver.SetRelTol(1e-12);
-   solver.SetMaxIter(300);
+   solver.SetMaxIter(200);
    // solver.SetPrintLevel(1);
 }
 
@@ -811,7 +808,7 @@ void AmpereAction::Mult(const Vector &x, Vector &y) const
 {
    linsys->Mult(x, y);
    // bcs
-   if (apply_bcs_in_mult && dbc_dofs.Size() > 0)
+   if (dbc_dofs.Size() > 0)
    {
       y.SetSubVector(dbc_dofs, 0_r);
    }
@@ -1372,15 +1369,25 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
    const Operator *Rhdiv = faraday.hdiv_space->GetRestrictionOperator();
    const Operator *Phdiv = faraday.hdiv_space->GetProlongationMatrix();
 
+   // need a solver without BC's applied
+   CGSolver solver(faraday.hcurl_space->GetComm());
+   solver.SetAbsTol(0);
+   solver.SetRelTol(1e-12);
+   solver.SetMaxIter(200);
+   // solver.SetPrintLevel(1);
+
    if (faraday.neg_curl)
    {
       // use exisint vectors
       u0_tdof = faraday.dBdt_work.get();
       rhs_tdof = faraday.E_work.get();
+      // TODO: set solver operator to fully assembled H(curl) mass operator with
+      // no BCs
    }
    else
    {
       // partial assembly
+      solver.SetOperator(ampere.action.hcurl_mass);
       hcurl_buf3.reset(faraday.hcurl_space->NewTrueDofVector());
       rhs_tdof = hcurl_buf3.get();
       hdiv_buf2.reset(faraday.hdiv_space->NewTrueDofVector());
@@ -1393,9 +1400,6 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
       hd_ldof.reset(new ParGridFunction(faraday.hdiv_space));
    }
 
-   ampere.action.dt = 0;
-   ampere.action.apply_bcs_in_mult = false;
-
    while (iter < niters && change > ptol)
    {
       real_t normV0 = InnerProduct(*v0_tdof, *v0_tdof);
@@ -1405,9 +1409,6 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
          faraday.neg_curl->Mult(*v0_tdof, *u0_tdof);
          faraday.par_hdiv_mass->Mult(*u0_tdof, *hd_tdof);
          faraday.neg_curl->MultTranspose(*hd_tdof, *rhs_tdof);
-         // TODO: full assembly on the ampere part
-         // pcg needs to not have BC's applied
-         // ampere.pcg.Mult(*rhs_tdof, *v1_tdof)
       }
       else
       {
@@ -1424,7 +1425,7 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
          if (Phdiv)
          {
             Phdiv->MultTranspose(*hd_ldof, *hd_tdof);
-            Phdiv->Mult(*hd_tdof, *hd_ldof);
+            Rhdiv->MultTranspose(*hd_tdof, *hd_ldof);
          }
          if (Phcurl)
          {
@@ -1435,8 +1436,9 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
          {
             faraday.curl_op.MultTranspose(*hd_ldof, *rhs_tdof);
          }
-         ampere.solver.Mult(*rhs_tdof, *v1_tdof);
       }
+
+      solver.Mult(*rhs_tdof, *v1_tdof);
       real_t lambda = InnerProduct(*v0_tdof, *v1_tdof);
       dt1 = 2_r / sqrt(lambda);
 
@@ -1445,6 +1447,5 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
       std::swap(v0_tdof, v1_tdof);
       ++iter;
    }
-   ampere.action.apply_bcs_in_mult = true;
    return dt0;
 }
