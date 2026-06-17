@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_DPG_PRECONDITIONERS
+#define MFEM_DPG_PRECONDITIONERS
+
 #include "mfem.hpp"
 
 namespace mfem
@@ -201,3 +204,5 @@ public:
 };
 
 } // namespace mfem
+
+#endif // MFEM_DPG_PRECONDITIONERS
