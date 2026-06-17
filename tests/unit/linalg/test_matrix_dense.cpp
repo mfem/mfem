@@ -15,6 +15,46 @@
 
 using namespace mfem;
 
+#ifdef MFEM_USE_EXCEPTIONS
+namespace
+{
+
+DenseTensor MakeSingularBatchedMatrices()
+{
+   const int n = 3;
+   const int n_mat = 3;
+
+   DenseTensor A_batch(n, n, n_mat);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix A;
+      A_batch(i, A);
+      A = 0.0;
+      for (int j = 0; j < n; ++j)
+      {
+         A(j, j) = 2.0 + i + j;
+      }
+   }
+
+   DenseMatrix singular;
+   A_batch(1, singular);
+   singular(0, 0) = 1.0;
+   singular(1, 0) = 2.0;
+   singular(2, 0) = 3.0;
+   singular(0, 1) = 1.0;
+   singular(1, 1) = 2.0;
+   singular(2, 1) = 3.0;
+   singular(0, 2) = 4.0;
+   singular(1, 2) = 5.0;
+   singular(2, 2) = 6.0;
+
+   return A_batch;
+}
+
+}
+
+#endif
+
 TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
@@ -494,6 +534,7 @@ TEST_CASE("Batched Linear Algebra",
    }
 }
 
+#ifdef MFEM_USE_EXCEPTIONS
 TEST_CASE("Batched LU factorization failure handling",
           "[DenseMatrix][GPU]")
 {
@@ -503,37 +544,22 @@ TEST_CASE("Batched LU factorization failure handling",
    if (!BatchedLinAlg::IsAvailable(backend)) { return; }
    CAPTURE(backend);
 
-   const int n = 3;
-   const int n_mat = 3;
-
-   DenseTensor A_batch(n, n, n_mat);
-   for (int i = 0; i < n_mat; ++i)
+   SECTION("LUFactor")
    {
-      DenseMatrix A;
-      A_batch(i, A);
-      A = 0.0;
-      for (int j = 0; j < n; ++j)
-      {
-         A(j, j) = 2.0 + i + j;
-      }
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      Array<int> P;
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).LUFactor(A_batch, P),
+                          Catch::Matchers::Contains("Batch LU factorization failed"));
    }
 
-   DenseMatrix singular;
-   A_batch(1, singular);
-   singular(0, 0) = 1.0;
-   singular(1, 0) = 2.0;
-   singular(2, 0) = 3.0;
-   singular(0, 1) = 1.0;
-   singular(1, 1) = 2.0;
-   singular(2, 1) = 3.0;
-   singular(0, 2) = 4.0;
-   singular(1, 2) = 5.0;
-   singular(2, 2) = 6.0;
-
-   Array<int> P;
-   REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).LUFactor(A_batch, P),
-                       Catch::Matchers::Contains("Batch LU factorization failed"));
+   SECTION("Invert")
+   {
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).Invert(A_batch),
+                          Catch::Matchers::Contains("Batch LU factorization failed"));
+   }
 }
+#endif
 
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 {
