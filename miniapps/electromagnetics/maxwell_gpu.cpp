@@ -1375,6 +1375,8 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
    solver.SetRelTol(1e-12);
    solver.SetMaxIter(200);
    // solver.SetPrintLevel(1);
+   OperatorHandle linsys;
+   Array<int> dbc_dofs;
 
    if (faraday.neg_curl)
    {
@@ -1387,7 +1389,10 @@ real_t CalcMaxDt(AmpereOperator &ampere, FaradayOperator &faraday, int niters,
    else
    {
       // partial assembly
-      solver.SetOperator(ampere.action.hcurl_mass);
+      Operator *oper;
+      ampere.action.hcurl_mass.FormSystemOperator(dbc_dofs, oper);
+      linsys.Reset(oper);
+      solver.SetOperator(*oper);
       hcurl_buf3.reset(faraday.hcurl_space->NewTrueDofVector());
       rhs_tdof = hcurl_buf3.get();
       hdiv_buf2.reset(faraday.hdiv_space->NewTrueDofVector());
