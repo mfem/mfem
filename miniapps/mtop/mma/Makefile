@@ -2,7 +2,7 @@
 # Makefile  —  mma_mfem MFEM miniapp
 #
 # This Makefile follows the MFEM miniapp convention:
-#   make           — build all test executables
+#   make           — build all test executables and standalone miniapps
 #   make tests     — same as above (explicit alias)
 #   make check     — build and run the full test suite via run_tests.sh
 #   make serial    — run only serial tests (faster, no mpirun required)
@@ -61,6 +61,8 @@ endif
 # Pull in MFEM's own definitions: CXX, MFEM_FLAGS, MFEM_LIBS, MFEM_INC, …
 include $(firstword $(MFEM_CONFIG))
 
+AR ?= ar
+
 # ---------------------------------------------------------------------------
 # Compiler and flags
 # ---------------------------------------------------------------------------
@@ -86,13 +88,19 @@ LIB_A    := $(BUILD_DIR)/libmma_mfem.a
 TEST_SRCS := $(wildcard test_*.cpp)
 TEST_BINS := $(patsubst %.cpp,$(BUILD_DIR)/%,$(TEST_SRCS))
 
+# Standalone miniapps in this directory that do not follow the test_*.cpp
+# naming convention.
+APP_SRCS := ex41p_stokes_adv_diff.cpp
+APP_NAMES := $(patsubst %.cpp,%,$(APP_SRCS))
+APP_BINS := $(patsubst %.cpp,$(BUILD_DIR)/%,$(APP_SRCS))
+
 # ---------------------------------------------------------------------------
 # Default target
 # ---------------------------------------------------------------------------
 
-.PHONY: all tests check serial clean distclean
+.PHONY: all tests check serial clean distclean config $(APP_NAMES)
 
-all: $(LIB_A) $(TEST_BINS)
+all: $(LIB_A) $(TEST_BINS) $(APP_BINS)
 
 tests: all
 
@@ -117,6 +125,13 @@ $(LIB_A): $(LIB_OBJ)
 $(BUILD_DIR)/test_%: test_%.cpp $(LIB_A) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS_ALL) $(INC) $< $(LIB_A) $(LIBS) -o $@
 
+# Compile and link standalone miniapps. The convenience target lets users run
+# `make ex41p_stokes_adv_diff` while still placing the binary under BUILD_DIR.
+$(APP_NAMES): %: $(BUILD_DIR)/%
+
+$(APP_BINS): $(BUILD_DIR)/%: %.cpp $(LIB_A) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS_ALL) $(INC) $< $(LIB_A) $(LIBS) -o $@
+
 # ---------------------------------------------------------------------------
 # Test targets
 # ---------------------------------------------------------------------------
@@ -137,7 +152,7 @@ serial: all
 # ---------------------------------------------------------------------------
 
 clean:
-	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.a $(TEST_BINS)
+	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.a $(TEST_BINS) $(APP_BINS)
 
 distclean:
 	rm -rf $(BUILD_DIR)
@@ -146,7 +161,6 @@ distclean:
 # Convenience: print the resolved configuration
 # ---------------------------------------------------------------------------
 
-.PHONY: config
 config:
 	@echo "MFEM_BUILD_DIR : $(MFEM_BUILD_DIR)"
 	@echo "MFEM_CONFIG    : $(MFEM_CONFIG)"
@@ -156,3 +170,5 @@ config:
 	@echo "BUILD_DIR      : $(BUILD_DIR)"
 	@echo "Test targets   :"
 	@echo "  $(notdir $(TEST_BINS))" | tr ' ' '\n' | sed 's/^/    /'
+	@echo "App targets    :"
+	@echo "  $(APP_NAMES)" | tr ' ' '\n' | sed 's/^/    /'

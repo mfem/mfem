@@ -32,8 +32,7 @@
 //            mass matrix for pressure, following Cahouet-Chabard).
 //            On periodic meshes the pressure null space is fixed by an
 //            explicit mean-pressure subtraction after each solve.
-//            The linear form f is re-assembled each step via the
-//            correct Update() → Assemble() sequence.
+//            The linear form f is recreated and assembled each step.
 //
 //   Body force:  f = amp · (sin 2πy,  sin 2πx)
 //            Divergence-free, periodic, drives counter-rotating vortices.
@@ -45,13 +44,19 @@
 //              IMEXExpImplEuler (1), IMEXRK2 (2), IMEX_DIRK_RK3 (3).
 
 #include "mfem.hpp"
+#include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
+
+static const real_t pi = std::acos(real_t(-1));
 
 // ============================================================
 //  VelocityCoeff — wraps a ParGridFunction as a VectorCoefficient
@@ -79,13 +84,15 @@ public:
 //  Key design choices:
 //
 //  1. FormSystemMatrix on a_form gives A with essential BCs eliminated.
-//     ParallelAssemble on b_form gives B; B^T computed by Transpose().
-//     EliminateRowsCols / EliminateCols enforce BCs on B/B^T.
-//     Both methods return a new HypreParMatrix* — delete it.
+//     ParallelAssemble on b_form gives B; B^T is computed by Transpose().
+//     Essential velocity DOFs eliminate columns of B; B^T is formed
+//     afterward so the transpose stays consistent.
+//     EliminateRowsCols / EliminateCols return new HypreParMatrix* values;
+//     delete those returned matrices.
 //
 //  2. The body-force linear form f_form is recreated fresh each Solve():
 //     delete, new ParLinearForm, AddDomainIntegrator, Assemble().
-//     This avoids any Update()/Assemble() accumulation issues across steps.
+//     This avoids LinearForm state/accumulation issues across steps.
 //
 //  3. Pressure null space on periodic / pure-Neumann meshes:
 //     GMRES finds a solution; mean-p subtraction handles the null space.
@@ -193,8 +200,9 @@ public:
       // Essential-BC elimination on A is handled separately below.
       {
          HypreParMatrix *A_full = a_form->ParallelAssemble();
-         // Eliminate essential velocity rows and columns (no-op when empty)
-         if (vel_ess_tdofs.Size() > 0)
+         // Collective call: every MPI rank must enter elimination, even when
+         // vel_ess_tdofs is empty on that rank.  The returned eliminated
+         // entries matrix is owned by the caller and must be deleted.
          {
             HypreParMatrix *A_e = A_full->EliminateRowsCols(vel_ess_tdofs);
             delete A_e;
@@ -205,16 +213,17 @@ public:
 
       delete B_mat; delete Bt_mat;
       B_mat  = b_form->ParallelAssemble();
-      Bt_mat = B_mat->Transpose();
 
-      // Eliminate essential velocity dofs from B and B^T (no-op when empty).
-      // EliminateRowsCols / EliminateCols return a new HypreParMatrix*
-      // containing the eliminated entries — we own it and must delete it.
-      if (vel_ess_tdofs.Size() > 0)
+      // b_form has trial space = velocity and test space = pressure. Thus B
+      // has pressure rows and velocity columns, so essential velocity true DOFs
+      // correspond to columns of B.  This elimination is collective: every MPI
+      // rank must enter it, even when vel_ess_tdofs is empty on that rank.
+      // Build B^T after column elimination to keep the two blocks consistent.
       {
-         HypreParMatrix *t = B_mat->EliminateRowsCols(vel_ess_tdofs); delete t;
-         HypreParMatrix *s = Bt_mat->EliminateCols(vel_ess_tdofs);    delete s;
+         HypreParMatrix *B_e = B_mat->EliminateCols(vel_ess_tdofs);
+         delete B_e;
       }
+      Bt_mat = B_mat->Transpose();
 
       // Cache zero divergence source as a true-dof vector
       g_form->Assemble();
@@ -274,17 +283,14 @@ public:
       solver->SetMaxIter(3000);
       solver->SetKDim(100);          // restart dimension
       solver->SetPrintLevel(0);
+      solver->iterative_mode = true;
       solver->SetOperator(*stokes_op);
       solver->SetPreconditioner(*blk_prec);
    }
 
    // ── Solve ─────────────────────────────────────────────────
-   // Re-assembles the body-force RHS each call using the correct
-   // Update() → Assemble() sequence:
-   //   Update()   resets the internal storage to zero while keeping
-   //              all registered integrators intact.
-   //   Assemble() fills the vector from scratch.
-   // This is the only correct way to reuse a LinearForm across steps.
+   // Re-assembles the body-force RHS each call. The form is recreated
+   // instead of reused, avoiding any LinearForm state from prior steps.
    void Solve()
    {
       // Assemble body-force RHS fresh each call.
@@ -328,13 +334,18 @@ public:
 
    ~StokesOperator()
    {
-      delete u_gf; delete p_gf;
-      delete eps_cf;
-      delete a_form; delete b_form; delete f_form; delete g_form;
-      delete A_mat; delete B_mat; delete Bt_mat;
+      // Destroy objects in dependency order: solvers/preconditioners and block
+      // operators keep non-owning pointers to the matrices below.
+      delete solver;
+      delete blk_prec;
+      delete stokes_op;
       delete vel_prec;
-      delete pres_prec; delete Mp_mat;
-      delete blk_prec; delete stokes_op; delete solver;
+      delete pres_prec;
+      delete Mp_mat;
+      delete A_mat; delete B_mat; delete Bt_mat;
+      delete a_form; delete b_form; delete f_form; delete g_form;
+      delete eps_cf;
+      delete u_gf; delete p_gf;
    }
 };
 
@@ -361,7 +372,7 @@ public:
 class AdvDiffOperator : public TimeDependentOperator
 {
    ParFiniteElementSpace *fes;
-   ParMesh               *pmesh;   // parallel mesh (for building kappa_fes)
+   ParMesh               *pmesh;   // non-owning, kept for compatibility/context
 
    // ── Velocity ─────────────────────────────────────────────
    // Either use the VelocityCoeff wrapper (default) or a direct
@@ -374,21 +385,16 @@ class AdvDiffOperator : public TimeDependentOperator
    // diff_coeff points to whichever Coefficient is currently active
    // (non-owning — caller is responsible for lifetime).
    ConstantCoefficient    kappa_const_cf;
-   Coefficient           *diff_coeff        = nullptr;  // domain integrator
-   Coefficient           *face_diff_coeff   = nullptr;  // face integrators (GF-based)
-   Coefficient           *face_source_coeff = nullptr;  // source for projecting kappa_gf
+   Coefficient           *diff_coeff      = nullptr;  // domain integrator
+   Coefficient           *face_diff_coeff = nullptr;  // face integrators
 
-   // When the diffusion coefficient is a QuadratureFunctionCoefficient it
-   // cannot be used with DGDiffusionIntegrator on faces: the QF stores
-   // values indexed by (element, quad_point) but face integrators present
-   // FaceElementTransformations whose element index may fall outside the
-   // QF's element range.  We therefore always project the diffusion
-   // coefficient onto a scalar grid function and use a
-   // GridFunctionCoefficient for the face terms.
-   ParGridFunction         *kappa_gf      = nullptr;   // owned
-   GridFunctionCoefficient *kappa_gf_cf   = nullptr;   // owned
-   ParFiniteElementSpace   *kappa_fes     = nullptr;   // owned
-   H1_FECollection         *kappa_fec     = nullptr;   // owned
+   // Important: the coefficient used by DG face integrators must be evaluable
+   // on both local and face-neighbor element transformations.  In parallel,
+   // GridFunctionCoefficient/QuadratureFunctionCoefficient can fail on the
+   // neighbor side because they do not own those neighbor element DOFs/Q data.
+   // Use ConstantCoefficient or FunctionCoefficient for face_diff_coeff.  The
+   // volume term can still use a GridFunctionCoefficient or
+   // QuadratureFunctionCoefficient through diff_coeff.
 
    // ── Forms and matrices ────────────────────────────────────
    ParBilinearForm *M_form = nullptr;
@@ -409,51 +415,43 @@ class AdvDiffOperator : public TimeDependentOperator
    real_t sipg_sigma;
    real_t sipg_kappa;
 
-   // Build / rebuild D_form from the current diff_coeff.
-   // Domain integrator: uses diff_coeff directly (any Coefficient type).
-   // Face integrators: use a GridFunctionCoefficient projected from
-   //   diff_coeff, because QuadratureFunctionCoefficient cannot be
-   //   evaluated at face quadrature points (element index out of range).
+   // Build / rebuild D_form from the current diffusion coefficients.
+   // Domain integrator: uses diff_coeff directly (QFC/GFC are OK here because
+   // volume assembly only evaluates local element transformations).
+   // Face integrators: use face_diff_coeff directly and require it to be safe
+   // for face-neighbor element transformations in parallel. ConstantCoefficient
+   // and FunctionCoefficient are safe; GridFunctionCoefficient and
+   // QuadratureFunctionCoefficient are not generally safe on shared faces.
    void BuildDiffusion()
    {
-      // Project diff_coeff onto a scalar H1 grid function on the same mesh.
-      // Use the same FE space as the scalar field for simplicity; H1 order p
-      // is sufficient to represent the diffusion coefficient accurately.
-      // (The scalar field uses DG L2(p); H1(p) for κ is standard practice.)
-      if (!kappa_gf)
-      {
-         // Use fes->GetParMesh() as the authoritative source; pmesh is a
-         // convenience copy but GetParMesh() is guaranteed non-null here.
-         ParMesh *mesh_to_use = (pmesh != nullptr)
-                                ? pmesh
-                                : static_cast<ParMesh*>(fes->GetMesh());
-         MFEM_VERIFY(mesh_to_use != nullptr,
-                     "AdvDiffOperator::BuildDiffusion: cannot get ParMesh!");
-         int p = fes->GetMaxElementOrder();
-         kappa_fec = new H1_FECollection(p, mesh_to_use->Dimension());
-         kappa_fes = new ParFiniteElementSpace(mesh_to_use, kappa_fec);
-         kappa_gf  = new ParGridFunction(kappa_fes);
-         kappa_gf_cf = new GridFunctionCoefficient(kappa_gf);
-      }
-      MFEM_VERIFY(face_source_coeff != nullptr,
-                  "AdvDiffOperator: face_source_coeff is null!");
-      kappa_gf->ProjectCoefficient(*face_source_coeff);
-      face_diff_coeff = kappa_gf_cf;
+      MFEM_VERIFY(diff_coeff != nullptr,
+                  "AdvDiffOperator: diff_coeff is null!");
+      MFEM_VERIFY(face_diff_coeff != nullptr,
+                  "AdvDiffOperator: face_diff_coeff is null!");
 
       delete D_form;
       D_form = new ParBilinearForm(fes);
       D_form->AddDomainIntegrator(
-            new DiffusionIntegrator(*diff_coeff));        // QFC OK here
+            new DiffusionIntegrator(*diff_coeff));
       D_form->AddInteriorFaceIntegrator(
-            new DGDiffusionIntegrator(*face_diff_coeff,   // GridFunction OK on faces
-                                      sipg_sigma, sipg_kappa));
-      D_form->AddBdrFaceIntegrator(
             new DGDiffusionIntegrator(*face_diff_coeff,
                                       sipg_sigma, sipg_kappa));
+      if (fes->GetMesh()->GetNBE() > 0)
+      {
+         D_form->AddBdrFaceIntegrator(
+               new DGDiffusionIntegrator(*face_diff_coeff,
+                                         sipg_sigma, sipg_kappa));
+      }
       D_form->Assemble(0); D_form->Finalize(0);
       delete Dmat;
       Dmat = D_form->ParallelAssemble();
-      impl_gamma = -1.0;   // invalidate cached implicit system
+
+      // Invalidate the cached implicit system immediately. The solver and
+      // preconditioner store non-owning references to impl_mat.
+      delete impl_solver; impl_solver = nullptr;
+      delete impl_prec;   impl_prec   = nullptr;
+      delete impl_mat;    impl_mat    = nullptr;
+      impl_gamma = -1.0;
    }
 
 public:
@@ -466,8 +464,8 @@ public:
         fes(fes_), pmesh(pmesh_),
         vel_coeff(vc), kappa_const_cf(kappa)
    {
-      diff_coeff        = &kappa_const_cf;
-      face_source_coeff = &kappa_const_cf;
+      diff_coeff      = &kappa_const_cf;
+      face_diff_coeff = &kappa_const_cf;
       sipg_sigma  = -1.0;
       sipg_kappa  = real_t(fes->GetMaxElementOrder() + 1);
       sipg_kappa *= sipg_kappa;
@@ -494,24 +492,34 @@ public:
    }
 
    // ── Switch to a different diffusion Coefficient ───────────
-   // diff_coeff: used for the domain DiffusionIntegrator (any type).
-   // face_source_coeff: used to project onto kappa_gf for face terms.
-   //   If not set separately, diff_coeff is used — only valid when it
-   //   is NOT a QuadratureFunctionCoefficient (use SetFaceDiffusionCoeff
-   //   to provide a FunctionCoefficient / GridFunctionCoefficient for faces).
+   // diff_coeff: used for the domain DiffusionIntegrator (any coefficient
+   // type that is valid on local elements).
+   // The same coefficient is also used on faces by default; if kappa_cf is a
+   // GridFunctionCoefficient or QuadratureFunctionCoefficient in a parallel run,
+   // call SetFaceDiffusionCoeff() with a ConstantCoefficient or
+   // FunctionCoefficient before UpdateDiffusion().
    // The coefficient must outlive this object.
    void SetDiffusionCoeff(Coefficient &kappa_cf)
    {
-      diff_coeff        = &kappa_cf;
-      face_source_coeff = &kappa_cf;   // default: same for faces
+      diff_coeff      = &kappa_cf;
+      face_diff_coeff = &kappa_cf;   // override below for QFC/GFC in parallel
    }
 
-   // Provide a separate coefficient for projecting onto the face grid function.
-   // Use this when diff_coeff is a QuadratureFunctionCoefficient — pass the
-   // original FunctionCoefficient that was used to fill the QF.
+   // QuadratureFunctionCoefficient is safe in the volume term but is not a
+   // face-safe coefficient in parallel.  This overload forces a later
+   // SetFaceDiffusionCoeff() call before UpdateDiffusion().
+   void SetDiffusionCoeff(QuadratureFunctionCoefficient &kappa_cf)
+   {
+      diff_coeff      = &kappa_cf;
+      face_diff_coeff = nullptr;
+   }
+
+   // Provide a separate coefficient for DG face integrators.  Use this when
+   // diff_coeff is a QuadratureFunctionCoefficient/GridFunctionCoefficient;
+   // pass the corresponding FunctionCoefficient or another face-safe coefficient.
    void SetFaceDiffusionCoeff(Coefficient &kappa_face_cf)
    {
-      face_source_coeff = &kappa_face_cf;
+      face_diff_coeff = &kappa_face_cf;
    }
 
    // Re-assemble D_form with the current diff_coeff.
@@ -529,11 +537,12 @@ public:
    // The ParGridFunction must outlive this object.
    void SetVelocityGF(ParGridFunction &u_new)
    {
+      delete Kmat; Kmat = nullptr;
+      delete K_form; K_form = nullptr;
       delete vel_coeff_owned;
       vel_coeff_owned = new VelocityCoeff(u_new.VectorDim(), u_new);
       vel_coeff       = vel_coeff_owned;
       // Rebuild K_form with the new velocity coefficient
-      delete K_form;
       K_form = new ParBilinearForm(fes);
       K_form->AddDomainIntegrator(
             new ConvectionIntegrator(*vel_coeff, -1.0));
@@ -580,13 +589,14 @@ public:
                            > 1e-12 * std::abs(impl_gamma));
       if (need_rebuild)
       {
-         delete impl_mat;
+         delete impl_solver; impl_solver = nullptr;
+         delete impl_prec;   impl_prec   = nullptr;
+         delete impl_mat;    impl_mat    = nullptr;
+
          impl_mat   = Add(1.0, *Mmat, dt, *Dmat);
          impl_gamma = dt;
-         delete impl_prec;
          impl_prec = new HypreBoomerAMG(*impl_mat);
          impl_prec->SetPrintLevel(0);
-         delete impl_solver;
          impl_solver = new HyprePCG(fes->GetComm());
          impl_solver->SetPreconditioner(*impl_prec);
          impl_solver->SetOperator(*impl_mat);
@@ -611,12 +621,11 @@ public:
 
    ~AdvDiffOperator()
    {
-      delete vel_coeff_owned;
-      delete kappa_gf_cf; delete kappa_gf;
-      delete kappa_fes;   delete kappa_fec;
-      delete M_form; delete K_form; delete D_form;
+      // Destroy dependent linear solvers before the matrices they reference.
+      delete impl_solver; delete impl_prec; delete impl_mat;
       delete Mmat; delete Kmat; delete Dmat;
-      delete impl_mat; delete impl_solver; delete impl_prec;
+      delete M_form; delete K_form; delete D_form;
+      delete vel_coeff_owned;
    }
 };
 
@@ -679,11 +688,23 @@ int main(int argc, char *argv[])
    if (!args.Good()) { if (myid == 0) args.PrintUsage(cout); return 1; }
    if (myid == 0) args.PrintOptions(cout);
 
+   MFEM_VERIFY(ser_ref >= 0, "Serial refinement level must be nonnegative.");
+   MFEM_VERIFY(par_ref >= 0, "Parallel refinement level must be nonnegative.");
+   MFEM_VERIFY(order >= 1, "Taylor-Hood Stokes spaces require -o/--order >= 1.");
+   MFEM_VERIFY(t_final >= 0.0, "Final time must be nonnegative.");
+   MFEM_VERIFY(nu > 0.0, "Stokes viscosity must be positive.");
+   MFEM_VERIFY(kappa >= 0.0, "Scalar diffusivity must be nonnegative.");
+   MFEM_VERIFY(cfl > 0.0, "CFL number must be positive.");
+   MFEM_VERIFY(pv_steps > 0, "ParaView output stride must be positive.");
+
    // ── Mesh ─────────────────────────────────────────────────
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2,
+               "ex41p_stokes_adv_diff currently assumes a 2D mesh.");
    for (int l = 0; l < ser_ref; l++) mesh->UniformRefinement();
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   std::unique_ptr<ParMesh> pmesh_owner(pmesh);
    delete mesh;
    for (int l = 0; l < par_ref; l++) pmesh->UniformRefinement();
 
@@ -694,7 +715,9 @@ int main(int argc, char *argv[])
 
    H1_FECollection vel_fec(order + 1, dim);
    H1_FECollection pres_fec(order, dim);
-   L2_FECollection scal_fec(order, dim);
+   // Use DG_FECollection, not L2_FECollection: MFEM's DG face integrators
+   // need face finite elements, and L2_FECollection may not define them.
+   DG_FECollection scal_fec(order, dim, BasisType::GaussLegendre);
 
    ParFiniteElementSpace vel_fes(pmesh, &vel_fec, dim);
    ParFiniteElementSpace pres_fes(pmesh, &pres_fec);
@@ -721,7 +744,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient stokes_force(dim,
       [&force_amp](const Vector &x, Vector &f)
       {
-         const real_t tp = 2.0 * M_PI;
+         const real_t tp = 2.0 * pi;
          f.SetSize(x.Size());
          f = 0.0;
          f(0) = force_amp * sin(tp * x(1));
@@ -751,7 +774,8 @@ int main(int argc, char *argv[])
          h_min_local = std::min(h_min_local,
                                 pmesh->GetElementSize(i, 1));
       real_t h_min;
-      MPI_Allreduce(&h_min_local, &h_min, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(&h_min_local, &h_min, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MIN,
                     pmesh->GetComm());
 
       // umax: maximum velocity magnitude over all quadrature points
@@ -771,7 +795,8 @@ int main(int argc, char *argv[])
          }
       }
       real_t umax;
-      MPI_Allreduce(&umax_local, &umax, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(&umax_local, &umax, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX,
                     pmesh->GetComm());
 
       if (umax < 1e-14) return t_final;   // zero velocity: no CFL limit
@@ -780,7 +805,7 @@ int main(int argc, char *argv[])
          cout << "  CFL: h_min=" << scientific << setprecision(3) << h_min
               << "  umax=" << umax
               << "  dt_cfl=" << dt_cfl
-              << "  CFL#=" << (dt * (2.0*order+1.0) * umax / h_min)
+              << "  target_CFL#=" << cfl_num
               << defaultfloat << "\n";
       return dt_cfl;
    };
@@ -816,23 +841,24 @@ int main(int argc, char *argv[])
    // Use the same integration order as the diffusion form (order+1).
    // κ(x,y) = kappa * (1 + 0.9*sin(2πx)*sin(2πy))
    //          — smoothly varying between 0.1·kappa and 1.9·kappa.
-   QuadratureSpace        *qs       = nullptr;
-   QuadratureFunction     *kappa_qf = nullptr;
-   QuadratureFunctionCoefficient *kappa_qfc = nullptr;
+   std::unique_ptr<QuadratureSpace> qs;
+   std::unique_ptr<QuadratureFunction> kappa_qf;
+   std::unique_ptr<QuadratureFunctionCoefficient> kappa_qfc;
    // kappa_func_cf: the plain FunctionCoefficient for κ(x).
    // Kept outside the use_qf block so it can be passed to
-   // SetFaceDiffusionCoeff — ProjectCoefficient on an H1 grid function
-   // needs a regular Coefficient, not a QuadratureFunctionCoefficient.
-   FunctionCoefficient *kappa_func_cf = new FunctionCoefficient(
-      [&kappa](const Vector &x) -> real_t {
-         return kappa * (1.0 + 0.9*sin(2.0*M_PI*x(0))*sin(2.0*M_PI*x(1)));
-      });
+   // SetFaceDiffusionCoeff — DG face integrators need a face-safe coefficient,
+   // not a QuadratureFunctionCoefficient tied to element quadrature storage.
+   // It is constructed before ad_op below, so it outlives ad_op.
+   std::unique_ptr<FunctionCoefficient> kappa_func_cf(
+      new FunctionCoefficient([&kappa](const Vector &x) -> real_t {
+         return kappa * (1.0 + 0.9*sin(2.0*pi*x(0))*sin(2.0*pi*x(1)));
+      }));
 
    if (use_qf)
    {
       int qorder = 2 * order + 2;
-      qs = new QuadratureSpace(pmesh, qorder);
-      kappa_qf = new QuadratureFunction(qs, 1);
+      qs.reset(new QuadratureSpace(pmesh, qorder));
+      kappa_qf.reset(new QuadratureFunction(qs.get(), 1));
 
       // Fill QF by evaluating kappa_func_cf at each quadrature point
       {
@@ -850,7 +876,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      kappa_qfc = new QuadratureFunctionCoefficient(*kappa_qf);
+      kappa_qfc.reset(new QuadratureFunctionCoefficient(*kappa_qf));
 
       if (myid == 0)
          cout << "Projected κ(x) onto QuadratureSpace (order=" << qorder
@@ -861,15 +887,15 @@ int main(int argc, char *argv[])
    // For Example B we create a rotational velocity field
    //   u_ext = (-sin(πy)cos(πx),  sin(πx)cos(πy))
    // projected onto the velocity FE space, independent of Stokes.
-   ParGridFunction *u_ext = nullptr;
+   std::unique_ptr<ParGridFunction> u_ext;
    if (use_qf)
    {
-      u_ext = new ParGridFunction(&vel_fes);
+      u_ext.reset(new ParGridFunction(&vel_fes));
       VectorFunctionCoefficient rot_vel(dim,
          [](const Vector &x, Vector &v) {
             v.SetSize(x.Size()); v = 0.0;
-            v(0) = -sin(M_PI * x(1)) * cos(M_PI * x(0));
-            v(1) =  sin(M_PI * x(0)) * cos(M_PI * x(1));
+            v(0) = -sin(pi * x(1)) * cos(pi * x(0));
+            v(1) =  sin(pi * x(0)) * cos(pi * x(1));
          });
       u_ext->ProjectCoefficient(rot_vel);
       if (myid == 0) cout << "External rotational velocity projected.\n";
@@ -883,8 +909,9 @@ int main(int argc, char *argv[])
    {
       // Domain integrator: use QFC (exact values at volume quadrature pts)
       ad_op.SetDiffusionCoeff(*kappa_qfc);
-      // Face integrators: project the FunctionCoefficient onto H1 grid function
-      // (QFC cannot be safely evaluated at face quadrature points)
+      // Face integrators: evaluate the analytic FunctionCoefficient directly.
+      // A QFC/GFC is not safe on parallel shared faces because it lacks
+      // face-neighbor element data.
       ad_op.SetFaceDiffusionCoeff(*kappa_func_cf);
       ad_op.UpdateDiffusion();
 
@@ -908,6 +935,26 @@ int main(int argc, char *argv[])
 
    Vector C(scal_fes.GetTrueVSize());
    c_gf.GetTrueDofs(C);
+   // ── Scalar mass diagnostic: mass(c) = ∫_Ω c dx ─────────────
+   ConstantCoefficient one_cf(1.0);
+   ParLinearForm mass_lf(&scal_fes);
+   mass_lf.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+   mass_lf.Assemble();
+
+   HypreParVector *mass_vec_h = mass_lf.ParallelAssemble();
+   Vector mass_vec = *mass_vec_h;
+   delete mass_vec_h;
+
+   auto scalar_mass = [&]() -> real_t
+   {
+      return InnerProduct(scal_fes.GetComm(), mass_vec, C);
+   };
+
+   const real_t mass0 = scalar_mass();
+   if (myid == 0)
+   {
+      cout << "initial mass(c)=" << setprecision(16) << mass0 << "\n";
+   }
 
    // ── GLVis ─────────────────────────────────────────────────
    socketstream c_sock, u_sock;
@@ -947,37 +994,52 @@ int main(int argc, char *argv[])
    real_t t = 0.0; bool last = false; int step = 0;
    while (!last)
    {
-      if (t + dt >= t_final - 1e-10*dt) { dt = t_final - t; last = true; }
       step++;
 
       stokes.Solve();
       ad_op.UpdateVelocity();
 
       // Compute CFL every step (collective); print alongside step info.
-      // If in auto-dt mode, use dt_cfl as the next step size.
+      // If in auto-dt mode, use dt_cfl as the current step size.
       real_t dt_cfl = compute_cfl_dt(cfl, false);
       if (dt_is_auto) dt = dt_cfl;
+
+      // Clamp after the optional CFL update. Otherwise automatic time-step
+      // selection can overwrite the final-step clamp and step past t_final.
+      if (t + dt >= t_final - 1e-10*dt)
+      {
+         dt = t_final - t;
+         last = true;
+      }
+      if (dt <= 0.0) { break; }
 
       ode->Step(C, t, dt);
       c_gf.SetFromTrueDofs(C);
 
-      // Per-step output — ComputeL2Error is collective, all ranks call it
+      // Per-step output — ComputeL2Error and scalar mass are collective
       {
          ConstantCoefficient zero(0.0);
          real_t l2 = c_gf.ComputeL2Error(zero);
+         real_t mass = scalar_mass();
+         real_t rel_mass_err = std::abs(mass - mass0) /
+                               std::max(std::abs(mass0), real_t(1e-30));
+
          if (myid == 0)
          {
             // CFL# = dt / dt_cfl * target_cfl
             real_t cfl_used = (dt_cfl > 0.0) ? dt / dt_cfl * cfl : 0.0;
             cout << "step " << setw(4) << step
-                 << "  t="      << scientific << setprecision(4) << t
-                 << "  dt="     << dt
-                 << "  dt_cfl=" << dt_cfl
-                 << "  CFL#="   << setprecision(3) << cfl_used
-                 << "  ||c||="  << setprecision(5) << l2
+                 << "  t="          << scientific << setprecision(4) << t
+                 << "  dt="         << dt
+                 << "  dt_cfl="     << dt_cfl
+                 << "  CFL#="       << setprecision(3) << cfl_used
+                 << "  ||c||="      << setprecision(5) << l2
+                 << "  mass(c)="    << setprecision(12) << mass
+                 << "  rel_mass_err=" << setprecision(3) << rel_mass_err
                  << defaultfloat << "\n";
          }
       }
+
       if (vis && step % 5 == 0)
       {
          c_sock << "parallel " << Mpi::WorldSize() << " " << myid
@@ -1006,10 +1068,15 @@ int main(int argc, char *argv[])
                delete pvdc; }
 
    delete ode;
-   delete u_ext;
-   delete kappa_qfc; delete kappa_qf; delete qs;
-   delete kappa_func_cf;
-   delete pmesh;
-   HYPRE_Finalize();
+
+   // The optional qf/velocity coefficient objects are owned by unique_ptrs
+   // declared before ad_op, so they outlive ad_op and are released during
+   // stack unwinding.
+
+   // pmesh is owned by pmesh_owner, which was constructed before the finite
+   // element spaces and operators. It is therefore destroyed after all stack
+   // MFEM objects that refer to it. Hypre::Init() handles HYPRE finalization;
+   // do not call HYPRE_Finalize() while Hypre-backed MFEM objects are still
+   // unwinding.
    return 0;
 }

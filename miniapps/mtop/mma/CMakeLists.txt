@@ -397,7 +397,8 @@ mma_add_test(NAME test_lmg_serial) #serial test
 mma_add_test(NAME test_lmg_parallel  PARALLEL) #parallel test
 mma_add_test(NAME test_lmg_wiki_parallel PARALLEL) #parallel test
 mma_add_test(NAME test_lmg_wiki_serial) #serial test
-mma_add_test(NAME ex41p_stokes_adv_diff PARALLEL) #parallel test
+mma_add_test(NAME ex41p_stokes_adv_diff_dg PARALLEL) #parallel test
+mma_add_test(NAME ex41p_stokes_adv_diff_cg PARALLEL) #parallel test
 
 
 
