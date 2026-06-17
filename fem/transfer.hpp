@@ -589,6 +589,12 @@ public:
                                const FiniteElementSpace& hFESpace_,
                                bool assemble_matrix = false);
 
+   /** @brief Return the true-dof transfer operator.
+
+       The returned pointer is non-owning; the operator is either this object
+       or a cached operator owned by this PRefinementTransferOperator. The
+       pointer remains valid until this PRefinementTransferOperator is
+       destroyed and must not be deleted by the caller. */
    Operator * GetTrueTransferOperator();
    const Operator * GetTrueTransferOperator() const
    {

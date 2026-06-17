@@ -110,7 +110,10 @@ public:
 
 #ifdef MFEM_USE_MPI
    /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
-       this BlockOperator, assuming every block is a HypreParMatrix. */
+       this BlockOperator, assuming every block is a HypreParMatrix.
+
+       The returned matrix is newly allocated and owned by the caller, who is
+       responsible for deleting it. */
    HypreParMatrix * GetMonolithicHypreParMatrix() const;
 #endif
 

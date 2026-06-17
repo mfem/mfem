@@ -122,10 +122,16 @@ public:
    Convention GetConvention() const { return convention_; }
 
 #ifdef MFEM_USE_MPI
-   /// Returns a ComplexHypreParMatrix view:
-   ///  - wraps if real/imag are HypreParMatrix
-   ///  - merges to a monolothic parallel ComplexHypreParMatrix
-   /// if real/imag are BlockOperator of HypreParMatrix blocks
+   /** @brief Return a newly allocated ComplexHypreParMatrix representation.
+
+       If the real and imaginary parts are HypreParMatrix objects, the returned
+       object borrows them and they must outlive the returned
+       ComplexHypreParMatrix. If they are BlockOperator objects with
+       HypreParMatrix blocks, they are first merged into monolithic matrices
+       owned by the returned ComplexHypreParMatrix.
+
+       The returned ComplexHypreParMatrix is owned by the caller, who is
+       responsible for deleting it. */
    ComplexHypreParMatrix *AsComplexHypreParMatrix() const;
 #endif
 
