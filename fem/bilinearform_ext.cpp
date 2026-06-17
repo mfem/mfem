@@ -38,6 +38,42 @@ const Operator *BilinearFormExtension::GetRestriction() const
    return a->GetRestriction();
 }
 
+/// Checks if the bilinear form uses patchwise integration, will give an error if
+/// some integrators are patchwise and others are not. Will also give an error if
+/// patchwise and mesh is not nurbs
+bool IsValidPatchwise(BilinearForm &a)
+{
+   // Patchwise integration is only defined on domains
+   Array<BilinearFormIntegrator*> &integrators = *(a.GetDBFI());
+   const int iSz = integrators.Size();
+   if (iSz == 0) {return false;}
+
+   bool allPatchwise = true;
+   bool somePatchwise = false;
+
+   for (int i = 0; i < iSz; ++i)
+   {
+      if (integrators[i]->Patchwise())
+      {
+         somePatchwise = true;
+      }
+      else
+      {
+         allPatchwise = false;
+      }
+   }
+
+   MFEM_VERIFY(allPatchwise || !somePatchwise,
+               "All or none of the integrators should be patchwise");
+   if (allPatchwise)
+   {
+      MFEM_VERIFY(a.FESpace()->GetNURBSext(),
+                  "Patchwise integration requires a NURBS FE space");
+   }
+
+   return allPatchwise;
+}
+
 // Data and methods for partially-assembled bilinear forms
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
@@ -334,12 +370,11 @@ void PABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const bool patchwise = IsValidPatchwise(*a);
    for (BilinearFormIntegrator *integ : integrators)
    {
-      if (integ->Patchwise())
+      if (patchwise)
       {
-         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
-                     "Patchwise integration requires a NURBS FE space");
          integ->AssembleNURBSPA(*a->FESpace());
       }
       else
@@ -370,13 +405,22 @@ void PABilinearFormExtension::Assemble()
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const bool patchwise = IsValidPatchwise(*a);
 
    auto assemble_diagonal_with_markers = [&](BilinearFormIntegrator &integ,
                                              const Array<int> *markers,
                                              const Array<int> &attributes,
                                              Vector &d)
    {
-      integ.AssembleDiagonalPA(d);
+      if (patchwise)
+      {
+         integ.AssembleDiagonalNURBSPA(d);
+      }
+      else
+      {
+         integ.AssembleDiagonalPA(d);
+      }
+
       if (markers)
       {
          const int ne = attributes.Size();
@@ -399,7 +443,8 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    };
 
    const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+
+   if (elem_restrict && !DeviceCanUseCeed() && !patchwise)
    {
       if (iSz > 0)
       {
@@ -490,26 +535,9 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
+   const bool patchwise = IsValidPatchwise(*a);
 
-   bool allPatchwise = true;
-   bool somePatchwise = false;
-
-   for (int i = 0; i < iSz; ++i)
-   {
-      if (integrators[i]->Patchwise())
-      {
-         somePatchwise = true;
-      }
-      else
-      {
-         allPatchwise = false;
-      }
-   }
-
-   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
-               "All or none of the integrators should be patchwise");
-
-   if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
+   if (DeviceCanUseCeed() || !elem_restrict || patchwise)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
