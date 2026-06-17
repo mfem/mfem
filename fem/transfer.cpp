@@ -2169,18 +2169,19 @@ void PRefinementTransferOperator::AssembleMatrix()
 
       DenseMatrix Aeff(loc_prol);
       TransformPrimal(doftrans_h, doftrans_l, Aeff);
-
-      for (int vd = 0; vd < vdim; vd++)
+      for (int vd = 0;  vd < vdim; vd++)
       {
+         DenseMatrix temp_Aeff(Aeff);
+
          l_dofs.Copy(l_vdofs);
          lFESpace.DofsToVDofs(vd, l_vdofs);
 
          h_dofs.Copy(h_vdofs);
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
-         Aeff.AdjustDofDirection(h_vdofs, l_vdofs);
+         temp_Aeff.AdjustDofDirection(h_vdofs, l_vdofs);
 
-         P->AddSubMatrix(h_vdofs, l_vdofs, Aeff);
+         P->AddSubMatrix(h_vdofs, l_vdofs, temp_Aeff);
 
          for (int rr = 0; rr < h_vdofs.Size(); rr++)
          {
