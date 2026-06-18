@@ -43,6 +43,9 @@ Meshing improvements
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
   bounds on the determinant of the mesh transformation Jacobian.
 
+- Added PA support for TMOP's adaptive limiting functionality. Multiple
+  GridFunctions and Coefficients can be combined to form a composite term.
+
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
