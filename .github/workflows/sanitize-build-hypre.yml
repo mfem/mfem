@@ -34,7 +34,7 @@ jobs:
           NO_FLAGS: true
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-hypre@update-num-tasks
+        uses: mfem/github-actions/build-hypre@v2.7
         with:
           archive: ${{env.HYPRE_TGZ}}
           dir: ${{env.HYPRE_DIR}}

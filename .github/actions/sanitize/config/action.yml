@@ -96,7 +96,7 @@ inputs:
 
   ACTIONS_VERSION:
     description: Version (branch or tag) of the mfem/github-actions to use.
-    default: update-num-tasks
+    default: v2.7
 
 runs:
   using: 'composite'

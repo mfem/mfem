@@ -53,7 +53,7 @@ runs:
       run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
       shell: bash
 
-    - uses: mfem/github-actions/build-mfem@update-num-tasks
+    - uses: mfem/github-actions/build-mfem@v2.7
       if: ${{steps.debug.outputs.cache-hit != 'true'}}
       env:
         CXXFLAGS: ${{env.CXXFLAGS}}
