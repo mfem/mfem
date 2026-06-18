@@ -76,7 +76,6 @@ public:
       SetSpaces(trial_sfes,fecol_);
    }
 
-
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
@@ -97,6 +96,17 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, Vector &x);
 
    virtual void Update();
+
+   void GetTraceFESpaces(Array<ParFiniteElementSpace *> & trace_fes) const
+   {
+      Array<FiniteElementSpace *> sr_trace_fes;
+      DPGWeakForm::GetTraceFESpaces(sr_trace_fes);
+      trace_fes.SetSize(sr_trace_fes.Size());
+      for (int i = 0; i < sr_trace_fes.Size(); i++)
+      {
+         trace_fes[i] = dynamic_cast<ParFiniteElementSpace *>(sr_trace_fes[i]);
+      }
+   }
 
    /// Destroys bilinear form.
    virtual ~ParDPGWeakForm();
