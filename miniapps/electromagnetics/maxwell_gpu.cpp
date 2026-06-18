@@ -52,20 +52,19 @@
 // clang-format off
 //
 //   Current source in a sphere with absorbing boundary conditions:
-//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -d gpu
 //
 //   Current source in a metal sphere with dielectric and conducting materials:
-//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -dbcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -cs '0.0 0.0 -0.5 .2 3e6' -ds '0.0 0.0 0.5 .2 10'
+//     mpirun -np 4 maxwell-gpu -m ../../data/ball-nurbs.mesh -rs 2 -dbcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -cs '0.0 0.0 -0.5 .2 3e6' -ds '0.0 0.0 0.5 .2 10' -d gpu
 //
 //   Current source in a metal box:
-//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -d gpu
 //
 //   Current source with a mixture of absorbing and reflecting boundaries:
-//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18'
+//     mpirun -np 4 maxwell-gpu -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18' -d gpu
 //
 //   By default the sources and fields are all zero:
-//   * mpirun -np 4 maxwell
+//   * mpirun -np 4 maxwell-gpu -d gpu
 //
 // clang-format on
 
@@ -480,7 +479,7 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
-   KernelReporter::Enable();
+   // KernelReporter::Enable();
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
    // volume meshes with the same code.
@@ -727,6 +726,7 @@ AmpereAction::AmpereAction(ParMesh &pmesh_, ParFiniteElementSpace &hcurl,
          common::AttrToMarker(pmesh_.bdr_attributes.Max(), abcs, abc_marker);
          abc_coeff.reset(new ConstantCoefficient(
                             sqrt(electromagnetics::epsilon0_ / electromagnetics::mu0_)));
+         // TODO: AssemblePABoundary not implemented yet for VectorFEMassIntegrator
          loss_term->AddBoundaryIntegrator(
             new VectorFEMassIntegrator(abc_coeff.get()), abc_marker);
       }
