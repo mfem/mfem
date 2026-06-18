@@ -1,6 +1,7 @@
 # Build artifacts
 *.o
 ElastTopOpt
+ElastTopOpt_maxlen
 
 # macOS
 .DS_Store

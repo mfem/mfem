@@ -11,6 +11,8 @@
 using namespace std;
 using namespace mfem;
 
+void bodyload(const Vector &x, Vector &f);
+
 int main(int argc, char *argv[])
 {
     Mpi::Init();
@@ -27,7 +29,7 @@ int main(int argc, char *argv[])
     real_t gamma_s      = 0.7;        // max filter upper bound
     real_t vol_fraction = 0.5;
     int    max_it       = 100;
-    real_t tol          = 1e-2;       // stopping tol on max design change
+    real_t tol          = 1e-3;       // stopping tol on max design change
     real_t move         = 0.2;        // MMA move limit
 
     real_t epsilon      = 1e-1;       // gamma - alpha tolerance (start, loose)
@@ -39,8 +41,7 @@ int main(int argc, char *argv[])
 
     const real_t rho_min   = 1e-6;     // SIMP void stiffness
     const real_t penal     = 3.0;      // SIMP exponent
-    const real_t Lx        = 3.0;      // cantilever length (height 1)
-    const real_t load_half = 0.05;     // half-height of the traction patch
+    const real_t load_r = 0.05;     // half-height of the traction patch
 
     OptionsParser args(argc, argv);
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
@@ -67,7 +68,7 @@ int main(int argc, char *argv[])
     if (myid == 0) { args.PrintOptions(cout); }
 
     // 2. Label boundary attributes.
-    Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL, true, Lx, 1.0);
+    Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL, true, 3.0, 1.0);
     int dim = mesh.Dimension();
 
     for (int i = 0; i < mesh.GetNBE(); i++)
@@ -79,12 +80,11 @@ int main(int argc, char *argv[])
         real_t cx = 0.5 * (c1[0] + c2[0]);
         real_t cy = 0.5 * (c1[1] + c2[1]);
         int attr = 2;                                // free
+
+        // clamp (x = 0)
         if (std::abs(cx) < 1e-10) { 
             attr = 1; 
-        }                  // clamp (x = 0)
-        else if (cx > Lx - 1e-10 &&  std::abs(cy - 0.5) <= load_half) { 
-            attr = 3; 
-        }                                            // load patch
+        }                  
         be->SetAttribute(attr);
     }
     mesh.SetAttributes();
@@ -141,23 +141,20 @@ int main(int argc, char *argv[])
     ProductCoefficient lambda_simp(lambda_cf, simp_cf);         // lambda = r(rho~) lambda0
     ProductCoefficient mu_simp(mu_cf, simp_cf);                 // mu     = r(rho~) mu0
 
-    // 6. Mark essential and load boundaries 
+    // 6. Mark essential boundaries 
     Array<int> ess_bdr(pmesh.bdr_attributes.Max());
     ess_bdr = 0;  ess_bdr[0] = 1;               // clamp = attribute 1
-    Array<int> load_bdr(pmesh.bdr_attributes.Max());
-    load_bdr = 0; load_bdr[2] = 1;              // load  = attribute 3
-    Vector traction(dim);  traction = 0.0;  traction(dim - 1) = -1.0;
-    VectorConstantCoefficient traction_cf(traction);
 
     // 7. Construct the solvers.
     // 7a. Linear elasticity solver
+    VectorFunctionCoefficient force(dim, bodyload);     // body force f
+
     LinearElasticitySolver elast;
     elast.SetMesh(&pmesh);
     elast.SetOrder(order);
     elast.SetLameCoefficients(&lambda_simp, &mu_simp);
-    elast.SetRHSCoefficient(&traction_cf);
+    elast.SetRHSdomainCoefficient(&force);             // body force f
     elast.SetEssentialBoundary(ess_bdr);
-    elast.SetLoadBoundary(load_bdr);
     elast.SetupFEM();
    
     // 7b. Min length scale filter solver
@@ -354,4 +351,19 @@ int main(int argc, char *argv[])
         mfem::out << "\nfinished after " << k << " iterations\n";
     }
     return 0;
+}
+
+void bodyload(const Vector &x, Vector &f)
+{
+    const int dim = x.Size();
+    const real_t xcenter = 2.85;
+    const real_t ycenter = 0.5;
+    const real_t radius = 0.05;
+
+    f = 0.0;
+
+    real_t xdiff = x[0] - xcenter;
+    real_t ydiff = x[1] - ycenter;
+
+    if (sqrt(xdiff*xdiff + ydiff*ydiff) < radius) { f[dim-1] = -1.0; }
 }

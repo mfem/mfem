@@ -175,9 +175,10 @@ class LinearElasticitySolver : Operator
 private:
    ParMesh *pmesh = nullptr;
    int order = 1, dim = 0;
-   Coefficient *lambda_cf = nullptr;       // SIMP-scaled lambda
-   Coefficient *mu_cf = nullptr;           // SIMP-scaled mu
-   VectorCoefficient *rhs_cf = nullptr;    // surface traction t
+   Coefficient *lambda_cf = nullptr;               // SIMP-scaled lambda
+   Coefficient *mu_cf = nullptr;                   // SIMP-scaled mu
+   VectorCoefficient *rhs_bd_cf = nullptr;         // surface traction t
+   VectorFunctionCoefficient *rhs_cf = nullptr;    // body force f
 
    FiniteElementCollection *fec = nullptr;
    ParFiniteElementSpace *fes = nullptr;   // vector H1
@@ -223,7 +224,8 @@ public:
    void SetMesh(ParMesh *m) { pmesh = m; }
    void SetOrder(int o) { order = o; }
    void SetLameCoefficients(Coefficient *l, Coefficient *m) { lambda_cf = l; mu_cf = m; }
-   void SetRHSCoefficient(VectorCoefficient *c) { rhs_cf = c; }   // traction t
+   void SetRHSbdrCoefficient(VectorCoefficient *c) { rhs_bd_cf = c; }               // traction t
+   void SetRHSdomainCoefficient(VectorFunctionCoefficient *vc) { rhs_cf = vc; }     // bodyforce f
    void SetEssentialBoundary(const Array<int> &bdr) { ess_bdr = bdr; }
    void SetLoadBoundary(const Array<int> &bdr) { load_bdr = bdr; }
 
@@ -239,7 +241,10 @@ public:
       fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       b = new ParLinearForm(fes);
-      b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*rhs_cf), load_bdr);
+      if (rhs_cf)
+         b->AddDomainIntegrator(new VectorDomainLFIntegrator(*rhs_cf));
+      if (rhs_bd_cf && load_bdr)
+         b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*rhs_bd_cf), load_bdr);
       b->Assemble();
       load_true.reset(b->ParallelAssemble());
 

@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
     elast.SetMesh(&pmesh);
     elast.SetOrder(order);
     elast.SetLameCoefficients(&lambda_simp, &mu_simp);
-    elast.SetRHSCoefficient(&traction_cf);
+    elast.SetRHSbdrCoefficient(&traction_cf);
     elast.SetEssentialBoundary(ess_bdr);
     elast.SetLoadBoundary(load_bdr);
     elast.SetupFEM();
