@@ -605,7 +605,7 @@ int main (int argc, char *argv[])
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
                                                                     2,
                                                                     1.5,
-                                                                    1e-4,
+                                                                    0.001,//0.01 for pseudo barrier
                                                                     0.001,
                                                                     btype,
                                                                     wctype);
