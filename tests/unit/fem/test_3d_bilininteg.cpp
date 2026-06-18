@@ -12,8 +12,6 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-#include <limits>
-
 using namespace mfem;
 
 namespace bilininteg_3d
@@ -5929,17 +5927,24 @@ TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
    auto order = GENERATE(1, 3);
    CAPTURE(order);
    int dim = 3;
-   real_t tol = std::numeric_limits<real_t>::epsilon() * 5;
 
    FunctionCoefficient q3_coeff(q3);
    VectorFunctionCoefficient F3_coeff(dim, F3);
    MatrixFunctionCoefficient M3_coeff(dim, M3);
 
-   auto mesh_fname = "../../data/fichera-amr.mesh";
+   auto mesh_fname =
+      GENERATE("../../data/fichera-amr.mesh", "../../data/ball-nurbs.mesh");
    CAPTURE(mesh_fname);
    Mesh mesh(mesh_fname);
    REQUIRE(mesh.Dimension() == dim);
    REQUIRE(mesh.SpaceDimension() == dim);
+
+   // convert nurbs into piecewise-quadratic curved mesh
+   if (mesh.NURBSext)
+   {
+      mesh.UniformRefinement();
+      mesh.SetCurvature(2);
+   }
 
    SECTION("H(curl) H(curl) Scalar Coeff")
    {
@@ -5961,7 +5966,7 @@ TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
       bfa.Mult(x, y_fa);
       bpa.Mult(x, y_pa);
       y_pa -= y_fa;
-      REQUIRE( y_pa.Normlinf() < tol );
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
    }
 
    SECTION("H(curl) H(curl) Diagonal Matrix Coeff")
@@ -5984,7 +5989,7 @@ TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
       bfa.Mult(x, y_fa);
       bpa.Mult(x, y_pa);
       y_pa -= y_fa;
-      REQUIRE( y_pa.Normlinf() < tol );
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
    }
 
    SECTION("H(curl) H(curl) Matrix Coeff")
@@ -6007,7 +6012,7 @@ TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
       bfa.Mult(x, y_fa);
       bpa.Mult(x, y_pa);
       y_pa -= y_fa;
-      REQUIRE( y_pa.Normlinf() < tol );
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
    }
 }
 
