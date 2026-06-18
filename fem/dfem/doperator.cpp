@@ -18,6 +18,19 @@
 using namespace mfem;
 using namespace mfem::future;
 
+namespace
+{
+int GetTotalTrueVSize(const std::vector<FieldDescriptor> &fds)
+{
+   int size = 0;
+   for (const auto &fd : fds)
+   {
+      size += mfem::future::GetTrueVSize(fd);
+   }
+   return size;
+}
+}
+
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
@@ -78,6 +91,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -129,14 +145,14 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    return std::make_shared<DerivativeOperator>(
-             height,
+             GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
              *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
              infds,
-             outfds,
+             doutfds,
              assemble_sparse_cbs,
              assemble_hypre_cbs,
              assemble_diag_cbs,
@@ -151,6 +167,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -205,14 +224,14 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    return std::make_shared<DerivativeOperator>(
-             height,
+             GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
              *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
              infds,
-             outfds,
+             doutfds,
              assemble_sparse_cbs,
              assemble_hypre_cbs,
              assemble_diag_cbs,

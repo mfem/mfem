@@ -143,6 +143,24 @@ struct mass_local_qf
    }
 };
 
+struct mass_diffusion_local_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      const real_t &u,
+      const tensor<real_t, DIM> &dudxi,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      real_t &out1,
+      tensor<real_t, DIM> &out2) const
+   {
+      const auto invJ = inv(J);
+      const auto detJ = det(J);
+      out1 = u * detJ * w;
+      out2 = (dudxi * invJ) * transpose(invJ) * (detJ * w);
+   }
+};
+
 TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
@@ -396,6 +414,55 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
 
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      {
+         ParBilinearForm blf(&fes);
+         blf.AddDomainIntegrator(new MassIntegrator(ir));
+         blf.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+         auto mass_diffusion_qfunclocal = mass_diffusion_local_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            mass_diffusion_qfunclocal,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}, Gradient<V>{}},
+            *ir, all_domain_attr);
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         Vector ztvec(xtvec.Size());
+
+         MultiVector X{xtvec, nodestv};
+         MultiVector Z{ztvec};
+
+         dop.Mult(X, Z);
+
+         Vector Y0(ytvecmfem);
+         Y0 -= Z[0];
+
+         real_t norm_l = Y0.Normlinf();
+         real_t norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }

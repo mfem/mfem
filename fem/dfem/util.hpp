@@ -193,6 +193,20 @@ auto make_dependency_map_impl(tuple<input_ts...> inputs,
    return map;
 }
 
+// Activity tags
+struct Active {}; // Argument is differentiated (needs tangent)
+struct Const {};  // Argument is not differentiated (no tangent)
+
+inline std::ostream& operator<<(std::ostream& out, Active)
+{
+   return out << "Active";
+}
+
+inline std::ostream& operator<<(std::ostream& out, Const)
+{
+   return out << "Const";
+}
+
 // @brief Create a dependency map from a tuple of inputs.
 //
 // @param inputs a tuple of objects derived from FieldOperator.
@@ -203,6 +217,81 @@ auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
+
+// @brief Compile-time dependency tuple for derivative input index DerIdx.
+//
+// Returns std::tuple<..., N> where entry j is Active iff input j shares
+// the same field ID as input DerIdx, otherwise Const.
+template <size_t DerIdx, typename InputsTuple, size_t... Js>
+constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
+{
+   constexpr int field_id =
+      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+
+   return tuple<
+          std::conditional_t<
+          std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() == field_id,
+          Active,
+          Const
+          >...
+          > {};
+}
+
+template <size_t DerIdx, typename InputsTuple>
+constexpr auto make_dependency_tuple_ct()
+{
+   return make_dependency_tuple_ct_impl<DerIdx, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
+template <typename... Tuples>
+struct tuple_cat_type;
+
+template <>
+struct tuple_cat_type<>
+{
+   using type = tuple<>;
+};
+
+template <typename... Ts>
+struct tuple_cat_type<tuple<Ts...>>
+{
+   using type = tuple<Ts...>;
+};
+
+template <typename... Ts, typename... Us, typename... Rest>
+struct tuple_cat_type<tuple<Ts...>, tuple<Us...>, Rest...>
+{
+   using type = typename tuple_cat_type<tuple<Ts..., Us...>, Rest...>::type;
+};
+
+template <typename... Tuples>
+using tuple_cat_type_t = typename tuple_cat_type<Tuples...>::type;
+
+template <size_t DerIdx, typename InputsTuple, size_t... Js>
+constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
+{
+   constexpr int field_id =
+      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+
+   using outputs_t = tuple_cat_type_t<
+                     std::conditional_t<
+                     std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() == field_id,
+                     tuple<std::decay_t<std::tuple_element_t<Js, InputsTuple>>>,
+                     tuple<>
+                     >...
+                     >;
+
+   return outputs_t {};
+}
+
+template <size_t DerIdx, typename InputsTuple>
+constexpr auto make_first_derivative_outputs()
+{
+   return make_first_derivative_outputs_impl<DerIdx, InputsTuple>(
+      std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
 
 // @brief Get the type name of a template parameter T.
 //

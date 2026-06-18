@@ -766,4 +766,20 @@ struct tuple_element<I, mfem::future::tuple<T...>>
    using type = typename
                 mfem::future::tuple_element<I, mfem::future::tuple<T...>>::type;
 };
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(mfem::future::tuple<T...>& t) noexcept
+{ return mfem::future::get<I>(t); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(const mfem::future::tuple<T...>& t) noexcept
+{ return mfem::future::get<I>(t); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(mfem::future::tuple<T...>&& t) noexcept
+{ return mfem::future::get<I>(std::move(t)); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(const mfem::future::tuple<T...>&& t) noexcept
+{ return mfem::future::get<I>(std::move(t)); }
 }

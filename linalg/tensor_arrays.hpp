@@ -75,13 +75,28 @@ constexpr inline void for_multiindex(lambda_t f)
 }
 
 
-/// Extend std::apply to work with 0-size arrays.
+namespace detail
+{
+
+template <typename Fn, typename Tuple, std::size_t... Is>
+inline constexpr decltype(auto) apply_impl(Fn&& f, Tuple&& t,
+                                           std::index_sequence<Is...>)
+{
+   using std::get;
+   return std::forward<Fn>(f)(get<Is>(std::forward<Tuple>(t))...);
+}
+
+}  // namespace detail
+
+/// Extend std::apply to work with 0-size arrays and mfem::future::tuple.
 template <typename Fn, typename Tuple>
 inline constexpr decltype(auto) apply(Fn&& f, Tuple&& t)
 {
-   if constexpr (std::tuple_size_v<std::remove_reference_t<Tuple>> == 0)
-   { return f(); }
-   return std::apply(std::forward<Fn>(f), std::forward<Tuple>(t));
+   constexpr auto size = std::tuple_size_v<std::remove_reference_t<Tuple>>;
+   if constexpr (size == 0)
+   { return std::forward<Fn>(f)(); }
+   return detail::apply_impl(std::forward<Fn>(f), std::forward<Tuple>(t),
+                             std::make_index_sequence<size> {});
 }
 
 
