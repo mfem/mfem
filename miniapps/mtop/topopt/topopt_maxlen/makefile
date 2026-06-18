@@ -25,9 +25,6 @@ MFEM_LIB_FILE = mfem_is_not_built
 # cannot build with a pattern rule.
 COMMON_OBJ = MMA_MFEM.o
 
-# LAPACK for MMA's dense solve (dgesv/dgelsd); MFEM built without LAPACK.
-LAPACK_LIB ?= -framework Accelerate
-
 SEQ_MINIAPPS =
 PAR_MINIAPPS = ElastTopOpt ElastTopOpt_maxlen
 ifeq ($(MFEM_USE_MPI),NO)
@@ -46,7 +43,7 @@ endif
 %.o: %.cpp
 
 %: %.o $(COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(LAPACK_LIB)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
