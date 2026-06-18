@@ -2260,6 +2260,20 @@ void GridFunction::AccumulateAndCountTraceValues(
    Coefficient *coeff[], VectorCoefficient *vcoeff,
    Array<int> &values_counter)
 {
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalTraceElement()->GetMapType() ==
+                  FiniteElement::VALUE &&
+                  fes->GetTypicalTraceElement()->GetRangeType() ==
+                  FiniteElement::SCALAR,
+                  "Can only call ProjectTraceCoefficient on scalar value-type "
+                  "trace elements. "
+                  "Use ProjectTraceCoefficientNormal for RT and "
+                  "ProjectTraceCoefficientTangent for ND finite elements.");
+   }
+
    Array<int> vdofs;
    Vector vc;
 
@@ -2309,6 +2323,16 @@ void GridFunction::AccumulateAndCountTraceValues(
 void GridFunction::AccumulateAndCountTraceTangentValues(
    VectorCoefficient &vcoeff, Array<int> &values_counter)
 {
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()
+               ->GetRangeType() == FiniteElement::VECTOR &&
+               fes->GetTypicalTraceElement()
+               ->GetMapType() == FiniteElement::H_CURL,
+               "Not an ND FE space!");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
+
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
@@ -2779,8 +2803,18 @@ void GridFunction::ProjectTraceCoefficient(Coefficient *coeff[])
    ComputeMeans(ARITHMETIC, values_counter);
 }
 
+void GridFunction::ProjectTraceCoefficient(Coefficient &coeff)
+{
+   MFEM_VERIFY(FESpace()->GetVDim() == 1, "ProjectTraceCoefficient(Coefficient&)"
+               "is only valid for scalar GridFunction");
+   Coefficient *coeff_p = &coeff;
+   ProjectTraceCoefficient(&coeff_p);
+}
+
 void GridFunction::ProjectTraceCoefficient(VectorCoefficient &vcoeff)
 {
+   MFEM_VERIFY(FESpace()->GetVDim() == vcoeff.GetVDim(),
+               "Incompatible vcoeff vdim and fes vdim");
    Array<int> values_counter;
    AccumulateAndCountTraceValues(NULL, &vcoeff, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
@@ -2788,6 +2822,16 @@ void GridFunction::ProjectTraceCoefficient(VectorCoefficient &vcoeff)
 
 void GridFunction::ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff)
 {
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetRangeType() ==
+               FiniteElement::SCALAR &&
+               fes->GetTypicalTraceElement()->GetMapType() ==
+               FiniteElement::INTEGRAL, "Not an RT FE space!");
+   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+               "vcoeff vdim (" << vcoeff.GetVDim()
+               << ") != SpaceDimension ("
+               << fes->GetMesh()->SpaceDimension() << ")");
+
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;

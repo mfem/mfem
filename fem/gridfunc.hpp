@@ -672,11 +672,8 @@ public:
 
    /// Project a Coefficient on a GridFunction defined on H1 trace space
    void ProjectTraceCoefficient(Coefficient *coeff[]);
-   void ProjectTraceCoefficient(Coefficient &coeff)
-   {
-      Coefficient *coeff_p = &coeff;
-      ProjectTraceCoefficient(&coeff_p);
-   }
+   void ProjectTraceCoefficient(Coefficient &coeff);
+
    /** @brief Project a VectorCoefficient @a vcoeff on a GridFunction
        defined on a Vector H1 trace space. Note that this also works
        for a scalar H1 trace space, where only the first component of
