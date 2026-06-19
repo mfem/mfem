@@ -1009,7 +1009,7 @@ Particle ParticleSet::GetParticle(int i) const
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      p.Tag(t) = Tag(t)[i];
+      p.Tag(t) = Tag(t).HostRead()[i];
    }
 
    return p;
@@ -1017,13 +1017,21 @@ Particle ParticleSet::GetParticle(int i) const
 
 bool ParticleSet::IsParticleRefValid() const
 {
-   if (coords.GetOrdering() == Ordering::byNODES)
+   if (coords.GetOrdering() == Ordering::byNODES || coords.UseDevice())
    {
       return false;
    }
    for (int f = 0; f < GetNFields(); f++)
    {
-      if (fields[f]->GetOrdering() == Ordering::byNODES)
+      if (fields[f]->GetOrdering() == Ordering::byNODES ||
+          fields[f]->UseDevice())
+      {
+         return false;
+      }
+   }
+   for (int t = 0; t < GetNTags(); t++)
+   {
+      if (tags[t]->UseDevice())
       {
          return false;
       }
@@ -1033,6 +1041,10 @@ bool ParticleSet::IsParticleRefValid() const
 
 Particle ParticleSet::GetParticleRef(int i)
 {
+   MFEM_ASSERT(IsParticleRefValid(),
+               "GetParticleRef is only valid when coordinates and fields are "
+               "ordered byVDIM and particle data is host-resident.");
+
    Particle p = CreateParticle();
 
    Coords().GetValuesRef(i, p.Coords());
@@ -1066,7 +1078,7 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      Tag(t)[i] = p.Tag(t);
+      Tag(t).HostReadWrite()[i] = p.Tag(t);
    }
 }
 

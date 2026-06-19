@@ -315,6 +315,8 @@ void TestRedistribute(Ordering::Type ordering)
    {
       ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
                        NumTags, ordering, use_device);
+      CHECK(pset.IsParticleRefValid() ==
+            (!use_device && ordering == Ordering::byVDIM));
 
       for (int i = 0; i < N_rank; i++)
       {

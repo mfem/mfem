@@ -674,8 +674,8 @@ public:
 
    /** @brief Determine if GetParticleRef is valid.
     *
-    * If coordinates and all fields are ordered byVDIM, then returns true.
-    * Otherwise, false.
+    * Returns true when coordinates and all fields are ordered byVDIM and
+    * particle data is host-resident. Otherwise, false.
     */
    bool IsParticleRefValid() const;
 
