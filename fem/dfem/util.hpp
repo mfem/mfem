@@ -289,7 +289,7 @@ template <size_t DerIdx, typename InputsTuple>
 constexpr auto make_first_derivative_outputs()
 {
    return make_first_derivative_outputs_impl<DerIdx, InputsTuple>(
-      std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
 

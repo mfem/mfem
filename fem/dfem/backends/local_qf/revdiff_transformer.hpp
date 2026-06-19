@@ -246,21 +246,21 @@ struct RevDiff
    template <size_t... Is> static __attribute__((always_inline)) void print_impl(
       std::index_sequence<Is...>)
    {
-      std::cout << "__enzyme_autodiff<void>(fptr";
+      mfem::out << "__enzyme_autodiff<void>(fptr";
       (([&]
       {
          auto name = get_type_name<tuple_element_t<Is, args_tuple>>();
          if constexpr (Is == active_output)
-            std::cout << ", enzyme_dupnoneed, " << name << ", adjoint=1";
+            mfem::out << ", enzyme_dupnoneed, " << name << ", adjoint=1";
          else if constexpr (is_active<Is>)
-            std::cout << ", enzyme_dup, " << name << ", grad out";
+            mfem::out << ", enzyme_dup, " << name << ", grad out";
          else
          {
-            std::cout << ", enzyme_const, " << name;
+            mfem::out << ", enzyme_const, " << name;
          }
       }()),
       ...);
-      std::cout << ")\n";
+      mfem::out << ")\n";
    }
 };
 
