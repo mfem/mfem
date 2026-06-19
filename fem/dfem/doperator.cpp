@@ -18,6 +18,19 @@
 using namespace mfem;
 using namespace mfem::future;
 
+namespace
+{
+int GetTotalTrueVSize(const std::vector<FieldDescriptor> &fds)
+{
+   int size = 0;
+   for (const auto &fd : fds)
+   {
+      size += mfem::future::GetTrueVSize(fd);
+   }
+   return size;
+}
+}
+
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
@@ -78,6 +91,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -129,14 +145,14 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    return std::make_shared<DerivativeOperator>(
-             height,
+             GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
              *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
              infds,
-             outfds,
+             doutfds,
              assemble_sparse_cbs,
              assemble_hypre_cbs,
              assemble_diag_cbs,
@@ -151,6 +167,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
 
    // Get transpose callbacks
    std::vector<derivative_action_t> transpose_callbacks;
@@ -205,18 +224,200 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    }
 
    return std::make_shared<DerivativeOperator>(
-             height,
+             GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
              *mult_callbacks,
              transpose_callbacks,
              infds[dfidx],
              x,
              infds,
-             outfds,
+             doutfds,
              assemble_sparse_cbs,
              assemble_hypre_cbs,
              assemble_diag_cbs,
              derivative_setup_cbs);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id)
+{
+   MFEM_ASSERT(has_functional_integrator,
+               "stateless GetDerivative is available only for functionals");
+
+   MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
+               derivative_action_callbacks.end(),
+               "no derivative action has been found for ID " << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
+
+   return std::make_shared<DerivativeOperator>(
+             GetTotalTrueVSize(doutfds),
+             GetTrueVSize(infds[dfidx]),
+             derivative_action_callbacks[derivative_id],
+             infds,
+             doutfds);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t derivative_id, const Vector &x)
+{
+   MFEM_ASSERT(has_functional_integrator,
+               "second derivatives are available only for functionals");
+
+   MFEM_ASSERT(second_derivative_action_callbacks.find(derivative_id) !=
+               second_derivative_action_callbacks.end(),
+               "no second derivative action has been found for ID "
+               << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = second_derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == second_derivative_outfds.end() ? outfds : it_outfds->second;
+
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = second_daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != second_daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it_transpose->second;
+   }
+
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse =
+      assemble_second_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_second_derivative_sparsematrix_callbacks.end())
+   {
+      assemble_sparse_cbs = it_sparse->second;
+   }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre =
+      assemble_second_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   if (it_hypre != assemble_second_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
+
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag =
+      assemble_second_derivative_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_second_derivative_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
+   std::vector<derivative_setup_t> second_derivative_setup_cbs;
+   auto it_setup = second_derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != second_derivative_setup_callbacks.end())
+   {
+      second_derivative_setup_cbs = it_setup->second;
+   }
+
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &second_derivative_action_callbacks[derivative_id];
+
+   return std::make_shared<DerivativeOperator>(
+             GetTotalTrueVSize(doutfds),
+             GetTrueVSize(infds[dfidx]),
+             *mult_callbacks,
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             doutfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             second_derivative_setup_cbs);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
+{
+   MFEM_ASSERT(has_functional_integrator,
+               "second derivatives are available only for functionals");
+
+   MFEM_ASSERT(second_derivative_action_callbacks.find(derivative_id) !=
+               second_derivative_action_callbacks.end(),
+               "no second derivative action has been found for ID "
+               << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = second_derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == second_derivative_outfds.end() ? outfds : it_outfds->second;
+
+   // Get transpose callbacks
+   std::vector<derivative_action_t> transpose_callbacks;
+   auto it_transpose = second_daction_transpose_callbacks.find(derivative_id);
+   if (it_transpose != second_daction_transpose_callbacks.end())
+   {
+      transpose_callbacks = it_transpose->second;
+   }
+
+   // Get assemble callbacks
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse_cbs;
+   auto it_sparse =
+      assemble_second_derivative_sparsematrix_callbacks.find(derivative_id);
+   if (it_sparse != assemble_second_derivative_sparsematrix_callbacks.end())
+   {
+      assemble_sparse_cbs = it_sparse->second;
+   }
+
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre_cbs;
+   auto it_hypre =
+      assemble_second_derivative_hypreparmatrix_callbacks.find(derivative_id);
+   if (it_hypre != assemble_second_derivative_hypreparmatrix_callbacks.end())
+   {
+      assemble_hypre_cbs = it_hypre->second;
+   }
+
+   std::vector<assemble_diagonal_callback_t> assemble_diag_cbs;
+   auto it_diag =
+      assemble_second_derivative_diagonal_callbacks.find(derivative_id);
+   if (it_diag != assemble_second_derivative_diagonal_callbacks.end())
+   {
+      assemble_diag_cbs = it_diag->second;
+   }
+
+   std::vector<derivative_setup_t> second_derivative_setup_cbs;
+   auto it_setup = second_derivative_setup_callbacks.find(derivative_id);
+   if (it_setup != second_derivative_setup_callbacks.end())
+   {
+      second_derivative_setup_cbs = it_setup->second;
+   }
+
+   // Prefer cached apply when setup filled qp_cache
+   // and use_cached_setup is true
+   const std::vector<derivative_action_t> *mult_callbacks =
+      &second_derivative_action_callbacks[derivative_id];
+   if (use_cached_setup)
+   {
+      auto it_apply = second_derivative_apply_callbacks.find(derivative_id);
+      if (it_apply != second_derivative_apply_callbacks.end() &&
+          !it_apply->second.empty())
+      {
+         mult_callbacks = &it_apply->second;
+      }
+   }
+
+   return std::make_shared<DerivativeOperator>(
+             GetTotalTrueVSize(doutfds),
+             GetTrueVSize(infds[dfidx]),
+             *mult_callbacks,
+             transpose_callbacks,
+             infds[dfidx],
+             x,
+             infds,
+             doutfds,
+             assemble_sparse_cbs,
+             assemble_hypre_cbs,
+             assemble_diag_cbs,
+             second_derivative_setup_cbs);
 }
 
 #endif // MFEM_USE_MPI

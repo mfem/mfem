@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <ostream>
 #include <type_traits>
 
 namespace mfem::future
@@ -77,6 +78,12 @@ struct is_identity_fop<Identity<FIELD_ID>> : std::true_type {};
 template <typename T>
 constexpr bool is_identity_fop_v = is_identity_fop<T>::value;
 
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Identity<FIELD_ID>)
+{
+   return out << "Identity<" << FIELD_ID << ">";
+}
+
 /// @brief Weight FieldOperator.
 ///
 /// This FieldOperator is used to signal that this field contains the quadrature
@@ -95,6 +102,11 @@ struct is_weight_fop<Weight> : std::true_type {};
 
 template <typename T>
 constexpr bool is_weight_fop_v = is_weight_fop<T>::value;
+
+inline std::ostream& operator<<(std::ostream& out, Weight)
+{
+   return out << "Weight";
+}
 
 /// @brief Value FieldOperator.
 ///
@@ -116,6 +128,12 @@ struct is_value_fop<Value<T>> : std::true_type {};
 template <typename T>
 constexpr bool is_value_fop_v = is_value_fop<T>::value;
 
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Value<FIELD_ID>)
+{
+   return out << "Value<" << FIELD_ID << ">";
+}
+
 /// @brief Gradient FieldOperator.
 ///
 /// This FieldOperator is used to signal that the field contains the
@@ -136,6 +154,12 @@ struct is_gradient_fop<Gradient<FIELD_ID>> : std::true_type {};
 template <typename T>
 constexpr bool is_gradient_fop_v = is_gradient_fop<T>::value;
 
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Gradient<FIELD_ID>)
+{
+   return out << "Gradient<" << FIELD_ID << ">";
+}
+
 /// @brief Sum FieldOperator.
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature
@@ -155,5 +179,11 @@ struct is_sum_fop<Sum<FIELD_ID>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_sum_fop_v = is_sum_fop<T>::value;
+
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Sum<FIELD_ID>)
+{
+   return out << "Sum<" << FIELD_ID << ">";
+}
 
 } // namespace mfem::future
