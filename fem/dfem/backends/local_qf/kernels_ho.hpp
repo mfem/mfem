@@ -36,7 +36,8 @@ struct ho_qreg<KerOps, T, 0>
 template<typename KerOps, typename T>
 struct ho_qreg<KerOps, T, 1>
 {
-   using type = typename KerOps::template del_reg_t<1, KerOps::DIM>;
+   static constexpr int e0 = qf_param_shape<T>::extents[0];
+   using type = typename KerOps::template val_reg_t<e0>;
 };
 
 template<typename KerOps, typename T>
@@ -67,10 +68,9 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int n = (e0 < DIM) ? e0 : DIM;
          T t{};
-         MFEM_UNROLL(n)
-         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qy, qx); }
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qy, qx); }
          return t;
       }
       else
@@ -93,10 +93,9 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int n = (e0 < DIM) ? e0 : DIM;
          T t{};
-         MFEM_UNROLL(n)
-         for (int dd = 0; dd < n; ++dd) { t(dd) = reg(0, dd, qz, qy, qx); }
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qz, qy, qx); }
          return t;
       }
       else
@@ -139,11 +138,10 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int n = (e0 < DIM) ? e0 : DIM;
-         MFEM_UNROLL(n)
-         for (int dd = 0; dd < n; ++dd)
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
          {
-            reg(0, dd, qy, qx) = qp_store<tangent>(out(dd));
+            reg(dd, qy, qx) = qp_store<tangent>(out(dd));
          }
       }
       else
@@ -167,11 +165,10 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
-         constexpr int n = (e0 < DIM) ? e0 : DIM;
-         MFEM_UNROLL(n)
-         for (int dd = 0; dd < n; ++dd)
+         MFEM_UNROLL(e0)
+         for (int dd = 0; dd < e0; ++dd)
          {
-            reg(0, dd, qz, qy, qx) = qp_store<tangent>(out(dd));
+            reg(dd, qz, qy, qx) = qp_store<tangent>(out(dd));
          }
       }
       else
@@ -214,12 +211,11 @@ pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
          else if constexpr (RNK == 1)
          {
             constexpr int e0 = qf_param_shape<T>::extents[0];
-            constexpr int n = (e0 < DIM) ? e0 : DIM;
             T t{};
-            MFEM_UNROLL(n)
-            for (int dd = 0; dd < n; ++dd)
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
             {
-               t(dd) = { preg(0, dd, qy, qx), sreg(0, dd, qy, qx) };
+               t(dd) = { preg(dd, qy, qx), sreg(dd, qy, qx) };
             }
             return t;
          }
@@ -249,12 +245,11 @@ pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
          else if constexpr (RNK == 1)
          {
             constexpr int e0 = qf_param_shape<T>::extents[0];
-            constexpr int n = (e0 < DIM) ? e0 : DIM;
             T t{};
-            MFEM_UNROLL(n)
-            for (int dd = 0; dd < n; ++dd)
+            MFEM_UNROLL(e0)
+            for (int dd = 0; dd < e0; ++dd)
             {
-               t(dd) = { preg(0, dd, qz, qy, qx), sreg(0, dd, qz, qy, qx) };
+               t(dd) = { preg(dd, qz, qy, qx), sreg(dd, qz, qy, qx) };
             }
             return t;
          }
@@ -542,7 +537,7 @@ struct LocalQFHOBackend
                                                  ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      typename backend_t::template val_reg_t<1> dofs;
+      std::remove_reference_t<ArgRegT> dofs;
       backend_t::load_dofs(e, d, XE, dofs);
       backend_t::eval_value(d, q, s, dofs, rarg);
    }
@@ -759,7 +754,7 @@ struct LocalQFHOBackend
                                                   ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      typename backend_t::template val_reg_t<1> dofs;
+      std::remove_reference_t<ArgRegT> dofs;
       backend_t::write_value(d, q, e, s, rarg, dofs, YE);
    }
 
@@ -794,5 +789,16 @@ struct LocalQFHOBackend
       }
    }
 };
+
+/// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
+template <typename HOKernelTable, int DIM>
+inline typename HOKernelTable::KernelSignature
+DispatchHOKernelByQ1D(int q1d)
+{
+   constexpr int MQ1 = LocalQFHOBackendMQ1();
+   MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
+               "Unsupported HO quadrature order: " << q1d);
+   return HOKernelTable::template Kernel<DIM, MQ1>();
+}
 
 } // namespace mfem::future

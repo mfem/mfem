@@ -213,7 +213,7 @@ struct lo_ker_backend
 
    using Shared = std::conditional_t<(DIM == 2), Shared2d, Shared3d>;
 
-   template<typename ArgRegT, typename XE_T>
+   template<typename FieldParamT, typename ArgRegT, typename XE_T>
    static MFEM_HOST_DEVICE void load_value(Shared &s,
                                            const int e,
                                            const int d,
@@ -223,14 +223,21 @@ struct lo_ker_backend
                                            ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
+      using field_t = std::remove_cv_t<std::remove_reference_t<FieldParamT>>;
+      constexpr int RNK = qf_param_shape<field_t>::rank;
+      constexpr int VDIM = []()
+      {
+         if constexpr (RNK == 0) { return 1; }
+         else { return qf_param_shape<field_t>::extents[RNK - 1]; }
+      }();
       if constexpr (DIM == 2)
       {
-         ker::LoadDofs2d(e, d, XE, s.M[0]);
+         ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
          ker::Eval2d(d, q, s.B, s.M[0], s.M[1], rarg);
       }
       else
       {
-         ker::LoadDofs3d(e, d, XE, s.M[0]);
+         ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
          ker::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
       }
    }
@@ -258,12 +265,12 @@ struct lo_ker_backend
          {
             if constexpr (DIM == 2)
             {
-               ker::LoadDofs2d(e, d, XE, s.M[0]);
+               ker::LoadDofs2d(e, d, 0, XE, s.M[0]);
                ker::Grad2d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
             }
             else
             {
-               ker::LoadDofs3d(e, d, XE, s.M[0]);
+               ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
                ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
             }
          }
@@ -509,7 +516,9 @@ struct LocalQFLOBackend
                                                  const real_t *B,
                                                  const XE_T &XE,
                                                  ArgRegT &rarg)
-   { backend_t::load_value(s, e, d, q, B, XE, rarg); }
+   {
+      backend_t::template load_value<ArgRegT>(s, e, d, q, B, XE, rarg);
+   }
 
    // ─────────────────────────────────────────────────────
    template<int RNK,
@@ -790,5 +799,16 @@ struct LocalQFLOBackend
          s, e, d, q, B, G, YE, rarg);
    }
 };
+
+/// @brief Dispatch to a compile-time LO kernel matching runtime @a q1d.
+template <typename LOKernelTable, int DIM>
+inline typename LOKernelTable::KernelSignature
+DispatchLOKernelByQ1D(int q1d)
+{
+   constexpr int MQ1 = LocalQFLOBackendMQ1();
+   MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
+               "Unsupported LO quadrature order: " << q1d);
+   return LOKernelTable::template Kernel<DIM, MQ1>();
+}
 
 } // namespace mfem::future

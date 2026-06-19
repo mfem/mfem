@@ -353,7 +353,7 @@ void diffusion(const char *filename, int p)
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
              vZ(vpfes.GetTrueVSize());
 
-      SECTION("Vector Action")
+      SECTION("Vector Diffusion Action")
       {
          vX.Randomize(1);
          vx.SetFromTrueDofs(vX);
@@ -398,7 +398,7 @@ void diffusion(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
-      SECTION("Vector Action Linearized")
+      SECTION("Vector Diffusion Action Linearized")
       {
          vX.Randomize(1);
          vx.SetFromTrueDofs(vX);

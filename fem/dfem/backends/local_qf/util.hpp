@@ -522,32 +522,4 @@ inline int compute_kernel_thread_1d(
    return t1d;
 }
 
-/// @brief Dispatch to a compile-time LO kernel matching runtime @a q1d.
-template <typename LOKernelTable, int DIM>
-inline typename LOKernelTable::KernelSignature
-DispatchLOKernelByQ1D(int q1d)
-{
-   MFEM_VERIFY(q1d >= 2 && q1d <= 8,
-               "Unsupported LO quadrature order: " << q1d);
-   if (q1d <= 4)
-   {
-      return LOKernelTable::template Kernel<DIM, 4>();
-   }
-   return LOKernelTable::template Kernel<DIM, 8>();
-}
-
-/// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
-template <typename HOKernelTable, int DIM>
-inline typename HOKernelTable::KernelSignature
-DispatchHOKernelByQ1D(int q1d)
-{
-   MFEM_VERIFY(q1d >= 2 && q1d <= 16,
-               "Unsupported HO quadrature order: " << q1d);
-   if (q1d <= 8)
-   {
-      return HOKernelTable::template Kernel<DIM, 8>();
-   }
-   return HOKernelTable::template Kernel<DIM, 16>();
-}
-
 } // namespace mfem::future
