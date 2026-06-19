@@ -1124,7 +1124,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       BilinearForm M_lor(fes_lor_scalar.get());
       M_lor.AddDomainIntegrator(new MassIntegrator);
       M_lor.Assemble();
-      M_lor.Finalize(0);
+      M_lor.Finalize();
       SparseMatrix *M_L_mat = new SparseMatrix(M_lor.SpMat());
 
       ML_precon.reset(new DSmoother(*M_L_mat));
@@ -1197,19 +1197,22 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       ParBilinearForm M_lor(pfes_lor_scalar.get());
       M_lor.AddDomainIntegrator(new MassIntegrator);
       M_lor.Assemble();
-      M_lor.Finalize(0);
+      M_lor.Finalize();
       HypreParMatrix *M_L_mat = M_lor.ParallelAssemble();
 
       M_L.reset(M_L_mat);
       M_LH.reset(M_LH_mat);
+      HypreDiagScale *ML_hypre_precon = new HypreDiagScale(*M_L_mat);
       HyprePCG *ML_hypre_pcg = new HyprePCG(*M_L_mat);
       ML_hypre_pcg->SetPrintLevel(0);
       ML_hypre_pcg->SetMaxIter(1000);
       ML_hypre_pcg->SetTol(1e-13);
       ML_hypre_pcg->SetAbsTol(1e-13);
+      ML_hypre_pcg->SetPreconditioner(*ML_hypre_precon);
       // Start each solve from zero so repeated Operator::Mult() calls do not
       // depend on the output vector contents supplied by the caller.
       ML_hypre_pcg->SetZeroInitialIterate();
+      ML_precon.reset(ML_hypre_precon);
       ML_solver.reset(ML_hypre_pcg);
       R.reset(new H1ConsistentMassOperator(*M_LH, *ML_solver));
       return;

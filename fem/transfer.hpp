@@ -468,7 +468,8 @@ public:
       /// matrix in H1 Mult() and MultTranspose().
       CGSolver ML_pcg;
       std::unique_ptr<Solver> precon;
-      /// Serial preconditioner for ML_pcg.
+      /// Preconditioner for applying the inverse consistent low-order mass
+      /// matrix.
       std::unique_ptr<Solver> ML_precon;
       /// Solver used by H1ConsistentMassOperator to apply M_L^{-1}.
       std::unique_ptr<Solver> ML_solver;
