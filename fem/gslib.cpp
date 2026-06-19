@@ -1402,10 +1402,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    if (np == 1)
    {
-      auto d_gsl_code = gsl_code.ReadWrite(); // no-op because already on device
-      auto d_gsl_ref = gsl_ref.Read(); // no-op because already on device
-      auto d_gsl_dist = gsl_dist.Read(); // no-op because already on device
-      auto d_gsl_elem = gsl_elem.Read(); // no-op because already on device
+      auto d_gsl_code = gsl_code.ReadWrite(); // no memory transfer
+      auto d_gsl_ref = gsl_ref.Read(); // no memory transfer
+      auto d_gsl_dist = gsl_dist.Read(); // no memory transfer
+      auto d_gsl_elem = gsl_elem.Read(); // no memory transfer
       auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
       auto d_gsl_mfem_elem = gsl_mfem_elem.Write();
 

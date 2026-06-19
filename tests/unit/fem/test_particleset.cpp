@@ -208,6 +208,7 @@ void PerturbParticleDataOnHost(std::vector<Particle> &particles)
       for (int f = -1; f < p.GetNFields(); f++)
       {
          Vector &field = f == -1 ? p.Coords() : p.Field(f);
+         field.HostReadWrite();
          const real_t scale = (f == -1) ? 0.001 : 1.0;
          for (int c = 0; c < field.Size(); c++)
          {
@@ -335,6 +336,7 @@ void TestRedistribute(Ordering::Type ordering)
       int code_1_count = 0;
       int code_2_count = 0;
       const Array<unsigned int> &code = finder.GetCode();
+      code.HostRead();
       for (int i = 0; i < code.Size(); i++)
       {
          if (code[i] == 1)
@@ -357,6 +359,7 @@ void TestRedistribute(Ordering::Type ordering)
       finder.FindPoints(pset.Coords(), ordering);
 
       const Array<unsigned int> &procs = finder.GetProc();
+      procs.HostRead();
 
       int wrong_proc_count = 0;
       for (int i = 0; i < procs.Size(); i++)
@@ -372,6 +375,11 @@ void TestRedistribute(Ordering::Type ordering)
 
       // Check that coordinates + fields + tags are all still correct
       int wrong_particle_count = 0;
+      pset.GetIDs().HostRead();
+      for (int t = 0; t < pset.GetNTags(); t++)
+      {
+         pset.Tag(t).HostRead();
+      }
       for (int i = 0; i < pset.GetNParticles(); i++)
       {
          Particle &actual_p = all_particles[pset.GetIDs()[i]];

@@ -375,7 +375,10 @@ protected:
     *  ID of a particle.
     */
    void UpdateID(int local_idx, IDType new_global_id)
-   { ids[local_idx] = new_global_id; }
+   {
+      ids.HostReadWrite();
+      ids[local_idx] = new_global_id;
+   }
 
    /** @brief Create a Particle object with the same spatial dimension,
     *  number of fields and field vdims, and number of tags as this ParticleSet.
