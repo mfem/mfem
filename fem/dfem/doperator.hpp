@@ -782,7 +782,9 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
+#ifdef MFEM_USE_ENZYME
    bool has_functional_integrator = false;
+#endif
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -924,7 +926,7 @@ void DifferentiableOperator::AddIntegrator(
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   auto make_field_descriptors = [&](auto fops)
+   [[maybe_unused]] auto make_field_descriptors = [&](auto fops)
    {
       using fops_t = std::decay_t<decltype(fops)>;
       std::vector<FieldDescriptor> fds;
@@ -947,8 +949,9 @@ void DifferentiableOperator::AddIntegrator(
       return fds;
    };
 
-   auto make_union_fds = [](const std::vector<FieldDescriptor> &a,
-                            const std::vector<FieldDescriptor> &b)
+   [[maybe_unused]] auto make_union_fds =
+      [](const std::vector<FieldDescriptor> &a,
+         const std::vector<FieldDescriptor> &b)
    {
       std::vector<FieldDescriptor> fds;
       fds.insert(fds.end(), a.begin(), a.end());
@@ -959,10 +962,11 @@ void DifferentiableOperator::AddIntegrator(
       return fds;
    };
 
-   auto set_second_derivative_fds = [&](size_t derivative_id,
-                                        const std::vector<FieldDescriptor> &out,
-                                        const std::vector<FieldDescriptor> &all)
-                                    -> IntegratorContext
+   [[maybe_unused]] auto set_second_derivative_fds =
+      [&](size_t derivative_id,
+          const std::vector<FieldDescriptor> &out,
+          const std::vector<FieldDescriptor> &all)
+      -> IntegratorContext
    {
       auto &stored_out = second_derivative_outfds[derivative_id];
       if (stored_out.empty())
@@ -1053,9 +1057,13 @@ void DifferentiableOperator::AddIntegrator(
                                                         inputs, outputs));
       };
 
+#ifdef MFEM_USE_ENZYME
       constexpr size_t idx = decltype(i)::value;
+#endif
+
       if constexpr (is_functional)
       {
+#ifdef MFEM_USE_ENZYME
          has_functional_integrator = true;
 
          // Check dependencies of the quadrature function inputs for the derivative
@@ -1120,6 +1128,9 @@ void DifferentiableOperator::AddIntegrator(
             MFEM_VERIFY(stored_first_out == derivative_outputs_fds,
                         "inconsistent first derivative output FieldDescriptors");
          }
+#else
+         MFEM_ABORT("functional integrators require Enzyme support to compute derivatives");
+#endif
       }
       else
       {
