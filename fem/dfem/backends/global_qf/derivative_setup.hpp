@@ -28,12 +28,12 @@ struct DerivativeSetup
 {
    DerivativeSetup(
       IntegratorContext ctx,
-      qfunc_t &qfunc,
+      qfunc_t qfunc,
       inputs_t inputs,
       outputs_t outputs,
       Vector &qp_cache) :
       ctx(ctx),
-      qfunc(qfunc),
+      qfunc(std::move(qfunc)),
       inputs(inputs),
       outputs(outputs),
       qp_cache(qp_cache)
@@ -114,11 +114,6 @@ struct DerivativeSetup
       qp_cache = 0.0;
       interpolate(input_to_infd, input_bases, xe, xq);
 
-      xq.HostRead();
-      xq.SyncToBlocks();
-      yq.HostReadWrite();
-      yq.SyncToBlocks();
-
       const int gnqp_local = gnqp;
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
@@ -138,22 +133,24 @@ struct DerivativeSetup
             for (int m = 0; m < trial_op_dim_s; m++)
             {
                shadow_xq = 0.0;
-               shadow_xq.HostReadWrite();
-               shadow_xq.SyncToBlocks();
 
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
-               real_t *shadow_ptr = shadow_xq.GetBlock(s).HostReadWrite();
+               real_t *shadow_ptr = shadow_xq.GetBlock(s.value).HostReadWrite();
                for (int gq = 0; gq < gnqp_local; gq++)
                {
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
                }
+
+               yq = 0.0;
+
                detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
                   qfunc, xq, shadow_xq, yq, gnqp,
                   input_qlayouts, output_qlayouts,
                   std::make_index_sequence<ninputs> {},
                   std::make_index_sequence<noutputs> {});
-               const real_t *yq_mono = yq.HostRead();
+               yq.SyncToBlocks();
+
                real_t *cache_ptr = qp_cache.HostReadWrite();
 
                // Write yq into the cache column
@@ -166,7 +163,7 @@ struct DerivativeSetup
                   const int test_op_dim_o = out_op_dim[o];
                   const int yq_out_size   = test_vdim_o * test_op_dim_o;
                   const int out_offset_o  = out_offset;
-                  const real_t *yq_ptr    = yq_mono + yq_offsets[o.value];
+                  const real_t *yq_ptr    = yq.GetBlock(o.value).HostRead();
 
                   for (int gq = 0; gq < gnqp_local; gq++)
                   {
@@ -194,7 +191,7 @@ struct DerivativeSetup
    }
 
    IntegratorContext ctx;
-   qfunc_t &qfunc;
+   qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;
    Vector &qp_cache;

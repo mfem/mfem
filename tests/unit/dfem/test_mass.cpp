@@ -37,10 +37,12 @@ template <int DIM> struct global_mf_mass_qf
                    tensor_array<const real_t> &w,
                    tensor_array<dscalar_t> &v) const
    {
-      mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
+      // Enzyme requires extra support to handle:
+      // mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
+      for (auto q = 0; q < u.size(); ++q)
       {
          v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-      });
+      }
    }
 };
 
