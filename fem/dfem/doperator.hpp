@@ -615,6 +615,38 @@ public:
       size_t derivative_id, const MultiVector &x,
       const bool use_cached_setup = true);
 
+   /// @brief Create a second derivative operator for a functional.
+   ///
+   /// Returns a DerivativeOperator representing the second derivative of a
+   /// functional with respect to the given derivative ID. This is available for
+   /// integrators added with @a is_functional set to true.
+   ///
+   /// This overload accepts the state as a T-vector BlockVector and uses direct
+   /// derivative-action callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t derivative_id, const Vector &x);
+
+   /// @brief Create a second derivative operator for a functional.
+   ///
+   /// This overload accepts the state as a MultiVector. The returned operator
+   /// uses direct derivative-action callbacks by default. When
+   /// @a use_cached_setup is true and cached derivative-apply callbacks are
+   /// available, the returned operator uses them instead.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state stored in a MultiVector.
+   /// @param use_cached_setup Whether to prefer cached derivative-apply
+   /// callbacks over direct derivative actions.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t derivative_id, const MultiVector &x,
+      const bool use_cached_setup = false);
+
 private:
    const ParMesh &mesh;
 
@@ -642,6 +674,25 @@ private:
    std::map<size_t,
        std::vector<assemble_diagonal_callback_t>>
        assemble_diagonal_callbacks;
+   std::map<size_t, std::vector<derivative_setup_t>>
+       second_derivative_setup_callbacks;
+   std::map<size_t,
+       std::vector<derivative_action_t>> second_derivative_action_callbacks;
+   std::map<size_t,
+       std::vector<derivative_action_t>> second_derivative_apply_callbacks;
+   std::map<size_t,
+       std::vector<derivative_action_t>> second_daction_transpose_callbacks;
+   std::map<size_t, std::vector<FieldDescriptor>> second_derivative_outfds;
+   std::map<size_t, std::vector<FieldDescriptor>> second_derivative_unionfds;
+   std::map<size_t,
+       std::vector<assemble_derivative_sparsematrix_callback_t>>
+       assemble_second_derivative_sparsematrix_callbacks;
+   std::map<size_t,
+       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
+       assemble_second_derivative_hypreparmatrix_callbacks;
+   std::map<size_t,
+       std::vector<assemble_diagonal_callback_t>>
+       assemble_second_derivative_diagonal_callbacks;
 
    std::vector<FieldDescriptor> infds;
    std::vector<FieldDescriptor> outfds;
@@ -664,6 +715,7 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
+   bool has_functional_integrator = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -840,12 +892,12 @@ void DifferentiableOperator::AddIntegrator(
       return fds;
    };
 
-   auto set_derivative_fds = [&](size_t derivative_id,
-                                 const std::vector<FieldDescriptor> &out,
-                                 const std::vector<FieldDescriptor> &all)
-                             -> IntegratorContext
+   auto set_second_derivative_fds = [&](size_t derivative_id,
+                                        const std::vector<FieldDescriptor> &out,
+                                        const std::vector<FieldDescriptor> &all)
+                                    -> IntegratorContext
    {
-      auto &stored_out = derivative_outfds[derivative_id];
+      auto &stored_out = second_derivative_outfds[derivative_id];
       if (stored_out.empty())
       {
          stored_out = out;
@@ -853,10 +905,10 @@ void DifferentiableOperator::AddIntegrator(
       else
       {
          MFEM_VERIFY(stored_out == out,
-                     "inconsistent derivative output FieldDescriptors");
+                     "inconsistent second derivative output FieldDescriptors");
       }
 
-      auto &stored_union = derivative_unionfds[derivative_id];
+      auto &stored_union = second_derivative_unionfds[derivative_id];
       if (stored_union.empty())
       {
          stored_union = all;
@@ -864,7 +916,7 @@ void DifferentiableOperator::AddIntegrator(
       else
       {
          MFEM_VERIFY(stored_union == all,
-                     "inconsistent derivative union FieldDescriptors");
+                     "inconsistent second derivative union FieldDescriptors");
       }
 
       return IntegratorContext
@@ -891,39 +943,45 @@ void DifferentiableOperator::AddIntegrator(
       integrator_qp_caches.emplace_back(std::make_unique<Vector>());
       Vector &qp_cache = *integrator_qp_caches.back();
 
-      auto create_callbacks = [&](const IntegratorContext &callback_ctx,
+      auto create_callbacks = [&](auto &setup_callbacks,
+                                  auto &apply_callbacks,
+                                  auto &transpose_callbacks,
+                                  auto &assemble_sparsematrix_callbacks,
+                                  auto &assemble_diagonal_cbs,
+                                  auto &action_cbs,
+                                  const IntegratorContext &callback_ctx,
                                   auto qf, auto outputs)
       {
          // Setup the qp cache for the derivative
-         derivative_setup_callbacks[i].push_back(
+         setup_callbacks[i].push_back(
             backend_t::template MakeDerivativeSetup<i>(
                callback_ctx, qf, inputs, outputs, qp_cache));
 
          // Apply the derivative to the qp cache
-         derivative_apply_callbacks[i].push_back(
+         apply_callbacks[i].push_back(
             backend_t::template MakeDerivativeApply<i>(
                callback_ctx, qf, inputs, outputs, qp_cache));
 
          // Apply the transpose of the derivative to the qp cache
-         daction_transpose_callbacks[i].push_back(
+         transpose_callbacks[i].push_back(
             backend_t::template MakeDerivativeApplyTranspose<i>(
                callback_ctx, qf, inputs, outputs, qp_cache));
 
          if (!disable_assemble)
          {
             // Assemble the derivative into a SparseMatrix
-            assemble_derivative_sparsematrix_callbacks[i].push_back(
+            assemble_sparsematrix_callbacks[i].push_back(
                backend_t::template MakeDerivativeAssemble<i>(
                   callback_ctx, qf, inputs, outputs, qp_cache));
 
             // Assemble the diagonal of the derivative into an L-vector
-            assemble_diagonal_callbacks[i].push_back(
+            assemble_diagonal_cbs[i].push_back(
                backend_t::template MakeDerivativeAssembleDiagonal<i>(
                   callback_ctx, qf, inputs, outputs, qp_cache));
          }
 
          // Apply the derivative
-         derivative_action_callbacks[i].push_back(
+         action_cbs[i].push_back(
             backend_t::template MakeDerivativeAction<i>(callback_ctx, qf,
                                                         inputs, outputs));
       };
@@ -931,6 +989,8 @@ void DifferentiableOperator::AddIntegrator(
       constexpr size_t idx = decltype(i)::value;
       if constexpr (is_functional)
       {
+         has_functional_integrator = true;
+
          // Check dependencies of the quadrature function inputs for the derivative
          constexpr auto darr =
             make_dependency_tuple_ct<idx, input_t>();
@@ -955,14 +1015,26 @@ void DifferentiableOperator::AddIntegrator(
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
          const auto derivative_ctx =
-            set_derivative_fds(idx, derivative_outputs_fds,
-                               derivative_all_fds);
+            set_second_derivative_fds(idx, derivative_outputs_fds,
+                                      derivative_all_fds);
 
-         create_callbacks(derivative_ctx, dqfunc, first_derivative_outputs);
+         create_callbacks(second_derivative_setup_callbacks,
+                          second_derivative_apply_callbacks,
+                          second_daction_transpose_callbacks,
+                          assemble_second_derivative_sparsematrix_callbacks,
+                          assemble_second_derivative_diagonal_callbacks,
+                          second_derivative_action_callbacks,
+                          derivative_ctx, dqfunc, first_derivative_outputs);
       }
       else
       {
-         create_callbacks(ctx, qfunc, outputs);
+         create_callbacks(derivative_setup_callbacks,
+                          derivative_apply_callbacks,
+                          daction_transpose_callbacks,
+                          assemble_derivative_sparsematrix_callbacks,
+                          assemble_diagonal_callbacks,
+                          derivative_action_callbacks,
+                          ctx, qfunc, outputs);
       }
    }, derivative_ids);
 }

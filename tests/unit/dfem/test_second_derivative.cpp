@@ -44,7 +44,8 @@ struct MinimalSurfaceEnergyFunctional
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   real_t &f /* dfdu, dfddudxi */
+                  ) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -149,11 +150,12 @@ public:
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          MinimalSurfaceEnergyFunctional<real_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
+         auto second_derivatives = std::integer_sequence<size_t, U> {};
          functional_dop->AddDomainIntegrator<LocalQFBackend, true>(
             energy,
-            tuple{Value<U>{}, Gradient<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Identity<Q>{}},
-            ir, all_domain_attr, derivatives);
+            Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
+            Outputs<Identity<Q>> {}, /* Value<U>, Gradient<U> */
+            ir, all_domain_attr, derivatives /* , second_derivatives */);
       }
 
       // Manually computed residual
@@ -195,7 +197,6 @@ public:
          // (argument 0).
          RevDiff<MinimalSurfaceEnergy<real_t, dim>, tuple<Active, Const, Const>, tuple<Active>>
                fd;
-         // typename decltype(fd)::traits xxx;
 
          auto derivatives = std::integer_sequence<size_t, U> {};
          dfunctional_dop->AddDomainIntegrator<LocalQFBackend>(
@@ -241,7 +242,7 @@ public:
    {
       MultiVector X{u, coords};
       MultiVector Y{g};
-      dfunctional_dop->Mult(X, Y);
+      functional_dop->GetDerivative(U, X)->Mult(u, Y);
    }
 
    // Hessian-vector product H(u) v with the hand-coded second derivative.
@@ -260,13 +261,21 @@ public:
       residual_dop->GetDerivative(U, X)->Mult(v, Y);
    }
 
-   // H(u) v as the derivative of the differentiated energy FwdDiff<f>
-   // (forward-over-forward AD).
+   // H(u) v as the derivative of the differentiated energy
+   // (forward-over-reverse AD).
    void hvp(const Vector &u, const Vector &v, Vector &Hv) const
    {
       MultiVector X{u, coords};
       MultiVector Y{Hv};
       dfunctional_dop->GetDerivative(U, X)->Mult(v, Y);
+   }
+
+   // H(u) v from the functional's second-derivative interface.
+   void hvp_functional(const Vector &u, const Vector &v, Vector &Hv) const
+   {
+      MultiVector X{u, coords};
+      MultiVector Y{Hv};
+      functional_dop->GetSecondDerivative(U, X)->Mult(v, Y);
    }
 
 private:
@@ -342,7 +351,6 @@ void second_derivative(const char *filename, int p)
    Vector Hv_dres(fes.GetTrueVSize());
    functional.hvp_dresidual(u, v, Hv_dres);
 
-
    diff = Hv_dres;
    diff -= exact_Hv;
    REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
@@ -351,6 +359,13 @@ void second_derivative(const char *filename, int p)
    functional.hvp(u, v, Hv);
 
    diff = Hv;
+   diff -= exact_Hv;
+   REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
+
+   Vector Hv_functional(fes.GetTrueVSize());
+   functional.hvp_functional(u, v, Hv_functional);
+
+   diff = Hv_functional;
    diff -= exact_Hv;
    REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
 
