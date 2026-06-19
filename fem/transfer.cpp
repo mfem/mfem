@@ -1179,19 +1179,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       return;
    }
 
-   std::unique_ptr<SparseMatrix> R_local_sp, M_LH_local_sp;
-   std::tie(R_local_sp, M_LH_local_sp) =
-      ComputeSparseRAndM_LH(!use_consistent_mass);
-
-   M_LH_local_sp->Finalize(0);
-   if (R_local_sp) { R_local_sp->Finalize(0); }
+   std::tie(R, M_LH) = ComputeSparseRAndM_LH(!use_consistent_mass);
 
    HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
                                               pfes_lor_scalar->GlobalVSize(),
                                               pfes_ho_scalar->GlobalVSize(),
                                               pfes_lor_scalar->GetDofOffsets(),
                                               pfes_ho_scalar->GetDofOffsets(),
-                                              M_LH_local_sp.get());
+                                              static_cast<SparseMatrix*>(M_LH.get()));
    HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
                                   &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
 
@@ -1227,7 +1222,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
                                            pfes_ho_scalar->GlobalVSize(),
                                            pfes_lor_scalar->GetDofOffsets(),
                                            pfes_ho_scalar->GetDofOffsets(),
-                                           R_local_sp.get());
+                                           static_cast<SparseMatrix*>(R.get()));
 
    HypreParMatrix *R_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
                                &R_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
