@@ -801,11 +801,10 @@ struct LocalQFLOBackend
 };
 
 /// @brief Dispatch to a compile-time LO kernel matching runtime @a q1d.
-template <typename LOKernelTable, int DIM>
+template <typename LOKernelTable, int DIM, int MQ1 = LocalQFLOBackendMQ1()>
 inline typename LOKernelTable::KernelSignature
 DispatchLOKernelByQ1D(int q1d)
 {
-   constexpr int MQ1 = LocalQFLOBackendMQ1();
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported LO quadrature order: " << q1d);
    return LOKernelTable::template Kernel<DIM, MQ1>();
