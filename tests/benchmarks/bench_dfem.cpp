@@ -428,7 +428,6 @@ public:
                                const real_t *xe, real_t *ye,
                                const int d1d, const int q1d, const int d1n)
    {
-      db1();
       constexpr int DIM = 3;
 
       const auto w_r = ir->GetWeights().Read();
@@ -598,7 +597,6 @@ public:
                           const real_t *xe, real_t *ye,
                           const int d1d, const int q1d, const int d1n)
    {
-      db1();
       constexpr int DIM = 3;
 
       const auto w_r = ir->GetWeights().Read();
@@ -677,20 +675,13 @@ template <int D1D, int Q1D, int D1N>
 MFMassIntegrator::MFMassKernelType
 MFMassIntegrator::MFMassKernels::Kernel()
 {
-   db1("\x1b[33mD1D:{} Q1D:{} D1N:{}", D1D, Q1D, D1N);
    return MFMassMult<D1D, Q1D, D1N>;
 }
 
 MFMassIntegrator::MFMassKernelType
-MFMassIntegrator::MFMassKernels::Fallback(int d1, int q1, int n1)
+MFMassIntegrator::MFMassKernels::Fallback(int, int, int)
 {
-   db1("\x1b[33mFallback d1d:{} q1d:{} d1n:{}", d1, q1, n1);
-#ifndef MFEM_DEBUG
-   MFEM_ABORT("No kernel for d1d=" << d1 << " q=" << q1 << " d1n=" << n1);
-   return nullptr;
-#else
    return MFMassMult;
-#endif // MFEM_DEBUG
 }
 
 /// PA MassIntegrator ///////////////////////////////////////////////////////
@@ -881,20 +872,17 @@ struct BakeOff
    const int dofs;
    ParGridFunction &nodes;
    ParFiniteElementSpace& mfes;
-   ParGridFunction x, y;
+   ParGridFunction x;
    ParBilinearForm a;
 
    Array<int> ess_tdof_list, ess_bdr;
    ParLinearForm b;
    Vector B, X;
    OperatorPtr A;
-   Operator *A_ptr;
 
    static constexpr int U = 0, Ξ = 1, Q = 2;
-   FieldDescriptor u_fd, Ξ_fd, q_fd;
-   std::vector<FieldDescriptor> u_sol, q_param;
    std::unique_ptr<DifferentiableOperator> dop;
-   const int elem_size, total_size, d1d, q1d;
+   std::unique_ptr<DifferentiableOperator> qdata_setup_dop;
    QuadratureSpace qspace;
    VectorQuadratureSpace vqspace;
    QuadratureFunction qfct;
@@ -934,26 +922,18 @@ struct BakeOff
       nodes(*static_cast<ParGridFunction*>(pmesh.GetNodes())),
       mfes(*(nodes.ParFESpace())),
       x(&pfes),
-      y(&pfes),
       a(&pfes),
       ess_bdr(pmesh.bdr_attributes.Max()),
       b(&pfes),
       B(pfes.GetVSize()),
       X(x),
-      // dFEM
-      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &vqspace},
-      u_sol{u_fd},
-      q_param {q_fd},
-      elem_size(DIM * DIM * ir->GetNPoints()),
-      total_size(elem_size * pmesh.GetNE()),
-      d1d(p + 1),
-      q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
       qspace(pmesh, *ir),
       vqspace(qspace, DIM*DIM),
       qfct(vqspace)
    {
       smesh.Clear();
       x.Randomize(0x9e3779b9);
+      const int q1d = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
       assert(q1d*q1d*q1d == ir->GetNPoints());
 
       ess_bdr = 1;
@@ -973,6 +953,13 @@ struct BakeOff
 
       // BilinearForm a
       const int height = pfes.GetVSize(), width = pfes.GetVSize();
+      const auto formLinearSystem = [&] (Vector &arg1)
+      {
+         Operator *A_ptr = nullptr;
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, arg1);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
       // PA MFEM Setup ////////////////////////////////////
       const auto mPASetup = [&] (auto integrator)
       {
@@ -995,9 +982,7 @@ struct BakeOff
                                                       tuple{GradValU, Gradient<Ξ>{}, Weight{}},
                                                       tuple{GradValU},
                                                       *ir, ess_bdr);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
-         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         formLinearSystem(nodes);
       };
       // PA ∂FEM setup ////////////////////////////////////
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
@@ -1005,14 +990,15 @@ struct BakeOff
          using backend_t = decltype(backend);
          const auto ifd0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
          const auto ofd0 = std::vector<FieldDescriptor> {{Q, &vqspace}};
-         DifferentiableOperator dSetup(ifd0, ofd0, pmesh);
-         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         dSetup.AddDomainIntegrator<backend_t>(setup_qf,
-                                               tuple{Gradient<Ξ>{}, Weight{}},
-                                               tuple{Identity<Q>{}},
-                                               *ir, ess_bdr);
+         qdata_setup_dop = std::make_unique<DifferentiableOperator>(ifd0, ofd0, pmesh);
+         qdata_setup_dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         qdata_setup_dop->template AddDomainIntegrator<backend_t>(
+            setup_qf,
+            tuple{Gradient<Ξ>{}, Weight{}},
+            tuple{Identity<Q>{}},
+            *ir, ess_bdr);
          MultiVector N{nodes}, D{qfct};
-         dSetup.Mult(N, D);
+         qdata_setup_dop->Mult(N, D);
 
          const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &vqspace}};
          const auto ofd1 = std::vector<FieldDescriptor> {{U, &pfes}};
@@ -1023,9 +1009,7 @@ struct BakeOff
                                                       tuple{GradValU, Identity<Q>{}},
                                                       tuple{GradValU},
                                                       *ir, ess_bdr);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, qfct);
-         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         formLinearSystem(qfct);
       };
 
       if constexpr (BFI == 1)
