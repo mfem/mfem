@@ -170,11 +170,11 @@ public:
     element. For L2 spaces, M_f is the mass matrix on the union of all fine
     elements comprising the coarse element. For H1 spaces, M_f is a diagonal
     (lumped) mass matrix computed through row-summation, unless
-    UseConsistentMass() is enabled for the forward H1 operator. Note that the
-    backward transfer operator, B, is a left inverse of the forward transfer
-    operator, F,
-    i.e. B F = I. Both F and B are defined in physical space and, generally for
-    L2 spaces, vary between different mesh elements.
+    UseConsistentMass() is enabled for the forward H1 operator. When the
+    backward transfer operator, B, is supported, it is a left inverse of the
+    forward transfer operator, F, i.e. B F = I. Both F and B are defined in
+    physical space and, generally for L2 spaces, vary between different mesh
+    elements.
 
     This class supports H1 and L2 finite element spaces. Fine meshes are a
     uniform refinement of the coarse mesh, usually created through
@@ -354,6 +354,8 @@ public:
    class L2ProjectionH1Space : public L2Projection
    {
       const bool use_ea;
+      /// Use the consistent low-order mass matrix in non-EA H1 Mult() and
+      /// MultTranspose().
       const bool use_consistent_mass;
 
    public:
@@ -425,8 +427,10 @@ public:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
 
-      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
-      /// inverse lumped mass matrix error when compared to device implementation.
+      /** @brief Computes on-rank R and M_LH matrices.
+
+          If build_R is true, the returned pair contains both R and M_LH. If
+          build_R is false, the first pointer is null and only M_LH is built. */
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(
              bool build_R = true);
@@ -460,10 +464,15 @@ public:
       std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
+      /// Serial PCG solver for applying the inverse consistent low-order mass
+      /// matrix in H1 Mult() and MultTranspose().
       CGSolver ML_pcg;
       std::unique_ptr<Solver> precon;
+      /// Serial preconditioner for ML_pcg.
       std::unique_ptr<Solver> ML_precon;
+      /// Solver used by H1ConsistentMassOperator to apply M_L^{-1}.
       std::unique_ptr<Solver> ML_solver;
+      /// Consistent low-order mass matrix used when use_consistent_mass is true.
       std::unique_ptr<Operator> M_L;
       // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
@@ -520,6 +529,8 @@ public:
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
    bool force_l2_space;
+   /// Use the consistent low-order mass matrix for non-EA H1 Mult() and
+   /// MultTranspose().
    bool use_consistent_mass;
 
 public:
@@ -533,8 +544,12 @@ public:
    { }
    virtual ~L2ProjectionGridTransfer();
 
-   /** Use the consistent low-order mass matrix in H1 non-EA Mult() and
-       MultTranspose(). This option does not support BackwardOperator(). */
+   /** @brief Use the consistent low-order mass matrix in H1 non-EA Mult() and
+       MultTranspose().
+
+       This option must be set before constructing the transfer operators. It
+       only affects H1 transfer, is not supported with element assembly, and
+       disables BackwardOperator(). */
    void UseConsistentMass(bool use_consistent_mass_ = true);
 
    const Operator &ForwardOperator() override;
@@ -543,6 +558,7 @@ public:
 
    bool SupportsBackwardsOperator() const override;
 private:
+   bool UsesH1ConsistentMass() const;
    void BuildF();
 };
 

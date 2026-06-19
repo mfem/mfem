@@ -1033,6 +1033,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongateTranspose(
 namespace
 {
 
+/// Applies the H1 transfer R = M_L^{-1} M_LH and its transpose, where M_L is
+/// the consistent low-order mass matrix.
 class H1ConsistentMassOperator : public Operator
 {
 private:
@@ -1198,12 +1200,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       M_lor.Finalize(0);
       HypreParMatrix *M_L_mat = M_lor.ParallelAssemble();
 
-      ML_pcg.SetPrintLevel(0);
-      ML_pcg.SetMaxIter(1000);
-      ML_pcg.SetRelTol(1e-13);
-      ML_pcg.SetAbsTol(1e-13);
-      ML_pcg.SetOperator(*M_L_mat);
-
       M_L.reset(M_L_mat);
       M_LH.reset(M_LH_mat);
       HyprePCG *ML_hypre_pcg = new HyprePCG(*M_L_mat);
@@ -1211,6 +1207,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       ML_hypre_pcg->SetMaxIter(1000);
       ML_hypre_pcg->SetTol(1e-13);
       ML_hypre_pcg->SetAbsTol(1e-13);
+      // Start each solve from zero so repeated Operator::Mult() calls do not
+      // depend on the output vector contents supplied by the caller.
       ML_hypre_pcg->SetZeroInitialIterate();
       ML_solver.reset(ML_hypre_pcg);
       R.reset(new H1ConsistentMassOperator(*M_LH, *ML_solver));
@@ -2139,9 +2137,7 @@ const Operator &L2ProjectionGridTransfer::ForwardOperator()
 
 const Operator &L2ProjectionGridTransfer::BackwardOperator()
 {
-   MFEM_VERIFY(!(use_consistent_mass && !force_l2_space &&
-                 dom_fes.FEColl()->GetContType() ==
-                 FiniteElementCollection::CONTINUOUS),
+   MFEM_VERIFY(!UsesH1ConsistentMass(),
                "BackwardOperator is not supported with consistent mass");
    if (!B)
    {
@@ -2158,13 +2154,19 @@ void L2ProjectionGridTransfer::UseConsistentMass(bool use_consistent_mass_)
    use_consistent_mass = use_consistent_mass_;
 }
 
+bool L2ProjectionGridTransfer::UsesH1ConsistentMass() const
+{
+   return use_consistent_mass && !force_l2_space &&
+          dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS;
+}
+
 void L2ProjectionGridTransfer::BuildF()
 {
-   MFEM_VERIFY(!(use_ea && use_consistent_mass),
-               "consistent mass is not supported with element assembly");
    if (!force_l2_space &&
        dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
    {
+      MFEM_VERIFY(!(use_ea && use_consistent_mass),
+                  "consistent mass is not supported with element assembly");
       if (!Parallel())
       {
          F = new L2ProjectionH1Space(dom_fes, ran_fes,
@@ -2191,11 +2193,7 @@ void L2ProjectionGridTransfer::BuildF()
 
 bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
 {
-   if (use_consistent_mass && !force_l2_space &&
-       dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
-   {
-      return false;
-   }
+   if (UsesH1ConsistentMass()) { return false; }
    return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
 }
 
