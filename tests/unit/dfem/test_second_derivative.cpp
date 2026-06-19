@@ -242,7 +242,7 @@ public:
    {
       MultiVector X{u, coords};
       MultiVector Y{g};
-      functional_dop->GetDerivative(U, X)->Mult(u, Y);
+      functional_dop->GetDerivative(U)->Mult(X, Y);
    }
 
    // Hessian-vector product H(u) v with the hand-coded second derivative.

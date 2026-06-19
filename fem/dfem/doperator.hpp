@@ -146,6 +146,34 @@ public:
       }
    }
 
+   /// Stateless constructor for first-derivative (gradient) operators.
+   ///
+   /// Unlike the stateful constructor, this does not capture an input state.
+   /// The full input state is supplied at apply time through
+   /// Mult(const MultiVector &, MultiVector &). This is used for the first
+   /// derivative (gradient) of a functional, which is a nonlinear function of
+   /// the state and therefore needs no direction.
+   DerivativeOperator(
+      const int &height,
+      const int &width,
+      const std::vector<derivative_action_t> &derivative_actions,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds) :
+      Operator(height, width),
+      derivative_actions(derivative_actions),
+      infds(infds),
+      outfds(outfds)
+   {
+      daction_l.resize(outfds.size());
+      daction_e.resize(outfds.size());
+      infields_e.resize(infds.size());
+      infields_l.resize(infds.size());
+      for (size_t i = 0; i < infds.size(); i++)
+      {
+         infields_l[i] = new Vector(GetVSize(infds[i]));
+      }
+   }
+
    ~DerivativeOperator() override
    {
       detail::DeleteOwnedVectorPointers(infields_l, infields_e);
@@ -180,6 +208,31 @@ public:
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
+      }
+      restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
+      prolongation_transpose(outfds, daction_l, y);
+   }
+
+   /// @brief Apply the derivative operator to a full input state.
+   ///
+   /// Unlike Mult(const Vector &, ...), which captures the state at
+   /// construction and treats its argument as a direction, this overload takes
+   /// the full input state @a x (all input fields) and writes the result to
+   /// @a y. It is used for the first derivative (gradient) of a functional,
+   /// which is a nonlinear function of the state and requires no direction.
+   ///
+   /// @param x The full input state (one block per input field) as T-dofs.
+   /// @param y Result of the gradient action on T-dofs in the output space.
+   void Mult(const MultiVector &x, MultiVector &y) const
+   {
+      prolongation(infds, x, infields_l);
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+      prepare_residual<Entity::Element>(outfds, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
+      for (const auto &f : derivative_actions)
+      {
+         // The first-derivative (gradient) action ignores the direction.
+         f(infields_e, nullptr, daction_e);
       }
       restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
       prolongation_transpose(outfds, daction_l, y);
@@ -328,7 +381,7 @@ private:
    const std::vector<FieldDescriptor> infds;
    const std::vector<FieldDescriptor> outfds;
 
-   std::vector<Vector *> infields_l;
+   mutable std::vector<Vector *> infields_l;
    mutable std::vector<Vector *> infields_e;
 
    FieldDescriptor direction;
@@ -615,6 +668,20 @@ public:
       size_t derivative_id, const MultiVector &x,
       const bool use_cached_setup = true);
 
+   /// @brief Create a first-derivative (gradient) operator for a functional.
+   ///
+   /// Returns a DerivativeOperator representing the first derivative (gradient)
+   /// of a functional with respect to @a derivative_id. Unlike the stateful
+   /// overloads, no state is captured here; the full input state is supplied at
+   /// apply time through DerivativeOperator::Mult(const MultiVector &,
+   /// MultiVector &).
+   ///
+   /// Available only for integrators added with @a is_functional set to true.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetDerivative(size_t derivative_id);
+
    /// @brief Create a second derivative operator for a functional.
    ///
    /// Returns a DerivativeOperator representing the second derivative of a
@@ -675,7 +742,7 @@ private:
        std::vector<assemble_diagonal_callback_t>>
        assemble_diagonal_callbacks;
    std::map<size_t, std::vector<derivative_setup_t>>
-       second_derivative_setup_callbacks;
+                                                  second_derivative_setup_callbacks;
    std::map<size_t,
        std::vector<derivative_action_t>> second_derivative_action_callbacks;
    std::map<size_t,
@@ -1025,6 +1092,34 @@ void DifferentiableOperator::AddIntegrator(
                           assemble_second_derivative_diagonal_callbacks,
                           second_derivative_action_callbacks,
                           derivative_ctx, dqfunc, first_derivative_outputs);
+
+         // The first derivative (gradient) of the functional is the plain
+         // action of the reverse-mode-differentiated energy dqfunc. Register
+         // it so GetDerivative(idx) returns the gradient operator. The
+         // DerivativeOperator passes a direction to its action callbacks; the
+         // gradient is a function of the captured state only, so the direction
+         // is ignored here.
+         auto grad_action =
+            backend_t::MakeAction(derivative_ctx, dqfunc, inputs,
+                                  first_derivative_outputs);
+         derivative_action_callbacks[idx].push_back(
+            [grad_action](const std::vector<Vector *> &xe,
+                          const Vector * /*direction*/,
+                          std::vector<Vector *> &ye)
+         {
+            grad_action(xe, ye);
+         });
+
+         auto &stored_first_out = derivative_outfds[idx];
+         if (stored_first_out.empty())
+         {
+            stored_first_out = derivative_outputs_fds;
+         }
+         else
+         {
+            MFEM_VERIFY(stored_first_out == derivative_outputs_fds,
+                        "inconsistent first derivative output FieldDescriptors");
+         }
       }
       else
       {

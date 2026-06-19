@@ -238,6 +238,29 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_setup_cbs);
 }
 
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id)
+{
+   MFEM_ASSERT(has_functional_integrator,
+               "stateless GetDerivative is available only for functionals");
+
+   MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
+               derivative_action_callbacks.end(),
+               "no derivative action has been found for ID " << derivative_id);
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+   const auto it_outfds = derivative_outfds.find(derivative_id);
+   const auto &doutfds =
+      it_outfds == derivative_outfds.end() ? outfds : it_outfds->second;
+
+   return std::make_shared<DerivativeOperator>(
+             GetTotalTrueVSize(doutfds),
+             GetTrueVSize(infds[dfidx]),
+             derivative_action_callbacks[derivative_id],
+             infds,
+             doutfds);
+}
+
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    size_t derivative_id, const Vector &x)
 {
