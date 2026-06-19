@@ -14,37 +14,35 @@ public:
    QuantityOfInterest() { }
    ~QuantityOfInterest() { }
    
-   virtual real_t Eval()
-   {
-      return 0;
-   };
+   virtual real_t Eval() { return 0; };
 };
 
-// Evaluating the compliance: c = f · u
+// Evaluating the compliance: c = int_Ω E_e : ɛ(u) : ɛ(u) dx
 class Compliance : public QuantityOfInterest
 {
 protected:
-    const Vector *f, *u;
-    MPI_Comm comm = MPI_COMM_NULL;
+    ParFiniteElementSpace *fes;
+    MPI_Comm comm;
+    ProductCoefficient uku_cf;        // E_e : ɛ(u) : ɛ(u) = r(rho~) * psi0(u)
 
 public:
-    Compliance(const Vector &f_, const Vector &u_)
-    : f(&f_), u(&u_) { }
-
-    Compliance(MPI_Comm comm_, const Vector &f_, const Vector &u_)
-    : f(&f_), u(&u_), comm(comm_) { }
-
-    ~Compliance() { }
+    Compliance(MPI_Comm comm_, ParFiniteElementSpace *fes_,
+               Coefficient &simp_cf_, Coefficient &energy_cf_)
+        : fes(fes_), comm(comm_), uku_cf(simp_cf_, energy_cf_) { }
 
     real_t Eval() override
     {
-        if (comm != MPI_COMM_NULL)
-            return InnerProduct(comm, *f, *u);   // global f·u
-        else
-            return InnerProduct(*f, *u);         // local only
-    };
-};
+        ParLinearForm lf(fes);
+        lf.AddDomainIntegrator(new DomainLFIntegrator(uku_cf));
+        lf.Assemble();
+        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
 
+        real_t loc, val;
+        loc = v->Sum();
+        MPI_Allreduce(&loc, &val, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+        return val;
+    }
+};
 
 // Max-length constraint  G = 1/2 ∫_Ω (γ − α)² dx  
 class MaxFilterResidual : public QuantityOfInterest
@@ -74,11 +72,10 @@ public:
         ParLinearForm lf(fes);
         lf.AddDomainIntegrator(new DomainLFIntegrator(diff2_cf));
         lf.Assemble();
-        HypreParVector *v = lf.ParallelAssemble();   // ∫ (γ−α)² φ_i  (Σφ_i = 1)
+        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());   // ∫_Ω (γ−α)² 
 
         real_t loc, val;
         loc = v->Sum();
-        delete v;
         MPI_Allreduce(&loc, &val, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
         return 0.5 * val;
     }

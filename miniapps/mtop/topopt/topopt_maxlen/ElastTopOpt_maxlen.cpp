@@ -6,6 +6,7 @@
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "../MMA_MFEM.hpp"
+#include "../../mtop_solvers.hpp"
 #include <memory>
 
 using namespace std;
@@ -24,34 +25,30 @@ int main(int argc, char *argv[])
     int    ref_levels   = 5;
     int    order        = 2;
     real_t r_f          = 0.01;       // min filter length
-    real_t r_s          = 1;          // max filter length
+    real_t r_s          = 0.1;        // max filter length
     real_t gamma_v      = 1e-6;       // max filter lower bound
     real_t gamma_s      = 0.7;        // max filter upper bound
     real_t vol_fraction = 0.5;
     int    max_it       = 100;
-    real_t tol          = 1e-3;       // stopping tol on max design change
+    real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
-
-    real_t epsilon      = 1e-1;       // gamma - alpha tolerance (start, loose)
-    real_t eps_min      = 1e-2;       // floor for the tightened tolerance
-    real_t eps_decay    = 0.9;        // per-iteration geometric decay factor
-    
+    real_t epsilon      = 1e-2;       // gamma - alpha tolerance
     bool visualization = true;
     bool paraview      = false;
 
-    const real_t rho_min   = 1e-6;     // SIMP void stiffness
-    const real_t penal     = 3.0;      // SIMP exponent
-    const real_t load_r = 0.05;     // half-height of the traction patch
+    const real_t E_min    = 1e-6;     // SIMP void stiffness
+    const real_t E_max    = 1.0;      // SIMP E max
+    const real_t exponent = 3.0;      // SIMP exponent
 
     OptionsParser args(argc, argv);
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
     args.AddOption(&order, "-o", "--order", "finite element order");
-    args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
     args.AddOption(&vol_fraction, "-vf", "--volume-fraction", "volume fraction");
     args.AddOption(&r_f, "-rf", "--r_fwidth", "min filter width");
     args.AddOption(&r_s, "-rs", "--r_swidth", "max filter width");
     args.AddOption(&gamma_v, "-gv", "--gamma_v", "lower bound for max filtered density");
     args.AddOption(&gamma_s, "-gs", "--gamma_s", "upper bound for max filtered density");
+    args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -79,11 +76,14 @@ int main(int argc, char *argv[])
         real_t *c2 = mesh.GetVertex(v[1]);
         real_t cx = 0.5 * (c1[0] + c2[0]);
         real_t cy = 0.5 * (c1[1] + c2[1]);
-        int attr = 2;                                // free
+        int attr = 3;                                // free
 
         // clamp (x = 0)
         if (std::abs(cx) < 1e-10) { 
             attr = 1; 
+        }
+        else if (abs(cy - 1) < 1e-10 || abs(cy) < 1e-10 ) {
+            attr = 2;
         }                  
         be->SetAttribute(attr);
     }
@@ -118,61 +118,68 @@ int main(int argc, char *argv[])
     }
 
     // 5. Initialized all the grid funcitons and coefficients
+    // min filter varaibles
     ParGridFunction rho(&control_fes);          
     ParGridFunction rho_filter(&filter_fes); 
     rho = vol_fraction;
     rho_filter = vol_fraction;
 
-    ParGridFunction gamma(&filter_fes);
+    // max filter variables
     ParGridFunction alpha(&control_fes);
+    ParGridFunction gamma(&filter_fes);
     alpha = vol_fraction;                           // initialize ⍺ design variable
     gamma = vol_fraction;                           // initialize ɣ filtered maxlen
-
-    // Max-length constraint residual:  1/2 ∫(γ−α)²
-    MaxFilterResidual max_residual(MPI_COMM_WORLD, gamma, alpha);
 
     GridFunctionCoefficient rho_cf(&rho);
     GridFunctionCoefficient alpha_cf(&alpha);
 
+    // Max-length constraint residual:  1/2 ∫(γ−α)²
+    MaxFilterResidual max_residual(MPI_COMM_WORLD, gamma, alpha);
+
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);
-    ConstantCoefficient lambda_cf(1.0), mu_cf(1.0);
-    SIMPCoefficient simp_cf(&rho_filter, rho_min, 1.0, penal);  // r(rho~)
-    ProductCoefficient lambda_simp(lambda_cf, simp_cf);         // lambda = r(rho~) lambda0
-    ProductCoefficient mu_simp(mu_cf, simp_cf);                 // mu     = r(rho~) mu0
+    ConstantCoefficient E_cf(3.0), nu_cf(0.3);
+    IsoElasticyLambdaCoeff lambda_cf(&E_cf, &nu_cf);
+    IsoElasticySchearCoeff mu_cf(&E_cf, &nu_cf);
+    SIMPCoefficient simp_cf(&rho_filter, E_min, E_max, exponent);                // r(rho~)
+    SIMPGradCoefficient simp_grad_cf(&rho_filter, E_min, E_max, exponent);       // r'(rho~)
 
     // 6. Mark essential boundaries 
-    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-    ess_bdr = 0;  ess_bdr[0] = 1;               // clamp = attribute 1
+    Array<int> ess_bdr(pmesh.bdr_attributes.Max()); 
+    ess_bdr = 0;  
+    // ess_bdr[0] = 1;              
+    // ess_bdr[1] = 1;
 
     // 7. Construct the solvers.
     // 7a. Linear elasticity solver
     VectorFunctionCoefficient force(dim, bodyload);     // body force f
+    ProductCoefficient E_simp(simp_cf, E_cf);           // r(rho~) * E0
 
-    LinearElasticitySolver elast;
-    elast.SetMesh(&pmesh);
-    elast.SetOrder(order);
-    elast.SetLameCoefficients(&lambda_simp, &mu_simp);
-    elast.SetRHSdomainCoefficient(&force);             // body force f
-    elast.SetEssentialBoundary(ess_bdr);
-    elast.SetupFEM();
-   
+    IsoLinElasticSolver elast(&pmesh, order);
+    elast.SetVolForce(force);
+    elast.SetMaterial(E_simp, nu_cf);
+    elast.AddDispBC(1, -1, 0);
+    elast.SetLinearSolver(1e-10, 1e-14, 10000);
+
+    StrainEnergyDensityCoefficient energy_cf(&lambda_cf, &mu_cf,
+                                             &elast.GetDisplacements());
+    ProductCoefficient prod(energy_cf, simp_grad_cf);   // r'(rho~) * psi0
+    ProductCoefficient dcdrho_cf(-1.0, prod);           // dc/drho~ = -r'(rho~) * psi0
+    Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
+
     // 7b. Min length scale filter solver
     ConstantCoefficient minlen2_cf(r_f * r_f);
-    StrainEnergyDensityCoefficient energy_cf(&lambda_cf, &mu_cf,
-                                                elast.GetFEMSolution(), &rho_filter,
-                                                rho_min, penal);
+
     FilterSolver filter;
     filter.SetMesh(&pmesh);
     filter.SetOrder(order);
     filter.SetDiffusionCoefficient(&minlen2_cf);
     filter.SetMassCoefficient(&one_cf);
     filter.SetRHSCoefficient(&rho_cf);
-    filter.SetAdjointRHSCoefficient(&energy_cf);
+    filter.SetAdjointRHSCoefficient(&dcdrho_cf);
     filter.SetupFEM();
 
     // 7c. Max length scale filter solver
-    // gammaVolumeCoef v_cf(0.0);      // Max filter adjoint solve right hand side 
     ConstantCoefficient maxlen2_cf(r_s * r_s);
 
     FilterSolver maxfilter;
@@ -198,7 +205,7 @@ int main(int argc, char *argv[])
     // 9. MMA optimizer and its per-iteration work vectors.
     const int n = control_fes.GetTrueVSize();
     const int m = control_fes.GetTrueVSize();
-    Array<int>  offsets(3);  offsets[0] = 0;  offsets[1] = n;  offsets[2] = m;  offsets.PartialSum();
+    // Array<int>  offsets(3);  offsets[0] = 0;  offsets[1] = n;  offsets[2] = m;  offsets.PartialSum();
     Array<int> toffsets(3); toffsets[0] = 0; toffsets[1] = n; toffsets[2] = m; toffsets.PartialSum();
 
     const int num_con = 2;                       // constraints: volume + max-length
@@ -211,7 +218,6 @@ int main(int argc, char *argv[])
 
     // stacked design  x = [ rho ; alpha ]
     BlockVector tx_local(toffsets); tx_local.GetBlock(0) = rho_tv; tx_local.GetBlock(1) = alpha_tv;
-    BlockVector x_old(toffsets);
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n+m, 2, tx_local);
 
     BlockVector tx_min(toffsets), tx_max(toffsets);
@@ -223,8 +229,8 @@ int main(int argc, char *argv[])
 
     Vector dfidx[num_con];  dfidx[0] = dvol;        // dfidx[1] set each iteration
 
-
-    // 10. GLVis.
+    // 10. Visualizations
+    // 10a. GLVis
     char vishost[] = "localhost";  int visport = 19916;
     socketstream sout;
     if (visualization) { sout.open(vishost, visport);  sout.precision(8); }
@@ -243,27 +249,32 @@ int main(int argc, char *argv[])
     }
 
     // 11. Optimization loop.
-    real_t iterationError = 1.0;
     int k = 0;
+    real_t iterationError = 1.0;
+    real_t eps_ceiling  = epsilon;
+    real_t eps_floor    = 1e-10;
+    int    infeas_count = 0;         // consecutive iterations with maxres > ε
+
     for (; k < max_it && iterationError > tol; k++)
     {
-        // (1) forward filter:  (ε^2 K + M) ρ~ = N ρ
+        // (1) forward filter:  (r_f^2 K + M) ρ~ = N ρ
         filter.FSolve();
         rho_filter = *filter.GetFEMSolution();
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
+        elast.Assemble();
         elast.FSolve();
-        real_t compliance = elast.GetCompliance();
+        elast.GetDisplacements();     // refresh fdisp from sol so energy_cf sees new u
 
-        // (3) adjoint filter:  (ε^2 K + M) w~ = -r'(ρ~) ψ_0(u)
+        // (3) adjoint filter:  (r_f^2 K + M) w~ = -r'(ρ~) psi_0(u)
         filter.ASolve();
         ParGridFunction &w_filter = *filter.GetFEMSolution();
 
-        // (4) max filter: (R^2 K + M) γ = N ρ
+        // (4) max filter: (r_s^2 K + M) γ = N ρ
         maxfilter.FSolve();
         gamma = *maxfilter.GetFEMSolution(); 
 
-        // (5) max adjoint filter: (R^2 K + M) s~ = (γ − α)
+        // (5) max adjoint filter: (r_s^2 K + M) s~ = (γ − α)
         maxfilter.ASolve();
         ParGridFunction s_filter = *maxfilter.GetFEMSolution();
 
@@ -275,7 +286,7 @@ int main(int argc, char *argv[])
         std::unique_ptr<HypreParVector> g(grad_form.ParallelAssemble());
         dcdrho = *g;
         df0dx.GetBlock(0) = dcdrho;
-        df0dx.GetBlock(1) = 0.0;                 // compliance ⊥ alpha
+        df0dx.GetBlock(1) = 0.0;
 
         // max-length constraint gradient:  [ dG/drho ; dG/dalpha ]
         max_residual.GetGrad(s_filter, dgmax.GetBlock(0), dgmax.GetBlock(1));
@@ -285,13 +296,38 @@ int main(int argc, char *argv[])
         rho.GetTrueDofs(rho_tv);
         alpha.GetTrueDofs(alpha_tv);
 
-        // adaptively decrease the value of epsilon
-        if (k % 50 == 0) epsilon = std::max(eps_min, eps_decay * epsilon);
+        // max-length residual at the current design
+        real_t maxres = max_residual.Eval();
 
-        // constraints:  volume  and  1/2 ∫(γ−α)² − ε ≤ 0
+        // ========================================================================
+        // Adaptively adjust ε every 10 iterations.
+        // If constraint is enforce in 10 iterations, then relax the eps tolerance.
+        // Otherwise decay it by 0.8. We also set a hard decaying rate of 0.9.
+        // =====================================================================
+        // infeas_count = (maxres > epsilon) ? infeas_count + 1 : 0;
+
+        // if (k % 10 == 0 && k > 0)
+        // {
+        //     eps_ceiling *= 0.95;                                        // hard decaying
+        //     if (infeas_count >= 10)                                     // relaxation
+        //         epsilon = std::min(eps_ceiling, 1.05 * epsilon);
+        //     else                                                        // tighten
+        //         epsilon *= 0.8;
+        //     epsilon = std::min(epsilon, eps_ceiling);                   // cap the ceiling
+        //     epsilon = std::max(epsilon, eps_floor);                     // numerical floor
+        //     infeas_count = 0;
+        // }
+
+        // fixed step restriction for eps
+        if (k % 20 == 0 && k > 0)
+        {
+            epsilon = std::max(epsilon * 0.9, eps_floor);
+        }
+
+        // constraints:  volume constraint  and  1/2 ∫(γ−α)² − ε ≤ 0
         real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
         fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 1.0;
-        fival(1) = max_residual.Eval() - epsilon;
+        fival(1) = maxres - epsilon;
 
         // box constraints:  rho ∈ [0,1],  ɑ ∈ [γ_v, γ_s]  (move limits)
         for (int i = 0; i < n; i++)
@@ -307,13 +343,13 @@ int main(int argc, char *argv[])
 
         // stacked update  x = [ ρ ; ɑ ]
         tx_local.GetBlock(0) = rho_tv;  tx_local.GetBlock(1) = alpha_tv;
-        x_old = tx_local; rho_old = rho_tv;
+        rho_old = rho_tv;
+        real_t compliance = comp.Eval();
         mma.Update(tx_local, df0dx, compliance, fival, dfidx, tx_min, tx_max);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         alpha.SetFromTrueDofs(tx_local.GetBlock(1));
 
         // measure iteration error
-        iterationError = 0.0;
         ParGridFunction rho_old_gf(&control_fes);
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);

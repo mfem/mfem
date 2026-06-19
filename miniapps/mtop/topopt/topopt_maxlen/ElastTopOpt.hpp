@@ -6,24 +6,37 @@ using namespace std;
 using namespace mfem;
 
 
-// SIMP coefficient: r(rho~) = min_val + rho~^exponent (max_val - min_val).
+// SIMP coefficient: r(rho~) = E_min + rho~^exponent (E_max - E_min).
 class SIMPCoefficient : public Coefficient
 {
 protected:
    GridFunction *rho_filter;
-   real_t min_val, max_val, exponent;
+   real_t E_min, E_max, exponent;
 
 public:
-   SIMPCoefficient(GridFunction *rho_filter_, real_t min_val_ = 1e-6,
-                   real_t max_val_ = 1.0, real_t exponent_ = 3.0)
-      : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
+   SIMPCoefficient(GridFunction *rho_filter_, real_t E_min_ = 1e-6,
+                   real_t E_max_ = 1.0, real_t exponent_ = 3.0)
+      : rho_filter(rho_filter_), E_min(E_min_), E_max(E_max_),
         exponent(exponent_) { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       real_t val = rho_filter->GetValue(T, ip);
-      // r(rho~) = min_val + rho~^exponent (max_val - min_val)
-      return min_val + std::pow(val, exponent) * (max_val - min_val);
+      // r(rho~) = E_min + rho~^exponent (E_max - E_min)
+      return E_min + std::pow(val, exponent) * (E_max - E_min);
+   }
+};
+
+class SIMPGradCoefficient : public SIMPCoefficient
+{
+public:
+   using SIMPCoefficient::SIMPCoefficient;   // inherits members + constructor
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      real_t val = rho_filter->GetValue(T, ip);
+      // r'(rho~) = exponent * rho~^(exponent-1) (E_max - E_min)
+      return exponent * std::pow(val, exponent - 1.0) * (E_max - E_min);
    }
 };
 
@@ -31,22 +44,17 @@ public:
 class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
-   Coefficient *lambda = nullptr;          // unit-modulus lambda
-   Coefficient *mu = nullptr;              // unit-modulus mu
-   GridFunction *u = nullptr;              // displacement state
-   GridFunction *rho_filter = nullptr;     // filtered density rho~
-   DenseMatrix grad;                       // scratch, used in Eval
-   real_t exponent, rho_min;
+   Coefficient *lambda = nullptr;
+   Coefficient *mu = nullptr;
+   GridFunction *u = nullptr;             // displacement state
+   DenseMatrix grad;
 
 public:
-   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
-                                  GridFunction *u_, GridFunction *rho_filter_,
-                                  real_t rho_min_ = 1e-6, real_t exponent_ = 3.0)
-      : lambda(lambda_), mu(mu_), u(u_), rho_filter(rho_filter_),
-        exponent(exponent_), rho_min(rho_min_)
+   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_, 
+                                  GridFunction *u_)
+      : lambda(lambda_), mu(mu_), u(u_)
    {
-      MFEM_ASSERT(rho_min_ >= 0.0 && rho_min_ < 1.0, "rho_min must be in [0,1)");
-      MFEM_ASSERT(u && rho_filter, "displacement / density field not set");
+      MFEM_ASSERT(u, "displacement not set");
    }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
@@ -66,14 +74,11 @@ public:
             density += M * grad(i, j) * (grad(i, j) + grad(j, i));
          }
       }
-      
-      real_t val = rho_filter->GetValue(T, ip);
-      // dc/drho~ = -p rho~^{p-1} (1 - rho_min) psi0(u)
-      return -exponent * std::pow(val, exponent - 1.0) * (1.0 - rho_min) * density;
+      return density;
    }
 };
 
-// PDE density filter: -r^2 Lap(rho~) + rho~ = g, Neumann BCs.
+// PDE density filter: -r^2 Lap(rho~) + rho~ = g
 class FilterSolver : Operator
 {
 private:
@@ -81,13 +86,13 @@ private:
    int order = 1, dim = 0;
    Coefficient *diffcf = nullptr;          // r^2
    Coefficient *masscf = nullptr;          // 1
-   Coefficient *rhscf  = nullptr;          // forward source (rho)
-   Coefficient *adjcf  = nullptr;          // adjoint source (strain energy)
+   Coefficient *rhscf  = nullptr;          // forward rhs
+   Coefficient *adjcf  = nullptr;          // adjoint rhs
 
    FiniteElementCollection *fec = nullptr;
    ParFiniteElementSpace *fes = nullptr;
    Array<int> ess_bdr, ess_tdof_list;
-   ParGridFunction *u = nullptr;           // last solution (rho~ or w~)
+   ParGridFunction *u = nullptr;
 
    ParBilinearForm *a = nullptr;
    OperatorPtr A;
@@ -105,7 +110,7 @@ private:
       Vector X(fes->GetTrueVSize());  
       X = 0.0;
 
-      cg->Mult(*B, X);                       // Neumann: no BC elimination
+      cg->Mult(*B, X);
       u->SetFromTrueDofs(X);
    }
 
@@ -152,7 +157,7 @@ public:
       cg->SetPreconditioner(*amg);
       cg->SetOperator(*A);
 
-      height = width = fes->GetTrueVSize();  // make this a well-formed Operator
+      height = width = fes->GetTrueVSize();
    }
 
    void FSolve() { Solve(rhscf); }          // forward filter -> rho~
@@ -167,105 +172,4 @@ public:
    }
 
    ParGridFunction *GetFEMSolution() { return u; }
-};
-
-// SIMP-scaled linear elasticity: -div(r(rho~) C eps(u)) = f.
-class LinearElasticitySolver : Operator
-{
-private:
-   ParMesh *pmesh = nullptr;
-   int order = 1, dim = 0;
-   Coefficient *lambda_cf = nullptr;               // SIMP-scaled lambda
-   Coefficient *mu_cf = nullptr;                   // SIMP-scaled mu
-   VectorCoefficient *rhs_bd_cf = nullptr;         // surface traction t
-   VectorFunctionCoefficient *rhs_cf = nullptr;    // body force f
-
-   FiniteElementCollection *fec = nullptr;
-   ParFiniteElementSpace *fes = nullptr;   // vector H1
-   Array<int> ess_bdr, load_bdr, ess_tdof_list;
-   ParGridFunction *u = nullptr;           // displacement
-   ParLinearForm *b = nullptr;             // load (assembled once)
-   std::unique_ptr<HypreParVector> load_true;
-
-   real_t compliance = 0.0;
-
-   // Solve a(u,v) = INT r(rho~)[ lambda (div u)(div v) + 2 mu eps(u):eps(v) ] = (t, v)
-   void Solve()
-   {
-      // 
-      ParBilinearForm a(fes);
-      a.AddDomainIntegrator(new ElasticityIntegrator(*lambda_cf, *mu_cf));
-      a.Assemble();
-
-      OperatorPtr A;  
-      Vector B, X;
-      *u = 0.0;                                  // homogeneous clamp
-      a.FormLinearSystem(ess_tdof_list, *u, *b, A, X, B);
-
-      HypreBoomerAMG amg(*A.As<HypreParMatrix>());
-      amg.SetPrintLevel(0);
-      CGSolver cg(pmesh->GetComm());
-      cg.SetRelTol(1e-10);  
-      cg.SetMaxIter(10000);  
-      cg.SetPrintLevel(0);
-      cg.SetPreconditioner(amg);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      a.RecoverFEMSolution(X, *b, *u);
-
-      Compliance comp(pmesh->GetComm(), *load_true, X);
-      compliance = comp.Eval();  // global f . u
-   }
-
-public:
-   LinearElasticitySolver() { }
-   ~LinearElasticitySolver() { delete u; delete fes; delete fec; delete b; }
-
-   void SetMesh(ParMesh *m) { pmesh = m; }
-   void SetOrder(int o) { order = o; }
-   void SetLameCoefficients(Coefficient *l, Coefficient *m) { lambda_cf = l; mu_cf = m; }
-   void SetRHSbdrCoefficient(VectorCoefficient *c) { rhs_bd_cf = c; }               // traction t
-   void SetRHSdomainCoefficient(VectorFunctionCoefficient *vc) { rhs_cf = vc; }     // bodyforce f
-   void SetEssentialBoundary(const Array<int> &bdr) { ess_bdr = bdr; }
-   void SetLoadBoundary(const Array<int> &bdr) { load_bdr = bdr; }
-
-   void SetupFEM()
-   {
-      dim = pmesh->Dimension();
-      fec = new H1_FECollection(order, dim);
-      fes = new ParFiniteElementSpace(pmesh, fec, dim);
-      u   = new ParGridFunction(fes);  *u = 0.0;
-
-      if (!ess_bdr.Size() && pmesh->bdr_attributes.Size())
-      { ess_bdr.SetSize(pmesh->bdr_attributes.Max());  ess_bdr = 0; }
-      fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-      b = new ParLinearForm(fes);
-      if (rhs_cf)
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(*rhs_cf));
-      if (rhs_bd_cf && load_bdr)
-         b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*rhs_bd_cf), load_bdr);
-      b->Assemble();
-      load_true.reset(b->ParallelAssemble());
-
-      height = width = fes->GetTrueVSize();  // make this a well-formed Operator
-   }
-
-   void FSolve() { Solve(); }               // primal state  K u = f
-   void ASolve() { Solve(); }               // adjoint state (self-adjoint: == FSolve)
-
-   // Forward action of the SIMP-scaled stiffness:  y = K(rho~) x.
-   void Mult(const mfem::Vector &x, mfem::Vector &y) const override
-   {
-      ParBilinearForm a(fes);
-      a.AddDomainIntegrator(new ElasticityIntegrator(*lambda_cf, *mu_cf));
-      a.Assemble();
-      a.Finalize();
-      std::unique_ptr<HypreParMatrix> K(a.ParallelAssemble());
-      y.SetSize(fes->GetTrueVSize());
-      K->Mult(x, y);
-   }
-
-   ParGridFunction *GetFEMSolution() { return u; }
-   real_t GetCompliance() const { return compliance; }
 };
