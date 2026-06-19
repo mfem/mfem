@@ -57,6 +57,19 @@ template <int DIM> struct local_mf_mass_qf
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+template <int DIM> struct local_mf_vector_mass_qf
+{
+   MFEM_HOST_DEVICE inline auto operator()(
+      const tensor<dscalar_t, DIM> &vu,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      tensor<dscalar_t, DIM> &vv) const
+   {
+      vv = vu * w * det(J);
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 template <int DIM>
 void mass_action(const char *filename, int p)
 {
@@ -300,6 +313,84 @@ void mass_action(const char *filename, int p)
 
 // ────────────────────────────────────────────────────────────────────────────
 template <int DIM>
+void vector_mass_action(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
+
+   pmesh.EnsureNodes();
+   auto* nodes = static_cast<ParGridFunction*>(pmesh.GetNodes());
+   smesh.Clear();
+
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   H1_FECollection fec(p, DIM);
+
+   ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
+   const int tvsize = vpfes.GetTrueVSize();
+
+   ParGridFunction x(&vpfes), y(&vpfes), z(&vpfes);
+   Vector X(tvsize), Y(tvsize), Z(tvsize), dZ(tvsize);
+
+   X.Randomize(1);
+   x.SetFromTrueDofs(X);
+
+   ConstantCoefficient one(1.0), zero(0.0);
+
+   ParBilinearForm blf(&vpfes);
+   blf.AddDomainIntegrator(new VectorMassIntegrator(one, ir));
+   blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf.Assemble();
+
+   static constexpr int U = 0, Coords = 1;
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &vpfes },
+      FieldDescriptor{ Coords, mfes }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &vpfes } };
+
+   Vector N;
+   nodes->GetTrueDofs(N);
+
+   using IT = Inputs<Value<U>, Gradient<Coords>, Weight>;
+   using OT = Outputs<Value<U>>;
+
+   SECTION("Vector Mass Action")
+   {
+      blf.Mult(x, y);
+      vpfes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+      DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+      local_mf_vector_mass_qf<DIM> local_qfn;
+      dop.AddDomainIntegrator<LocalQFBackend>(
+         local_qfn, IT {}, OT {}, *ir, all_domain_attr);
+
+      MultiVector MX{X, N}, MZ{Z};
+      dop.Mult(MX, MZ);
+      Y -= Z;
+
+      y.SetFromTrueDofs(Y);
+      REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM>
 void mass_mat_mixed(const char* filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -419,8 +510,19 @@ TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU]")
                         "../../data/rt-2d-q3.mesh",
                         "../../data/periodic-square.mesh"
                       };
-   mass_action<2>(GenAll(meshs, extra), p);
-   mass_mat_mixed<2>(GenAll(meshs, extra), p);
+
+   SECTION("Scalar Mass")
+   {
+      mass_action<2>(GenAll(meshs, extra), p);
+   }
+   SECTION("Scalar Mass Mixed")
+   {
+      mass_mat_mixed<2>(GenAll(meshs, extra), p);
+   }
+   SECTION("Vector Mass")
+   {
+      vector_mass_action<2>(GenAll(meshs, extra), p);
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -433,8 +535,18 @@ TEST_CASE("dFEM Mass 3D", "[Parallel][dFEM][GPU]")
                         "../../data/toroid-hex.mesh",
                         "../../data/periodic-cube.mesh"
                       };
-   mass_action<3>(GenAll(meshs, extra), p);
-   mass_mat_mixed<3>(GenAll(meshs, extra), p);
+   SECTION("Scalar Mass")
+   {
+      mass_action<3>(GenAll(meshs, extra), p);
+   }
+   SECTION("Scalar Mass Mixed")
+   {
+      mass_mat_mixed<3>(GenAll(meshs, extra), p);
+   }
+   SECTION("Vector Mass")
+   {
+      vector_mass_action<3>(GenAll(meshs, extra), p);
+   }
 }
 
 #endif // MFEM_USE_MPI
