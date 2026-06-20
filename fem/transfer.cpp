@@ -1030,43 +1030,31 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongateTranspose(
    BatchedLinAlg::MultTranspose(P_dt, x, y);
 }
 
-namespace
+L2ProjectionGridTransfer::L2ProjectionH1Space::H1ConsistentMassOperator::
+H1ConsistentMassOperator(const Operator &M_LH_, const Solver &M_L_solver_)
+   : Operator(M_LH_.Height(), M_LH_.Width()),
+     M_LH(M_LH_),
+     M_L_solver(M_L_solver_)
 {
+   MFEM_VERIFY(M_LH.Height() == M_L_solver.Height() &&
+               M_LH.Height() == M_L_solver.Width(),
+               "incompatible consistent mass operator dimensions");
+}
 
-/// Applies the H1 transfer R = M_L^{-1} M_LH and its transpose, where M_L is
-/// the consistent low-order mass matrix.
-class H1ConsistentMassOperator : public Operator
+void L2ProjectionGridTransfer::L2ProjectionH1Space::H1ConsistentMassOperator::
+Mult(const Vector &x, Vector &y) const
 {
-private:
-   const Operator &M_LH;
-   const Solver &M_L_solver;
+   Vector tmp(M_LH.Height());
+   M_LH.Mult(x, tmp);
+   M_L_solver.Mult(tmp, y);
+}
 
-public:
-   H1ConsistentMassOperator(const Operator &M_LH_, const Solver &M_L_solver_)
-      : Operator(M_LH_.Height(), M_LH_.Width()),
-        M_LH(M_LH_),
-        M_L_solver(M_L_solver_)
-   {
-      MFEM_VERIFY(M_LH.Height() == M_L_solver.Height() &&
-                  M_LH.Height() == M_L_solver.Width(),
-                  "incompatible consistent mass operator dimensions");
-   }
-
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      Vector tmp(M_LH.Height());
-      M_LH.Mult(x, tmp);
-      M_L_solver.Mult(tmp, y);
-   }
-
-   void MultTranspose(const Vector &x, Vector &y) const override
-   {
-      Vector tmp(M_LH.Height());
-      M_L_solver.Mult(x, tmp);
-      M_LH.MultTranspose(tmp, y);
-   }
-};
-
+void L2ProjectionGridTransfer::L2ProjectionH1Space::H1ConsistentMassOperator::
+MultTranspose(const Vector &x, Vector &y) const
+{
+   Vector tmp(M_LH.Height());
+   M_L_solver.Mult(x, tmp);
+   M_LH.MultTranspose(tmp, y);
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(

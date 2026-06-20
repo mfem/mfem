@@ -424,6 +424,23 @@ public:
       void SetAbsTol(real_t p_atol_) override;
 
    protected:
+      /// Applies the H1 transfer R = M_L^{-1} M_LH and its transpose, where
+      /// M_L is the consistent low-order mass matrix.
+      class H1ConsistentMassOperator : public Operator
+      {
+      private:
+         const Operator &M_LH;
+         const Solver &M_L_solver;
+
+      public:
+         H1ConsistentMassOperator(const Operator &M_LH_,
+                                  const Solver &M_L_solver_);
+
+         void Mult(const Vector &x, Vector &y) const override;
+
+         void MultTranspose(const Vector &x, Vector &y) const override;
+      };
+
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
 
