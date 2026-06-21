@@ -275,6 +275,17 @@ std::conditional_t<mass_qf<qfunction_t, DIM>, Value<U>, Gradient<U>>
    else { return Gradient<U> {}; }
 };
 
+/// Add dFEM local QFunction action specializations ///////////////////////////
+template<typename backend_t, int DIM, typename QT, typename IT, typename OT>
+void AddLocalQFActionSpecializations()
+{
+   if constexpr (std::is_same_v<backend_t, local_backend>)
+   {
+      mfem::future::AddAction<DIM, 6, QT, IT, OT>();
+      mfem::future::AddAction<DIM, 8, QT, IT, OT>();
+   }
+}
+
 /// GLOBAL Diffusion Q-Functions //////////////////////////////////////////////
 template<int DIM>
 struct MF_Diffusion_global_qf
@@ -982,6 +993,10 @@ struct BakeOff
                                                       tuple{GradValU, Gradient<Ξ>{}, Weight{}},
                                                       tuple{GradValU},
                                                       *ir, ess_bdr);
+         using QT = decltype(qfunction);
+         using IT = decltype(tuple{GradValU, Gradient<Ξ>{}, Weight{}});
+         using OT = decltype(tuple{GradValU});
+         AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>();
          formLinearSystem(nodes);
       };
       // PA ∂FEM setup ////////////////////////////////////
@@ -997,6 +1012,10 @@ struct BakeOff
             tuple{Gradient<Ξ>{}, Weight{}},
             tuple{Identity<Q>{}},
             *ir, ess_bdr);
+         using SetupQT = decltype(setup_qf);
+         using SetupIT = decltype(tuple{Gradient<Ξ>{}, Weight{}});
+         using SetupOT = decltype(tuple{Identity<Q>{}});
+         AddLocalQFActionSpecializations<backend_t, DIM, SetupQT, SetupIT, SetupOT>();
          MultiVector N{nodes}, D{qfct};
          qdata_setup_dop->Mult(N, D);
 
@@ -1009,6 +1028,10 @@ struct BakeOff
                                                       tuple{GradValU, Identity<Q>{}},
                                                       tuple{GradValU},
                                                       *ir, ess_bdr);
+         using ApplyQT = decltype(apply_qf);
+         using ApplyIT = decltype(tuple{GradValU, Identity<Q>{}});
+         using ApplyOT = decltype(tuple{GradValU});
+         AddLocalQFActionSpecializations<backend_t, DIM, ApplyQT, ApplyIT, ApplyOT>();
          formLinearSystem(qfct);
       };
 

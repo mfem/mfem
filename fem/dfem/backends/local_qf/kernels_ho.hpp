@@ -791,11 +791,10 @@ struct LocalQFHOBackend
 };
 
 /// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
-template <typename HOKernelTable, int DIM>
+template <typename HOKernelTable, int DIM, int MQ1 = LocalQFHOBackendMQ1()>
 inline typename HOKernelTable::KernelSignature
 DispatchHOKernelByQ1D(int q1d)
 {
-   constexpr int MQ1 = LocalQFHOBackendMQ1();
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported HO quadrature order: " << q1d);
    return HOKernelTable::template Kernel<DIM, MQ1>();

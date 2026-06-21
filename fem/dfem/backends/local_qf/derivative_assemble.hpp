@@ -941,7 +941,7 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    }
    else if (dim == 3)
    {
-      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
    }
    else
    {
