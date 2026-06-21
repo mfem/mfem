@@ -116,13 +116,16 @@ protected:
    /// ParticleSet of charged particles
    std::unique_ptr<ParticleSet> charged_particles;
 
+   /// Particle pusher on cuda or not
+   bool use_device = false;
+
    /// Temporary vectors for particle computation
    mutable Vector pm_, pp_;
 
 public:
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
                  FindPointsGSLIB& E_finder_, int num_particles,
-                 Ordering::Type pdata_ordering);
+                 Ordering::Type pdata_ordering, bool use_device_);
 
    /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
@@ -132,8 +135,11 @@ public:
    /// Find Particles in mesh corresponding to E and field
    void FindParticles();
 
-   /// Advance particles one time step using Boris algorithm
+   /// Advance particles one time step using Boris algorithm on cpu.
    void Step(real_t& t, real_t dt, real_t L, bool first_step = false);
+
+   /// Advance particles one time step using MFEM on GPU.
+   void StepDevice(real_t& t, real_t dt, real_t L, bool first_step = false);
 
    /// Redistribute particles across processors
    void Redistribute();
@@ -273,6 +279,7 @@ int main(int argc, char* argv[])
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
+   const bool use_device = (std::string(device_config) != "cpu") && Device::IsEnabled();
 
    // Assert that dimension is 2 or 3
    MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
@@ -325,6 +332,8 @@ int main(int argc, char* argv[])
    ParGridFunction E_gf(&E_fespace);
    phi_gf = 0.0;  // Initialize phi_gf to zero
    E_gf = 0.0;    // Initialize E_gf to zero
+   phi_gf.UseDevice(use_device);
+   E_gf.UseDevice(use_device);
 
    // 6. Construct the field solver
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa, pa);
@@ -335,7 +344,7 @@ int main(int argc, char* argv[])
    int num_particles =
       ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
    ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, E_finder, num_particles,
-                                ordering_type);
+                                ordering_type, use_device);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m, ctx.q,
                                              ctx.L, ctx.reproduce);
 
@@ -373,7 +382,14 @@ int main(int argc, char* argv[])
       }
 
       // Step the ParticleMover
-      particle_mover.Step(t, dt, ctx.L, step == 1);
+      if (use_device)
+      {
+         particle_mover.StepDevice(t, dt, ctx.L, step == 1);
+      }
+      else
+      {
+         particle_mover.Step(t, dt, ctx.L, step == 1);
+      }
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
@@ -425,8 +441,8 @@ int main(int argc, char* argv[])
 
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
                              FindPointsGSLIB& E_finder_, int num_particles,
-                             Ordering::Type pdata_ordering)
-   : E_gf(E_gf_), E_finder(E_finder_)
+                             Ordering::Type pdata_ordering, bool use_device_)
+   : E_gf(E_gf_), E_finder(E_finder_), use_device(use_device_)
 {
    MFEM_ASSERT(E_gf, "Must pass an E field to ParticleMover.");
 
@@ -439,7 +455,8 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
    // 2 vectors of size space dim for momentum and e field
    Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
-                          comm, num_particles, dim, field_vdims, 1, pdata_ordering);
+                          comm, num_particles, dim, field_vdims, 1,
+                          pdata_ordering, use_device);
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
@@ -461,6 +478,11 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
    ParticleVector& P = charged_particles->Field(ParticleMover::MOM);
    ParticleVector& M = charged_particles->Field(ParticleMover::MASS);
    ParticleVector& Q = charged_particles->Field(ParticleMover::CHARGE);
+
+   X.HostWrite();
+   P.HostWrite();
+   M.HostWrite();
+   Q.HostWrite();
 
    for (int i = 0; i < charged_particles->GetNParticles(); i++)
    {
@@ -487,6 +509,12 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
       M(i) = m;
       Q(i) = q;
    }
+
+   X.Read();
+   P.Read();
+   M.Read();
+   Q.Read();
+
    FindParticles();
 }
 
@@ -537,6 +565,58 @@ void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
    t += dt;
 }
 
+
+void ParticleMover::StepDevice(real_t& t, real_t dt, real_t L, bool first_step)
+{
+   ParticleVector& E = charged_particles->Field(EFIELD);
+   E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+
+   ParticleVector& X = charged_particles->Coords();
+   ParticleVector& P = charged_particles->Field(MOM);
+   ParticleVector& M = charged_particles->Field(MASS);
+   ParticleVector& Q = charged_particles->Field(CHARGE);
+
+   const int npt = charged_particles->GetNParticles();
+   const int dim = X.GetVDim();
+   const real_t accel_dt = first_step ? dt / 2.0 : dt;
+
+   const bool byVDIM_X = (X.GetOrdering() == Ordering::byVDIM);
+   const bool byVDIM_P = (P.GetOrdering() == Ordering::byVDIM);
+   const bool byVDIM_E = (E.GetOrdering() == Ordering::byVDIM);
+
+   auto d_x = X.ReadWrite();
+   auto d_p = P.ReadWrite();
+   auto d_m = M.Read();
+   auto d_q = Q.Read();
+   auto d_e = E.Read();
+
+   MFEM_FORALL(particle, npt,
+   {
+      const real_t m = d_m[particle];
+      const real_t q = d_q[particle];
+
+      for (int d = 0; d < dim; ++d)
+      {
+         const int x_idx = byVDIM_X ? particle * dim + d : particle + d * npt;
+         const int p_idx = byVDIM_P ? particle * dim + d : particle + d * npt;
+         const int e_idx = byVDIM_E ? particle * dim + d : particle + d * npt;
+
+         real_t p_new = d_p[p_idx] + accel_dt * q * d_e[e_idx];
+         real_t x_new = d_x[x_idx] + dt / m * p_new;
+
+         while (x_new >= L) { x_new -= L; }
+         while (x_new < 0.0) { x_new += L; }
+
+         d_p[p_idx] = p_new;
+         d_x[x_idx] = x_new;
+      }
+   });
+
+   FindParticles();
+
+   t += dt;
+}
+
 void ParticleMover::Redistribute()
 {
    charged_particles->Redistribute(E_finder.GetProc());
@@ -554,15 +634,49 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
    // update from Step() is used directly.
 
    real_t kinetic_energy = 0.0;
-   for (int p = 0; p < charged_particles->GetNParticles(); ++p)
+   const int npt = charged_particles->GetNParticles();
+   const int dim = P.GetVDim();
+
+   if (this->use_device)
    {
-      real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d)
+      Vector ke(npt);
+      auto d_ke = ke.Write();
+      auto d_p = P.Read();
+      auto d_m = M.Read();
+      auto d_q = Q.Read();
+      auto d_e = E.Read();
+
+      const bool byVDIM_P = (P.GetOrdering() == Ordering::byVDIM);
+      const bool byVDIM_E = (E.GetOrdering() == Ordering::byVDIM);
+
+      MFEM_FORALL(particle, npt,
       {
-         const real_t P_m = P(p, d) + dt * Q(p) * E(p, d);
-         p_square_p += P_m * P_m;
+         real_t p_square_p = 0.0;
+         const real_t q = d_q[particle];
+         for (int d = 0; d < dim; ++d)
+         {
+            const int p_idx = byVDIM_P ? particle * dim + d : particle + d * npt;
+            const int e_idx = byVDIM_E ? particle * dim + d : particle + d * npt;
+            const real_t p_m = d_p[p_idx] + dt * q * d_e[e_idx];
+            p_square_p += p_m * p_m;
+         }
+         d_ke[particle] = 0.5 * p_square_p / d_m[particle];
+      });
+
+      kinetic_energy = ke.Sum();
+   }
+   else
+   {
+      for (int p = 0; p < npt; ++p)
+      {
+         real_t p_square_p = 0.0;
+         for (int d = 0; d < dim; ++d)
+         {
+            const real_t P_m = P(p, d) + dt * Q(p) * E(p, d);
+            p_square_p += P_m * P_m;
+         }
+         kinetic_energy += 0.5 * p_square_p / M(p);
       }
-      kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
    real_t global_kinetic_energy = 0.0;
