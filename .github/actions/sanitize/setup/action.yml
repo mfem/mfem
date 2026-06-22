@@ -37,14 +37,14 @@ runs:
       with:
         path: ${{env.HYPRE_DIR}}
         fail-on-cache-miss: true
-        key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{env.ACTIONS_VERSION}}
+        key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{env.MFEM_ACTIONS_VERSION}}
 
     - uses: actions/cache/restore@v5  # Cache for Metis
       if: ${{inputs.par == 'true'}}
       with:
         path: ${{env.METIS_DIR}}
         fail-on-cache-miss: true
-        key: ${{runner.os}}-build-${{env.METIS_DIR}}-${{env.ACTIONS_VERSION}}
+        key: ${{runner.os}}-build-${{env.METIS_DIR}}-${{env.MFEM_ACTIONS_VERSION}}
 
     - name: Hypre/Metis links
       if: ${{inputs.par == 'true'}}

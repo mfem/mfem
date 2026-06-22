@@ -40,7 +40,7 @@ env:
   METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
-  ACTIONS_VERSION: v2.7
+  MFEM_ACTIONS_VERSION: v2.7
 
 # Note for future improvements:
 #
@@ -229,7 +229,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-${{ env.ACTIONS_VERSION }}
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-${{ env.MFEM_ACTIONS_VERSION }}
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
@@ -259,7 +259,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.METIS_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ env.ACTIONS_VERSION }}
+          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ env.MFEM_ACTIONS_VERSION }}
 
       - name: install metis
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
