@@ -22,10 +22,11 @@ CrystalRouter::~CrystalRouter()
    MPI_Comm_free(&comm);
 }
 
-void CrystalRouter::Route(ParticleVector &data, Array<unsigned long long> &ids,
-                          Array<int> &tags, Array<int> &ranks)
+void CrystalRouter::RouteInternal(Array<unsigned long long> &ids, Array<int> &tags,
+                              Array<int> &ranks,
+                              const std::vector<ParticleVector*> &data)
 {
-   
+
    // edge cases where no particles to route, still need to derive tag_vdim for packing/unpacking
    int local_tag_vdim = 0;
    if(ranks.Size() > 0){
@@ -75,7 +76,8 @@ void CrystalRouter::Route(ParticleVector &data, Array<unsigned long long> &ids,
 
 // PRIVATE METHODS
 
-void CrystalRouter::Move(ParticleVector &data, Array<unsigned long long> &ids,
+void CrystalRouter::Move(const std::vector<ParticleVector*> &data,
+                         Array<unsigned long long> &ids,
                          Array<int> &tags, Array<int> &ranks,
                          int cutoff, bool send_hi)
 {
@@ -101,11 +103,14 @@ void CrystalRouter::Move(ParticleVector &data, Array<unsigned long long> &ids,
    }
    int nsend = send_indices.size();
    int nkeep = keep_indices.size();
-   int vdim = data.GetVDim();
 
    const size_t tag_bytes  = (size_t)tag_vdim * sizeof(int);
    const size_t id_bytes   = sizeof(unsigned long long);
-   const size_t data_bytes = (size_t)vdim * sizeof(real_t);
+
+   // data block is all ParticleVectors concatenated
+   size_t data_bytes = 0;
+   for (auto *pv : data) { data_bytes += (size_t)pv->GetVDim() * sizeof(real_t); }
+
    // rank | tags | id | data
    const size_t total_bytes = sizeof(int) + tag_bytes + id_bytes + data_bytes;
 
@@ -119,13 +124,20 @@ void CrystalRouter::Move(ParticleVector &data, Array<unsigned long long> &ids,
       char *row = send_buf.GetData() + i * total_bytes;
       size_t off = 0;
       int r = ranks[idx];
-      std::memcpy(row + off, &r, sizeof(int));                  off += sizeof(int);
-      std::memcpy(row + off, tags.GetData() + idx*tag_vdim, tag_bytes);
-      off += tag_bytes;
       unsigned long long gid = ids[idx];
-      std::memcpy(row + off, &gid, id_bytes);                   off += id_bytes;
-      data.GetValues(idx, slice);                               // ordering-aware read
-      std::memcpy(row + off, slice.GetData(), data_bytes);      off += data_bytes;
+
+      // pack ranks -> tags -> ids
+      std::memcpy(row + off, &r, sizeof(int));                             off += sizeof(int);
+      std::memcpy(row + off, tags.GetData() + idx*tag_vdim, tag_bytes);    off += tag_bytes;
+      std::memcpy(row + off, &gid, id_bytes);                              off += id_bytes;
+
+      // pack data
+      for (auto *pv : data)
+      {
+         const size_t b = (size_t)pv->GetVDim() * sizeof(real_t);
+         pv->GetValues(idx, slice);
+         std::memcpy(row + off, slice.GetData(), b);                       off += b;
+      }
    }
 
    // compact kept particles in place (shared index across every column)
@@ -140,27 +152,31 @@ void CrystalRouter::Move(ParticleVector &data, Array<unsigned long long> &ids,
          {
             tags[k*tag_vdim + c] = tags[idx*tag_vdim + c];
          }
-         data.GetValues(idx, slice);
-         data.SetValues(k, slice);
+         for (auto *pv : data)
+         {
+            pv->GetValues(idx, slice);
+            pv->SetValues(k, slice);
+         }
       }
    }
 
-   // update kept sizes (ordering-aware truncate for the real column)
+   // update kept sizes (ordering-aware truncate for the real columns)
    ranks.SetSize(nkeep);
    ids.SetSize(nkeep);
    tags.SetSize(nkeep * tag_vdim);
-   data.SetNumParticles(nkeep, true);
+   for (auto *pv : data) { pv->SetNumParticles(nkeep, true); }
 }
 
-void CrystalRouter::Exchange(ParticleVector &data, Array<unsigned long long> &ids,
+void CrystalRouter::Exchange(const std::vector<ParticleVector*> &data,
+                             Array<unsigned long long> &ids,
                              Array<int> &tags, Array<int> &ranks,
                              int target, int recvn, int msg_tag)
 {
-   int vdim = data.GetVDim();
-   const size_t tag_bytes  = (size_t)tag_vdim * sizeof(int);
-   const size_t id_bytes   = sizeof(unsigned long long);
-   const size_t data_bytes = (size_t)vdim * sizeof(real_t);
-   const size_t total_bytes = sizeof(int) + tag_bytes + id_bytes + data_bytes;
+   const size_t tag_bytes     = (size_t)tag_vdim * sizeof(int);
+   const size_t id_bytes      = sizeof(unsigned long long);
+   size_t data_bytes = 0;
+   for (auto *pv : data) { data_bytes += (size_t)pv->GetVDim() * sizeof(real_t); }
+   const size_t total_bytes   = sizeof(int) + tag_bytes + id_bytes + data_bytes;
 
    // exchange counts
    MPI_Request reqs[3];
@@ -185,6 +201,7 @@ void CrystalRouter::Exchange(ParticleVector &data, Array<unsigned long long> &id
                "CrystalRouter payload exceeds MPI int-count limit");
    recv_buf.SetSize(nrecv * total_bytes);
 
+   // exchange buffers
    if (recvn >= 1)
    {
       MPI_Irecv(recv_buf.GetData(), count[0] * total_bytes,
@@ -199,12 +216,11 @@ void CrystalRouter::Exchange(ParticleVector &data, Array<unsigned long long> &id
              msg_tag+1, comm, &reqs[0]);
    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
-   // append received rows. Grow the real column once, then unpack each row and
-   // write per-particle slices (ordering-aware) so the layout is respected.
+   // append received rows
    int old_n = ranks.Size();
-   data.SetNumParticles(old_n + nrecv, true);
+   for (auto *pv : data) { pv->SetNumParticles(old_n + nrecv, true); }
 
-   Vector slice(vdim);
+   Vector slice;
    for (int i = 0; i < nrecv; i++)
    {
       const char *row = recv_buf.GetData() + i * total_bytes;
@@ -224,9 +240,14 @@ void CrystalRouter::Exchange(ParticleVector &data, Array<unsigned long long> &id
       std::memcpy(&gid, row + off, id_bytes);
       off += id_bytes;
       ids.Append(gid);
-      std::memcpy(slice.GetData(), row + off, data_bytes);
-      off += data_bytes;
-      data.SetValues(old_n + i, slice);
+      for (auto *pv : data)
+      {
+         const int vd = pv->GetVDim();
+         slice.SetSize(vd);
+         std::memcpy(slice.GetData(), row + off, (size_t)vd * sizeof(real_t));
+         off += (size_t)vd * sizeof(real_t);
+         pv->SetValues(old_n + i, slice);
+      }
    }
 }
 
