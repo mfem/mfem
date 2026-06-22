@@ -43,7 +43,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_mass.cpp
   dfem/test_multiple_inputs.cpp
   dfem/test_multiple_outputs.cpp
-  # dfem/test_second_derivative.cpp
+  dfem/test_second_derivative.cpp
   dfem/test_tmop.cpp
   general/test_array.cpp
   general/test_scan.cpp
