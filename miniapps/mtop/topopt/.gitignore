@@ -3,5 +3,9 @@
 ElastTopOpt
 ElastTopOpt_maxlen
 
+# Outputs
+ParaView/
+*.csv
+
 # macOS
 .DS_Store

@@ -29,6 +29,7 @@ public:
     Compliance(MPI_Comm comm_, ParFiniteElementSpace *fes_,
                Coefficient &simp_cf_, Coefficient &energy_cf_)
         : fes(fes_), comm(comm_), uku_cf(simp_cf_, energy_cf_) { }
+        ~Compliance() { }
 
     real_t Eval() override
     {
@@ -80,25 +81,15 @@ public:
         return 0.5 * val;
     }
 
-    // dG/dρ = (s, ·)_L2  (s = max-filter adjoint soln);  dG/dα = (α − γ, ·)_L2.
-    void GetGrad(ParGridFunction &s_filter, Vector &dGdrho, Vector &dGdalpha)
+    // dG/dα = (α − γ, ·)_L2.
+    void GetGradAlpha(Vector &dGdalpha)
     {
-        GridFunctionCoefficient s_cf(&s_filter);
-        ParLinearForm lr(fes);
-        lr.AddDomainIntegrator(new DomainLFIntegrator(s_cf));
-        lr.Assemble();
-        HypreParVector *vr = lr.ParallelAssemble();
-
-        dGdrho = *vr;
-        delete vr;                 
-
         ParLinearForm la(fes);
-        la.AddDomainIntegrator(new DomainLFIntegrator(diff_cf)); 
+        la.AddDomainIntegrator(new DomainLFIntegrator(diff_cf));
         la.Assemble();
-        HypreParVector *va = la.ParallelAssemble();
+        std::unique_ptr<HypreParVector> va(la.ParallelAssemble());
 
-        dGdalpha = *va;  
-        dGdalpha.Neg();              // - (γ - α)
-        delete va;      
+        dGdalpha = *va;
+        dGdalpha.Neg();              // - (γ - α) = (α - γ)
     }
 };

@@ -5,9 +5,11 @@
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
-#include "../MMA_MFEM.hpp"
+#include "../../mma/MMA_MFEM.hpp"
+#include "../../pde_filter.hpp"
 #include "../../mtop_solvers.hpp"
 #include <memory>
+#include <fstream>
 
 using namespace std;
 using namespace mfem;
@@ -33,12 +35,16 @@ int main(int argc, char *argv[])
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
     real_t epsilon      = 1e-2;       // gamma - alpha tolerance
+    
     bool visualization = true;
     bool paraview      = false;
 
     const real_t E_min    = 1e-6;     // SIMP void stiffness
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
+
+    real_t decay = 0.5;
+    int decay_int = 20;
 
     OptionsParser args(argc, argv);
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
@@ -49,6 +55,8 @@ int main(int argc, char *argv[])
     args.AddOption(&gamma_v, "-gv", "--gamma_v", "lower bound for max filtered density");
     args.AddOption(&gamma_s, "-gs", "--gamma_s", "upper bound for max filtered density");
     args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
+    args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
+    args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -168,28 +176,16 @@ int main(int argc, char *argv[])
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
 
     // 7b. Min length scale filter solver
-    ConstantCoefficient minlen2_cf(r_f * r_f);
-
-    FilterSolver filter;
-    filter.SetMesh(&pmesh);
-    filter.SetOrder(order);
-    filter.SetDiffusionCoefficient(&minlen2_cf);
-    filter.SetMassCoefficient(&one_cf);
-    filter.SetRHSCoefficient(&rho_cf);
-    filter.SetAdjointRHSCoefficient(&dcdrho_cf);
-    filter.SetupFEM();
+    toopt::PDEFilterOptions filter_opts;
+    filter_opts.filter_radius = r_f;
+    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+    filter.Assemble();
 
     // 7c. Max length scale filter solver
-    ConstantCoefficient maxlen2_cf(r_s * r_s);
-
-    FilterSolver maxfilter;
-    maxfilter.SetMesh(&pmesh);
-    maxfilter.SetOrder(order);
-    maxfilter.SetDiffusionCoefficient(&maxlen2_cf);
-    maxfilter.SetMassCoefficient(&one_cf);
-    maxfilter.SetRHSCoefficient(&rho_cf);
-    maxfilter.SetAdjointRHSCoefficient(max_residual.GetResidualCoefficient());  // γ − α
-    maxfilter.SetupFEM();
+    toopt::PDEFilterOptions maxfilter_opts;
+    maxfilter_opts.filter_radius = r_s;
+    toopt::PDEFilter maxfilter(filter_fes, control_fes, maxfilter_opts);
+    maxfilter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
     ParLinearForm vol_form(&control_fes);
@@ -248,6 +244,14 @@ int main(int argc, char *argv[])
         paraview_dc.RegisterField("rho_filter", &rho_filter);
     }
 
+    // 10c. CSV convergence log (rank 0 only).
+    std::ofstream csv;
+    if (myid == 0)
+    {
+        csv.open("convergence.csv");
+        csv << "it,compliance,vol,res_max,eps,iterErr\n";
+    }
+
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
@@ -257,39 +261,42 @@ int main(int argc, char *argv[])
 
     for (; k < max_it && iterationError > tol; k++)
     {
-        // (1) forward filter:  (r_f^2 K + M) ρ~ = N ρ
-        filter.FSolve();
-        rho_filter = *filter.GetFEMSolution();
+        // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
+        filter.Mult(rho, rho_filter);
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
         elast.Assemble();
         elast.FSolve();
         elast.GetDisplacements();     // refresh fdisp from sol so energy_cf sees new u
 
-        // (3) adjoint filter:  (r_f^2 K + M) w~ = -r'(ρ~) psi_0(u)
-        filter.ASolve();
-        ParGridFunction &w_filter = *filter.GetFEMSolution();
+        // (3) adjoint filter + objective gradient:
+        //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) psi_0) φ_i
+        //     dc/drho = M_fc^T w~ 
+        ParLinearForm adj_rhs(&filter_fes);
+        adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
+        adj_rhs.Assemble();
+        std::unique_ptr<HypreParVector> adj_rhs_tv(adj_rhs.ParallelAssemble());
+        filter.MultTranspose(*adj_rhs_tv, dcdrho);
 
-        // (4) max filter: (r_s^2 K + M) γ = N ρ
-        maxfilter.FSolve();
-        gamma = *maxfilter.GetFEMSolution(); 
+        // (4) max filter: (r_s^2 K + M) γ = M_fc ρ
+        maxfilter.Mult(rho, gamma);
 
-        // (5) max adjoint filter: (r_s^2 K + M) s~ = (γ − α)
-        maxfilter.ASolve();
-        ParGridFunction s_filter = *maxfilter.GetFEMSolution();
+        // (5) max adjoint filter:
+        //     s~ = (r_s^2 K + M)^{-1} ∫ (γ-α) φ_i
+        //     dG/drho = M_fc^T s~
+        ParLinearForm max_adj_rhs(&filter_fes);
+        max_adj_rhs.AddDomainIntegrator(
+            new DomainLFIntegrator(*max_residual.GetResidualCoefficient()));
+        max_adj_rhs.Assemble();
+        std::unique_ptr<HypreParVector> max_adj_rhs_tv(max_adj_rhs.ParallelAssemble());
+        maxfilter.MultTranspose(*max_adj_rhs_tv, dgmax.GetBlock(0));
 
-        // (6) objective gradient:  df0/dx = [ dc/drho ; 0 ],  dc/drho = (w~, ·)_L2
-        GridFunctionCoefficient w_cf(&w_filter);
-        ParLinearForm grad_form(&control_fes);
-        grad_form.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
-        grad_form.Assemble();
-        std::unique_ptr<HypreParVector> g(grad_form.ParallelAssemble());
-        dcdrho = *g;
+        // (6) objective gradient:  df0/dx = [ dc/drho ; 0 ]  (dc/drho from step 3)
         df0dx.GetBlock(0) = dcdrho;
         df0dx.GetBlock(1) = 0.0;
 
-        // max-length constraint gradient:  [ dG/drho ; dG/dalpha ]
-        max_residual.GetGrad(s_filter, dgmax.GetBlock(0), dgmax.GetBlock(1));
+        // max-length constraint gradient w.r.t. alpha:  dG/dalpha = (α − γ, ·)_L2
+        max_residual.GetGradAlpha(dgmax.GetBlock(1));
         dfidx[1] = dgmax;
 
         // (7) MMA update
@@ -302,7 +309,7 @@ int main(int argc, char *argv[])
         // ========================================================================
         // Adaptively adjust ε every 10 iterations.
         // If constraint is enforce in 10 iterations, then relax the eps tolerance.
-        // Otherwise decay it by 0.8. We also set a hard decaying rate of 0.9.
+        // Otherwise decay it by 0.8. We also set a hard decaying rate of 0.95.
         // =====================================================================
         // infeas_count = (maxres > epsilon) ? infeas_count + 1 : 0;
 
@@ -319,9 +326,9 @@ int main(int argc, char *argv[])
         // }
 
         // fixed step restriction for eps
-        if (k % 20 == 0 && k > 0)
+        if (k % decay_int == 0 && k > 0)
         {
-            epsilon = std::max(epsilon * 0.9, eps_floor);
+            epsilon = std::max(epsilon * decay, eps_floor);
         }
 
         // constraints:  volume constraint  and  1/2 ∫(γ−α)² − ε ≤ 0
@@ -362,6 +369,14 @@ int main(int argc, char *argv[])
                     << "   res_max = " << scientific << setprecision(3) << fival(1)
                     << "   eps = " << fixed << setprecision(4) << epsilon
                     << "   iterErr = " << setprecision(4) << iterationError << endl;
+
+            csv << k + 1 << ','
+                << scientific << setprecision(8) << compliance << ','
+                << vol << ','
+                << fival(1) << ','
+                << epsilon << ','
+                << iterationError << '\n';
+            csv.flush();
         }
 
         // physical density r(rho~) for both GLVis and the ParaView archive
@@ -384,6 +399,7 @@ int main(int argc, char *argv[])
 
     if (myid == 0)
     {
+        csv.close();
         mfem::out << "\nfinished after " << k << " iterations\n";
     }
     return 0;

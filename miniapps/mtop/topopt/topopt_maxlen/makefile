@@ -23,10 +23,10 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Shared source lives in the parent topopt/ dir; compiled into a LOCAL object
 # (MMA_MFEM.o) so the link rule below doesn't reference a ../ object, which make
 # cannot build with a pattern rule.
-COMMON_OBJ = MMA_MFEM.o mtop_solvers.o
+COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = ElastTopOpt ElastTopOpt_maxlen
+PAR_MINIAPPS = ElastTopOpt_maxlen
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -51,11 +51,14 @@ endif
 all: $(MINIAPPS)
 
 # Shared object compiled from the parent topopt/ dir.
-MMA_MFEM.o: $(SRC)../MMA_MFEM.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+MMA_MFEM.o: $(SRC)../../mma/MMA_MFEM.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 # Elasticity solver lives in the mtop/ dir (two levels up).
 mtop_solvers.o: $(SRC)../../mtop_solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+pde_filter.o: $(SRC)../../pde_filter.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 MFEM_TESTS = MINIAPPS
