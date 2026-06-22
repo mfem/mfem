@@ -39,7 +39,7 @@ template <int DIM> struct global_mf_mass_qf
    {
       // Enzyme requires extra support to handle:
       // mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
-      for (auto q = 0; q < u.size(); ++q)
+      for (size_t q = 0; q < u.size(); ++q)
       {
          v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
       }
@@ -245,7 +245,7 @@ void mass_action(const char *filename, int p)
    }
 
    // Test boundary
-#if 0 // TODO: Boundary tests 
+#if 0 // TODO: Boundary tests
    // This ensures that we're not trying to test on fully periodic meshes
    if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
          (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
@@ -310,7 +310,7 @@ void mass_action(const char *filename, int p)
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
-#endif // TODO: Boundary tests 
+#endif // TODO: Boundary tests
 }
 
 // ────────────────────────────────────────────────────────────────────────────
