@@ -40,6 +40,9 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added PA support for TMOP's adaptive limiting functionality. Multiple
+  GridFunctions and Coefficients can be combined to form a composite term.
+
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
