@@ -51,7 +51,7 @@ Jobs for the build-and-test sub-pipelines are defined in the jobs directory.
 Because build-and-test jobs leverage Uberenv and Spack to build the
 dependencies automatically, the jobs essentially consists in a `spack spec`
 defined in the jobs files, and some scheduling parameters defined in the
-`.gitlab/custom-jobs-and-variables.yml` file.
+`.gitlab/custom-variables.yml` file.
 
 Build-and-test jobs all run the `tests/gitlab/build_and_test` script.
 

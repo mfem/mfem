@@ -21,7 +21,8 @@
 # additional stages.
 #
 # In addition, each project should copy over and complete:
-# - .gitlab/custom-jobs-and-variables.yml
+# - .gitlab/custom-variables.yml
+# - .gitlab/custom-jobs.yml
 # - .gitlab/subscribed-pipelines.yml
 #
 # The jobs should be specified in a file local to the project,
@@ -35,20 +36,21 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # .gitlab-ci.yml
 #  ├── .build-and-test  [job]
-#  │    ├── .gitlab/custom-jobs-and-variables.yml
+#  │    ├── .gitlab/custom-variables.yml
+#  │    │    └── JOB_CMD              [var]
+#  │    │         └── tests/gitlab/build_and_test            [script]
+#  │    │              └── tests/gitlab/get_mfem_uberenv     [script]
+#  │    ├── .gitlab/custom-jobs.yml
 #  │    │    ├── .custom_job          [job]
 #  │    │    ├── .reproducer_vars     [job]
 #  │    │    ├── .report_job_success  [job]
 #  │    │    │    └── .gitlab/scripts/report_build_and_test    [script]
 #  │    │    │         ├── .gitlab/scripts/safe_create_rundir  [script]
 #  │    │    │         └── .gitlab/scripts/git_try_to_push     [script]
-#  │    │    ├── .report_job_failure  [job]
-#  │    │    │    └── .gitlab/scripts/report_build_and_test    [script]
-#  │    │    │         ├── .gitlab/scripts/safe_create_rundir  [script]
-#  │    │    │         └── .gitlab/scripts/git_try_to_push     [script]
-#  │    │    └── JOB_CMD              [var]
-#  │    │         └── tests/gitlab/build_and_test            [script]
-#  │    │              └── tests/gitlab/get_mfem_uberenv     [script]
+#  │    │    └── .report_job_failure  [job]
+#  │    │         └── .gitlab/scripts/report_build_and_test    [script]
+#  │    │              ├── .gitlab/scripts/safe_create_rundir  [script]
+#  │    │              └── .gitlab/scripts/git_try_to_push     [script]
 #  │    ├── <radiuss-shared-ci>/pipelines/matrix.yml  [conditional]
 #  │    │    ├── .on_matrix               [job]
 #  │    │    ├── .matrix_reproducer_init  [job]
@@ -124,8 +126,7 @@
 #       │         │    └── .gitlab/scripts/git_try_to_push     [script]
 #       │         ├── baselinepublish_mfem_dane      [job]
 #       │         │    └── .gitlab/scripts/rebaseline          [script]
-#       │         ├── .gitlab/custom-jobs-and-variables.yml
-#       │         │    └── <same as above: see .gitlab-ci.yml/.build-and-test>
+#       │         ├── .gitlab/custom-variables.yml
 #       │         └── .gitlab/configs/setup-baseline.yml
 #       │              └── setup_baseline            [job]
 #       ├── tioga-up-check         [job]
@@ -145,7 +146,8 @@
 #  │    │    └── .build-and-test
 #  │    ├── <included files>
 #  │    │    ├── .gitlab/subscribed-pipelines.yml
-#  │    │    ├── .gitlab/custom-jobs-and-variables.yml  [by ".build-and-test"]
+#  │    │    ├── .gitlab/custom-variables.yml  [by ".build-and-test"]
+#  │    │    ├── .gitlab/custom-jobs.yml  [by ".build-and-test"]
 #  │    │    ├── <artifact>  [by ".build-and-test"]
 #  │    │    │    ├── artifact: '${CI_MACHINE}-jobs.yml'
 #  │    │    │    └── job:      'generate-job-lists'
@@ -283,34 +285,34 @@
 #  │    │    │         ├── AUTOTEST_COMMIT
 #  │    │    │         └── CI_MACHINE
 #  │    │    └── safe_create_rundir
-#  │    ├── custom-jobs-and-variables.yml
+#  │    ├── custom-jobs.yml
 #  │    │    ├── <jobs>
 #  │    │    │    ├── .custom_job
 #  │    │    │    ├── .reproducer_vars
 #  │    │    │    ├── .report_job_success
 #  │    │    │    └── .report_job_failure
-#  │    │    ├── <used files>
-#  │    │    │    ├── tests/gitlab/build_and_test  [in JOB_CMD]
-#  │    │    │    └── .gitlab/scripts/report_build_and_test [by .report_job_*]
-#  │    │    ├── <defined variables>
-#  │    │    │    ├── JOB_CMD
-#  │    │    │    ├── BUILD_ROOT
-#  │    │    │    ├── ALLOC_NAME
-#  │    │    │    ├── TPLS_REPO
-#  │    │    │    ├── TESTS_REPO
-#  │    │    │    ├── AUTOTEST_REPO
-#  │    │    │    ├── MFEM_DATA_REPO
-#  │    │    │    ├── ARTIFACTS_DIR: artifacts
-#  │    │    │    ├── SLURM_OVERLAP: 1
-#  │    │    │    ├── DANE_SHARED_ALLOC
-#  │    │    │    ├── DANE_JOB_ALLOC
-#  │    │    │    ├── TIOGA_SHARED_ALLOC
-#  │    │    │    ├── TIOGA_JOB_ALLOC
-#  │    │    │    └── MATRIX_JOB_ALLOC
 #  │    │    └── <used variables>
 #  │    │         ├── SPEC
 #  │    │         ├── BUILD_ROOT
 #  │    │         └── ...
+#  │    ├── custom-variables.yml
+#  │    │    ├── <used files>
+#  │    │    │    └── tests/gitlab/build_and_test  [in JOB_CMD]
+#  │    │    └── <defined variables>
+#  │    │         ├── JOB_CMD
+#  │    │         ├── BUILD_ROOT
+#  │    │         ├── ALLOC_NAME
+#  │    │         ├── TPLS_REPO
+#  │    │         ├── TESTS_REPO
+#  │    │         ├── AUTOTEST_REPO
+#  │    │         ├── MFEM_DATA_REPO
+#  │    │         ├── ARTIFACTS_DIR: artifacts
+#  │    │         ├── SLURM_OVERLAP: 1
+#  │    │         ├── DANE_SHARED_ALLOC
+#  │    │         ├── DANE_JOB_ALLOC
+#  │    │         ├── TIOGA_SHARED_ALLOC
+#  │    │         ├── TIOGA_JOB_ALLOC
+#  │    │         └── MATRIX_JOB_ALLOC
 #  │    ├── dane-baseline.yml
 #  │    │    ├── <jobs>
 #  │    │    │    ├── .on_dane
@@ -319,7 +321,7 @@
 #  │    │    │    ├── report_baseline
 #  │    │    │    └── baselinepublish_mfem_dane
 #  │    │    ├── <included and used files>
-#  │    │    │    ├── .gitlab/custom-jobs-and-variables.yml
+#  │    │    │    ├── .gitlab/custom-variables.yml
 #  │    │    │    ├── .gitlab/configs/setup-baseline.yml
 #  │    │    │    ├── .gitlab/scripts/rebaseline
 #  │    │    │    ├── .gitlab/scripts/baseline
@@ -332,9 +334,9 @@
 #  │    │    └── <used variables>
 #  │    │         ├── ON_DANE
 #  │    │         ├── AUTOTEST       [defined by .gitlab-ci.yml]
-#  │    │         ├── BUILD_ROOT     [defined by custom-jobs-and-variables.yml]
+#  │    │         ├── BUILD_ROOT     [defined by custom-variables.yml]
 #  │    │         ├── TPLS_DIR       [defined by this file]
-#  │    │         ├── ARTIFACTS_DIR  [defined by custom-jobs-and-variables.yml]
+#  │    │         ├── ARTIFACTS_DIR  [defined by custom-variables.yml]
 #  │    │         ├── MACHINE_NAME   [defined by this file]
 #  │    │         ├── AUTOTEST_COMMIT  [defined by .gitlab-ci.yml]
 #  │    │         ├── AUTOTEST_ROOT  [defined by .gitlab-ci.yml]
@@ -405,7 +407,7 @@
 #       │    │    ├── .matrix_job_command
 #       │    │    └── .job_on_matrix
 #       │    ├── <used jobs>
-#       │    │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#       │    │    └── .custom_job  [from .gitlab/custom-jobs.yml]
 #       │    └── <used variables>
 #       │         ├── ON_MATRIX
 #       │         ├── ADVANCED_JOB
@@ -428,7 +430,7 @@
 #       │    │    ├── allocate_resources
 #       │    │    └── release_resources
 #       │    ├── <used jobs>
-#       │    │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#       │    │    └── .custom_job  [from .gitlab/custom-jobs.yml]
 #       │    ├── <defined variables>
 #       │    │    └── export JOBID
 #       │    └── <used variables>
@@ -456,7 +458,7 @@
 #            │    ├── allocate_resources
 #            │    └── release_resources
 #            ├── <used jobs>
-#            │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#            │    └── .custom_job  [from .gitlab/custom-jobs.yml]
 #            ├── <defined variables>
 #            │    └── PROXY
 #            └── <used variables>
@@ -535,7 +537,8 @@ stages:
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include:
-      - local: '.gitlab/custom-jobs-and-variables.yml'
+      - local: '.gitlab/custom-variables.yml'
+      - local: '.gitlab/custom-jobs.yml'
       - project: 'radiuss/radiuss-shared-ci'
         ref: 'v2025.09.1'
         file: 'pipelines/${CI_MACHINE}.yml'
