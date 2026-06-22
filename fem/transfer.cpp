@@ -1629,10 +1629,10 @@ std::unique_ptr<SparseMatrix>>
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0)
    {
-      return std::make_pair(
-                std::unique_ptr<SparseMatrix>(new SparseMatrix),
-                std::unique_ptr<SparseMatrix>(new SparseMatrix)
-             );
+      std::unique_ptr<SparseMatrix> R_empty;
+      if (build_R) { R_empty.reset(new SparseMatrix); }
+      std::unique_ptr<SparseMatrix> M_LH_empty(new SparseMatrix);
+      return std::make_pair(std::move(R_empty), std::move(M_LH_empty));
    }
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
