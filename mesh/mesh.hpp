@@ -1362,6 +1362,11 @@ public:
    /// A mixed mesh is one where there are multiple types of element geometries.
    bool IsMixedMesh() const;
 
+   /// @brief Returns true if the mesh is a simplex mesh, false otherwise.
+   ///
+   /// A simplex mesh is one where all the elements are simplices.
+   bool IsSimplexMesh() const { return (MeshGenerator() == 1); }
+
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
