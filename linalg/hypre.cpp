@@ -2885,7 +2885,7 @@ void HypreParMatrix::Destroy()
       Write(mc, diagOwner < 0, offdOwner < 0);
       if (diagOwner == -1)
       {
-         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
          mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
          if (hypre_CSRMatrixOwnsData(A->diag))
          {
@@ -2898,7 +2898,7 @@ void HypreParMatrix::Destroy()
       }
       if (offdOwner == -1)
       {
-         // Note: mfem_hypre_TFree_host() sets the pointer to NULL too.
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
          mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
          if (hypre_CSRMatrixOwnsData(A->offd))
          {
