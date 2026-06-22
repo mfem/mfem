@@ -35,6 +35,10 @@ Discretization improvements
   Vector and VectorFE, also NURBS versions. Optionally different types of
   projections can be selected, default behaviour has not changed.
 
+- GPU-enabled partial assembly (PA) for simplicial Bernstein (H1) basis based on
+  ragged tensor algorithms in (https://doi.org/10.1137/11082539X) for mass and
+  diffusion integrators.
+
 - Added methods to estimate function extremum using piecewise linear bounds +
   recursive subdivision.
 
@@ -62,6 +66,9 @@ GPU computing
 
 Miscellaneous
 -------------
+- Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
+  quadrature rules on triangles and tetrahedra.
+
 - Fixed signed DOF handling in parallel grid-function reading (read constructor)
   and saving via ParGridFunction::SaveAsOne(). Simplified the process of
   applying the DOF signs by using the new method ApplyDofSigns() in class
