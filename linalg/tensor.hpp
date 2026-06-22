@@ -22,6 +22,12 @@
 #include <limits>
 #include <type_traits> // for std::false_type
 
+#if defined(MFEM_USE_ENZYME)
+#define MFEM_TENSOR_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define MFEM_TENSOR_ALWAYS_INLINE
+#endif
+
 namespace mfem
 {
 namespace future
@@ -39,11 +45,13 @@ struct tensor<T>
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE operator T() const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator[](
+      int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(
+      int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE operator T() const { return values; }
    T values;
 };
 
@@ -53,10 +61,10 @@ struct tensor<T, n0>
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE T& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const T& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE T& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const T& operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator[](int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(int i) const { return values[i]; }
    T values[n0];
 };
 
@@ -66,10 +74,12 @@ struct tensor<T, 0>
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator[](
+      int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(
+      int /*unused*/) const { return values; }
    T values;
 };
 
@@ -79,12 +89,15 @@ struct tensor<T, n0, n1>
    using type = T;
    static constexpr int ndim      = 2;
    static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1 >& operator[](int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1 >& operator[](
+      int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1 >& operator()(int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1 >& operator()(
+      int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int i, int j) { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(int i,
+                                                                  int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
 };
 
@@ -94,12 +107,18 @@ struct tensor<T, 0, n1>
    using type = T;
    static constexpr int ndim      = 2;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1 >& operator[](
+      int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1 >& operator[](
+      int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1 >& operator()(
+      int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1 >& operator()(
+      int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int /*unused*/,
+                                                            int j) { return values[j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(int /*unused*/,
+                                                                  int j) const { return values[j]; }
    tensor < T, n1 > values;
 };
 
@@ -109,14 +128,21 @@ struct tensor<T, n0, n1, n2>
    using type = T;
    static constexpr int ndim      = 3;
    static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2 >& operator[](
+      int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2 >&
+   operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2 >& operator()(
+      int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2 >& operator()
+   (int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n2 >& operator()(int i,
+                                                                          int j) { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n2 >& operator()(
+      int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int i, int j, int k) { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(int i, int j,
+                                                                  int k) const { return values[i][j][k]; }
    tensor < T, n1, n2 > values[n0];
 };
 
@@ -126,16 +152,26 @@ struct tensor<T, n0, n1, n2, n3>
    using type = T;
    static constexpr int ndim      = 4;
    static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2, n3 >& operator[](
+      int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2, n3 >&
+   operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2, n3 >& operator()(
+      int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2, n3 >&
+   operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n2, n3 >& operator()(
+      int i, int j) { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n2, n3 >& operator()
+   (int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n3 >& operator()(int i,
+                                                                          int j, int k) { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n3 >& operator()(
+      int i, int j, int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int i, int j, int k,
+                                                            int l) { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T&  operator()(int i, int j,
+                                                                   int k, int l) const { return values[i][j][k][l]; }
    tensor < T, n1, n2, n3 > values[n0];
 };
 
@@ -145,21 +181,33 @@ struct tensor<T, n0, n1, n2, n3, n4>
    using type = T;
    static constexpr int ndim      = 5;
    static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int i,
-                                                              int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int i, int j,
-                                                         int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int i, int j, int k,
-                                                      int l) const { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l, int m) { return values[i][j][k][l][m]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2, n3, n4 >&
+   operator[](int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2, n3, n4 >&
+   operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n1, n2, n3, n4 >&
+   operator()(int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n1, n2, n3, n4 >&
+   operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n2, n3, n4 >& operator()(
+      int i, int j) { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n2, n3, n4 >&
+   operator()(int i,
+              int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n3, n4>& operator()(int i,
+                                                                             int j, int k) { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n3, n4>& operator()(
+      int i, int j,
+      int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor< T, n4 >& operator()(int i,
+                                                                          int j, int k, int l) { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const tensor< T, n4 >& operator()(
+      int i, int j, int k,
+      int l) const { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE T& operator()(int i, int j, int k,
+                                                            int l, int m) { return values[i][j][k][l][m]; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE const T& operator()(int i, int j,
+                                                                  int k, int l, int m) const { return values[i][j][k][l][m]; }
    tensor < T, n1, n2, n3, n4 > values[n0];
 };
 
@@ -169,25 +217,25 @@ struct tensor<T, n0, n1, n2, n3, n4>
 struct zero
 {
    /** @brief `zero` is implicitly convertible to real_t with value 0.0 */
-   MFEM_HOST_DEVICE operator real_t() { return 0.0; }
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE operator real_t() { return 0.0; }
 
    /** @brief `zero` is implicitly convertible to a tensor of any shape */
    template <typename T, int... n>
-   MFEM_HOST_DEVICE operator tensor<T, n...>()
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE operator tensor<T, n...>()
    {
       return tensor<T, n...> {};
    }
 
    /** @brief `zero` can be accessed like a multidimensional array */
    template <typename... T>
-   MFEM_HOST_DEVICE zero operator()(T...)
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero operator()(T...)
    {
       return zero{};
    }
 
    /** @brief anything assigned to `zero` does not change its value and returns `zero` */
    template <typename T>
-   MFEM_HOST_DEVICE zero operator=(T)
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero operator=(T)
    {
       return zero{};
    }
@@ -206,18 +254,19 @@ struct is_zero<zero> : std::true_type
 };
 
 /** @brief the sum of two `zero`s is `zero` */
-MFEM_HOST_DEVICE constexpr zero operator+(zero, zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator+(zero,
+                                                                    zero) { return zero{}; }
 
 /** @brief the sum of `zero` with something non-`zero` just returns the other value */
 template <typename T>
-MFEM_HOST_DEVICE constexpr T operator+(zero, T other)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator+(zero, T other)
 {
    return other;
 }
 
 /** @brief the sum of `zero` with something non-`zero` just returns the other value */
 template <typename T>
-MFEM_HOST_DEVICE constexpr T operator+(T other, zero)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator+(T other, zero)
 {
    return other;
 }
@@ -225,21 +274,22 @@ MFEM_HOST_DEVICE constexpr T operator+(T other, zero)
 /////////////////////////////////////////////////
 
 /** @brief the unary negation of `zero` is `zero` */
-MFEM_HOST_DEVICE constexpr zero operator-(zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator-(zero) { return zero{}; }
 
 /** @brief the difference of two `zero`s is `zero` */
-MFEM_HOST_DEVICE constexpr zero operator-(zero, zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator-(zero,
+                                                                    zero) { return zero{}; }
 
 /** @brief the difference of `zero` with something else is the unary negation of the other thing */
 template <typename T>
-MFEM_HOST_DEVICE constexpr T operator-(zero, T other)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator-(zero, T other)
 {
    return -other;
 }
 
 /** @brief the difference of something else with `zero` is the other thing itself */
 template <typename T>
-MFEM_HOST_DEVICE constexpr T operator-(T other, zero)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator-(T other, zero)
 {
    return other;
 }
@@ -247,52 +297,58 @@ MFEM_HOST_DEVICE constexpr T operator-(T other, zero)
 /////////////////////////////////////////////////
 
 /** @brief the product of two `zero`s is `zero` */
-MFEM_HOST_DEVICE constexpr zero operator*(zero, zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator*(zero,
+                                                                    zero) { return zero{}; }
 
 /** @brief the product `zero` with something else is also `zero` */
 template <typename T>
-MFEM_HOST_DEVICE constexpr zero operator*(zero, T /*other*/)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator*(zero,
+                                                                    T /*other*/)
 {
    return zero{};
 }
 
 /** @brief the product `zero` with something else is also `zero` */
 template <typename T>
-MFEM_HOST_DEVICE constexpr zero operator*(T /*other*/, zero)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator*(T /*other*/,
+                                                                    zero)
 {
    return zero{};
 }
 
 /** @brief `zero` divided by something is `zero` */
 template <typename T>
-MFEM_HOST_DEVICE constexpr zero operator/(zero, T /*other*/)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator/(zero,
+                                                                    T /*other*/)
 {
    return zero{};
 }
 
 /** @brief `zero` plus `zero` is `zero */
-MFEM_HOST_DEVICE constexpr zero operator+=(zero, zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator+=(zero,
+                                                                     zero) { return zero{}; }
 
 /** @brief `zero` minus `zero` is `zero */
-MFEM_HOST_DEVICE constexpr zero operator-=(zero, zero) { return zero{}; }
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr zero operator-=(zero,
+                                                                     zero) { return zero{}; }
 
 /** @brief let `zero` be accessed like a tuple */
 template <int i>
-MFEM_HOST_DEVICE zero& get(zero& x)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero& get(zero& x)
 {
    return x;
 }
 
 /** @brief the dot product of anything with `zero` is `zero` */
 template <typename T>
-MFEM_HOST_DEVICE zero dot(const T&, zero)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero dot(const T&, zero)
 {
    return zero{};
 }
 
 /** @brief the dot product of anything with `zero` is `zero` */
 template <typename T>
-MFEM_HOST_DEVICE zero dot(zero, const T&)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero dot(zero, const T&)
 {
    return zero{};
 }
@@ -324,7 +380,8 @@ using reduced_tensor = typename std::conditional<
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
 template <typename lambda_type>
-MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr auto make_tensor(
+   lambda_type f) ->
 tensor<decltype(f())>
 {
    return {f()};
@@ -342,7 +399,7 @@ tensor<decltype(f())>
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
 template <int n1, typename lambda_type>
-MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1)), n1>
 {
    using T = decltype(f(n1));
@@ -367,7 +424,7 @@ tensor<decltype(f(n1)), n1>
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
 template <int n1, int n2, typename lambda_type>
-MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2)), n1, n2>
 {
    using T = decltype(f(n1, n2));
@@ -396,7 +453,7 @@ tensor<decltype(f(n1, n2)), n1, n2>
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
 template <int n1, int n2, int n3, typename lambda_type>
-MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
 {
    using T = decltype(f(n1, n2, n3));
@@ -429,7 +486,7 @@ tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
 template <int n1, int n2, int n3, int n4, typename lambda_type>
-MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
 {
    using T = decltype(f(n1, n2, n3, n4));
@@ -451,7 +508,7 @@ tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
 }
 
 // needs to be generalized
-template <typename T, int m, int n> MFEM_HOST_DEVICE
+template <typename T, int m, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n> get_col(tensor<T, m, n> A, int j)
 {
    tensor<T, n> c{};
@@ -461,7 +518,7 @@ tensor<T, n> get_col(tensor<T, m, n> A, int j)
 }
 
 /// @overload
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
 {
    return tensor<T, 1> {A[0][0]};
@@ -476,8 +533,9 @@ tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
  * @param[in] B The righthand operand
  */
 template <typename S, typename T, int... n>
-MFEM_HOST_DEVICE auto operator+(const tensor<S, n...>& A,
-                                const tensor<T, n...>& B) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator+
+(const tensor<S, n...>& A,
+ const tensor<T, n...>& B) ->
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
@@ -495,7 +553,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to negate
  */
 template <typename T, int... n>
-MFEM_HOST_DEVICE tensor<T, n...> operator-(const tensor<T, n...>& A)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, n...> operator-
+(const tensor<T, n...>& A)
 {
    tensor<T, n...> B{};
    for (int i = 0; i < tensor<T, n...>::first_dim; i++)
@@ -514,8 +573,9 @@ MFEM_HOST_DEVICE tensor<T, n...> operator-(const tensor<T, n...>& A)
  * @param[in] B The righthand operand
  */
 template <typename S, typename T, int... n>
-MFEM_HOST_DEVICE auto operator-(const tensor<S, n...>& A,
-                                const tensor<T, n...>& B) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator-
+(const tensor<S, n...>& A,
+ const tensor<T, n...>& B) ->
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
@@ -537,7 +597,8 @@ tensor<decltype(S {} + T{}), n...>
 template <typename S, typename T, int... n,
           typename = typename std::enable_if<std::is_arithmetic<S>::value ||
                                              is_dual_number<S>::value>::type>
-MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator*(S scale,
+                                                          const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
@@ -559,7 +620,8 @@ tensor<decltype(S {} * T{}), n...>
 template <typename S, typename T, int... n,
           typename = typename std::enable_if<std::is_arithmetic<S>::value ||
                                              is_dual_number<S>::value>::type>
-MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator*
+(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
@@ -581,7 +643,8 @@ tensor<decltype(T {} * S{}), n...>
 template <typename S, typename T, int... n,
           typename = typename std::enable_if<std::is_arithmetic<S>::value ||
                                              is_dual_number<S>::value>::type>
-MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator/(S scale,
+                                                          const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
@@ -603,7 +666,8 @@ tensor<decltype(S {} * T{}), n...>
 template <typename S, typename T, int... n,
           typename = typename std::enable_if<std::is_arithmetic<S>::value ||
                                              is_dual_number<S>::value>::type>
-MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto operator/
+(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
@@ -623,6 +687,7 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] B The righthand tensor
  */
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<S, n...>& operator+=(tensor<S, n...>& A,
                             const tensor<T, n...>& B)
 {
@@ -639,7 +704,7 @@ tensor<S, n...>& operator+=(tensor<S, n...>& A,
  * @param[in] A The lefthand tensor
  * @param[in] B The righthand tensor
  */
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T>& operator+=(tensor<T>& A, const T& B)
 {
    return A.values += B;
@@ -651,7 +716,7 @@ tensor<T>& operator+=(tensor<T>& A, const T& B)
  * @param[in] A The lefthand tensor
  * @param[in] B The righthand tensor
  */
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, 1>& operator+=(tensor<T, 1>& A, const T& B)
 {
    return A.values += B;
@@ -663,7 +728,7 @@ tensor<T, 1>& operator+=(tensor<T, 1>& A, const T& B)
  * @param[in] A The lefthand tensor
  * @param[in] B The righthand tensor
  */
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, 1, 1>& operator+=(tensor<T, 1, 1>& A, const T& B)
 {
    return A.values += B;
@@ -675,7 +740,7 @@ tensor<T, 1, 1>& operator+=(tensor<T, 1, 1>& A, const T& B)
  * @tparam n integers describing the tensor shape
  * @param[in] A The lefthand tensor
  */
-template <typename T, int... n> MFEM_HOST_DEVICE
+template <typename T, int... n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n...>& operator+=(tensor<T, n...>& A, zero)
 {
    return A;
@@ -690,6 +755,7 @@ tensor<T, n...>& operator+=(tensor<T, n...>& A, zero)
  * @param[in] B The righthand tensor
  */
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<S, n...>& operator-=(tensor<S, n...>& A, const tensor<T, n...>& B)
 {
    for (int i = 0; i < tensor<S, n...>::first_dim; i++)
@@ -705,7 +771,7 @@ tensor<S, n...>& operator-=(tensor<S, n...>& A, const tensor<T, n...>& B)
  * @tparam n integers describing the tensor shape
  * @param[in] A The lefthand tensor
  */
-template <typename T, int... n> MFEM_HOST_DEVICE
+template <typename T, int... n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
 {
    return A;
@@ -720,7 +786,7 @@ constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
  *
  * @note this overload implements the special case where both arguments are scalars
  */
-template <typename S, typename T> MFEM_HOST_DEVICE
+template <typename S, typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 auto outer(S A, T B) -> decltype(A * B)
 {
    static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
@@ -728,7 +794,7 @@ auto outer(S A, T B) -> decltype(A * B)
    return A * B;
 }
 
-template <typename T, int n, int m> MFEM_HOST_DEVICE
+template <typename T, int n, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n + m> flatten(tensor<T, n, m> A)
 {
    tensor<T, n + m> B{};
@@ -747,6 +813,7 @@ tensor<T, n + m> flatten(tensor<T, n, m> A)
  * @note this overload implements the case where the left argument is a scalar, and the right argument is a tensor
  */
 template <typename S, typename T, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 {
    static_assert(std::is_arithmetic<S>::value,
@@ -764,6 +831,7 @@ tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
  * @note this overload implements the case where the left argument is a tensor, and the right argument is a scalar
  */
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
 {
    static_assert(std::is_arithmetic<T>::value,
@@ -780,7 +848,7 @@ tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
  * @overload
  * @note this overload implements the case where the left argument is `zero`, and the right argument is a tensor
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 zero outer(zero, const tensor<T, n>&)
 {
    return zero{};
@@ -790,7 +858,7 @@ zero outer(zero, const tensor<T, n>&)
  * @overload
  * @note this overload implements the case where the left argument is a tensor, and the right argument is `zero`
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 zero outer(const tensor<T, n>&, zero)
 {
    return zero{};
@@ -802,6 +870,7 @@ zero outer(const tensor<T, n>&, zero)
  * and the right argument is a tensor
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
 {
    static_assert(std::is_arithmetic<S>::value,
@@ -822,6 +891,7 @@ tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
  * @note this overload implements the case where both arguments are vectors
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
                                         const tensor<T, n>& B)
 {
@@ -842,6 +912,7 @@ tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
  * scalar
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
 {
    static_assert(std::is_arithmetic<T>::value,
@@ -863,6 +934,7 @@ tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
  * first order tensor
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m, n>& A,
                                            const tensor<T, p>& B)
 {
@@ -886,6 +958,7 @@ tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m, n>& A,
  * 2nd order tensor
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m>& A,
                                            const tensor<T, n, p>& B)
 {
@@ -908,6 +981,7 @@ tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m>& A,
  * @note this overload implements the case where both arguments are second order tensors
  */
 template <typename S, typename T, int m, int n, int p, int q> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 tensor<decltype(S{} * T{}), m, n, p, q> outer(const tensor<S, m, n>& A,
                                               const tensor<T, p, q>& B)
 {
@@ -938,6 +1012,7 @@ tensor<decltype(S{} * T{}), m, n, p, q> outer(const tensor<S, m, n>& A,
  * @param[in] B The righthand tensor
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto inner(const tensor<S, m, n>& A, const tensor<T, m, n>& B) ->
 decltype(S {} * T{})
 {
@@ -962,6 +1037,7 @@ decltype(S {} * T{})
  * @param[in] B The righthand tensor
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m, n>& A,
          const tensor<T, n, p>& B) ->
 tensor<decltype(S {} * T{}), m, p>
@@ -985,6 +1061,7 @@ tensor<decltype(S {} * T{}), m, p>
  * @note vector . matrix
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m>& A, const tensor<T, m, n>& B) ->
 tensor<decltype(S {} * T{}), n>
 {
@@ -1004,6 +1081,7 @@ tensor<decltype(S {} * T{}), n>
  * @note matrix . vector
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m, n>& A, const tensor<T, n>& B) ->
 tensor<decltype(S {} * T{}), m>
 {
@@ -1023,6 +1101,7 @@ tensor<decltype(S {} * T{}), m>
  * @note 3rd-order-tensor . vector
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m, n, p>& A, const tensor<T, p>& B) ->
 tensor<decltype(S {} * T{}), m, n>
 {
@@ -1085,6 +1164,7 @@ tensor<decltype(S {} * T{}), m, n>
 // }
 
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m>& A, const tensor<T, m>& B) ->
 decltype(S {} * T{})
 {
@@ -1096,7 +1176,7 @@ decltype(S {} * T{})
    return AB;
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<T, m>& A, const tensor<T, m>& B) ->
 decltype(T {})
 {
@@ -1109,7 +1189,7 @@ decltype(T {})
 }
 
 template <typename S, typename T, int m, int n0, int n1, int... n>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m>& A, const tensor<T, m, n0, n1, n...>& B) ->
 tensor<decltype(S {} * T{}), n0, n1, n...>
 {
@@ -1129,6 +1209,7 @@ tensor<decltype(S {} * T{}), n0, n1, n...>
  * @note vector . matrix . vector
  */
 template <typename S, typename T, typename U, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto dot(const tensor<S, m>& u, const tensor<T, m, n>& A,
          const tensor<U, n>& v) ->
 decltype(S {} * T{} * U{})
@@ -1156,6 +1237,7 @@ decltype(S {} * T{} * U{})
  * @param[in] B The righthand tensor
  */
 template <typename S, typename T, int m, int n, int p, int q> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto ddot(const tensor<S, m, n, p, q>& A, const tensor<T, p, q>& B) ->
 tensor<decltype(S {} * T{}), m, n>
 {
@@ -1182,6 +1264,7 @@ tensor<decltype(S {} * T{}), m, n>
  * sum_jk A_ijk B_jk.
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto ddot(const tensor<S, m, n, p>& A, const tensor<T, n, p>& B) ->
 tensor<decltype(S {} * T{}), m>
 {
@@ -1204,6 +1287,7 @@ tensor<decltype(S {} * T{}), m>
  * @note 2nd-order-tensor : 2nd-order-tensor, like inner()
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto ddot(const tensor<S, m, n>& A, const tensor<T, m, n>& B) ->
 decltype(S {} * T{})
 {
@@ -1222,6 +1306,7 @@ decltype(S {} * T{})
  * @brief this is a shorthand for dot(A, B)
  */
 template <typename S, typename T, int... m, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 auto operator*(const tensor<S, m...>& A, const tensor<T, n...>& B) ->
 decltype(dot(A, B))
 {
@@ -1232,7 +1317,7 @@ decltype(dot(A, B))
  * @brief Returns the squared Frobenius norm of the tensor
  * @param[in] A The tensor to obtain the squared norm from
  */
-template <typename T, int m> MFEM_HOST_DEVICE
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T sqnorm(const tensor<T, m>& A)
 {
    T total{};
@@ -1247,7 +1332,7 @@ T sqnorm(const tensor<T, m>& A)
  * @overload
  * @brief Returns the squared Frobenius norm of the tensor
  */
-template <typename T, int m, int n> MFEM_HOST_DEVICE
+template <typename T, int m, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T sqnorm(const tensor<T, m, n>& A)
 {
    T total{};
@@ -1265,13 +1350,13 @@ T sqnorm(const tensor<T, m, n>& A)
  * @brief Returns the Frobenius norm of the tensor
  * @param[in] A The tensor to obtain the norm from
  */
-template <typename T, int... n> MFEM_HOST_DEVICE
+template <typename T, int... n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T norm(const tensor<T, n...>& A)
 {
    return std::sqrt(sqnorm(A));
 }
 
-template <typename T, int n, int m> MFEM_HOST_DEVICE
+template <typename T, int n, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T weight(const tensor<T, n, m>& A)
 {
    static_assert((n == m) || ((n == 2) && (m == 1)) || ((n == 3) && (m == 1)) ||
@@ -1301,7 +1386,7 @@ T weight(const tensor<T, n, m>& A)
  * Each element is divided by the Frobenius norm of the tensor, @see norm
  * @param[in] A The tensor to normalize
  */
-template <typename T, int... n> MFEM_HOST_DEVICE
+template <typename T, int... n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 auto normalize(const tensor<T, n...>& A) ->
 decltype(A / norm(A))
 {
@@ -1313,7 +1398,7 @@ decltype(A / norm(A))
  * @param[in] A The matrix to compute the trace of
  * @return The sum of the elements on the main diagonal
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T tr(const tensor<T, n, n>& A)
 {
    T trA{};
@@ -1329,7 +1414,7 @@ T tr(const tensor<T, n, n>& A)
  * @param[in] A The matrix to obtain the symmetric part of
  * @return (1/2) * (A + A^T)
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n, n> sym(const tensor<T, n, n>& A)
 {
    tensor<T, n, n> symA{};
@@ -1350,7 +1435,7 @@ tensor<T, n, n> sym(const tensor<T, n, n>& A)
  * subtracting the mean stress (average of main diagonal elements)
  * from each element on the main diagonal
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n, n> dev(const tensor<T, n, n>& A)
 {
    auto devA = A;
@@ -1367,7 +1452,8 @@ tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<real_t, dim, dim> IdentityMatrix()
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<real_t, dim, dim>
+IdentityMatrix()
 {
    tensor<real_t, dim, dim> I{};
    for (int i = 0; i < dim; i++)
@@ -1384,7 +1470,7 @@ MFEM_HOST_DEVICE tensor<real_t, dim, dim> IdentityMatrix()
  * @brief Returns the transpose of the matrix
  * @param[in] A The matrix to obtain the transpose of
  */
-template <typename T, int m, int n> MFEM_HOST_DEVICE
+template <typename T, int m, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n, m> transpose(const tensor<T, m, n>& A)
 {
    tensor<T, n, m> AT{};
@@ -1402,19 +1488,19 @@ tensor<T, n, m> transpose(const tensor<T, m, n>& A)
  * @brief Returns the determinant of a matrix
  * @param[in] A The matrix to obtain the determinant of
  */
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T det(const tensor<T, 1, 1>& A)
 {
    return A[0][0];
 }
 /// @overload
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T det(const tensor<T, 2, 2>& A)
 {
    return A[0][0] * A[1][1] - A[0][1] * A[1][0];
 }
 /// @overload
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T det(const tensor<T, 3, 3>& A)
 {
    return A[0][0] * A[1][1] * A[2][2] + A[0][1] * A[1][2] * A[2][0] + A[0][2] *
@@ -1423,13 +1509,13 @@ T det(const tensor<T, 3, 3>& A)
           A[2][0];
 }
 
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
 {
    return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
 }
 
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
 {
    tensor<T, 2> e;
@@ -1487,7 +1573,7 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
    return {e, v};
 }
 
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 void GetScalingFactor(const T &d_max, T &mult)
 {
    int d_exp;
@@ -1506,7 +1592,7 @@ void GetScalingFactor(const T &d_max, T &mult)
    }
 }
 
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T calcsv(const tensor<T, 1, 1> A, const int i)
 {
    return A[0][0];
@@ -1515,7 +1601,7 @@ T calcsv(const tensor<T, 1, 1> A, const int i)
 /**
  * @brief Compute the i-th singular value of a 2x2 matrix A
  */
-template <typename T> MFEM_HOST_DEVICE
+template <typename T> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 T calcsv(const tensor<T, 2, 2> A, const int i)
 {
    real_t mult;
@@ -1570,7 +1656,7 @@ T calcsv(const tensor<T, 2, 2> A, const int i)
  * @param abs_tolerance The absolute tolerance to check for symmetry
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
-template <int n> MFEM_HOST_DEVICE
+template <int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
 {
    for (int i = 0; i < n; ++i)
@@ -1594,7 +1680,7 @@ bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
  * @param A The matrix to test for positive definiteness
  * @return Whether the matrix is positive definite
  */
-inline MFEM_HOST_DEVICE
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 bool is_symmetric_and_positive_definite(tensor<real_t, 2, 2> A)
 {
    if (!is_symmetric(A))
@@ -1612,7 +1698,7 @@ bool is_symmetric_and_positive_definite(tensor<real_t, 2, 2> A)
    return true;
 }
 /// @overload
-inline MFEM_HOST_DEVICE
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 bool is_symmetric_and_positive_definite(tensor<real_t, 3, 3> A)
 {
    if (!is_symmetric(A))
@@ -1637,7 +1723,7 @@ bool is_symmetric_and_positive_definite(tensor<real_t, 3, 3> A)
  * @param[in] b The righthand side vector b
  * @note @a A and @a b are by-value as they are mutated as part of the elimination
  */
-template <typename T, int n> MFEM_HOST_DEVICE
+template <typename T, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
 {
    auto abs  = [](real_t x) { return (x < 0) ? -x : x; };
@@ -1704,13 +1790,15 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
 template <typename T>
-inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 1, 1> inv(
+   const tensor<T, 1, 1>& A)
 {
    return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
 }
 
 template <typename T>
-inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 2, 2> inv(
+   const tensor<T, 2, 2>& A)
 {
    T inv_detA(1.0_r / det(A));
 
@@ -1729,7 +1817,8 @@ inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
 template <typename T>
-inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 3, 3> inv(
+   const tensor<T, 3, 3>& A)
 {
    T inv_detA(1.0_r / det(A));
 
@@ -1753,7 +1842,7 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  * with partial pivoting
  */
 template <typename T, int n>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 typename std::enable_if<(n > 3), tensor<T, n, n>>::type
                                                inv(const tensor<T, n, n>& A)
 {
@@ -1824,6 +1913,7 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
 template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE
 dual<value_type, gradient_type> inv(
    tensor<dual<value_type, gradient_type>, n, n> A)
 {
@@ -1867,7 +1957,7 @@ std::ostream& operator<<(std::ostream& os, const tensor<T, n...>& A)
  * @brief replace all entries in a tensor satisfying |x| < 1.0e-10 by literal zero
  * @param[in] A The tensor to "chop"
  */
-template <int n> MFEM_HOST_DEVICE
+template <int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<real_t, n> chop(const tensor<real_t, n>& A)
 {
    auto copy = A;
@@ -1882,7 +1972,7 @@ tensor<real_t, n> chop(const tensor<real_t, n>& A)
 }
 
 /// @overload
-template <int m, int n> MFEM_HOST_DEVICE
+template <int m, int n> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 tensor<real_t, m, n> chop(const tensor<real_t, m, n>& A)
 {
    auto copy = A;
@@ -1956,7 +2046,8 @@ using outer_product_t = typename detail::outer_prod<T1, T2>::type;
  * @brief Retrieves the gradient component of a real_t (which is nothing)
  * @return The sentinel, @see zero
  */
-inline MFEM_HOST_DEVICE zero get_gradient(real_t /* arg */) { return zero{}; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(
+   real_t /* arg */) { return zero{}; }
 
 /**
  * @brief get the gradient of type `tensor` (note: since its stored type is not a dual
@@ -1964,7 +2055,8 @@ inline MFEM_HOST_DEVICE zero get_gradient(real_t /* arg */) { return zero{}; }
  * @return The sentinel, @see zero
  */
 template <int... n>
-MFEM_HOST_DEVICE zero get_gradient(const tensor<real_t, n...>& /* arg */)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(
+   const tensor<real_t, n...>& /* arg */)
 {
    return zero{};
 }
@@ -1972,16 +2064,18 @@ MFEM_HOST_DEVICE zero get_gradient(const tensor<real_t, n...>& /* arg */)
 /**
  * @brief evaluate the change (to first order) in a function, f, given a small change in the input argument, dx.
  */
-inline MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
-                                        const zero /* dx */) { return zero{}; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(
+   const zero /* df_dx */,
+   const zero /* dx */) { return zero{}; }
 
 /**
  * @overload
  * @note this overload implements a no-op for the case where the gradient w.r.t. an input argument is identically zero
  */
 template <typename T>
-MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
-                                 const T /* dx */)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(
+   const zero /* df_dx */,
+   const T /* dx */)
 {
    return zero{};
 }
@@ -1991,8 +2085,8 @@ MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
  * @note this overload implements a no-op for the case where the small change is identically zero
  */
 template <typename T>
-MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,
-                                 const zero /* dx */)
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(const T /* df_dx */,
+                                                           const zero /* dx */)
 {
    return zero{};
 }
@@ -2001,16 +2095,18 @@ MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,
  * @overload
  * @note for a scalar-valued function of a scalar, the chain rule is just multiplication
  */
-inline MFEM_HOST_DEVICE real_t chain_rule(const real_t df_dx,
-                                          const real_t dx) { return df_dx * dx; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE real_t chain_rule(
+   const real_t df_dx,
+   const real_t dx) { return df_dx * dx; }
 
 /**
  * @overload
  * @note for a tensor-valued function of a scalar, the chain rule is just scalar multiplication
  */
 template <int... n>
-MFEM_HOST_DEVICE auto chain_rule(const tensor<real_t, n...>& df_dx,
-                                 const real_t dx) ->
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE auto chain_rule(
+   const tensor<real_t, n...>& df_dx,
+   const real_t dx) ->
 decltype(df_dx * dx)
 {
    return df_dx * dx;
@@ -2031,7 +2127,8 @@ struct isotropic_tensor<T, n>
 template <typename T, int m>
 struct isotropic_tensor<T, m, m>
 {
-   MFEM_HOST_DEVICE constexpr T operator()(int i, int j) const
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator()(int i,
+                                                                     int j) const
    {
       return (i == j) * value;
    }
@@ -2039,12 +2136,14 @@ struct isotropic_tensor<T, m, m>
 };
 
 template <int m>
-MFEM_HOST_DEVICE constexpr isotropic_tensor<real_t, m, m> IsotropicIdentity()
+MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr
+isotropic_tensor<real_t, m, m> IsotropicIdentity()
 {
    return isotropic_tensor<real_t, m, m> {1.0};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator*(S scale,
                const isotropic_tensor<T, m, m> & I)
 -> isotropic_tensor<decltype(S {} * T{}), m, m>
@@ -2052,7 +2151,8 @@ auto operator*(S scale,
    return {I.value * scale};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator*(const isotropic_tensor<T, m, m> & I,
                const S scale)
 -> isotropic_tensor<decltype(S {}, T{}), m, m>
@@ -2060,7 +2160,8 @@ auto operator*(const isotropic_tensor<T, m, m> & I,
    return {I.value * scale};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator+(const isotropic_tensor<S, m, m>& I1,
                const isotropic_tensor<T, m, m>& I2)
 -> isotropic_tensor<decltype(S {} + T{}), m, m>
@@ -2068,7 +2169,8 @@ auto operator+(const isotropic_tensor<S, m, m>& I1,
    return {I1.value + I2.value};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator-(const isotropic_tensor<S, m, m>& I1,
                const isotropic_tensor<T, m, m>& I2)
 -> isotropic_tensor<decltype(S {} - T{}), m, m>
@@ -2076,7 +2178,8 @@ auto operator-(const isotropic_tensor<S, m, m>& I1,
    return {I1.value - I2.value};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE //constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE //constexpr
 auto operator+(const isotropic_tensor<S, m, m>& I,
                const tensor<T, m, m>& A)
 -> tensor<decltype(S {} + T{}), m, m>
@@ -2092,7 +2195,8 @@ auto operator+(const isotropic_tensor<S, m, m>& I,
    return output;
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE //constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE //constexpr
 auto operator+(const tensor<S, m, m>& A,
                const isotropic_tensor<T, m, m>& I)
 -> tensor<decltype(S {} + T{}), m, m>
@@ -2108,7 +2212,8 @@ auto operator+(const tensor<S, m, m>& A,
    return output;
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE //constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE //constexpr
 auto operator-(const isotropic_tensor<S, m, m>& I,
                const tensor<T, m, m>& A)
 -> tensor<decltype(S {} - T{}), m, m>
@@ -2124,7 +2229,8 @@ auto operator-(const isotropic_tensor<S, m, m>& I,
    return output;
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE // constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE // constexpr
 auto operator-(const tensor<S, m, m>& A,
                const isotropic_tensor<T, m, m>& I)
 -> tensor<decltype(S {} - T{}), m, m>
@@ -2140,7 +2246,8 @@ auto operator-(const tensor<S, m, m>& A,
    return output;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto dot(const isotropic_tensor<S, m, m>& I,
          const tensor<T, m, n...>& A)
 -> tensor<decltype(S {} * T{}), m, n...>
@@ -2148,7 +2255,8 @@ auto dot(const isotropic_tensor<S, m, m>& I,
    return I.value * A;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE //constexpr
+template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE //constexpr
 auto dot(const tensor<S, n...>& A,
          const isotropic_tensor<T, m, m> & I)
 -> tensor<decltype(S {} * T{}), n...>
@@ -2158,7 +2266,8 @@ auto dot(const tensor<S, n...>& A,
    return A * I.value;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto ddot(const isotropic_tensor<S, m, m>& I,
           const tensor<T, m, m>& A)
 -> decltype(S {} * T{})
@@ -2166,43 +2275,50 @@ auto ddot(const isotropic_tensor<S, m, m>& I,
    return I.value * tr(A);
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto sym(const isotropic_tensor<T, m, m>& I) -> isotropic_tensor<T, m, m>
 {
    return I;
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto antisym(const isotropic_tensor<T, m, m>&) -> zero
 {
    return zero{};
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto tr(const isotropic_tensor<T, m, m>& I) -> decltype(T {} * m)
 {
    return I.value * m;
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto transpose(const isotropic_tensor<T, m, m>& I) -> isotropic_tensor<T, m, m>
 {
    return I;
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto det(const isotropic_tensor<T, m, m>& I) -> T
 {
    return std::pow(I.value, m);
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto norm(const isotropic_tensor<T, m, m>& I) -> T
 {
    return sqrt(I.value * I.value * m);
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename T, int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+constexpr
 auto sqnorm(const isotropic_tensor<T, m, m>& I) -> T
 {
    return I.value * I.value * m;
@@ -2212,7 +2328,8 @@ auto sqnorm(const isotropic_tensor<T, m, m>& I) -> T
 template <typename T>
 struct isotropic_tensor<T, 3, 3, 3>
 {
-   MFEM_HOST_DEVICE constexpr T operator()(int i, int j, int k) const
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator()(int i, int j,
+                                                                     int k) const
    {
       return 0.5 * (i - j) * (j - k) * (k - i) * value;
    }
@@ -2226,7 +2343,8 @@ struct isotropic_tensor<T, m, m, m, m>
 {
    T c1, c2, c3;
 
-   MFEM_HOST_DEVICE constexpr T operator()(int i, int j, int k, int l) const
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr T operator()(int i, int j,
+                                                                     int k, int l) const
    {
       return c1 * (i == j) * (k == l)
              + c2 * ((i == k) * (j == l) + (i == l) * (j == k)) * 0.5
@@ -2234,19 +2352,20 @@ struct isotropic_tensor<T, m, m, m, m>
    }
 };
 
-template <int m> MFEM_HOST_DEVICE constexpr
+template <int m> MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto SymmetricIdentity() -> isotropic_tensor<real_t, m, m, m, m>
 {
    return {0.0, 1.0, 0.0};
 }
 
-template <int m>MFEM_HOST_DEVICE constexpr
+template <int m>MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto AntisymmetricIdentity() -> isotropic_tensor<real_t, m, m, m, m>
 {
    return {0.0, 0.0, 1.0};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator*(S scale,
                isotropic_tensor<T, m, m, m, m> I)
 -> isotropic_tensor<decltype(S {} * T{}), m, m, m, m>
@@ -2254,7 +2373,8 @@ auto operator*(S scale,
    return {I.c1 * scale, I.c2 * scale, I.c3 * scale};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator*(isotropic_tensor<S, m, m, m, m> I,
                T scale)
 -> isotropic_tensor<decltype(S {} * T{}), m, m, m, m>
@@ -2262,7 +2382,8 @@ auto operator*(isotropic_tensor<S, m, m, m, m> I,
    return {I.c1 * scale, I.c2 * scale, I.c3 * scale};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator+(isotropic_tensor<S, m, m, m, m> I1,
                isotropic_tensor<T, m, m, m, m> I2)
 -> isotropic_tensor<decltype(S {} + T{}), m, m, m, m>
@@ -2270,7 +2391,8 @@ auto operator+(isotropic_tensor<S, m, m, m, m> I1,
    return {I1.c1 + I2.c1, I1.c2 + I2.c2, I1.c3 + I2.c3};
 }
 
-template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto operator-(isotropic_tensor<S, m, m, m, m> I1,
                isotropic_tensor<T, m, m, m, m> I2)
 -> isotropic_tensor<decltype(S {} - T{}), m, m, m, m>
@@ -2278,7 +2400,8 @@ auto operator-(isotropic_tensor<S, m, m, m, m> I1,
    return {I1.c1 - I2.c1, I1.c2 - I2.c2, I1.c3 - I2.c3};
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE constexpr
+template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
+MFEM_TENSOR_ALWAYS_INLINE constexpr
 auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
           const tensor<T, m, m>& A)
 -> tensor<decltype(S {} * T{}), m, m>
@@ -2288,3 +2411,5 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
 
 } // namespace future
 } // namespace mfem
+
+#undef MFEM_TENSOR_ALWAYS_INLINE
