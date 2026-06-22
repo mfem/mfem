@@ -1,32 +1,22 @@
-//                       MFEM Example 6 - Parallel Version
+//                     MFEM Example 6 - Parallel HDG Version
 //
 // Compile with: make ex6p
 //
-// Sample runs:  mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -pref
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 1
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -h1
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -cs
-//               mpirun -np 4 ex6p -m ../data/square-disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/fichera.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/escher.mesh -rm 2 -o 2
-//               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2 -cs
-//               mpirun -np 4 ex6p -m ../data/disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/ball-nurbs.mesh
-//               mpirun -np 4 ex6p -m ../data/pipe-nurbs.mesh
-//               mpirun -np 4 ex6p -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -rm 2 -o 2
-//               mpirun -np 4 ex6p -m ../data/inline-segment.mesh -o 1 -md 200
-//               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
+// Sample runs:  mpirun -np 4 ex6p -m ../../data/star-hilbert.mesh -o 2 -dg
+//               mpirun -np 4 ex6p -m ../../data/square-disc.mesh -rm 1 -o 1 -brt
+//               mpirun -np 4 ex6p -m ../../data/square-disc.mesh -rm 1 -o 2 -dg -trh1
+//               mpirun -np 4 ex6p -m ../../data/square-disc.mesh -o 2 -cs
+//               mpirun -np 4 ex6p -m ../../data/square-disc-nurbs.mesh -o 2 -brt
+//               mpirun -np 4 ex6p -m ../../data/fichera.mesh -o 2 -dg -trh1
+//               mpirun -np 4 ex6p -m ../../data/escher.mesh -rm 2 -o 2 -dg
+//               mpirun -np 4 ex6p -m ../../data/escher.mesh -o 2 -cs
+//               mpirun -np 4 ex6p -m ../../data/disc-nurbs.mesh -o 2 -brt
+//               mpirun -np 4 ex6p -m ../../data/ball-nurbs.mesh -dg
+//               mpirun -np 4 ex6p -m ../../data/pipe-nurbs.mesh -brt
+//               mpirun -np 4 ex6p -m ../../data/amr-quad.mesh -brt -trh1
 //               mpirun -np 4 ex6p --restart
 //
 // Device sample runs:
-//               mpirun -np 4 ex6p -pa -d cuda
-//               mpirun -np 4 ex6p -pa -d occa-cuda
-//               mpirun -np 4 ex6p -pa -d raja-omp
-//               mpirun -np 4 ex6p -pa -d ceed-cpu
-//             * mpirun -np 4 ex6p -pa -d ceed-cuda
-//               mpirun -np 4 ex6p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Poisson
@@ -34,21 +24,16 @@
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
 //               or non-conforming (quadrilaterals, hexahedra) manner according
-//               to a simple ZZ error estimator.
+//               to HDG error estimator.
 //
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
-//               linear, curved and surface meshes. Interpolation of functions
-//               from coarse to fine meshes, restarting from a checkpoint, as
-//               well as persistent GLVis visualization are also illustrated.
+//               linear and curved meshes. Interpolation of functions from
+//               coarse to fine meshes, restarting from a checkpoint, as well as
+//               persistent GLVis visualization are also illustrated.
 //
-//               There is also the option to use hp-refinement. Real
-//               applications should use some problem-dependent criteria for
-//               selecting between h- and p-refinement, but in this example, we
-//               simply alternate between refinement types to demonstrate the
-//               capabilities.
-//
-//               We recommend viewing Example 1 before viewing this example.
+//               We recommend viewing examples 1 and 5 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -247,7 +232,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
 

@@ -1,28 +1,19 @@
-//                                MFEM Example 6
+//                          MFEM Example 6 - HDG Version
 //
 // Compile with: make ex6
 //
-// Sample runs:  ex6 -m ../data/square-disc.mesh -o 1
-//               ex6 -m ../data/square-disc.mesh -o 2
-//               ex6 -m ../data/square-disc-nurbs.mesh -o 2
-//               ex6 -m ../data/star.mesh -o 3
-//               ex6 -m ../data/escher.mesh -o 2
-//               ex6 -m ../data/fichera.mesh -o 2
-//               ex6 -m ../data/disc-nurbs.mesh -o 2
-//               ex6 -m ../data/ball-nurbs.mesh
-//               ex6 -m ../data/pipe-nurbs.mesh
-//               ex6 -m ../data/star-surf.mesh -o 2
-//               ex6 -m ../data/square-disc-surf.mesh -o 2
-//               ex6 -m ../data/amr-quad.mesh
-//               ex6 -m ../data/inline-segment.mesh -o 1 -md 100
+// Sample runs:  ex6 -m ../../data/square-disc.mesh -o 1 -dg
+//               ex6 -m ../../data/square-disc.mesh -o 2 -brt
+//               ex6 -m ../../data/square-disc-nurbs.mesh -o 2 -dg -trh1
+//               ex6 -m ../../data/star.mesh -o 3
+//               ex6 -m ../../data/escher.mesh -o 2 -dg
+//               ex6 -m ../../data/fichera.mesh -o 2 -dg -trh1
+//               ex6 -m ../../data/disc-nurbs.mesh -o 2 -brt
+//               ex6 -m ../../data/ball-nurbs.mesh -dg
+//               ex6 -m ../../data/pipe-nurbs.mesh -brt
+//               ex6 -m ../../data/amr-quad.mesh -brt -trh1
 //
 // Device sample runs:
-//               ex6 -pa -d cuda
-//               ex6 -pa -d occa-cuda
-//               ex6 -pa -d raja-omp
-//               ex6 -pa -d ceed-cpu
-//             * ex6 -pa -d ceed-cuda
-//               ex6 -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Poisson
@@ -30,15 +21,16 @@
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
 //               or non-conforming (quadrilaterals, hexahedra) manner according
-//               to a simple ZZ error estimator.
+//               to HDG error estimator.
 //
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
-//               linear, curved and surface meshes. Interpolation of functions
-//               from coarse to fine meshes, as well as persistent GLVis
+//               linear and curved meshes. Interpolation of functions from
+//               coarse to fine meshes, as well as persistent GLVis
 //               visualization are also illustrated.
 //
-//               We recommend viewing Example 1 before viewing this example.
+//               We recommend viewing examples 1 and 5 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -169,7 +161,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
 
