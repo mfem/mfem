@@ -76,25 +76,41 @@ int main (int argc, char *argv[])
    pmesh.SetNodalGridFunction(&coord_x);
 
    // Move the mesh nodes to have non-trivial problem.
-   const int N = coord_x.Size() / 2;
+   const int N = coord_x.Size() / dim;
    double a, b, c;
    for (int i = 0; i < N; i++)
    {
       double x = coord_x(i);
-      double y = coord_x(i+N);
+      double y = coord_x(i + N);
 
       // Displace all x and y, so that the spacing is non-uniform.
-      x = x + x*(1-x)*0.4;
-      y = y + y*(1-y)*0.4;
+      x = x + x * (1 - x) * 0.4;
+      y = y + y * (1 - y) * 0.4;
 
-      // a adds deformation inside.
-      // b pulls the top-right corner out.
-      // c adds boundary deformation.
-      //a = 0.0, b = 0.5, c = 0.0; // linear.
-      a = 0.2, b = 0.5, c = 1.5; // curved.
+      if (dim == 2)
+      {
+         // a adds deformation inside.
+         // b pulls the top-right corner out.
+         // c adds boundary deformation.
+         // a = 0.0, b = 0.5, c = 0.0; // linear.
+         a = 0.2, b = 0.1, c = 1.2; // curved.
+         coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
+         coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
+      }
 
-      coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
-      coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
+      else if (dim == 3)
+      {
+         double z = coord_x(i + 2*N);
+         z = z + z * (1 - z) * 0.4;
+
+         // a, b, and c have similar actions to 2D case.
+         a = 0.2, b = 0.1, c = 1.2;
+
+         coord_x(i)       = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y) * sin(c * M_PI * z) + b * x * y * z;
+         coord_x(i + N)   = y + a * sin(c * M_PI * x) * sin(0.5 * M_PI * y) * sin(c * M_PI * z) + b * x * y * z;
+         coord_x(i + 2*N) = z + a * sin(c * M_PI * x) * sin(c * M_PI * y) * sin(0.5 * M_PI * z) + b * x * y * z;
+      }
+      
    }
 
    ParGridFunction x0(coord_x);
@@ -212,8 +228,8 @@ int main (int argc, char *argv[])
    Curve_Sine_Top curve_top(fit_marker_top, a, b, c);
    Curve_Sine_Right curve_right(fit_marker_right, a, b, c);
 
-   //surf_array.Append(&line_top);
-   //surf_array.Append(&line_right);
+   // surf_array.Append(&line_top);
+   // surf_array.Append(&line_right);
    surf_array.Append(&curve_top);
    surf_array.Append(&curve_right);
 
