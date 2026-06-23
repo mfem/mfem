@@ -946,7 +946,9 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    const ParBilinearForm *Mt = pdarcy->GetParPotentialMassForm();
    const ParNonlinearForm *Mtnl = pdarcy->GetParPotentialMassNonlinearForm();
 
-   Vector Md(block_offsets[1] - block_offsets[0]);
+   const int a_tsize = block_offsets[1] - block_offsets[0];
+   const int d_tsize = block_offsets[2] - block_offsets[1];
+   Vector Md(a_tsize);
    darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
    darcyPrec->owns_blocks = true;
    Solver *invM, *invS;
@@ -955,13 +957,13 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    {
       Mq->AssembleDiagonal(Md);
       auto Md_host = Md.HostRead();
-      Vector invMd(Mq->Height());
-      for (int i=0; i<Mq->Height(); ++i)
+      Vector invMd(Md.Size());
+      for (int i=0; i < invMd.Size(); ++i)
       {
          invMd(i) = 1.0 / Md_host[i];
       }
 
-      Vector BMBt_diag(B->Height());
+      Vector BMBt_diag(d_tsize);
       B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
 
       Array<int> ess_tdof_list;  // empty
