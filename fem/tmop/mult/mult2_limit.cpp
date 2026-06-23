@@ -205,25 +205,41 @@ void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
                                             Vector &y) const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, NE);
-   const auto ALF_grad = Reshape(PA.ALFG.Read(), 2, q, q, NE);
    auto Y = Reshape(y.ReadWrite(), d, d, 2, NE);
 
-   TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                         B, ALF_grad, ALFmF0, Y, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   const real_t *ALD = PA.ALD.HostRead();
+
+   const int ndof_el = d * d;
+   const int nqp_el = q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 2 * nqp_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   const real_t *ALFG_all = PA.ALFG.Read();
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = ALD[c];
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
+      const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
+      TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
+                            B, ALF_grad, ALFmF0, Y, d, q);
+   }
 }
 
 } // namespace mfem
