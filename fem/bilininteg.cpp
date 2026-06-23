@@ -1615,7 +1615,8 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
 }
 
 const IntegrationRule &DiffusionIntegrator::GetRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   const bool stroud)
 {
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
@@ -1632,7 +1633,15 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
    {
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 MassIntegrator::MassIntegrator(const IntegrationRule *ir)
@@ -1719,7 +1728,8 @@ void MassIntegrator::AssembleElementMatrix2(
 
 const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe,
-                                               const ElementTransformation &Trans)
+                                               const ElementTransformation &Trans,
+                                               const bool stroud)
 {
    // int order = trial_fe.GetOrder() + test_fe.GetOrder();
    const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
@@ -1728,7 +1738,15 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
    {
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 
