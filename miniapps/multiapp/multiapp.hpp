@@ -27,6 +27,8 @@ class LinkedFields;
 class FieldCollection;
 class GraphNode;
 class Application;
+class DAGraph;
+class GraphGradient;
 
 
 
@@ -53,6 +55,7 @@ private:
 
 protected:
     Vector *data = nullptr;
+    Vector *adjoint = nullptr; // For storing derivative info
     GraphNode *node = nullptr;
     int id = -1; // initialized to invalid id
 
@@ -75,11 +78,21 @@ public:
         if(id < 0) id = next_id++;
     }
 
+    Field(Vector *field, Vector *adjoint, Type type, int id_ = -1) :
+          type(type), data(field), adjoint(adjoint)
+    {
+        id = id_;
+        if(id < 0) id = next_id++;
+    }
+
     ///@brief Get the stored internally stored data pointer
     virtual Vector* Data() const { return data; }
 
     ///@brief Set the internally stored data pointer
     virtual void SetData(Vector *field) { data = field; }
+
+    virtual Vector* Adjoint() const { return adjoint; }
+    virtual void SetAdjoint(Vector *v) { adjoint = v; }
 
     virtual void SetNode(GraphNode *op) { node = op; }
     virtual GraphNode* GetNode() const { return node; }
@@ -269,8 +282,18 @@ public:
             Vector *tarv = tar->Data();
             if(srcv && tarv)
             {
+                // Make target data a reference to source data
                 tarv->SetSize(srcv->Size());
                 tarv->MakeRef(*srcv,0);
+            }
+
+            // Make target adjoint a reference to source adjoint if it exists
+            Vector *src_adj = source->Adjoint();
+            Vector *tar_adj = tar->Adjoint();
+            if(src_adj && tar_adj)
+            {
+                tar_adj->SetSize(src_adj->Size());
+                tar_adj->MakeRef(*src_adj,0);
             }
         }
         ndest++;
@@ -298,8 +321,14 @@ public:
                 Vector *tarv = tar->Data();
                 if(srcv && tarv)
                 {
-                    tarv->SetSize(srcv->Size());
-                    tarv->MakeRef(*srcv,0);
+                    tarv->MakeRef(*srcv,0,srcv->Size());
+                }
+
+                Vector *src_adj = source->Adjoint();
+                Vector *tar_adj = tar->Adjoint();
+                if(src_adj && tar_adj)
+                {
+                    tar_adj->MakeRef(*src_adj,0,src_adj->Size());
                 }
             }
         }
@@ -570,17 +599,23 @@ public:
 
 class GraphNode : public Operator
 {
+public:
+    enum ExecutionMode
+    {
+        GRADIENT_MODE, ///< Node is being executed as part of a gradient evaluation
+        DEFAULT_MODE   ///< Node is being executed in default mode (e.g. application evaluation)
+    };
+
 protected:
     inline static int next_id = 0;
     int id = -1;
     int node_index = std::numeric_limits<int>::min();
-    int input_index = std::numeric_limits<int>::min(); // Input to node in graph
-    int output_index = std::numeric_limits<int>::min(); // Output from node in graph
+    mutable ExecutionMode exec_mode = DEFAULT_MODE;
 
     std::string name;
     FieldCollection fields; // Collection of fields associated with this node
-    std::vector<GraphNode*> dependencies; // GraphNodes that this node depends on
-    std::vector<GraphNode*> dependents;   // GraphNodes that depend on this node
+    std::vector<GraphNode*> dependencies; // GraphNodes that this node depends on (WIP)
+    std::vector<GraphNode*> dependents;   // GraphNodes that depend on this node (WIP)
 
 public:
 
@@ -628,11 +663,8 @@ public:
     void SetNodeIndex(int index){ node_index = index; }
     int GetNodeIndex() const { return node_index; }
 
-    int GetInputIndex() const { return input_index; }
-    void SetInputIndex(int index) { input_index = index; }
-
-    int GetOutputIndex() const { return output_index; }
-    void SetOutputIndex(int index) { output_index = index; }
+    void SetExecutionMode(ExecutionMode mode) { exec_mode = mode; }
+    ExecutionMode GetExecutionMode() const { return exec_mode; }
 
     void SetName(const std::string &name_) { name = name_; }
     std::string GetName() const { return name; }
@@ -671,9 +703,9 @@ public:
     LinkedFields* LinkedField(const std::string &src_name)
     { return fields.GetLinkedFields(src_name); }
 
-    void AddField(const std::string &field_name, Field *field)
+    void AddField(const std::string &field_name, Field *field, bool own = false)
     {
-        fields.AddField(field_name, field);
+        fields.AddField(field_name, field, own);
     }
 
     /// @brief Add a LinkedFields to the collection with name src_name
@@ -689,6 +721,21 @@ public:
         out << "\"Name\": \"" << name << "\",\n";
         fields.Save(out);
         out << "}";
+    }
+
+    virtual void JVP(const Vector &x, Vector &y) const
+    {
+        MFEM_ABORT("GraphNode::JVP() not implemented");
+    }
+
+    virtual void VJP(const Vector &x, Vector &y) const
+    {
+        MFEM_ABORT("GraphNode::VJP() not implemented");
+    }
+
+    virtual void GetJacobian(Field* y, Field* x, Vector &x0, Operator *dydx)
+    {
+        MFEM_ABORT("GraphNode::GetJacobian() not implemented");
     }
 
     virtual ~GraphNode() = default;
@@ -869,7 +916,131 @@ public:
     }
 };
 
+class DataNode : public GraphNode
+{
+protected:
+    Vector data, adjoint;
+    Field *field = nullptr;
 
+public:
+
+    DataNode(std::string name, int sz) : GraphNode(sz)
+    {
+        SetName(name);
+    }
+
+    DataNode(std::string name, int sz, Field::Type type) : DataNode(name, sz)
+    {
+        field = new Field(&data, &adjoint, type);
+        fields.AddField(name, field, true); // transfer ownership
+    }
+
+    Field* GetField() const { return field; }
+
+    virtual void SetData(const Vector &v)
+    {
+        MFEM_ABORT("DataNode::SetData() not implemented.");
+    }
+
+    virtual void GetData(Vector &v) const
+    {
+        MFEM_ABORT("DataNode::GetData() not implemented.");
+    }
+
+    virtual void SetAdjoint(const Vector &v)
+    {
+        MFEM_ABORT("DataNode::SetAdjoint() not implemented.");
+    }
+
+    virtual void GetAdjoint(Vector &v) const
+    {
+        MFEM_ABORT("DataNode::GetAdjoint() not implemented.");
+    }
+
+private: // Hide all other functions from user
+    using GraphNode::Execute;
+    using GraphNode::Mult;
+    using GraphNode::GetDerivative;
+    using GraphNode::JVP;
+    using GraphNode::VJP;
+};
+
+class InputNode : public DataNode
+{
+public:
+    InputNode(std::string name, int sz) : DataNode(name, sz)
+    {
+        data.SetSize(sz);
+        adjoint.SetSize(sz);
+        field = new Field(&data, &adjoint, Field::Type::SOURCE);
+        fields.AddSourceField(name, field, true); // transfer ownership
+    }
+
+    void AddTargetField(Field *target, bool own=false)
+    {
+        fields.AddTargetField(GetName(), target, own);
+    }
+
+    void SetData(const Vector &v) override
+    {
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        data = v; 
+    }
+
+    void GetData(Vector &v) const override
+    {
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        v = data;
+    }
+
+    void SetAdjoint(const Vector &v) override
+    {
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        adjoint = v; 
+    }
+
+    void GetAdjoint(Vector &v) const override
+    {
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        v = adjoint;
+    }
+};
+
+class OutputNode : public DataNode
+{
+public:
+    OutputNode(std::string name, int sz) : DataNode(name, sz)
+    {
+        data.SetSize(sz);
+        adjoint.SetSize(sz);
+        field = new Field(&data, &adjoint, Field::Type::TARGET);
+        fields.AddField(name, field, true); // transfer ownership
+    }
+
+    void SetData(const Vector &v) override
+    {
+        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
+        data = v;
+    }
+
+    void GetData(Vector &v) const override
+    {
+        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
+        v = data;
+    }
+
+    void SetAdjoint(const Vector &v) override
+    {
+        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
+        adjoint = v;
+    }
+
+    void GetAdjoint(Vector &v) const override
+    {
+        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
+        v = adjoint;
+    }
+};
 
 /**
    @brief A class to store and coupled multiple operators together.
@@ -881,7 +1052,8 @@ public:
     {
         FD, // Finite difference Jacobian
         FORWARD,
-        BACKWARD
+        BACKWARD,
+        JACOBIAN
     };
 
 protected:
@@ -898,7 +1070,14 @@ protected:
     GradMode grad_mode = GradMode::FD;
     bool own_blocks = false; ///< Whether the BlockOperator owns the individual blocks
 
-    mutable Vector tmp; ///< Temporary vector (used in forward pass in gradient computations)
+    // Input and output data nodes
+    std::vector<DataNode*> input_nodes;
+    std::vector<DataNode*> output_nodes;
+
+    mutable Vector ytmp; ///< Temporary vector (used in forward pass in gradient computations)
+    mutable Vector xgrad; ///< Point of linearization for gradient computations
+
+    friend class GraphGradient;
 
 public:
     /**
@@ -946,47 +1125,12 @@ public:
         }
         nnodes++;
 
-        // Add an input and output field for the operator; nullptr will be populated later
-        std::string input_name = "x" + std::to_string(nnodes-1);
-        fields.AddSourceField(input_name,
-                              new Field(nullptr, Field::Type::SOURCE), true);
-
-        std::string output_name = "y" + std::to_string(nnodes-1);
-        fields.AddField(output_name,
-                        new Field(nullptr, Field::Type::DEFAULT), true);
-
         // Update size of the coupled operator and the block offsets
         GraphNode* op = nodes.back();
         op->SetNodeIndex(nnodes-1); // Set the index of the operator
 
-        auto input_field = op->Fields("input");
-        if(input_field)
-        {
-            fields.AddTargetField(input_name, input_field);
-        }
-
-        auto output_field = op->LinkedField("output");
-        if(output_field)
-        {
-            output_field->AddTarget(Fields(output_name), false);
-        }
-
         int ht = op->Height();
         int wt = op->Width();
-
-        if (wt > 0)
-        {
-            op->SetInputIndex(in_offsets.Size()-1);
-            in_offsets.Append(in_offsets.Last() + wt);
-        }
-        if (ht > 0)
-        {
-            op->SetOutputIndex(out_offsets.Size()-1);
-            out_offsets.Append(out_offsets.Last() + ht);
-        }
-
-        this->width  += wt;
-        this->height += ht;
 
         max_width = std::max(max_width, wt);
         max_height = std::max(max_height, ht);
@@ -997,6 +1141,42 @@ public:
     /// @brief Add an operator to the list of coupled operator and return pointer to it.
     template <class OpType>
     GraphNode* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
+
+    //TODO: Support ownership option
+    DataNode* AddInputNode(DataNode *node, bool own = false)
+    {
+        int index = input_nodes.size();
+        node->SetNodeIndex(index);
+        in_offsets.Append(in_offsets.Last() + node->Width());
+        width += node->Width();
+
+        auto lf = node->LinkedField(node->GetName());
+        if(lf)
+        {   // Add the node's linkefield to the DAG's
+            fields.AddLinkedFields(node->GetName(), lf, false);
+        }
+
+        input_nodes.push_back(node);
+        return node;
+    }
+
+    //TODO: Support ownership option
+    DataNode* AddOutputNode(DataNode *node, bool own = false)
+    {
+        int index = output_nodes.size();
+        node->SetNodeIndex(index);
+        out_offsets.Append(out_offsets.Last() + node->Height());
+        height += node->Height();
+
+        auto field = node->Fields(name);
+        if(field)
+        {   // Add the node's target field to the DAG's
+            fields.AddField(name, field, false);
+        }
+
+        output_nodes.push_back(node);
+        return node;
+    }
 
     /// @brief Get the number of coupled operators
     int Size(){return nnodes;}
@@ -1015,17 +1195,6 @@ public:
                "index [" << i << "] is out of range [0," << nnodes << ")");
         nodes_owned[i] = own;
     }
-
-    /// @brief Specify whether the gradient operator is owned. Used for
-    /// each block in the block Jacobain (BlockOperator)
-    void OwnGradientOperators(bool own = true)
-    {
-        own_blocks = own;
-        if(grad) { delete grad; grad = nullptr; }
-    }
-
-    /// @brief Return whether the gradient operators are owned.
-    bool OwnsGradientOperators() const { return own_blocks; }
 
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)
@@ -1082,6 +1251,38 @@ public:
     /// @brief Destroy the Coupled Application object
     ~DAGraph();
 };
+
+
+
+class GraphGradient : public Operator
+{
+public:
+    using GradMode = DAGraph::GradMode;
+
+protected:
+    mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
+    mutable GradMode grad_mode; ///< Gradient mode
+
+public:
+    GraphGradient(DAGraph *graph_, GradMode mode = GradMode::FORWARD) :
+                  Operator(graph_->Height(), graph_->Width()),
+                  graph(graph_), grad_mode(mode) {}
+
+    void Mult(const Vector &x, Vector &y) const override;
+
+    Operator &GetGradient(const Vector &x) const override;
+
+    virtual void Forward(const Vector &x, Vector &y) const;
+
+    virtual void Backward(const Vector &x, Vector &y) const;
+
+    void SetGradientMode(GradMode mode) { grad_mode = mode; }
+
+    GradMode GetGradientMode() const { return grad_mode; }
+
+    ~GraphGradient() = default;
+};
+
 
 
 

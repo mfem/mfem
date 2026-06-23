@@ -18,27 +18,7 @@ namespace mfem
 
 void Field::GetDerivative(Field* x, Vector &x0, Vector &dydx)
 {
-    // If y = x, dy/dx = 1, the identity operator
-    if(GetID() == x->GetID())
-    {
-        dydx.SetSize(Data()->Size());
-        dydx = 1.0;
-        return;
-    }
-
-    if(IsSourceOrTarget())
-    {
-        GraphNode *op = GetSourceNode();
-        MFEM_ASSERT(op != nullptr, "Field: " << GetID()
-                    << " does not have an associated source GraphNode.");
-        op->GetDerivative(this, x, x0, dydx);
-    }
-    else
-    {
-        MFEM_ABORT("Field::GetDerivative() not implemented for fields that "
-                   << "are neither Field::Type::SOURCE nor Field::Type::TARGET."
-                   << " Field IDs: " << GetID() << " and " << x->GetID());
-    }
+    MFEM_ABORT("Field::GetDerivative() not implemented");
 }
 
 DAGraph::~DAGraph()
@@ -55,87 +35,33 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
     BlockVector xb(x.GetData(), in_offsets);
     BlockVector yb(y.GetData(), out_offsets);
 
-    int i_in = 0, i_out = 0;
-    for (int i=0; i < nnodes; i++)
+    int ninputs = input_nodes.size();
+    for(int i=0; i < ninputs; i++)
     {
-        bool has_input = (nodes[i]->Height() > 0);
-        bool has_output = (nodes[i]->Width() > 0);
-
-        auto in_field = fields.GetLinkedFields("x" + std::to_string(i));
-        if (in_field && has_input)
-        {   // Update the field with the input data for this operator
-            in_field->GetSource()->SetData(&xb.GetBlock(i_in));
-            in_field->UpdateTargets();
-            i_in++;
-        }
-
-        auto out_field = nodes[i]->LinkedField("output");
-        if (out_field && has_output)
-        {   // Update the output field with the output data for this operator
-            out_field->GetSource()->SetData(&yb.GetBlock(i_out));
-            out_field->UpdateTargets();
-            i_out++;
-        }
+        auto data_node = input_nodes[i];
+        int index = data_node->GetNodeIndex();
+        data_node->SetData(xb.GetBlock(index));
     }
 
-    i_in = 0;
-    i_out = 0;
+    Vector xtmp, ytmp;
     for (int i=0; i < nnodes; i++)
     {
-        bool has_input = (nodes[i]->Height() > 0);
-        bool has_output = (nodes[i]->Width() > 0);
+        nodes[i]->Mult(xtmp, ytmp);
+    }
 
-        Vector &xi = (has_input) ? xb.GetBlock(i_in) : tmp;
-        Vector &yi = (has_output) ? yb.GetBlock(i_out) : tmp;
-        i_in += has_input;
-        i_out += has_output;
-
-        nodes[i]->Mult(xi, yi);
+    int noutputs = output_nodes.size();
+    for(int i=0; i < noutputs; i++)
+    {
+        auto data_node = output_nodes[i];
+        int index = data_node->GetNodeIndex();
+        data_node->GetData(yb.GetBlock(index));
     }
 }
 
 void DAGraph::Execute(const Vector &x, Vector &y)
 {
-    BlockVector xb(x.GetData(), in_offsets);
-    BlockVector yb(y.GetData(), out_offsets);
-
-    int i_in = 0, i_out = 0;
-    for (int i=0; i < nnodes; i++)
-    {
-        bool has_input = (nodes[i]->Height() > 0);
-        bool has_output = (nodes[i]->Width() > 0);
-
-        auto in_field = fields.GetLinkedFields("x" + std::to_string(i));
-        if (in_field && has_input)
-        {   // Update the field with the input data for this operator
-            in_field->GetSource()->SetData(&xb.GetBlock(i_in));
-            in_field->UpdateTargets();
-            i_in++;
-        }
-
-        auto out_field = nodes[i]->LinkedField("output");
-        if (out_field && has_output)
-        {   // Update the output field with the output data for this operator
-            out_field->GetSource()->SetData(&yb.GetBlock(i_out));
-            out_field->UpdateTargets();
-            i_out++;
-        }
-    }
-
-    i_in = 0;
-    i_out = 0;
-    for (int i=0; i < nnodes; i++)
-    {
-        bool has_input = (nodes[i]->Height() > 0);
-        bool has_output = (nodes[i]->Width() > 0);
-
-        Vector &xi = (has_input) ? xb.GetBlock(i_in) : tmp;
-        Vector &yi = (has_output) ? yb.GetBlock(i_out) : tmp;
-        i_in += has_input;
-        i_out += has_output;
-
-        nodes[i]->Execute(xi, yi);
-    }
+    // Call Mult for now
+    Mult(x, y);
 }
 
 Operator& DAGraph::GetGradient(const Vector &x) const
@@ -154,83 +80,155 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         return *grad;
     }
 
-    BlockVector xb(x.GetData(), in_offsets);
-    BlockOperator *block_grad;
+    // Forward pass to to populate (intermediate) fields for differentiation
+    ytmp.SetSize(out_offsets.Last());
+    xgrad.SetSize(x.Size());
+    xgrad = x; // Store a copy of the input for use in gradient computations
 
-    if(!grad)
+    // Loop through nodes and set execution mode for forward pass
+    // This can be used to inform the nodes to build and store Jacobian at x
+    for(auto node : nodes)
     {
-        block_grad = new BlockOperator(out_offsets, in_offsets);
-        grad = block_grad;
+        node->SetExecutionMode(ExecutionMode::GRADIENT_MODE);
+    }
+
+    Mult(xgrad, ytmp); // Forward pass to populate fields for gradient computations
+
+    // Reset execution mode for forward pass
+    for(auto node : nodes)
+    {
+        node->SetExecutionMode(ExecutionMode::DEFAULT_MODE);
+    }
+
+    if(grad_mode == GradMode::FORWARD || grad_mode == GradMode::BACKWARD)
+    {
+        if(!grad)
+        {
+            grad = new GraphGradient(const_cast<DAGraph*>(this), grad_mode);
+        }
+        else
+        {
+            auto *gg = dynamic_cast<GraphGradient*>(grad);
+            gg->SetGradientMode(grad_mode);
+        }
+        return *grad;
     }
     else
     {
-        block_grad = dynamic_cast<BlockOperator*>(grad);
+        MFEM_ABORT("DAGraph::GetGradient() not implemented for gradient mode: "
+                    << static_cast<int>(grad_mode));
     }
 
-    // Forward pass to to populate (intermediate) fields for differentiation
-    tmp.SetSize(out_offsets.Last());
-    Mult(x, tmp);
-
-    block_grad->owns_blocks = OwnsGradientOperators();
-    int i_in = 0, i_out = 0;
-    for (int i = 0; i < nnodes; i++)
-    {
-        std::string out_name = "y" + std::to_string(i);
-        auto yfield = fields.GetField(out_name);
-        if(yfield)
-        {
-            auto yfield_src = yfield->GetSource();
-            if(yfield_src) // Has a source field
-            {
-                auto y_node = yfield_src->GetNode(); // Get node for src field
-
-                MFEM_ASSERT(y_node != nullptr, "Source field: " << yfield_src->GetID() 
-                            << " for target field: " << out_name 
-                            << " does not have an associated GraphNode.");
-
-                i_in = 0;
-                for (int j = 0; j < nnodes; j++)
-                {
-                    std::string in_name = "x" + std::to_string(j);
-                    auto x_lf = fields.GetLinkedFields(in_name);
-                    bool has_targets = (x_lf) ? x_lf->HasTargets() : false;
-                    
-                    if(x_lf && has_targets) // Has a linked field with at least one target
-                    {
-                        auto xfield = x_lf->GetSource(); // Get source field for this input
-
-                        MFEM_ASSERT(xfield != nullptr, "LinkedFields:" << in_name 
-                                    << " has target fields but no source field!");
-
-                        // Differentiate y_node with respect to xfield (dy/dx)
-                        Operator *dydx = nullptr;
-                        bool ownership = y_node->GetDerivative(xfield, xb.GetBlock(i_in), dydx);
-                        if(dydx)
-                        {
-                            block_grad->SetBlock(i_out,i_in,dydx);
-                            // block_grad->BlockOwnership(i_out,i_in) = ownership; // Set ownership flag for this block
-                        }
-                        i_in++;
-                    }
-                }
-                i_out++;
-            }
-        }
-    }
     return *grad;
 }
 
 void DAGraph::GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx)
 {
-    if(y->GetSourceNode()->GetID() == x->GetSourceNode()->GetID())
-    {   
-        // Fields are sources (i.e., input to graph) and independent, so dy/dx = 0
-        dydx.SetSize(y->Data()->Size());
-        dydx = 0.0;
-        return;
-    }
-    y->GetDerivative(x, x0, dydx);
+    MFEM_ABORT("DAGraph::GetDerivative() not implemented.");
 }
+
+void GraphGradient::Mult(const Vector &x, Vector &y) const
+{
+    MFEM_ASSERT(graph != nullptr, "GraphGradient operator requires a non-null DAGraph pointer.");
+
+    if(grad_mode == GradMode::FD)
+    {
+        MFEM_ABORT("GraphGradient::Mult() not implemented for finite difference gradient.");
+    }
+    else if(grad_mode == GradMode::FORWARD)
+    {
+        // Forward mode: compute JVP, y = J(x) * x
+        Forward(x, y);
+    }
+    else if(grad_mode == GradMode::BACKWARD)
+    {
+        // Backward mode: compute VJP, y = J^T(x) * x
+        Backward(x, y);
+    }
+    else
+    {
+        MFEM_ABORT("GraphGradient::Mult() not implemented for gradient mode: "
+                    << static_cast<int>(grad_mode));
+    }
+}
+
+void GraphGradient::Forward(const Vector &x, Vector &y) const
+{
+    auto in_offsets  = graph->InputOffsets();
+    auto out_offsets = graph->OutputOffsets();
+
+    BlockVector xb(x.GetData(), in_offsets);
+    BlockVector yb(y.GetData(), out_offsets);
+
+    int nnodes  = graph->Size();
+    auto fields = graph->Fields();
+
+    int ninputs = graph->input_nodes.size();
+    for(int i=0; i < ninputs; i++)
+    {
+        auto data_node = graph->input_nodes[i]; 
+        int index = data_node->GetNodeIndex();
+        data_node->SetAdjoint(xb.GetBlock(index)); // Seed input adjoint from input block
+    }
+
+    Vector xtmp, ytmp;
+    for (int i=0; i < nnodes; i++)
+    {
+        auto node = graph->GetNode(i);
+        node->JVP(xtmp, ytmp);
+    }
+
+    int noutputs = graph->output_nodes.size();
+    for(int i=0; i < noutputs; i++)
+    {
+        auto data_node = graph->output_nodes[i];
+        int index = data_node->GetNodeIndex();
+        data_node->GetAdjoint(yb.GetBlock(index));
+    }
+}
+
+void GraphGradient::Backward(const Vector &x, Vector &y) const
+{
+    auto in_offsets  = graph->InputOffsets();
+    auto out_offsets = graph->OutputOffsets();
+
+    // Note the switch of input and output offsets for backward mode
+    BlockVector xb(x.GetData(), out_offsets);
+    BlockVector yb(y.GetData(), in_offsets);
+
+    int nnodes  = graph->Size();
+    auto fields = graph->Fields();
+
+    int noutputs = graph->output_nodes.size();
+    for(int i=0; i < noutputs; i++)
+    {
+        auto data_node = graph->output_nodes[i];
+        int index = data_node->GetNodeIndex();
+        data_node->SetAdjoint(xb.GetBlock(index)); // Seed output adjoint from output block
+    }
+
+    Vector xtmp, ytmp;
+    for (int i=nnodes-1; i >= 0; i--)
+    {
+        auto node = graph->GetNode(i);
+        node->VJP(xtmp, ytmp);
+    }
+
+    int ninputs = graph->input_nodes.size();
+    for(int i=0; i < ninputs; i++)
+    {
+        auto data_node = graph->input_nodes[i];
+        int index = data_node->GetNodeIndex();
+        data_node->GetAdjoint(yb.GetBlock(index));
+    }
+}
+
+Operator& GraphGradient::GetGradient(const Vector &x) const
+{
+    // Used to build Jacobian matrix
+    MFEM_ABORT("GraphGradient::GetGradient() not implemented");
+}
+
 
 } // namespace mfem
 #endif // MFEM_USE_MPI
