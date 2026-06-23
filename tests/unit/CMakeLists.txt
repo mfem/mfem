@@ -78,6 +78,7 @@ set(UNIT_TESTS_SRCS
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
   mesh/test_mfem_mesh_reader.cpp
+  mesh/test_bb_grid_map.cpp
   mesh/test_exodus_writer.cpp
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
@@ -147,6 +148,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp

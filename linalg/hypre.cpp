@@ -1125,11 +1125,10 @@ HypreParMatrix::HypreParMatrix(
       diagOwner = HypreCsrToMem(A->diag, host_mt, false, mem_diag);
       offdOwner = HypreCsrToMem(A->offd, host_mt, false, mem_offd);
    }
+   HypreRead();
 
    hypre_CSRMatrixSetRownnz(A->diag);
    hypre_CSRMatrixSetRownnz(A->offd);
-
-   HypreRead();
 }
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
@@ -5512,9 +5511,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    // Save the finite element space to support multiple calls to SetOperator()
    this->fespace = fespace_;
 
+   MFEM_VERIFY(fespace->GetOrdering() == Ordering::byVDIM,
+               "The elasticity version of BoomerAMG requires Ordering::byVDIM");
+
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
+   SetSystemsOptions(dim); // elasticity solver only works for Ordering::byVDIM
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
