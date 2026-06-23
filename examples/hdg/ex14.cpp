@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Set hybridization / assembly level
+   // Set hybridization / reduction / assembly level
 
    Array<int> ess_flux_tdofs_list;
 

@@ -1,21 +1,21 @@
-//                                MFEM Example 17
+//                         MFEM Example 17 - HDG Version
 //
 // Compile with: make ex17
 //
 // Sample runs:
 //
-//       ex17 -m ../data/beam-tri.mesh
-//       ex17 -m ../data/beam-quad.mesh
-//       ex17 -m ../data/beam-tet.mesh
-//       ex17 -m ../data/beam-hex.mesh
-//       ex17 -m ../data/beam-wedge.mesh
-//       ex17 -m ../data/beam-quad.mesh -r 2 -o 3
-//       ex17 -m ../data/beam-quad.mesh -r 2 -o 2 -a 1 -k 1
-//       ex17 -m ../data/beam-hex.mesh -r 2 -o 2
+//       ex17 -m ../../data/beam-tri.mesh -hb
+//       ex17 -m ../../data/beam-quad.mesh -rd
+//       ex17 -m ../../data/beam-tet.mesh -hb -trdg
+//       ex17 -m ../../data/beam-hex.mesh -hb -no-trbc
+//       ex17 -m ../../data/beam-wedge.mesh -hb
+//       ex17 -m ../../data/beam-quad.mesh -r 2 -o 3 -hb -trdg -no-trbc
+//       ex17 -m ../../data/beam-quad.mesh -r 2 -o 2
+//       ex17 -m ../../data/beam-hex.mesh -r 2 -o 2 -rd
 //
 // Description:  This example code solves a simple linear elasticity problem
-//               describing a multi-material cantilever beam using symmetric or
-//               non-symmetric discontinuous Galerkin (DG) formulation.
+//               describing a multi-material cantilever beam using mixed / local
+//               / hybridizable discontinuous Galerkin (DG) formulation.
 //
 //               Specifically, we approximate the weak form of -div(sigma(u))=0
 //               where sigma(u)=lambda*div(u)*I+mu*(grad*u+u*grad) is the stress
@@ -35,8 +35,8 @@
 //               element spaces with the linear DG elasticity bilinear form,
 //               meshes with curved elements, and the definition of piece-wise
 //               constant and function vector-coefficient objects. The use of
-//               non-homogeneous Dirichlet b.c. imposed weakly, is also
-//               illustrated.
+//               non-homogeneous Dirichlet b.c. imposed weakly or strongly on
+//               the trace variable, is also illustrated.
 //
 //               We recommend viewing examples 2 and 14 before viewing this
 //               example.
@@ -201,10 +201,10 @@ int main(int argc, char *argv[])
    mu(0) = 50.0;  // Set mu = 50 for element attribute 1.
    PWConstCoefficient mu_c(mu);
 
-   // diffusion coefficient lambda+2*mu
+   // Diffusion coefficient lambda+2*mu
    SumCoefficient sumlame_c(lambda_c, mu_c, 1., 2.);
 
-   // 1/lambda coefficient
+   // Inverse lambda coefficient
    Vector ilambda(lambda.Size());
    for (int i = 0; i < lambda.Size(); i++)
    {
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    }
    PWConstCoefficient ilambda_c(ilambda);
 
-   // 1/2*mu coefficient
+   // Inverse 2*mu coefficient
    Vector i2mu(mu.Size());
    for (int i = 0; i < mu.Size(); i++)
    {
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
    }
    PWConstCoefficient i2mu_c(i2mu);
 
-   // inverse Lame coefficients for the decomposed stress tensor
+   // Inverse Lame coefficients for the decomposed stress tensor
    VectorArrayCoefficient ilame_c(dim_lame);
    ilame_c.Set(0, &ilambda_c, false);
    for (int i = 1; i < dim_lame; i++)
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
                                   dim, new HDGDiffusionIntegrator(sumlame_c, td)), dir_bdr);
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / reduction / assembly level
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -289,11 +289,11 @@ int main(int argc, char *argv[])
       darcy.EnableHybridization(trace_space,
                                 new NormalStressJumpIntegrator(-1.),
                                 ess_stress_tdofs_list);
-      // set essential BC
+      // Set essential BC
       if (trace_ess_bc)
       {
          X.SetSize(trace_space->GetTrueVSize());
-         // project essential BC
+         // Project essential BC
          GridFunction uhat;
          uhat.MakeTRef(trace_space, X, 0);
          uhat = 0.;
