@@ -95,16 +95,6 @@ MaterialType ParseMaterial(const char *material)
    return MaterialType::NeoHookean;
 }
 
-template <typename scalar_t>
-MFEM_HOST_DEVICE inline tensor<scalar_t, dim, dim>
-IdentityMatrix()
-{
-   return make_tensor<dim, dim>([] MFEM_HOST_DEVICE (int i, int j)
-   {
-      return scalar_t(i == j);
-   });
-}
-
 template <typename Material, typename dscalar_t>
 struct HyperelasticEnergyQFunction
 {
@@ -120,7 +110,7 @@ struct HyperelasticEnergyQFunction
       // det(J) * w, i.e. the quadrature form of dx in Pi_int = int psi dx.
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
-      const auto F = IdentityMatrix<dscalar_t>() + dudx;
+      const auto F = IdentityMatrix<dim>() + dudx;
       energy = material().psi(F, dudx) * det(J) * w;
    }
 
