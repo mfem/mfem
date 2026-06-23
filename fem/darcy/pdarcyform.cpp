@@ -287,8 +287,111 @@ void ParDarcyForm::FormLinearSystem(
    const Array<int> &ess_flux_tdof_list, BlockVector &x, BlockVector &b,
    OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
 {
-   MFEM_VERIFY(assembly == AssemblyLevel::LEGACY,
-               "Only legacy assembly is supported");
+   if (assembly != AssemblyLevel::LEGACY)
+   {
+      AllocBlockOp();
+
+      X_.SetSize(toffsets.Last());
+      B_.SetSize(toffsets.Last());
+
+      BlockVector X_b(X_, toffsets), B_b(B_, toffsets);
+
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
+
+      // flux
+      if (pM_u)
+      {
+         pM_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM_u,
+                                X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
+         block_op->SetDiagonalBlock(0, opM_u.Ptr());
+      }
+      else
+      {
+         if (Mnl_u)
+         {
+            Mnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
+            B_b.GetBlock(0).SetSubVector(ess_flux_tdof_list, 0.);
+            block_op->SetDiagonalBlock(0, Mnl_u.get());
+         }
+         else if (Mnl)
+         {
+            Array<Array<int>*> ess_tdof_lists
+            {
+               const_cast<Array<int>*>(&ess_flux_tdof_list),
+               const_cast<Array<int>*>(&ess_pot_tdof_list)
+            };
+            Array<Vector*> rhss
+            {
+               &B_b.GetBlock(0),
+               &B_b.GetBlock(1)
+            };
+            Mnl->SetEssentialTrueDofs(ess_tdof_lists, rhss);
+         }
+
+         const Operator *P = pfes_u.GetProlongationMatrix();
+         P->MultTranspose(b.GetBlock(0), B_b.GetBlock(0));
+         const Operator *R = pfes_u.GetRestrictionOperator();
+         R->Mult(x.GetBlock(0), X_b.GetBlock(0));
+
+         if (!copy_interior)
+         {
+            X_b.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+         }
+      }
+
+      // potential
+      if (pM_p)
+      {
+         Operator *oper_M;
+         pM_p->FormSystemOperator(ess_pot_tdof_list, oper_M);
+         opM_p.Reset(oper_M);
+         block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
+      }
+      else if (Mnl_p)
+      {
+         block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
+      }
+
+      B_b.GetBlock(1) = b.GetBlock(1);
+
+      if (copy_interior)
+      {
+         X_b.GetBlock(1) = x.GetBlock(1);
+      }
+      else
+      {
+         X_b.GetBlock(1) = 0.;
+      }
+
+      // divergence
+      if (pB)
+      {
+         Vector bp(fes_p->GetVSize()), Bp;
+         bp = 0.;
+
+         pB->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
+                                         x.GetBlock(0), bp, opB, X_b.GetBlock(0), Bp);
+
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            B_b.GetBlock(1) -= Bp;
+         }
+         else
+         {
+            B_b.GetBlock(1) += Bp;
+         }
+
+         ConstructBT(opB);
+
+         block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
+      }
+
+      A.Reset(new ParOperator(*this));
+
+      return;
+   }
 
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
