@@ -190,7 +190,8 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
     data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void BandMult(const int height, const int width, const int bandwidth, const TA *data,
+void BandMult(const int height, const int width, const int bandwidth,
+              const TA *data,
               const TX *x, TY *y)
 {
 

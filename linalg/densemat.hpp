@@ -87,7 +87,7 @@ public:
    {
       DenseMatrix dm(m);
       dm = 0.0;
-      for (int i = 0; i < m; i++) dm(i,i) = 1.0;
+      for (int i = 0; i < m; i++) { dm(i,i) = 1.0; }
       return dm;
    }
 

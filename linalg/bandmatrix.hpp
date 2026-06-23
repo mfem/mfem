@@ -97,12 +97,18 @@ public:
    /** Clear the data array and the dimensions of the BandMatrix. This
        method should not be used withBandMatrix that owns its current
        data array. */
-   void ClearExternalData() { data.LoseData();
-                              height = width = bandwidth = stride = 0; }
+   void ClearExternalData()
+   {
+      data.LoseData();
+      height = width = bandwidth = stride = 0;
+   }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
-   void Clear() { data.DeleteAll();
-                  height = width = bandwidth = stride = 0; }
+   void Clear()
+   {
+      data.DeleteAll();
+      height = width = bandwidth = stride = 0;
+   }
 
 
    /// Change the size of the BandMatrix to s x s.
@@ -186,7 +192,7 @@ public:
    /// Replaces the current matrix with its inverse
    /** If @a tol is not specified (or is negative) the exact inverse is
        computed.  If @a tol is specified the reuslting matrix has the minimum
-       bandwidth to achieve tolerance, when computing the Frobenius norm of 
+       bandwidth to achieve tolerance, when computing the Frobenius norm of
        approc_inv(A)*A - I
        If @a bw is this bandwidth is used, the result is compared with the tolerance.*/
    void Invert(real_t tol = -1.0, int bw = -1);
@@ -272,7 +278,7 @@ private:
    bool own_data = false;
 public:
    /// Default constructor.
-   BandMatrixInverse(bool spd_=false) : a(NULL){ Init(0, 0); }
+   BandMatrixInverse(bool spd_=false) : a(NULL) { Init(0, 0); }
 
    /** Creates square dense matrix. Computes factorization of mat
        and stores its factors. */
@@ -333,8 +339,8 @@ void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
 inline real_t &BandMatrix ::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height
-                    && j >= 0 && j < width
-                    && j >= i - bandwidth && j <= i + bandwidth, "");
+               && j >= 0 && j < width
+               && j >= i - bandwidth && j <= i + bandwidth, "");
    return data[j - i + bandwidth + i*stride];
 }
 

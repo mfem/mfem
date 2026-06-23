@@ -47,7 +47,8 @@ BandMatrix::BandMatrix(int h, int w, int bw) : Matrix(h,w)
    }
 }
 
-BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),dm.Width())
+BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
+                                                                  dm.Width())
 {
    Reset(dm, bw);
 }
@@ -85,7 +86,7 @@ void BandMatrix::Reset(const DenseMatrix &dm, int bw)
    for (int i = 0; i < dm.Height(); i++)
    {
       for (int j  = std::max(i - bandwidth, 0);
-               j <= std::min(i + bandwidth, width-1) ; j++)
+           j <= std::min(i + bandwidth, width-1) ; j++)
       {
          Elem(i,j) = dm(i,j);
       }
@@ -230,7 +231,7 @@ void BandMatrix::Invert(real_t tol, int bw)
             DenseMatrix ans(height);
             mfem::Mult(binv, *this, ans);
             Add(ans, I, -1.0, diff);
-            if (diff.FNorm()  < tol) break;
+            if (diff.FNorm()  < tol) { break; }
          }
          bw = i;
       }
@@ -241,7 +242,7 @@ void BandMatrix::Invert(real_t tol, int bw)
          mfem::Mult(binv, *this, ans);
          Add(ans, I, -1.0, diff);
          MFEM_VERIFY(diff.FNorm() > tol,
-                    "Specified bandwidth does not achieve accuracy");
+                     "Specified bandwidth does not achieve accuracy");
       }
       Reset(inv, bw);
    }
@@ -265,15 +266,16 @@ DenseMatrix BandMatrix::ToDenseMatrix() const
 }
 
 void BandMatrix::Print(std::ostream &os, int width33_) const
-{int width_ = 999;
+{
+   int width_ = 999;
    // save current output flags
    std::ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-  // os << setiosflags(std::ios::scientific | std::ios::showpos);
+   // os << setiosflags(std::ios::scientific | std::ios::showpos);
    for (int i = 0; i < height; i++)
    {
-     // os << "[row " << i << "]\n";
-     for (int j = 0; j < width; j++)
+      // os << "[row " << i << "]\n";
+      for (int j = 0; j < width; j++)
       {
          os << (*this)(i,j);
          if (j+1 == width || (j+1) % width_ == 0)
@@ -287,7 +289,7 @@ void BandMatrix::Print(std::ostream &os, int width33_) const
       }
    }
    // reset output flags to original values
- //  os.flags(old_flags);
+   //  os.flags(old_flags);
 }
 
 void Mult(const BandMatrix &b,  const DenseMatrix &c, DenseMatrix &a)
@@ -402,7 +404,7 @@ void BandLUFactors::Solve(int m, int n, real_t *X) const
 
 void BandLUFactors::GetInverseMatrix(int m, real_t *X) const
 {
-      mfem_error("BandLUFactors::GetInverseMatrix(...)");
+   mfem_error("BandLUFactors::GetInverseMatrix(...)");
 }
 
 void BandMatrixInverse::Init(int m, int bw)
@@ -441,7 +443,7 @@ void BandMatrixInverse::Factor()
    factors->bw = bw;
    int ldab = 3*bw + 1;
 #ifdef MFEM_DEBUG
-   for (int i = 0; i < height*ldab; ++i) factors->data[i] = -0.0;
+   for (int i = 0; i < height*ldab; ++i) { factors->data[i] = -0.0; }
 #endif
    for (int j = 0; j < height; ++j)
    {
