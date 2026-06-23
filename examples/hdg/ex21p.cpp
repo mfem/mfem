@@ -1,15 +1,15 @@
-//                       MFEM Example 21 - Parallel Version
+//                     MFEM Example 21 - Parallel HDG Version
 //
 // Compile with: make ex21p
 //
-// Sample runs:  mpirun -np 4 ex21p
+// Sample runs:  mpirun -np 4 ex21p -trdg
 //               mpirun -np 4 ex21p -o 3
-//               mpirun -np 4 ex21p -m ../data/beam-quad.mesh
-//               mpirun -np 4 ex21p -m ../data/beam-quad.mesh -o 3
-//               mpirun -np 4 ex21p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex21p -m ../data/beam-tet.mesh -o 2
-//               mpirun -np 4 ex21p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex21p -m ../data/beam-hex.mesh -o 2
+//               mpirun -np 4 ex21p -m ../../data/beam-quad.mesh -trdg
+//               mpirun -np 4 ex21p -m ../../data/beam-quad.mesh -o 3
+//               mpirun -np 4 ex21p -m ../../data/beam-tet.mesh -trdg
+//               mpirun -np 4 ex21p -m ../../data/beam-tet.mesh -o 2 -trdg
+//               mpirun -np 4 ex21p -m ../../data/beam-hex.mesh
+//               mpirun -np 4 ex21p -m ../../data/beam-hex.mesh -o 2
 //
 // Description:  This is a version of Example 2p with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the linear
@@ -17,7 +17,7 @@
 //               The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
 //               or non-conforming (quadrilaterals, hexahedra) manner according
-//               to a simple ZZ error estimator.
+//               to HDG error estimator.
 //
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
       neu_bdr[i] = dir_bdr[i] ? 0 : 1;
    }
 
-   // 5. As in Example 2, we set up the linear form b(.) which corresponds to
+   // 6. As in Example 2, we set up the linear form b(.) which corresponds to
    //    the right-hand side of the FEM linear system. In this case, b_i equals
    //    the boundary integral of f*phi_i where f represents a "pull down"
    //    force on the Neumann part of the boundary and phi_i are the basis
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    ParLinearForm *g = darcy.GetParPotentialRHS();
    g->AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(force_c));
 
-   // 6. Set up the bilinear form a(.,.) on the finite element space
+   // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu.
    Vector lambda(pmesh.attributes.Max());
@@ -180,10 +180,10 @@ int main(int argc, char *argv[])
    mu(0) = mu(1)*50;
    PWConstCoefficient mu_c(mu);
 
-   // diffusion coefficient lambda+2*mu
+   // Diffusion coefficient lambda+2*mu
    SumCoefficient sumlame_c(lambda_c, mu_c, 1., 2.);
 
-   // 1/lambda coefficient
+   // Inverse lambda coefficient
    Vector ilambda(lambda.Size());
    for (int i = 0; i < lambda.Size(); i++)
    {
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    }
    PWConstCoefficient ilambda_c(ilambda);
 
-   // 1/2*mu coefficient
+   // Inverse 2*mu coefficient
    Vector i2mu(mu.Size());
    for (int i = 0; i < mu.Size(); i++)
    {
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
    }
    PWConstCoefficient i2mu_c(i2mu);
 
-   // inverse Lame coefficients for the decomposed stress tensor
+   // Inverse Lame coefficients for the decomposed stress tensor
    VectorArrayCoefficient ilame_c(dim_lame);
    ilame_c.Set(0, &ilambda_c, false);
    for (int i = 1; i < dim_lame; i++)
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
    Mu->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
                                     dim, new HDGDiffusionIntegrator(sumlame_c, td)));
 
-   //set hybridization / assembly level
+   // 8. Initialize hybridization.
 
    FiniteElementCollection *trace_coll;
    ParFiniteElementSpace *trace_space;
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
                              new NormalStressJumpIntegrator(-1.),
                              ess_stress_tdofs_list);
 
-   // 7. The solution vector x and the associated finite element grid function
+   // 9. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    Vector zero_vec(dim);
    zero_vec = 0.0;
@@ -250,29 +250,27 @@ int main(int argc, char *argv[])
    ParGridFunction u, uhat;
    u.MakeRef(&W_space, x.GetBlock(1), 0);
 
-   // 9. GLVis visualization.
+   // 10. GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
 
-   // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //     that uses the ComputeElementFlux method of the ElasticityIntegrator to
-   //     recover a smoothed flux (stress) that is subtracted from the element
-   //     flux to get an error indicator. We need to supply the space for the
-   //     smoothed flux: an (H1)^tdim (i.e., vector-valued) space is used here.
-   //     Here, tdim represents the number of components for a symmetric (dim x
-   //     dim) tensor.
+   // 11. Set up an error estimator. Here we use the HDG estimator which
+   //     evaluates the difference between the face values of the potential and
+   //     the trace variable in an energy norm with respect to a given operator,
+   //     which is represented by the provided integrator implementing
+   //     ComputeHDGFaceEnergy() method.
    BilinearFormIntegrator *estimator_integ = (*Mu->GetFBFI())[0];
    HDGErrorEstimator estimator(*estimator_integ, uhat, u);
 
-   // 11. A refiner selects and refines elements based on a refinement strategy.
+   // 12. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
 
-   // 12. The main AMR loop. In each iteration we solve the problem on the
+   // 13. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
    const int max_amr_itr = 20;
@@ -289,11 +287,8 @@ int main(int argc, char *argv[])
          cout << "Number of trace unknowns: " << uhat_dofs << endl;
       }
 
-      // 13. Assemble the stiffness matrix and the right-hand side.
+      // 14. Assemble the stiffness matrix and the right-hand side.
       darcy.Assemble();
-
-      // 14. Set Dirichlet boundary values in the GridFunction x.
-      //     Determine the list of Dirichlet true DOFs in the linear system.
 
       // 15. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
@@ -324,7 +319,6 @@ int main(int argc, char *argv[])
       darcy.RecoverFEMSolution(X, x);
       uhat.MakeTRef(trace_space, X, 0);
       uhat.SetFromTrueVector();
-      uhat.ExchangeFaceNbrData();
 
       // 18. Send solution by socket to the GLVis server.
       if (visualization && it == 0)
@@ -380,12 +374,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 20. Update the space to reflect the new state of the mesh. Also,
-      //     interpolate the solution x so that it lies in the new space but
-      //     represents the same function. This saves solver iterations later
-      //     since we'll have a good initial guess of x in the next step.
-      //     Internally, FiniteElementSpace::Update() calculates an
-      //     interpolation matrix which is then used by GridFunction::Update().
+      // 20. Update the spaces to reflect the new state of the mesh.
       R_space.Update();
       W_space.Update();
       trace_space->Update();
@@ -403,7 +392,7 @@ int main(int argc, char *argv[])
          trace_space->Update();
       }
 
-      // 21. Inform also the bilinear and linear forms that the space has
+      // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
       darcy.Update();
       x.Update(darcy.GetOffsets());
@@ -411,6 +400,8 @@ int main(int argc, char *argv[])
       x = 0.;
       u.MakeRef(&W_space, x.GetBlock(1), 0);
 
+      // 23. Reinitialize the hybridization to recompute the constraints on the
+      //     new mesh.
       darcy.EnableHybridization(trace_space,
                                 new NormalStressJumpIntegrator(-1.),
                                 ess_stress_tdofs_list);
