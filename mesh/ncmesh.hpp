@@ -40,8 +40,9 @@ namespace mfem
 struct Refinement
 {
    int index; ///< Mesh element number
-   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7, T8 = 8 };
    using ScaledType = std::pair<char, real_t>;
+   char t;
    real_t s[3];  /// Refinement scale in each dimension
    Refinement() = default;
    /// Refinement type XYZ, with scale 0.5.
@@ -77,6 +78,9 @@ struct Embedding
    unsigned geom : 4;
    unsigned matrix : 27;
 
+   unsigned par_geom : 4;
+   unsigned child_geom : 4;
+
    /// For internal use: 0 if regular fine element, 1 if parallel ghost element.
    unsigned ghost : 1;
 
@@ -93,7 +97,6 @@ struct CoarseFineTransformations
 
    /** A "dictionary" of matrices for IsoparametricTransformation. Use
        Embedding::{geom,matrix} to access a fine element point matrix. */
-   // DenseTensor point_matrices[Geometry::NumGeom];
    DenseMatrixStack point_matrices[Geometry::NumGeom];
 
    /** Invert the 'embeddings' array: create a Table with coarse elements as
@@ -1249,6 +1252,9 @@ protected:
    static PointMatrix pm_hex_identity;
 
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
+
+   int GetPointMatrixNumPoints(Geometry::Type geom,
+                               const char* ref_path) const;
 
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
                        DenseMatrix& matrix) const;

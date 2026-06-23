@@ -1402,6 +1402,40 @@ public:
       tdata.New(tsize, mt);
    }
 
+   void SetSize(int i, const Array<int>& jk, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni.SetSize(k);
+      if (k > 0) { ni = i; }
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   void SetSize(const Array<int>& ik, int j, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj.SetSize(k);
+      if (k > 0) { nj = j; }
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
    void SetSize(const Array<int>& ik, const Array<int>& jk, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {

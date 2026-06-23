@@ -1597,6 +1597,24 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
+   class PotentialGeometryList : public Array<Geometry::Type>
+   {
+   protected:
+      Geometry::Type geom_buf[Geometry::NumGeom];
+   public:
+      /// Construct a GeometryList of all element geometries in @a mesh.
+      PotentialGeometryList(const Mesh &mesh)
+         : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
+      {
+         SetSize(0);
+         const int dim = mesh.Dimension();
+         for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+         {
+            this->Append(Geometry::Type(g));
+         }
+      }
+   };
+
    /// @name Access connectivity for individual mesh entites
    /// @{
 

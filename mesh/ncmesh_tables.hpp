@@ -16,7 +16,14 @@ namespace mfem
 {
 
 static constexpr int def_ref_type_num_children[] = { 0, 2, 2, 4, 2, 4, 4, 8 };
-static constexpr int tri_ref_type_num_children[] = { 0, 2, 2, 2, 4 };
+static constexpr int tri_ref_type_num_children[] = { 0,
+                                                     2, 2, 2,
+                                                     2, 2, 2,
+                                                     4,  3,
+                                                     4, 4, 4,
+                                                     4, 4, 4,
+                                                     3
+                                                   };
 static const int* const ref_type_num_children[Geometry::NUM_GEOMETRIES] =
 {
    NULL,

@@ -169,7 +169,7 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
    {
       Mesh::GeometryList elem_geoms(*ran_fes.GetMesh());
 
-      DenseTensor localP[Geometry::NumGeom];
+      DenseMatrixStack localP[Geometry::NumGeom];
       for (int i = 0; i < elem_geoms.Size(); i++)
       {
          ran_fes.GetLocalRefinementMatrices(dom_fes, elem_geoms[i],

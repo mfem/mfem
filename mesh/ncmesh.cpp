@@ -538,7 +538,9 @@ void Refinement::SetScale(const ScaledType &r)
          s[2] = r.second;
          break;
       default:
-         MFEM_ABORT("Unsupported refinement type.");
+         s[0] = r.second;
+         s[1] = r.second;
+         s[2] = r.second;
    }
 }
 
@@ -554,12 +556,14 @@ Refinement::Refinement(int index)
 {
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    // Default case is XYZ type with scale 0.5.
+   t = XYZ;
    SetScale(ScaledType(XYZ, 0.5));
 }
 
 Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
    : index(index)
 {
+   t = XYZ;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    if (refs.size() == 0)
    {
@@ -578,28 +582,27 @@ Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
 Refinement::Refinement(int index, char type, real_t scale)
    : index(index)
 {
+   t = XYZ;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
 }
 
 char Refinement::GetType() const
 {
-   char t{0}; // Set the X, Y or Z bit
-   for (int i = 0; i < 3; ++i)
-      if (s[i] > real_t{0})
-         t |= (1 << i);
    return t;
 }
 
 void Refinement::Set(int element, char type, real_t scale)
 {
    index = element;
+   t = type;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
 }
 
 void Refinement::SetType(char type, real_t scale)
 {
+   t = type;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
 }
@@ -1892,17 +1895,87 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = Refinement::XY; // for consistency
+      if ((int)ref_type == 1)
+      {
+         // split first edge
+         int mid01 = nodes.GetId(no[0], no[1]);
 
-      // isotropic split - the only ref_type available for triangles
-      int mid01 = nodes.GetId(no[0], no[1]);
-      int mid12 = nodes.GetId(no[1], no[2]);
-      int mid20 = nodes.GetId(no[2], no[0]);
+         child[0] = NewTriangle(no[0], mid01, no[2], attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], no[2], attr, fa[0], fa[1], -1);
+      }
+      else if ((int)ref_type == 2)
+      {
+         // split second edge
+         int mid12 = nodes.GetId(no[1], no[2]);
 
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+         child[0] = NewTriangle(no[0], no[1], mid12, attr, fa[0], fa[1], -1);
+         child[1] = NewTriangle(no[0], mid12, no[2], attr, -1, fa[1], fa[2]);
+      }
+      else if ((int)ref_type == 3)
+      {
+         // split first and second edges
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+
+         child[0] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[1] = NewQuadrilateral(no[0], mid01, mid12, no[2],
+                                     attr, fa[0], -1, fa[1], fa[2]);
+      }
+      else if ((int)ref_type == 4)
+      {
+         // split third edge
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(no[0], no[1], mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid20, no[1], no[2], attr, -1, fa[1], fa[2]);
+      }
+      else if ((int)ref_type == 5)
+      {
+         // split first and third edges
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewQuadrilateral(mid01, no[1], no[2], mid20,
+                                     attr, fa[0], fa[1], fa[2], -1);
+      }
+      else if ((int)ref_type == 6)
+      {
+         // split second and third edges
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[1] = NewQuadrilateral(no[0], no[1], mid12, mid20,
+                                     attr, fa[0], fa[1], -1, fa[2]);
+      }
+      else if ((int)ref_type == 7)
+      {
+         // isotropic split into four triangles
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+      }
+      else if ((int)ref_type == 8)
+      {
+         // isotropic split into three triangles
+
+         // *** the following fails to obtain a useable node index (obviously).
+         //
+         // If we want to allow refinements which add nodes to the
+         // element without adding edge nodes we will need to find a
+         // way to add these face-centered nodes alongside the new edge nodes.
+         int midel = faces.GetId(no[0], no[1], no[2]);
+
+         child[0] = NewTriangle(no[0], no[1], midel, attr, fa[0], -1, -1);
+         child[1] = NewTriangle(no[1], no[2], midel, attr, fa[1], -1, -1);
+         child[2] = NewTriangle(no[2], no[0], midel, attr, fa[2], -1, -1);
+      }
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
@@ -4631,6 +4704,64 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
    }
 }
 
+int NCMesh::GetPointMatrixNumPoints(Geometry::Type geom,
+                                    const char* ref_path) const
+{
+   while (*ref_path)
+   {
+      int ref_type = *ref_path++;
+      int child = *ref_path++;
+
+      // TODO: do this with the new child transform tables
+
+      if (geom == Geometry::CUBE)
+      {
+         return 8;
+      }
+      else if (geom == Geometry::PRISM)
+      {
+         return 6;
+      }
+      else if (geom == Geometry::PYRAMID)
+      {
+         if (child <= 5) // Pyramid
+         {
+            return 5;
+         }
+         else // Tet
+         {
+            return 4;
+         }
+      }
+      else if (geom == Geometry::TETRAHEDRON)
+      {
+         return 4;
+      }
+      else if (geom == Geometry::SQUARE)
+      {
+         return 4;
+      }
+      else if (geom == Geometry::TRIANGLE)
+      {
+         if ((ref_type == 3|| ref_type == 5 || ref_type == 6) && child == 1)
+         {
+            return 4;
+         }
+         else
+         {
+            return 3;
+         }
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         return 2;
+      }
+   }
+
+   // ref_path was an empty string so return the default for this Geometry type
+   return GetPointMatrixNumPoints(geom, "\1");
+}
+
 void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                             DenseMatrix& matrix) const
 {
@@ -5069,23 +5200,107 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TRIANGLE)
       {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+         if (ref_type == 1) // split first edge
+         {
+            Point mid01(pm(0), pm(1));
 
-         if (child == 0)
-         {
-            pm = PointMatrix(pm(0), mid01, mid20);
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, pm(2));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2));
+            }
          }
-         else if (child == 1)
+         else if (ref_type == 2) // split second edge
          {
-            pm = PointMatrix(mid01, pm(1), mid12);
+            Point mid12(pm(1), pm(2));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid12);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(pm(0), mid12, pm(2));
+            }
          }
-         else if (child == 2)
+         else if (ref_type == 3) // split first and second edges
          {
-            pm = PointMatrix(mid20, mid12, pm(2));
+            Point mid01(pm(0), pm(1));
+            Point mid12(pm(1), pm(2));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(pm(0), mid01, mid12, pm(2));
+            }
          }
-         else if (child == 3)
+         else if (ref_type == 4) // split third edge
          {
-            pm = PointMatrix(mid12, mid20, mid01);
+            Point mid20(pm(2), pm(0));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid20);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid20, pm(1), pm(2));
+            }
+         }
+         else if (ref_type == 5) // split first and third edges
+         {
+            Point mid01(pm(0), pm(1));
+            Point mid20(pm(2), pm(0));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid20);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2), mid20);
+            }
+         }
+         else if (ref_type == 6) // split second and third edges
+         {
+            Point mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(mid20, mid12, pm(2));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(pm(0), pm(1), mid12, mid20);
+            }
+         }
+         else if (ref_type == 7) // iso split
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid20);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid20, mid12, pm(2));
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid12, mid20, mid01);
+            }
          }
       }
       else if (geom == Geometry::SEGMENT)
@@ -5104,6 +5319,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
    }
 
    // write the points to the matrix
+   matrix.SetSize(pm(0).dim, pm.np);
    for (int i = 0; i < pm.np; i++)
    {
       for (int j = 0; j < pm(i).dim; j++)
@@ -5180,6 +5396,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
                                  std::string &ref_path, RefPathMap &map) const
 {
    const Element &el = elements[elem];
+   const Element &coarse_el = elements[coarse_index];
    if (!el.ref_type)
    {
       int &matrix = map[ref_path];
@@ -5189,6 +5406,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       emb.parent = coarse_index;
       emb.matrix = matrix - 1;
       emb.geom = el.Geom();
+      emb.par_geom = coarse_el.Geom();
+      emb.child_geom = el.Geom();
       emb.ghost = IsGhost(el);
    }
    else
@@ -5243,13 +5462,19 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
          if (used_geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
-            const PointMatrix &identity = GetGeomIdentity(geom);
 
+            Array<int> num_pts(path_map[g].size());
+
+            RefPathMap::iterator it;
+            int pos = 0;
+            for (it = path_map[g].begin(); it != path_map[g].end(); ++it, ++pos)
+            {
+               num_pts[pos] = GetPointMatrixNumPoints(geom, it->first.c_str());
+            }
             transforms.point_matrices[g]
-            .SetSize(Dim, identity.np, static_cast<int>(path_map[g].size()));
+            .SetSize(Dim, num_pts, static_cast<int>(path_map[g].size()));
 
             // calculate the point matrices
-            RefPathMap::iterator it;
             for (it = path_map[g].begin(); it != path_map[g].end(); ++it)
             {
                GetPointMatrix(geom, it->first.c_str(),

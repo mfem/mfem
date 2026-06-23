@@ -532,7 +532,7 @@ protected:
    class RefinementOperator : public Operator
    {
       const FiniteElementSpace* fespace;
-      DenseTensor localP[Geometry::NumGeom];
+      DenseMatrixStack localP[Geometry::NumGeom];
       Table* old_elem_dof; // Owned.
       Table* old_elem_fos; // Owned.
 
@@ -583,7 +583,7 @@ protected:
    SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
                                        const Table &coarse_elem_dof,
                                        const Table *coarse_elem_fos,
-                                       const DenseTensor localP[]) const;
+                                       const DenseMatrixStack localP[]) const;
 
    /* This method returns the Refinement matrix (i.e., the embedding)
       from a coarse variable-order fes to a fine fes (after a geometric refinement) */
@@ -591,7 +591,7 @@ protected:
                                                const Table &coarse_elem_dof) const;
 
    void GetLocalRefinementMatrices(Geometry::Type geom,
-                                   DenseTensor &localP) const;
+                                   DenseMatrixStack &localP) const;
    void GetLocalDerefinementMatrices(Geometry::Type geom,
                                      DenseTensor &localR) const;
 
@@ -614,7 +614,7 @@ protected:
        NOT variable-order spaces. */
    void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
                                    Geometry::Type geom,
-                                   DenseTensor &localP) const;
+                                   DenseMatrixStack &localP) const;
 
    /// Help function for constructors + Load().
    void Constructor(Mesh *mesh, NURBSExtension *ext,

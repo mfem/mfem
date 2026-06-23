@@ -35,6 +35,12 @@ protected:
    /// Element's type from the Finite Element's perspective
    Geometry::Type base_geom;
 
+   /// This is the default data previously used for all element
+   /// types. It is defined here temporarily but each element type
+   /// will eventually define its own data.
+   // static constexpr int def_ref_type_num_children[8] =
+   // { 0, 2, 2, 4, 2, 4, 4, 8 };
+
 public:
 
    /// Constants for the classes derived from Element.
@@ -110,6 +116,9 @@ public:
 
    /// Destroys element.
    virtual ~Element() { }
+
+   // static unsigned int GetNumChildren(int geom_type, int ref_type)
+   //  { return def_ref_type_num_children[ref_type]; }
 };
 
 }

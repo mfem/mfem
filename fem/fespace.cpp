@@ -1642,7 +1642,7 @@ const FaceQuadratureInterpolator
 
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
-   const Table *coarse_elem_fos, const DenseTensor localP[]) const
+   const Table *coarse_elem_fos, const DenseMatrixStack localP[]) const
 {
    /// TODO: Implement DofTransformation support
 
@@ -1656,7 +1656,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    SparseMatrix *P;
    if (elem_geoms.Size() == 1)
    {
-      const int coarse_ldof = localP[elem_geoms[0]].SizeJ();
+      const int coarse_ldof = localP[elem_geoms[0]].SizeJ(0);
       P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof);
    }
    else
@@ -1674,7 +1674,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
-      const int fine_ldof = localP[geom].SizeI();
+      const int fine_ldof = localP[geom].SizeI(emb.matrix);
 
       elem_dof->GetRow(k, dofs);
       coarse_elem_dof.GetRow(emb.parent, coarse_dofs);
@@ -1766,9 +1766,10 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
 }
 
 void FiniteElementSpace::GetLocalRefinementMatrices(
-   Geometry::Type geom, DenseTensor &localP) const
+   Geometry::Type geom, DenseMatrixStack &localP) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   const int dim = fe->GetDim();
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
@@ -1776,15 +1777,55 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    int nmat = pmats.SizeK();
    int ldof = fe->GetDof();
 
-   IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(geom);
-
-   // calculate local interpolation matrices for all refinement types
-   localP.SetSize(ldof, ldof, nmat);
+   // Determine the number of DoFs in each fine element
+   Array<int> fine_ndofs(nmat);
+   Array<Geometry::Type> fine_geom(nmat);
    for (int i = 0; i < nmat; i++)
    {
+      const int num_fine_pts = pmats(i).Width();
+      if (dim == 1)
+      {
+         fine_geom[i] = Geometry::SEGMENT;
+      }
+      else if (dim == 2)
+      {
+         fine_geom[i] =
+            num_fine_pts == 3 ? Geometry::TRIANGLE : Geometry::SQUARE;
+      }
+      else
+      {
+         switch (num_fine_pts)
+         {
+            case 4: fine_geom[i] = Geometry::TETRAHEDRON; break;
+            case 5: fine_geom[i] = Geometry::PYRAMID; break;
+            case 6: fine_geom[i] = Geometry::PRISM; break;
+            case 8: fine_geom[i] = Geometry::CUBE; break;
+         }
+      }
+
+      const FiniteElement *fine_fe =
+         fec->FiniteElementForGeometry(fine_geom[i]);
+      fine_ndofs[i] = fine_fe->GetDof();
+   }
+
+   IsoparametricTransformation isotr;
+
+   // calculate local interpolation matrices for all refinement types
+   localP.SetSize(fine_ndofs, ldof, nmat);
+   for (int i = 0; i < nmat; i++)
+   {
+      isotr.SetIdentityTransformation(fine_geom[i]);
       isotr.SetPointMat(pmats(i));
-      fe->GetLocalInterpolation(isotr, localP(i));
+      if (geom == fine_geom[i])
+      {
+         fe->GetLocalInterpolation(isotr, localP(i));
+      }
+      else
+      {
+         const FiniteElement *fine_fe =
+            fec->FiniteElementForGeometry(fine_geom[i]);
+         fine_fe->GetTransferMatrix(*fe, isotr, localP(i));
+      }
    }
 }
 
@@ -1798,7 +1839,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    Mesh::GeometryList elem_geoms(*mesh);
    if (!IsVariableOrder())
    {
-      DenseTensor localP[Geometry::NumGeom];
+      DenseMatrixStack localP[Geometry::NumGeom];
       for (int i = 0; i < elem_geoms.Size(); i++)
       {
          GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
@@ -1831,7 +1872,8 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    {
       for (int i = 0; i < elem_geoms.Size(); i++)
       {
-         fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+         fespace->GetLocalRefinementMatrices(elem_geoms[i],
+                                             localP[elem_geoms[i]]);
       }
    }
 
@@ -1943,6 +1985,8 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
    {
       const Embedding &emb = trans_ref.embeddings[k];
       const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
+      const Geometry::Type par_geom = (Geometry::Type)emb.par_geom;
+      const Geometry::Type child_geom = (Geometry::Type)emb.child_geom;
       if (fespace->IsVariableOrder())
       {
          const FiniteElement *fe = fespace->GetFE(k);
@@ -1953,8 +1997,8 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);
       }
-      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
-                                 emb.matrix);
+      const DenseMatrix &lP = (fespace->IsVariableOrder()) ?
+                              eP : localP[par_geom](emb.matrix);
 
       subY.SetSize(lP.Height());
 
@@ -2485,13 +2529,12 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
 void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElementSpace &coarse_fes, Geometry::Type geom,
-   DenseTensor &localP) const
+   DenseMatrixStack &localP) const
 {
    // Assumptions: see the declaration of the method.
-
-   const FiniteElement *fine_fe = fec->FiniteElementForGeometry(geom);
    const FiniteElement *coarse_fe =
       coarse_fes.fec->FiniteElementForGeometry(geom);
+   const int dim = coarse_fe->GetDim();
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
@@ -2501,11 +2544,44 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(geom);
 
+   // Determine the number of DoFs in each fine element
+   Array<int> fine_ndofs(nmat);
+   Array<Geometry::Type> fine_geom(nmat);
+   for (int i = 0; i < nmat; i++)
+   {
+      const int num_fine_pts = pmats(i).Width();
+      if (dim == 1)
+      {
+         fine_geom[i] = Geometry::SEGMENT;
+      }
+      else if (dim == 2)
+      {
+         fine_geom[i] =
+            num_fine_pts == 3 ? Geometry::TRIANGLE : Geometry::SQUARE;
+      }
+      else
+      {
+         switch (num_fine_pts)
+         {
+            case 4: fine_geom[i] = Geometry::TETRAHEDRON; break;
+            case 5: fine_geom[i] = Geometry::PYRAMID; break;
+            case 6: fine_geom[i] = Geometry::PRISM; break;
+            case 8: fine_geom[i] = Geometry::CUBE; break;
+         }
+      }
+
+      const FiniteElement *fine_fe =
+         fec->FiniteElementForGeometry(fine_geom[i]);
+      fine_ndofs[i] = fine_fe->GetDof();
+   }
+
    // Calculate the local interpolation matrices for all refinement types
-   localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
+   localP.SetSize(fine_ndofs, coarse_fe->GetDof(), nmat);
    for (int i = 0; i < nmat; i++)
    {
       isotr.SetPointMat(pmats(i));
+      const FiniteElement *fine_fe =
+         fec->FiniteElementForGeometry(fine_geom[i]);
       fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }
 }
@@ -4058,7 +4134,7 @@ void FiniteElementSpace::GetTransferOperator(
       {
          Mesh::GeometryList elem_geoms(*mesh);
 
-         DenseTensor localP[Geometry::NumGeom];
+         DenseMatrixStack localP[Geometry::NumGeom];
          for (int i = 0; i < elem_geoms.Size(); i++)
          {
             GetLocalRefinementMatrices(coarse_fes, elem_geoms[i],
