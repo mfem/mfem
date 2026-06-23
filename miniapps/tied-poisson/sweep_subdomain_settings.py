@@ -68,12 +68,13 @@ def build_command(
     cmd.append("--amgf" if args.amgf else "--no-amgf")
 
     use_iterative_filter = args.iterative_filter if iterative_filter is None else iterative_filter
-    cmd.append("--iterative-filter" if use_iterative_filter else "--no-iterative-filter")
+    #cmd.append("--schwarz-filter" if use_iterative_filter else "--no-schwarz-filter")
 
     cmd.append("--one-level-amg" if args.one_level_amg else "--no-one-level-amg")
     cmd.append("--symmetric-tie" if args.symmetric_tie else "--no-symmetric-tie")
     cmd.append("--even-weighting" if args.even_weighting else "--no-even-weighting")
-    cmd.append("--schwarz-filter" if schwarz_filter else "--no-schwarz-filter")
+    cmd.append("--schwarz-filter" if schwarz_filter or iterative_filter else "--no-schwarz-filter")
+    cmd.append("--precondition-subspace-cg" if schwarz_filter else "--no-precondition-subspace-cg")
 
     if args.extra_args:
         cmd += shlex.split(args.extra_args)

@@ -1147,6 +1147,7 @@ int main(int argc, char *argv[])
    bool one_level_amg = false;
    bool symmetric_tie = false;
    bool even_weighting = false;
+   bool use_schur_complement = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -1199,6 +1200,9 @@ int main(int argc, char *argv[])
                   "Use an evenly weighted kernel to tied DoFs.");
    args.AddOption(&subdomain_cg_iters, "-s", "--subdomain-pcg-max-iters",
                   "Max PCG Iterations for subdomain (0 applies Schwarz/AMG only).");
+   args.AddOption(&use_schur_complement, "-schur", "--use-schur-complement",
+                  "-no-schur", "--no-use-schur-complement",
+                  "Use Schur complement reduction with pure AMG-preconditioned CG.");
    args.ParseCheck();
 
    if (schwarz_subspace_filter && amg_subspace_filter)
@@ -1348,63 +1352,65 @@ int main(int argc, char *argv[])
    HypreParMatrix *P_tied = nullptr;
    HypreParMatrix *PTAP = nullptr;
 
-   Array<int> owned_tied_gdofs;
-   for (int i = Mpi::WorldRank();
-         i < all_tied_gdofs_array.Size() / 2;
-         i += Mpi::WorldSize())
+   if (!use_schur_complement)
    {
-      owned_tied_gdofs.Append(all_tied_gdofs_array[2 * i]);
-      owned_tied_gdofs.Append(all_tied_gdofs_array[2 * i + 1]);
-   }
+      Array<int> owned_tied_gdofs;
+      for (int i = Mpi::WorldRank();
+            i < all_tied_gdofs_array.Size() / 2;
+            i += Mpi::WorldSize())
+      {
+         owned_tied_gdofs.Append(all_tied_gdofs_array[2 * i]);
+         owned_tied_gdofs.Append(all_tied_gdofs_array[2 * i + 1]);
+      }
 
-   const int nrows_tied = owned_tied_gdofs.Size();
-   SparseMatrix Pct(nrows_tied, fespace.GlobalTrueVSize());
+      const int nrows_tied = owned_tied_gdofs.Size();
+      SparseMatrix Pct(nrows_tied, fespace.GlobalTrueVSize());
 
-   for (int i = 0; i < nrows_tied; ++i)
-   {
-      Pct.Set(i, owned_tied_gdofs[i], 1.0);
-   }
-   Pct.Finalize();
+      for (int i = 0; i < nrows_tied; ++i)
+      {
+         Pct.Set(i, owned_tied_gdofs[i], 1.0);
+      }
+      Pct.Finalize();
 
-   HYPRE_BigInt rows_c[2];
+      HYPRE_BigInt rows_c[2];
 
-   HYPRE_BigInt row_offset_tied;
-   HYPRE_BigInt nrows_tied_bigint = nrows_tied;
-   MPI_Scan(&nrows_tied_bigint, &row_offset_tied, 1, MPI_INT,
-            MPI_SUM, comm);
+      HYPRE_BigInt row_offset_tied;
+      HYPRE_BigInt nrows_tied_bigint = nrows_tied;
+      MPI_Scan(&nrows_tied_bigint, &row_offset_tied, 1, MPI_INT,
+               MPI_SUM, comm);
 
-   row_offset_tied -= nrows_tied_bigint;
-   rows_c[0] = row_offset_tied;
-   rows_c[1] = row_offset_tied + nrows_tied;
+      row_offset_tied -= nrows_tied_bigint;
+      rows_c[0] = row_offset_tied;
+      rows_c[1] = row_offset_tied + nrows_tied;
 
-   HYPRE_BigInt glob_nrows_tied;
-   HYPRE_BigInt glob_ncols_tied = fespace.GlobalTrueVSize();
-   MPI_Allreduce(&nrows_tied_bigint, &glob_nrows_tied, 1,
-                  MPI_INT, MPI_SUM, comm);
+      HYPRE_BigInt glob_nrows_tied;
+      HYPRE_BigInt glob_ncols_tied = fespace.GlobalTrueVSize();
+      MPI_Allreduce(&nrows_tied_bigint, &glob_nrows_tied, 1,
+                     MPI_INT, MPI_SUM, comm);
 
-   HYPRE_BigInt *J;
+      HYPRE_BigInt *J;
 #ifndef HYPRE_BIGINT
-   J = Pct.GetJ();
+      J = Pct.GetJ();
 #else
-   J = new HYPRE_BigInt[Pct.NumNonZeroElems()];
-   for (int i = 0; i < Pct.NumNonZeroElems(); i++)
-   {
-      J[i] = Pct.GetJ()[i];
-   }
+      J = new HYPRE_BigInt[Pct.NumNonZeroElems()];
+      for (int i = 0; i < Pct.NumNonZeroElems(); i++)
+      {
+         J[i] = Pct.GetJ()[i];
+      }
 #endif
 
-   P_tied_T = new HypreParMatrix(comm,
-                                 nrows_tied, glob_nrows_tied,
-                                 glob_ncols_tied,
-                                 Pct.GetI(), J, Pct.GetData(),
-                                 rows_c, fespace.GetTrueDofOffsets());
+      P_tied_T = new HypreParMatrix(comm,
+                                    nrows_tied, glob_nrows_tied,
+                                    glob_ncols_tied,
+                                    Pct.GetI(), J, Pct.GetData(),
+                                    rows_c, fespace.GetTrueDofOffsets());
 
-   P_tied = P_tied_T->Transpose();
-   PTAP = RAP(tiedA, P_tied);
+      P_tied = P_tied_T->Transpose();
+      PTAP = RAP(tiedA, P_tied);
 
-   if (do_amgf)
-   {
-      prec = new AMGFSolver();
+      if (do_amgf)
+      {
+         prec = new AMGFSolver();
       auto *amgfprec = dynamic_cast<AMGFSolver *>(prec);
       amgfprec->GetAMG().SetPrintLevel(0);
       amgfprec->GetAMG().SetStrengthThresh(0.5);
@@ -1478,6 +1484,7 @@ int main(int argc, char *argv[])
          cgsubspacesolver->SetMaxIter(subdomain_cg_iters);
          cgsubspacesolver->SetRelTol(0);
          cgsubspacesolver->SetAbsTol(0);
+         cgsubspacesolver->SetPrintLevel(1);
          if (precondition_subspace_cg)
          {
             cgsubspacesolver->SetPreconditioner(*subprec);
@@ -1486,32 +1493,361 @@ int main(int argc, char *argv[])
       amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
 
 #ifdef HYPRE_BIGINT
-      delete [] J;
+         delete [] J;
 #endif
-   }
-   else
-   {
-      prec = new HypreBoomerAMG();
-      auto *amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
-      amgprec->SetPrintLevel(0);
-      amgprec->SetStrengthThresh(0.125);
-
-      if (one_level_amg)
+      }
+      else
       {
-         amgprec->SetMaxLevels(1);
+         prec = new HypreBoomerAMG();
+         auto *amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
+         amgprec->SetPrintLevel(0);
+         amgprec->SetStrengthThresh(0.125);
+
+         if (one_level_amg)
+         {
+            amgprec->SetMaxLevels(1);
+         }
       }
    }
 
    // --------------------------------------------------------------------------
    // Solve
    // --------------------------------------------------------------------------
-   CGSolver cg(comm);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(pcg_max_iters);
-   cg.SetPrintLevel(1);
-   cg.SetPreconditioner(*prec);
-   cg.SetOperator(*tiedA);
-   cg.Mult(B, X);
+   if (use_schur_complement)
+   {
+      // Schur complement approach: eliminate tied DOFs
+      // System partitioning:
+      // [A_ff  A_fc] [x_f]   [b_f]
+      // [A_cf  A_cc] [x_c] = [b_c]
+      //
+      // Reduced system: (A_ff - A_fc * A_cc^{-1} * A_cf) x_f = b_f - A_fc * A_cc^{-1} * b_c
+
+      const HYPRE_BigInt global_size = fespace.GlobalTrueVSize();
+      std::set<HYPRE_BigInt> tied_dofs_set(all_tied_gdofs_array.GetData(),
+                                            all_tied_gdofs_array.GetData() + all_tied_gdofs_array.Size());
+
+      const HYPRE_BigInt local_row_start = tiedA->GetRowStarts()[0];
+      const HYPRE_BigInt local_row_end = tiedA->GetRowStarts()[1];
+      const int local_num_rows = tiedA->GetNumRows();
+
+      // Build projectors for free and constrained DOFs
+      int nrows_free = 0;
+      int nrows_constrained = 0;
+
+      for (int i = 0; i < local_num_rows; ++i)
+      {
+         if (tied_dofs_set.find(local_row_start + i) == tied_dofs_set.end())
+         {
+            nrows_free++;
+         }
+         else
+         {
+            nrows_constrained++;
+         }
+      }
+
+      Array<int> free_dof_indices, constrained_dof_indices;
+      for (int i = 0; i < local_num_rows; ++i)
+      {
+         if (tied_dofs_set.find(local_row_start + i) == tied_dofs_set.end())
+         {
+            free_dof_indices.Append(i);
+         }
+         else
+         {
+            constrained_dof_indices.Append(i);
+         }
+      }
+
+      // Build free DOF projector
+      SparseMatrix Pf_local(nrows_free, global_size);
+      for (int i = 0; i < nrows_free; ++i)
+      {
+         Pf_local.Set(i, local_row_start + free_dof_indices[i], 1.0);
+      }
+      Pf_local.Finalize();
+
+      HYPRE_BigInt rows_f[2];
+      HYPRE_BigInt nrows_free_bigint = nrows_free;
+      HYPRE_BigInt row_offset_free;
+      MPI_Scan(&nrows_free_bigint, &row_offset_free, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+      row_offset_free -= nrows_free_bigint;
+      rows_f[0] = row_offset_free;
+      rows_f[1] = row_offset_free + nrows_free;
+
+      HYPRE_BigInt glob_nrows_free;
+      MPI_Allreduce(&nrows_free_bigint, &glob_nrows_free, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+
+      HYPRE_BigInt *J_f;
+#ifndef HYPRE_BIGINT
+      J_f = Pf_local.GetJ();
+#else
+      J_f = new HYPRE_BigInt[Pf_local.NumNonZeroElems()];
+      for (int i = 0; i < Pf_local.NumNonZeroElems(); i++)
+      {
+         J_f[i] = Pf_local.GetJ()[i];
+      }
+#endif
+
+      HypreParMatrix *P_free_T = new HypreParMatrix(comm,
+                                                     nrows_free, glob_nrows_free,
+                                                     global_size,
+                                                     Pf_local.GetI(), J_f, Pf_local.GetData(),
+                                                     rows_f, fespace.GetTrueDofOffsets());
+
+      HypreParMatrix *P_free = P_free_T->Transpose();
+
+      // Build constrained DOF projector
+      SparseMatrix Pc_local(nrows_constrained, global_size);
+      for (int i = 0; i < nrows_constrained; ++i)
+      {
+         Pc_local.Set(i, local_row_start + constrained_dof_indices[i], 1.0);
+      }
+      Pc_local.Finalize();
+
+      HYPRE_BigInt rows_c[2];
+      HYPRE_BigInt nrows_constrained_bigint = nrows_constrained;
+      HYPRE_BigInt row_offset_constrained;
+      MPI_Scan(&nrows_constrained_bigint, &row_offset_constrained, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+      row_offset_constrained -= nrows_constrained_bigint;
+      rows_c[0] = row_offset_constrained;
+      rows_c[1] = row_offset_constrained + nrows_constrained;
+
+      HYPRE_BigInt glob_nrows_constrained;
+      MPI_Allreduce(&nrows_constrained_bigint, &glob_nrows_constrained, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+
+      HYPRE_BigInt *J_c;
+#ifndef HYPRE_BIGINT
+      J_c = Pc_local.GetJ();
+#else
+      J_c = new HYPRE_BigInt[Pc_local.NumNonZeroElems()];
+      for (int i = 0; i < Pc_local.NumNonZeroElems(); i++)
+      {
+         J_c[i] = Pc_local.GetJ()[i];
+      }
+#endif
+
+      HypreParMatrix *P_constrained_T = new HypreParMatrix(comm,
+                                                           nrows_constrained, glob_nrows_constrained,
+                                                           global_size,
+                                                           Pc_local.GetI(), J_c, Pc_local.GetData(),
+                                                           rows_c, fespace.GetTrueDofOffsets());
+
+      HypreParMatrix *P_constrained = P_constrained_T->Transpose();
+
+      // Extract blocks: A_ff, A_fc, A_cf, A_cc
+      HypreParMatrix *A_Pf = ParMult(tiedA, P_free);
+      HypreParMatrix *A_ff = ParMult(P_free_T, A_Pf);
+
+      HypreParMatrix *A_Pc = ParMult(tiedA, P_constrained);
+      HypreParMatrix *A_fc = ParMult(P_free_T, A_Pc);
+      HypreParMatrix *A_cf = ParMult(P_constrained_T, A_Pf);
+      HypreParMatrix *A_cc = ParMult(P_constrained_T, A_Pc);
+
+      // Extract RHS blocks
+      HypreParVector *b_f = new HypreParVector(comm, glob_nrows_free, rows_f);
+      HypreParVector *b_c = new HypreParVector(comm, glob_nrows_constrained, rows_c);
+      P_free_T->Mult(B, *b_f);
+      P_constrained_T->Mult(B, *b_c);
+
+      // Compute A_cc^{-1} * b_c and A_cc^{-1} * A_cf using direct solve
+      // For single MPI rank, we can use a direct solver or iterative solver
+      HypreParVector *A_cc_inv_b_c = new HypreParVector(comm, glob_nrows_constrained, rows_c);
+      *A_cc_inv_b_c = 0.0;
+
+      // Setup solver for A_cc
+      HypreBoomerAMG *A_cc_inv_prec = new HypreBoomerAMG(*A_cc);
+      A_cc_inv_prec->SetPrintLevel(0);
+
+      CGSolver A_cc_inv_solver(comm);
+      A_cc_inv_solver.SetRelTol(1e-12);
+      A_cc_inv_solver.SetMaxIter(1000);
+      A_cc_inv_solver.SetPrintLevel(0);
+      A_cc_inv_solver.SetPreconditioner(*A_cc_inv_prec);
+      A_cc_inv_solver.SetOperator(*A_cc);
+
+      // Solve A_cc * y = b_c
+      A_cc_inv_solver.Mult(*b_c, *A_cc_inv_b_c);
+
+      // Compute A_fc * A_cc^{-1} * b_c
+      HypreParVector *A_fc_A_cc_inv_b_c = new HypreParVector(comm, glob_nrows_free, rows_f);
+      A_fc->Mult(*A_cc_inv_b_c, *A_fc_A_cc_inv_b_c);
+
+      // Compute modified RHS: b_f - A_fc * A_cc^{-1} * b_c
+      HypreParVector *b_schur = new HypreParVector(comm, glob_nrows_free, rows_f);
+      add(*b_f, -1.0, *A_fc_A_cc_inv_b_c, *b_schur);
+
+      // Compute A_cc^{-1} * A_cf by solving A_cc * Y = A_cf for each column
+      // This is expensive, so we'll form the Schur complement S = A_ff - A_fc * A_cc^{-1} * A_cf
+      // by computing A_fc * (A_cc^{-1} * A_cf) column by column
+
+      // For simplicity with single rank, convert to dense if small enough
+      if (Mpi::Root())
+      {
+         mfem::out << "Building Schur complement matrix..." << endl;
+         mfem::out << "  Free DOFs: " << glob_nrows_free << endl;
+         mfem::out << "  Constrained DOFs: " << glob_nrows_constrained << endl;
+      }
+
+      // Build Schur complement: S = A_ff - A_fc * A_cc^{-1} * A_cf
+      // We compute this by: for each column j of A_cf, solve A_cc * y_j = A_cf[:,j]
+      // then compute A_fc * y_j to get column j of A_fc * A_cc^{-1} * A_cf
+
+      HypreParMatrix *S = new HypreParMatrix(*A_ff);  // Start with A_ff
+
+      // Iterate over columns of A_cf (equivalently, rows of A_fc)
+      // Extract A_cf and A_fc as local sparse matrices
+      SparseMatrix A_cf_diag, A_cf_offd;
+      A_cf->MergeDiagAndOffd(A_cf_diag);
+
+      SparseMatrix A_fc_diag, A_fc_offd;
+      A_fc->MergeDiagAndOffd(A_fc_diag);
+
+      // For each free DOF i, we need to compute the Schur correction
+      // S[i,j] -= sum_k A_fc[i,k] * (A_cc^{-1})[k,l] * A_cf[l,j]
+
+      // Compute A_cc^{-1} * A_cf by solving multiple RHS
+      DenseMatrix A_cc_inv_A_cf_dense(A_cc->Height(), A_cf->Width());
+      A_cc_inv_A_cf_dense = 0.0;
+
+      for (int j = 0; j < A_cf->Width(); ++j)
+      {
+         HypreParVector rhs_col(comm, glob_nrows_constrained, rows_c);
+         HypreParVector sol_col(comm, glob_nrows_constrained, rows_c);
+         rhs_col = 0.0;
+         sol_col = 0.0;
+
+         // Extract column j of A_cf
+         for (int i = 0; i < A_cf_diag.Height(); ++i)
+         {
+            for (int k = A_cf_diag.GetI()[i]; k < A_cf_diag.GetI()[i+1]; ++k)
+            {
+               if (A_cf_diag.GetJ()[k] == j)
+               {
+                  rhs_col(i) = A_cf_diag.GetData()[k];
+               }
+            }
+         }
+
+         // Solve A_cc * sol = rhs_col
+         A_cc_inv_solver.Mult(rhs_col, sol_col);
+
+         // Store in dense matrix
+         for (int i = 0; i < A_cc->Height(); ++i)
+         {
+            A_cc_inv_A_cf_dense(i, j) = sol_col(i);
+         }
+      }
+
+      // Now compute A_fc * (A_cc^{-1} * A_cf) and subtract from A_ff
+      SparseMatrix S_correction(S->Height(), S->Width());
+
+      for (int i = 0; i < A_fc_diag.Height(); ++i)
+      {
+         for (int j = 0; j < A_cf->Width(); ++j)
+         {
+            real_t val = 0.0;
+            // Compute dot product of row i of A_fc with column j of A_cc^{-1} * A_cf
+            for (int k = A_fc_diag.GetI()[i]; k < A_fc_diag.GetI()[i+1]; ++k)
+            {
+               int col_k = A_fc_diag.GetJ()[k];
+               val += A_fc_diag.GetData()[k] * A_cc_inv_A_cf_dense(col_k, j);
+            }
+            if (std::abs(val) > 1e-14)
+            {
+               S_correction.Add(i, j, -val);
+            }
+         }
+      }
+      S_correction.Finalize();
+
+      // Add correction to S
+      HypreParMatrix *S_correction_par = BuildHypreParMatrixFromMerged(S_correction, *S);
+      HypreParMatrix *S_final = ParAdd(S, S_correction_par);
+
+      // Setup AMG preconditioner on Schur complement
+      HypreBoomerAMG *schur_prec = new HypreBoomerAMG(*S_final);
+      schur_prec->SetPrintLevel(1);
+      schur_prec->SetRelaxType(8);
+      if (one_level_amg)
+      {
+         schur_prec->SetMaxLevels(1);
+      }
+
+      // Solve reduced system
+      CGSolver cg_reduced(comm);
+      cg_reduced.SetRelTol(1e-12);
+      cg_reduced.SetMaxIter(pcg_max_iters);
+      cg_reduced.SetPrintLevel(1);
+      cg_reduced.SetPreconditioner(*schur_prec);
+      cg_reduced.SetOperator(*S_final);
+
+      HypreParVector *x_free = new HypreParVector(comm, glob_nrows_free, rows_f);
+      *x_free = 0.0;
+      cg_reduced.Mult(*b_schur, *x_free);
+
+      // Back-substitute to get constrained DOFs: x_c = A_cc^{-1} * (b_c - A_cf * x_f)
+      HypreParVector *A_cf_x_f = new HypreParVector(comm, glob_nrows_constrained, rows_c);
+      A_cf->Mult(*x_free, *A_cf_x_f);
+
+      HypreParVector *rhs_constrained = new HypreParVector(comm, glob_nrows_constrained, rows_c);
+      add(*b_c, -1.0, *A_cf_x_f, *rhs_constrained);
+
+      HypreParVector *x_constrained = new HypreParVector(comm, glob_nrows_constrained, rows_c);
+      *x_constrained = 0.0;
+      A_cc_inv_solver.Mult(*rhs_constrained, *x_constrained);
+
+      // Assemble full solution
+      HypreParVector X_free_full(comm, global_size, fespace.GetTrueDofOffsets());
+      HypreParVector X_constrained_full(comm, global_size, fespace.GetTrueDofOffsets());
+      X_free_full = 0.0;
+      X_constrained_full = 0.0;
+
+      P_free->Mult(*x_free, X_free_full);
+      P_constrained->Mult(*x_constrained, X_constrained_full);
+
+      add(X_free_full, 1.0, X_constrained_full, X);
+
+      // Clean up
+      delete x_free;
+      delete x_constrained;
+      delete rhs_constrained;
+      delete A_cf_x_f;
+      delete b_schur;
+      delete A_fc_A_cc_inv_b_c;
+      delete A_cc_inv_b_c;
+      delete b_f;
+      delete b_c;
+      delete schur_prec;
+      delete S_final;
+      delete S_correction_par;
+      delete S;
+      delete A_cc_inv_prec;
+      delete A_ff;
+      delete A_fc;
+      delete A_cf;
+      delete A_cc;
+      delete A_Pf;
+      delete A_Pc;
+      delete P_free;
+      delete P_free_T;
+      delete P_constrained;
+      delete P_constrained_T;
+#ifdef HYPRE_BIGINT
+      delete [] J_f;
+      delete [] J_c;
+#endif
+   }
+   else
+   {
+      CGSolver cg(comm);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(pcg_max_iters);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(*prec);
+      cg.SetOperator(*tiedA);
+      cg.Mult(B, X);
+   }
 
    a.RecoverFEMSolution(X, b, x);
 
@@ -1630,14 +1966,18 @@ int main(int argc, char *argv[])
    }
 
    delete tiedA;
-   delete prec;
-   delete PTAP;
-   delete P_tied;
-   delete P_tied_T;
 
-   if (do_amgf)
+   if (!use_schur_complement)
    {
-      delete subspacesolver;
+      delete prec;
+      delete PTAP;
+      delete P_tied;
+      delete P_tied_T;
+
+      if (do_amgf)
+      {
+         delete subspacesolver;
+      }
    }
 
    return 0;

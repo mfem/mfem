@@ -109,8 +109,18 @@ int main(int argc, char *argv[])
    // Schwarz-based subspace solver options
    bool use_schwarz = false;
    bool schwarz_expand_neighbors = false;
+   bool schwarz_use_eigen = false;
    int schwarz_cg_iters = 0;
+   int schwarz_variant = 0;
    real_t schwarz_weight = 1.0;
+   real_t schwarz_eigen_threshold = 1.e4;
+   real_t schwarz_support_threshold = 1.e-4;
+   real_t schwarz_min_diag_value = 0.0;
+   bool schwarz_examine_diagonal = false;
+   bool schwarz_unweighted = false;
+
+   // Schur complement solver option
+   bool use_schur_complement = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -147,10 +157,30 @@ int main(int argc, char *argv[])
    args.AddOption(&schwarz_expand_neighbors, "-schwarz-expand", "--schwarz-expand-neighbors",
                   "-no-schwarz-expand", "--no-schwarz-expand",
                   "Expand Schwarz subdomains with graph neighbors.");
+   args.AddOption(&schwarz_use_eigen, "-schwarz-eigen", "--schwarz-eigen-mode",
+                  "-no-schwarz-eigen", "--no-schwarz-eigen",
+                  "Use eigendecomposition-based subdomain selection for Schwarz solver.");
+   args.AddOption(&schwarz_eigen_threshold, "-schwarz-eigen-thresh", "--schwarz-eigen-threshold",
+                  "Eigenvalue threshold for Schwarz subdomain selection (default: 1e4).");
+   args.AddOption(&schwarz_support_threshold, "-schwarz-support-thresh", "--schwarz-support-threshold",
+                  "Support threshold for eigenvector DOF selection (default: 1e-4).");
    args.AddOption(&schwarz_cg_iters, "-schwarz-cg-iters", "--schwarz-cg-iterations",
                   "Number of CG iterations for Schwarz subspace solver (0=direct).");
+   args.AddOption(&schwarz_variant, "-schwarz-variant", "--schwarz-variant",
+                  "Schwarz solver variant (0=multiplicative, 1=additive).");
    args.AddOption(&schwarz_weight, "-schwarz-weight", "--schwarz-weight",
                   "Relaxation weight for Schwarz solver.");
+   args.AddOption(&schwarz_min_diag_value, "-schwarz-min-diag", "--schwarz-min-diag-value",
+                  "Minimal value of D diagonal to include constraint as subdomain (default: 0.0).");
+   args.AddOption(&schwarz_examine_diagonal, "-schwarz-examine-diag", "--schwarz-examine-diagonal",
+                  "-no-schwarz-examine-diag", "--no-schwarz-examine-diagonal",
+                  "Examine and print statistics of D diagonal matrix.");
+   args.AddOption(&schwarz_unweighted, "-schwarz-unweighted", "--schwarz-unweighted-additive",
+                  "-no-schwarz-unweighted", "--no-schwarz-unweighted-additive",
+                  "Disable per-DOF scaling in Schwarz preconditioner (unweighted additive Schwarz).");
+   args.AddOption(&use_schur_complement, "-schur", "--use-schur-complement",
+                  "-no-schur", "--no-use-schur-complement",
+                  "Use Schur complement reduction with pure AMG-preconditioned CG.");
 
    args.Parse();
    if (!args.Good())
@@ -190,6 +220,16 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "Schwarz subspace solver requires -amgf flag." << endl;
+      }
+      return 1;
+   }
+
+   // Validate Schur complement and AMGF are mutually exclusive
+   if (use_schur_complement && amgf)
+   {
+      if (myid == 0)
+      {
+         cout << "Schur complement solver (-schur) and AMGF (-amgf) are mutually exclusive." << endl;
       }
       return 1;
    }
@@ -441,6 +481,8 @@ int main(int argc, char *argv[])
                auto* cg = new CGSolver(MPI_COMM_WORLD);
                cg->SetMaxIter(schwarz_cg_iters);
                cg->SetPreconditioner(*schwarz_ptr);
+               cg->SetAbsTol(0);
+               cg->SetRelTol(0);
                cg->SetPrintLevel(0);
                subspacesolver = cg;
             }
@@ -494,7 +536,11 @@ int main(int argc, char *argv[])
       optimizer.SetPrintLevel(0);
       //optimizer.SetLOBPCG(&lobpcg);
       optimizer.SetSchwarzOptions(use_schwarz, schwarz_expand_neighbors,
-                                  schwarz_cg_iters, schwarz_weight);
+                                  schwarz_cg_iters, schwarz_weight, schwarz_use_eigen,
+                                  schwarz_eigen_threshold, schwarz_support_threshold,
+                                  schwarz_variant, schwarz_min_diag_value,
+                                  schwarz_examine_diagonal, schwarz_unweighted);
+      optimizer.SetSchurComplementMode(use_schur_complement);
 
       // Pass Schwarz solver to optimizer if using Schwarz
       if (use_schwarz && amgf)

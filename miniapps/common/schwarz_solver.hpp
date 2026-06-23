@@ -146,7 +146,8 @@ public:
    void SetCustomSubdomains(const std::vector<std::vector<HYPRE_Int>> &subdomains,
                             HypreParMatrix &A,
                             HYPRE_Real relax_weight = 1.0,
-                            HYPRE_Int use_nonsymm = 0)
+                            HYPRE_Int use_nonsymm = 0,
+                            bool unweighted = false)
    {
       hypre_SchwarzData *sd = (hypre_SchwarzData *)schwarz_solver;
       sd->relax_weight = relax_weight;
@@ -228,13 +229,14 @@ public:
 
       I[0] = 0;
       HYPRE_Int p = 0;
+      
       for (HYPRE_Int d = 0; d < num_domains; d++)
       {
          const HYPRE_Int sz = (HYPRE_Int)subdomains[d].size();
          for (HYPRE_Int k = 0; k < sz; k++)
          {
             HYPRE_Int gdof = subdomains[d][k];
-            MFEM_VERIFY(gdof >= 0 && gdof < num_dofs,
+               MFEM_VERIFY(gdof >= 0 && gdof < num_dofs,
                         "Subdomain DOF out of local A_diag range.");
             J[p++] = gdof;
          }
@@ -335,6 +337,15 @@ public:
 
       hypre_GenerateScale(csr, num_dofs, relax_weight, &scale);
 
+      // If unweighted flag is set, override per-DOF scaling with uniform scaling
+      if (unweighted)
+      {
+         for (int i = 0; i < num_dofs; ++i)
+         {
+            scale[i] = 1.0;
+         }
+      }
+
       sd->domain_structure = csr;
       sd->pivots = pivots;
       sd->scale = scale;
@@ -347,7 +358,35 @@ public:
    HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) DummyParSolverFcn; }
    HYPRE_PtrToParSolverFcn SolveFcn() const override
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_SchwarzSolve; }
+   {
+      static auto wrapped_solve = [](HYPRE_Solver solver, HYPRE_ParCSRMatrix A,
+                                      HYPRE_ParVector b, HYPRE_ParVector x) -> HYPRE_Int
+      {
+         HYPRE_Int result = HYPRE_SchwarzSolve(solver, A, b, x);
+
+         // Compute residual: r = b - A*x
+         hypre_ParVector *residual = hypre_ParVectorCreate(
+            hypre_ParCSRMatrixComm((hypre_ParCSRMatrix*)A),
+            hypre_ParCSRMatrixGlobalNumRows((hypre_ParCSRMatrix*)A),
+            hypre_ParCSRMatrixRowStarts((hypre_ParCSRMatrix*)A));
+         hypre_ParVectorInitialize(residual);
+         hypre_ParVectorCopy((hypre_ParVector*)b, residual);
+         hypre_ParCSRMatrixMatvec(-1.0, (hypre_ParCSRMatrix*)A,
+                                  (hypre_ParVector*)x, 1.0, residual);
+
+         HYPRE_Real residual_norm = hypre_ParVectorInnerProd(residual, residual);
+         residual_norm = std::sqrt(residual_norm);
+
+         HYPRE_Real b_norm = hypre_ParVectorInnerProd((hypre_ParVector*)b, (hypre_ParVector*)b);
+         b_norm = std::sqrt(b_norm);
+
+         std::cout << "Schwarz solve residual norm: " << residual_norm << ", RHS norm: " << b_norm << std::endl;
+
+         hypre_ParVectorDestroy(residual);
+         return result;
+      };
+      return (HYPRE_PtrToParSolverFcn) +wrapped_solve;
+   }
    using HypreSolver::Mult;
 };
 

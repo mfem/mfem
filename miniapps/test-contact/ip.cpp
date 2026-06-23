@@ -12,8 +12,58 @@
 #include "ip.hpp"
 #include "../common/schwarz_solver.hpp"
 
+// LAPACK eigendecomposition routine
+extern "C" void dsyev_(char *jobz, char *uplo, int *n, double *a, int *lda, double *w, double *work, int *lwork, int *info);
+
 namespace mfem
 {
+
+// Helper function for symmetric eigendecomposition (modeled after tied-poisson)
+bool SymmetricEigenDecomposition(mfem::DenseMatrix &A,
+                                std::vector<double> &eigvals)
+{
+   const int n = A.Height();
+   if (A.Width() != n) { return false; }
+
+   eigvals.resize(n);
+
+   char jobz = 'V'; // compute eigenvalues and eigenvectors
+   char uplo = 'U'; // use upper triangle of A
+   int lda = n;
+   int info = 0;
+
+   // Workspace query
+   int lwork = -1;
+   double work_size = 0.0;
+
+   dsyev_(&jobz, &uplo, &lda, A.Data(), &lda,
+         eigvals.data(), &work_size, &lwork, &info);
+
+   if (info != 0) { return false; }
+
+   lwork = static_cast<int>(work_size);
+   std::vector<double> work(lwork);
+
+   dsyev_(&jobz, &uplo, &lda, A.Data(), &lda,
+         eigvals.data(), work.data(), &lwork, &info);
+
+   return info == 0;
+}
+
+// Helper function to convert HypreParMatrix diagonal block to DenseMatrix
+void ConvertToDense(HypreParMatrix* A, DenseMatrix& Adense)
+{
+   Adense = 0.0;
+
+   // Access diagonal block CSR data
+   for (int i = 0; i < A->Height(); i++)
+   {
+      for (int j = A->GetDiagMemoryI()[i]; j < A->GetDiagMemoryI()[i + 1]; j++)
+      {
+         Adense(i, A->GetDiagMemoryJ()[j]) = A->GetDiagMemoryData()[j];
+      }
+   }
+}
 
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
@@ -427,8 +477,79 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    // Check if Schwarz solver is set
    if (!schwarz_solver) return;
 
+   // Define D diagonal matrix in the same way as Wmm
+   Vector D_diag(dimM);
+   Wmm->GetDiag(D_diag);
+
+   SparseMatrix * Ds = new SparseMatrix(D_diag);
+   HypreParMatrix * D = new HypreParMatrix(comm,
+                                           problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
+   HypreStealOwnership(*D, *Ds);
+   delete Ds;
+
+   if (schwarz_examine_diagonal)
+   {
+      // Compute statistics for D diagonal
+      double diag_min = D_diag.Min();
+      double diag_max = D_diag.Max();
+      double diag_sum = 0.0;
+      for (int i = 0; i < D_diag.Size(); i++)
+      {
+         diag_sum += D_diag(i);
+      }
+
+      // Global reduction for statistics
+      double global_min, global_max, global_sum;
+      int local_size = D_diag.Size();
+      int total_size;
+
+      MPI_Allreduce(&diag_min, &global_min, 1, MPI_DOUBLE, MPI_MIN, comm);
+      MPI_Allreduce(&diag_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(&diag_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&local_size, &total_size, 1, MPI_INT, MPI_SUM, comm);
+
+      double global_avg = global_sum / total_size;
+
+      if (myid == 0)
+      {
+         mfem::out << "\nDiagonal of D (Wmm) statistics:" << std::endl;
+         mfem::out << "  Min: " << global_min << std::endl;
+         mfem::out << "  Max: " << global_max << std::endl;
+         mfem::out << "  Avg: " << global_avg << std::endl;
+         mfem::out << "  Total size: " << total_size << std::endl;
+         if (schwarz_min_diag_value > 0.0)
+         {
+            mfem::out << "  Using minimal D threshold: " << schwarz_min_diag_value << std::endl;
+         }
+         mfem::out << std::endl;
+      }
+   }
+
    // Compute projected operator P^T * Areduced * P
    HypreParMatrix* PTAP = RAP(Areduced, P);
+
+   // Save J, D, P, and PTAP matrices to files
+   if (false && schwarz_examine_diagonal)
+   {
+      std::ostringstream j_filename, d_filename, p_filename, ptap_filename;
+      j_filename << "J_matrix_iter_" << iter << ".mat";
+      d_filename << "D_matrix_iter_" << iter << ".mat";
+      p_filename << "P_matrix_iter_" << iter << ".mat";
+      ptap_filename << "PTAP_matrix_iter_" << iter << ".mat";
+
+      J->Print(j_filename.str().c_str());
+      D->Print(d_filename.str().c_str());
+      P->Print(p_filename.str().c_str());
+      PTAP->Print(ptap_filename.str().c_str());
+
+      if (myid == 0 && print_level > 0)
+      {
+         mfem::out << "  Saved J matrix to: " << j_filename.str() << std::endl;
+         mfem::out << "  Saved D matrix to: " << d_filename.str() << std::endl;
+         mfem::out << "  Saved P matrix to: " << p_filename.str() << std::endl;
+         mfem::out << "  Saved PTAP matrix to: " << ptap_filename.str() << std::endl;
+      }
+   }
 
    // Merge J matrix to access local rows
    SparseMatrix merged_J;
@@ -439,6 +560,7 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    P->MergeDiagAndOffd(merged_P);
 
    // Build mapping: global displacement DoF → subspace index
+   // P is (global × subspace), so each row i is a global DoF, each column j is a subspace DoF
    std::map<HYPRE_BigInt, HYPRE_Int> global_to_subspace;
    for (int i = 0; i < merged_P.Height(); i++)
    {
@@ -446,7 +568,8 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       int row_size = merged_P.RowSize(i);
       for (int j = 0; j < row_size; j++)
       {
-         global_to_subspace[cols[j]] = i;
+         // Row i (global DoF) maps to column cols[j] (subspace DoF)
+         global_to_subspace[i] = cols[j];
       }
    }
 
@@ -457,9 +580,80 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    HYPRE_Int* PTAP_Aj = hypre_CSRMatrixJ(PTAP_diag);
    HYPRE_Int num_dofs_subspace = hypre_CSRMatrixNumRows(PTAP_diag);
 
-   // Build one subdomain per J row (one per contact constraint)
+   // Build subdomains
    std::vector<std::vector<HYPRE_Int>> subdomains;
-   int local_J_rows = J->Height();
+
+   if (schwarz_use_eigen)
+   {
+      // Eigendecomposition-based subdomain selection
+
+      // Convert PTAP to dense matrix
+      DenseMatrix PTAP_dense(PTAP->Height(), PTAP->Width());
+      ConvertToDense(PTAP, PTAP_dense);
+
+      // Perform eigendecomposition
+      std::vector<double> eigenvalues;
+      bool eigen_success = SymmetricEigenDecomposition(PTAP_dense, eigenvalues);
+
+      if (eigen_success)
+      {
+         if (print_level > 0 && myid == 0)
+         {
+            mfem::out << "Eigendecomposition: " << eigenvalues.size() << " eigenvalues computed" << std::endl;
+            mfem::out << "Eigenvalue range: [" << eigenvalues.front() << ", " << eigenvalues.back() << "]" << std::endl;
+            mfem::out << "Using thresholds: eigenvalue > " << schwarz_eigen_threshold
+                     << ", support > " << schwarz_support_threshold << std::endl;
+         }
+
+         // Filter eigenvalues and build subdomains from eigenvector support
+         int num_high_eigenvalues = 0;
+         for (int i = 0; i < eigenvalues.size(); i++)
+         {
+            if (eigenvalues[i] > schwarz_eigen_threshold)
+            {
+               num_high_eigenvalues++;
+
+               // Extract eigenvector (stored as column i in PTAP_dense after dsyev_)
+               std::set<HYPRE_Int> subdomain_set;
+               for (int j = 0; j < PTAP_dense.Height(); j++)
+               {
+                  if (std::abs(PTAP_dense(j, i)) > schwarz_support_threshold)
+                  {
+                     subdomain_set.insert(j);
+                  }
+               }
+
+               // Create subdomain if it has enough DOFs
+               if (subdomain_set.size() > 0)
+               {
+                  std::vector<HYPRE_Int> subdomain(subdomain_set.begin(), subdomain_set.end());
+                  subdomains.push_back(subdomain);
+               }
+            }
+         }
+
+         if (print_level > 0 && myid == 0)
+         {
+            mfem::out << "Created " << subdomains.size() << " eigendecomposition-based subdomains "
+                     << "(from " << num_high_eigenvalues << " eigenvalues > " << schwarz_eigen_threshold << ")" << std::endl;
+         }
+      }
+      else
+      {
+         if (print_level > 0 && myid == 0)
+         {
+            mfem::out << "Warning: Eigendecomposition failed, falling back to row-based subdomains" << std::endl;
+         }
+         // Fall through to row-based approach below
+      }
+   }
+
+   // subdomains.clear();
+
+   // Row-based subdomain selection (original approach or fallback)
+   if (!schwarz_use_eigen || subdomains.size() == 0)
+   {
+      int local_J_rows = J->Height();
 
    for (int i = 0; i < local_J_rows; i++)
    {
@@ -467,6 +661,15 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       int row_size = merged_J.RowSize(i);
 
       if (row_size == 0) continue;
+
+      // Skip this constraint if D diagonal value is below threshold
+      if (schwarz_min_diag_value > 0.0 && i < D_diag.Size())
+      {
+         if (D_diag(i) < schwarz_min_diag_value)
+         {
+            continue;
+         }
+      }
 
       std::set<HYPRE_Int> subdomain_set;
 
@@ -510,20 +713,97 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       }
    }
    //mfem::out << "DONE, total size: " << PTAP->N() << std::endl;
+   } // end row-based subdomain selection
+
+   /*std::set<HYPRE_Int> all_dofs;
+   for (auto subdomain : subdomains)
+   {
+      for (auto i : subdomain)
+      {
+         all_dofs.insert(i);
+      }
+   }
+   subdomains.clear();
+   subdomains.resize(1);
+   for (auto i : all_dofs)
+   {
+      subdomains[0].push_back(i);
+   }*/
+
+   // Print diagnostic information about subdomains
+   if (print_level > 0 || myid == 0)
+   {
+      // Compute subdomain size statistics
+      int num_subdomains = subdomains.size();
+      int total_size = 0;
+      int min_size = num_subdomains > 0 ? subdomains[0].size() : 0;
+      int max_size = 0;
+
+      // Track covered DOFs
+      std::set<HYPRE_Int> covered_dofs;
+      for (const auto& subdomain : subdomains)
+      {
+         int size = subdomain.size();
+         total_size += size;
+         if (size < min_size) min_size = size;
+         if (size > max_size) max_size = size;
+
+         // Add DOFs to covered set
+         for (HYPRE_Int dof : subdomain)
+         {
+            covered_dofs.insert(dof);
+         }
+      }
+
+      double avg_size = num_subdomains > 0 ? (double)total_size / num_subdomains : 0.0;
+      int num_covered = covered_dofs.size();
+      int num_uncovered = PTAP->N() - num_covered;
+      double overlap_ratio = num_covered > 0 ? (double)(total_size - num_covered) / num_covered : 0.0;
+
+      mfem::out << "\nSchwarz subdomain statistics:" << std::endl;
+      mfem::out << "  Total subspace size: " << PTAP->N() << std::endl;
+      mfem::out << "  Number of subdomains: " << num_subdomains << std::endl;
+      if (schwarz_min_diag_value > 0.0)
+      {
+         int total_constraints = J->Height();
+         int num_filtered = total_constraints - num_subdomains;
+         mfem::out << "  Total constraints: " << total_constraints << std::endl;
+         mfem::out << "  Filtered (D < " << schwarz_min_diag_value << "): " << num_filtered << std::endl;
+      }
+      if (num_subdomains > 0)
+      {
+         mfem::out << "  Subdomain sizes - min: " << min_size
+                  << ", max: " << max_size
+                  << ", avg: " << avg_size << std::endl;
+         mfem::out << "  DOF coverage: " << num_covered << "/" << PTAP->N()
+                  << " (" << (100.0 * num_covered / PTAP->N()) << "%)" << std::endl;
+         mfem::out << "  Uncovered DOFs: " << num_uncovered << std::endl;
+         mfem::out << "  Total DOF instances (with overlaps): " << total_size << std::endl;
+         mfem::out << "  Overlap ratio: " << overlap_ratio << std::endl;
+
+         if (num_uncovered > 0)
+         {
+            mfem::out << "  WARNING: " << num_uncovered << " DOFs are not covered by any subdomain!" << std::endl;
+            mfem::out << "           This may affect Schwarz preconditioner effectiveness." << std::endl;
+         }
+      }
+      mfem::out << std::endl;
+   }
 
    // Initialize HYPRE Schwarz if not already done
    if (!schwarz_solver->schwarz_solver)
    {
       HYPRE_SchwarzCreate(&schwarz_solver->schwarz_solver);
-      HYPRE_SchwarzSetVariant(schwarz_solver->schwarz_solver, 0);  // multiplicative Schwarz
+      HYPRE_SchwarzSetVariant(schwarz_solver->schwarz_solver, schwarz_variant);  // 0=multiplicative, 1=additive
    }
 
    // Configure Schwarz with custom subdomains
    // use_nonsymm = 0 → Cholesky factorization (symmetric, appropriate for contact)
    HYPRE_Int use_nonsymm = 0;
-   schwarz_solver->SetCustomSubdomains(subdomains, *PTAP, schwarz_relax_weight, use_nonsymm);
+   schwarz_solver->SetCustomSubdomains(subdomains, *PTAP, schwarz_relax_weight, use_nonsymm, schwarz_unweighted);
 
    delete PTAP;
+   delete D;
 }
 
 // perturbed KKT system solve
@@ -573,9 +853,144 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    JuT->Mult(tempVec, breduced);
    breduced.Add(1.0, b.GetBlock(0));
 
-   // Solver the system with the given solver
-   solver->SetOperator(*Areduced);
-   solver->Mult(breduced, Xhat.GetBlock(0));
+   HypreParMatrix *Schur_system = nullptr;
+   HypreParMatrix *P_free_T = nullptr;
+   HypreParMatrix *P_free = nullptr;
+   HypreParVector *b_schur = nullptr;
+   HypreParVector *x_schur = nullptr;
+
+   if (use_schur_complement)
+   {
+      // Get contact subspace transfer operator P_contact: (contact space) -> (full space)
+      // P_contact maps from contact DOFs to full DOFs
+      // The columns of P_contact tell us which full-space DOFs are contact DOFs
+      HypreParMatrix *P_contact = problem->GetContactSubspaceTransferOperator();
+
+      // Extract contact DOF indices from P_contact columns
+      // P_contact is (num_contact_dofs x num_full_dofs)
+      // We need to find which columns have nonzero entries
+      Array<HYPRE_BigInt> contact_dofs;
+
+      // Iterate through diagonal and off-diagonal blocks
+      const HYPRE_Int *diag_I = P_contact->GetDiagMemoryI();
+      const HYPRE_Int *diag_J = P_contact->GetDiagMemoryJ();
+      const HYPRE_Int *offd_I = P_contact->GetOffdMemoryI();
+
+      HYPRE_BigInt *offd_cmap = nullptr;
+      HYPRE_Int num_offd_cols = 0;
+      P_contact->GetOffdColMap(offd_cmap, num_offd_cols);
+
+      const HYPRE_BigInt col_start = P_contact->GetColStarts()[0];
+
+      for (int i = 0; i < P_contact->GetNumRows(); ++i)
+      {
+         // Diagonal entries
+         for (int j = diag_I[i]; j < diag_I[i + 1]; ++j)
+         {
+            contact_dofs.Append(col_start + diag_J[j]);
+         }
+
+         // Off-diagonal entries
+         for (int j = offd_I[i]; j < offd_I[i + 1]; ++j)
+         {
+            contact_dofs.Append(offd_cmap[j]);
+         }
+      }
+
+      contact_dofs.Sort();
+      contact_dofs.Unique();
+
+      // Build set for fast lookup
+      std::set<HYPRE_BigInt> contact_dofs_set(contact_dofs.GetData(),
+                                               contact_dofs.GetData() + contact_dofs.Size());
+
+      // Build projector onto free (non-contact) DOFs
+      const HYPRE_BigInt local_row_start = Areduced->GetRowStarts()[0];
+      const HYPRE_BigInt local_row_end = Areduced->GetRowStarts()[1];
+      const int local_num_rows = Areduced->GetNumRows();
+      const HYPRE_BigInt global_size = Areduced->N();
+
+      int nrows_free = 0;
+      for (int i = 0; i < local_num_rows; ++i)
+      {
+         if (contact_dofs_set.find(local_row_start + i) == contact_dofs_set.end())
+         {
+            nrows_free++;
+         }
+      }
+
+      SparseMatrix Pf_local(nrows_free, global_size);
+      int free_idx = 0;
+      for (int i = 0; i < local_num_rows; ++i)
+      {
+         if (contact_dofs_set.find(local_row_start + i) == contact_dofs_set.end())
+         {
+            Pf_local.Set(free_idx++, local_row_start + i, 1.0);
+         }
+      }
+      Pf_local.Finalize();
+
+      // Create parallel projector
+      HYPRE_BigInt rows_f[2];
+      HYPRE_BigInt nrows_free_bigint = nrows_free;
+      HYPRE_BigInt row_offset_free;
+      MPI_Scan(&nrows_free_bigint, &row_offset_free, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+      row_offset_free -= nrows_free_bigint;
+      rows_f[0] = row_offset_free;
+      rows_f[1] = row_offset_free + nrows_free;
+
+      HYPRE_BigInt glob_nrows_free;
+      MPI_Allreduce(&nrows_free_bigint, &glob_nrows_free, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+
+      HYPRE_BigInt *J_f;
+#ifndef HYPRE_BIGINT
+      J_f = Pf_local.GetJ();
+#else
+      J_f = new HYPRE_BigInt[Pf_local.NumNonZeroElems()];
+      for (int i = 0; i < Pf_local.NumNonZeroElems(); i++)
+      {
+         J_f[i] = Pf_local.GetJ()[i];
+      }
+#endif
+
+      P_free_T = new HypreParMatrix(comm,
+                                     nrows_free, glob_nrows_free,
+                                     global_size,
+                                     Pf_local.GetI(), J_f, Pf_local.GetData(),
+                                     rows_f, Areduced->GetColStarts());
+
+      P_free = P_free_T->Transpose();
+
+      // Form Schur complement: S = P_f^T * Areduced * P_f
+      HypreParMatrix *AP_free = ParMult(Areduced, P_free);
+      Schur_system = ParMult(P_free_T, AP_free);
+      delete AP_free;
+
+      // Project RHS: b_schur = P_f^T * breduced
+      b_schur = new HypreParVector(comm, glob_nrows_free, rows_f);
+      P_free_T->Mult(breduced, *b_schur);
+
+      // Allocate solution vector
+      x_schur = new HypreParVector(comm, glob_nrows_free, rows_f);
+      *x_schur = 0.0;
+
+      // Solve reduced system
+      solver->SetOperator(*Schur_system);
+      solver->Mult(*b_schur, *x_schur);
+
+      // Expand solution back: Xhat[0] = P_free * x_schur
+      P_free->Mult(*x_schur, Xhat.GetBlock(0));
+
+#ifdef HYPRE_BIGINT
+      delete [] J_f;
+#endif
+   }
+   else
+   {
+      // Standard solve on full system
+      solver->SetOperator(*Areduced);
+      solver->Mult(breduced, Xhat.GetBlock(0));
+   }
 
    if (lobpcg)
    {
@@ -598,6 +1013,16 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    // xl = Wmm xm - bm
    Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+
+   // Cleanup
+   if (use_schur_complement)
+   {
+      delete x_schur;
+      delete b_schur;
+      delete Schur_system;
+      delete P_free;
+      delete P_free_T;
+   }
 
    delete JuTDJu;
    delete Areduced;
