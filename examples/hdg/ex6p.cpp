@@ -283,10 +283,11 @@ int main(int argc, char *argv[])
       sout.precision(8);
    }
 
-   // 14. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //     with L2 projection in the smoothing step to better handle hanging
-   //     nodes and parallel partitioning. We need to supply a space for the
-   //     discontinuous flux (L2) and a space for the smoothed flux.
+   // 14. Set up an error estimator. Here we use the HDG estimator which
+   //     evaluates the difference between the face values of the potential and
+   //     the trace variable in an energy norm with respect to a given operator,
+   //     which is represented by the provided integrator implementing
+   //     ComputeHDGFaceEnergy() method.
    HDGDiffusionIntegrator estimator_integ(one, td);
    HDGErrorEstimator estimator(estimator_integ, uhat_h, u_h);
 
@@ -312,20 +313,20 @@ int main(int argc, char *argv[])
          cout << "Number of trace unknowns: " << uhat_dofs << endl;
       }
 
-      // 18. Assemble the stiffness matrix. Note that MFEM doesn't care at this
+      // 17. Assemble the stiffness matrix. Note that MFEM doesn't care at this
       //     point that the mesh is nonconforming and parallel.  The FE space is
       //     considered 'cut' along hanging edges/faces, and also across
       //     processor boundaries.
       darcy.Assemble();
 
-      // 19. Create the parallel linear system: eliminate boundary conditions.
+      // 18. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
       OperatorPtr A;
       Vector B, X;
 
       darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
-      // 20. Solve the linear system A X = B.
+      // 19. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
       //     * With partial assembly, use a diagonal preconditioner.
       HypreBoomerAMG M;
@@ -339,7 +340,7 @@ int main(int argc, char *argv[])
       solver.SetOperator(*A);
       solver.Mult(B, X);
 
-      // 21. Switch back to the host and extract the parallel grid function
+      // 20. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
       darcy.RecoverFEMSolution(X, x);
@@ -347,7 +348,7 @@ int main(int argc, char *argv[])
       uhat_h.SetFromTrueVector();
       uhat_h.ExchangeFaceNbrData();
 
-      // 22. Send the solution by socket to a GLVis server.
+      // 21. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
@@ -363,7 +364,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 23. Call the refiner to modify the mesh. The refiner calls the error
+      // 22. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -377,7 +378,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 24. Update the finite element space (recalculate the number of DOFs,
+      // 23. Update the finite element space (recalculate the number of DOFs,
       //     etc.) and create a grid function update matrix. Apply the matrix
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
@@ -386,7 +387,7 @@ int main(int argc, char *argv[])
       W_space->Update();
       trace_space->Update();
 
-      // 25. Load balance the mesh, and update the space and solution. Currently
+      // 24. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
       if (pmesh->Nonconforming() && rebalance)
       {
@@ -399,7 +400,7 @@ int main(int argc, char *argv[])
          trace_space->Update();
       }
 
-      // 26. Inform also the bilinear and linear forms that the space has
+      // 25. Inform also the bilinear and linear forms that the space has
       //     changed.
       darcy.Update();
       x.Update(darcy.GetOffsets(), mt);
@@ -411,7 +412,7 @@ int main(int argc, char *argv[])
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
 
-      // 27. Save the current state of the mesh every 5 iterations. The
+      // 26. Save the current state of the mesh every 5 iterations. The
       //     computation can be restarted from this point. Note that unlike in
       //     visualization, we need to use the 'ParPrint' method to save all
       //     internal parallel data structures.

@@ -786,10 +786,10 @@ int main(int argc, char *argv[])
    }
 
    // 13. Set up an error estimator. Here we use the HDG estimator which
-   // evaluates the difference between the face values of the potential and the
-   // trace variable and calculates its energy norm with respect to a given
-   // operator, which represented by the provided integrator implementing
-   // ComputeHDGFaceEnergy() method.
+   //     evaluates the difference between the face values of the potential and
+   //     the trace variable in an energy norm with respect to a given operator,
+   //     which is represented by the provided integrator implementing
+   //     ComputeHDGFaceEnergy() method.
 
    unique_ptr<BilinearFormIntegrator> amr_bfi;
    unique_ptr<ErrorEstimator> amr_err;

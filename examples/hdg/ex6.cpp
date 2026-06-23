@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    GridFunction u_h, uhat_h;
    u_h.MakeRef(W_space, x.GetBlock(1), 0);
 
-   // 9. Connect to GLVis.
+   // 8. Connect to GLVis.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
@@ -199,22 +199,22 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
    }
 
-   // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //     that uses the ComputeElementFlux method of the DiffusionIntegrator to
-   //     recover a smoothed flux (gradient) that is subtracted from the element
-   //     flux to get an error indicator. We need to supply the space for the
-   //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
+   // 9. Set up an error estimator. Here we use the HDG estimator which
+   //    evaluates the difference between the face values of the potential and
+   //    the trace variable in an energy norm with respect to a given operator,
+   //    which is represented by the provided integrator implementing
+   //    ComputeHDGFaceEnergy() method.
    HDGDiffusionIntegrator estimator_integ(one, td);
    HDGErrorEstimator estimator(estimator_integ, uhat_h, u_h);
 
-   // 11. A refiner selects and refines elements based on a refinement strategy.
+   // 10. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
 
-   // 12. The main AMR loop. In each iteration we solve the problem on the
+   // 11. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    for (int it = 0; ; it++)
    {
@@ -226,10 +226,10 @@ int main(int argc, char *argv[])
       cout << "Number of potential unknowns: " << u_dofs << endl;
       cout << "Number of trace unknowns: " << uhat_dofs << endl;
 
-      // 15. Assemble the stiffness matrix.
+      // 12. Assemble the stiffness matrix.
       darcy.Assemble();
 
-      // 16. Create the linear system: eliminate boundary conditions, constrain
+      // 13. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
       OperatorPtr A;
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 
       darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
-      // 17. Solve the linear system A X = B.
+      // 14. Solve the linear system A X = B.
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with GMRES.
       GSSmoother M((SparseMatrix&)(*A));
@@ -250,14 +250,14 @@ int main(int argc, char *argv[])
       solver.Mult(B, X);
 #endif
 
-      // 18. After solving the linear system, reconstruct the solution as a
+      // 15. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       darcy.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space, X, 0);
       uhat_h.SetFromTrueVector();
 
-      // 19. Send solution by socket to the GLVis server.
+      // 16. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 20. Call the refiner to modify the mesh. The refiner calls the error
+      // 17. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 21. Update the space to reflect the new state of the mesh. Also,
+      // 18. Update the space to reflect the new state of the mesh. Also,
       //     interpolate the solution x so that it lies in the new space but
       //     represents the same function. This saves solver iterations later
       //     since we'll have a good initial guess of x in the next step.
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
       W_space->Update();
       trace_space->Update();
 
-      // 22. Inform also the bilinear and linear forms that the space has
+      // 19. Inform also the bilinear and linear forms that the space has
       //     changed.
 
       darcy.Update();
