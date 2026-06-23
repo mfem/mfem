@@ -998,17 +998,6 @@ void DifferentiableOperator::AddIntegrator(
       };
    };
 
-   // Check if any ouptut is a VectorQuadratureSpace
-   bool disable_assemble = false;
-   for_constexpr([&](auto i)
-   {
-      using output_fop_t = tuple_element_t<i, output_t>;
-      if constexpr (is_identity_fop_v<std::decay_t<output_fop_t>>)
-      {
-         disable_assemble = true;
-      }
-   }, std::make_index_sequence<num_outputs> {});
-
    for_constexpr([&](auto i)
    {
       integrator_qp_caches.emplace_back(std::make_unique<Vector>());
@@ -1023,6 +1012,18 @@ void DifferentiableOperator::AddIntegrator(
                                   const IntegratorContext &callback_ctx,
                                   auto qf, auto outputs)
       {
+         using callback_outputs_t = std::decay_t<decltype(outputs)>;
+
+         bool disable_assemble = false;
+         for_constexpr([&](auto j)
+         {
+            using output_fop_t = tuple_element_t<j, callback_outputs_t>;
+            if constexpr (is_identity_fop_v<std::decay_t<output_fop_t>>)
+            {
+               disable_assemble = true;
+            }
+         }, std::make_index_sequence<tuple_size<callback_outputs_t>::value> {});
+
          // Setup the qp cache for the derivative
          setup_callbacks[i].push_back(
             backend_t::template MakeDerivativeSetup<i>(
@@ -1071,22 +1072,24 @@ void DifferentiableOperator::AddIntegrator(
             make_dependency_tuple_ct<idx, input_t>();
          using dqfunc_t = RevDiff<qfunc_t, std::decay_t<decltype(darr)>, tuple<Active>>;
 
-         mfem::out << darr << "\n";
-         dqfunc_t::print();
+         //mfem::out << darr << "\n";
+         // dqfunc_t::print();
 
          // For every dependent input, we have to create an output that will
          // get integrated with it's appropriate basis function. Inputs stay the same.
-         const auto first_derivative_outputs =
+         auto first_derivative_outputs =
             make_first_derivative_outputs<idx, input_t>();
-         mfem::out << first_derivative_outputs << "\n";
+         const auto derivative_outputs_fds =
+            make_field_descriptors(first_derivative_outputs);
+         create_descriptors_to_fields_map<entity_t>(derivative_outputs_fds,
+                                                    first_derivative_outputs);
+         //mfem::out << first_derivative_outputs << "\n";
 
-         mfem::out << get_type_name<output_t>() << "\n";
-         mfem::out << get_type_name<input_t>() << "\n";
+         //mfem::out << get_type_name<output_t>() << "\n";
+         //mfem::out << get_type_name<input_t>() << "\n";
 
          dqfunc_t dqfunc;
 
-         const auto derivative_outputs_fds =
-            make_field_descriptors(first_derivative_outputs);
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
          const auto derivative_ctx =
