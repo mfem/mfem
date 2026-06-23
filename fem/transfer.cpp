@@ -1113,7 +1113,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       M_lor.AddDomainIntegrator(new MassIntegrator);
       M_lor.Assemble();
       M_lor.Finalize();
-      SparseMatrix *M_L_mat = new SparseMatrix(M_lor.SpMat());
+      SparseMatrix *M_L_mat = M_lor.LoseMat();
 
       ML_precon.reset(new DSmoother(*M_L_mat));
       ML_pcg.SetPrintLevel(0);
@@ -1149,8 +1149,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    : L2Projection(pfes_ho, pfes_lor, d_mt_),
      use_ea(use_ea_),
      use_consistent_mass(use_consistent_mass_),
-     pcg(pfes_ho.GetComm()),
-     ML_pcg(pfes_ho.GetComm())
+     ML_pcg(pfes_ho.GetComm()),
+     pcg(pfes_ho.GetComm())
 {
    MFEM_VERIFY(!(use_ea && use_consistent_mass),
                "consistent mass is not supported with element assembly");

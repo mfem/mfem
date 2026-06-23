@@ -480,30 +480,30 @@ public:
       /// elements and refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
 
-      CGSolver pcg;
-      /// Serial PCG solver for applying the inverse consistent low-order mass
-      /// matrix in H1 Mult() and MultTranspose().
-      CGSolver ML_pcg;
-      std::unique_ptr<Solver> precon;
+      /// Consistent low-order mass matrix used when use_consistent_mass is true.
+      std::unique_ptr<Operator> M_L;
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      std::unique_ptr<Operator> M_LH;
+      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
+      // to multiply with scalar TDof LOR vectors.
+      std::unique_ptr<Operator> ML_inv_vea;
       /// Preconditioner for applying the inverse consistent low-order mass
       /// matrix.
       std::unique_ptr<Solver> ML_precon;
+      /// Serial PCG solver for applying the inverse consistent low-order mass
+      /// matrix in H1 Mult() and MultTranspose().
+      CGSolver ML_pcg;
       /// Solver used by H1ConsistentMassOperator to apply M_L^{-1}.
       std::unique_ptr<Solver> ML_solver;
-      /// Consistent low-order mass matrix used when use_consistent_mass is true.
-      std::unique_ptr<Operator> M_L;
       // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
       // M_L R), and hence, is not stored.
       // If element assembly is enabled
       std::unique_ptr<Operator> R;
-      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
-      std::unique_ptr<Operator> M_LH;
       // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
       std::unique_ptr<Operator> RTxM_LH;
-      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
-      // to multiply with scalar TDof LOR vectors.
-      std::unique_ptr<Operator> ML_inv_vea;
+      std::unique_ptr<Solver> precon;
+      CGSolver pcg;
       // LDof Mixed mass operator built via EA. Wrapped with restriction maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
       Operator *M_LH_local_op;
