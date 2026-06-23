@@ -111,18 +111,10 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
    return ((x>>1)&1u) | ((x>>2)&2u);
 }
 
-static MFEM_HOST_DEVICE inline findptsElementGEdge_t
+static MFEM_HOST_DEVICE inline void
 get_edge(const double *elx[3], const double *wtend, int ei,
-         double *workspace, int &side_init, int jidx, int pN)
+         int &side_init, int jidx, int pN, findptsElementGEdge_t &edge)
 {
-   findptsElementGEdge_t edge;
-   for (int d=0; d<sDIM; ++d)
-   {
-      edge.x[d]     = workspace             + d*pN;
-      edge.dxdn[d]  = workspace +   sDIM*pN + d*pN;
-      edge.d2xdn[d] = workspace + 2*sDIM*pN + d*pN;
-   }
-
    // given edge index, compute normal and tangential directions
    const int dn = ei>>1, //0 for rmin/rmax, 1 for smin/smax
              de = plus_1_mod_2(dn); // 1 for rmin/rmax, 0 for smin/smax
@@ -148,7 +140,6 @@ get_edge(const double *elx[3], const double *wtend, int ei,
       edge.d2xdn[dd][jj] = sums_k[1];
 #undef ELX
    }
-   return edge;
 }
 
 static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[3],
@@ -875,13 +866,17 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                         double *hes_T = jac + sDIM*rDIM;
                         double *hes   = hes_T + hes_count*sDIM;
                         findptsElementGEdge_t edge;
+                        for (int d=0; d<sDIM; ++d)
+                        {
+                           edge.x[d]     = constraint_workspace             + d*D1D;
+                           edge.dxdn[d]  = constraint_workspace +   sDIM*D1D + d*D1D;
+                           edge.d2xdn[d] = constraint_workspace + 2*sDIM*D1D + d*D1D;
+                        }
 
                         MFEM_FOREACH_THREAD(j,x,D1D*sDIM)
                         {
-                           // utilized first D1D threads
-                           edge = get_edge(elx, wtend, ei,
-                                           constraint_workspace, edge_init, j,
-                                           D1D);
+                           // One thread per physical component and edge DOF.
+                           get_edge(elx, wtend, ei, edge_init, j, D1D, edge);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -952,7 +947,15 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                               steep *= tmp->r[dn];
                               if (steep<0)
                               {
-                                 newton_face( fpt,jac,hes,resid,tmp->flags&CONVERGED_FLAG,tmp,tol);
+                                 double face_hes[3] =
+                                 {
+                                    dn == 0 ? hes[2] : hes[0],
+                                    hes[1],
+                                    dn == 0 ? hes[0] : hes[2]
+                                 };
+                                 newton_face(fpt, jac, face_hes, resid,
+                                             tmp->flags & CONVERGED_FLAG,
+                                             tmp, tol);
                               }
                               else
                               {
