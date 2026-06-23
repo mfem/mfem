@@ -1,39 +1,39 @@
-//                                MFEM Example 14
+//                        MFEM Example 14 - HDG Version
 //
 // Compile with: make ex14
 //
-// Sample runs:  ex14 -m ../data/inline-quad.mesh -o 0
-//               ex14 -m ../data/star.mesh -r 4 -o 2
-//               ex14 -m ../data/star-mixed.mesh -r 4 -o 2
-//               ex14 -m ../data/star-mixed.mesh -r 2 -o 2 -k 0 -e 1
-//               ex14 -m ../data/escher.mesh -s 1
-//               ex14 -m ../data/fichera.mesh -s 1 -k 1
-//               ex14 -m ../data/fichera-mixed.mesh -s 1 -k 1
-//               ex14 -m ../data/square-disc-p2.vtk -r 3 -o 2
-//               ex14 -m ../data/square-disc-p3.mesh -r 2 -o 3
-//               ex14 -m ../data/square-disc-nurbs.mesh -o 1
-//               ex14 -m ../data/disc-nurbs.mesh -r 3 -o 2 -s 1 -k 0
-//               ex14 -m ../data/pipe-nurbs.mesh -o 1
-//               ex14 -m ../data/inline-segment.mesh -r 5
-//               ex14 -m ../data/amr-quad.mesh -r 3
-//               ex14 -m ../data/amr-hex.mesh
-//               ex14 -m ../data/fichera-amr.mesh
+// Sample runs:  ex14 -m ../../data/inline-quad.mesh -o 0 -hb -dg
+//               ex14 -m ../../data/star.mesh -r 4 -o 2 -hb -brt -trh1
+//               ex14 -m ../../data/star-mixed.mesh -r 4 -o 2 -hb
+//               ex14 -m ../../data/star-mixed.mesh -r 2 -o 2 -rd -dg
+//               ex14 -m ../../data/star-mixed.mesh -r 2 -o 2
+//               ex14 -m ../../data/escher.mesh -hb
+//               ex14 -m ../../data/fichera.mesh -hb -dg -trh1
+//               ex14 -m ../../data/fichera-mixed.mesh -rd -brt
+//               ex14 -m ../../data/square-disc-p2.vtk -r 3 -o 2 -hb -dg
+//               ex14 -m ../../data/square-disc-p3.mesh -r 2 -o 3 -hb -trh1
+//               ex14 -m ../../data/square-disc-nurbs.mesh -o 1
+//               ex14 -m ../../data/disc-nurbs.mesh -r 3 -o 2 -rd -dg
+//               ex14 -m ../../data/pipe-nurbs.mesh -o 1 -hb -dg
+//               ex14 -m ../../data/amr-quad.mesh -r 3 -hb -dg
+//               ex14 -m ../../data/amr-hex.mesh -hb -trh1
+//               ex14 -m ../../data/fichera-amr.mesh -hb -dg -trh1
 //               ex14 -pa -r 1 -o 3
-//               ex14 -pa -r 1 -o 3 -m ../data/fichera.mesh
+//               ex14 -pa -r 1 -o 3 -m ../../data/fichera.mesh
 //
 // Device sample runs:
 //               ex14 -pa -r 2 -d cuda -o 3
-//               ex14 -pa -r 2 -d cuda -o 3 -m ../data/fichera.mesh
+//               ex14 -pa -r 2 -d cuda -o 3 -m ../../data/fichera.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               discontinuous Galerkin (DG) finite element discretization of
-//               the Poisson problem -Delta u = 1 with homogeneous Dirichlet
-//               boundary conditions. Finite element spaces of any order,
-//               including zero on regular grids, are supported. The example
-//               highlights the use of discontinuous spaces and DG-specific face
-//               integrators.
+//               mixed / local / hybridizable discontinuous Galerkin (DG) finite
+//               element discretization of the Poisson problem -Delta u = 1 with
+//               homogeneous Dirichlet boundary conditions. Finite element
+//               spaces of any order, including zero on regular grids, are
+//               supported. The example highlights the use of discontinuous
+//               spaces and DG-specific face integrators.
 //
-//               We recommend viewing examples 1 and 9 before viewing this
+//               We recommend viewing examples 1 and 5 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -123,8 +123,9 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(max(order, 1));
    }
 
-   // 5. Define a finite element space on the mesh. Here we use discontinuous
-   //    finite elements of the specified order >= 0.
+   // 5. Define a finite element space on the mesh. Here we use the
+   //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
+   //    the specified order >= 0.
    FiniteElementCollection *R_coll;
    if (dg)
    {
@@ -197,7 +198,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
 
@@ -231,12 +232,6 @@ int main(int argc, char *argv[])
    Vector X, B;
    darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
-   // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one. (Note that tolerances are squared: 1e-12 corresponds
-   //    to a relative tolerance of 1e-6).
-   //
-   //    If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
 
    constexpr int maxIter(500);
    constexpr real_t rtol(1.0e-6);
@@ -244,10 +239,10 @@ int main(int argc, char *argv[])
 
    if (hybridization || (reduction && (dg || brt)))
    {
-      // 10. Construct the preconditioner
+      // 9. Construct the preconditioner
       GSSmoother prec;
 
-      // 11. Solve the linear system with GMRES.
+      // 10. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
       GMRESSolver solver;
       solver.SetAbsTol(atol);
@@ -261,13 +256,13 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // 10. Construct the operators for preconditioner
+      // 9. Construct the operators for preconditioner
       //
       //                 P = [ diag(M)         0         ]
       //                     [  0       B diag(M)^-1 B^T ]
       //
-      //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-      //     pressure Schur Complement
+      //    Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+      //    potential Schur Complement
       SparseMatrix *MinvBt = NULL;
       Vector Md(Mq->Height());
 
@@ -333,7 +328,7 @@ int main(int argc, char *argv[])
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 
-      // 11. Solve the linear system with MINRES.
+      // 10. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
 
       MINRESSolver solver;
@@ -355,7 +350,7 @@ int main(int argc, char *argv[])
    darcy.RecoverFEMSolution(X, x);
    if (device.IsEnabled()) { x.HostRead(); }
 
-   // 10. Save the refined mesh and the solution. This output can be viewed
+   // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    GridFunction u(W_space, x.GetBlock(1), 0);
 
@@ -366,7 +361,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    u.Save(sol_ofs);
 
-   // 11. Send the solution by socket to a GLVis server.
+   // 12. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";

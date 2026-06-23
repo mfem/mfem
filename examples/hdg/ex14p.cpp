@@ -1,4 +1,4 @@
-//                       MFEM Example 14 - Parallel Version
+//                     MFEM Example 14 - Parallel HDG Version
 //
 // Compile with: make ex14p
 //
@@ -25,14 +25,14 @@
 //               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -m ../data/fichera.mesh -o 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               discontinuous Galerkin (DG) finite element discretization of
-//               the Poisson problem -Delta u = 1 with homogeneous Dirichlet
-//               boundary conditions. Finite element spaces of any order,
-//               including zero on regular grids, are supported. The example
-//               highlights the use of discontinuous spaces and DG-specific face
-//               integrators.
+//               mixed / local / hybridizable discontinuous Galerkin (DG) finite
+//               element discretization of the Poisson problem -Delta u = 1 with
+//               homogeneous Dirichlet boundary conditions. Finite element
+//               spaces of any order, including zero on regular grids, are
+//               supported. The example highlights the use of discontinuous
+//               spaces and DG-specific face integrators.
 //
-//               We recommend viewing examples 1 and 9 before viewing this
+//               We recommend viewing examples 1 and 5 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -146,8 +146,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use discontinuous finite elements of the specified order >= 0.
+   // 6. Define a finite element space on the mesh. Here we use the
+   //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
+   //    the specified order >= 0.
    FiniteElementCollection *R_coll;
    if (dg)
    {
@@ -226,7 +227,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   //set hybridization / assembly level
+   // Set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
 
@@ -263,19 +264,17 @@ int main(int argc, char *argv[])
    Vector X, B;
    darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
-   // 11. Depending on the symmetry of A, define and apply a parallel PCG or
-   //     GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
 
-   int maxIter(500);
-   real_t rtol(1.0e-6);
-   real_t atol(0.0);
+   constexpr int maxIter(500);
+   constexpr real_t rtol(1.0e-6);
+   constexpr real_t atol(0.0);
 
    if (hybridization || (reduction && (dg || brt)))
    {
-      // 12. Construct the preconditioner
+      // 11. Construct the preconditioner
       HypreBoomerAMG prec;
 
-      // 13. Solve the linear system with GMRES.
+      // 12. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
       GMRESSolver solver(MPI_COMM_WORLD);
       solver.SetAbsTol(atol);
@@ -289,13 +288,13 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // 12. Construct the operators for preconditioner
+      // 11. Construct the operators for preconditioner
       //
       //                 P = [ diag(M)         0         ]
       //                     [  0       B diag(M)^-1 B^T ]
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-      //     pressure Schur Complement
+      //     potential Schur Complement
       HypreParMatrix *MinvBt = NULL;
       HypreParVector *Md = NULL;
       HypreParMatrix *S = NULL;
@@ -351,7 +350,7 @@ int main(int argc, char *argv[])
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 
-      // 13. Solve the linear system with MINRES.
+      // 12. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
 
       MINRESSolver solver(MPI_COMM_WORLD);
@@ -374,7 +373,7 @@ int main(int argc, char *argv[])
    darcy.RecoverFEMSolution(X, x);
    if (device.IsEnabled()) { x.HostRead(); }
 
-   // 12. Save the refined mesh and the solution in parallel. This output can
+   // 13. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
 
    ParGridFunction u(W_space, x.GetBlock(1), 0);
@@ -393,7 +392,7 @@ int main(int argc, char *argv[])
       u.Save(sol_ofs);
    }
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";

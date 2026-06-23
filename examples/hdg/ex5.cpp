@@ -132,7 +132,8 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
+   //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
+   //    the specified order.
    FiniteElementCollection *R_coll, *R_coll_dg = NULL;
    if (dg)
    {
