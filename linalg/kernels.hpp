@@ -185,6 +185,43 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
    }
 }
 
+/** @brief Matrix vector multiplication: y = A x, where the matrix A is of size
+    @a height x @a width and @a bandwidth with given @a data, while @a x and @a y specify the
+    data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void BandMult(const int height, const int width, const int bandwidth, const TA *data,
+              const TX *x, TY *y)
+{
+
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   int stride = 2*bandwidth + 1;
+   for (int row = 0; row < height; row++)
+   {
+      int start  = std::max(row - bandwidth, 0);
+      int end    = std::min(row + bandwidth, width-1);
+      int offset = std::max(bandwidth - row, 0);
+
+      const TX *x_col = &x[start];
+      const TA *d_col = &data[row*stride + offset];
+
+      int y_row = x_col[0]*d_col[0];
+      for (int i = 1; i <= end - start ; i++)
+      {
+         y_row += x_col[i]*d_col[i];
+      }
+      y[row] = y_row;
+   }
+}
+
+
 /** @brief Absolute-value matrix vector multiplication: y = |A| x, where the
     matrix A is of size @a height x @a width with given @a data, while @a x and
     @a y specify the data of the input and output vectors. */
