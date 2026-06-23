@@ -20,8 +20,7 @@
 namespace mfem
 {
 
-/// Dense symmetric matrix storing the upper triangular part. This class so far
-/// has little functionality beyond storage.
+/// Band matrix storing (2xbandwidth + 1) numbers per row.
 class BandMatrix : public Matrix
 {
    friend class BandMatrixInverse;
@@ -33,7 +32,7 @@ private:
 
 public:
 
-   /** Default constructor forBandMatrix.
+   /** Default constructor for BandMatrix.
        Sets data = NULL and height = width = 0. */
    BandMatrix();
 
@@ -60,7 +59,7 @@ public:
    /// Move assignment.
    BandMatrix &operator=(BandMatrix &&) = default;
 
-   /// Construct aBandMatrix using an existing data array.
+   /// Construct a BandMatrix using an existing data array.
    /** The BandMatrix does not assume ownership of the data array,
        i.e. it will not delete the array. */
    BandMatrix(real_t *d, int s, int bw)
@@ -110,12 +109,13 @@ public:
       height = width = bandwidth = stride = 0;
    }
 
-
    /// Change the size of the BandMatrix to s x s.
    int GetBandWidth() { return bandwidth; };
 
-   /// Change the size of the BandMatrix to s x s.
+   /// Change the size of the BandMatrix to s x s, with bandwidth bw
    void SetSize(int s, int bw);
+
+   /// Change the size of the BandMatrix to h x w, with bandwidth bw
    void SetSize(int h, int w, int bw);
 
    /// Return the number of stored nonzeros in the matrix.
@@ -242,9 +242,7 @@ public:
    /**
     * @brief Compute the LU factorization of the current matrix
     *
-    * Factorize the current matrix of size (m x m) overwriting it with the
-    * LU factors. The factorization is such that L.U = P.A, where A is the
-    * original matrix and P is a permutation matrix represented by ipiv.
+    * Factorize the current matrix of size (m x m) using LAPACK
     *
     * @param [in] m size of the square matrix
     * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
@@ -253,15 +251,14 @@ public:
     */
    bool Factor(int m, real_t TOL = 0.0) override;
 
-   /** Assuming L.U = P.A factored data of size (m x m), compute |A|
-       from the diagonal values of U and the permutation information. */
+   /// Compute the matrix determinant from the factors.
    real_t Det(int m) const override;
 
-   /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
+   /** Assuming factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
    void Solve(int m, int n, real_t *X) const override;
 
-   /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
+   /// Assuming factored data of size (m x m), compute X <- A^{-1}.
    void GetInverseMatrix(int m, real_t *X) const override;
 };
 
@@ -328,14 +325,15 @@ public:
 
 
 #ifdef MFEM_USE_LAPACK
-void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                 Array<int> &ipiv);
-void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                           bool transpose, Array<int> &ipiv);
+MFEM_DEPRECATED void BandedSolve(int KL, int KU,
+                                 DenseMatrix &AB, DenseMatrix &B,
+                                 Array<int> &ipiv);
+MFEM_DEPRECATED void BandedFactorizedSolve(int KL, int KU,
+                                           DenseMatrix &AB,DenseMatrix &B,
+                                           bool transpose, Array<int> &ipiv);
 #endif
 
 // Inline methods
-
 inline real_t &BandMatrix ::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height

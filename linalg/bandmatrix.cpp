@@ -404,7 +404,9 @@ void BandLUFactors::Solve(int m, int n, real_t *X) const
 
 void BandLUFactors::GetInverseMatrix(int m, real_t *X) const
 {
-   mfem_error("BandLUFactors::GetInverseMatrix(...)");
+   for (int i = 0; i < m*m; i++) { X[i] = 0.0; }
+   for (int i = 0; i < m; i++) { X[i + i*m] = 1.0; }
+   Solve(m, m, X);
 }
 
 void BandMatrixInverse::Init(int m, int bw)
