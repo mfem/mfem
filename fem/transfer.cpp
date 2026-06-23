@@ -1122,6 +1122,9 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       ML_pcg.SetAbsTol(1e-13);
       ML_pcg.SetPreconditioner(*ML_precon);
       ML_pcg.SetOperator(*M_L_mat);
+      // Start each solve from zero so repeated Operator::Mult() calls do not
+      // depend on the output vector contents supplied by the caller.
+      ML_pcg.iterative_mode = false;
 
       M_L.reset(M_L_mat);
       M_LH = std::move(M_LH_mat);
