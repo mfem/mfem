@@ -9,34 +9,35 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <memory>
-
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <memory>
+
 using namespace mfem;
 
-int RandomPRefinement(FiniteElementSpace &fes)
+int RandomPRefinement(FiniteElementSpace & fes)
 {
    Mesh *mesh = fes.GetMesh();
    int maxorder = 0;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       const int order = fes.GetElementOrder(i);
-      maxorder = std::max(maxorder, order);
-      if ((double)rand() / RAND_MAX < 0.5)
+      maxorder = std::max(maxorder,order);
+      if ((double) rand() / RAND_MAX < 0.5)
       {
-         fes.SetElementOrder(i, order + 1);
-         maxorder = std::max(maxorder, order + 1);
+         fes.SetElementOrder(i,order+1);
+         maxorder = std::max(maxorder,order+1);
       }
    }
    fes.Update(false);
    return maxorder;
 }
 
+
 int dimension;
 int coeff_order;
-double coeff(const Vector &X)
+double coeff(const Vector& X)
 {
    double x = X[0];
    double y = X[1];
@@ -49,7 +50,7 @@ double coeff(const Vector &X)
       }
       else
       {
-         return (1. - x) * x * (1. - y) * y;
+         return (1.-x)*x*(1.-y)*y;
       }
    }
    else
@@ -61,12 +62,12 @@ double coeff(const Vector &X)
       }
       else
       {
-         return (1. - x) * x * (1. - y) * y * (1. - z) * z;
+         return (1.-x)*x*(1.-y)*y*(1.-z)*z;
       }
    }
 }
 
-void vectorcoeff(const Vector &x, Vector &y)
+void vectorcoeff(const Vector& x, Vector& y)
 {
    y(0) = coeff(x);
    y(1) = -coeff(x);
@@ -82,25 +83,19 @@ std::string VecSpaceName(VecSpace vectorspace)
 {
    switch (vectorspace)
    {
-      case VecSpace::H1:
-         return "H1";
-      case VecSpace::VectorH1nodes:
-         return "Vector H1 by nodes";
-      case VecSpace::VectorH1vdim:
-         return "Vector H1 by vdim";
-      case VecSpace::ND:
-         return "Nedelec";
-      case VecSpace::RT:
-         return "Raviart-Thomas";
+      case VecSpace::H1: return "H1";
+      case VecSpace::VectorH1nodes: return "Vector H1 by nodes";
+      case VecSpace::VectorH1vdim: return "Vector H1 by vdim";
+      case VecSpace::ND: return "Nedelec";
+      case VecSpace::RT: return "Raviart-Thomas";
    }
    return "";
 }
 
 TEST_CASE("Transfer", "[Transfer]")
 {
-   auto vectorspace =
-      GENERATE(VecSpace::H1, VecSpace::VectorH1nodes, VecSpace::VectorH1vdim,
-               VecSpace::ND, VecSpace::RT);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim, VecSpace::ND, VecSpace::RT);
    auto geometric = GENERATE(true, false);
    auto simplex = GENERATE(true, false);
    dimension = GENERATE(2, 3);
@@ -108,7 +103,7 @@ TEST_CASE("Transfer", "[Transfer]")
    int order = 2;
    int ne = 2;
 
-   int fineOrder = geometric ? order : 2 * order;
+   int fineOrder = geometric ? order : 2*order;
 
    // Log test case information
    int total_ne = static_cast<int>(std::pow(ne, dimension));
@@ -138,7 +133,7 @@ TEST_CASE("Transfer", "[Transfer]")
          f_fec = geometric ? c_fec : new H1_FECollection(fineOrder, dimension);
          break;
       case VecSpace::ND:
-         c_fec = new ND_FECollection(order + 1, dimension);
+         c_fec = new ND_FECollection(order+1, dimension);
          f_fec = geometric ? c_fec : new ND_FECollection(fineOrder, dimension);
          break;
       case VecSpace::RT:
@@ -153,23 +148,21 @@ TEST_CASE("Transfer", "[Transfer]")
       fineMesh.UniformRefinement();
    }
 
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes ||
-                     vectorspace == VecSpace::VectorH1vdim)
-                    ? dimension
-                    : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM
-                             : Ordering::byNODES;
+                             ? Ordering::byVDIM : Ordering::byNODES;
    FiniteElementSpace *c_fespace =
       new FiniteElementSpace(&mesh, c_fec, vdim, ordering);
    FiniteElementSpace *f_fespace =
       new FiniteElementSpace(&fineMesh, f_fec, vdim, ordering);
 
-   Operator *referenceOperator = nullptr;
+   Operator* referenceOperator = nullptr;
 
    if (!geometric)
    {
-      referenceOperator = new PRefinementTransferOperator(*c_fespace, *f_fespace);
+      referenceOperator = new PRefinementTransferOperator(*c_fespace,
+                                                          *f_fespace);
    }
    else
    {
@@ -230,9 +223,9 @@ TEST_CASE("Transfer", "[Transfer]")
 
 TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
 {
-   auto vectorspace =
-      GENERATE(VecSpace::H1, VecSpace::VectorH1nodes, VecSpace::VectorH1vdim,
-               VecSpace::ND, VecSpace::RT);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim, VecSpace::ND,
+                               VecSpace::RT);
    dimension = GENERATE(2, 3);
 
    int ne = 2;
@@ -253,8 +246,8 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
       Element::Type type = Element::HEXAHEDRON;
       mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
    }
-   FiniteElementCollection *c_fec = nullptr;
-   FiniteElementCollection *f_fec = nullptr;
+   FiniteElementCollection* c_fec = nullptr;
+   FiniteElementCollection* f_fec = nullptr;
    switch (vectorspace)
    {
       case VecSpace::H1:
@@ -264,8 +257,8 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
          f_fec = new H1_FECollection(order, dimension);
          break;
       case VecSpace::ND:
-         c_fec = new ND_FECollection(order + 1, dimension);
-         f_fec = new ND_FECollection(order + 1, dimension);
+         c_fec = new ND_FECollection(order+1, dimension);
+         f_fec = new ND_FECollection(order+1, dimension);
          break;
       case VecSpace::RT:
          c_fec = new RT_FECollection(order, dimension);
@@ -276,13 +269,10 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
    mesh.EnsureNCMesh();
    mesh.RandomRefinement(0.5);
 
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes ||
-                     vectorspace == VecSpace::VectorH1vdim)
-                    ? dimension
-                    : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM
-                             : Ordering::byNODES;
+                             ? Ordering::byVDIM : Ordering::byNODES;
 
    FiniteElementSpace *c_fespace =
       new FiniteElementSpace(&mesh, c_fec, vdim, ordering);
@@ -291,22 +281,18 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
 
    RandomPRefinement(*f_fespace);
 
-   Operator *referenceOperator = nullptr;
+   Operator* referenceOperator = nullptr;
 
-   referenceOperator = new PRefinementTransferOperator(*c_fespace, *f_fespace);
+   referenceOperator = new PRefinementTransferOperator(*c_fespace,
+                                                       *f_fespace);
 
    TransferOperator testTransferOperator(*c_fespace, *f_fespace);
-   GridFunction X(c_fespace);
-   X = 0.;
-   GridFunction X_cmp(c_fespace);
-   X_cmp = 0.;
-   GridFunction Y_exact(f_fespace);
-   Y_exact = 0.;
-   GridFunction Y_std(f_fespace);
-   Y_std = 0.;
-   GridFunction Y_test(f_fespace);
-   Y_test = 0.;
-   coeff_order = std::min(2, order);
+   GridFunction X(c_fespace); X = 0.;
+   GridFunction X_cmp(c_fespace); X_cmp = 0.;
+   GridFunction Y_exact(f_fespace); Y_exact = 0.;
+   GridFunction Y_std(f_fespace); Y_std = 0.;
+   GridFunction Y_test(f_fespace); Y_test = 0.;
+   coeff_order = std::min(2,order);
    if (vectorspace == VecSpace::H1)
    {
       FunctionCoefficient funcCoeff(&coeff);
@@ -347,8 +333,8 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
 
 TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
 {
-   auto vectorspace =
-      GENERATE(VecSpace::H1, VecSpace::VectorH1nodes, VecSpace::VectorH1vdim);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim);
    dimension = GENERATE(2, 3);
 
    int ne = 2;
@@ -374,13 +360,10 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    f_fec = new H1_FECollection(order, dimension);
    mesh.EnsureNCMesh();
    mesh.RandomRefinement(0.5);
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes ||
-                     vectorspace == VecSpace::VectorH1vdim)
-                    ? dimension
-                    : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM
-                             : Ordering::byNODES;
+                             ? Ordering::byVDIM : Ordering::byNODES;
 
    FiniteElementSpace *c_fespace =
       new FiniteElementSpace(&mesh, c_fec, vdim, ordering);
@@ -419,11 +402,11 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    }
    if (Rc)
    {
-      Rc->Mult(xc, Xc);
+      Rc->Mult(xc,Xc);
    }
    else
    {
-      Xc.MakeRef(xc, 0);
+      Xc.MakeRef(xc,0);
    }
    T.Mult(Xc, Xf);
 
@@ -440,9 +423,9 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    SparseMatrix Mf;
    mf.FormSystemMatrix(empty, Mf);
 
-   Mf.Mult(Xf, Yf);
+   Mf.Mult(Xf,Yf);
 
-   T.MultTranspose(Yf, Yc);
+   T.MultTranspose(Yf,Yc);
 
    GSSmoother M(Mc);
    Diff = 0.0;
@@ -459,32 +442,37 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
 
 TEST_CASE("H1 L2 transfer with consistent mass", "[Transfer]")
 {
-   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim);
    dimension = GENERATE(2, 3);
 
    const int order = 2;
    const int ne = 2;
-   const int vdim = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
+   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
+                             ? Ordering::byVDIM : Ordering::byNODES;
 
    CAPTURE(VecSpaceName(vectorspace), dimension, order);
 
    Mesh mesh;
    if (dimension == 2)
    {
-      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL,
+                                   1, 1.0, 1.0);
    }
    else
    {
-      mesh =
-         Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON,
+                                   1.0, 1.0, 1.0);
    }
 
    Mesh fineMesh(mesh);
    fineMesh.UniformRefinement();
 
    H1_FECollection fec(order, dimension);
-   FiniteElementSpace c_fespace(&mesh, &fec, vdim);
-   FiniteElementSpace f_fespace(&fineMesh, &fec, vdim);
+   FiniteElementSpace c_fespace(&mesh, &fec, vdim, ordering);
+   FiniteElementSpace f_fespace(&fineMesh, &fec, vdim, ordering);
 
    L2ProjectionGridTransfer transfer(c_fespace, f_fespace);
    transfer.UseConsistentMass();
@@ -539,7 +527,8 @@ TEST_CASE("H1 L2 transfer with consistent mass", "[Transfer]")
 
    const real_t ip1 = InnerProduct(Ry, y);
    const real_t ip2 = InnerProduct(x, Rtx);
-   REQUIRE(std::abs(ip1 - ip2) < 1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
+   REQUIRE(std::abs(ip1 - ip2) <
+           1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
 
    REQUIRE_FALSE(transfer.SupportsBackwardsOperator());
 }
@@ -547,8 +536,8 @@ TEST_CASE("H1 L2 transfer with consistent mass", "[Transfer]")
 TEST_CASE("Restriction Transpose Operator")
 {
    int order = GENERATE(1, 2);
-   auto mesh_fname =
-      GENERATE("../../data/amr-quad.mesh", "../../data/fichera-amr.mesh");
+   auto mesh_fname = GENERATE("../../data/amr-quad.mesh",
+                              "../../data/fichera-amr.mesh");
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
    H1_FECollection fec(order, mesh.Dimension());
@@ -579,7 +568,11 @@ TEST_CASE("Restriction Transpose Operator")
    REQUIRE(y3.Normlinf() == MFEM_Approx(0.0));
 }
 
-real_t sin_func(const Vector &x) { return sin(M_PI * x.Sum()); }
+
+real_t sin_func(const Vector &x)
+{
+   return sin(M_PI * x.Sum());
+}
 
 void sin_vfunc(const Vector &x, Vector &y)
 {
@@ -611,20 +604,20 @@ TraceCollections MakeTraceCollections(const VecSpace vectorspace,
       case VecSpace::VectorH1nodes:
       case VecSpace::VectorH1vdim:
          fec.c_fec = std::make_unique<H1_FECollection>(order, dim);
-         fec.f_fec = std::make_unique<H1_FECollection>(order + 1, dim);
+         fec.f_fec = std::make_unique<H1_FECollection>(order+1, dim);
          fec.c_trace_fec = std::make_unique<H1_Trace_FECollection>(order, dim);
-         fec.f_trace_fec = std::make_unique<H1_Trace_FECollection>(order + 1, dim);
+         fec.f_trace_fec = std::make_unique<H1_Trace_FECollection>(order+1, dim);
          break;
       case VecSpace::ND:
          fec.c_fec = std::make_unique<ND_FECollection>(order, dim);
-         fec.f_fec = std::make_unique<ND_FECollection>(order + 1, dim);
+         fec.f_fec = std::make_unique<ND_FECollection>(order+1, dim);
          fec.c_trace_fec = std::make_unique<ND_Trace_FECollection>(order, dim);
-         fec.f_trace_fec = std::make_unique<ND_Trace_FECollection>(order + 1, dim);
+         fec.f_trace_fec = std::make_unique<ND_Trace_FECollection>(order+1, dim);
          break;
       case VecSpace::RT:
-         fec.c_fec = std::make_unique<RT_FECollection>(order - 1, dim);
+         fec.c_fec = std::make_unique<RT_FECollection>(order-1, dim);
          fec.f_fec = std::make_unique<RT_FECollection>(order, dim);
-         fec.c_trace_fec = std::make_unique<RT_Trace_FECollection>(order - 1, dim);
+         fec.c_trace_fec = std::make_unique<RT_Trace_FECollection>(order-1, dim);
          fec.f_trace_fec = std::make_unique<RT_Trace_FECollection>(order, dim);
          break;
    }
@@ -632,20 +625,17 @@ TraceCollections MakeTraceCollections(const VecSpace vectorspace,
 }
 
 template <typename MeshT, typename FESpaceT, typename GridFunctionT>
-void CheckTracePRefinementTrueTransfer(MeshT &mesh, FESpaceT &c_fes,
-                                       FESpaceT &f_fes, FESpaceT &c_trace_fes,
-                                       FESpaceT &f_trace_fes,
+void CheckTracePRefinementTrueTransfer(MeshT &mesh,
+                                       FESpaceT &c_fes, FESpaceT &f_fes,
+                                       FESpaceT &c_trace_fes, FESpaceT &f_trace_fes,
                                        const VecSpace vectorspace,
-                                       const int dim, const bool assembleP)
+                                       const int dim,
+                                       const bool assembleP)
 {
-   GridFunctionT x_c(&c_fes);
-   x_c = 0.0;
-   GridFunctionT x_f(&f_fes);
-   x_f = 0.0;
-   GridFunctionT x_trace_c(&c_trace_fes);
-   x_trace_c = 0.0;
-   GridFunctionT x_trace_f(&f_trace_fes);
-   x_trace_f = 0.0;
+   GridFunctionT x_c(&c_fes); x_c = 0.0;
+   GridFunctionT x_f(&f_fes); x_f = 0.0;
+   GridFunctionT x_trace_c(&c_trace_fes); x_trace_c = 0.0;
+   GridFunctionT x_trace_f(&f_trace_fes); x_trace_f = 0.0;
 
    if (vectorspace == VecSpace::H1)
    {
@@ -703,10 +693,8 @@ void CheckTracePRefinementTrueTransfer(MeshT &mesh, FESpaceT &c_fes,
    // Embed the trace dofs to a field GridFunction for comparison
    Array<int> face_vdofs, trace_vdofs;
    Vector values;
-   GridFunctionT x_embedded_trace_c(&c_fes);
-   x_embedded_trace_c = 0.0;
-   GridFunctionT x_embedded_trace_f(&f_fes);
-   x_embedded_trace_f = 0.0;
+   GridFunctionT x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
+   GridFunctionT x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
    for (int i = 0; i < mesh.GetNumFaces(); i++)
    {
       c_trace_fes.GetFaceVDofs(i, trace_vdofs);
@@ -726,23 +714,24 @@ void CheckTracePRefinementTrueTransfer(MeshT &mesh, FESpaceT &c_fes,
    REQUIRE(x_embedded_trace_f.Norml2() == MFEM_Approx(0.0));
 }
 
-}  // namespace
+} // namespace
+
 
 TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 {
    auto simplex = GENERATE(true, false);
    dimension = GENERATE(2, 3);
    constexpr int ne = 4;
-   auto order = GENERATE(1, 2, 3);
-   auto vectorspace =
-      GENERATE(VecSpace::H1, VecSpace::VectorH1nodes, VecSpace::VectorH1vdim,
-               VecSpace::ND, VecSpace::RT);
+   auto order = GENERATE(1,2,3);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim,
+                               VecSpace::ND,VecSpace::RT);
    auto assembleP = GENERATE(false, true);
    auto amr = GENERATE(false, true);
 
    // Log test case information
    const int total_ne = static_cast<int>(std::pow(ne, dimension));
-   CAPTURE(VecSpaceName(vectorspace), dimension, simplex, total_ne, order,
+   CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
            assembleP);
 
    Mesh mesh;
@@ -757,20 +746,14 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
       mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
    }
 
-   if (amr)
-   {
-      mesh.RandomRefinement(0.5);
-   }
+   if (amr) { mesh.RandomRefinement(0.5); }
 
    auto fec = MakeTraceCollections(vectorspace, order, dimension);
 
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes ||
-                     vectorspace == VecSpace::VectorH1vdim)
-                    ? dimension
-                    : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM
-                             : Ordering::byNODES;
+                             ? Ordering::byVDIM : Ordering::byNODES;
 
    FiniteElementSpace c_fes(&mesh, fec.c_fec.get(), vdim, ordering);
    FiniteElementSpace f_fes(&mesh, fec.f_fec.get(), vdim, ordering);
@@ -781,6 +764,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
       mesh, c_fes, f_fes, c_trace_fes, f_trace_fes, vectorspace, dimension,
       assembleP);
 }
+
 
 #ifdef MFEM_USE_MPI
 
@@ -828,9 +812,10 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
       pfineMesh.UniformRefinement();
    }
 
-   FiniteElementCollection *c_h1_fec = new H1_FECollection(order, dimension);
-   FiniteElementCollection *f_h1_fec =
-      geometric ? c_h1_fec : new H1_FECollection(fineOrder, dimension);
+   FiniteElementCollection *c_h1_fec =
+      new H1_FECollection(order, dimension);
+   FiniteElementCollection *f_h1_fec = geometric ? c_h1_fec : new
+                                       H1_FECollection(fineOrder, dimension);
 
    constexpr int vdim = 1;
 
@@ -838,13 +823,13 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
 
    // Compute reference values in serial
    {
-      FiniteElementSpace *c_h1_fespace =
-         new FiniteElementSpace(&mesh, c_h1_fec, vdim);
-      FiniteElementSpace *f_h1_fespace =
-         new FiniteElementSpace(&fineMesh, f_h1_fec, vdim);
+      FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(&mesh, c_h1_fec,
+                                                                vdim);
+      FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh,
+                                                                f_h1_fec, vdim);
 
-      Operator *transferOperator =
-         new TransferOperator(*c_h1_fespace, *f_h1_fespace);
+      Operator* transferOperator = new TransferOperator(*c_h1_fespace,
+                                                        *f_h1_fespace);
       GridFunction X(c_h1_fespace);
       GridFunction Y(f_h1_fespace);
 
@@ -861,13 +846,15 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
       delete c_h1_fespace;
    }
 
-   ParFiniteElementSpace *c_h1_fespace =
-      new ParFiniteElementSpace(pmesh, c_h1_fec, vdim);
-   ParFiniteElementSpace *f_h1_fespace =
-      new ParFiniteElementSpace(&pfineMesh, f_h1_fec, vdim);
+   ParFiniteElementSpace* c_h1_fespace = new ParFiniteElementSpace(pmesh,
+                                                                   c_h1_fec,
+                                                                   vdim);
+   ParFiniteElementSpace* f_h1_fespace = new ParFiniteElementSpace(&pfineMesh,
+                                                                   f_h1_fec,
+                                                                   vdim);
 
-   Operator *transferOperator =
-      new TrueTransferOperator(*c_h1_fespace, *f_h1_fespace);
+   Operator* transferOperator = new TrueTransferOperator(*c_h1_fespace,
+                                                         *f_h1_fespace);
    ParGridFunction X(c_h1_fespace);
    ParGridFunction Y_exact(f_h1_fespace);
    ParGridFunction Y(f_h1_fespace);
@@ -890,85 +877,17 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    f_h1_fespace->GetRestrictionMatrix()->Mult(Y_exact, Y_true);
    transferOperator->MultTranspose(Y_true, X_true);
 
-   double restrictionValue =
-      std::sqrt(InnerProduct(MPI_COMM_WORLD, X_true, X_true));
-   REQUIRE(std::abs(restrictionValue - referenceRestrictionValue) <
-           1e-12 * std::abs(referenceRestrictionValue));
+   double restrictionValue = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_true,
+                                                    X_true));
+   REQUIRE(std::abs(restrictionValue - referenceRestrictionValue) < 1e-12 *
+           std::abs(referenceRestrictionValue));
 
    delete transferOperator;
    delete f_h1_fespace;
    delete c_h1_fespace;
-   if (!geometric)
-   {
-      delete f_h1_fec;
-   }
+   if (!geometric) { delete f_h1_fec; }
    delete c_h1_fec;
    delete pmesh;
-}
-
-TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
-{
-   auto simplex = GENERATE(true, false);
-   dimension = GENERATE(2, 3);
-   constexpr int ne = 4;
-   auto order = GENERATE(1, 2, 3);
-   auto vectorspace =
-      GENERATE(VecSpace::H1, VecSpace::VectorH1nodes, VecSpace::VectorH1vdim,
-               VecSpace::ND, VecSpace::RT);
-   auto assembleP = GENERATE(true, false);
-
-   auto amr = GENERATE(true, false);
-
-   // Log test case information
-   const int total_ne = static_cast<int>(std::pow(ne, dimension));
-   CAPTURE(VecSpaceName(vectorspace), dimension, simplex, total_ne, order,
-           assembleP);
-
-   Mesh mesh;
-   if (dimension == 2)
-   {
-      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
-      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
-   }
-   else
-   {
-      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
-      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
-   }
-
-   if (amr)
-   {
-      mesh.EnsureNCMesh(true);
-   }
-
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-
-   if (amr)
-   {
-      pmesh.RandomRefinement(0.5);
-   }
-
-   auto fec = MakeTraceCollections(vectorspace, order, dimension);
-
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes ||
-                     vectorspace == VecSpace::VectorH1vdim)
-                    ? dimension
-                    : 1;
-   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM
-                             : Ordering::byNODES;
-
-   ParFiniteElementSpace c_fes(&pmesh, fec.c_fec.get(), vdim, ordering);
-   ParFiniteElementSpace f_fes(&pmesh, fec.f_fec.get(), vdim, ordering);
-   ParFiniteElementSpace c_trace_fes(&pmesh, fec.c_trace_fec.get(), vdim,
-                                     ordering);
-   ParFiniteElementSpace f_trace_fes(&pmesh, fec.f_trace_fec.get(), vdim,
-                                     ordering);
-
-   CheckTracePRefinementTrueTransfer<ParMesh, ParFiniteElementSpace,
-                                     ParGridFunction>(
-                                        pmesh, c_fes, f_fes, c_trace_fes, f_trace_fes, vectorspace, dimension,
-                                        assembleP);
 }
 
 TEST_CASE("Parallel H1 L2 transfer with consistent mass",
@@ -985,12 +904,13 @@ TEST_CASE("Parallel H1 L2 transfer with consistent mass",
    Mesh mesh;
    if (dimension == 2)
    {
-      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL,
+                                   1, 1.0, 1.0);
    }
    else
    {
-      mesh =
-         Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON,
+                                   1.0, 1.0, 1.0);
    }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -1017,9 +937,68 @@ TEST_CASE("Parallel H1 L2 transfer with consistent mass",
 
    const real_t ip1 = InnerProduct(MPI_COMM_WORLD, Rx, y);
    const real_t ip2 = InnerProduct(MPI_COMM_WORLD, x, Rty);
-   REQUIRE(std::abs(ip1 - ip2) < 1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
+   REQUIRE(std::abs(ip1 - ip2) <
+           1e-10 * std::max(std::abs(ip1), std::abs(ip2)));
 
    REQUIRE_FALSE(transfer.SupportsBackwardsOperator());
 }
+
+TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
+{
+   auto simplex = GENERATE(true, false);
+   dimension = GENERATE(2, 3);
+   constexpr int ne = 4;
+   auto order = GENERATE(1,2,3);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim,
+                               VecSpace::ND,VecSpace::RT);
+   auto assembleP = GENERATE(true, false);
+
+   auto amr = GENERATE(true, false);
+
+   // Log test case information
+   const int total_ne = static_cast<int>(std::pow(ne, dimension));
+   CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
+           assembleP);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   }
+
+   if (amr) { mesh.EnsureNCMesh(true); }
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   if (amr) { pmesh.RandomRefinement(0.5); }
+
+   auto fec = MakeTraceCollections(vectorspace, order, dimension);
+
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
+   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
+                             ? Ordering::byVDIM : Ordering::byNODES;
+
+   ParFiniteElementSpace c_fes(&pmesh, fec.c_fec.get(), vdim, ordering);
+   ParFiniteElementSpace f_fes(&pmesh, fec.f_fec.get(), vdim, ordering);
+   ParFiniteElementSpace c_trace_fes(&pmesh, fec.c_trace_fec.get(), vdim,
+                                     ordering);
+   ParFiniteElementSpace f_trace_fes(&pmesh, fec.f_trace_fec.get(), vdim,
+                                     ordering);
+
+   CheckTracePRefinementTrueTransfer<ParMesh, ParFiniteElementSpace, ParGridFunction>
+   (
+      pmesh, c_fes, f_fes, c_trace_fes, f_trace_fes, vectorspace, dimension,
+      assembleP);
+}
+
+
 
 #endif
