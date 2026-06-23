@@ -19,6 +19,7 @@
 
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
+#include <vector>
 
 using namespace mfem;
 using namespace std;
@@ -93,7 +94,7 @@ int main (int argc, char *argv[])
          // b pulls the top-right corner out.
          // c adds boundary deformation.
          // a = 0.0, b = 0.5, c = 0.0; // linear.
-         a = 0.2, b = 0.1, c = 1.2; // curved.
+         a = 0.2, b = 0.5, c = 1.5; // curved.
          coord_x(i)     = x + a * sin(0.5 * M_PI * x) * sin(c * M_PI * y)   + b * x * y;
          coord_x(i + N) = y + a * sin(c * M_PI * x)   * sin(0.5 * M_PI * y) + b * x * y;
       }
@@ -135,81 +136,93 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(min_detJ > 0.0, "Inverted initial meshes are not supported.");
 
    // Mark which nodes to move tangentially.
-   Array<bool> fit_marker_top(pfes_mesh.GetNDofs());
-   Array<bool> fit_marker_right(pfes_mesh.GetNDofs());
-   Array<bool> fit_marker_2(pfes_mesh.GetNDofs());
+   std::vector<Array<bool>> fit_markers;
+   Array<int> ess_vdofs, ess_vdofs_marker;
+   ess_vdofs_marker.SetSize(pfes_mesh.GetVSize());
+   ess_vdofs_marker = 0;
    ParFiniteElementSpace pfes_scalar(&pmesh, &fec_mesh, 1);
    ParGridFunction fit_marker_vis_gf(&pfes_scalar);
-   Array<int> vdofs, ess_vdofs;
-   fit_marker_top   = false;
-   fit_marker_right = false;
-   fit_marker_2     = false;
    fit_marker_vis_gf = 0.0;
-   for (int e = 0; e < pmesh.GetNBE(); e++)
-   {
-      const int attr = pmesh.GetBdrElement(e)->GetAttribute();
-      const int nd = pfes_mesh.GetBE(e)->GetDof();
-      pfes_mesh.GetBdrElementVDofs(e, vdofs);
 
-      // Top boundary.
-      if (attr == 1)
+   if (dim == 2)
+   {
+      enum FitMarkerId
       {
-         for (int j = 0; j < nd; j++)
-         {
-            // Eliminate y component.
-            ess_vdofs.Append(vdofs[j+nd]);
-            fit_marker_top[vdofs[j]] = true;
-         }
+         TOP_MARKER = 0,
+         RIGHT_MARKER,
+         FIXED_MARKER
+      };
+      fit_markers.reserve(3);
+      for (int i = 0; i < 3; i++)
+      {
+         fit_markers.emplace_back(pfes_mesh.GetNDofs());
+         fit_markers.back() = false;
       }
-      // Right boundary.
-      else if (attr == 2)
+      Array<bool> &fit_marker_top = fit_markers[TOP_MARKER];
+      Array<bool> &fit_marker_right = fit_markers[RIGHT_MARKER];
+      Array<bool> &fit_marker_fixed = fit_markers[FIXED_MARKER];
+
+      Array<int> top_bdr(pmesh.bdr_attributes.Max());
+      Array<int> right_bdr(pmesh.bdr_attributes.Max());
+      Array<int> bottom_bdr(pmesh.bdr_attributes.Max());
+      Array<int> left_bdr(pmesh.bdr_attributes.Max());
+      top_bdr = 0;
+      right_bdr = 0;
+      bottom_bdr = 0;
+      left_bdr = 0;
+
+      // For the square meshes used here, boundary attributes map to sides as
+      // follows: 1 -> top, 2 -> right, 3 -> bottom, 4 -> left.
+      top_bdr[0] = 1;
+      right_bdr[1] = 1;
+      bottom_bdr[2] = 1;
+      left_bdr[3] = 1;
+
+      Array<int> top_x_marker, right_x_marker, bottom_x_marker, left_x_marker;
+      Array<int> top_y_marker, right_y_marker, bottom_y_marker;
+      pfes_mesh.GetEssentialVDofs(top_bdr, top_x_marker, 0);
+      pfes_mesh.GetEssentialVDofs(right_bdr, right_x_marker, 0);
+      pfes_mesh.GetEssentialVDofs(bottom_bdr, bottom_x_marker, 0);
+      pfes_mesh.GetEssentialVDofs(left_bdr, left_x_marker, 0);
+      pfes_mesh.GetEssentialVDofs(top_bdr, top_y_marker, 1);
+      pfes_mesh.GetEssentialVDofs(right_bdr, right_y_marker, 1);
+      pfes_mesh.GetEssentialVDofs(bottom_bdr, bottom_y_marker, 1);
+
+      for (int vdof = 0; vdof < pfes_mesh.GetVSize(); vdof++)
       {
-         for (int j = 0; j < nd; j++)
+         const int dof = pfes_mesh.VDofToDof(vdof);
+         if (top_x_marker[vdof]) { fit_marker_top[dof] = true; }
+         if (right_x_marker[vdof]) { fit_marker_right[dof] = true; }
+         if (bottom_x_marker[vdof] || left_x_marker[vdof]) { fit_marker_fixed[dof] = true; }
+
+         // The y-components of the top and right boundaries are marked as
+         // since the parameterization variable t is tracked in the x-component.
+         // The bottom and left boundaries are undeformed, so their normal
+         // components are eliminated.
+         if (top_y_marker[vdof] || right_y_marker[vdof] ||
+            bottom_y_marker[vdof] || left_x_marker[vdof])
          {
-            // Eliminate y component.
-            ess_vdofs.Append(vdofs[j+nd]);
-            fit_marker_right[vdofs[j]] = true;
-         }
-      }
-      // Bottom boundary.
-      else if (attr == 3)
-      {
-         // Fix y components.
-         for (int j = 0; j < nd; j++)
-         {
-            fit_marker_2[vdofs[j]] = true;
-            ess_vdofs.Append(vdofs[j+nd]);
-         }
-      }
-      // Left boundary.
-      else if (attr == 4)
-      {
-         // Fix x components.
-         for (int j = 0; j < nd; j++)
-         {
-            fit_marker_2[vdofs[j]] = true;
-            ess_vdofs.Append(vdofs[j]);
+            ess_vdofs_marker[vdof] = 1;
          }
       }
    }
 
-   for (int e = 0; e < pmesh.GetNBE(); e++)
+   for (int dof = 0; dof < pfes_mesh.GetNDofs(); dof++)
    {
-      pfes_mesh.GetBdrElementVDofs(e, vdofs);
-      const int nd = pfes_mesh.GetBE(e)->GetDof();
-
-      for (int j = 0; j < nd; j++)
+      int cnt = 0;
+      for (const auto &fit_marker : fit_markers)
       {
-         int cnt = 0;
-         if (fit_marker_top[vdofs[j]])   { cnt++; }
-         if (fit_marker_right[vdofs[j]]) { cnt++; }
-         if (fit_marker_2[vdofs[j]])     { cnt++; }
+         if (fit_marker[dof]) { cnt++; }
+      }
 
-         fit_marker_vis_gf(vdofs[j]) = cnt;
+      fit_marker_vis_gf(dof) = cnt;
 
-         if (cnt > 1) { ess_vdofs.Append(vdofs[j]); }
+      if (cnt > 1)
+      {
+         ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 0)] = 1;
       }
    }
+   FiniteElementSpace::MarkerToList(ess_vdofs_marker, ess_vdofs);
 
    // Visualize the selected nodes and their target positions.
    if (glvis)
@@ -223,15 +236,20 @@ int main (int argc, char *argv[])
    }
 
    Array<AnalyticSurface *> surf_array;
-   Line_Top line_top(fit_marker_top);
-   Line_Right line_right(fit_marker_right);
-   Curve_Sine_Top curve_top(fit_marker_top, a, b, c);
-   Curve_Sine_Right curve_right(fit_marker_right, a, b, c);
 
-   // surf_array.Append(&line_top);
-   // surf_array.Append(&line_right);
-   surf_array.Append(&curve_top);
-   surf_array.Append(&curve_right);
+   // 2D Curves
+   // Line_Top line_top(fit_markers[0]);
+   // Line_Right line_right(fit_markers[1]);
+   Curve_Sine_Top curve_top(fit_markers[0], a, b, c);
+   Curve_Sine_Right curve_right(fit_markers[1], a, b, c);
+
+   if (dim == 2)
+   {
+      // surf_array.Append(&line_top);
+      // surf_array.Append(&line_right);
+      surf_array.Append(&curve_top);
+      surf_array.Append(&curve_right);
+   }
 
    AnalyticCompositeSurface surfaces(surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
