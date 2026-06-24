@@ -18,6 +18,7 @@
 // Sample runs:  mpirun -np 4 dfem-hyperelasticity -o 1 -rs 0 -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat linear-elastic -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat mooney-rivlin -no-vis
+//               mpirun -np 4 dfem-hyperelasticity -mat holzapfel -no-vis
 //
 // Description:  This miniapp solves a quasistatic solid mechanics problem on
 //               the 3D beam used by the Hooke miniapp. The material response is
@@ -64,7 +65,8 @@ enum class MaterialType
 {
    NeoHookean,
    LinearElastic,
-   MooneyRivlin
+   MooneyRivlin,
+   Holzapfel
 };
 
 enum class PreconditionerType
@@ -88,9 +90,13 @@ MaterialType ParseMaterial(const char *material)
    {
       return MaterialType::MooneyRivlin;
    }
+   if (name == "holzapfel" || name == "fiber" || name == "fiber-reinforced")
+   {
+      return MaterialType::Holzapfel;
+   }
    MFEM_ABORT("Unknown material '" << name
               << "'. Available materials: neo-hookean, linear-elastic, "
-              << "mooney-rivlin.");
+              << "mooney-rivlin, holzapfel.");
    return MaterialType::NeoHookean;
 }
 
@@ -132,7 +138,7 @@ struct NeoHookeanEnergy :
    // Ψ(F) = D1 (J - 1)^2 + C1 (J^(-2/3) I1 - dim),
    //        J = det(F), I1 = tr(FᵀF).
    // This gives σ = 2 D1 (J - 1) I + 2 C1 J^(-5/3) dev(F Fᵀ)
-   // consistent with the Hooke miniapp.
+   // consistent with the Hooke miniapp
    MFEM_HOST_DEVICE inline
    dscalar_t psi(const tensor<dscalar_t, dim, dim> &F,
                  const tensor<dscalar_t, dim, dim> & /* dudx */) const
@@ -191,6 +197,58 @@ struct MooneyRivlinEnergy :
              + 0.5_r * kappa * log_J * log_J;
    }
 };
+
+template <typename dscalar_t>
+struct HolzapfelEnergy :
+   HyperelasticEnergyQFunction<HolzapfelEnergy<dscalar_t>, dscalar_t>
+{
+   real_t c = 50.0;
+   real_t kappa = 100.0;
+   real_t k1 = 10.0;
+   real_t k2 = 20.0;
+   //tensor<real_t, dim> a0 = {1.0, 0.0, 0.0};
+   tensor<real_t, dim> a0 = {0.7071067811865475, 0.7071067811865475, 0.0}; // Normalized fiber direction in the x-y plane at 45 degrees a = (1, 1, 0) / sqrt(2)
+   tensor<real_t, dim, dim> A = make_tensor<dim, dim>(
+   [&](int i, int j) { return a0(i) * a0(j); });
+
+   // Holzapfel-type transversely reinforced model with one fiber family a0:
+   // Ψ(F) = c/2 (Ī₁ - dim) + κ/2 log(J)^2
+   //      + k1/(2 k2) (exp(k2 (Ī₄ - 1)^2) - 1),
+   // where Ī₁ = J^(-2/3) tr(C), I₄ = A : C = a0.C.a0  
+   // A = a0 ⊗ a0 is the fiber direction tensor. 
+   // We use the full I4 invariant, to avoid auxetic behavior
+   //
+   // In this case we assume that the fiber direction is oriented 45 degrees in the x-y plane, i.e. a0 = (1, 1, 0)/sqrt(2).
+   // For a more general case one could start from an external fiber "field", and provide it as an input
+   // to the q-function, and then compute A = a0 ⊗ a0 at each quadrature point.
+   // This would require a different q-function signature including the fiber direction as well.
+   MFEM_HOST_DEVICE inline
+   dscalar_t psi(const tensor<dscalar_t, dim, dim> &F,
+                 const tensor<dscalar_t, dim, dim> & /* dudx */) const
+   {
+      // Kinematic quantities
+      const auto C = transpose(F) * F;
+      const auto J = det(F);
+      const auto Jm23 = pow(J, -2.0_r / 3.0_r);
+
+      // Strain invariants
+      const auto I1_bar = Jm23 * tr(C);
+      const auto I4 = ddot(C, A);     
+      const auto fiber_strain = I4 - 1.0_r;
+      const auto log_J = log(J);
+
+      // Strain energy density components
+      const auto psi_vol = 0.5_r * kappa * log_J * log_J;
+      const auto psi_iso = 0.5_r * c * (I1_bar - real_t(dim));
+      const auto psi_aniso = (k1 / (2.0_r * k2)) * (exp(k2 * fiber_strain * fiber_strain) - 1.0_r);
+      // NOTE: in practice the anisotropic term should contribute only in tension, i.e. when I4 > 1, or fiber_strain > 0. 
+      // mathematically this would introduce a non-smoothness in the energy functional that needs to taken care of.
+
+      return psi_vol + psi_iso + psi_aniso;
+   }
+};
+
+
 
 class HyperelasticOperator : public Operator
 {
@@ -333,6 +391,19 @@ public:
                ir, all_domain_attr, derivatives);
             break;
          }
+         case MaterialType::Holzapfel:
+         {
+            // Fiber-reinforced Holzapfel-type material with fibers aligned to
+            // the beam axis. The functional registration lets dFEM derive both
+            // the residual and the Hessian-vector product from the energy.
+            HolzapfelEnergy<dscalar_t> energy;
+            internal_energy_dop->AddDomainIntegrator<LocalQFBackend, true>(
+               energy,
+               Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
+               Outputs<Identity<Energy>> {},
+               ir, all_domain_attr, derivatives);
+            break;
+         }
       }
 
       // The first variation of a functional is exposed as a stateless
@@ -417,6 +488,7 @@ int main(int argc, char *argv[])
    int order = 1;
    const char *device_config = "cpu";
    int serial_refinement_levels = 0;
+   real_t cg_tol = 1e-1; 
    const char *material_name = "neo-hookean";
    int prec_type = static_cast<int>(PreconditionerType::None);
    bool visualization = true;
@@ -432,9 +504,11 @@ int main(int argc, char *argv[])
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
    args.AddOption(&material_name, "-mat", "--material",
-                  "Material: neo-hookean, linear-elastic, or mooney-rivlin.");
+                  "Material: neo-hookean, linear-elastic, mooney-rivlin, or holzapfel.");
    args.AddOption(&prec_type, "-pc", "--preconditioner",
                   "Preconditioner: 0=none, 1=diagonal.");
+   args.AddOption(&cg_tol, "-tol", "--cg-tol",
+                  "Relative tolerance for the CG solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -506,7 +580,7 @@ int main(int argc, char *argv[])
    U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
 
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-1);
+   cg.SetRelTol(cg_tol);    
    cg.SetMaxIter(10000);
    cg.SetPrintLevel(2);
 
