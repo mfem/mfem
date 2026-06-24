@@ -14,8 +14,12 @@ if (MFEM_USE_MPI)
         MAIN dfem-minimal-surface.cpp
         LIBRARIES mfem)
 
-    add_mfem_miniapp(dfem-hyperelasticity
-        MAIN dfem-hyperelasticity.cpp
+    add_mfem_miniapp(dfem-hyperelasticity-energy
+        MAIN dfem-hyperelasticity_energy.cpp
+        LIBRARIES mfem)
+
+    add_mfem_miniapp(dfem-hyperelasticity-stress
+        MAIN dfem-hyperelasticity_stress.cpp
         LIBRARIES mfem)
 
     # Add parallel tests.
@@ -25,9 +29,14 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-minimal-surface> -der 0 -o 1 -r 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
 
-        add_test(NAME dfem-hyperelasticity=${MFEM_MPI_NP}
+        add_test(NAME dfem-hyperelasticity-energy=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-hyperelasticity> -o 1 -rs 0 -no-vis
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-hyperelasticity-energy> -o 1 -rs 0 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-hyperelasticity-stress=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-hyperelasticity-stress> -o 1 -rs 0 -no-vis
         ${MPIEXEC_POSTFLAGS})
     endif()
 endif()
