@@ -70,7 +70,8 @@ examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
 
-examples/refined.mesh
+# TODO commented out for testing only
+# examples/refined.mesh
 examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
