@@ -12,8 +12,10 @@
 # Skip dFEM qfunction with floats
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
-	list(APPEND PAR_MTOP_SOURCES )
-	list(APPEND PAR_MTOP_HEADERS par_diffusion_solver.hpp)
+	list(APPEND PAR_MTOP_SOURCES MassMatrixSolver.cpp)
+	list(APPEND PAR_MTOP_HEADERS 
+			par_diffusion_solver.hpp 
+			MassMatrixSolver.hpp)
 
 	convert_filenames_to_full_paths(PAR_MTOP_SOURCES)
 	convert_filenames_to_full_paths(PAR_MTOP_HEADERS)
@@ -31,5 +33,11 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
                                          MAIN test_par_diffusion_solver.cpp
                                          ${PAR_MTOP_COMMON_FILES}
                                          LIBRARIES mfem)
+        
+        add_mfem_miniapp(mass_solver
+                                       MAIN mass_solver_driver.cpp
+                                       ${PAR_MTOP_COMMON_FILES}
+                                       LIBRARIES mfem)
+
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
