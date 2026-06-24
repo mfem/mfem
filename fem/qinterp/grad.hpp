@@ -98,6 +98,15 @@ static void Derivatives1D(const int NE,
    });
 }
 
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void IntDerivatives1D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim,
+                             const int vdim, const int d1d, const int q1d)
+{
+   // TODO
+}
+
 // Template compute kernel for derivatives in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
@@ -227,6 +236,18 @@ static void Derivatives2D(const int NE,
          MFEM_SYNC_THREAD;
       }
    });
+}
+
+// Template compute kernel for derivatives in 2D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0, int T_NBZ = 1>
+static void IntDerivatives2D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 2,
+                             const int vdim = 0, const int d1d = 0,
+                             const int q1d = 0)
+{
+   // TODO
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
@@ -371,6 +392,18 @@ static void Derivatives3D(const int NE,
          MFEM_SYNC_THREAD;
       }
    });
+}
+
+// Template compute kernel for derivatives in 3D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0>
+static void IntDerivatives3D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 3,
+                             const int vdim = 0, const int d1d = 0,
+                             const int q1d = 0)
+{
+   // TODO
 }
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
@@ -595,6 +628,17 @@ QuadratureInterpolator::GradKernels::Kernel()
    if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
    else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
    else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   MFEM_ABORT("");
+}
+
+template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+          int Q1D, int NBZ>
+QuadratureInterpolator::IntGradKernelType
+QuadratureInterpolator::IntGradKernels::Kernel()
+{
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::IntDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::IntDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::IntDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
    MFEM_ABORT("");
 }
 

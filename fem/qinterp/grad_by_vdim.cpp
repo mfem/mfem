@@ -22,24 +22,23 @@ namespace quadrature_interpolator
 template <bool P>
 void InitGradByVDimKernels()
 {
-   using k = QuadratureInterpolator::GradKernels;
    constexpr auto L = QVectorLayout::byVDIM;
    // 2D
-   k::Specialization<2,L,P,1,3,4>::template Opt<8>::Add();
-   k::Specialization<2,L,P,1,4,6>::template Opt<4>::Add();
-   k::Specialization<2,L,P,1,5,8>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,3,4,8>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,4,6,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,5,8,2>();
 
-   k::Specialization<2,L,P,2,3,3>::template Opt<8>::Add();
-   k::Specialization<2,L,P,2,3,4>::template Opt<8>::Add();
-   k::Specialization<2,L,P,2,4,6>::template Opt<4>::Add();
-   k::Specialization<2,L,P,2,5,8>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,3,3,8>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,3,4,8>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,6,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,5,8,2>();
    // 3D
-   k::Specialization<3,L,P,1,3,4>::Add();
-   k::Specialization<3,L,P,1,4,6>::Add();
-   k::Specialization<3,L,P,1,5,8>::Add();
-   k::Specialization<3,L,P,3,3,4>::Add();
-   k::Specialization<3,L,P,3,4,6>::Add();
-   k::Specialization<3,L,P,3,5,8>::Add();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,3,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,4,6>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,5,8>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,3,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,4,6>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,5,8>();
 
    using k2 = QuadratureInterpolator::CollocatedGradKernels;
    // 2D
