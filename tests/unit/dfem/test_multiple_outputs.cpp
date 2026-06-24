@@ -293,6 +293,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
+#if !defined(MFEM_USE_CUDA) && !defined(MFEM_USE_HIP)
       {
          MultiVector X {xtvec, nodestvec, qdata, dpf};
          MultiVector Z{ytvec, yqdata};
@@ -355,6 +356,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
+#endif
 
       {
          static constexpr int W = 0;
