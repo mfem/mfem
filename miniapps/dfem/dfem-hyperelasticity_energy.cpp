@@ -54,8 +54,7 @@ using dscalar_t = dual<real_t, real_t>;
 
 #ifdef MFEM_USE_ENZYME
 
-namespace
-{
+
 constexpr int dim = 3;
 constexpr int Displacement = 0;
 constexpr int Coords = 1;
@@ -394,8 +393,6 @@ private:
    std::shared_ptr<DerivativeOperator> gradient;
    mutable std::shared_ptr<HessianOperator> hessian;
 };
-
-} // namespace
 
 #endif // MFEM_USE_ENZYME
 
