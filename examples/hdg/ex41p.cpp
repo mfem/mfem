@@ -1,18 +1,18 @@
-//                                MFEM Example 41 - Parallel Version
+//                      MFEM Example 41 - Parallel HDG Version
 //
 // Compile with: make ex41p
 //
 // Sample runs:
-//  mpirun -np 4 ex41p
-//  mpirun -np 4 ex41p -cg
-//  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
-//  mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
-//  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
-//  mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9
-//  mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//  mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//  mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20
-//  mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8
+//  mpirun -np 4 ex41p -hb -dg
+//  mpirun -np 4 ex41p -rd -brt
+//  mpirun -np 4 ex41p -m ../../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10 -hb -dg -trh1
+//  mpirun -np 4 ex41p -m ../../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9 -rd -dg
+//  mpirun -np 4 ex41p -m ../../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9 -hb -brt
+//  mpirun -np 4 ex41p -m ../../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9 -hb -dg
+//  mpirun -np 4 ex41p -m ../../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -rd -brt
+//  mpirun -np 4 ex41p -m ../../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9 -hb -brt
+//  mpirun -np 4 ex41p -m ../../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20 -hb -trh1
+//  mpirun -np 4 ex41p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8 -hb -dg -trh1
 //
 // Device sample runs:
 //
@@ -21,11 +21,10 @@
 //               given fluid velocity, a is the diffusion coefficient, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), DG-LOR Preconditioning
-//               and the use of IMEX ODE time integrators.
-//
-//               The Option to use Continuous Finite Elements is available too.
+//               The example demonstrates the use of mixed / local /
+//               hybridizable Discontinuous Galerkin (DG) bilinear forms in MFEM
+//               (face integrators), AMG preconditioning and the use of IMEX ODE
+//               time integrators.
 
 #include "mfem.hpp"
 
@@ -92,7 +91,6 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-
 // Initial condition
 template<int problem=0>
 real_t u0_function(const Vector &x)
@@ -147,7 +145,8 @@ real_t u0_function(const Vector &x)
    return 0.0;
 }
 
-
+/// Solver for the implicit part of the ODE (the diffusion term).
+/// Solves systems of the form: (M + dt*S) k = rhs.
 class Implicit_Solver : public Solver
 {
 private:
@@ -297,11 +296,12 @@ public:
    }
 };
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b
-    , where M and K are the mass and advection matrices, and b describes the
-    flow on the boundary. In the case of IMEX evolution, the diffusion term is
-    treated implicitly, and the advection term is treated explicitly.  */
+/** A time-dependent operator for the right-hand side of the ODE. The weak
+    form of the advection-diffusion equation is M du/dt = K u - S u + b,
+    where M is the mass matrix, K and S are the advection and diffusion
+    matrices, and b describes the flow on the boundary. In the case of IMEX
+    evolution, the diffusion term is treated implicitly, and the advection
+    term is treated explicitly.  */
 class IMEX_Evolution : public TimeDependentOperator
 {
 private:
@@ -319,8 +319,10 @@ public:
    IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParDarcyForm &darcy_,
                   const Vector &b_);
 
+   /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
    void Mult1(const Vector &x, Vector &y) const;
 
+   /// Evaluate k2: M*k2 = G2(u+k2*dt,t); -> (M+S*dt)*k2=-S*u
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
 
    void Mult(const Vector &x, Vector &y) const override
@@ -475,8 +477,9 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 7. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh.
+   // 7. Define a finite element space on the mesh. Here we use the
+   //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
+   //    the specified order.
    FiniteElementCollection *V_coll;
    if (dg)
    {
@@ -508,9 +511,8 @@ int main(int argc, char *argv[])
       cout << "Number of potential unknowns: " << global_W_vSize << endl;
    }
 
-   // 8. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
-   //    interior faces.
+   // 8. Set up the bilinear and linear forms corresponding to the DG
+   //    discretization.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
    if (0==problem)
    {
@@ -578,7 +580,7 @@ int main(int argc, char *argv[])
                                                                     alpha));
    k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
 
-   // Set hybridization / assembly level
+   // 9. Initialize hybridization / reduction.
 
    Array<int> ess_flux_tdofs_list;
 
@@ -609,6 +611,8 @@ int main(int argc, char *argv[])
       MFEM_ABORT("Non-reduced mixed system is not supported.");
    }
 
+   // 10. Assemble the bilinear forms.
+
    int skip_zeros = 0;
    m.Assemble(skip_zeros);
    k.Assemble(skip_zeros);
@@ -624,7 +628,7 @@ int main(int argc, char *argv[])
       darcy.Finalize(skip_zeros);
    }
 
-   // 9. Define the initial conditions. Set up visualization (if desired).
+   // 11. Define the initial conditions. Set up visualization (if desired).
    std::unique_ptr<FunctionCoefficient> u0;
    if (0==problem)
    {
@@ -720,7 +724,7 @@ int main(int argc, char *argv[])
    if (adios2)
    {
       std::string postfix(mesh_file);
-      postfix.erase(0, std::string("../data/").size() );
+      postfix.erase(0, std::string("../../data/").size() );
       postfix += "_o" + std::to_string(order);
       const std::string collection_name = "ex41-p-" + postfix + ".bp";
 
@@ -736,15 +740,14 @@ int main(int argc, char *argv[])
 #endif
 
 
-   // 10. Define the time-dependent evolution operator describing the
-   //     ODE right-hand side, and perform time-integration (looping
-   //     over the time iterations, ti, with a time-step dt).
+   // 12. Define the time-dependent evolution operator describing the ODE
+   //     right-hand side, and perform time-integration (looping over the time
+   //     iterations, ti, with a time-step dt).
    IMEX_Evolution adv(m, k, darcy, *bp);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
-
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -785,7 +788,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 11. Free the used memory.
+   // 13. Free the used memory.
    delete pd;
    delete U;
    delete u;

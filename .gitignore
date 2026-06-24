@@ -178,6 +178,7 @@ examples/hdg/ex21*.mesh
 examples/hdg/ex21*.sol
 examples/hdg/ex21p_*.*
 examples/hdg/ex41
+examples/hdg/ex41p
 examples/hdg/Example41*
 examples/hdg/ex41-p-*.bp
 

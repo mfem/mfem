@@ -255,7 +255,6 @@ public:
          mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
       }
    }
-
 };
 
 
@@ -353,8 +352,8 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
+   // 6. Set up the bilinear and linear forms corresponding to the DG
+   //    discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
    if (0==problem)
@@ -399,6 +398,7 @@ int main(int argc, char *argv[])
       s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
    }
 
+   // 7. Assemble the bilinear forms.
 
    int skip_zeros = 0;
    m.Assemble(skip_zeros);
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
    k.Finalize(skip_zeros);
    s.Finalize(skip_zeros);
 
-   // 7. Define the initial conditions.
+   // 8. Define the initial conditions.
    std::unique_ptr<FunctionCoefficient> u0;
    if (0==problem)
    {
@@ -431,8 +431,8 @@ int main(int argc, char *argv[])
    GridFunction u(&fes);
    u.ProjectCoefficient(*u0);
 
-   // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
+   // 9. Create data collection for solution output: either VisItDataCollection
+   //    for ascii data files, or SidreDataCollection for binary data files.
    DataCollection *dc = NULL;
    if (visit)
    {
@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-   // 8. Set up paraview visualization, if desired.
+   // 10. Set up paraview visualization, if desired.
    unique_ptr<ParaViewDataCollection> pv;
    if (paraview)
    {
@@ -494,7 +494,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 9. Define the time-dependent evolution operator describing the ODE
+   // 11. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    IMEX_Evolution adv(m, k, s, b);
@@ -534,6 +534,8 @@ int main(int argc, char *argv[])
 
       }
    }
+
+   // 12. Free the used memory.
 
    delete fec;
    return 0;

@@ -92,7 +92,6 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-
 // Initial condition
 template<int problem=0>
 real_t u0_function(const Vector &x)
@@ -147,7 +146,8 @@ real_t u0_function(const Vector &x)
    return 0.0;
 }
 
-
+/// Solver for the implicit part of the ODE (the diffusion term).
+/// Solves systems of the form: (M + dt*S) k = rhs.
 class Implicit_Solver : public Solver
 {
 private:
@@ -214,11 +214,12 @@ public:
    }
 };
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b
-    , where M and K are the mass and advection matrices, and b describes the
-    flow on the boundary. In the case of IMEX evolution, the diffusion term is
-    treated implicitly, and the advection term is treated explicitly.  */
+/** A time-dependent operator for the right-hand side of the ODE. The weak
+    form of the advection-diffusion equation is M du/dt = K u - S u + b,
+    where M is the mass matrix, K and S are the advection and diffusion
+    matrices, and b describes the flow on the boundary. In the case of IMEX
+    evolution, the diffusion term is treated implicitly, and the advection
+    term is treated explicitly.  */
 class IMEX_Evolution : public TimeDependentOperator
 {
 private:
@@ -235,8 +236,10 @@ public:
    IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_,
                   const Vector &b_, ParBilinearForm &A_);
 
+   /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
    void Mult1(const Vector &x, Vector &y) const;
 
+   /// Evaluate k2: M*k2 = G2(u+k2*dt,t); -> (M+S*dt)*k2=-S*u
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
 
    void Mult(const Vector &x, Vector &y) const override
@@ -405,8 +408,8 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // 8. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
+   // 8. Set up the bilinear and linear forms corresponding to the DG
+   //    discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
    if (0==problem)
@@ -457,6 +460,8 @@ int main(int argc, char *argv[])
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
    }
 
+   // 9. Assemble the bilinear forms.
+
    int skip_zeros = 0;
    m->Assemble(skip_zeros);
    k->Assemble(skip_zeros);
@@ -470,7 +475,7 @@ int main(int argc, char *argv[])
    HypreParVector b(fes);
    b = 0.0;
 
-   // 9. Define the initial conditions. Set up visualization (if desired).
+   // 10. Define the initial conditions. Set up visualization (if desired).
    std::unique_ptr<FunctionCoefficient> u0;
    if (0==problem)
    {
@@ -582,15 +587,14 @@ int main(int argc, char *argv[])
 #endif
 
 
-   // 10. Define the time-dependent evolution operator describing the
-   //     ODE right-hand side, and perform time-integration (looping
-   //     over the time iterations, ti, with a time-step dt).
+   // 11. Define the time-dependent evolution operator describing the ODE
+   //     right-hand side, and perform time-integration (looping over the time
+   //     iterations, ti, with a time-step dt).
    IMEX_Evolution adv(*m, *k, *s, b, *a);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
-
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -631,7 +635,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 11. Free the used memory.
+   // 12. Free the used memory.
    delete pd;
    delete U;
    delete u;
