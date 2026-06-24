@@ -46,8 +46,94 @@ RT_FECollection *NewLOR_FE_Collection<RT_FECollection>(int order, int dim)
    return new RT_FECollection(order-1, dim, b1, b2);
 }
 
-template <typename FE_COLL, typename INTEG_1, typename INTEG_2>
-void TestBatchedLOR()
+std::function<real_t(const Vector &)> coeff_fn(int dim)
+{
+   if (dim == 2)
+   {
+      return [](const Vector &x)
+      {
+         return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) + 2.0;
+      };
+   }
+   else if (dim == 3)
+   {
+      return [](const Vector &x)
+      {
+         return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) *
+                sin(4.0 * M_PI * x[2]) + 2.0;
+      };
+   }
+   MFEM_ABORT("Unsupported dimension.");
+}
+
+std::function<void(const Vector &, Vector &)> vector_fn(int dim)
+{
+   if (dim == 2)
+   {
+      return [](const Vector &x, Vector &f)
+      {
+         f[0] = sin(M_PI * x[1]);
+         f[1] = sin(2.5 * M_PI * x[0]);
+      };
+   }
+   else if (dim == 3)
+   {
+      return [](const Vector &x, Vector &f)
+      {
+         f[0] = sin(M_PI * x[1]);
+         f[1] = sin(2.5 * M_PI * x[0]);
+         f[2] = sin(6.1 * M_PI * x[2]);
+      };
+   }
+   MFEM_ABORT("Unsupported dimension.");
+}
+
+std::function<void(const Vector &, DenseMatrix &)> matrix_fn(int dim)
+{
+   if (dim == 2)
+   {
+      return [](const Vector &x, DenseMatrix &f)
+      {
+         f = 0.0;
+         f(0,0) = 1.1 + sin(M_PI * x[1]);  //
+         f(0,1) = f(1,0) = cos(2.5 * M_PI * x[0]);
+         f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);
+      };
+   }
+   else if (dim == 3)
+   {
+      return [](const Vector &x, DenseMatrix &f)
+      {
+         f = 0.0;
+         f(0,0) = sin(M_PI * x[1]);
+         f(0,1) = f(1,0) = cos(2.5 * M_PI * x[0]);
+         f(0,2) = f(2,0) = sin(4.9 * M_PI * x[2]);
+         f(1,1) = sin(6.1 * M_PI * x[1]);
+         f(1,2) = f(2,1) = cos(6.1 * M_PI * x[2]);
+         f(2,2) = sin(6.1 * M_PI * x[2]);
+      };
+   }
+   MFEM_ABORT("Unsupported dimension.");
+}
+
+std::unique_ptr<Coefficient> make_scalar_coeff(int dim)
+{
+   return std::make_unique<FunctionCoefficient>(coeff_fn(dim));
+}
+
+std::unique_ptr<VectorCoefficient> make_vector_coeff(int dim)
+{
+   return std::make_unique<VectorFunctionCoefficient>(dim, vector_fn(dim));
+}
+
+std::unique_ptr<MatrixCoefficient> make_matrix_coeff(int dim)
+{
+   return std::make_unique<MatrixFunctionCoefficient>(dim, matrix_fn(dim));
+}
+
+template <typename FE_COLL, typename INTEG_1, typename INTEG_2,
+          typename MK_COEFF_1, typename MK_COEFF_2>
+void TestBatchedLOR(MK_COEFF_1 mk_coeff_1, MK_COEFF_2 mk_coeff_2)
 {
    const int order = 5;
    const auto mesh_fname = GENERATE(
@@ -55,6 +141,7 @@ void TestBatchedLOR()
                               "../../data/star-q3.mesh",
                               "../../data/fichera-q3.mesh"
                            );
+   CAPTURE(mesh_fname);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
 
@@ -65,19 +152,20 @@ void TestBatchedLOR()
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
-   // Test variable coefficients using grid functions defined on a H1 space
-   H1_FECollection h1fec(2, mesh.Dimension());
-   FiniteElementSpace h1fes(&mesh, &h1fec);
-   GridFunction gf1(&h1fes), gf2(&h1fes);
-   gf1.Randomize(1);
-   gf2.Randomize(2);
+   auto coeff_1 = mk_coeff_1(mesh.SpaceDimension());
+   auto coeff_2 = mk_coeff_2(mesh.SpaceDimension());
 
-   GridFunctionCoefficient mass_coeff(&gf1);
-   GridFunctionCoefficient diff_coeff(&gf2);
+   // curl-curl can accept matrix coefficients in 3D only
+   if (std::is_same_v<INTEG_2,CurlCurlIntegrator> &&
+       mesh.Dimension() == 2 &&
+       !std::is_base_of_v<Coefficient, typename std::pointer_traits<decltype(coeff_2)>::element_type>)
+   {
+      return; // skip
+   }
 
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new INTEG_1(mass_coeff));
-   a.AddDomainIntegrator(new INTEG_2(diff_coeff));
+   a.AddDomainIntegrator(new INTEG_1(*coeff_1));
+   a.AddDomainIntegrator(new INTEG_2(*coeff_2));
 
    LORDiscretization lor(fespace);
 
@@ -102,17 +190,46 @@ void TestBatchedLOR()
 
 TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][GPU]")
 {
-   TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
+   TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>(
+      make_scalar_coeff, make_scalar_coeff);
+   TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>(
+      make_scalar_coeff, make_vector_coeff);
+   TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>(
+      make_scalar_coeff, make_matrix_coeff);
 }
 
 TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][GPU]")
 {
-   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_scalar_coeff, make_scalar_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_vector_coeff, make_scalar_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_matrix_coeff, make_scalar_coeff);
+
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_scalar_coeff, make_vector_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_vector_coeff, make_vector_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_matrix_coeff, make_vector_coeff);
+
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_scalar_coeff, make_matrix_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_vector_coeff, make_matrix_coeff);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>(
+      make_matrix_coeff, make_matrix_coeff);
 }
 
 TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][GPU]")
 {
-   TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
+   TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>(
+      make_scalar_coeff, make_scalar_coeff);
+   TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>(
+      make_vector_coeff, make_scalar_coeff);
+   TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>(
+      make_matrix_coeff, make_scalar_coeff);
 }
 
 #ifdef MFEM_USE_MPI
