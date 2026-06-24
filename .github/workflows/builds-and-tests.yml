@@ -111,7 +111,7 @@ jobs:
             build-system: make
             hypre-target: int64
             precision: fp64
-            gitignore-check: true
+            gitignore-check: YES
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -333,7 +333,7 @@ jobs:
         if: matrix.build-system == 'make' && (matrix.target == 'opt' || matrix.os == 'ubuntu-latest')
         run: |
           cd ${{ env.MFEM_TOP_DIR }}
-          if [[ "${{ matrix.gitignore-check == true }}" == "true" ]]; then
+          if [[ "${{ matrix.gitignore-check }}" == "YES" ]]; then
             make test-noclean
           else
             make test
@@ -392,7 +392,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: gitignore
-        if: matrix.gitignore-check == true
+        if: matrix.gitignore-check == 'YES'
         run: |
           cd ${{ env.MFEM_TOP_DIR }}/tests/scripts
           ./runtest gitignore
