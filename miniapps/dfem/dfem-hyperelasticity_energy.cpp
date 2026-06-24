@@ -214,8 +214,8 @@ struct HolzapfelEnergy :
    // Holzapfel-type transversely reinforced model with one fiber family a0:
    // Ψ(F) = c/2 (Ī₁ - dim) + κ/2 log(J)^2
    //      + k1/(2 k2) (exp(k2 (Ī₄ - 1)^2) - 1),
-   // where Ī₁ = J^(-2/3) tr(C), I₄ = A : C = a0.C.a0  
-   // A = a0 ⊗ a0 is the fiber direction tensor. 
+   // where Ī₁ = J^(-2/3) tr(C), I₄ = A : C = a0.C.a0
+   // A = a0 ⊗ a0 is the fiber direction tensor.
    // We use the full I4 invariant, to avoid auxetic behavior
    //
    // In this case we assume that the fiber direction is oriented 45 degrees in the x-y plane, i.e. a0 = (1, 1, 0)/sqrt(2).
@@ -233,15 +233,16 @@ struct HolzapfelEnergy :
 
       // Strain invariants
       const auto I1_bar = Jm23 * tr(C);
-      const auto I4 = ddot(C, A);     
+      const auto I4 = ddot(C, A);
       const auto fiber_strain = I4 - 1.0_r;
       const auto log_J = log(J);
 
       // Strain energy density components
       const auto psi_vol = 0.5_r * kappa * log_J * log_J;
       const auto psi_iso = 0.5_r * c * (I1_bar - real_t(dim));
-      const auto psi_aniso = (k1 / (2.0_r * k2)) * (exp(k2 * fiber_strain * fiber_strain) - 1.0_r);
-      // NOTE: in practice the anisotropic term should contribute only in tension, i.e. when I4 > 1, or fiber_strain > 0. 
+      const auto psi_aniso = (k1 / (2.0_r * k2)) * (exp(k2 * fiber_strain *
+                                                        fiber_strain) - 1.0_r);
+      // NOTE: in practice the anisotropic term should contribute only in tension, i.e. when I4 > 1, or fiber_strain > 0.
       // mathematically this would introduce a non-smoothness in the energy functional that needs to taken care of.
 
       return psi_vol + psi_iso + psi_aniso;
@@ -488,7 +489,7 @@ int main(int argc, char *argv[])
    int order = 1;
    const char *device_config = "cpu";
    int serial_refinement_levels = 0;
-   real_t cg_tol = 1e-1; 
+   real_t cg_tol = 1e-1;
    const char *material_name = "neo-hookean";
    int prec_type = static_cast<int>(PreconditionerType::None);
    bool visualization = true;
@@ -580,7 +581,7 @@ int main(int argc, char *argv[])
    U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
 
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(cg_tol);    
+   cg.SetRelTol(cg_tol);
    cg.SetMaxIter(10000);
    cg.SetPrintLevel(2);
 
