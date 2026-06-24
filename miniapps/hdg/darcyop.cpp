@@ -754,7 +754,16 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
       ConstructPar(x);
    }
 
-   prec_str = "HypreAMG";
+   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+
+   if (pa)
+   {
+      prec_str = "OperJacobi";
+   }
+   else
+   {
+      prec_str = "HypreAMG";
+   }
 }
 #endif //MFEM_USE_MPI
 

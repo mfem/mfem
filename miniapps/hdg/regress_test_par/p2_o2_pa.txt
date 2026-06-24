@@ -455,7 +455,7 @@ Restarting...
    Pass :  8   Iteration : 397  ||B r|| = 1.31258e-08
    Pass :  8   Iteration : 398  ||B r|| = 1.28377e-08
    Pass :  8   Iteration : 399  ||B r|| = 1.2224e-08
-GMRES+HypreAMG converged in 399 iterations with a residual norm of 1.2224e-08.
+GMRES+OperJacobi converged in 399 iterations with a residual norm of 1.2224e-08.
 Solver took 1.08771s.
 || q_h - q_ex || / || q_ex || = 2.62598e-06
 || t_h - t_ex || / || t_ex || = 9.76935e-07
