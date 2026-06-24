@@ -37,8 +37,8 @@ constexpr int Energy = 2;
 template <typename dscalar_t>
 struct NeoHookeanEnergy
 {
-   real_t lambda = 100.0;
-   real_t mu = 50.0;
+   real_t D1 = 100.0;
+   real_t C1 = 50.0;
 
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<dscalar_t, dim, dim> &dudxi,
@@ -50,10 +50,10 @@ struct NeoHookeanEnergy
       const auto dudx = dudxi * invJ;
       const auto F = IdentityMatrix<dim>() + dudx;
       const auto C = transpose(F) * F;
-      const auto log_det_F = log(det(F));
-      const auto psi = 0.5_r * mu * (tr(C) - real_t(dim))
-                       - mu * log_det_F
-                       + 0.5_r * lambda * log_det_F * log_det_F;
+      const auto JF = det(F);
+      const auto I1_bar = pow(JF, -2.0_r / 3.0_r) * tr(C);
+      const auto psi = D1 * (JF - 1.0_r) * (JF - 1.0_r)
+                       + C1 * (I1_bar - real_t(dim));
       energy = psi * det(J) * w;
    }
 };
@@ -61,8 +61,8 @@ struct NeoHookeanEnergy
 template <typename dscalar_t>
 struct NeoHookeanStress
 {
-   real_t lambda = 100.0;
-   real_t mu = 50.0;
+   real_t D1 = 100.0;
+   real_t C1 = 50.0;
 
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<dscalar_t, dim, dim> &dudxi,
@@ -74,8 +74,11 @@ struct NeoHookeanStress
       const auto dudx = dudxi * invJ;
       const auto F = IdentityMatrix<dim>() + dudx;
       const auto JF = det(F);
-      const auto logJ = log(JF);
-      const auto P = mu * F + (lambda * logJ - mu) * inv(transpose(F));
+      const auto FinvT = inv(transpose(F));
+      const auto I1 = tr(transpose(F) * F);
+      const auto P = 2.0_r * D1 * JF * (JF - 1.0_r) * FinvT
+                     + 2.0_r * C1 * pow(JF, -2.0_r / 3.0_r)
+                     * (F - (I1 / 3.0_r) * FinvT);
       dvdxi = P * transpose(invJ) * det(J) * w;
    }
 };
@@ -164,6 +167,11 @@ public:
       return prescribed_tdofs;
    }
 
+   const Array<int>& GetEssentialTDofs() const
+   {
+      return ess_tdofs;
+   }
+
    void Residual(const Vector &x, Vector &r) const
    {
       MultiVector X{x, mesh_nodes_tdofs};
@@ -182,8 +190,15 @@ public:
    void GradientAction(const Vector &x, const Vector &dx, Vector &y) const
    {
       MultiVector X{x, mesh_nodes_tdofs};
-      std::shared_ptr<DerivativeOperator> derivative =
-         dop->GetSecondDerivative(Displacement, X);
+      std::shared_ptr<DerivativeOperator> derivative;
+      if (use_energy)
+      {
+         derivative = dop->GetSecondDerivative(Displacement, X);
+      }
+      else
+      {
+         derivative = dop->GetDerivative(Displacement, X);
+      }
 
       Vector local_dx(dx);
       local_dx.SetSubVector(ess_tdofs, 0.0);
@@ -234,7 +249,10 @@ struct HyperelasticityTestContext
       problem->SetPrescribedDisplacementAttributes(disp_attr);
 
       state.SetSize(fes->GetTrueVSize());
-      state = 0.0;
+      state.Randomize(11);
+      state -= 0.5;
+      state *= 1.0e-3;
+      state.SetSubVector(problem->GetEssentialTDofs(), 0.0);
       state.SetSubVector(problem->GetPrescribedDisplacementTDofs(), 1.0e-2);
 
       direction.SetSize(fes->GetTrueVSize());
@@ -259,6 +277,7 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
 
    REQUIRE(energy.state.Size() == stress.state.Size());
 
+   // Check residuals from energy and stress formulations should match.
    Vector energy_residual(energy.state.Size());
    Vector stress_residual(stress.state.Size());
    energy.problem->Residual(energy.state, energy_residual);
@@ -268,9 +287,18 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    residual_diff -= stress_residual;
    REQUIRE(residual_diff.Norml2() < 1e-12);
 
+   // Check the energy Hessian action should match the stress Jacobian action.
    Vector energy_action(energy.state.Size());
+   Vector stress_action(stress.state.Size());
    energy.problem->GradientAction(energy.state, energy.direction, energy_action);
-   REQUIRE(energy_action.Norml2() >= 0.0);
+   stress.problem->GradientAction(stress.state, stress.direction, stress_action);
+
+   Vector action_diff(energy_action);
+   action_diff -= stress_action;
+   REQUIRE(action_diff.Norml2() < 1e-10);
+
+   REQUIRE(energy_action.Norml2() > 0.0);
+   REQUIRE(stress_action.Norml2() > 0.0);
 }
 
 #endif

@@ -125,20 +125,23 @@ template <typename dscalar_t>
 struct NeoHookeanEnergy :
    HyperelasticEnergyQFunction<NeoHookeanEnergy<dscalar_t>, dscalar_t>
 {
-   real_t lambda = 100.0;
-   real_t mu = 50.0;
+   real_t D1 = 100.0;
+   real_t C1 = 50.0;
 
-   // Ψ(F) = μ/2 (tr(FᵀF) - dim) - μ log(det F)
-   //        + λ/2 log(det F)^2
+   // Hooke miniapp Neo-Hookean model:
+   // Ψ(F) = D1 (J - 1)^2 + C1 (J^(-2/3) I1 - dim),
+   //        J = det(F), I1 = tr(FᵀF).
+   // This gives σ = 2 D1 (J - 1) I + 2 C1 J^(-5/3) dev(F Fᵀ)
+   // consistent with the Hooke miniapp.
    MFEM_HOST_DEVICE inline
    dscalar_t psi(const tensor<dscalar_t, dim, dim> &F,
                  const tensor<dscalar_t, dim, dim> & /* dudx */) const
    {
       const auto C = transpose(F) * F;
-      const auto log_det_F = log(det(F));
-      return 0.5_r * mu * (tr(C) - real_t(dim))
-             - mu * log_det_F
-             + 0.5_r * lambda * log_det_F * log_det_F;
+      const auto J = det(F);
+      const auto I1_bar = pow(J, -2.0_r / 3.0_r) * tr(C);
+      return D1 * (J - 1.0_r) * (J - 1.0_r)
+             + C1 * (I1_bar - real_t(dim));
    }
 };
 
@@ -468,6 +471,14 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fes(&pmesh, &fec, dim, Ordering::byNODES);
 
+   // Problem size
+   const int size = fes.GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      mfem::out << "#dofs: " << size << std::endl;
+   }
+
+
    const IntegrationRule &ir =
       IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * order + 1);
 
@@ -495,10 +506,9 @@ int main(int argc, char *argv[])
    U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
 
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetAbsTol(0.0);
-   cg.SetRelTol(1e-4);
-   cg.SetMaxIter(1000);
-   cg.SetPrintLevel(3);
+   cg.SetRelTol(1e-1);
+   cg.SetMaxIter(10000);
+   cg.SetPrintLevel(2);
 
    std::unique_ptr<Solver> pc;
    switch (static_cast<PreconditionerType>(prec_type))
@@ -516,11 +526,12 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
-   newton.SetAbsTol(0.0);
 #ifdef MFEM_USE_SINGLE
    newton.SetRelTol(1e-4);
-#else
+#elif defined MFEM_USE_DOUBLE
    newton.SetRelTol(1e-6);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
