@@ -475,14 +475,19 @@ int main(int argc, char *argv[])
    {
       V_coll = make_unique<RT_FECollection>(order, dim);
    }
+
+   // Temperature FE collection
    auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
+   // Heat flux FE space
    auto V_space = make_unique<ParFiniteElementSpace>(&pmesh, V_coll.get(),
                                                      (dg)?(dim):(1));
    auto V_space_dg = (V_coll_dg)?(make_unique<ParFiniteElementSpace>(
                                      &pmesh, V_coll_dg.get(), dim)):(nullptr);
+   // Temperature FE space
    auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
+   // Darcy form
    auto darcy = make_unique<ParDarcyForm>(V_space.get(), W_space.get());
 
    // 10. Define the coefficients, analytical solution, and rhs of the PDE.

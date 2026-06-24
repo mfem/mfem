@@ -1174,7 +1174,7 @@ void DarcyHybridization::InvertA()
 
       // Decompose A
 
-      LUFactors LU_A(&Af_data[Af_offsets[el]], Af_ipiv + Af_f_offsets[el]);
+      LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
 
       LU_A.Factor(a_dofs_size);
    }
