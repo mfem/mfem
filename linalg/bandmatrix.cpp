@@ -180,9 +180,24 @@ void BandMatrix::Mult(const Vector &x, Vector &y) const
    Mult(x.HostRead(), y.HostWrite());
 }
 
+void BandMatrix::Solve(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   MatrixInverse *inv = Inverse();
+   inv->Mult(x, y);
+   delete inv;
+}
+
 MatrixInverse *BandMatrix::Inverse() const
 {
+#ifdef MFEM_USE_LAPACK
    return new BandMatrixInverse(*this);
+#else
+   MFEM_WARNING("LAPACK not linked. Converting BandMatrix to DenseMatrix.");
+   return new DenseMatrixInverse(ToDenseMatrix());
+#endif
 }
 
 void BandMatrix::Inverse(DenseMatrix &dm)
@@ -198,7 +213,9 @@ void BandMatrix::Inverse(DenseMatrix &dm)
    BandMatrixInverse bmi(*this);
    bmi.Mult(DenseMatrix::Identity(height), dm);
 #else
-   mfem_error("BandMatrix::Invert(): needs lapack");
+   MFEM_WARNING("LAPACK not linked. Converting BandMatrix to DenseMatrix.");
+   dm = ToDenseMatrix();
+   dm.invert();
 #endif
 }
 
@@ -211,7 +228,6 @@ void BandMatrix::Invert(real_t tol, int bw)
    }
 #endif
 
-#ifdef MFEM_USE_LAPACK
    DenseMatrix inv(height);
    Inverse(inv);
    if (tol < 0.0)
@@ -246,9 +262,6 @@ void BandMatrix::Invert(real_t tol, int bw)
       }
       Reset(inv, bw);
    }
-#else
-   mfem_error("BandMatrix::Invert(): needs lapack");
-#endif
 }
 
 

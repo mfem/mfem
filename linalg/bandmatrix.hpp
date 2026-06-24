@@ -183,6 +183,12 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Matrix vector multiplication with the inverse.
+   /** Uses Inverse() and deletes factorisation afterwards.
+       Unnecesarily inefficient when called multiple times,
+       use Inverse() instead when solving multiple times. */
+   void Solve(const Vector &x, Vector &y) const;
+
    /// Returns a pointer to (an approximation) of the matrix inverse.
    MatrixInverse *Inverse() const override;
 
