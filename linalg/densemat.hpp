@@ -1136,6 +1136,17 @@ private:
 public:
    DenseTensor() : ni(0), nj(0), nk(0) { }
 
+   DenseTensor(const DenseTensor &other)
+      : tdata(other.tdata), ni(other.ni), nj(other.nj), nk(other.nk) { }
+
+   DenseTensor(DenseTensor &&other)
+      : tdata(std::move(other.tdata)), ni(other.ni), nj(other.nj), nk(other.nk)
+   {
+      // Reset other; other.tdata is reset in Array<T> move constructror.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+   }
+
    DenseTensor(int i, int j, int k) : tdata(i*j*k), ni(i), nj(j), nk(k) { }
 
    DenseTensor(real_t *d, int i, int j, int k)
@@ -1143,6 +1154,33 @@ public:
 
    DenseTensor(int i, int j, int k, MemoryType mt)
       : tdata(i*j*k, mt), ni(i), nj(j), nk(k) { }
+
+   DenseTensor &operator=(const DenseTensor &other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = other.tdata;
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+      return *this;
+   }
+
+   DenseTensor &operator=(DenseTensor &&other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = std::move(other.tdata);
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+
+      // Reset other; other.tdata is reset in Array<T> move assignment.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+
+      return *this;
+   }
 
    int SizeI() const { return ni; }
    int SizeJ() const { return nj; }
