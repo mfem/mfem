@@ -4,12 +4,12 @@
 //
 // Sample runs:
 //  mpirun -np 4 ex41p -hb -dg
-//  mpirun -np 4 ex41p -rd -brt
+//  mpirun -np 4 ex41p
 //  mpirun -np 4 ex41p -m ../../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10 -hb -dg -trh1
-//  mpirun -np 4 ex41p -m ../../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9 -rd -dg
+//  mpirun -np 4 ex41p -m ../../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9 -dg
 //  mpirun -np 4 ex41p -m ../../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9 -hb -brt
 //  mpirun -np 4 ex41p -m ../../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9 -hb -dg
-//  mpirun -np 4 ex41p -m ../../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -rd -brt
+//  mpirun -np 4 ex41p -m ../../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
 //  mpirun -np 4 ex41p -m ../../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9 -hb -brt
 //  mpirun -np 4 ex41p -m ../../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20 -hb -trh1
 //  mpirun -np 4 ex41p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8 -hb -dg -trh1
@@ -21,10 +21,9 @@
 //               given fluid velocity, a is the diffusion coefficient, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//               The example demonstrates the use of mixed / local /
-//               hybridizable Discontinuous Galerkin (DG) bilinear forms in MFEM
-//               (face integrators), AMG preconditioning and the use of IMEX ODE
-//               time integrators.
+//               The example demonstrates the use of Local / Hybridizable
+//               Discontinuous Galerkin (L/HDG) bilinear forms in MFEM, and the
+//               use of IMEX ODE time integrators.
 
 #include "mfem.hpp"
 
@@ -371,7 +370,6 @@ int main(int argc, char *argv[])
    bool dg = false;
    bool brt = false;
    real_t td = 0.5;
-   bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
    int vis_steps = 50;
@@ -401,8 +399,6 @@ int main(int argc, char *argv[])
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
-   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
-                  "--no-reduction", "Enable reduction of DG flux.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
@@ -444,6 +440,16 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
+   }
+
+   if (!hybridization && !dg && !brt)
+   {
+      brt = true;
+      if (Mpi::Root())
+      {
+         cout << "Using broken Raviart-Thomas elements to enable flux reduction."
+              << endl;
+      }
    }
 
    // 3. Read the mesh from the given mesh file. We can handle geometrically
@@ -602,13 +608,13 @@ int main(int argc, char *argv[])
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
    }
-   else if (reduction && (dg || brt))
+   else if (dg || brt)
    {
       darcy.EnableFluxReduction();
    }
    else
    {
-      MFEM_ABORT("Non-reduced mixed system is not supported.");
+      MFEM_ABORT("No reduction is possible for continuous elements.");
    }
 
    // 10. Assemble the bilinear forms.
@@ -616,14 +622,14 @@ int main(int argc, char *argv[])
    int skip_zeros = 0;
    m.Assemble(skip_zeros);
    k.Assemble(skip_zeros);
-   if (reduction)
+   if (!hybridization)
    {
       darcy.Assemble(skip_zeros);
    }
 
    m.Finalize(skip_zeros);
    k.Finalize(skip_zeros);
-   if (reduction)
+   if (!hybridization)
    {
       darcy.Finalize(skip_zeros);
    }
