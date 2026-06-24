@@ -551,7 +551,7 @@ public:
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
-      typename backend_t = GlobalQFBackend,
+      typename backend_t = LocalQFBackend,
       bool is_functional = false,
       typename entity_t,
       typename qfunc_t,
