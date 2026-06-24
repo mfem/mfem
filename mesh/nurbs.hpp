@@ -51,20 +51,11 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
-   // Stores the demko points
+   /// Stores the demko points
    mutable Vector demko;
 
    /// Compute all the Demko points
-   void ComputeDemko() const;
-
-#ifdef MFEM_USE_LAPACK
-   // Data for reusing banded matrix factorization in FindInterpolant().
-   mutable DenseMatrix fact_AB; /// Banded matrix factorization
-   mutable Array<int> fact_ipiv; /// Row pivot indices
-#else
-   mutable DenseMatrix A_coll_inv; /// Collocation matrix inverse
-#endif
-
+   void ComputeDemko(bool force = false) const;
 
 public:
    /// Create an empty KnotVector.
@@ -237,12 +228,63 @@ public:
        interpolated curve are returned in @a x in the same form.
        For the knot location one can use  for instance GetBotella, GetDemko or
        GetGreville. The Demko points might be most appropriate.*/
-   void GetInterpolant(Array<Vector*> &x, const Vector &u,
-                       bool reuse_inverse = false) const;
+   MFEM_DEPRECATED void GetInterpolant(Array<Vector*> &x, const Vector &u,
+                                       bool reuse_inverse) const;
 
    /// Different interface to same routine
-   void GetInterpolant(const Vector &x, const Vector &u,
-                       Vector &a, bool reuse_inverse = false) const;
+   MFEM_DEPRECATED  void GetInterpolant(const Vector &x, const Vector &u,
+                                        Vector &a, bool reuse_inverse) const;
+
+   /** @anchor mfem_KnotVector_interpolation
+       @name Methods for interpolating NURBS curves.
+
+       These methods are intended to be used only once. The factorization of
+       the underlying matrix is build and deleted in each routine. When
+       multiple calls to this routines are made consider using
+       GetInterpolationMatrix() or GetInverseInterpolationMatrix() instead.
+
+       For the knot location one can use  for instance GetBotella, GetDemko or
+       GetGreville. The Demko points might be most appropriate. If no knots are
+       specified the routine will use the Demko points*/
+   ///@{
+   /** @brief Global curve interpolation through the points @a x (overwritten)
+       at the knot location @a u. The control points of the interpolated curve
+       are returned in @a x in the same form.*/
+   void GetInterpolant(Array<Vector*> &x, const Vector &u) const;
+
+   /// Global curve interpolation through the points @a x (overwritten).
+   void GetInterpolant(Array<Vector*> &x) const;
+
+   /// Global curve interpolation through the points @a x at the knot
+   /// location @a u, answer is in @a a.
+   void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
+
+   /// Global curve interpolation through the points @a x, answer is in @a a.
+   void GetInterpolant(const Vector &x, Vector &a) const;
+   ///@}
+
+
+   /** @anchor mfem_KnotVector_interpolation2
+       @name Methods to get the interpolation matrix of NURBS curves.
+
+       For the knot location one can use  for instance GetBotella, GetDemko or
+       GetGreville. The Demko points might be most appropriate. If no knots are
+       specified the routine will use the Demko points*/
+   ///@{
+   /// Compute the global interpolation matrix using knots @a u.
+   void GetInterpolationMatrix(const Vector &u, BandMatrix &A_coll) const;
+
+   /// Compute the inverse global interpolation matrix using knots @a u.
+   /// Caller gets ownership.
+   MatrixInverse *GetInverseInterpolationMatrix(const Vector &u) const;
+
+   /// Compute the global interpolation matrix using Demko points.
+   void GetInterpolationMatrix(BandMatrix &A_coll) const;
+
+   /// Compute the global inverse interpolation matrix using Demko points.
+   /// Caller gets ownership.
+   MatrixInverse *GetInverseInterpolationMatrix() const;
+   ///@}
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
