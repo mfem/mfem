@@ -120,7 +120,8 @@ struct mass_diffusion_global_qf
       {
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
-         out1(q) = u(q) * detJq * w(q);
+         const real_t weight = detJq * w(q);
+         out1(q) = u(q) * weight;
          out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
       });
