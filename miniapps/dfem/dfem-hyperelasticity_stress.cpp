@@ -124,7 +124,7 @@ struct NeoHookeanStress :
 class HyperelasticOperator : public Operator
 {
    // Matrix-free Jacobian-vector product used by Newton's method. This wraps the
-   // nonlinear residual operator and requests the first variation with respect to the displacement field (Jacobian = dR/dU). 
+   // nonlinear residual operator and requests the first variation with respect to the displacement field (Jacobian = dR/dU).
    class JacobianOperator : public Operator
    {
    public:
@@ -205,7 +205,7 @@ public:
       };
 
       residual_dop = std::make_shared<DifferentiableOperator>(
-                               inputs, outputs, *fes.GetParMesh());
+                        inputs, outputs, *fes.GetParMesh());
 
       Array<int> all_domain_attr;
       if (fes.GetMesh()->attributes.Size() > 0)
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       mfem::out << "This miniapp requires MFEM_USE_ENZYME=YES because it uses "
-             << "dFEM automatic differentiation.\n";
+                << "dFEM automatic differentiation.\n";
    }
    return 0;
 #else

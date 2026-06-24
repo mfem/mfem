@@ -52,8 +52,8 @@ struct NeoHookeanEnergy
       const auto C = transpose(F) * F;
       const auto log_det_F = log(det(F));
       const auto psi = 0.5_r * mu * (tr(C) - real_t(dim))
-                     - mu * log_det_F
-                     + 0.5_r * lambda * log_det_F * log_det_F;
+                       - mu * log_det_F
+                       + 0.5_r * lambda * log_det_F * log_det_F;
       energy = psi * det(J) * w;
    }
 };
@@ -92,7 +92,8 @@ public:
       qspace_vec(qspace, 1),
       q(qspace_vec)
    {
-      auto &mesh_nodes = *static_cast<ParGridFunction *>(fes.GetParMesh()->GetNodes());
+      auto &mesh_nodes = *static_cast<ParGridFunction *>
+                         (fes.GetParMesh()->GetNodes());
       mesh_nodes_fes = mesh_nodes.ParFESpace();
       mesh_nodes.GetTrueDofs(mesh_nodes_tdofs);
 
@@ -117,7 +118,8 @@ public:
          };
       }
 
-      dop = std::make_shared<DifferentiableOperator>(inputs, outputs, *fes.GetParMesh());
+      dop = std::make_shared<DifferentiableOperator>(inputs, outputs,
+                                                     *fes.GetParMesh());
 
       Array<int> all_domain_attr;
       if (fes.GetMesh()->attributes.Size() > 0)
@@ -249,7 +251,8 @@ struct HyperelasticityTestContext
 };
 
 
-TEST_CASE("dfem neo-hookean energy and stress agree", "[Parallel][dFEM][Hyperelasticity]")
+TEST_CASE("dfem neo-hookean energy and stress agree",
+          "[Parallel][dFEM][Hyperelasticity]")
 {
    HyperelasticityTestContext energy(true);
    HyperelasticityTestContext stress(false);
