@@ -149,7 +149,7 @@ for i, filename in enumerate(filenames):
 		command_line += f' -k {kappa}'
 	if hdg != 1:
 		command_line += f' -hdg {hdg}'
-	if nls != 0:
+	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_diff):
 		command_line += f' -nls {nls}'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
