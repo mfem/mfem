@@ -107,17 +107,25 @@ template <typename dscalar_t>
 struct NeoHookeanStress :
    HyperelasticStressQFunction<NeoHookeanStress<dscalar_t>, dscalar_t>
 {
-   real_t lambda = 100.0;
-   real_t mu = 50.0;
+   real_t D1 = 100.0;
+   real_t C1 = 50.0;
 
-   // P(F) = ∂Ψ/∂F = μ (F - F^{-T}) + λ log(J) F^{-T}
+   // Hooke miniapp Neo-Hookean model in first Piola form:
+   // Ψ(F) = D1 (J - 1)^2 + C1 (J^(-2/3) I1 - dim),
+   //        J = det(F), I1 = tr(FᵀF).
+   // P(F) = ∂Ψ/∂F = J σ F^{-T}, where
+   // σ = 2 D1 (J - 1) I + 2 C1 J^(-5/3) dev(F Fᵀ),
+   // the same stress formulation used in the Hooke miniapp.
    MFEM_HOST_DEVICE inline
    auto PK1(const tensor<dscalar_t, dim, dim> &F,
             const tensor<dscalar_t, dim, dim> & /* dudx */) const
    {
       const auto J = det(F);
-      const auto logJ = log(J);
-      return mu * F + (lambda * logJ - mu) * inv(transpose(F));
+      const auto FinvT = inv(transpose(F));
+      const auto I1 = tr(transpose(F) * F);
+      return 2.0_r * D1 * J * (J - 1.0_r) * FinvT
+             + 2.0_r * C1 * pow(J, -2.0_r / 3.0_r)
+             * (F - (I1 / 3.0_r) * FinvT);
    }
 };
 
@@ -381,10 +389,9 @@ int main(int argc, char *argv[])
    U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
 
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetAbsTol(0.0);
-   cg.SetRelTol(1e-4);
-   cg.SetMaxIter(1000);
-   cg.SetPrintLevel(3);
+   cg.SetRelTol(1e-1);
+   cg.SetMaxIter(10000);
+   cg.SetPrintLevel(2);
 
    std::unique_ptr<Solver> pc;
    switch (static_cast<PreconditionerType>(prec_type))
@@ -402,11 +409,12 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
-   newton.SetAbsTol(0.0);
 #ifdef MFEM_USE_SINGLE
    newton.SetRelTol(1e-4);
-#else
+#elif defined MFEM_USE_DOUBLE
    newton.SetRelTol(1e-6);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
