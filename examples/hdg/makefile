@@ -51,6 +51,12 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test,$<,, Serial example)
 
+# Testing: Specific execution options
+ex41-test-seq: ex41
+	@$(call mfem-test,$<,, Serial example,-tf 1.0)
+ex41p-test-par: ex41p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 1.0)
+
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
