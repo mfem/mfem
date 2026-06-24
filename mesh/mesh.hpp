@@ -2431,6 +2431,12 @@ public:
 
    /// @}
 
+   /// Create a GridFunction representing the Jacobian determinant
+   std::unique_ptr<GridFunction> GetJacobianDeterminantGF() const;
+
+   /// Update Jacobian determinant values in a given gridfunction
+   void UpdateJacobianDeterminantGF(GridFunction &detgf) const;
+
    /// @name Methods related to mesh refinement
    /// @{
 
