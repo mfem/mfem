@@ -360,6 +360,7 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
 #ifdef MFEM_USE_UMPIRE
+   bool switch_host_umpire_to_host = true;
    // If MFEM has been compiled with Umpire support, use it as the default
    if (!mem_host_env && !mem_types_set)
    {
@@ -368,6 +369,10 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
       {
          device_mem_type = MemoryType::HOST_UMPIRE;
       }
+   }
+   else
+   {
+      switch_host_umpire_to_host = false;
    }
 #endif
 
@@ -415,6 +420,17 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
       host_mem_type = MemoryType::HOST_DEBUG;
       device_mem_type = MemoryType::DEVICE_DEBUG;
    }
+
+#ifdef MFEM_USE_UMPIRE
+   if (host_mem_type == MemoryType::HOST_UMPIRE && switch_host_umpire_to_host)
+   {
+      host_mem_type = MemoryType::HOST;
+   }
+   if (device_mem_type == MemoryType::HOST_UMPIRE && switch_host_umpire_to_host)
+   {
+      device_mem_type = MemoryType::HOST;
+   }
+#endif
 
    MFEM_VERIFY(!device || IsDeviceMemory(device_mem_type),
                "invalid device memory configuration!");
