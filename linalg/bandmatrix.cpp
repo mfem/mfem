@@ -215,7 +215,7 @@ void BandMatrix::Inverse(DenseMatrix &dm)
 #else
    MFEM_WARNING("LAPACK not linked. Converting BandMatrix to DenseMatrix.");
    dm = ToDenseMatrix();
-   dm.invert();
+   dm.Invert();
 #endif
 }
 
@@ -376,7 +376,7 @@ bool BandLUFactors::Factor(int m, real_t TOL)
                               ipiv, &info);
    MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
 #else
-   MFEM_ERROR("BandLUFactors::Factor requires lapack");
+   mfem_error("BandLUFactors::Factor requires lapack");
 #endif
    return true;
 }
@@ -411,7 +411,7 @@ void BandLUFactors::Solve(int m, int n, real_t *X) const
                               ipiv, X, &m, &info);
    MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
 #else
-   MFEM_ERROR("BandLUFactors::Solve requires lapack");
+   mfem_error("BandLUFactors::Solve requires lapack");
 #endif
 }
 

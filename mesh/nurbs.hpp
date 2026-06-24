@@ -264,7 +264,7 @@ public:
    ///@}
 
 
-   /** @anchor mfem_KnotVector_interpolation2
+   /** @anchor mfem_KnotVector_interpolation_matrix
        @name Methods to get the interpolation matrix of NURBS curves.
 
        For the knot location one can use  for instance GetBotella, GetDemko or
