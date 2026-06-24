@@ -103,9 +103,20 @@ public:
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
-       with SetData(). */
-   Vector(real_t *data_, int size_)
-   { data.Wrap(data_, size_, false); size = size_; }
+       with SetData(). @a check = true if @a data_ could have been previously
+      registered with the memory manager. */
+   Vector(real_t *data_, int size_, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(data_, size_, false);
+      }
+      else
+      {
+         data.Wrap(data_, size_, false);
+      }
+      size = size_;
+   }
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
@@ -132,6 +143,15 @@ public:
    explicit Vector(std::initializer_list<CT> values) :
       Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
+
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   Vector(int size_, MemoryType mt, bool temporary)
+      : data(size_, mt, temporary), size(size_)
+   {}
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt, bool temporary)
+      : data(size_, h_mt, d_mt, temporary), size(size_)
+   {}
+#endif
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
@@ -181,14 +201,35 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
+   void SetData(real_t *d, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, data.Capacity(), false);
+      }
+      else
+      {
+         data.Wrap(d, data.Capacity(), false);
+      }
+   }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(real_t *d, int s) { data.Wrap(d, s, false); size = s; }
+   void SetDataAndSize(real_t *d, int s, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, s, false);
+      }
+      else
+      {
+         data.Wrap(d, s, false);
+      }
+      size = s;
+   }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -253,13 +294,13 @@ public:
    inline real_t *begin() { return data; }
 
    /// STL-like end.
-   inline real_t *end() { return data + size; }
+   inline real_t *end() { return static_cast<real_t*>(data) + size; }
 
    /// STL-like begin (const version).
    inline const real_t *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const real_t *end() const { return data + size; }
+   inline const real_t *end() const { return static_cast<const real_t*>(data) + size; }
 
    /// Return a reference to the Memory object used by the Vector.
    Memory<real_t> &GetMemory() { return data; }
@@ -273,7 +314,7 @@ public:
 
    /// Update the alias memory location of the vector to match @a v.
    void SyncAliasMemory(const Vector &v) const
-   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
+   { GetMemory().SyncAlias(v.GetMemory(), Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
@@ -595,9 +636,15 @@ inline void Vector::SetSize(int s)
    // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
    const bool use_dev = data.UseDevice();
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   bool temporary = data.IsTemporary();
    data.Delete();
-   size = s;
+   data.New(s, mt, temporary);
+#else
+   data.Delete();
    data.New(s, mt);
+#endif
+   size = s;
    data.UseDevice(use_dev);
 }
 
@@ -616,17 +663,29 @@ inline void Vector::SetSize(int s, MemoryType mt)
       }
    }
    const bool use_dev = data.UseDevice();
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   bool temporary = data.IsTemporary();
    data.Delete();
-   if (s > 0)
+   if (s > 0 || temporary)
    {
-      data.New(s, mt);
-      size = s;
+      data.New(s, mt, temporary);
    }
    else
    {
       data.Reset();
-      size = 0;
    }
+#else
+   data.Delete();
+   if (s > 0)
+   {
+      data.New(s, mt);
+   }
+   else
+   {
+      data.Reset();
+   }
+#endif
+   size = s;
    data.UseDevice(use_dev);
 }
 
@@ -680,7 +739,7 @@ inline void Vector::Destroy()
 
 inline real_t &Vector::operator()(int i)
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
@@ -688,7 +747,7 @@ inline real_t &Vector::operator()(int i)
 
 inline const real_t &Vector::operator()(int i) const
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];

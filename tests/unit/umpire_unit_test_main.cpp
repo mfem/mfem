@@ -9,7 +9,28 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
+#if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#include "umpire/Umpire.hpp"
+#include <umpire/strategy/QuickPool.hpp>
+#endif
+
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#include "mfem.hpp"
+#include "general/forall.hpp"
 
 #if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #include "unit_tests.hpp"
@@ -19,19 +40,12 @@
 #include "umpire/Umpire.hpp"
 #include <umpire/strategy/QuickPool.hpp>
 
-#ifdef MFEM_USE_CUDA
-#include <cuda.h>
-constexpr const char * device_name = "cuda";
-#elif defined(MFEM_USE_HIP)
-constexpr const char * device_name = "hip";
-#endif
-
 using namespace mfem;
 
 constexpr unsigned num_elems = 1024;
-constexpr unsigned num_bytes = num_elems * sizeof(double);
-constexpr double host_val = 1.0;
-constexpr double dev_val = -1.0;
+constexpr unsigned num_bytes = num_elems * sizeof(real_t);
+constexpr real_t host_val = 1.0;
+constexpr real_t dev_val = -1.0;
 
 static std::size_t alloc_size(const char * name)
 {
@@ -42,20 +56,7 @@ static std::size_t alloc_size(const char * name)
 
 static bool is_pinned_host(void * h_p)
 {
-   unsigned flags;
-#ifdef MFEM_USE_CUDA
-   auto err = cudaHostGetFlags(&flags, h_p);
-   cudaGetLastError(); // also resets last error
-   if (err == cudaSuccess) { return true; }
-   else if (err == cudaErrorInvalidValue) { return false; }
-#elif defined(MFEM_USE_HIP)
-   auto err = hipHostGetFlags(&flags, h_p);
-   hipGetLastError(); // also resets last error
-   if (err == hipSuccess) { return true; }
-   else if (err == hipErrorInvalidValue) { return false; }
-#endif
-   fprintf(stderr, "fatal (is_pinned_host): unknown return value: %d\n", err);
-   return false;
+   return Device::QueryMemoryType(h_p) == MemoryType::HOST_PINNED;
 }
 
 static void test_umpire_device_memory()
@@ -68,40 +69,12 @@ static void test_umpire_device_memory()
 
    REQUIRE(host_val != dev_val);
 
-   constexpr const char * device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
+   constexpr const char *device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
    constexpr const char * device_temp_alloc_name = "MFEM-Temporary-Device-Pool";
    constexpr const char * host_alloc_name = "MFEM-Host-Pool";
-   auto &rm = umpire::ResourceManager::getInstance();
 
-   rm.makeAllocator<umpire::strategy::QuickPool, true>(host_alloc_name,
-                                                       rm.getAllocator("HOST"), 0, 0);
-
-   rm.makeAllocator<umpire::strategy::QuickPool, true>(device_perm_alloc_name,
-                                                       rm.getAllocator("DEVICE"), 0, 0);
-
-   rm.makeAllocator<umpire::strategy::QuickPool, true>(device_temp_alloc_name,
-                                                       rm.getAllocator("DEVICE"), 0, 0);
-
-   // set the default host and device memory types; they will be made dual to
-   // each other
-   Device::SetMemoryTypes(MemoryType::HOST, MemoryType::DEVICE_UMPIRE);
-
-   // update some dual memory types
-   MemoryManager::SetDualMemoryType(MemoryType::DEVICE_UMPIRE_2,
-                                    MemoryType::HOST);
-   MemoryManager::SetDualMemoryType(MemoryType::HOST_PINNED,
-                                    MemoryType::DEVICE_UMPIRE);
-
-   // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
-   // MemoryType::DEVICE_UMPIRE_2
-   MemoryManager::SetUmpireHostAllocatorName(host_alloc_name);
-   MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
-   MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
-   Device device(device_name);
-
-   REQUIRE(device.GetHostMemoryType() == MemoryType::HOST);
-   REQUIRE(device.GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE);
-   device.Print();
+   REQUIRE(Device::GetHostMemoryType() == MemoryType::HOST);
+   REQUIRE(Device::GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE);
 
    printf("All pools should be empty at startup:");
    REQUIRE(alloc_size(host_alloc_name) == 0);
@@ -136,16 +109,19 @@ static void test_umpire_device_memory()
    // with the above constructor, host_temp is valid on device, so we cannot
    // directly access its host pointer; switch to valid on host without copying
    // data from device to host:
+   host_temp.UseDevice(false);
    host_temp.HostWrite();
    REQUIRE(!is_pinned_host(host_temp.GetData()));
+   REQUIRE(!host_temp.UseDevice());
    CHECK_PERM(num_bytes);
    CHECK_TEMP(0);
    PRINT_SIZES();
    host_temp = host_val; // done on host since UseDevice() is not set
+   REQUIRE(host_temp[0] == host_val);
 
    // allocate in temporary device memory
    printf("ReadWrite %u bytes in temporary memory: ", num_bytes);
-   double * d_host_temp = host_temp.ReadWrite();
+   real_t * d_host_temp = host_temp.ReadWrite();
    mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_host_temp[i] = dev_val; });
    CHECK_PERM(num_bytes);
    CHECK_TEMP(num_bytes);
@@ -181,7 +157,7 @@ static void test_umpire_device_memory()
    PRINT_SIZES();
 
    printf("Write %u more bytes in temporary memory: ", num_bytes);
-   double * d_dev_temp = dev_temp.Write();
+   real_t * d_dev_temp = dev_temp.Write();
    mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_dev_temp[i] = dev_val; });
    CHECK_PERM(num_bytes*2);
    CHECK_TEMP(num_bytes*2);
@@ -271,12 +247,57 @@ static void test_umpire_device_memory()
    printf("host=%zu\n", alloc_size(host_alloc_name));
 }
 
-TEST_CASE("UmpireMemorySpace", "[MemoryManager]")
+TEST_CASE("UmpireMemorySpace", "[MemoryManager][GPU]")
 {
    SECTION("Device")
    {
-      test_umpire_device_memory();
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         test_umpire_device_memory();
+      }
    }
 }
 
 #endif // MFEM_USE_UMPIRE && (MFEM_USE_CUDA || MFEM_USE_HIP)
+
+int main(int argc, char *argv[])
+{
+   // unit/general/test_umpire_mem.cpp has some strange requirements, isolate it
+   // from all other tests
+
+   // umpire pools must be created and set before configure is called by device
+   constexpr const char *device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
+   constexpr const char * device_temp_alloc_name = "MFEM-Temporary-Device-Pool";
+   constexpr const char * host_alloc_name = "MFEM-Host-Pool";
+   auto &rm = umpire::ResourceManager::getInstance();
+
+   rm.makeAllocator<umpire::strategy::QuickPool, true>(host_alloc_name,
+                                                       rm.getAllocator("HOST"), 0, 0);
+
+   rm.makeAllocator<umpire::strategy::QuickPool, true>(device_perm_alloc_name,
+                                                       rm.getAllocator("DEVICE"), 0, 0);
+
+   rm.makeAllocator<umpire::strategy::QuickPool, true>(device_temp_alloc_name,
+                                                       rm.getAllocator("DEVICE"), 0, 0);
+   // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
+   // MemoryType::DEVICE_UMPIRE_2
+   mfem::MemoryManager::SetUmpireHostAllocatorName(host_alloc_name);
+   mfem::MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
+   mfem::MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
+
+   // set the default host and device memory types; they will be made dual to
+   // each other
+   mfem::Device::SetMemoryTypes(mfem::MemoryType::HOST,
+                                mfem::MemoryType::DEVICE_UMPIRE);
+
+   // update some dual memory types
+   mfem::MemoryManager::SetDualMemoryType(mfem::MemoryType::DEVICE_UMPIRE_2,
+                                          mfem::MemoryType::HOST);
+   mfem::MemoryManager::SetDualMemoryType(mfem::MemoryType::HOST_PINNED,
+                                          mfem::MemoryType::DEVICE_UMPIRE);
+   mfem::Device device("gpu");
+
+   // Include only tests labeled with GPU. Exclude parallel tests.
+   int res = RunCatchSession(argc, argv, {"[GPU]", "~[Parallel]"});
+   return res;
+}

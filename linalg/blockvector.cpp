@@ -215,4 +215,4 @@ void BlockVector::SyncFromBlocks() const
    }
 }
 
-}
+} // namespace mfem

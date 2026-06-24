@@ -65,7 +65,7 @@ public:
    ///
    /// In serial, the result will be a SparseMatrix. In parallel, the result
    /// will be a HypreParMatrix.
-   void Assemble(BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A);
+   void Assemble(BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A);
 
    /// Compute the vertices of the LOR mesh and place the result in @a X_vert.
    static void FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
