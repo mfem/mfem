@@ -37,6 +37,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
+  dfem/test_hyperelasticity.cpp
   dfem/test_functional.cpp
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
