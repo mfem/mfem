@@ -566,8 +566,6 @@ int main(int argc, char *argv[])
       {
          divq->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                             new DGNormalTraceIntegrator(-1.)));
-         divq->AddBdrFaceIntegrator(new TransposeIntegrator(
-                                       new DGNormalTraceIntegrator(-1.)));
       }
    }
 
