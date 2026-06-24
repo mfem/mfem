@@ -16,8 +16,8 @@ and nightly testing on GitLab.
 ## Top level
 
 The root configuration file is `.gitlab-ci.yml` at the root of MFEM repo. This
-file only defines three stages, a prerequisites one, and two main stages in
-which we trigger several sub-pipelines.
+file defines the parent stages, includes the RADIUSS Shared CI base component,
+and triggers several sub-pipelines.
 
 We use sub-pipelines to isolate the test for one combination of `machine`
 and `test type`.
@@ -57,8 +57,8 @@ Build-and-test jobs all run the `tests/gitlab/build_and_test` script.
 
 The build-and-test pipelines are controlled by the
 `.gitlab/subscribed-pipelines.yml` which defines which machines to run on and
-implements additional features like machine availability check, and job list
-generation.
+implements additional features like machine availability check, job list
+generation, and the machine-specific RADIUSS Shared CI component includes.
 
 ### baseline
 

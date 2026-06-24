@@ -51,14 +51,14 @@
 #  │    │         └── .gitlab/scripts/report_build_and_test    [script]
 #  │    │              ├── .gitlab/scripts/safe_create_rundir  [script]
 #  │    │              └── .gitlab/scripts/git_try_to_push     [script]
-#  │    ├── <radiuss-shared-ci>/pipelines/matrix.yml  [conditional]
+#  │    ├── <radiuss-shared-ci>/templates/matrix-pipeline/template.yml  [conditional]
 #  │    │    ├── .on_matrix               [job]
 #  │    │    ├── .matrix_reproducer_init  [job]
 #  │    │    ├── .matrix_reproducer_vars  [job]
 #  │    │    ├── .matrix_reproducer_job   [job]
 #  │    │    ├── .matrix_job_command      [job]
 #  │    │    └── .job_on_matrix           [job]
-#  │    ├── <radiuss-shared-ci>/pipelines/dane.yml  [conditional]
+#  │    ├── <radiuss-shared-ci>/templates/dane-pipeline/template.yml  [conditional]
 #  │    │    ├── .on_dane               [job]
 #  │    │    ├── .dane_reproducer_init  [job]
 #  │    │    ├── .dane_reproducer_vars  [job]
@@ -67,7 +67,7 @@
 #  │    │    ├── .job_on_dane           [job]
 #  │    │    ├── allocate_resources     [job]
 #  │    │    └── release_resources      [job]
-#  │    ├── <radiuss-shared-ci>/pipelines/tioga.yml  [conditional]
+#  │    ├── <radiuss-shared-ci>/templates/tioga-pipeline/template.yml  [conditional]
 #  │    │    ├── .on_tioga               [job]
 #  │    │    ├── .tioga_reproducer_init  [job]
 #  │    │    ├── .tioga_reproducer_vars  [job]
@@ -146,15 +146,15 @@
 #  │    │    └── .build-and-test
 #  │    ├── <included files>
 #  │    │    ├── .gitlab/subscribed-pipelines.yml
-#  │    │    ├── .gitlab/custom-variables.yml  [by ".build-and-test"]
+#  │    │    ├── .gitlab/custom-variables.yml  [by parent pipeline]
 #  │    │    ├── .gitlab/custom-jobs.yml  [by ".build-and-test"]
 #  │    │    ├── <artifact>  [by ".build-and-test"]
 #  │    │    │    ├── artifact: '${CI_MACHINE}-jobs.yml'
 #  │    │    │    └── job:      'generate-job-lists'
-#  │    │    └── <external>  [by ".build-and-test"]
+#  │    │    └── <component>  [by ".build-and-test"]
 #  │    │         ├── project: 'radiuss/radiuss-shared-ci'
-#  │    │         ├── ref:     'v2025.09.1'
-#  │    │         └── file:    'pipelines/${CI_MACHINE}.yml'
+#  │    │         ├── ref:     '2026.6.0'
+#  │    │         └── component: '${CI_MACHINE}-pipeline'
 #  │    └── <defined variables>
 #  │         ├── CUSTOM_CI_BUILDS_DIR
 #  │         ├── USER_CI_TOP_DIR
@@ -396,9 +396,9 @@
 #       └── uberenv  [cloned by tests/gitlab/get_mfem_uberenv]
 #            └── uberenv.py
 #
-# <root of radiuss/radiuss-shared-ci, ref: 'v2025.09.1'>
-#  └── pipelines
-#       ├── matrix.yml
+# <root of radiuss/radiuss-shared-ci, ref: '2026.6.0'>
+#  └── templates
+#       ├── matrix-pipeline/template.yml
 #       │    ├── <jobs>
 #       │    │    ├── .on_matrix
 #       │    │    ├── .matrix_reproducer_init
@@ -417,9 +417,9 @@
 #       │         ├── USER
 #       │         ├── GITHUB_PROJECT_NAME
 #       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── MATRIX_JOB_ALLOC
-#       │         └── JOB_CMD
-#       ├── dane.yml
+#       │         ├── RSCI_MATRIX_JOB_ALLOC
+#       │         └── RSCI_JOB_CMD
+#       ├── dane-pipeline/template.yml
 #       │    ├── <jobs>
 #       │    │    ├── .on_dane
 #       │    │    ├── .dane_reproducer_init
@@ -442,12 +442,12 @@
 #       │         ├── USER
 #       │         ├── GITHUB_PROJECT_NAME
 #       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── DANE_JOB_ALLOC
-#       │         ├── JOB_CMD
+#       │         ├── RSCI_DANE_JOB_ALLOC
+#       │         ├── RSCI_JOB_CMD
 #       │         ├── JOBID
-#       │         ├── ALLOC_NAME
-#       │         └── DANE_SHARED_ALLOC
-#       └── tioga.yml
+#       │         ├── RSCI_ALLOC_NAME
+#       │         └── RSCI_DANE_SHARED_ALLOC
+#       └── tioga-pipeline/template.yml
 #            ├── <jobs>
 #            │    ├── .on_tioga
 #            │    ├── .tioga_reproducer_init
@@ -470,11 +470,11 @@
 #                 ├── USER
 #                 ├── GITHUB_PROJECT_NAME
 #                 ├── GITHUB_PROJECT_ORG
-#                 ├── TIOGA_JOB_ALLOC
-#                 ├── JOB_CMD
+#                 ├── RSCI_TIOGA_JOB_ALLOC
+#                 ├── RSCI_JOB_CMD
 #                 ├── PROXY
-#                 ├── ALLOC_NAME
-#                 └── TIOGA_SHARED_ALLOC
+#                 ├── RSCI_ALLOC_NAME
+#                 └── RSCI_TIOGA_SHARED_ALLOC
 
 ###############################################################################
 # We define the following GitLab pipeline variables:
@@ -508,54 +508,32 @@ variables:
   GITHUB_PROJECT_NAME: "mfem"
   GITHUB_PROJECT_ORG: "MFEM"
 # Override the pattern describing branches that will skip the "draft PR filter
-# test".  Add protected branches here. See default value in
-# preliminary-ignore-draft-pr.yml.
+# test". Add protected branches here. See default value in
+# utility-draft-pr-filter.
 #  ALWAYS_RUN_PATTERN: ""
 
 ###############################################################################
 ##### High level stages
-# We organize the test-pipelines stage with sub-pipelines. Each sub-pipeline
+# We organize the build-and-test stage with sub-pipelines. Each sub-pipeline
 # corresponds to a test batch on a given machine.
 stages:
   - prerequisites
-  - test-pipelines
-
-###############################################################################
-# Template for jobs triggering a build-and-test sub-pipeline:
-.build-and-test:
-  stage: test-pipelines
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    # Note: in some cases, this does not work as expected, e.g. when the
-    # variable is not re-defined in the web interface; in such cases, the child
-    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
-    # AUTOTEST is undefined, even though there is a default value in
-    # .gitlab-ci.yml.
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  trigger:
-    include:
-      - local: '.gitlab/custom-variables.yml'
-      - local: '.gitlab/custom-jobs.yml'
-      - project: 'radiuss/radiuss-shared-ci'
-        ref: 'v2025.09.1'
-        file: 'pipelines/${CI_MACHINE}.yml'
-      - artifact: '${CI_MACHINE}-jobs.yml'
-        job: 'generate-job-lists'
-    strategy: depend
-    forward:
-      pipeline_variables: true
+  - build-and-test
 
 ###############################################################################
 include:
-  # Sets ID tokens for every job using `default:`
-  - project: 'lc-templates/id_tokens'
-    file: 'id_tokens.yml'
+  - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/base-pipeline@2026.6.0
+    inputs:
+      github_project_name: $GITHUB_PROJECT_NAME
+      github_project_org: $GITHUB_PROJECT_ORG
+      github_token: $GITHUB_TOKEN
   # [Optional] checks preliminary to running the actual CI test
-  #- project: 'radiuss/radiuss-shared-ci'
-  #  ref: 'v2025.09.1'
-  #  file: 'preliminary-ignore-draft-pr.yml'
+  #- component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/utility-draft-pr-filter@2026.6.0
+  #  inputs:
+  #    github_token: $GITHUB_TOKEN
+  #    github_project_name: $GITHUB_PROJECT_NAME
+  #    github_project_org: $GITHUB_PROJECT_ORG
+  #    always_run_pattern: $ALWAYS_RUN_PATTERN
+  - local: '.gitlab/custom-variables.yml'
   # pipelines subscribed by the project
   - local: '.gitlab/subscribed-pipelines.yml'

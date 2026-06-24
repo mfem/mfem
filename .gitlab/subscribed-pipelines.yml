@@ -9,26 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# The template job to test whether a machine is up.
-# Expects CI_MACHINE defined to machine name.
-.machine-check:
-  stage: prerequisites
-  tags: [shell, oslic]
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - |
-      if [[ $(jq '.[env.CI_MACHINE].total_nodes_up' /usr/global/tools/lorenz/data/loginnodeStatus) == 0 ]]
-      then
-        echo -e "\e[31mNo node available on ${CI_MACHINE}\e[0m"
-        false && \
-        curl --url "https://api.github.com/repos/${GITHUB_PROJECT_ORG}/${GITHUB_PROJECT_NAME}/statuses/${CI_COMMIT_SHA}" \
-             --header 'Content-Type: application/json' \
-             --header "authorization: Bearer ${GITHUB_TOKEN}" \
-             --data "{ \"state\": \"failure\", \"target_url\": \"${CI_PIPELINE_URL}\", \"description\": \"GitLab ${CI_MACHINE} down\", \"context\": \"ci/gitlab/${CI_MACHINE}\" }"
-        exit 1
-      fi
-
 ###
 # Trigger a build-and-test pipeline for a machine.
 # Comment the jobs for machines you don’t need.
@@ -73,18 +53,40 @@ generate-job-lists:
 # DANE
 dane-up-check:
   variables:
-    CI_MACHINE: "dane"
-  extends: [.machine-check]
+    ASSOCIATED_CHILD_PIPELINE: "dane-build-and-test"
+  extends: [.dane, .machine-check]
 
 dane-build-and-test:
   variables:
-    CI_MACHINE: "dane"
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [dane-up-check, generate-job-lists]
-  extends: [.build-and-test]
+  extends: [.dane, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/dane-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $DANE_SHARED_ALLOC
+          job_alloc: $DANE_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'dane-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true
 
 # DANE, MFEM Specific
 dane-baseline:
-  stage: test-pipelines
+  stage: build-and-test
+  extends: [.dane]
   variables:
     # Explicitly pass down values that are not always propagated to child
     # pipelines, e.g. when a variable is set in the "Settings -> CI" web
@@ -107,24 +109,66 @@ dane-baseline:
 # TIOGA
 tioga-up-check:
   variables:
-    CI_MACHINE: "tioga"
-  extends: [.machine-check]
+    ASSOCIATED_CHILD_PIPELINE: "tioga-build-and-test"
+  extends: [.tioga, .machine-check]
 
 tioga-build-and-test:
   variables:
-    CI_MACHINE: "tioga"
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [tioga-up-check, generate-job-lists]
-  extends: [.build-and-test]
+  extends: [.tioga, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/tioga-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $TIOGA_SHARED_ALLOC
+          job_alloc: $TIOGA_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'tioga-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true
 
 
 # Matrix
 matrix-up-check:
   variables:
-    CI_MACHINE: "matrix"
-  extends: [.machine-check]
+    ASSOCIATED_CHILD_PIPELINE: "matrix-build-and-test"
+  extends: [.matrix, .machine-check]
 
 matrix-build-and-test:
   variables:
-    CI_MACHINE: "matrix"
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [matrix-up-check, generate-job-lists]
-  extends: [.build-and-test]
+  extends: [.matrix, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/matrix-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $MATRIX_SHARED_ALLOC
+          job_alloc: $MATRIX_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'matrix-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true
