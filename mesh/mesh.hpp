@@ -2209,6 +2209,13 @@ public:
        by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
    FaceInformation GetFaceInformation(int f) const;
 
+   /// @brief Return the indices of the elements sharing face @a Face.
+   ///
+   /// @param[in]  Face  Index of the face.
+   /// @param[out] Elem1 Index of the first element.
+   /// @param[out] Elem2 Index of the second neighboring element.
+   ///
+   /// @sa GetFaceInfos(), GetFaceInformation(), FaceInfo
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
@@ -2423,6 +2430,12 @@ public:
                              int ordering = 1);
 
    /// @}
+
+   /// Create a GridFunction representing the Jacobian determinant
+   std::unique_ptr<GridFunction> GetJacobianDeterminantGF() const;
+
+   /// Update Jacobian determinant values in a given gridfunction
+   void UpdateJacobianDeterminantGF(GridFunction &detgf) const;
 
    /// @name Methods related to mesh refinement
    /// @{
