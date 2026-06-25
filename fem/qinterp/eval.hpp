@@ -408,10 +408,10 @@ static void Eval2D(const int NE, const int vdim, const QVectorLayout q_layout,
                else
                {
                   DeviceTensor<2> j(D, 3, 2);
-                  const double E = j(0,0)*j(0,0) + j(1,0)*j(1,0) + j(2,0)*j(2,0);
-                  const double F = j(0,0)*j(0,1) + j(1,0)*j(1,1) + j(2,0)*j(2,1);
-                  const double G = j(0,1)*j(0,1) + j(1,1)*j(1,1) + j(2,1)*j(2,1);
-                  det(q,e) = std::sqrt(E*G - F*F);
+                  const real_t dE = j(0,0)*j(0,0) + j(1,0)*j(1,0) + j(2,0)*j(2,0);
+                  const real_t dF = j(0,0)*j(0,1) + j(1,0)*j(1,1) + j(2,0)*j(2,1);
+                  const real_t dG = j(0,1)*j(0,1) + j(1,1)*j(1,1) + j(2,1)*j(2,1);
+                  det(q,e) = std::sqrt(dE*dG - dF*dF);
                }
             }
          }
