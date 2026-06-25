@@ -11,17 +11,17 @@
 
 #include <cassert>
 #include <istream>
-#include <limits>
 
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_GLVIS
 
+#include "glvis_stream.hpp"
+
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include <limits>
 #endif
-
-#include "glvis_stream.hpp"
 
 #include "../fem/geom.hpp"
 thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
@@ -39,39 +39,26 @@ extern int GLVisStreamSession(
 namespace mfem
 {
 
-///////////////////////////////////////////////////////////////////////////////
 #ifdef MFEM_USE_MPI
-inline bool IsMpiInitialized()
+namespace
 {
-   int flag;
-   MPI_Initialized(&flag);
-   return flag != 0;
-};
-#endif
-
-inline int MpiSize()
+glvis_data MakeGlVisData()
 {
-   int size = 1;
-#ifdef MFEM_USE_MPI
-   if (IsMpiInitialized()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
-#endif
-   return size;
+   int size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   return glvis_data(size == 1, size, rank == 0);
 }
-
-inline int MpiRank()
-{
-   int rank = 0;
-#ifdef MFEM_USE_MPI
-   if (IsMpiInitialized()) { MPI_Comm_rank(MPI_COMM_WORLD, &rank); }
+} // namespace
 #endif
-   return rank;
-}
 
-/////////////////////////////////////////////////////////////////////
 glvis_stream::glvis_stream(): std::iostream(nullptr),
-   data(MpiSize() == 1, MpiSize(), MpiRank(), MpiRank() == 0)
+#ifdef MFEM_USE_MPI
+   data(MakeGlVisData())
+#else
+   data(true, 1, true)
+#endif
 {
-   // Sets the associated stream buffer to the data stream
    std::iostream::rdbuf(data.stream.rdbuf());
 }
 
@@ -95,7 +82,7 @@ void glvis_stream::operator()()
    }
    else
    {
-      MpiGather();
+      serialize();
    }
 
    this->reset(); // reset the local buffer for reuse
@@ -165,7 +152,7 @@ void glvis_stream::operator()()
                       to_istream_vector(std::move(data.streams)));
 }
 
-void glvis_stream::MpiGather()
+void glvis_stream::serialize()
 {
 #ifdef MFEM_USE_MPI
    // Gather sizes from ALL ranks
