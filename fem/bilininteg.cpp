@@ -4130,7 +4130,7 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 {
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
 
-   double un, a, b, w;
+   real_t un, a, b, w;
 
    const int dim = test_fe1.GetDim();
    tr_ndof1 = trial_fe1.GetDof();
@@ -4237,7 +4237,7 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 
       if (rho)
       {
-         double rho_p;
+         real_t rho_p;
          if (un >= 0.0 && tr_ndof2 && te_ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
@@ -4362,8 +4362,6 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
 {
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
 
-   double un, a, b, w;
-
    const int dim = test_fe1.GetDim();
    const int dim_lame = 1 + dim * (dim+1) / 2;
    tr_ndof1 = trial_fe1.GetDof();
@@ -4434,6 +4432,7 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
 
       test_fe1.CalcPhysShape(*Trans.Elem1, te_shape1);
 
+      real_t a, b, un;
       a = 0.5 * alpha;
       if (beta != 0.)
       {
@@ -4452,7 +4451,7 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
 
       if (rho)
       {
-         double rho_p;
+         real_t rho_p;
          if (un >= 0.0 && tr_ndof2 && te_ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
@@ -4518,7 +4517,7 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
          }
       };
 
-      w = ip.weight * (a+b);
+      real_t w = ip.weight * (a+b);
       if (w != 0.0)
       {
          kernel(+w, te_shape1, tr_shape1, 0, 0);

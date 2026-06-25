@@ -1193,7 +1193,7 @@ void DarcyHybridization::InvertD()
 
 #ifdef MFEM_DEBUG
       DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-      const double norm = D.MaxMaxNorm();
+      const real_t norm = D.MaxMaxNorm();
       if (norm == 0.)
       {
          MFEM_ABORT("Inverting an empty matrix!");

@@ -1276,9 +1276,9 @@ TFunc GetTFun(const ProblemParams &params)
       case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
-            constexpr double x0 = 1.;
-            constexpr double y0 = 1.;
-            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
+            constexpr real_t x0 = 1.;
+            constexpr real_t y0 = 1.;
+            real_t denom = ((1. - exp(-c)) * (1. - exp(-c)));
             real_t t0 = (t_0 * x(0) * x(1) * (1. - exp(c*(x(0)-x0)) ) * (1. - exp(c*(x(1)-y0))
                                                                         )) / denom;
             return t0;
@@ -1383,12 +1383,12 @@ VecTFunc GetQFun(const ProblemParams &params)
       case Problem::SteadyAdvectionDiffusion:
          return [=](const Vector &x, real_t, Vector &v)
          {
-            constexpr double x0 = 1.;
-            constexpr double y0 = 1.;
-            double cdx = exp((x(0)-x0)*c);
-            double cdy = exp((x(1)-y0)*c);
-            double coef = (1. - cdx) * (1. - cdy);
-            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
+            constexpr real_t x0 = 1.;
+            constexpr real_t y0 = 1.;
+            real_t cdx = exp((x(0)-x0)*c);
+            real_t cdy = exp((x(1)-y0)*c);
+            real_t coef = (1. - cdx) * (1. - cdy);
+            real_t denom = ((1. - exp(-c)) * (1. - exp(-c)));
 
             v(0) = (x(1)*coef - x(0)*x(1)*c*cdx*(1.-cdy))/denom;
             v(1) = (x(0)*coef - x(0)*x(1)*c*cdy*(1.-cdx))/denom;
@@ -1587,12 +1587,12 @@ TFunc GetFFun(const ProblemParams &params)
          return [=](const Vector &x, real_t) -> real_t
          {
             // div c*u: (assuming cx and cy are constant)
-            constexpr double x0 = 1.;
-            constexpr double y0 = 1.;
-            double cdx = exp((x(0)-x0)*c);
-            double cdy = exp((x(1)-y0)*c);
-            double coef = (1. - cdx) * (1. - cdy);
-            double denom = ((1. - exp(-c)) * (1. - exp(-c)));
+            constexpr real_t x0 = 1.;
+            constexpr real_t y0 = 1.;
+            real_t cdx = exp((x(0)-x0)*c);
+            real_t cdy = exp((x(1)-y0)*c);
+            real_t coef = (1. - cdx) * (1. - cdy);
+            real_t denom = ((1. - exp(-c)) * (1. - exp(-c)));
 
             real_t conv = (c*(x(1)*coef - x(0)*x(1)*c*cdx*(1.-cdy)))/denom +
             (c*(x(0)*coef - x(0)*x(1)*c*cdy*(1.-cdx)))/denom;

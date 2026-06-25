@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
    // 9. Define the coefficients, analytical solution, and rhs of the PDE.
-   const double k = 1.0;
+   const real_t k = 1.0;
    ConstantCoefficient kcoeff(k); // Acoustic resistance
 
    VectorFunctionCoefficient fcoeff(dim, fFun); // Velocity rhs
