@@ -87,22 +87,21 @@ public:
    /// Get solver iteration counts
    Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
 
+   /// Get linear solve wall times in seconds
+   Array<real_t> & GetLinearSolverTimes() {return lin_solver_times;};
+
    virtual ~IPSolver();
 
    void SetLOBPCG(HypreLOBPCG * lobpcg_) {lobpcg = lobpcg_;};
 
    void SetSchwarzOptions(bool use_schwarz, bool expand, int cg_iters, real_t weight,
-                          bool use_eigen = false, real_t eigen_thresh = 1.e4, real_t support_thresh = 1.e-4,
-                          int variant = 0, real_t min_diag_val = 0.0, bool examine_diag = false, bool unweighted = false,
+                          int variant = 2, real_t min_diag_val = 0.0, bool examine_diag = false, bool unweighted = false,
                           real_t uniform_weight = -1.0)
    {
       use_schwarz_subspace = use_schwarz;
       schwarz_expand = expand;
       schwarz_cg_iters = cg_iters;
       schwarz_relax_weight = weight;
-      schwarz_use_eigen = use_eigen;
-      schwarz_eigen_threshold = eigen_thresh;
-      schwarz_support_threshold = support_thresh;
       schwarz_variant = variant;
       schwarz_min_diag_value = min_diag_val;
       schwarz_examine_diagonal = examine_diag;
@@ -174,6 +173,7 @@ protected:
    real_t kRegPlus;
 
    Array<int> lin_solver_iterations;
+   Array<real_t> lin_solver_times;
 
    bool converged = false;
 
@@ -188,12 +188,9 @@ protected:
    // Schwarz solver options
    bool use_schwarz_subspace = false;
    bool schwarz_expand = false;
-   bool schwarz_use_eigen = false;
    int schwarz_cg_iters = 0;
-   int schwarz_variant = 0;
+   int schwarz_variant = 2;
    real_t schwarz_relax_weight = 1.0;
-   real_t schwarz_eigen_threshold = 1.e4;
-   real_t schwarz_support_threshold = 1.e-4;
    real_t schwarz_min_diag_value = 0.0;
    bool schwarz_examine_diagonal = false;
    bool schwarz_unweighted = false;

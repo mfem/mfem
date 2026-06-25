@@ -12,58 +12,8 @@
 #include "ip.hpp"
 #include "../common/schwarz_solver.hpp"
 
-// LAPACK eigendecomposition routine
-extern "C" void dsyev_(char *jobz, char *uplo, int *n, double *a, int *lda, double *w, double *work, int *lwork, int *info);
-
 namespace mfem
 {
-
-// Helper function for symmetric eigendecomposition (modeled after tied-poisson)
-bool SymmetricEigenDecomposition(mfem::DenseMatrix &A,
-                                std::vector<double> &eigvals)
-{
-   const int n = A.Height();
-   if (A.Width() != n) { return false; }
-
-   eigvals.resize(n);
-
-   char jobz = 'V'; // compute eigenvalues and eigenvectors
-   char uplo = 'U'; // use upper triangle of A
-   int lda = n;
-   int info = 0;
-
-   // Workspace query
-   int lwork = -1;
-   double work_size = 0.0;
-
-   dsyev_(&jobz, &uplo, &lda, A.Data(), &lda,
-         eigvals.data(), &work_size, &lwork, &info);
-
-   if (info != 0) { return false; }
-
-   lwork = static_cast<int>(work_size);
-   std::vector<double> work(lwork);
-
-   dsyev_(&jobz, &uplo, &lda, A.Data(), &lda,
-         eigvals.data(), work.data(), &lwork, &info);
-
-   return info == 0;
-}
-
-// Helper function to convert HypreParMatrix diagonal block to DenseMatrix
-void ConvertToDense(HypreParMatrix* A, DenseMatrix& Adense)
-{
-   Adense = 0.0;
-
-   // Access diagonal block CSR data
-   for (int i = 0; i < A->Height(); i++)
-   {
-      for (int j = A->GetDiagMemoryI()[i]; j < A->GetDiagMemoryI()[i + 1]; j++)
-      {
-         Adense(i, A->GetDiagMemoryJ()[j]) = A->GetDiagMemoryData()[j];
-      }
-   }
-}
 
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
@@ -193,6 +143,8 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    converged = false;
+   lin_solver_iterations.DeleteAll();
+   lin_solver_times.DeleteAll();
    BlockVector xk(block_offsetsx), xhat(block_offsetsx); xk = 0; xhat = 0.0;
    BlockVector Xk(block_offsetsumlz), Xhat(block_offsetsumlz); Xk = 0.0;
    Xhat = 0.0;
@@ -528,50 +480,9 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    // Compute projected operator P^T * Areduced * P
    HypreParMatrix* PTAP = RAP(Areduced, P);
 
-   // Save J, D, P, and PTAP matrices to files
-   if (false && schwarz_examine_diagonal)
-   {
-      std::ostringstream j_filename, d_filename, p_filename, ptap_filename;
-      j_filename << "J_matrix_iter_" << iter << ".mat";
-      d_filename << "D_matrix_iter_" << iter << ".mat";
-      p_filename << "P_matrix_iter_" << iter << ".mat";
-      ptap_filename << "PTAP_matrix_iter_" << iter << ".mat";
-
-      J->Print(j_filename.str().c_str());
-      D->Print(d_filename.str().c_str());
-      P->Print(p_filename.str().c_str());
-      PTAP->Print(ptap_filename.str().c_str());
-
-      if (myid == 0 && print_level > 0)
-      {
-         mfem::out << "  Saved J matrix to: " << j_filename.str() << std::endl;
-         mfem::out << "  Saved D matrix to: " << d_filename.str() << std::endl;
-         mfem::out << "  Saved P matrix to: " << p_filename.str() << std::endl;
-         mfem::out << "  Saved PTAP matrix to: " << ptap_filename.str() << std::endl;
-      }
-   }
-
    // Merge J matrix to access local rows
    SparseMatrix merged_J;
    J->MergeDiagAndOffd(merged_J);
-
-   // Merge P matrix to build global-to-subspace DoF mapping
-   SparseMatrix merged_P;
-   P->MergeDiagAndOffd(merged_P);
-
-   // Build mapping: global displacement DoF → subspace index
-   // P is (global × subspace), so each row i is a global DoF, each column j is a subspace DoF
-   std::map<HYPRE_BigInt, HYPRE_Int> global_to_subspace;
-   for (int i = 0; i < merged_P.Height(); i++)
-   {
-      const int* cols = merged_P.GetRowColumns(i);
-      int row_size = merged_P.RowSize(i);
-      for (int j = 0; j < row_size; j++)
-      {
-         // Row i (global DoF) maps to column cols[j] (subspace DoF)
-         global_to_subspace[i] = cols[j];
-      }
-   }
 
    // Access PTAP diagonal for graph queries (if expanding subdomains)
    hypre_ParCSRMatrix* parPTAP = (hypre_ParCSRMatrix*)(*PTAP);
@@ -580,178 +491,223 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    HYPRE_Int* PTAP_Aj = hypre_CSRMatrixJ(PTAP_diag);
    HYPRE_Int num_dofs_subspace = hypre_CSRMatrixNumRows(PTAP_diag);
 
-   // Build subdomains
-   std::vector<std::vector<HYPRE_Int>> subdomains;
+   int nranks;
+   MPI_Comm_size(comm, &nranks);
 
-   if (schwarz_use_eigen)
+   const HYPRE_BigInt local_ptap_row_start = PTAP->GetRowStarts()[0];
+
+   struct DofMapping
    {
-      // Eigendecomposition-based subdomain selection
+      HYPRE_BigInt global_dof;
+      HYPRE_BigInt subspace_dof;
+   };
 
-      // Convert PTAP to dense matrix
-      DenseMatrix PTAP_dense(PTAP->Height(), PTAP->Width());
-      ConvertToDense(PTAP, PTAP_dense);
+   std::vector<DofMapping> local_mappings;
 
-      // Perform eigendecomposition
-      std::vector<double> eigenvalues;
-      bool eigen_success = SymmetricEigenDecomposition(PTAP_dense, eigenvalues);
+   // Get P's row/column partitions to convert local indices to global indices.
+   const HYPRE_BigInt *p_row_starts = P->GetRowStarts();
+   const HYPRE_BigInt p_local_row_start = p_row_starts[0];
+   const HYPRE_BigInt p_local_col_start = P->GetColStarts()[0];
+   const HYPRE_Int *P_diag_I = P->GetDiagMemoryI();
+   const HYPRE_Int *P_diag_J = P->GetDiagMemoryJ();
+   const HYPRE_Int *P_offd_I = P->GetOffdMemoryI();
+   const HYPRE_Int *P_offd_J = P->GetOffdMemoryJ();
+   HYPRE_BigInt *P_offd_cmap = nullptr;
+   HYPRE_Int P_num_offd_cols = 0;
+   P->GetOffdColMap(P_offd_cmap, P_num_offd_cols);
 
-      if (eigen_success)
+   for (int i = 0; i < P->GetNumRows(); i++)
+   {
+      const HYPRE_BigInt global_dof = p_local_row_start + i;
+      for (int j = P_diag_I[i]; j < P_diag_I[i + 1]; ++j)
       {
-         if (print_level > 0 && myid == 0)
-         {
-            mfem::out << "Eigendecomposition: " << eigenvalues.size() << " eigenvalues computed" << std::endl;
-            mfem::out << "Eigenvalue range: [" << eigenvalues.front() << ", " << eigenvalues.back() << "]" << std::endl;
-            mfem::out << "Using thresholds: eigenvalue > " << schwarz_eigen_threshold
-                     << ", support > " << schwarz_support_threshold << std::endl;
-         }
-
-         // Filter eigenvalues and build subdomains from eigenvector support
-         int num_high_eigenvalues = 0;
-         for (int i = 0; i < eigenvalues.size(); i++)
-         {
-            if (eigenvalues[i] > schwarz_eigen_threshold)
-            {
-               num_high_eigenvalues++;
-
-               // Extract eigenvector (stored as column i in PTAP_dense after dsyev_)
-               std::set<HYPRE_Int> subdomain_set;
-               for (int j = 0; j < PTAP_dense.Height(); j++)
-               {
-                  if (std::abs(PTAP_dense(j, i)) > schwarz_support_threshold)
-                  {
-                     subdomain_set.insert(j);
-                  }
-               }
-
-               // Create subdomain if it has enough DOFs
-               if (subdomain_set.size() > 0)
-               {
-                  std::vector<HYPRE_Int> subdomain(subdomain_set.begin(), subdomain_set.end());
-                  subdomains.push_back(subdomain);
-               }
-            }
-         }
-
-         if (print_level > 0 && myid == 0)
-         {
-            mfem::out << "Created " << subdomains.size() << " eigendecomposition-based subdomains "
-                     << "(from " << num_high_eigenvalues << " eigenvalues > " << schwarz_eigen_threshold << ")" << std::endl;
-         }
+         local_mappings.push_back({global_dof, p_local_col_start + P_diag_J[j]});
       }
-      else
+      for (int j = P_offd_I[i]; j < P_offd_I[i + 1]; ++j)
       {
-         if (print_level > 0 && myid == 0)
-         {
-            mfem::out << "Warning: Eigendecomposition failed, falling back to row-based subdomains" << std::endl;
-         }
-         // Fall through to row-based approach below
+         local_mappings.push_back({global_dof, P_offd_cmap[P_offd_J[j]]});
       }
    }
 
-   // subdomains.clear();
+   int local_count = local_mappings.size();
+   std::vector<int> counts(nranks), displs(nranks + 1, 0);
 
-   // Row-based subdomain selection (original approach or fallback)
-   if (!schwarz_use_eigen || subdomains.size() == 0)
+   MPI_Allgather(&local_count, 1, MPI_INT, counts.data(), 1, MPI_INT, comm);
+
+   for (int r = 0; r < nranks; r++)
+   {
+      displs[r + 1] = displs[r] + counts[r];
+   }
+
+   int total_mappings = displs[nranks];
+   std::vector<DofMapping> all_mappings(total_mappings);
+
+   std::vector<int> byte_counts(nranks), byte_displs(nranks);
+   for (int r = 0; r < nranks; r++)
+   {
+      byte_counts[r] = counts[r] * sizeof(DofMapping);
+      byte_displs[r] = displs[r] * sizeof(DofMapping);
+   }
+
+   MPI_Allgatherv(local_mappings.data(), local_count * sizeof(DofMapping), MPI_BYTE,
+                  all_mappings.data(), byte_counts.data(), byte_displs.data(),
+                  MPI_BYTE, comm);
+
+   std::map<HYPRE_BigInt, HYPRE_BigInt> global_to_subspace;
+   for (const auto &mapping : all_mappings)
+   {
+      global_to_subspace[mapping.global_dof] = mapping.subspace_dof;
+   }
+
+   std::vector<std::vector<HYPRE_BigInt>> local_subdomains;
    {
       int local_J_rows = J->Height();
-
-   for (int i = 0; i < local_J_rows; i++)
-   {
-      const int* cols = merged_J.GetRowColumns(i);
-      int row_size = merged_J.RowSize(i);
-
-      if (row_size == 0) continue;
-
-      // Skip this constraint if D diagonal value is below threshold
-      if (schwarz_min_diag_value > 0.0 && i < D_diag.Size())
+      for (int i = 0; i < local_J_rows; i++)
       {
-         if (D_diag(i) < schwarz_min_diag_value)
-         {
-            continue;
-         }
-      }
+         const int* cols = merged_J.GetRowColumns(i);
+         int row_size = merged_J.RowSize(i);
 
-      std::set<HYPRE_Int> subdomain_set;
+         if (row_size == 0) { continue; }
 
-      // Add all DoFs in this contact constraint
-      for (int j = 0; j < row_size; j++)
-      {
-         HYPRE_BigInt global_dof = cols[j];
-         auto it = global_to_subspace.find(global_dof);
-         if (it != global_to_subspace.end())
+         // Skip this constraint if D diagonal value is below threshold.
+         if (schwarz_min_diag_value > 0.0 && i < D_diag.Size())
          {
-            subdomain_set.insert(it->second);
-         }
-      }
-
-      // Optionally expand with graph neighbors in PTAP
-      if (schwarz_expand)
-      {
-         std::vector<HYPRE_Int> original_dofs(subdomain_set.begin(), subdomain_set.end());
-         for (HYPRE_Int dof : original_dofs)
-         {
-            if (dof >= 0 && dof < num_dofs_subspace)
+            if (D_diag(i) < schwarz_min_diag_value)
             {
-               for (HYPRE_Int jj = PTAP_Ai[dof]; jj < PTAP_Ai[dof + 1]; jj++)
+               continue;
+            }
+         }
+
+         std::set<HYPRE_BigInt> subdomain_set;
+
+         // Add all DoFs in this contact constraint.
+         for (int j = 0; j < row_size; j++)
+         {
+            const HYPRE_BigInt global_dof = cols[j];
+            auto it = global_to_subspace.find(global_dof);
+            if (it != global_to_subspace.end())
+            {
+               subdomain_set.insert(it->second);
+            }
+         }
+
+         if (schwarz_expand)
+         {
+            std::vector<HYPRE_BigInt> original_dofs(subdomain_set.begin(), subdomain_set.end());
+            for (HYPRE_BigInt dof : original_dofs)
+            {
+               if (dof >= local_ptap_row_start &&
+                   dof < local_ptap_row_start + num_dofs_subspace)
                {
-                  HYPRE_Int neighbor = PTAP_Aj[jj];
-                  if (neighbor != dof)
+                  const HYPRE_Int local_dof = static_cast<HYPRE_Int>(dof - local_ptap_row_start);
+                  for (HYPRE_Int jj = PTAP_Ai[local_dof]; jj < PTAP_Ai[local_dof + 1]; jj++)
                   {
-                     subdomain_set.insert(neighbor);
+                     const HYPRE_BigInt neighbor = local_ptap_row_start + PTAP_Aj[jj];
+                     if (neighbor != dof)
+                     {
+                        subdomain_set.insert(neighbor);
+                     }
                   }
                }
             }
          }
-      }
 
-      // Convert set to vector and add to subdomains list
-      if (subdomain_set.size() > 0)
-      {
-         std::vector<HYPRE_Int> subdomain(subdomain_set.begin(), subdomain_set.end());
-         //mfem::out << "sub size: " << subdomain.size() << std::endl;
-         subdomains.push_back(subdomain);
+         if (!subdomain_set.empty())
+         {
+            local_subdomains.emplace_back(subdomain_set.begin(), subdomain_set.end());
+         }
       }
-   }
-   //mfem::out << "DONE, total size: " << PTAP->N() << std::endl;
    } // end row-based subdomain selection
 
-   /*std::set<HYPRE_Int> all_dofs;
-   for (auto subdomain : subdomains)
+   // J rows may be unevenly distributed across ranks, so rebalance the
+   // generated subdomains explicitly before building the Schwarz factors.
+   const int local_num_subdomains = static_cast<int>(local_subdomains.size());
+   std::vector<int> subdomain_counts(nranks, 0);
+   MPI_Allgather(&local_num_subdomains, 1, MPI_INT,
+                 subdomain_counts.data(), 1, MPI_INT, comm);
+
+   std::vector<int> subdomain_displs(nranks, 0);
+   int total_subdomains = 0;
+   for (int r = 0; r < nranks; ++r)
    {
-      for (auto i : subdomain)
-      {
-         all_dofs.insert(i);
-      }
+      subdomain_displs[r] = total_subdomains;
+      total_subdomains += subdomain_counts[r];
    }
-   subdomains.clear();
-   subdomains.resize(1);
-   for (auto i : all_dofs)
+
+   std::vector<int> local_subdomain_sizes(local_num_subdomains, 0);
+   int local_total_memberships = 0;
+   for (int i = 0; i < local_num_subdomains; ++i)
    {
-      subdomains[0].push_back(i);
-   }*/
+      local_subdomain_sizes[i] = static_cast<int>(local_subdomains[i].size());
+      local_total_memberships += local_subdomain_sizes[i];
+   }
+
+   std::vector<int> all_subdomain_sizes(total_subdomains, 0);
+   MPI_Allgatherv(local_subdomain_sizes.empty() ? nullptr : local_subdomain_sizes.data(),
+                  local_num_subdomains, MPI_INT,
+                  all_subdomain_sizes.empty() ? nullptr : all_subdomain_sizes.data(),
+                  subdomain_counts.data(), subdomain_displs.data(), MPI_INT, comm);
+
+   std::vector<int> membership_counts(nranks, 0);
+   MPI_Allgather(&local_total_memberships, 1, MPI_INT,
+                 membership_counts.data(), 1, MPI_INT, comm);
+
+   std::vector<int> membership_displs(nranks, 0);
+   int total_memberships = 0;
+   for (int r = 0; r < nranks; ++r)
+   {
+      membership_displs[r] = total_memberships;
+      total_memberships += membership_counts[r];
+   }
+
+   std::vector<HYPRE_BigInt> local_flat_subdomains;
+   local_flat_subdomains.reserve(local_total_memberships);
+   for (const auto &subdomain : local_subdomains)
+   {
+      local_flat_subdomains.insert(local_flat_subdomains.end(),
+                                   subdomain.begin(), subdomain.end());
+   }
+
+   std::vector<HYPRE_BigInt> all_flat_subdomains(total_memberships);
+   MPI_Allgatherv(local_flat_subdomains.empty() ? nullptr : local_flat_subdomains.data(),
+                  local_total_memberships, HYPRE_MPI_BIG_INT,
+                  all_flat_subdomains.empty() ? nullptr : all_flat_subdomains.data(),
+                  membership_counts.data(), membership_displs.data(),
+                  HYPRE_MPI_BIG_INT, comm);
+
+   std::vector<int> subdomain_value_offsets(total_subdomains + 1, 0);
+   for (int i = 0; i < total_subdomains; ++i)
+   {
+      subdomain_value_offsets[i + 1] = subdomain_value_offsets[i] + all_subdomain_sizes[i];
+   }
+
+   std::vector<std::vector<HYPRE_BigInt>> subdomains = local_subdomains;
+   std::vector<int> assigned_subdomain_counts = subdomain_counts;
+   std::vector<int> assigned_subdomain_sizes(nranks, 0);
+   MPI_Allgather(&local_total_memberships, 1, MPI_INT,
+                 assigned_subdomain_sizes.data(), 1, MPI_INT, comm);
 
    // Print diagnostic information about subdomains
-   if (print_level > 0 || myid == 0)
+   if (myid == 0 && (print_level > 1 || schwarz_examine_diagonal))
    {
-      // Compute subdomain size statistics
-      int num_subdomains = subdomains.size();
+      // Compute subdomain size statistics on the globally balanced set.
+      int num_subdomains = total_subdomains;
       int total_size = 0;
-      int min_size = num_subdomains > 0 ? subdomains[0].size() : 0;
+      int min_size = num_subdomains > 0 ? all_subdomain_sizes[0] : 0;
       int max_size = 0;
 
       // Track covered DOFs
-      std::set<HYPRE_Int> covered_dofs;
-      for (const auto& subdomain : subdomains)
+      std::set<HYPRE_BigInt> covered_dofs;
+      for (int i = 0; i < num_subdomains; ++i)
       {
-         int size = subdomain.size();
+         int size = all_subdomain_sizes[i];
          total_size += size;
          if (size < min_size) min_size = size;
          if (size > max_size) max_size = size;
 
-         // Add DOFs to covered set
-         for (HYPRE_Int dof : subdomain)
+         for (int j = subdomain_value_offsets[i]; j < subdomain_value_offsets[i + 1]; ++j)
          {
-            covered_dofs.insert(dof);
+            covered_dofs.insert(all_flat_subdomains[j]);
          }
       }
 
@@ -763,6 +719,16 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       mfem::out << "\nSchwarz subdomain statistics:" << std::endl;
       mfem::out << "  Total subspace size: " << PTAP->N() << std::endl;
       mfem::out << "  Number of subdomains: " << num_subdomains << std::endl;
+      mfem::out << "  Assigned subdomains/rank: ";
+      for (int r = 0; r < nranks; ++r)
+      {
+         mfem::out << assigned_subdomain_counts[r];
+         if (r + 1 < nranks)
+         {
+            mfem::out << " ";
+         }
+      }
+      mfem::out << std::endl;
       if (schwarz_min_diag_value > 0.0)
       {
          int total_constraints = J->Height();
@@ -794,7 +760,7 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    if (!schwarz_solver->schwarz_solver)
    {
       HYPRE_SchwarzCreate(&schwarz_solver->schwarz_solver);
-      HYPRE_SchwarzSetVariant(schwarz_solver->schwarz_solver, schwarz_variant);  // 0=multiplicative, 1=additive
+      HYPRE_SchwarzSetVariant(schwarz_solver->schwarz_solver, HypreSchwarz::RequiredVariant);
    }
 
    // Configure Schwarz with custom subdomains
@@ -976,7 +942,13 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 
       // Solve reduced system
       solver->SetOperator(*Schur_system);
+      const double linear_solve_start = MPI_Wtime();
       solver->Mult(*b_schur, *x_schur);
+      const double linear_solve_elapsed_local = MPI_Wtime() - linear_solve_start;
+      double linear_solve_elapsed = 0.0;
+      MPI_Allreduce(&linear_solve_elapsed_local, &linear_solve_elapsed, 1,
+                    MPI_DOUBLE, MPI_MAX, comm);
+      lin_solver_times.Append(linear_solve_elapsed);
 
       // Expand solution back: Xhat[0] = P_free * x_schur
       P_free->Mult(*x_schur, Xhat.GetBlock(0));
@@ -989,7 +961,13 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    {
       // Standard solve on full system
       solver->SetOperator(*Areduced);
+      const double linear_solve_start = MPI_Wtime();
       solver->Mult(breduced, Xhat.GetBlock(0));
+      const double linear_solve_elapsed_local = MPI_Wtime() - linear_solve_start;
+      double linear_solve_elapsed = 0.0;
+      MPI_Allreduce(&linear_solve_elapsed_local, &linear_solve_elapsed, 1,
+                    MPI_DOUBLE, MPI_MAX, comm);
+      lin_solver_times.Append(linear_solve_elapsed);
    }
 
    if (lobpcg)

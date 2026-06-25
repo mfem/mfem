@@ -63,6 +63,8 @@ private:
    Type type;
    /// MPI communicator
    MPI_Comm comm;
+   /// Print level for wrapper-specific diagnostics.
+   int print_level = 0;
 
 #ifdef MFEM_USE_SUPERLU
    /// Row-local matrix for SuperLU.

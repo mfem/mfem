@@ -109,16 +109,14 @@ int main(int argc, char *argv[])
    // Schwarz-based subspace solver options
    bool use_schwarz = false;
    bool schwarz_expand_neighbors = false;
-   bool schwarz_use_eigen = false;
    int schwarz_cg_iters = 0;
-   int schwarz_variant = 0;
+   int schwarz_variant = 2;
    real_t schwarz_weight = 1.0;
-   real_t schwarz_eigen_threshold = 1.e4;
-   real_t schwarz_support_threshold = 1.e-4;
    real_t schwarz_min_diag_value = 0.0;
    bool schwarz_examine_diagonal = false;
    bool schwarz_unweighted = false;
    real_t schwarz_uniform_weight = -1.0;
+   int subspace_print_level = 0;
 
    // Schur complement solver option
    bool use_schur_complement = false;
@@ -158,17 +156,10 @@ int main(int argc, char *argv[])
    args.AddOption(&schwarz_expand_neighbors, "-schwarz-expand", "--schwarz-expand-neighbors",
                   "-no-schwarz-expand", "--no-schwarz-expand",
                   "Expand Schwarz subdomains with graph neighbors.");
-   args.AddOption(&schwarz_use_eigen, "-schwarz-eigen", "--schwarz-eigen-mode",
-                  "-no-schwarz-eigen", "--no-schwarz-eigen",
-                  "Use eigendecomposition-based subdomain selection for Schwarz solver.");
-   args.AddOption(&schwarz_eigen_threshold, "-schwarz-eigen-thresh", "--schwarz-eigen-threshold",
-                  "Eigenvalue threshold for Schwarz subdomain selection (default: 1e4).");
-   args.AddOption(&schwarz_support_threshold, "-schwarz-support-thresh", "--schwarz-support-threshold",
-                  "Support threshold for eigenvector DOF selection (default: 1e-4).");
    args.AddOption(&schwarz_cg_iters, "-schwarz-cg-iters", "--schwarz-cg-iterations",
                   "Number of CG iterations for Schwarz subspace solver (0=direct).");
    args.AddOption(&schwarz_variant, "-schwarz-variant", "--schwarz-variant",
-                  "Schwarz solver variant (0=multiplicative, 1=additive).");
+                  "HYPRE Schwarz solver variant.");
    args.AddOption(&schwarz_weight, "-schwarz-weight", "--schwarz-weight",
                   "Relaxation weight for Schwarz solver.");
    args.AddOption(&schwarz_min_diag_value, "-schwarz-min-diag", "--schwarz-min-diag-value",
@@ -181,6 +172,8 @@ int main(int argc, char *argv[])
                   "Disable per-DOF scaling in Schwarz preconditioner (unweighted additive Schwarz).");
    args.AddOption(&schwarz_uniform_weight, "-schwarz-uniform-weight", "--schwarz-uniform-weight",
                   "Set uniform weight for all DOFs in Schwarz preconditioner (overrides per-DOF scaling; -1 to disable).");
+   args.AddOption(&subspace_print_level, "-subspace-pl", "--subspace-print-level",
+                  "Print level for Schwarz/direct filtered-subspace solves (0=quiet, 1=timings, 2=timings+Schwarz residuals).");
    args.AddOption(&use_schur_complement, "-schur", "--use-schur-complement",
                   "-no-schur", "--no-use-schur-complement",
                   "Use Schur complement reduction with pure AMG-preconditioned CG.");
@@ -225,6 +218,17 @@ int main(int argc, char *argv[])
          cout << "Schwarz subspace solver requires -amgf flag." << endl;
       }
       return 1;
+   }
+
+   if (use_schwarz && schwarz_variant != 2)
+   {
+      if (myid == 0)
+      {
+         mfem::out << "Schwarz subspace solver requires HYPRE Schwarz variant 2."
+                   << " Overriding requested variant " << schwarz_variant
+                   << " to 2." << endl;
+      }
+      schwarz_variant = 2;
    }
 
    // Validate Schur complement and AMGF are mutually exclusive
@@ -476,6 +480,7 @@ int main(int argc, char *argv[])
             // Schwarz-based subspace solver
             // Note: Subdomain construction happens in ip.cpp at each Newton iteration
             schwarz_ptr = new HypreSchwarz();
+            schwarz_ptr->SetPrintLevel(subspace_print_level);
             // HYPRE object will be initialized in ip.cpp when first needed
 
             if (schwarz_cg_iters > 0)
@@ -499,7 +504,7 @@ int main(int argc, char *argv[])
          {
             // Direct solver for subspace (current behavior)
             auto* direct_solver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
-            direct_solver->SetPrintLevel(0);
+            direct_solver->SetPrintLevel(subspace_print_level);
             subspacesolver = direct_solver;
          }
 
@@ -523,25 +528,15 @@ int main(int argc, char *argv[])
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
 
-      int nev = 10;
-      HypreLOBPCG lobpcg(MPI_COMM_WORLD);
-      lobpcg.SetNumModes(nev);
-      lobpcg.SetPreconditioner(*prec);
-      lobpcg.SetMaxIter(100);
-      lobpcg.SetRelTol(1e-10);
-      lobpcg.SetPrecondUsageMode(1);
-
       // 9(g). Interior-Point optimizer driving contact resolution.
       IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetPrintLevel(0);
-      //optimizer.SetLOBPCG(&lobpcg);
       optimizer.SetSchwarzOptions(use_schwarz, schwarz_expand_neighbors,
-                                  schwarz_cg_iters, schwarz_weight, schwarz_use_eigen,
-                                  schwarz_eigen_threshold, schwarz_support_threshold,
-                                  schwarz_variant, schwarz_min_diag_value,
+                                  schwarz_cg_iters, schwarz_weight, schwarz_variant,
+                                  schwarz_min_diag_value,
                                   schwarz_examine_diagonal, schwarz_unweighted, schwarz_uniform_weight);
       optimizer.SetSchurComplementMode(use_schur_complement);
 
@@ -576,9 +571,7 @@ int main(int argc, char *argv[])
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
       Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
-      Array<real_t> eigenvalues;
-      //lobpcg.GetEigenvalues(eigenvalues);
-      ParGridFunction x(&fes_copy);
+      Array<real_t> & linear_solve_times = optimizer.GetLinearSolverTimes();
 
       if (Mpi::Root())
       {
@@ -589,15 +582,14 @@ int main(int argc, char *argv[])
          mfem::out << " PCG number of iterations        = " ;
          for (int i = 0; i < PCGiterations.Size(); ++i)
          {
-            std::cout << PCGiterations[i] << " ";
+            mfem::out << PCGiterations[i] << " ";
          }
          mfem::out << "\n";
 
-         mfem::out << " Eigenvalues                     = ";
-         for (int eigi = 0; eigi < eigenvalues.Size(); ++eigi)
+         mfem::out << " Linear solve times [s]         = ";
+         for (int i = 0; i < linear_solve_times.Size(); ++i)
          {
-            eigenvalues[eigi] *= -1.0;
-            mfem::out << eigenvalues[eigi] << " ";
+            mfem::out << linear_solve_times[i] << " ";
          }
          mfem::out << endl;
       }
@@ -617,30 +609,8 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         //sol_sock << "parallel " << num_procs << " " << myid << "\n"
-         //         << "solution\n" << pmesh_copy << x_gf << flush;
-
-         for (int eigi = 0; eigi < eigenvalues.Size(); ++eigi)
-         {
-            x = lobpcg.GetEigenvector(eigi);
-            sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                     << "solution\n" << pmesh_copy << x << flush
-                     << "window_title 'Eigenmode " << eigi+1 << '/' << nev
-                     << ", Lambda = " << eigenvalues[eigi] << "'" << endl;
-
-            char c;
-            if (myid == 0)
-            {
-               mfem::out << "press (q)uit or (c)ontinue --> " << flush;
-               cin >> c;
-            }
-            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-            if (c != 'c')
-            {
-               break;
-            }
-         }
+         sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << pmesh_copy << x_gf << flush;
 
          if (i == total_steps - 1)
          {

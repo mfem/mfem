@@ -168,11 +168,22 @@ void ParallelDirectSolver::SetOperator(const Operator &op)
 void ParallelDirectSolver::Mult(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(solver, "Solver not initialized.");
+   const double solve_start = MPI_Wtime();
    solver->Mult(x, y);
+   const double solve_elapsed_local = MPI_Wtime() - solve_start;
+   double solve_elapsed = 0.0;
+   MPI_Allreduce(&solve_elapsed_local, &solve_elapsed, 1, MPI_DOUBLE, MPI_MAX, comm);
+   int myid = 0;
+   MPI_Comm_rank(comm, &myid);
+   if (myid == 0 && print_level > 0)
+   {
+      mfem::out << "ParallelDirectSolver solve time [s]: " << solve_elapsed << std::endl;
+   }
 }
 
 void ParallelDirectSolver::SetPrintLevel(int print_lvl)
 {
+   print_level = print_lvl;
    if (!solver) { return; }
 
 #ifdef MFEM_USE_MUMPS
