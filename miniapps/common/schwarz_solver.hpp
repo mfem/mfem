@@ -147,7 +147,8 @@ public:
                             HypreParMatrix &A,
                             HYPRE_Real relax_weight = 1.0,
                             HYPRE_Int use_nonsymm = 0,
-                            bool unweighted = false)
+                            bool unweighted = false,
+                            HYPRE_Real uniform_weight = -1.0)
    {
       hypre_SchwarzData *sd = (hypre_SchwarzData *)schwarz_solver;
       sd->relax_weight = relax_weight;
@@ -337,8 +338,16 @@ public:
 
       hypre_GenerateScale(csr, num_dofs, relax_weight, &scale);
 
-      // If unweighted flag is set, override per-DOF scaling with uniform scaling
-      if (unweighted)
+      // If uniform_weight is specified (>= 0), override per-DOF scaling with the specified value
+      if (uniform_weight >= 0.0)
+      {
+         for (int i = 0; i < num_dofs; ++i)
+         {
+            scale[i] = uniform_weight;
+         }
+      }
+      // Otherwise, if unweighted flag is set, override per-DOF scaling with uniform scaling of 1.0
+      else if (unweighted)
       {
          for (int i = 0; i < num_dofs; ++i)
          {

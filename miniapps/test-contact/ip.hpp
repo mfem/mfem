@@ -93,7 +93,8 @@ public:
 
    void SetSchwarzOptions(bool use_schwarz, bool expand, int cg_iters, real_t weight,
                           bool use_eigen = false, real_t eigen_thresh = 1.e4, real_t support_thresh = 1.e-4,
-                          int variant = 0, real_t min_diag_val = 0.0, bool examine_diag = false, bool unweighted = false)
+                          int variant = 0, real_t min_diag_val = 0.0, bool examine_diag = false, bool unweighted = false,
+                          real_t uniform_weight = -1.0)
    {
       use_schwarz_subspace = use_schwarz;
       schwarz_expand = expand;
@@ -106,6 +107,7 @@ public:
       schwarz_min_diag_value = min_diag_val;
       schwarz_examine_diagonal = examine_diag;
       schwarz_unweighted = unweighted;
+      schwarz_uniform_weight = uniform_weight;
    }
 
    void SetSchwarzSolver(HypreSchwarz* schwarz) { schwarz_solver = schwarz; }
@@ -195,6 +197,7 @@ protected:
    real_t schwarz_min_diag_value = 0.0;
    bool schwarz_examine_diagonal = false;
    bool schwarz_unweighted = false;
+   real_t schwarz_uniform_weight = -1.0;
    HypreSchwarz* schwarz_solver = nullptr;
 
    // Schur complement solver option

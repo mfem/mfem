@@ -158,7 +158,7 @@ def build_subdomains_from_J(J, P, min_diag_value=0.0, D_diag=None, debug=False):
 class SchwarzPreconditioner:
     """Schwarz preconditioner (additive or multiplicative)."""
 
-    def __init__(self, A, subdomains, variant='additive', relax_weight=1.0, no_scaling=False):
+    def __init__(self, A, subdomains, variant='additive', relax_weight=1.0, no_scaling=False, uniform_weight=None, symmetrized=False):
         """
         Initialize Schwarz preconditioner.
 
@@ -168,11 +168,14 @@ class SchwarzPreconditioner:
             variant: 'additive' or 'multiplicative'
             relax_weight: Relaxation weight (damping parameter)
             no_scaling: If True, disable per-DOF scaling (set all scales to 1.0)
+            uniform_weight: If specified, set all scales to this uniform value (overrides other scaling)
+            symmetrized: If True, apply both corrections for symmetrized additive Schwarz
         """
         self.A = sp.csr_matrix(A)
         self.subdomains = subdomains
         self.variant = variant
         self.relax_weight = relax_weight
+        self.symmetrized = symmetrized
         self.n = A.shape[0]
 
         # Compute scale for each DOF following HYPRE implementation
@@ -182,7 +185,10 @@ class SchwarzPreconditioner:
             subdomain_count[subdomain] += 1.0
 
         self.scale = np.zeros(self.n)
-        if no_scaling:
+        if uniform_weight is not None:
+            # Uniform scaling: set all scales to the specified value
+            self.scale = np.full(self.n, uniform_weight)
+        elif no_scaling:
             # Disable per-DOF scaling: set all scales to 1.0
             self.scale = np.ones(self.n)
         else:
@@ -233,6 +239,10 @@ class SchwarzPreconditioner:
         """
         Apply Schwarz preconditioner: z = M^{-1} r
 
+        For symmetrized additive Schwarz, applies both:
+        - First correction: ∑_k R_k^T D_k^{-1} (R_k A R_k^T)^{-1} R_k
+        - Second correction: ∑_k R_k^T (R_k A R_k^T)^{-1} D_k^{-1} R_k
+
         Args:
             r: Residual vector
 
@@ -242,7 +252,8 @@ class SchwarzPreconditioner:
         z = np.zeros_like(r)
 
         if self.variant == 'additive':
-            # Additive Schwarz following HYPRE implementation
+            # First correction: ∑_k R_k^T D_k^{-1} (R_k A R_k^T)^{-1} R_k
+            # (standard additive Schwarz with per-DOF scaling applied after subdomain solve)
             for solver_info in self.subdomain_solvers:
                 solver_type, dofs, factor = solver_info
 
@@ -258,7 +269,27 @@ class SchwarzPreconditioner:
                     z_sub = lu_solve(factor, r_sub)
 
                 # Apply scaling and accumulate
-                z[dofs] += self.scale[dofs] * z_sub
+                z[dofs] += self.scale[dofs] * z_sub * (0.5 if self.symmetrized else 1.0)
+
+            # If symmetrized, add second correction: ∑_k R_k^T (R_k A R_k^T)^{-1} D_k^{-1} R_k
+            # (per-DOF scaling applied before subdomain solve)
+            if self.symmetrized:
+                for solver_info in self.subdomain_solvers:
+                    solver_type, dofs, factor = solver_info
+
+                    # Apply scaling first, then restrict to subdomain
+                    r_scaled = self.scale * r 
+                    r_sub = r_scaled[dofs]
+
+                    # Solve subdomain system
+                    if solver_type == 'cholesky':
+                        z_sub = np.linalg.solve(factor.T, np.linalg.solve(factor, r_sub))
+                    else:  # lu
+                        from scipy.linalg import lu_solve
+                        z_sub = lu_solve(factor, r_sub)
+
+                    # Accumulate (no additional scaling)
+                    z[dofs] += z_sub * 0.5
 
         else:  # multiplicative
             # Multiplicative Schwarz following HYPRE implementation
@@ -299,6 +330,36 @@ class SchwarzPreconditioner:
                 # Update solution with per-DOF scaling
                 z[dofs] += correction
 
+        return z
+
+
+class IteratedSchwarzPreconditioner:
+    """Wrapper that applies Schwarz preconditioner multiple times."""
+
+    def __init__(self, base_precond, num_iters):
+        """
+        Initialize iterated Schwarz preconditioner.
+
+        Args:
+            base_precond: Base Schwarz preconditioner
+            num_iters: Number of times to apply the preconditioner
+        """
+        self.base_precond = base_precond
+        self.num_iters = num_iters
+
+    def apply(self, r):
+        """
+        Apply Schwarz preconditioner multiple times: z = (M^{-1})^k r
+
+        Args:
+            r: Residual vector
+
+        Returns:
+            z: Preconditioned residual
+        """
+        z = r.copy()
+        for i in range(self.num_iters):
+            z = self.base_precond.apply(z)
         return z
 
 
@@ -385,6 +446,10 @@ def main():
                         help='Relaxation weight for Schwarz preconditioner')
     parser.add_argument('--no-scaling', action='store_true',
                         help='Disable per-DOF scaling (set all scales to 1.0)')
+    parser.add_argument('--uniform-weight', type=float, default=None,
+                        help='Add curve for additive Schwarz with uniform weight (set all scales to this value)')
+    parser.add_argument('--schwarz-iters', type=int, default=0,
+                        help='Number of Schwarz iterations to apply in preconditioner (0 = disable iterated variants)')
     args = parser.parse_args()
 
     mats_dir = Path(args.mats_dir)
@@ -514,7 +579,18 @@ def main():
     results['Additive Schwarz'] = res_add
     print()
 
-    # 3. Additive Schwarz (without scaling)
+    # 3. Additive Schwarz (symmetrized with scaling)
+    print("Building additive Schwarz preconditioner (symmetrized with scaling)...")
+    precond_add_sym = SchwarzPreconditioner(A, subdomains, variant='additive', relax_weight=args.relax_weight, no_scaling=False, symmetrized=True)
+    print(f"Initialized {len(precond_add_sym.subdomain_solvers)} subdomain solvers")
+
+    print("Running PCG with additive Schwarz (symmetrized with scaling)...")
+    x_add_sym, res_add_sym = pcg_solve(A, b, precond=precond_add_sym,
+                                       max_iter=args.max_iter, tol=args.tol, verbose=True)
+    results['Additive Schwarz (symmetrized)'] = res_add_sym
+    print()
+
+    # 4. Additive Schwarz (without scaling)
     print("Building additive Schwarz preconditioner (without scaling)...")
     precond_add_no_scale = SchwarzPreconditioner(A, subdomains, variant='additive', relax_weight=args.relax_weight, no_scaling=True)
     print(f"Initialized {len(precond_add_no_scale.subdomain_solvers)} subdomain solvers")
@@ -525,7 +601,32 @@ def main():
     results['Additive Schwarz (no scaling)'] = res_add_no_scale
     print()
 
-    # 4. Multiplicative Schwarz
+    # 4a. Iterated Additive Schwarz (without scaling) - only if schwarz_iters > 0
+    if args.schwarz_iters > 0:
+        print(f"Building iterated additive Schwarz preconditioner (without scaling, {args.schwarz_iters} iters)...")
+        precond_add_no_scale_iterated = IteratedSchwarzPreconditioner(precond_add_no_scale, args.schwarz_iters)
+
+        print(f"Running PCG with iterated additive Schwarz (without scaling, {args.schwarz_iters} iters)...")
+        x_add_no_scale_iter, res_add_no_scale_iter = pcg_solve(A, b, precond=precond_add_no_scale_iterated,
+                                                                 max_iter=args.max_iter, tol=args.tol, verbose=True)
+        results[f'Additive Schwarz (no scaling, {args.schwarz_iters} iters)'] = res_add_no_scale_iter
+        print()
+
+    # 4. Additive Schwarz with uniform weight (if specified)
+    if args.uniform_weight is not None:
+        print(f"Building additive Schwarz preconditioner (uniform weight = {args.uniform_weight})...")
+        precond_uniform = SchwarzPreconditioner(A, subdomains, variant='additive',
+                                                relax_weight=args.relax_weight,
+                                                uniform_weight=args.uniform_weight)
+        print(f"Initialized {len(precond_uniform.subdomain_solvers)} subdomain solvers")
+
+        print(f"Running PCG with additive Schwarz (uniform weight = {args.uniform_weight})...")
+        x_uniform, res_uniform = pcg_solve(A, b, precond=precond_uniform,
+                                           max_iter=args.max_iter, tol=args.tol, verbose=True)
+        results[f'Additive Schwarz (uniform={args.uniform_weight})'] = res_uniform
+        print()
+
+    # 5. Multiplicative Schwarz
     print("Building multiplicative Schwarz preconditioner...")
     precond_mult = SchwarzPreconditioner(A, subdomains, variant='multiplicative', relax_weight=args.relax_weight, no_scaling=False)
     print(f"Initialized {len(precond_mult.subdomain_solvers)} subdomain solvers")
@@ -546,6 +647,17 @@ def main():
     results['Multiplicative Schwarz'] = res_mult
     print()
 
+    # 5a. Iterated Multiplicative Schwarz - only if schwarz_iters > 0
+    if args.schwarz_iters > 0:
+        print(f"Building iterated multiplicative Schwarz preconditioner ({args.schwarz_iters} iters)...")
+        precond_mult_iterated = IteratedSchwarzPreconditioner(precond_mult, args.schwarz_iters)
+
+        print(f"Running PCG with iterated multiplicative Schwarz ({args.schwarz_iters} iters)...")
+        x_mult_iter, res_mult_iter = pcg_solve(A, b, precond=precond_mult_iterated,
+                                                max_iter=args.max_iter, tol=args.tol, verbose=True)
+        results[f'Multiplicative Schwarz ({args.schwarz_iters} iters)'] = res_mult_iter
+        print()
+
     # Plot convergence
     print("=" * 70)
     print("Plotting convergence...")
@@ -555,12 +667,28 @@ def main():
 
     colors = {'No preconditioner': 'gray',
               'Additive Schwarz': 'blue',
+              'Additive Schwarz (symmetrized)': 'purple',
               'Additive Schwarz (no scaling)': 'cyan',
               'Multiplicative Schwarz': 'red'}
     markers = {'No preconditioner': 'o',
                'Additive Schwarz': 's',
+               'Additive Schwarz (symmetrized)': 'p',
                'Additive Schwarz (no scaling)': 'D',
                'Multiplicative Schwarz': '^'}
+
+    # Add color and marker for iterated variants if present
+    if args.schwarz_iters > 0:
+        colors[f'Additive Schwarz (no scaling, {args.schwarz_iters} iters)'] = 'lightblue'
+        markers[f'Additive Schwarz (no scaling, {args.schwarz_iters} iters)'] = 'x'
+
+        colors[f'Multiplicative Schwarz ({args.schwarz_iters} iters)'] = 'orange'
+        markers[f'Multiplicative Schwarz ({args.schwarz_iters} iters)'] = '*'
+
+    # Add color and marker for uniform weight curve if present
+    if args.uniform_weight is not None:
+        uniform_key = f'Additive Schwarz (uniform={args.uniform_weight})'
+        colors[uniform_key] = 'green'
+        markers[uniform_key] = 'v'
 
     for name, residuals in results.items():
         iters = range(len(residuals))

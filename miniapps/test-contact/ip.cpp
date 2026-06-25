@@ -800,7 +800,7 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    // Configure Schwarz with custom subdomains
    // use_nonsymm = 0 → Cholesky factorization (symmetric, appropriate for contact)
    HYPRE_Int use_nonsymm = 0;
-   schwarz_solver->SetCustomSubdomains(subdomains, *PTAP, schwarz_relax_weight, use_nonsymm, schwarz_unweighted);
+   schwarz_solver->SetCustomSubdomains(subdomains, *PTAP, schwarz_relax_weight, use_nonsymm, schwarz_unweighted, schwarz_uniform_weight);
 
    delete PTAP;
    delete D;

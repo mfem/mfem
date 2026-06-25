@@ -39,14 +39,17 @@ PROBLEM_CONFIG = {
 # Format: (name, flags, color, marker)
 SOLVER_CONFIGS = [
     # Baseline solvers
-    ('AMG', [], 'black', 'o'),
+    #('AMG', [], 'black', 'o'),
     ('AMGF', ['-amgf'], 'gray', 's'),
 
     # Row-based Schwarz (variant 0 = multiplicative)
     ('Multiplicative Schwarz', ['-amgf', '-schwarz'], 'blue', '^'),
 
     # Variant 2 with different relaxation weights
-    ('Additive Schwarz unweighted', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-weight', '1.0'], 'red', 'D'),
+    ('Additive Schwarz unweighted', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-unweighted'], 'red', 'D'),
+    ('Additive Schwarz uniform weight (0.5)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-uniform-weight', '0.5'], 'purple', 'D'),
+    ('Additive Schwarz uniform weight (0.1)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-uniform-weight', '0.1'], 'orange', 'D'),
+    ('Additive Schwarz uniform weight (0.01)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-uniform-weight', '0.01'], 'cyan', 'D')
     #('Additive Schwarz (w=1e-7)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-weight', '0.0000001'], 'orange', '^'),
     #('Additive Schwarz (w=1e-1)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-weight', '0.1'], 'green', '^'),
     #('Additive Schwarz (w=0.2)', ['-amgf', '-schwarz', '-schwarz-variant', '2', '-schwarz-weight', '0.2'], 'blue', '^'),

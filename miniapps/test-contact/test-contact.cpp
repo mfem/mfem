@@ -118,6 +118,7 @@ int main(int argc, char *argv[])
    real_t schwarz_min_diag_value = 0.0;
    bool schwarz_examine_diagonal = false;
    bool schwarz_unweighted = false;
+   real_t schwarz_uniform_weight = -1.0;
 
    // Schur complement solver option
    bool use_schur_complement = false;
@@ -178,6 +179,8 @@ int main(int argc, char *argv[])
    args.AddOption(&schwarz_unweighted, "-schwarz-unweighted", "--schwarz-unweighted-additive",
                   "-no-schwarz-unweighted", "--no-schwarz-unweighted-additive",
                   "Disable per-DOF scaling in Schwarz preconditioner (unweighted additive Schwarz).");
+   args.AddOption(&schwarz_uniform_weight, "-schwarz-uniform-weight", "--schwarz-uniform-weight",
+                  "Set uniform weight for all DOFs in Schwarz preconditioner (overrides per-DOF scaling; -1 to disable).");
    args.AddOption(&use_schur_complement, "-schur", "--use-schur-complement",
                   "-no-schur", "--no-use-schur-complement",
                   "Use Schur complement reduction with pure AMG-preconditioned CG.");
@@ -539,7 +542,7 @@ int main(int argc, char *argv[])
                                   schwarz_cg_iters, schwarz_weight, schwarz_use_eigen,
                                   schwarz_eigen_threshold, schwarz_support_threshold,
                                   schwarz_variant, schwarz_min_diag_value,
-                                  schwarz_examine_diagonal, schwarz_unweighted);
+                                  schwarz_examine_diagonal, schwarz_unweighted, schwarz_uniform_weight);
       optimizer.SetSchurComplementMode(use_schur_complement);
 
       // Pass Schwarz solver to optimizer if using Schwarz
