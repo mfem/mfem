@@ -110,10 +110,11 @@ namespace quadrature_interpolator
 // * non-tensor product version,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
+template <bool Integral>
 void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-            const GeometricFactors *geom, const DofToQuad &maps,
-            const Vector &e_vec, Vector &q_val, Vector &q_der, Vector &q_det,
-            const int eval_flags)
+            const GeometricFactors *detJgeom, const GeometricFactors *geom,
+            const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+            Vector &q_der, Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -125,10 +126,11 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
                "'geom' must be given (non-null) only when evaluating physical"
                " derivatives");
-   const auto B = Reshape(maps.B.Read(), nq, nd);
-   const auto G = Reshape(maps.G.Read(), nq, nd);
+   const auto B_ = maps.B.Read();
+   const auto G_ = maps.G.Read();
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, nq, NE);
-   const auto E = Reshape(e_vec.Read(), nd, vdim, NE);
+   const auto detJ_ = Integral ? detJgeom->detJ.Read() : nullptr;
+   const auto E_ = e_vec.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), nq, vdim, NE):
               Reshape(q_val.Write(), vdim, nq, NE);
@@ -136,8 +138,12 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
               Reshape(q_der.Write(), nq, vdim, NE):
               Reshape(q_der.Write(), vdim, nq, NE);
    auto det = Reshape(q_det.Write(), nq, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
+      const auto B = Reshape(B_, nq, nd);
+      const auto G = Reshape(G_, nq, nd);
+      const auto E = Reshape(E_, nd, vdim, NE);
+      const auto detJ = Reshape(detJ_, nd, NE);
       for (int q = 0; q < nq; ++q)
       {
          if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
@@ -147,10 +153,23 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                real_t q_val = 0.0;
                for (int d = 0; d < nd; ++d)
                {
-                  q_val += B(q,d)*E(d,c,e);
+                  if constexpr (Integral)
+                  {
+                     q_val += B(q, d) * E(d, c, e) * detJ(d, e);
+                  }
+                  else if constexpr (!Integral)
+                  {
+                     q_val += B(q, d) * E(d, c, e);
+                  }
                }
-               if (q_layout == QVectorLayout::byVDIM)  { val(c,q,e) = q_val; }
-               if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = q_val; }
+               if (q_layout == QVectorLayout::byVDIM)
+               {
+                  val(c, q, e) = q_val;
+               }
+               if (q_layout == QVectorLayout::byNODES)
+               {
+                  val(q, c, e) = q_val;
+               }
             }
          }
          if ((eval_flags & QI::DERIVATIVES) ||
@@ -162,7 +181,14 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                real_t q_d = 0.0;
                for (int d = 0; d < nd; ++d)
                {
-                  q_d += G(q,d)*E(d,c,e);
+                  if constexpr (Integral)
+                  {
+                     q_d += G(q, d) * E(d, c, e) * detJ(d, e);
+                  }
+                  else if constexpr (!Integral)
+                  {
+                     q_d += G(q, d) * E(d, c, e);
+                  }
                }
                if (eval_flags & QI::PHYSICAL_DERIVATIVES)
                {
@@ -170,8 +196,14 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                }
                if (eval_flags & QI::DERIVATIVES || eval_flags & QI::PHYSICAL_DERIVATIVES)
                {
-                  if (q_layout == QVectorLayout::byVDIM) { der(c,q,e) = q_d; }
-                  if (q_layout == QVectorLayout::byNODES) { der(q,c,e) = q_d; }
+                  if (q_layout == QVectorLayout::byVDIM)
+                  {
+                     der(c, q, e) = q_d;
+                  }
+                  if (q_layout == QVectorLayout::byNODES)
+                  {
+                     der(q, c, e) = q_d;
+                  }
                }
                if (vdim == 1 && (eval_flags & QI::DETERMINANTS))
                {
@@ -183,83 +215,19 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
    });
 }
 
-// Compute kernel for 1D quadrature interpolation:
-// * non-tensor product version,
-// * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
-// * assumes 'maps.mode == FULL'.
-void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *detJgeom, const GeometricFactors *geom,
-               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-               Vector &q_der, Vector &q_det, const int eval_flags)
-{
-   using QI = QuadratureInterpolator;
+template void Eval1D<true>(const int NE, const int vdim,
+                           const QVectorLayout q_layout,
+                           const GeometricFactors *detJgeom,
+                           const GeometricFactors *geom, const DofToQuad &maps,
+                           const Vector &e_vec, Vector &q_val, Vector &q_der,
+                           Vector &q_det, const int eval_flags);
 
-   const int nd = maps.ndof;
-   const int nq = maps.nqpt;
-   MFEM_ASSERT(maps.mode == DofToQuad::FULL, "internal error");
-   MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 1, "");
-   MFEM_VERIFY(vdim == 1 || !(eval_flags & QI::DETERMINANTS), "");
-   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
-               "'geom' must be given (non-null) only when evaluating physical"
-               " derivatives");
-   const auto B = Reshape(maps.B.Read(), nq, nd);
-   const auto G = Reshape(maps.G.Read(), nq, nd);
-   const auto J = Reshape(geom ? geom->J.Read() : nullptr, nq, NE);
-   const auto detJ = Reshape(detJgeom ? detJgeom->detJ.Read() : nullptr, nd, NE);
-   const auto E = Reshape(e_vec.Read(), nd, vdim, NE);
-   auto val = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_val.Write(), nq, vdim, NE):
-              Reshape(q_val.Write(), vdim, nq, NE);
-   auto der = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_der.Write(), nq, vdim, NE):
-              Reshape(q_der.Write(), vdim, nq, NE);
-   auto det = Reshape(q_det.Write(), nq, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      for (int q = 0; q < nq; ++q)
-      {
-         if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
-         {
-            for (int c = 0; c < vdim; c++)
-            {
-               real_t q_val = 0.0;
-               for (int d = 0; d < nd; ++d)
-               {
-                  q_val += B(q, d) * E(d, c, e) * detJ(d, e);
-               }
-               if (q_layout == QVectorLayout::byVDIM)  { val(c,q,e) = q_val; }
-               if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = q_val; }
-            }
-         }
-         if ((eval_flags & QI::DERIVATIVES) ||
-             (eval_flags & QI::PHYSICAL_DERIVATIVES) ||
-             (eval_flags & QI::DETERMINANTS))
-         {
-            for (int c = 0; c < vdim; c++)
-            {
-               real_t q_d = 0.0;
-               for (int d = 0; d < nd; ++d)
-               {
-                  q_d += G(q, d) * E(d, c, e) * detJ(d, e);
-               }
-               if (eval_flags & QI::PHYSICAL_DERIVATIVES)
-               {
-                  q_d /= J(q,e);
-               }
-               if (eval_flags & QI::DERIVATIVES || eval_flags & QI::PHYSICAL_DERIVATIVES)
-               {
-                  if (q_layout == QVectorLayout::byVDIM) { der(c,q,e) = q_d; }
-                  if (q_layout == QVectorLayout::byNODES) { der(q,c,e) = q_d; }
-               }
-               if (vdim == 1 && (eval_flags & QI::DETERMINANTS))
-               {
-                  det(q,e) = q_d;
-               }
-            }
-         }
-      }
-   });
-}
+template void Eval1D<false>(const int NE, const int vdim,
+                            const QVectorLayout q_layout,
+                            const GeometricFactors *detJgeom,
+                            const GeometricFactors *geom, const DofToQuad &maps,
+                            const Vector &e_vec, Vector &q_val, Vector &q_der,
+                            Vector &q_det, const int eval_flags);
 
 } // namespace quadrature_interpolator
 
@@ -323,16 +291,15 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       {
          if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
-            IntTensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
-                                      maps.B.Read(), detJgeom->detJ.Read(),
-                                      e_vec.Read(), q_val.Write(), vdim, nd,
-                                      nq);
+            TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, true, ne,
+                                   maps.B.Read(), detJgeom->detJ.Read(),
+                                   e_vec.Read(), q_val.Write(), vdim, nd, nq);
          }
          else
          {
-            TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
-                                   maps.B.Read(), e_vec.Read(), q_val.Write(),
-                                   vdim, nd, nq);
+            TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, false, ne,
+                                   maps.B.Read(), nullptr, e_vec.Read(),
+                                   q_val.Write(), vdim, nd, nq);
          }
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
@@ -342,30 +309,31 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          const int s_dim = phys ? sdim : dim;
          if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
-            IntGradKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
-                                maps.B.Read(), maps.G.Read(),
-                                detJgeom->detJ.Read(), J, e_vec.Read(),
-                                q_der.Write(), s_dim, vdim, nd, nq);
+            GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, true, ne,
+                             maps.B.Read(), maps.G.Read(),
+                             detJgeom->detJ.Read(), J, e_vec.Read(),
+                             q_der.Write(), s_dim, vdim, nd, nq);
          }
          else
          {
-            GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
-                             maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
-                             q_der.Write(), s_dim, vdim, nd, nq);
+            GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, false, ne,
+                             maps.B.Read(), maps.G.Read(), nullptr, J,
+                             e_vec.Read(), q_der.Write(), s_dim, vdim, nd, nq);
          }
       }
       if (eval_flags & DETERMINANTS)
       {
          if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
-            IntDetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
-                               maps.G.Read(), geom->detJ.Read(), e_vec.Read(),
-                               q_det.Write(), nd, nq, &d_buffer);
+            DetKernels::Run(dim, vdim, nd, nq, true, ne, maps.B.Read(),
+                            maps.G.Read(), geom->detJ.Read(), e_vec.Read(),
+                            q_det.Write(), nd, nq, &d_buffer);
          }
          else
          {
-            DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(), maps.G.Read(),
-                            e_vec.Read(), q_det.Write(), nd, nq, &d_buffer);
+            DetKernels::Run(dim, vdim, nd, nq, false, ne, maps.B.Read(),
+                            maps.G.Read(), nullptr, e_vec.Read(), q_det.Write(),
+                            nd, nq, &d_buffer);
          }
       }
    }
@@ -373,14 +341,15 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
       {
-         IntEvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne, vdim,
-                             q_layout, detJgeom, geom, maps, e_vec, q_val,
-                             q_der, q_det, eval_flags);
+         EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, true, ne, vdim,
+                          q_layout, detJgeom, geom, maps, e_vec, q_val, q_der,
+                          q_det, eval_flags);
       }
       else
       {
-         EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne, vdim, q_layout,
-                          geom, maps, e_vec, q_val, q_der, q_det, eval_flags);
+         EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, false, ne, vdim,
+                          q_layout, detJgeom, geom, maps, e_vec, q_val, q_der,
+                          q_det, eval_flags);
       }
    }
 }
@@ -508,160 +477,128 @@ namespace
 using namespace internal::quadrature_interpolator;
 
 using EvalKernel = QuadratureInterpolator::EvalKernelType;
-using IntEvalKernel = QuadratureInterpolator::IntEvalKernelType;
 using TensorEvalKernel = QuadratureInterpolator::TensorEvalKernelType;
-using IntTensorEvalKernel = QuadratureInterpolator::IntTensorEvalKernelType;
 using GradKernel = QuadratureInterpolator::GradKernelType;
-using IntGradKernel = QuadratureInterpolator::IntGradKernelType;
 using CollocatedGradKernel = QuadratureInterpolator::CollocatedGradKernelType;
 
-template <QVectorLayout Q_LAYOUT>
+template <QVectorLayout Q_LAYOUT, bool Integral>
 TensorEvalKernel FallbackTensorEvalKernel(int DIM)
 {
-   if (DIM == 1) { return Values1D<Q_LAYOUT>; }
-   else if (DIM == 2) { return Values2D<Q_LAYOUT>; }
-   else if (DIM == 3) { return Values3D<Q_LAYOUT>; }
+   if (DIM == 1) { return Values1D<Q_LAYOUT, Integral>; }
+   else if (DIM == 2) { return Values2D<Q_LAYOUT, Integral>; }
+   else if (DIM == 3) { return Values3D<Q_LAYOUT, Integral>; }
    else { MFEM_ABORT(""); }
 }
 
-template <QVectorLayout Q_LAYOUT>
-IntTensorEvalKernel FallbackIntTensorEvalKernel(int DIM)
-{
-   if (DIM == 1) { return IntValues1D<Q_LAYOUT>; }
-   else if (DIM == 2) { return IntValues2D<Q_LAYOUT>; }
-   else if (DIM == 3) { return IntValues3D<Q_LAYOUT>; }
-   else { MFEM_ABORT(""); }
-}
-
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral>
 GradKernel GetGradKernel(int DIM)
 {
-   if (DIM == 1) { return Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return Derivatives2D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 3) { return Derivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   if (DIM == 1) { return Derivatives1D<Q_LAYOUT, GRAD_PHYS, Integral>; }
+   else if (DIM == 2) { return Derivatives2D<Q_LAYOUT, GRAD_PHYS, Integral>; }
+   else if (DIM == 3) { return Derivatives3D<Q_LAYOUT, GRAD_PHYS, Integral>; }
    else { MFEM_ABORT(""); }
 }
 
-
-template<QVectorLayout Q_LAYOUT>
+template <QVectorLayout Q_LAYOUT, bool Integral>
 GradKernel GetGradKernel(int DIM, bool GRAD_PHYS)
 {
-   if (GRAD_PHYS) { return GetGradKernel<Q_LAYOUT, true>(DIM); }
-   else { return GetGradKernel<Q_LAYOUT, false>(DIM); }
+   if (GRAD_PHYS) { return GetGradKernel<Q_LAYOUT, true, Integral>(DIM); }
+   else { return GetGradKernel<Q_LAYOUT, false, Integral>(DIM); }
 }
 
-template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-IntGradKernel GetIntGradKernel(int DIM)
-{
-   if (DIM == 1) { return IntDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return IntDerivatives2D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 3) { return IntDerivatives3D<Q_LAYOUT, GRAD_PHYS>; }
-   else { MFEM_ABORT(""); }
-}
-
-
-template<QVectorLayout Q_LAYOUT>
-IntGradKernel GetIntGradKernel(int DIM, bool GRAD_PHYS)
-{
-   if (GRAD_PHYS) { return GetIntGradKernel<Q_LAYOUT, true>(DIM); }
-   else { return GetIntGradKernel<Q_LAYOUT, false>(DIM); }
-}
-
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral>
 CollocatedGradKernel GetCollocatedGradKernel(int DIM)
 {
-   if (DIM == 1) { return CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 3) { return CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS>; }
+   if (DIM == 1) { return CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS, Integral>; }
+   else if (DIM == 2) { return CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, Integral>; }
+   else if (DIM == 3) { return CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, Integral>; }
    else { MFEM_ABORT(""); }
 }
 
-template<QVectorLayout Q_LAYOUT>
+template <QVectorLayout Q_LAYOUT, bool Integral>
 CollocatedGradKernel GetCollocatedGradKernel(int DIM, bool GRAD_PHYS)
 {
-   if (GRAD_PHYS) { return GetCollocatedGradKernel<Q_LAYOUT, true>(DIM); }
-   else { return GetCollocatedGradKernel<Q_LAYOUT, false>(DIM); }
+   if (GRAD_PHYS) { return GetCollocatedGradKernel<Q_LAYOUT, true, Integral>(DIM); }
+   else { return GetCollocatedGradKernel<Q_LAYOUT, false, Integral>(DIM); }
+}
+
+template<QVectorLayout Q_LAYOUT>
+CollocatedGradKernel GetCollocatedGradKernel(int DIM, bool GRAD_PHYS,
+                                             bool Integral)
+{
+   if (Integral) { return GetCollocatedGradKernel<Q_LAYOUT, true>(DIM, GRAD_PHYS); }
+   else { return GetCollocatedGradKernel<Q_LAYOUT, false>(DIM, GRAD_PHYS); }
 }
 } // namespace
 
-template <int DIM>
+template <int DIM, bool Integral>
 EvalKernel GetEvalKernelVDimFallback(int VDIM)
 {
    using EvalKernels = QuadratureInterpolator::EvalKernels;
-   if (VDIM == 1) { return EvalKernels::Kernel<DIM,1,0,0>(); }
-   else if (VDIM == 2) { return EvalKernels::Kernel<DIM,2,0,0>(); }
-   else if (VDIM == 3) { return EvalKernels::Kernel<DIM,3,0,0>(); }
+   if (VDIM == 1) { return EvalKernels::Kernel<DIM,1,0,0,Integral>(); }
+   else if (VDIM == 2) { return EvalKernels::Kernel<DIM,2,0,0,Integral>(); }
+   else if (VDIM == 3) { return EvalKernels::Kernel<DIM,3,0,0,Integral>(); }
    else { MFEM_ABORT(""); }
 }
 
-EvalKernel QuadratureInterpolator::EvalKernels::Fallback(
-   int DIM, int VDIM, int ND, int NQ)
+EvalKernel QuadratureInterpolator::EvalKernels::Fallback(int DIM, int VDIM,
+                                                         int ND, int NQ,
+                                                         bool Integral)
 {
-   if (DIM == 1) { return GetEvalKernelVDimFallback<1>(VDIM); }
-   else if (DIM == 2) { return GetEvalKernelVDimFallback<2>(VDIM); }
-   else if (DIM == 3) { return GetEvalKernelVDimFallback<3>(VDIM); }
-   else { MFEM_ABORT(""); }
-}
-
-template <int DIM>
-IntEvalKernel GetIntEvalKernelVDimFallback(int VDIM)
-{
-   using IntEvalKernels = QuadratureInterpolator::IntEvalKernels;
-   if (VDIM == 1) { return IntEvalKernels::Kernel<DIM,1,0,0>(); }
-   else if (VDIM == 2) { return IntEvalKernels::Kernel<DIM,2,0,0>(); }
-   else if (VDIM == 3) { return IntEvalKernels::Kernel<DIM,3,0,0>(); }
-   else { MFEM_ABORT(""); }
-}
-
-IntEvalKernel QuadratureInterpolator::IntEvalKernels::Fallback(int DIM,
-                                                               int VDIM, int ND,
-                                                               int NQ)
-{
-   if (DIM == 1) { return GetIntEvalKernelVDimFallback<1>(VDIM); }
-   else if (DIM == 2) { return GetIntEvalKernelVDimFallback<2>(VDIM); }
-   else if (DIM == 3) { return GetIntEvalKernelVDimFallback<3>(VDIM); }
-   else { MFEM_ABORT(""); }
-}
-
-TensorEvalKernel QuadratureInterpolator::TensorEvalKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT, int, int, int)
-{
-   if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackTensorEvalKernel<QVectorLayout::byNODES>(DIM); }
-   else { return FallbackTensorEvalKernel<QVectorLayout::byVDIM>(DIM); }
-}
-
-IntTensorEvalKernel QuadratureInterpolator::IntTensorEvalKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT, int, int, int)
-{
-   if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackIntTensorEvalKernel<QVectorLayout::byNODES>(DIM); }
-   else { return FallbackIntTensorEvalKernel<QVectorLayout::byVDIM>(DIM); }
-}
-
-GradKernel QuadratureInterpolator::GradKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int)
-{
-   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
-   else { return GetGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
-}
-
-IntGradKernel QuadratureInterpolator::IntGradKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, int)
-{
-   if (Q_LAYOUT == QVectorLayout::byNODES)
+   if (Integral)
    {
-      return GetIntGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS);
+      if (DIM == 1) { return GetEvalKernelVDimFallback<1,true>(VDIM); }
+      else if (DIM == 2) { return GetEvalKernelVDimFallback<2,true>(VDIM); }
+      else if (DIM == 3) { return GetEvalKernelVDimFallback<3,true>(VDIM); }
+      else { MFEM_ABORT(""); }
    }
    else
    {
-      return GetIntGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS);
+      if (DIM == 1) { return GetEvalKernelVDimFallback<1,false>(VDIM); }
+      else if (DIM == 2) { return GetEvalKernelVDimFallback<2,false>(VDIM); }
+      else if (DIM == 3) { return GetEvalKernelVDimFallback<3,false>(VDIM); }
+      else { MFEM_ABORT(""); }
+   }
+}
+
+TensorEvalKernel QuadratureInterpolator::TensorEvalKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, int, int, int, bool Integral)
+{
+   if (Integral)
+   {
+      if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackTensorEvalKernel<QVectorLayout::byNODES,true>(DIM); }
+      else { return FallbackTensorEvalKernel<QVectorLayout::byVDIM,true>(DIM); }
+   }
+   else
+   {
+      if (Q_LAYOUT == QVectorLayout::byNODES) { return FallbackTensorEvalKernel<QVectorLayout::byNODES,false>(DIM); }
+      else { return FallbackTensorEvalKernel<QVectorLayout::byVDIM,false>(DIM); }
+   }
+}
+
+GradKernel QuadratureInterpolator::GradKernels::Fallback(int DIM,
+                                                         QVectorLayout Q_LAYOUT,
+                                                         bool GRAD_PHYS, int,
+                                                         int, int,
+                                                         bool Integral)
+{
+   if (Integral)
+   {
+      if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES,true>(DIM, GRAD_PHYS); }
+      else { return GetGradKernel<QVectorLayout::byVDIM,true>(DIM, GRAD_PHYS); }
+   }
+   else
+   {
+      if (Q_LAYOUT == QVectorLayout::byNODES) { return GetGradKernel<QVectorLayout::byNODES,false>(DIM, GRAD_PHYS); }
+      else { return GetGradKernel<QVectorLayout::byVDIM,false>(DIM, GRAD_PHYS); }
    }
 }
 
 CollocatedGradKernel QuadratureInterpolator::CollocatedGradKernels::Fallback(
-   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int)
+   int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int, int, bool Integral)
 {
-   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetCollocatedGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS); }
-   else { return GetCollocatedGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS); }
+   if (Q_LAYOUT == QVectorLayout::byNODES) { return GetCollocatedGradKernel<QVectorLayout::byNODES>(DIM, GRAD_PHYS, Integral); }
+   else { return GetCollocatedGradKernel<QVectorLayout::byVDIM>(DIM, GRAD_PHYS, Integral); }
 }
 
 /// @endcond
