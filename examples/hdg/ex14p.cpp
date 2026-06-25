@@ -296,7 +296,6 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     potential Schur Complement
       HypreParMatrix *MinvBt = NULL;
-      HypreParVector *Md = NULL;
       HypreParMatrix *S = NULL;
       Solver *invM, *invS;
 
@@ -321,15 +320,14 @@ int main(int argc, char *argv[])
       }
       else
       {
-         HypreParMatrix &M = *Mq->ParallelAssembleInternalMatrix();
-         Md = new HypreParVector(MPI_COMM_WORLD, M.GetGlobalNumRows(),
-                                 M.GetRowStarts());
-         M.GetDiag(*Md);
+         HypreParMatrix &Mqm = *Mq->ParallelAssembleInternalMatrix();
+         Vector Md;
+         Mqm.GetDiag(Md);
 
-         HypreParMatrix &B = *Bq->ParallelAssembleInternalMatrix();
-         MinvBt = B.Transpose();
-         MinvBt->InvScaleRows(*Md);
-         S = ParMult(&B, MinvBt);
+         HypreParMatrix &Bm = *Bq->ParallelAssembleInternalMatrix();
+         MinvBt = Bm.Transpose();
+         MinvBt->InvScaleRows(Md);
+         S = ParMult(&Bm, MinvBt);
 
          if (Mu)
          {
@@ -339,7 +337,7 @@ int main(int argc, char *argv[])
             S = Snew;
          }
 
-         invM = new HypreDiagScale(M);
+         invM = new HypreDiagScale(Mqm);
          invS = new HypreBoomerAMG(*S);
       }
 
@@ -366,7 +364,6 @@ int main(int argc, char *argv[])
       delete invM;
       delete invS;
       delete S;
-      delete Md;
       delete MinvBt;
    }
 

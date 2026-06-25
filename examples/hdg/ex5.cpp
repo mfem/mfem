@@ -374,13 +374,12 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
       SparseMatrix *MinvBt = NULL;
-      Vector Md(mVarf->Height());
-
-      Solver *invM, *invS;
       SparseMatrix *S = NULL;
+      Solver *invM, *invS;
 
       if (pa)
       {
+         Vector Md(mVarf->Height());
          mVarf->AssembleDiagonal(Md);
          auto Md_host = Md.HostRead();
          Vector invMd(mVarf->Height());
@@ -399,19 +398,20 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &M(mVarf->SpMat());
-         M.GetDiag(Md);
+         SparseMatrix &Mum(mVarf->SpMat());
+         Vector Md;
+         Mum.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &B(bVarf->SpMat());
-         MinvBt = Transpose(B);
+         SparseMatrix &Bm(bVarf->SpMat());
+         MinvBt = Transpose(Bm);
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(B, *MinvBt);
+         S = Mult(Bm, *MinvBt);
          if (mpVarf)
          {
             SparseMatrix &Mpm(mpVarf->SpMat());
@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
             S = Snew;
          }
 
-         invM = new DSmoother(M);
+         invM = new DSmoother(Mum);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = new GSSmoother(*S);

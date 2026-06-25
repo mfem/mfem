@@ -374,19 +374,17 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
       HypreParMatrix *MinvBt = NULL;
-      HypreParVector *Md = NULL;
       HypreParMatrix *S = NULL;
       Solver *invM;
       HypreBoomerAMG *invS;
 
-      HypreParMatrix &M = *Ms->ParallelAssembleInternalMatrix();
-      Md = new HypreParVector(pmesh.GetComm(), M.GetGlobalNumRows(),
-                              M.GetRowStarts());
-      M.GetDiag(*Md);
+      HypreParMatrix &Msm = *Ms->ParallelAssembleInternalMatrix();
+      Vector Md;
+      Msm.GetDiag(Md);
 
       HypreParMatrix &Bm = *Bs->ParallelAssembleInternalMatrix();
       MinvBt = Bm.Transpose();
-      MinvBt->InvScaleRows(*Md);
+      MinvBt->InvScaleRows(Md);
       S = ParMult(&Bm, MinvBt);
 
       if (Mu)
@@ -397,7 +395,7 @@ int main(int argc, char *argv[])
          S = Snew;
       }
 
-      invM = new HypreDiagScale(M);
+      invM = new HypreDiagScale(Msm);
       invS = new HypreBoomerAMG(*S);
       invS->SetSystemsOptions(dim, true);
 
@@ -424,7 +422,6 @@ int main(int argc, char *argv[])
       delete invM;
       delete invS;
       delete S;
-      delete Md;
       delete MinvBt;
    }
 

@@ -286,15 +286,15 @@ int main(int argc, char *argv[])
          M.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &B(bVarf->SpMat());
-         MinvBt = Transpose(B);
+         SparseMatrix &Bm(bVarf->SpMat());
+         MinvBt = Transpose(Bm);
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(B, *MinvBt);
+         S = Mult(Bm, *MinvBt);
 
          invM = new DSmoother(M);
 

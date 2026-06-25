@@ -264,14 +264,12 @@ int main(int argc, char *argv[])
       //    Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //    potential Schur Complement
       SparseMatrix *MinvBt = NULL;
-      Vector Md(Mq->Height());
-
-      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      Solver *invM, *invS;
       SparseMatrix *S = NULL;
+      Solver *invM, *invS;
 
       if (pa)
       {
+         Vector Md(Mq->Height());
          Mq->AssembleDiagonal(Md);
          auto Md_host = Md.HostRead();
          Vector invMd(Mq->Height());
@@ -290,19 +288,20 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &M(Mq->SpMat());
-         M.GetDiag(Md);
+         SparseMatrix &Mqm(Mq->SpMat());
+         Vector Md;
+         Mqm.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &B(Bq->SpMat());
-         MinvBt = Transpose(B);
+         SparseMatrix &Bm(Bq->SpMat());
+         MinvBt = Transpose(Bm);
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(B, *MinvBt);
+         S = Mult(Bm, *MinvBt);
          if (Mu)
          {
             SparseMatrix &Mum(Mu->SpMat());
@@ -311,7 +310,7 @@ int main(int argc, char *argv[])
             S = Snew;
          }
 
-         invM = new DSmoother(M);
+         invM = new DSmoother(Mqm);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = new GSSmoother(*S);
@@ -325,6 +324,7 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
+      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 

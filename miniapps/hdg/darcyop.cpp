@@ -378,11 +378,9 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       }
 
       Mt0.reset(new BilinearForm(darcy->PotentialFESpace()));
-      {
-         auto *bfi = new VectorMassIntegrator(*idtcoeff);
-         bfi->SetVDim(vdim);
-         Mt0->AddDomainIntegrator(bfi);
-      }
+      auto *bfi0 = new VectorMassIntegrator(*idtcoeff);
+      bfi0->SetVDim(vdim);
+      Mt0->AddDomainIntegrator(bfi0);
    }
 }
 
@@ -812,8 +810,6 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    const int a_tsize = block_offsets[1] - block_offsets[0];
    const int d_tsize = block_offsets[2] - block_offsets[1];
    Vector Md(a_tsize);
-   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
-   darcyPrec->owns_blocks = true;
    Solver *invM, *invS;
 
    if (pa)
@@ -928,6 +924,8 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
+   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
+   darcyPrec->owns_blocks = true;
    darcyPrec->SetDiagonalBlock(0, invM);
    darcyPrec->SetDiagonalBlock(1, invS);
 }

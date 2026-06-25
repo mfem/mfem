@@ -615,9 +615,9 @@ MatFunc GetKFun(const ProblemParams &params)
          const real_t dx = x(0) - bubbles(0,i);
          const real_t dy = x(1) - bubbles(1,i);
          const real_t w = bubbles(2,i);
-         const real_t k = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
-         kap += k;
-         kap_s += k * bubbles(4,i);
+         const real_t kb = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
+         kap += kb;
+         kap_s += kb * bubbles(4,i);
          //kap_a += k * bubbles(5, i);
       }
       const int ndim = x.Size();
@@ -716,9 +716,9 @@ VecFunc GetCFun(const ProblemParams &params)
          const real_t dx = x(0) - bubbles(0,i);
          const real_t dy = x(1) - bubbles(1,i);
          const real_t w = bubbles(2,i);
-         const real_t c = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
-         v(0) += +c * dy;
-         v(1) += -c * dx;
+         const real_t cb = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
+         v(0) += +cb * dy;
+         v(1) += -cb * dx;
       }
    };
 }

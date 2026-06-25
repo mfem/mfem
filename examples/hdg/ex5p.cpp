@@ -429,7 +429,6 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
       HypreParMatrix *MinvBt = NULL;
-      HypreParVector *Md = NULL;
       HypreParMatrix *S = NULL;
       Solver *invM, *invS;
 
@@ -454,25 +453,24 @@ int main(int argc, char *argv[])
       }
       else
       {
-         HypreParMatrix &M = *mVarf->ParallelAssembleInternalMatrix();
-         Md = new HypreParVector(MPI_COMM_WORLD, M.GetGlobalNumRows(),
-                                 M.GetRowStarts());
-         M.GetDiag(*Md);
+         HypreParMatrix &Mum = *mVarf->ParallelAssembleInternalMatrix();
+         Vector Md;
+         Mum.GetDiag(Md);
 
-         HypreParMatrix &B = *bVarf->ParallelAssembleInternalMatrix();
-         MinvBt = B.Transpose();
-         MinvBt->InvScaleRows(*Md);
-         S = ParMult(&B, MinvBt);
+         HypreParMatrix &Bm = *bVarf->ParallelAssembleInternalMatrix();
+         MinvBt = Bm.Transpose();
+         MinvBt->InvScaleRows(Md);
+         S = ParMult(&Bm, MinvBt);
 
          if (mpVarf)
          {
-            HypreParMatrix &Mp = *mpVarf->ParallelAssembleInternalMatrix();
-            HypreParMatrix *Snew = ParAdd(&Mp, S);
+            HypreParMatrix &Mpm = *mpVarf->ParallelAssembleInternalMatrix();
+            HypreParMatrix *Snew = ParAdd(&Mpm, S);
             delete S;
             S = Snew;
          }
 
-         invM = new HypreDiagScale(M);
+         invM = new HypreDiagScale(Mum);
          invS = new HypreBoomerAMG(*S);
       }
 
@@ -522,7 +520,6 @@ int main(int argc, char *argv[])
       delete invM;
       delete invS;
       delete S;
-      delete Md;
       delete MinvBt;
    }
 

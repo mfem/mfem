@@ -353,13 +353,13 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
       SparseMatrix *MinvBt = NULL;
-      Vector Md(Ms->Height());
-
-      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      Solver *invM, *invS;
       SparseMatrix *S = NULL;
-      SparseMatrix &M(Ms->SpMat());
-      M.GetDiag(Md);
+
+      Solver *invM, *invS;
+
+      SparseMatrix &Msm(Ms->SpMat());
+      Vector Md;
+      Msm.GetDiag(Md);
       Md.HostReadWrite();
 
       SparseMatrix &Bm(Bs->SpMat());
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
          S = Snew;
       }
 
-      invM = new DSmoother(M);
+      invM = new DSmoother(Msm);
 
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
@@ -392,6 +392,7 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
+      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 
