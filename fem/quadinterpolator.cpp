@@ -192,8 +192,73 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
                Vector &q_der, Vector &q_det, const int eval_flags)
 {
-   // TODO
-   MFEM_ABORT("Not implemented yet");
+   using QI = QuadratureInterpolator;
+
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+   MFEM_ASSERT(maps.mode == DofToQuad::FULL, "internal error");
+   MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 1, "");
+   MFEM_VERIFY(vdim == 1 || !(eval_flags & QI::DETERMINANTS), "");
+   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
+               "'geom' must be given (non-null) only when evaluating physical"
+               " derivatives");
+   const auto B = Reshape(maps.B.Read(), nq, nd);
+   const auto G = Reshape(maps.G.Read(), nq, nd);
+   const auto J = Reshape(geom ? geom->J.Read() : nullptr, nq, NE);
+   const auto detJ = Reshape(detJgeom ? detJgeom->detJ.Read() : nullptr, nd, NE);
+   const auto E = Reshape(e_vec.Read(), nd, vdim, NE);
+   auto val = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_val.Write(), nq, vdim, NE):
+              Reshape(q_val.Write(), vdim, nq, NE);
+   auto der = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_der.Write(), nq, vdim, NE):
+              Reshape(q_der.Write(), vdim, nq, NE);
+   auto det = Reshape(q_det.Write(), nq, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int q = 0; q < nq; ++q)
+      {
+         if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               real_t q_val = 0.0;
+               for (int d = 0; d < nd; ++d)
+               {
+                  q_val += B(q, d) * E(d, c, e) * detJ(d, e);
+               }
+               if (q_layout == QVectorLayout::byVDIM)  { val(c,q,e) = q_val; }
+               if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = q_val; }
+            }
+         }
+         if ((eval_flags & QI::DERIVATIVES) ||
+             (eval_flags & QI::PHYSICAL_DERIVATIVES) ||
+             (eval_flags & QI::DETERMINANTS))
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               real_t q_d = 0.0;
+               for (int d = 0; d < nd; ++d)
+               {
+                  q_d += G(q, d) * E(d, c, e) * detJ(d, e);
+               }
+               if (eval_flags & QI::PHYSICAL_DERIVATIVES)
+               {
+                  q_d /= J(q,e);
+               }
+               if (eval_flags & QI::DERIVATIVES || eval_flags & QI::PHYSICAL_DERIVATIVES)
+               {
+                  if (q_layout == QVectorLayout::byVDIM) { der(c,q,e) = q_d; }
+                  if (q_layout == QVectorLayout::byNODES) { der(q,c,e) = q_d; }
+               }
+               if (vdim == 1 && (eval_flags & QI::DETERMINANTS))
+               {
+                  det(q,e) = q_d;
+               }
+            }
+         }
+      }
+   });
 }
 
 } // namespace quadrature_interpolator

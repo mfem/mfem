@@ -72,6 +72,8 @@ Linear and nonlinear solvers
 GPU computing
 -------------
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  QuadratureInterpolator.
 
 Miscellaneous
 -------------
