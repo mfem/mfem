@@ -22,6 +22,10 @@ namespace mfem
 
 void SparseSmoother::SetOperator(const Operator &a)
 {
+   if (own_oper)
+   {
+      delete oper;
+   }
    oper = dynamic_cast<const SparseMatrix*>(&a);
    MFEM_VERIFY(oper != nullptr, "Operator must be a SparseMatrix");
    height = oper->Height();

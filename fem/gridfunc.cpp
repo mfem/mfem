@@ -2445,6 +2445,87 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
+void GridFunction::ProjectVectorDeltaCoefficient(VectorDeltaCoefficient
+                                                 &vdelta_coeff,
+                                                 real_t &integral)
+{
+   DeltaCoefficient &delta_coeff = vdelta_coeff.GetDeltaCoefficient();
+
+   if (!fes->GetNE())
+   {
+      integral = 0.0;
+      return;
+   }
+
+   Mesh *mesh = fes->GetMesh();
+   const int dim = mesh->Dimension();
+   const real_t *center = delta_coeff.Center();
+   const real_t *vert = mesh->GetVertex(0);
+   real_t min_dist, dist;
+   int v_idx = 0;
+
+   // find the vertex closest to the center of the delta function
+   min_dist = Distance(center, vert, dim);
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      vert = mesh->GetVertex(i);
+      dist = Distance(center, vert, dim);
+      if (dist < min_dist)
+      {
+         min_dist = dist;
+         v_idx = i;
+      }
+   }
+
+   (*this) = 0.0;
+   integral = 0.0;
+
+   if (min_dist >= delta_coeff.Tol())
+   {
+      return;
+   }
+
+   // find the elements that have 'v_idx' as a vertex
+   Vector dir;
+   vdelta_coeff.GetDirection(dir);
+   MFEM_ASSERT(fes->GetVDim() == dir.Size(),
+               "Vector dimension of the grid function does not match the coefficient.");
+
+   MassIntegrator Mi(*delta_coeff.Weight());
+   DenseMatrix loc_mass;
+   Array<int> dofs, vdofs, vertices;
+   Vector vals, vvals, loc_mass_vals;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      mesh->GetElementVertices(i, vertices);
+      for (int j = 0; j < vertices.Size(); j++)
+         if (vertices[j] == v_idx)
+         {
+            const FiniteElement *fe = fes->GetFE(i);
+            MFEM_ASSERT(fe->GetRangeType() == FiniteElement::SCALAR,
+                        "Implemented only for scalar finite elements.");
+
+            Mi.AssembleElementMatrix(*fe, *fes->GetElementTransformation(i),
+                                     loc_mass);
+            vals.SetSize(fe->GetDof());
+            fe->ProjectDelta(j, vals);
+            fes->GetElementDofs(i, dofs);
+            vvals.SetSize(vals.Size());
+            for (int d = 0; d < dir.Size(); d++)
+            {
+               vdofs = dofs;
+               fes->DofsToVDofs(d, vdofs);
+               vvals.Set(dir[d], vals);
+               SetSubVector(vdofs, vvals);
+            }
+            loc_mass_vals.SetSize(vals.Size());
+            loc_mass.Mult(vals, loc_mass_vals);
+            integral += loc_mass_vals.Sum(); // partition of unity basis
+            break;
+         }
+   }
+}
+
 void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
    MFEM_VERIFY(
@@ -2533,7 +2614,10 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 
       ProjectDeltaCoefficient(*delta_c, integral);
 
-      (*this) *= (delta_c->Scale() / integral);
+      if (integral > 0.)
+      {
+         (*this) *= (delta_c->Scale() / integral);
+      }
    }
 }
 
@@ -2725,73 +2809,90 @@ void GridFunction::ProjectCoefficient(
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                       ProjectType type)
 {
-   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
-   Array<int> vdofs;
-   Vector vals;
-   DofTransformation doftrans;
+   VectorDeltaCoefficient *vdelta_c =
+      dynamic_cast<VectorDeltaCoefficient *>(&vcoeff);
 
-   if (fes->GetNURBSext() == NULL)
+   if (vdelta_c == NULL)
    {
-      switch (type)
+      MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
+      Array<int> vdofs;
+      Vector vals;
+      DofTransformation doftrans;
+
+      if (fes->GetNURBSext() == NULL)
       {
-         case ProjectType::ELEMENT_L2:
-            ProjectCoefficientElementL2(vcoeff);
-            return;
-         case ProjectType::GLOBAL_L2:
-            ProjectCoefficientGlobalL2(vcoeff);
-            return;
-         default:
-            for (int i = 0; i < fes->GetNE(); i++)
-            {
-               fes->GetElementVDofs(i, vdofs, doftrans);
-               vals.SetSize(vdofs.Size());
-               fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-               doftrans.TransformPrimal(vals);
-               SetSubVector(vdofs, vals);
-            }
+         switch (type)
+         {
+            case ProjectType::ELEMENT_L2:
+               ProjectCoefficientElementL2(vcoeff);
+               return;
+            case ProjectType::GLOBAL_L2:
+               ProjectCoefficientGlobalL2(vcoeff);
+               return;
+            default:
+               for (int i = 0; i < fes->GetNE(); i++)
+               {
+                  fes->GetElementVDofs(i, vdofs, doftrans);
+                  vals.SetSize(vdofs.Size());
+                  fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+                  doftrans.TransformPrimal(vals);
+                  SetSubVector(vdofs, vals);
+               }
+         }
+      }
+      else
+      {
+         switch (type)
+         {
+            case ProjectType::DEFAULT:
+            case ProjectType::ELEMENT_L2:
+               ProjectCoefficientElementL2(vcoeff);
+               return;
+            case ProjectType::GLOBAL_L2:
+               ProjectCoefficientGlobalL2(vcoeff);
+               return;
+            case ProjectType::ELEMENT:
+               constexpr real_t signal = std::numeric_limits<real_t>::min();
+               for (int i = 0; i < fes->GetNE(); i++)
+               {
+                  fes->GetElementVDofs(i, vdofs, doftrans);
+                  vals.SetSize(vdofs.Size());
+                  vals = signal;
+                  fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+                  doftrans.TransformPrimal(vals);
+                  // Remove undefined dofs
+                  // The knot location (either Botella, Demko or Greville point)
+                  // where the NURBS dof are evaluated might fall outside of the
+                  // domain of the element. In that case the value is not set, and
+                  // the value remains the signal value.
+                  int s = 0;
+                  for (int ii = 0; ii < vals.Size(); ii++)
+                  {
+                     if (vals[ii] != signal)
+                     {
+                        vdofs[s] = vdofs[ii];
+                        vals(s) = vals(ii);
+                        s++;
+                     }
+                  }
+                  vdofs.SetSize(s);
+                  vals.SetSize(s);
+
+                  // Add reduced dofs to global vector
+                  SetSubVector(vdofs, vals);
+               }
+         }
       }
    }
    else
    {
-      switch (type)
-      {
-         case ProjectType::DEFAULT:
-         case ProjectType::ELEMENT_L2:
-            ProjectCoefficientElementL2(vcoeff);
-            return;
-         case ProjectType::GLOBAL_L2:
-            ProjectCoefficientGlobalL2(vcoeff);
-            return;
-         case ProjectType::ELEMENT:
-            constexpr real_t signal = std::numeric_limits<real_t>::min();
-            for (int i = 0; i < fes->GetNE(); i++)
-            {
-               fes->GetElementVDofs(i, vdofs, doftrans);
-               vals.SetSize(vdofs.Size());
-               vals = signal;
-               fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-               doftrans.TransformPrimal(vals);
-               // Remove undefined dofs
-               // The knot location (either Botella, Demko or Greville point)
-               // where the NURBS dof are evaluated might fall outside of the
-               // domain of the element. In that case the value is not set, and
-               // the value remains the signal value.
-               int s = 0;
-               for (int ii = 0; ii < vals.Size(); ii++)
-               {
-                  if (vals[ii] != signal)
-                  {
-                     vdofs[s] = vdofs[ii];
-                     vals(s) = vals(ii);
-                     s++;
-                  }
-               }
-               vdofs.SetSize(s);
-               vals.SetSize(s);
+      real_t integral;
 
-               // Add reduced dofs to global vector
-               SetSubVector(vdofs, vals);
-            }
+      ProjectVectorDeltaCoefficient(*vdelta_c, integral);
+
+      if (integral > 0.)
+      {
+         (*this) *= (vdelta_c->GetDeltaCoefficient().Scale() / integral);
       }
    }
 }

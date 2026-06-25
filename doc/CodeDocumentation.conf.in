@@ -960,10 +960,12 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem/moonolith \
                          @MFEM_SOURCE_DIR@/fem/qinterp \
                          @MFEM_SOURCE_DIR@/fem/tmop \
+                         @MFEM_SOURCE_DIR@/fem/darcy \
                          @MFEM_SOURCE_DIR@/examples \
                          @MFEM_SOURCE_DIR@/examples/amgx \
                          @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/ginkgo \
+                         @MFEM_SOURCE_DIR@/examples/hdg \
                          @MFEM_SOURCE_DIR@/examples/hiop \
                          @MFEM_SOURCE_DIR@/examples/moonolith \
                          @MFEM_SOURCE_DIR@/examples/petsc \
@@ -981,6 +983,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/fluids/navier \
                          @MFEM_SOURCE_DIR@/miniapps/fluids/schrodinger-flow \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
+                         @MFEM_SOURCE_DIR@/miniapps/hdg \
                          @MFEM_SOURCE_DIR@/miniapps/hdiv-linear-solver \
                          @MFEM_SOURCE_DIR@/miniapps/hooke \
                          @MFEM_SOURCE_DIR@/miniapps/hooke/kernels \

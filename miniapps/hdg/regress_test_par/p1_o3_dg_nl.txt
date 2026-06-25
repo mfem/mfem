@@ -1,0 +1,106 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --order 3
+   --discontinuous
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 8
+***********************************************************
+dim(V) = 1024
+dim(W) = 512
+dim(V+W) = 1536
+***********************************************************
+Assembly took 0.0343735s.
+Preconditioner took 0.0152057s.
+   Pass :  1   Iteration :   0  ||B r|| = 34.2475
+   Pass :  1   Iteration :   1  ||B r|| = 34.2475
+   Pass :  1   Iteration :   2  ||B r|| = 22.033
+   Pass :  1   Iteration :   3  ||B r|| = 20.6902
+   Pass :  1   Iteration :   4  ||B r|| = 11.934
+   Pass :  1   Iteration :   5  ||B r|| = 11.8453
+   Pass :  1   Iteration :   6  ||B r|| = 5.51278
+   Pass :  1   Iteration :   7  ||B r|| = 4.08979
+   Pass :  1   Iteration :   8  ||B r|| = 3.60499
+   Pass :  1   Iteration :   9  ||B r|| = 2.16409
+   Pass :  1   Iteration :  10  ||B r|| = 2.06081
+   Pass :  1   Iteration :  11  ||B r|| = 1.31165
+   Pass :  1   Iteration :  12  ||B r|| = 1.00656
+   Pass :  1   Iteration :  13  ||B r|| = 0.934346
+   Pass :  1   Iteration :  14  ||B r|| = 0.532741
+   Pass :  1   Iteration :  15  ||B r|| = 0.495517
+   Pass :  1   Iteration :  16  ||B r|| = 0.377571
+   Pass :  1   Iteration :  17  ||B r|| = 0.260196
+   Pass :  1   Iteration :  18  ||B r|| = 0.259984
+   Pass :  1   Iteration :  19  ||B r|| = 0.176463
+   Pass :  1   Iteration :  20  ||B r|| = 0.139743
+   Pass :  1   Iteration :  21  ||B r|| = 0.13273
+   Pass :  1   Iteration :  22  ||B r|| = 0.0814057
+   Pass :  1   Iteration :  23  ||B r|| = 0.0706665
+   Pass :  1   Iteration :  24  ||B r|| = 0.059077
+   Pass :  1   Iteration :  25  ||B r|| = 0.0372504
+   Pass :  1   Iteration :  26  ||B r|| = 0.0367096
+   Pass :  1   Iteration :  27  ||B r|| = 0.02737
+   Pass :  1   Iteration :  28  ||B r|| = 0.0189257
+   Pass :  1   Iteration :  29  ||B r|| = 0.0188736
+   Pass :  1   Iteration :  30  ||B r|| = 0.012668
+   Pass :  1   Iteration :  31  ||B r|| = 0.0107009
+   Pass :  1   Iteration :  32  ||B r|| = 0.00939774
+   Pass :  1   Iteration :  33  ||B r|| = 0.00578785
+   Pass :  1   Iteration :  34  ||B r|| = 0.00546574
+   Pass :  1   Iteration :  35  ||B r|| = 0.00427306
+   Pass :  1   Iteration :  36  ||B r|| = 0.0026148
+   Pass :  1   Iteration :  37  ||B r|| = 0.0026095
+   Pass :  1   Iteration :  38  ||B r|| = 0.00176882
+   Pass :  1   Iteration :  39  ||B r|| = 0.00125735
+   Pass :  1   Iteration :  40  ||B r|| = 0.0011966
+   Pass :  1   Iteration :  41  ||B r|| = 0.000743286
+   Pass :  1   Iteration :  42  ||B r|| = 0.000662583
+   Pass :  1   Iteration :  43  ||B r|| = 0.000583877
+   Pass :  1   Iteration :  44  ||B r|| = 0.000373612
+   Pass :  1   Iteration :  45  ||B r|| = 0.000361644
+   Pass :  1   Iteration :  46  ||B r|| = 0.000273989
+   Pass :  1   Iteration :  47  ||B r|| = 0.00019533
+   Pass :  1   Iteration :  48  ||B r|| = 0.000193355
+   Pass :  1   Iteration :  49  ||B r|| = 0.000131095
+   Pass :  1   Iteration :  50  ||B r|| = 0.000115544
+Restarting...
+   Pass :  2   Iteration :  51  ||B r|| = 0.000114021
+   Pass :  2   Iteration :  52  ||B r|| = 9.87126e-05
+   Pass :  2   Iteration :  53  ||B r|| = 8.92267e-05
+   Pass :  2   Iteration :  54  ||B r|| = 7.98013e-05
+   Pass :  2   Iteration :  55  ||B r|| = 5.05907e-05
+   Pass :  2   Iteration :  56  ||B r|| = 4.58221e-05
+   Pass :  2   Iteration :  57  ||B r|| = 3.47224e-05
+   Pass :  2   Iteration :  58  ||B r|| = 2.57206e-05
+GMRES+HypreAMG converged in 58 iterations with a residual norm of 2.57206e-05.
+solver took 0.695805s.
+|| q_h - q_ex || / || q_ex || = 5.07119e-05
+|| t_h - t_ex || / || t_ex || = 2.61559e-05

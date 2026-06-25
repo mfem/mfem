@@ -36,6 +36,14 @@ public:
                                   reduced integration rules. */
    };
 
+   enum HDGFaceType
+   {
+      ELEM = 0x2,
+      CONSTR = 0x4,
+      TRACE = 0x8,
+      FACE = 0x10,
+   };
+
 protected:
    Mode integrationMode = Mode::ELEMENTWISE;
 
@@ -70,6 +78,24 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Tr,
                                    const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
+   /// from an HDG face integral term.
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const FiniteElement &fe,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun, const Vector &elfun,
+                                      Vector &elvect);
+
+   /// @brief Perform the local action of the gradient of NonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const FiniteElement &fe,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun, const Vector &elfun,
+                                    DenseMatrix &elmat);
 
    /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const FiniteElement &el,
@@ -163,6 +189,8 @@ public:
 class BlockNonlinearFormIntegrator
 {
 public:
+   using HDGFaceType = NonlinearFormIntegrator::HDGFaceType;
+
    /// Compute the local energy
    virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
@@ -191,6 +219,26 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
+
+   /// @brief Perform the local action of the BlockNonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const Array<const FiniteElement *>&el,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvect);
+
+   /// @brief Perform the local action of the gradient of
+   /// BlockNonlinearFormIntegrator resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const Array<const FiniteElement *>&el,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
@@ -471,6 +519,154 @@ public:
                             ElementTransformation &trans,
                             const Vector &elfun,
                             DenseMatrix &elmat) override;
+};
+
+/// Integrator defining a sum of multiple non-linear Integrators.
+class SumNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   int own_integrators;
+   mutable DenseMatrix elem_mat;
+   mutable Vector elem_vect;
+   Array<NonlinearFormIntegrator*> integrators;
+
+public:
+   SumNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   void SetIntRule(const IntegrationRule *ir) override;
+
+   void AddIntegrator(NonlinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun,
+                           Vector &elvect) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
+
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
+
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun,
+                         DenseMatrix &elmat) override;
+
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Tr,
+                           const Vector &elfun) override;
+
+   void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AssembleGradPA(const Vector &x,
+                       const FiniteElementSpace &fes) override;
+
+   real_t GetLocalStateEnergyPA(const Vector &x) const override;
+
+   void AddMultPA(const Vector &x, Vector &y) const override;
+
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+
+   void AssembleGradDiagonalPA(Vector &diag) const override;
+
+   void AssembleMF(const FiniteElementSpace &fes) override;
+
+   void AddMultMF(const Vector &x, Vector &y) const override;
+
+   virtual ~SumNLFIntegrator();
+};
+
+/// Integrator defining a sum of multiple block non-linear Integrators.
+class SumBlockNLFIntegrator : public BlockNonlinearFormIntegrator
+{
+private:
+   int own_integrators;
+   mutable Array2D<DenseMatrix*> elem_mat;
+   mutable Array<Vector*> elem_vect;
+   Array<BlockNonlinearFormIntegrator*> integrators;
+
+   static void AllocBlock(const Array<Vector*> &b, Array<Vector*> &a);
+   static void AllocBlock(const Array2D<DenseMatrix*> &b,
+                          Array2D<DenseMatrix*> &a);
+   static void AddBlock(const Array<Vector*> &b, const Array<Vector*> &a);
+   static void AddBlock(const Array2D<DenseMatrix*> &b,
+                        const Array2D<DenseMatrix*> &a);
+
+public:
+   SumBlockNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   void AddIntegrator(BlockNonlinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   real_t GetElementEnergy(const Array<const FiniteElement *>&el,
+                           ElementTransformation &Tr,
+                           const Array<const Vector *>&elfun) override;
+
+   void AssembleElementVector(const Array<const FiniteElement *> &el,
+                              ElementTransformation &Tr,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvec) override;
+
+   void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                           const Array<const FiniteElement *> &el2,
+                           FaceElementTransformations &Tr,
+                           const Array<const Vector *> &elfun,
+                           const Array<Vector *> &elvect) override;
+
+   void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
+
+   void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                         const Array<const FiniteElement *>&el2,
+                         FaceElementTransformations &Tr,
+                         const Array<const Vector *> &elfun,
+                         const Array2D<DenseMatrix *> &elmats) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const Array<const FiniteElement *>&el,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const Array<const FiniteElement *>&el,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
+
+   virtual ~SumBlockNLFIntegrator();
 };
 
 }

@@ -230,6 +230,9 @@ if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
 endif()
 
+# Include the examples/hdg directory
+add_subdirectory(hdg)
+
 # Include the examples/hiop directory if HiOp is enabled
 if (MFEM_USE_HIOP)
   add_subdirectory(hiop)

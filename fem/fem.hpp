@@ -24,6 +24,7 @@
 #include "convergence.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
+#include "nonlininteg_mixed.hpp"
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
@@ -49,6 +50,7 @@
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
+#include "darcy/darcy.hpp"
 #include "bounds.hpp"
 #include "particleset.hpp"
 
