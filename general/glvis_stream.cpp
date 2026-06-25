@@ -21,12 +21,13 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <limits>
+#include <numeric>
 #endif
 
 #include "../fem/geom.hpp"
 thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
-// Use local declaration to avoid circular dependency when using GLVis
+// Use local declaration to avoid circular dependency when fetching GLVis
 extern int GLVisStreamSession(
    bool fix_elem_orient,
    bool save_coloring,
@@ -64,7 +65,6 @@ glvis_stream::glvis_stream(): std::iostream(nullptr),
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
-   // this->flush(); // will trigger the GLVis update
    pf(static_cast<std::ostream&>(*this));
    this->flush();
    this->operator()();
@@ -89,9 +89,9 @@ void glvis_stream::operator()()
 
    if (data.mpi_root)
    {
-      assert(data.mpi_size >= 0 &&
-             (size_t) data.mpi_size == data.offsets.size() - 1);
-      if (data.mpi_root) { assert(data.offsets[data.mpi_size] == data.total_size); }
+      MFEM_VERIFY(data.mpi_size >= 0 &&
+                  (size_t) data.mpi_size == data.offsets.size() - 1,
+                  "Invalid MPI size");
 
       data.streams.clear();
       data.type.clear();
@@ -118,113 +118,68 @@ void glvis_stream::operator()()
             assert(is_mpi_size == static_cast<int>(data.mpi_size));
             assert(is_mpi_rank == static_cast<int>(k));
          }
-         else if (data.type == "mesh") { /**/ }
-         else if (data.type == "solution") { /**/ }
-         else
+         else if (data.type != "mesh" && data.type != "solution")
          {
             MFEM_ABORT("Stream: unknown command: " << data.type);
          }
       }
    }
 
-   if (!(data.serial || data.mpi_root)) { return; }
+   if (!data.mpi_root) { return; }
 
    constexpr bool fix_elem_orien = true;
    constexpr bool save_coloring = true;
    constexpr bool keep_attr = false;
    constexpr bool headless = false;
    const std::string plot_caption {};
-   const auto to_istream_vector =
-      [](std::vector<std::unique_ptr<std::stringstream>> &&streams)
-      ->std::vector<std::unique_ptr<std::istream>>
-   {
-      std::vector<std::unique_ptr<std::istream>> istreams;
-      istreams.reserve(streams.size());
-      for (auto& s : streams) { istreams.push_back(std::move(s)); }
-      return istreams;
-   };
+   std::vector<std::unique_ptr<std::istream>> istreams;
+   istreams.reserve(data.streams.size());
+   for (auto &s : data.streams) { istreams.push_back(std::move(s)); }
    GLVisStreamSession(fix_elem_orien,
                       save_coloring,
                       keep_attr,
                       headless,
                       plot_caption,
                       data.type,
-                      to_istream_vector(std::move(data.streams)));
+                      std::move(istreams));
 }
 
 void glvis_stream::serialize()
 {
 #ifdef MFEM_USE_MPI
-   // Gather sizes from ALL ranks
-   std::vector<uint64_t> all_sizes(data.mpi_size);
-   uint64_t local_size_u = data.stream.tellp();
-   int status = MPI_Allgather(&local_size_u, 1, MPI_UINT64_T,
-                              all_sizes.data(), 1, MPI_UINT64_T,
-                              MPI_COMM_WORLD);
-   MFEM_VERIFY(status == MPI_SUCCESS, "MPI_Allgather failed");
-   if (data.mpi_root)
-   {
-      for (int r = 0; r < data.mpi_size; ++r)
-      {
-         mfem::out << "Rank " << r << " size: " << all_sizes[r] << std::endl;
-      }
-   }
-
-   // Compute offsets and total size on root only
-   data.offsets.resize(data.mpi_size + 1);
-   data.offsets[0] = 0;
-   uint64_t total_size = 0;
-   for (int i = 1; i <= data.mpi_size; ++i)
-   {
-      total_size += all_sizes[i - 1];
-      if (data.mpi_root)
-      {
-         data.offsets[i] = total_size;
-      }
-   }
-   if (data.mpi_root)
-   {
-      data.total_size = total_size;
-      mfem::out << "Total size: " << data.total_size << std::endl;
-   }
-
-   // Root allocates a temporary buffer for the full data
-   std::vector<char> recvbuf;
-   if (data.mpi_root) { recvbuf.resize(total_size); }
-
-   // Prepare Gatherv arguments (counts & displacements)
-   std::vector<int> recvcounts(data.mpi_size, 0);
-   std::vector<int> displs(data.mpi_size, 0);
-   if (data.mpi_root)
-   {
-      for (int i = 0; i < data.mpi_size; ++i)
-      {
-         assert(all_sizes[i] <= static_cast<uint64_t>(std::numeric_limits<int>::max()));
-         recvcounts[i] = static_cast<int>(all_sizes[i]);
-         displs[i]     = static_cast<int>(data.offsets[i]);
-      }
-   }
-
-   // Everyone sends their data to the root
    const std::string local = data.stream.str();
    MFEM_VERIFY(local.size() <= static_cast<size_t>
                (std::numeric_limits<int>::max()),
                "GLVis stream is too large for MPI_Gatherv");
-   const int sendcount = static_cast<int>(local.size());
-   status = MPI_Gatherv(local.data(), sendcount, MPI_CHAR,
-                        (data.mpi_root ? recvbuf.data() : nullptr),
-                        recvcounts.data(), displs.data(),
-                        MPI_CHAR, 0, MPI_COMM_WORLD);
-   MFEM_VERIFY(status == MPI_SUCCESS, "MPI_Gatherv failed");
+   const int local_size = static_cast<int>(local.size());
 
-   // Root writes the concatenated result back into its stream
+   std::vector<int> sizes(data.mpi_size);
+   MFEM_VERIFY(MPI_Allgather(&local_size, 1, MPI_INT,
+                             sizes.data(), 1, MPI_INT,
+                             MPI_COMM_WORLD) == MPI_SUCCESS,
+               "MPI_Allgather failed");
+
+   if (data.mpi_root)
+   {
+      data.offsets.resize(data.mpi_size + 1);
+      data.offsets[0] = 0;
+      std::partial_sum(sizes.begin(), sizes.end(), data.offsets.begin() + 1);
+      data.total_size = data.offsets[data.mpi_size];
+   }
+
+   std::vector<char> recvbuf(data.mpi_root ? data.total_size : 0);
+   MFEM_VERIFY(MPI_Gatherv(local.data(), local_size, MPI_CHAR,
+                           data.mpi_root ? recvbuf.data() : nullptr,
+                           data.mpi_root ? sizes.data() : nullptr,
+                           data.mpi_root ? data.offsets.data() : nullptr,
+                           MPI_CHAR, 0, MPI_COMM_WORLD) == MPI_SUCCESS,
+               "MPI_Gatherv failed");
+
    if (data.mpi_root)
    {
       reset();
-      data.stream.write(recvbuf.data(), total_size);
+      data.stream.write(recvbuf.data(), data.total_size);
    }
-
-   MPI_Barrier(MPI_COMM_WORLD);
 #endif // MFEM_USE_MPI
 }
 
