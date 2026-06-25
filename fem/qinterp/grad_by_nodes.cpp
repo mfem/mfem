@@ -22,7 +22,6 @@ namespace quadrature_interpolator
 template <bool P>
 void InitGradByNodesKernels()
 {
-   using k = QuadratureInterpolator::GradKernels;
    constexpr auto L = QVectorLayout::byNODES;
    // 2D
    QuadratureInterpolator::AddGradSpecializations<2,L,P,1,3,3,16>();
