@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#define NVTX_COLOR ::nvtx::kCyan
 
 #include <cassert>
 #include <istream>
@@ -81,14 +80,12 @@ inline int MpiRank()
 glvis_stream::glvis_stream(): std::iostream(nullptr),
    data(true, 0, 0, true)
 {
-   dbg();
    MFEM_ABORT("Not implemented");
 }
 
 glvis_stream::glvis_stream(std::streambuf*): std::iostream(nullptr),
    data(true, 0, 0, true)
 {
-   dbg();
    MFEM_ABORT("Not implemented");
 }
 
@@ -102,7 +99,6 @@ glvis_stream::glvis_stream(const char*, int): std::iostream(nullptr),
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
-   dbg();
    this->flush(); // will trigger the GLVis update
    this->glvis();
    return *this;
@@ -112,9 +108,7 @@ void glvis_stream::glvis()
 {
    if (data.serial)
    {
-      dbg("Serial");
       const auto size = this->size();
-      dbg("stream size: {}", size);
       data.offsets.resize(2);
       data.offsets[0] = 0, data.offsets[1] = size;
       data.total_size = size;
@@ -122,7 +116,6 @@ void glvis_stream::glvis()
    else
    {
       MpiGather();
-      dbg("Parallel, data.total_size: {}", data.total_size);
    }
 
    this->reset(); // reset the local buffer for reuse
@@ -141,8 +134,6 @@ void glvis_stream::glvis()
       {
          const size_t offset = data.offsets[k];
          const size_t size = data.offsets[k+1] - data.offsets[k];
-         dbg("Creating bufferstream #{}, size: {}, offset: {}",
-             k, size, offset);
 
          // add a new stream for this rank's data
          data.streams.emplace_back(std::make_unique<std::stringstream>());
@@ -155,24 +146,21 @@ void glvis_stream::glvis()
 
          if (data.type == "parallel") // Handle parallel data
          {
-            dbg("<parallel>");
             int is_mpi_size, is_mpi_rank;
             *stream >> is_mpi_size >> is_mpi_rank;
             assert(is_mpi_size == static_cast<int>(data.mpi_size));
             assert(is_mpi_rank == static_cast<int>(k));
          }
-         else if (data.type == "mesh") { dbg("<mesh>"); }
-         else if (data.type == "solution") { dbg("<solution>"); }
+         else if (data.type == "mesh") { /**/ }
+         else if (data.type == "solution") { /**/ }
          else
          {
-            dbg("Unknown data_type: '{}'", data.type);
             MFEM_ABORT("Stream: unknown command: " << data.type);
          }
       }
-      dbg("✅");
    }
 
-   if (!(data.serial || data.mpi_root)) { dbg("🔴 No GLVisStreamSession 🔴"); return; }
+   if (!(data.serial || data.mpi_root)) { return; }
 
    constexpr bool fix_elem_orien = true;
    constexpr bool save_coloring = true;
@@ -193,7 +181,6 @@ void glvis_stream::glvis()
                       plot_caption,
                       data.type,
                       to_istream_vector(std::move(data.streams)));
-   dbg("✅");
 }
 
 void glvis_stream::MpiGather()
