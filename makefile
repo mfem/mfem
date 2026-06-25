@@ -647,11 +647,13 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    ( umask $(INSTALLMASK) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) )
 
 install: $(if $(static),$(BLD)libmfem.a) \
-			$(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(GLVIS_DEP)
+			$(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+			$(if $(filter YES,$(MFEM_USE_GLVIS)),\
+				$(if $(static),$(GLVIS_DIR)/lib/libglvis.a))
 	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(and $(static),$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a) $(PREFIX_LIB))
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static),$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a) $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	$(MKINSTALLDIR) $(PREFIX_INC)/mfem
