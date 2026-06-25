@@ -23,43 +23,47 @@
 
 #include "glvis_stream.hpp"
 
-///////////////////////////////////////////////////////////////////////////////
-using StreamCollection = std::vector<std::unique_ptr<std::istream>>;
-
-#include "../fem/geom.hpp" // GeometryRefiner
-
+#include "../fem/geom.hpp"
 thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
-extern int GLVisStreamSession(const bool fix_elem_orient,
-                              const bool save_coloring,
-                              const bool keep_attr,
-                              const bool headless,
-                              const std::string &plot_caption,
-                              const std::string &data_type,
-                              StreamCollection &&streams);
+// Use local declaration to avoid circular dependency when using GLVis
+extern int GLVisStreamSession(
+   bool fix_elem_orient,
+   bool save_coloring,
+   bool keep_attr,
+   bool headless,
+   const std::string& plot_caption,
+   const std::string& data_type,
+   std::vector<std::unique_ptr<std::istream>>&& streams);
 
 namespace mfem
 {
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef MFEM_USE_MPI
 inline bool IsMpiInitialized()
 {
    int flag;
    MPI_Initialized(&flag);
    return flag != 0;
 };
+#endif
 
 inline int MpiSize()
 {
    int size = 1;
+#ifdef MFEM_USE_MPI
    if (IsMpiInitialized()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
+#endif
    return size;
 }
 
 inline int MpiRank()
 {
    int rank = 0;
+#ifdef MFEM_USE_MPI
    if (IsMpiInitialized()) { MPI_Comm_rank(MPI_COMM_WORLD, &rank); }
+#endif
    return rank;
 }
 

@@ -86,6 +86,7 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
         target_link_libraries(GLVIS INTERFACE ${COCOA_LIBRARY})
     endif()
 
+    set(GLVIS_FOUND TRUE)
     return()
 endif()
 

@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-struct GLVisData
+struct glvis_data
 {
    const bool serial;
    const int mpi_size, mpi_rank, mpi_root;
@@ -28,54 +28,15 @@ struct GLVisData
    std::vector<int> offsets;
    std::string type;
 
-   GLVisData(const bool serial, const size_t size,
-             const size_t rank, const bool root):
+   glvis_data(const bool serial, const size_t size,
+              const size_t rank, const bool root):
       serial(serial), mpi_size(size), mpi_rank(rank), mpi_root(root),
-      stream(), streams(), total_size(0), offsets(), type({}) {}
-};
-
-class glvisbuf : public std::streambuf
-{
-protected:
-   int sync() override;
-   int_type underflow() override;
-   int_type overflow(int_type c = traits_type::eof()) override;
-   std::streamsize xsgetn(char_type *s__, std::streamsize n__) override;
-   std::streamsize xsputn(const char_type *s__, std::streamsize n__) override;
-
-public:
-   glvisbuf() = default;
-
-   explicit glvisbuf(int) { }
-
-   glvisbuf(const char[], int) { }
-
-   /** @brief Attach a new socket descriptor to the socketbuf. Returns the old
-       socket descriptor which is NOT closed. */
-   virtual int attach(int sd);
-
-   /// Detach the current socket descriptor from the socketbuf.
-   int detach() { return attach(-1); }
-
-   /** @brief Open a socket on the 'port' at 'hostname' and store the socket
-       descriptor. Returns 0 if there is no error, otherwise returns -1. */
-   virtual int open(const char hostname[], int port);
-
-   /// Close the current socket descriptor.
-   virtual int close();
-
-   /// Returns the attached socket descriptor.
-   int getsocketdescriptor() { return -1; }
-
-   /** @brief Returns true if the socket is open and has a valid socket
-       descriptor. Otherwise returns false. */
-   bool is_open() { return false; }
-
-   virtual ~glvisbuf() { close(); }
+      total_size(0), type({}) {}
 };
 
 class glvis_stream: public std::iostream
 {
+   glvis_data data;
    void MpiGather();
 
 public:
@@ -86,11 +47,12 @@ public:
    glvis_stream &operator=(const glvis_stream &) = delete;
    glvis_stream &operator=(glvis_stream &&) = delete;
 
-   virtual ~glvis_stream() {}
+   ~glvis_stream() = default;
 
    size_t size() { return data.stream.tellp(); }
    std::streamsize precision() const { return std::iostream::precision(); }
-   std::streamsize precision(std::streamsize new_prec) { return std::iostream::precision(new_prec); }
+   std::streamsize precision(std::streamsize new_prec)
+   { return std::iostream::precision(new_prec); }
 
    using ostream_manipulator = std::ostream& (*)(std::ostream&);
    glvis_stream& operator<<(ostream_manipulator pf);
@@ -103,14 +65,10 @@ public:
    }
 
    int open(const char *, int) { return 0; }
-
    bool is_open() const { return true; }
-
    int close() { return 0; }
 
-   void flush() { std::iostream::flush();}
-
-   glvisbuf* rdbuf() { return buf; }
+   void flush() { std::iostream::flush(); }
 
    void reset()
    {
@@ -120,10 +78,6 @@ public:
    }
 
    void operator()();
-
-private:
-   GLVisData data;
-   glvisbuf *buf {nullptr};
 };
 
 } // namespace mfem
