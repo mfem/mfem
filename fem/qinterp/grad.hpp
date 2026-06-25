@@ -457,7 +457,7 @@ static void CollocatedDerivatives2D(const int NE, const real_t *g_,
          {
             MFEM_FOREACH_THREAD(dx, x, D1D)
             {
-               if constexpr (!Integral)
+               if constexpr (Integral)
                {
                   XY[tidz][dx + dy * D1D] = x(dx, dy, c, e) * detJ(dx, dy, e);
                }
@@ -560,7 +560,6 @@ static void CollocatedDerivatives3D(const int NE,
 
    const auto g = Reshape(g_, D1D, D1D);
    const auto j = Reshape(j_, D1D, D1D, D1D, 3, 3, NE);
-   const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
    auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, D1D, D1D, D1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, D1D, D1D, D1D, NE);
@@ -572,11 +571,30 @@ static void CollocatedDerivatives3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
 
       MFEM_SHARED real_t uvw[MD1*MD1*MD1];
+      const auto detJ = Reshape(detJ_, D1D, D1D, D1D, NE);
+      const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
       DeviceTensor<3> X(uvw, D1D, D1D, D1D);
 
       for (int c = 0; c < VDIM; ++c)
       {
-         kernels::internal::LoadX(e,D1D,c,x,X);
+         MFEM_FOREACH_THREAD(dz, z, D1D)
+         {
+            MFEM_FOREACH_THREAD(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD(dx, x, D1D)
+               {
+                  if constexpr (Integral)
+                  {
+                     X(dx, dy, dz) = x(dx, dy, dz, c, e) * detJ(dx, dy, dz, e);
+                  }
+                  if constexpr (!Integral)
+                  {
+                     X(dx, dy, dz) = x(dx, dy, dz, c, e);
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
