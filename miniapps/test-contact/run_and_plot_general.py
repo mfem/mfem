@@ -68,23 +68,21 @@ SWEEP_PARAMETERS = {
 
     # Uncomment for other experiments:
     # "np": [1, 2, 4],
-    "sr": [3, 4],
+    "sr": [0, 1, 2, 3],
     # "pr": [0, 1],
     # "prob": [0, 1, 2],
 }
 
 # Which parameters define distinct curves in plots
 CURVE_KEYS = [
-    "amgf",
-    "schwarz",
-    "schwarz_uniform_weight",
+    "sr"
 ]
 
 # Which parameter should be used for x-axis in summary plots.
 # Options:
 #   - a parameter name from configs, such as "sr", "np", "pr", "schwarz_weight"
 #   - "run_index", meaning just one point per experiment in run order
-X_AXIS_MODE = "run_index"
+X_AXIS_MODE = "sr"
 
 # Output directory prefix
 OUTPUT_PREFIX = "contact_experiments"
@@ -94,6 +92,12 @@ EXECUTABLE = "./test-contact"
 
 # Timeout per run
 TIMEOUT_SECONDS = 3600
+
+PROBLEM_NAMES = {
+    0: "two-block",
+    1: "ironing",
+    2: "beam-sphere",
+}
 
 
 # =============================================================================
@@ -115,10 +119,7 @@ def sanitize_filename(text):
 def build_output_dir(base_config, sweep_parameters, user_output_dir=None):
     if user_output_dir:
         return Path(user_output_dir)
-    signature = {
-        "base": base_config,
-        "sweep": sweep_parameters,
-    }
+    signature = {"base": base_config}
     return Path(f"{OUTPUT_PREFIX}_{short_hash(signature)}")
 
 
@@ -147,12 +148,85 @@ def expand_sweep(base_config, sweep_parameters):
     return unique
 
 
+def format_solver_label(config):
+    if not config.get("amgf", False):
+        return "AMG"
+
+    if config.get("schwarz", False):
+        cg_iters = config.get("schwarz_cg_iters", 0)
+        if cg_iters and cg_iters > 0:
+            return f"AMGF + Schwarz-CG({cg_iters})"
+        return "AMGF + Schwarz"
+
+    fsolver = config.get("amgf_fsolver", "auto")
+    if fsolver == "auto":
+        return "AMGF + direct subspace"
+    return f"AMGF + {fsolver}"
+
+
+def format_label_component(key, config):
+    value = config.get(key)
+
+    if key == "amgf":
+        return None
+    if key == "schwarz":
+        return None
+    if key == "amgf_fsolver":
+        return None if config.get("schwarz", False) else f"subspace={value}"
+    if key == "np":
+        return f"{value} ranks"
+    if key == "prob":
+        return f"problem={PROBLEM_NAMES.get(value, value)}"
+    if key == "model":
+        return "nonlinear" if value == "nonlinear" else "linear"
+    if key == "sr":
+        return f"sr={value}"
+    if key == "pr":
+        return f"pr={value}"
+    if key == "nsteps":
+        return f"nsteps={value}"
+    if key == "msteps":
+        return f"msteps={value}"
+    if key == "tr":
+        return f"tr={value:g}" if isinstance(value, float) else f"tr={value}"
+    if key == "schwarz_expand":
+        return "expanded Schwarz" if value else "unexpanded Schwarz"
+    if key == "schwarz_cg_iters":
+        return None if not config.get("schwarz", False) else (
+            f"Schwarz-CG iters={value}" if value > 0 else "direct Schwarz"
+        )
+    if key == "schwarz_variant":
+        return f"variant={value}"
+    if key == "schwarz_weight":
+        return f"weight={value:g}" if isinstance(value, float) else f"weight={value}"
+    if key == "schwarz_min_diag":
+        return f"min diag={value:g}" if isinstance(value, float) else f"min diag={value}"
+    if key == "schwarz_uniform_weight":
+        return f"uniform w={value:g}" if isinstance(value, float) else f"uniform w={value}"
+    if key == "subspace_pl":
+        return f"print level={value}"
+    if key == "vis":
+        return "vis" if value else "no vis"
+    if key == "paraview":
+        return "paraview" if value else "no paraview"
+
+    if isinstance(value, bool):
+        return key if value else f"no {key}"
+    return f"{key}={value}"
+
+
 def config_to_label(config, keys):
     parts = []
-    for k in keys:
-        if k in config:
-            parts.append(f"{k}={config[k]}")
-    return ", ".join(parts) if parts else "default"
+
+    if any(k in keys for k in ("amgf", "schwarz", "amgf_fsolver", "schwarz_cg_iters")):
+        parts.append(format_solver_label(config))
+
+    for key in keys:
+        component = format_label_component(key, config)
+        if component and component not in parts:
+            parts.append(component)
+
+    return ", ".join(parts) if parts else format_solver_label(config)
 
 
 def config_to_command(config):
