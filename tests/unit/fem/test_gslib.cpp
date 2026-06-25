@@ -12,6 +12,8 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#include <random>
+
 using namespace mfem;
 #ifdef MFEM_USE_GSLIB
 namespace gslib_test
@@ -35,6 +37,165 @@ void F_exact(const Vector &p, Vector &F)
 }
 
 enum class Space { H1, L2 };
+
+enum class SurfaceMeshType { Segment2D, Segment3D, Quad3D, Tri3D };
+
+const char *SurfaceMeshName(const SurfaceMeshType type)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D: return "segment-2d";
+      case SurfaceMeshType::Segment3D: return "segment-3d";
+      case SurfaceMeshType::Quad3D:    return "quad-3d";
+      case SurfaceMeshType::Tri3D:     return "tri-3d";
+   }
+   return "unknown";
+}
+
+int SurfaceSpaceDim(const SurfaceMeshType type)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D: return 2;
+      case SurfaceMeshType::Segment3D: return 3;
+      case SurfaceMeshType::Quad3D:    return 3;
+      case SurfaceMeshType::Tri3D:     return 3;
+   }
+   return -1;
+}
+
+Mesh MakeSurfaceMesh(const SurfaceMeshType type, const int ne)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D:
+         return Mesh::MakeCartesian1D(ne);
+      case SurfaceMeshType::Segment3D:
+         return Mesh::MakeCartesian1D(ne);
+      case SurfaceMeshType::Quad3D:
+         return Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL);
+      case SurfaceMeshType::Tri3D:
+         return Mesh::MakeCartesian2D(ne, ne, Element::TRIANGLE);
+   }
+   MFEM_ABORT("Unknown surface mesh type.");
+   return Mesh();
+}
+
+void GetSurfaceInteriorPoints(Mesh &mesh, const int npt_per_el,
+                              const int ordering, Vector &xyz,
+                              const int p0 = 0)
+{
+   MFEM_VERIFY(mesh.GetNodes() != nullptr, "Mesh nodes are required.");
+
+   const int sdim = mesh.SpaceDimension();
+   const int npt = xyz.Size()/sdim;
+   MFEM_VERIFY((p0 + mesh.GetNE()*npt_per_el)*sdim <= xyz.Size(),
+               "Output vector is too small.");
+   Vector point(sdim);
+   std::mt19937 gen(123);
+   std::uniform_real_distribution<double> uni(0.01, 0.99);
+   int p = p0;
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+      for (int j = 0; j < npt_per_el; j++)
+      {
+         IntegrationPoint ip;
+         real_t xv = uni(gen);
+         if (geom == Geometry::SEGMENT)
+         {
+            ip.x = xv;
+         }
+         else if (geom == Geometry::SQUARE)
+         {
+            ip.Set2(xv, uni(gen));
+         }
+         else
+         {
+            MFEM_VERIFY(geom == Geometry::TRIANGLE,
+                        "Unsupported surface element geometry.");
+            ip.Set2(xv, uni(gen)*(1.0 - xv));
+         }
+         T->Transform(ip, point);
+         for (int d = 0; d < sdim; d++)
+         {
+            const int idx = (ordering == Ordering::byNODES) ?
+                            d*npt + p :
+                            p*sdim + d;
+            xyz(idx) = point(d);
+         }
+         p++;
+      }
+   }
+}
+
+void GetSurfaceBoundaryPoints(Mesh &mesh, const int npt_per_el,
+                              const int ordering, Vector &xyz,
+                              const int p0 = 0)
+{
+   MFEM_VERIFY(mesh.GetNodes() != nullptr, "Mesh nodes are required.");
+
+   const int sdim = mesh.SpaceDimension();
+   const int npt = xyz.Size()/sdim;
+   MFEM_VERIFY((p0 + mesh.GetNE()*npt_per_el)*sdim <= xyz.Size(),
+               "Output vector is too small.");
+   Vector point(sdim);
+   std::mt19937 gen(246);
+   std::uniform_real_distribution<double> uni(0.01, 0.99);
+   int p = p0;
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+      for (int j = 0; j < npt_per_el; j++)
+      {
+         IntegrationPoint ip;
+         if (geom == Geometry::SEGMENT)
+         {
+            MFEM_VERIFY(npt_per_el == 2,
+                        "Segment boundary sampling requires npt_per_el = 2.");
+            ip.x = (j == 0) ? 0.0 : 1.0;
+         }
+         else
+         {
+            const double t = uni(gen);
+            if (geom == Geometry::SQUARE)
+            {
+               switch (j % 4)
+               {
+                  case 0: ip.Set2(t, 0.0);     break;
+                  case 1: ip.Set2(1.0, t);     break;
+                  case 2: ip.Set2(t, 1.0);     break;
+                  case 3: ip.Set2(0.0, t);     break;
+               }
+            }
+            else
+            {
+               MFEM_VERIFY(geom == Geometry::TRIANGLE,
+                           "Unsupported surface element geometry.");
+               switch (j % 3)
+               {
+                  case 0: ip.Set2(t, 0.0);     break;
+                  case 1: ip.Set2(t, 1.0 - t); break;
+                  case 2: ip.Set2(0.0, t);     break;
+               }
+            }
+         }
+         T->Transform(ip, point);
+         for (int d = 0; d < sdim; d++)
+         {
+            const int idx = (ordering == Ordering::byNODES) ?
+                            d*npt + p :
+                            p*sdim + d;
+            xyz(idx) = point(d);
+         }
+         p++;
+      }
+   }
+}
 
 TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
 {
@@ -190,6 +351,96 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    delete c_fec;
 }
 
+TEST_CASE("GSLIBSurfInterpolate", "[GSLIBSurfInterpolate][GSLIB]")
+{
+   auto surface_mesh_type   = GENERATE(SurfaceMeshType::Segment2D,
+                                       SurfaceMeshType::Segment3D,
+                                       SurfaceMeshType::Quad3D,
+                                       SurfaceMeshType::Tri3D);
+   func_order               = GENERATE(1, 2);
+   int mesh_order           = GENERATE(1, 2);
+   int mesh_node_ordering   = GENERATE(0, 1);
+   int point_ordering       = GENERATE(0, 1);
+   int ncomp                = GENERATE(1, 2);
+   int gf_ordering          = GENERATE(0, 1);
+   int func_out_ordering    = GENERATE(0, 1);
+
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name, func_order, mesh_order, mesh_node_ordering,
+           point_ordering, ncomp, gf_ordering, func_out_ordering);
+
+   if (ncomp == 1 && gf_ordering == 1)
+   {
+      return;
+   }
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(mesh_order, false, sdim, mesh_node_ordering);
+
+   FiniteElementCollection *c_fec = new H1_FECollection(func_order,
+                                                        mesh.Dimension());
+
+   FiniteElementSpace c_fespace(&mesh, c_fec, ncomp, gf_ordering);
+   GridFunction field_vals(&c_fespace);
+
+   VectorFunctionCoefficient F(ncomp, F_exact);
+   field_vals.ProjectCoefficient(F);
+
+   const int npt_per_el = 8;
+   const int pts_cnt = mesh.GetNE()*npt_per_el;
+   Vector vxyz(pts_cnt*sdim);
+   GetSurfaceInteriorPoints(mesh, npt_per_el, point_ordering, vxyz);
+
+   Vector interp_vals(pts_cnt*ncomp);
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh);
+   finder.SetL2AvgType(FindPointsGSLIB::NONE);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering,
+                      func_out_ordering);
+
+   Array<unsigned int> code_out = finder.GetCode();
+   Vector dist_p_out = finder.GetDist();
+
+   int not_found = 0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   Vector pos(sdim);
+   Vector exact_val(ncomp);
+
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      max_dist = std::max(max_dist, dist_p_out(i));
+      for (int d = 0; d < sdim; d++)
+      {
+         const int idx = (point_ordering == Ordering::byNODES) ?
+                         d*pts_cnt + i :
+                         i*sdim + d;
+         pos(d) = vxyz(idx);
+      }
+      F_exact(pos, exact_val);
+      for (int j = 0; j < ncomp; j++)
+      {
+         if (code_out[i] < 2)
+         {
+            err = func_out_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                  fabs(exact_val(j) - interp_vals[i*ncomp + j]);
+            max_err = std::max(max_err, err);
+         }
+         else if (j == 0)
+         {
+            not_found++;
+         }
+      }
+   }
+
+   REQUIRE(max_err < 1e-12);
+   REQUIRE(max_dist < 1e-10);
+   REQUIRE(not_found == 0);
+
+   delete c_fec;
+}
+
 // Generates meshes with different element types, followed by points at
 // element faces and interior, and finally checks to see if these points are
 // correctly detected at element boundary or not.
@@ -296,6 +547,92 @@ TEST_CASE("GSLIBFindAtElementBoundary",
       }
       REQUIRE((cmin == 0 && cmax == 0)); // should be found inside element
       delete l2_fec;
+   }
+}
+
+TEST_CASE("GSLIBSurfFindAtElementBoundary",
+          "[GSLIBSurfFindAtElementBoundary][GSLIB]")
+{
+   auto surface_mesh_type = GENERATE(SurfaceMeshType::Segment2D,
+                                     SurfaceMeshType::Segment3D,
+                                     SurfaceMeshType::Quad3D,
+                                     SurfaceMeshType::Tri3D);
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name);
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(2, false, sdim);
+
+   const int nptface_per_el = (mesh.Dimension() == 1) ? 2 : 8;
+   const int nptint_per_el = 8;
+   const int nptface = mesh.GetNE()*nptface_per_el;
+   const int nptint = mesh.GetNE()*nptint_per_el;
+   Vector xyz((nptface + nptint)*sdim);
+   GetSurfaceBoundaryPoints(mesh, nptface_per_el, Ordering::byVDIM, xyz, 0);
+   GetSurfaceInteriorPoints(mesh, nptint_per_el, Ordering::byVDIM, xyz,
+                            nptface);
+
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_out = finder.GetCode();
+
+   for (int i = 0; i < nptface; i++)
+   {
+      REQUIRE(code_out[i] == 1);
+   }
+   for (int i = nptface; i < nptface + nptint; i++)
+   {
+      REQUIRE(code_out[i] == 0);
+   }
+}
+
+TEST_CASE("GSLIBSurfAABBExpansion", "[GSLIBSurfAABBExpansion][GSLIB]")
+{
+   auto surface_mesh_type = GENERATE(SurfaceMeshType::Segment2D,
+                                     SurfaceMeshType::Segment3D,
+                                     SurfaceMeshType::Quad3D,
+                                     SurfaceMeshType::Tri3D);
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name);
+
+   constexpr double offset = 1.0e-3;
+   const int npt_per_el = 8;
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(2, false, sdim);
+
+   const int npt = mesh.GetNE()*npt_per_el;
+   Vector xyz(npt*sdim);
+   GetSurfaceInteriorPoints(mesh, npt_per_el, Ordering::byVDIM, xyz);
+   // offset them to move away from the surface
+   const int off_d = (surface_mesh_type == SurfaceMeshType::Segment2D) ? 1 : 2;
+   for (int i = 0; i < npt; i++)
+   {
+      xyz(i*sdim + off_d) += offset;
+   }
+
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh, 0.0);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_no_pad = finder.GetCode();
+
+   for (int i = 0; i < code_no_pad.Size(); i++)
+   {
+      REQUIRE(code_no_pad[i] == 2);
+   }
+
+   // make aabb at least big enough to include the offset points
+   Vector aabb_sz_inc({2.1*offset});
+   finder.SetupSurfWithAABBExpansion(mesh, aabb_sz_inc);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_with_pad = finder.GetCode();
+
+   for (int i = 0; i < npt; i++)
+   {
+      REQUIRE(code_with_pad[i] == 1);
    }
 }
 
