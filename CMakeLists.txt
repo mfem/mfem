@@ -933,7 +933,7 @@ target_include_directories(mfem BEFORE
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
 if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
-    target_link_libraries(mfem GLVIS)
+    target_link_libraries(mfem PUBLIC GLVIS)
 endif()
 
 # The 'install' target will not depend on 'all'.

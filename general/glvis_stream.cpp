@@ -11,8 +11,9 @@
 
 #include <cassert>
 #include <istream>
+#include <limits>
 
-#include "../config/config.hpp" // IWYU pragma: keep dbg
+#include "../config/config.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_GLVIS
 
@@ -31,6 +32,7 @@ thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
 extern int GLVisStreamSession(const bool fix_elem_orient,
                               const bool save_coloring,
+                              const bool keep_attr,
                               const bool headless,
                               const std::string &plot_caption,
                               const std::string &data_type,
@@ -42,56 +44,32 @@ namespace mfem
 ///////////////////////////////////////////////////////////////////////////////
 inline bool IsMpiInitialized()
 {
-#ifdef MFEM_USE_MPI
    int flag;
-   static bool initialized = (MPI_Initialized(&flag), flag != 0);
-   return initialized;
-#endif
-   return false;
+   MPI_Initialized(&flag);
+   return flag != 0;
 };
 
 inline int MpiSize()
 {
-#ifdef MFEM_USE_MPI
-   if (IsMpiInitialized())
-   {
-      int tmp = 0;
-      static int size = (MPI_Comm_size(MPI_COMM_WORLD, &tmp), tmp);
-      return size;
-   }
-#endif
-   return 1;
+   int size = 1;
+   if (IsMpiInitialized()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
+   return size;
 }
 
 inline int MpiRank()
 {
-#ifdef MFEM_USE_MPI
-   if (IsMpiInitialized())
-   {
-      int tmp = 0;
-      static int rank = (MPI_Comm_rank(MPI_COMM_WORLD, &tmp), tmp);
-      return rank;
-   }
-#endif
-   return 0;
+   int rank = 0;
+   if (IsMpiInitialized()) { MPI_Comm_rank(MPI_COMM_WORLD, &rank); }
+   return rank;
 }
 
 /////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(): std::iostream(nullptr),
-   data(true, 0, 0, true)
-{
-   MFEM_ABORT("Not implemented");
-}
+glvis_stream::glvis_stream(): glvis_stream(nullptr, 0) {}
 
-glvis_stream::glvis_stream(std::streambuf*): std::iostream(nullptr),
-   data(true, 0, 0, true)
-{
-   MFEM_ABORT("Not implemented");
-}
+glvis_stream::glvis_stream(std::streambuf*): glvis_stream(nullptr, 0) {}
 
 glvis_stream::glvis_stream(const char*, int): std::iostream(nullptr),
-   data((!IsMpiInitialized() && MpiSize() == 1), MpiSize(), MpiRank(),
-        !IsMpiInitialized() || MpiRank() == 0)
+   data(MpiSize() == 1, MpiSize(), MpiRank(), MpiRank() == 0)
 {
    // Sets the associated stream buffer to the data stream
    std::iostream::rdbuf(data.stream.rdbuf());
@@ -99,7 +77,9 @@ glvis_stream::glvis_stream(const char*, int): std::iostream(nullptr),
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
-   this->flush(); // will trigger the GLVis update
+   // this->flush(); // will trigger the GLVis update
+   pf(static_cast<std::ostream&>(*this));
+   this->flush();
    this->glvis();
    return *this;
 }
@@ -164,6 +144,7 @@ void glvis_stream::glvis()
 
    constexpr bool fix_elem_orien = true;
    constexpr bool save_coloring = true;
+   constexpr bool keep_attr = false;
    constexpr bool headless = false;
    const std::string plot_caption {};
    const auto to_istream_vector =
@@ -177,6 +158,7 @@ void glvis_stream::glvis()
    };
    GLVisStreamSession(fix_elem_orien,
                       save_coloring,
+                      keep_attr,
                       headless,
                       plot_caption,
                       data.type,
@@ -186,8 +168,6 @@ void glvis_stream::glvis()
 void glvis_stream::MpiGather()
 {
 #ifdef MFEM_USE_MPI
-   dbg("MPI size: {}, rank: {}", data.mpi_size, data.mpi_rank);
-
    // Gather sizes from ALL ranks
    std::vector<uint64_t> all_sizes(data.mpi_size);
    uint64_t local_size_u = data.stream.tellp();
@@ -199,14 +179,13 @@ void glvis_stream::MpiGather()
    {
       for (int r = 0; r < data.mpi_size; ++r)
       {
-         dbg("Rank {} size: {}", r, all_sizes[r]);
+         mfem::out << "Rank " << r << " size: " << all_sizes[r] << std::endl;
       }
    }
 
    // Compute offsets and total size on root only
    data.offsets.resize(data.mpi_size + 1);
    data.offsets[0] = 0;
-   if (data.mpi_root) { dbg("Offsets[{}]: {}", 0, data.offsets[0]); }
    uint64_t total_size = 0;
    for (int i = 1; i <= data.mpi_size; ++i)
    {
@@ -214,13 +193,12 @@ void glvis_stream::MpiGather()
       if (data.mpi_root)
       {
          data.offsets[i] = total_size;
-         dbg("Offsets[{}]: {}", i, data.offsets[i]);
       }
    }
    if (data.mpi_root)
    {
       data.total_size = total_size;
-      dbg("Total size: {}", total_size);
+      mfem::out << "Total size: " << data.total_size << std::endl;
    }
 
    // Root allocates a temporary buffer for the full data
@@ -241,21 +219,22 @@ void glvis_stream::MpiGather()
    }
 
    // Everyone sends their data to the root
-   status = MPI_Gatherv(data.stream.str().data(),
-                        data.stream.tellp(), MPI_CHAR,
-                        recvbuf.data(),
-                        recvcounts.data(),
-                        displs.data(),
+   const std::string local = data.stream.str();
+   MFEM_VERIFY(local.size() <= static_cast<size_t>
+               (std::numeric_limits<int>::max()),
+               "GLVis stream is too large for MPI_Gatherv");
+   const int sendcount = static_cast<int>(local.size());
+   status = MPI_Gatherv(local.data(), sendcount, MPI_CHAR,
+                        (data.mpi_root ? recvbuf.data() : nullptr),
+                        recvcounts.data(), displs.data(),
                         MPI_CHAR, 0, MPI_COMM_WORLD);
-   assert(status == MPI_SUCCESS);
+   MFEM_VERIFY(status == MPI_SUCCESS, "MPI_Gatherv failed");
 
    // Root writes the concatenated result back into its stream
    if (data.mpi_root)
    {
       reset();
-      dbg("data.stream size before write: {}", (int)data.stream.tellp());
       data.stream.write(recvbuf.data(), total_size);
-      dbg("data.stream size after write: {}", (int)data.stream.tellp());
    }
 
    MPI_Barrier(MPI_COMM_WORLD);

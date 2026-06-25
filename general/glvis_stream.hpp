@@ -40,9 +40,9 @@ class glvisbuf : public std::streambuf
 public:
    glvisbuf() = default;
 
-   explicit glvisbuf(int sd) { }
+   explicit glvisbuf(int) { }
 
-   glvisbuf(const char hostname[], int port) { }
+   glvisbuf(const char[], int) { }
 
    /** @brief Attach a new socket descriptor to the socketbuf. Returns the old
        socket descriptor which is NOT closed. */
@@ -106,7 +106,7 @@ public:
       return *this;
    }
 
-   int open(const char *hostname, int port) { return 0; }
+   int open(const char *, int) { return 0; }
 
    bool is_open() const { return true; }
 

@@ -627,7 +627,7 @@ MFEM_USE_ENZYME = YES/NO
    options for Enzyme" below.
 
 MFEM_USE_GLVIS = YES/NO
-   Enables to use a GLVis stream directly instead of the socket one.
+   Enables using a GLVis stream directly instead of the socket one.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
