@@ -681,14 +681,45 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       subdomain_value_offsets[i + 1] = subdomain_value_offsets[i] + all_subdomain_sizes[i];
    }
 
-   std::vector<std::vector<HYPRE_BigInt>> subdomains = local_subdomains;
-   std::vector<int> assigned_subdomain_counts = subdomain_counts;
+   std::vector<int> assigned_subdomain_counts(nranks, 0);
    std::vector<int> assigned_subdomain_sizes(nranks, 0);
-   MPI_Allgather(&local_total_memberships, 1, MPI_INT,
-                 assigned_subdomain_sizes.data(), 1, MPI_INT, comm);
+   std::vector<int> subdomain_owner(total_subdomains, -1);
+
+   for (int i = 0; i < total_subdomains; ++i)
+   {
+      int best_rank = 0;
+      for (int r = 1; r < nranks; ++r)
+      {
+         if (assigned_subdomain_counts[r] < assigned_subdomain_counts[best_rank] ||
+             (assigned_subdomain_counts[r] == assigned_subdomain_counts[best_rank] &&
+              assigned_subdomain_sizes[r] < assigned_subdomain_sizes[best_rank]))
+         {
+            best_rank = r;
+         }
+      }
+
+      subdomain_owner[i] = best_rank;
+      assigned_subdomain_counts[best_rank]++;
+      assigned_subdomain_sizes[best_rank] += all_subdomain_sizes[i];
+   }
+
+   std::vector<std::vector<HYPRE_BigInt>> subdomains;
+   subdomains.reserve(assigned_subdomain_counts[myid]);
+   for (int i = 0; i < total_subdomains; ++i)
+   {
+      if (subdomain_owner[i] != myid)
+      {
+         continue;
+      }
+
+      const int begin = subdomain_value_offsets[i];
+      const int end = subdomain_value_offsets[i + 1];
+      subdomains.emplace_back(all_flat_subdomains.begin() + begin,
+                              all_flat_subdomains.begin() + end);
+   }
 
    // Print diagnostic information about subdomains
-   if (myid == 0 && (print_level > 1 || schwarz_examine_diagonal))
+   if (myid == 0)
    {
       // Compute subdomain size statistics on the globally balanced set.
       int num_subdomains = total_subdomains;
@@ -717,9 +748,11 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
       double overlap_ratio = num_covered > 0 ? (double)(total_size - num_covered) / num_covered : 0.0;
 
       mfem::out << "\nSchwarz subdomain statistics:" << std::endl;
-      mfem::out << "  Total subspace size: " << PTAP->N() << std::endl;
-      mfem::out << "  Number of subdomains: " << num_subdomains << std::endl;
-      mfem::out << "  Assigned subdomains/rank: ";
+      mfem::out << "  Total number of subdomains: " << num_subdomains << std::endl;
+      mfem::out << "  Subdomain size range: min = " << min_size
+                << ", max = " << max_size << std::endl;
+      mfem::out << "  Total aggregate subdomain size: " << total_size << std::endl;
+      mfem::out << "  Subdomain partition across ranks: ";
       for (int r = 0; r < nranks; ++r)
       {
          mfem::out << assigned_subdomain_counts[r];
@@ -729,28 +762,29 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
          }
       }
       mfem::out << std::endl;
-      if (schwarz_min_diag_value > 0.0)
+      if (print_level > 1 || schwarz_examine_diagonal)
       {
-         int total_constraints = J->Height();
-         int num_filtered = total_constraints - num_subdomains;
-         mfem::out << "  Total constraints: " << total_constraints << std::endl;
-         mfem::out << "  Filtered (D < " << schwarz_min_diag_value << "): " << num_filtered << std::endl;
-      }
-      if (num_subdomains > 0)
-      {
-         mfem::out << "  Subdomain sizes - min: " << min_size
-                  << ", max: " << max_size
-                  << ", avg: " << avg_size << std::endl;
-         mfem::out << "  DOF coverage: " << num_covered << "/" << PTAP->N()
-                  << " (" << (100.0 * num_covered / PTAP->N()) << "%)" << std::endl;
-         mfem::out << "  Uncovered DOFs: " << num_uncovered << std::endl;
-         mfem::out << "  Total DOF instances (with overlaps): " << total_size << std::endl;
-         mfem::out << "  Overlap ratio: " << overlap_ratio << std::endl;
-
-         if (num_uncovered > 0)
+         mfem::out << "  Total subspace size: " << PTAP->N() << std::endl;
+         if (schwarz_min_diag_value > 0.0)
          {
-            mfem::out << "  WARNING: " << num_uncovered << " DOFs are not covered by any subdomain!" << std::endl;
-            mfem::out << "           This may affect Schwarz preconditioner effectiveness." << std::endl;
+            int total_constraints = J->Height();
+            int num_filtered = total_constraints - num_subdomains;
+            mfem::out << "  Total constraints: " << total_constraints << std::endl;
+            mfem::out << "  Filtered (D < " << schwarz_min_diag_value << "): " << num_filtered << std::endl;
+         }
+         if (num_subdomains > 0)
+         {
+            mfem::out << "  Average subdomain size: " << avg_size << std::endl;
+            mfem::out << "  DOF coverage: " << num_covered << "/" << PTAP->N()
+                      << " (" << (100.0 * num_covered / PTAP->N()) << "%)" << std::endl;
+            mfem::out << "  Uncovered DOFs: " << num_uncovered << std::endl;
+            mfem::out << "  Overlap ratio: " << overlap_ratio << std::endl;
+
+            if (num_uncovered > 0)
+            {
+               mfem::out << "  WARNING: " << num_uncovered << " DOFs are not covered by any subdomain!" << std::endl;
+               mfem::out << "           This may affect Schwarz preconditioner effectiveness." << std::endl;
+            }
          }
       }
       mfem::out << std::endl;

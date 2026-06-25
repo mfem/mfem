@@ -437,6 +437,17 @@ miniapps/spde/ParaView
 
 miniapps/tribol/contact-patch-test
 
+miniapps/test-contact/contact_experiments*
+miniapps/test-contact/experiment_results*
+miniapps/test-contact/variant_experiment*
+miniapps/test-contact/experiment_results*
+miniapps/test-contact/schwarz_convergence*.png
+miniapps/test-contact/test-contact
+miniapps/test-contact/mats
+
+miniapps/tied-poisson/teid-poisson
+miniapps/tied-poisson/*.png
+
 miniapps/diag-smoothers/abs-l1-jacobi
 miniapps/diag-smoothers/mg-abs-l1-jacobi
 

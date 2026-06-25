@@ -427,6 +427,127 @@ def pcg_solve(A, b, precond=None, max_iter=1000, tol=1e-10, verbose=False):
     return x, residuals
 
 
+def gmres_solve(A, b, precond=None, max_iter=1000, restart=1000, tol=1e-10, verbose=False):
+    """
+    Preconditioned restarted GMRES(m) solver using left preconditioning.
+
+    Args:
+        A: System matrix or linear operator supporting `A @ x`
+        b: Right-hand side
+        precond: Preconditioner object with apply() method
+        max_iter: Maximum total iterations
+        restart: Restart length m
+        tol: Convergence tolerance
+        verbose: Print detailed iteration info
+
+    Returns:
+        x: Solution vector
+        residuals: List of true residual norms at each iteration
+    """
+    n = len(b)
+    x = np.zeros(n)
+    residuals = []
+
+    def apply_precond(v):
+        return precond.apply(v) if precond is not None else v.copy()
+
+    r = b - A @ x
+    residuals.append(np.linalg.norm(r))
+
+    if residuals[-1] < tol:
+        print("  Converged in 0 iterations")
+        return x, residuals
+
+    total_iter = 0
+
+    while total_iter < max_iter:
+        z = apply_precond(r)
+        beta = np.linalg.norm(z)
+
+        if beta == 0.0:
+            if verbose:
+                print("  Preconditioned residual is zero, stopping.")
+            break
+
+        m = min(restart, max_iter - total_iter)
+
+        V = np.zeros((n, m + 1), dtype=b.dtype if hasattr(b, "dtype") else float)
+        H = np.zeros((m + 1, m), dtype=float)
+
+        V[:, 0] = z / beta
+        x_base = x.copy()
+
+        for k in range(m):
+            w = A @ V[:, k]
+            w = apply_precond(w)
+
+            for j in range(k + 1):
+                H[j, k] = np.dot(V[:, j], w)
+                w = w - H[j, k] * V[:, j]
+
+            H[k + 1, k] = np.linalg.norm(w)
+
+            if H[k + 1, k] > 0:
+                V[:, k + 1] = w / H[k + 1, k]
+
+            e1 = np.zeros(k + 2, dtype=float)
+            e1[0] = beta
+
+            Hk = H[:k + 2, :k + 1]
+            y, *_ = np.linalg.lstsq(Hk, e1, rcond=None)
+            x = x_base + V[:, :k + 1] @ y
+
+            r = b - A @ x
+            res_norm = np.linalg.norm(r)
+            residuals.append(res_norm)
+            total_iter += 1
+
+            if verbose and total_iter % 10 == 0:
+                print(f"    Iter {total_iter}: residual = {res_norm:.6e}, h_next = {H[k+1, k]:.6e}")
+
+            if np.isnan(res_norm) or np.isinf(res_norm):
+                print(f"  GMRES diverged at iteration {total_iter}: residual = {res_norm}")
+                return x, residuals
+
+            if res_norm < tol:
+                print(f"  Converged in {total_iter} iterations")
+                return x, residuals
+
+            if H[k + 1, k] == 0:
+                if verbose:
+                    print(f"  Happy breakdown at iteration {total_iter}")
+                return x, residuals
+
+        if verbose:
+            print(f"  Restarting GMRES after {total_iter} iterations")
+
+    return x, residuals
+
+
+def krylov_solve(A, b, solver='pcg', precond=None, max_iter=1000, tol=1e-10, verbose=False):
+    """
+    Dispatch to the selected Krylov solver.
+
+    Args:
+        A: System matrix
+        b: Right-hand side
+        solver: 'pcg' or 'gmres'
+        precond: Preconditioner object with apply() method
+        max_iter: Maximum iterations
+        tol: Convergence tolerance
+        verbose: Print detailed iteration info
+
+    Returns:
+        x: Solution vector
+        residuals: List of residual norms at each iteration
+    """
+    if solver == 'pcg':
+        return pcg_solve(A, b, precond=precond, max_iter=max_iter, tol=tol, verbose=verbose)
+    if solver == 'gmres':
+        return gmres_solve(A, b, precond=precond, max_iter=max_iter, tol=tol, verbose=verbose)
+    raise ValueError(f"Unknown solver: {solver}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Analyze Schwarz preconditioner convergence',
@@ -450,6 +571,8 @@ def main():
                         help='Add curve for additive Schwarz with uniform weight (set all scales to this value)')
     parser.add_argument('--schwarz-iters', type=int, default=0,
                         help='Number of Schwarz iterations to apply in preconditioner (0 = disable iterated variants)')
+    parser.add_argument('--solver', type=str, default='pcg', choices=['pcg', 'gmres'],
+                    help='Krylov solver to use')
     args = parser.parse_args()
 
     mats_dir = Path(args.mats_dir)
@@ -466,6 +589,7 @@ def main():
     print(f"Matrix directory: {mats_dir}")
     print(f"Iteration: {args.iteration}")
     print(f"Min D diagonal: {args.min_diag}")
+    print(f"Solver: {args.solver.upper()}")
     print()
 
     # Load matrices
@@ -553,9 +677,9 @@ def main():
     results = {}
 
     # 1. No preconditioner (baseline)
-    print("Running PCG without preconditioner...")
-    x_none, res_none = pcg_solve(A, b, precond=None,
-                                  max_iter=args.max_iter, tol=args.tol)
+    print(f"Running {args.solver.upper()} without preconditioner...")
+    x_none, res_none = krylov_solve(A, b, solver=args.solver, precond=None,
+                                    max_iter=args.max_iter, tol=args.tol)
     results['No preconditioner'] = res_none
     print()
 
@@ -573,8 +697,8 @@ def main():
     print(f"  ||z|| = {np.linalg.norm(test_z):.6e}")
     print(f"  r^T z = {np.dot(test_r, test_z):.6e}")
 
-    print("Running PCG with additive Schwarz (with scaling)...")
-    x_add, res_add = pcg_solve(A, b, precond=precond_add,
+    print("Running {} with additive Schwarz (with scaling)...".format(args.solver.upper()))
+    x_add, res_add = krylov_solve(A, b, solver=args.solver, precond=precond_add,
                                 max_iter=args.max_iter, tol=args.tol, verbose=True)
     results['Additive Schwarz'] = res_add
     print()
@@ -584,9 +708,9 @@ def main():
     precond_add_sym = SchwarzPreconditioner(A, subdomains, variant='additive', relax_weight=args.relax_weight, no_scaling=False, symmetrized=True)
     print(f"Initialized {len(precond_add_sym.subdomain_solvers)} subdomain solvers")
 
-    print("Running PCG with additive Schwarz (symmetrized with scaling)...")
-    x_add_sym, res_add_sym = pcg_solve(A, b, precond=precond_add_sym,
-                                       max_iter=args.max_iter, tol=args.tol, verbose=True)
+    print("Running {} with additive Schwarz (symmetrized with scaling)...".format(args.solver.upper()))
+    x_add_sym, res_add_sym = krylov_solve(A, b, solver=args.solver, precond=precond_add_sym,
+                                        max_iter=args.max_iter, tol=args.tol, verbose=True)
     results['Additive Schwarz (symmetrized)'] = res_add_sym
     print()
 
@@ -595,9 +719,9 @@ def main():
     precond_add_no_scale = SchwarzPreconditioner(A, subdomains, variant='additive', relax_weight=args.relax_weight, no_scaling=True)
     print(f"Initialized {len(precond_add_no_scale.subdomain_solvers)} subdomain solvers")
 
-    print("Running PCG with additive Schwarz (without scaling)...")
-    x_add_no_scale, res_add_no_scale = pcg_solve(A, b, precond=precond_add_no_scale,
-                                                   max_iter=args.max_iter, tol=args.tol, verbose=True)
+    print("Running {} with additive Schwarz (without scaling)...".format(args.solver.upper()))
+    x_add_no_scale, res_add_no_scale = krylov_solve(A, b, solver=args.solver, precond=precond_add_no_scale,
+                                                    max_iter=args.max_iter, tol=args.tol, verbose=True)
     results['Additive Schwarz (no scaling)'] = res_add_no_scale
     print()
 
@@ -606,9 +730,11 @@ def main():
         print(f"Building iterated additive Schwarz preconditioner (without scaling, {args.schwarz_iters} iters)...")
         precond_add_no_scale_iterated = IteratedSchwarzPreconditioner(precond_add_no_scale, args.schwarz_iters)
 
-        print(f"Running PCG with iterated additive Schwarz (without scaling, {args.schwarz_iters} iters)...")
-        x_add_no_scale_iter, res_add_no_scale_iter = pcg_solve(A, b, precond=precond_add_no_scale_iterated,
-                                                                 max_iter=args.max_iter, tol=args.tol, verbose=True)
+        print(f"Running {args.solver.upper()} with iterated additive Schwarz (without scaling, {args.schwarz_iters} iters)...")
+        x_add_no_scale_iter, res_add_no_scale_iter = krylov_solve(
+            A, b, solver=args.solver, precond=precond_add_no_scale_iterated,
+            max_iter=args.max_iter, tol=args.tol, verbose=True
+        )
         results[f'Additive Schwarz (no scaling, {args.schwarz_iters} iters)'] = res_add_no_scale_iter
         print()
 
@@ -620,9 +746,9 @@ def main():
                                                 uniform_weight=args.uniform_weight)
         print(f"Initialized {len(precond_uniform.subdomain_solvers)} subdomain solvers")
 
-        print(f"Running PCG with additive Schwarz (uniform weight = {args.uniform_weight})...")
-        x_uniform, res_uniform = pcg_solve(A, b, precond=precond_uniform,
-                                           max_iter=args.max_iter, tol=args.tol, verbose=True)
+        print(f"Running {args.solver.upper()} with additive Schwarz (uniform weight = {args.uniform_weight})...")
+        x_uniform, res_uniform = krylov_solve(A, b, solver=args.solver, precond=precond_uniform,
+                                            max_iter=args.max_iter, tol=args.tol, verbose=True)
         results[f'Additive Schwarz (uniform={args.uniform_weight})'] = res_uniform
         print()
 
@@ -641,9 +767,9 @@ def main():
     print(f"  ||A*z|| = {np.linalg.norm(A @ test_z):.6e}")
     print(f"  r^T z = {np.dot(test_r, test_z):.6e}")
 
-    print("Running PCG with multiplicative Schwarz...")
-    x_mult, res_mult = pcg_solve(A, b, precond=precond_mult,
-                                  max_iter=args.max_iter, tol=args.tol, verbose=True)
+    print(f"Running {args.solver.upper()} with multiplicative Schwarz...")
+    x_mult, res_mult = krylov_solve(A, b, solver=args.solver, precond=precond_mult,
+                                    max_iter=args.max_iter, tol=args.tol, verbose=True)
     results['Multiplicative Schwarz'] = res_mult
     print()
 
@@ -652,8 +778,8 @@ def main():
         print(f"Building iterated multiplicative Schwarz preconditioner ({args.schwarz_iters} iters)...")
         precond_mult_iterated = IteratedSchwarzPreconditioner(precond_mult, args.schwarz_iters)
 
-        print(f"Running PCG with iterated multiplicative Schwarz ({args.schwarz_iters} iters)...")
-        x_mult_iter, res_mult_iter = pcg_solve(A, b, precond=precond_mult_iterated,
+        print(f"Running {args.solver.upper()} with iterated multiplicative Schwarz ({args.schwarz_iters} iters)...")
+        x_mult_iter, res_mult_iter = krylov_solve(A, b, solver=args.solver, precond=precond_mult_iterated,
                                                 max_iter=args.max_iter, tol=args.tol, verbose=True)
         results[f'Multiplicative Schwarz ({args.schwarz_iters} iters)'] = res_mult_iter
         print()
@@ -707,8 +833,8 @@ def main():
 
     plt.xlabel('Iteration', fontsize=13)
     plt.ylabel('Residual Norm', fontsize=13)
-    plt.title(f'PCG Convergence Comparison (iter={args.iteration}, min_diag={args.min_diag})',
-              fontsize=14, fontweight='bold')
+    plt.title(f'{args.solver.upper()} Convergence Comparison (iter={args.iteration}, min_diag={args.min_diag})',
+          fontsize=14, fontweight='bold')
     plt.legend(fontsize=11, loc='best')
     plt.grid(True, alpha=0.3, which='both', linestyle='--')
     plt.tight_layout()
