@@ -188,11 +188,12 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *geom, const DofToQuad &maps,
-               const Vector &e_vec, Vector &q_val, Vector &q_der, Vector &q_det,
-               const int eval_flags)
+               const GeometricFactors *detJgeom, const GeometricFactors *geom,
+               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+               Vector &q_der, Vector &q_det, const int eval_flags)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 } // namespace quadrature_interpolator

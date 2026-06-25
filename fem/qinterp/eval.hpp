@@ -44,6 +44,7 @@ static void Values1D(const int NE,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
+      // nvcc limitation: can't capture y inside a constexpr first
       auto y = Q_LAYOUT == QVectorLayout::byNODES ? Reshape(y_, q1d, vdim, NE)
                : Reshape(y_, vdim, q1d, NE);
       for (int c = 0; c < vdim; c++)
@@ -69,11 +70,39 @@ static void Values1D(const int NE,
 }
 
 template <QVectorLayout Q_LAYOUT>
-static void IntValues1D(const int NE, const real_t *b_, const real_t *detJ,
+static void IntValues1D(const int NE, const real_t *b_, const real_t *detJ_,
                         const real_t *x_, real_t *y_, const int vdim,
                         const int d1d, const int q1d)
 {
-   // TODO
+   const auto b = Reshape(b_, q1d, d1d);
+   const auto x = Reshape(x_, d1d, vdim, NE);
+   const auto detJ = Reshape(detJ_, d1d, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // nvcc limitation: can't capture y inside a constexpr first
+      auto y = Q_LAYOUT == QVectorLayout::byNODES ? Reshape(y_, q1d, vdim, NE)
+               : Reshape(y_, vdim, q1d, NE);
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; q++)
+         {
+            real_t u = 0.0;
+            for (int d = 0; d < d1d; d++)
+            {
+               u += b(q, d) * x(d, c, e) * detJ(d, e);
+            }
+            if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+            {
+               y(c, q, e) = u;
+            }
+            if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+            {
+               y(q, c, e) = u;
+            }
+         }
+      }
+   });
 }
 
 // Template compute kernel for Values in 2D: tensor product version.
@@ -96,12 +125,13 @@ static void Values2D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT == QVectorLayout::byNODES ?
-            Reshape(y_, Q1D, Q1D, VDIM, NE):
-            Reshape(y_, VDIM, Q1D, Q1D, NE);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
+      // nvcc limitation: can't capture y inside a constexpr first
+      auto y = Q_LAYOUT == QVectorLayout::byNODES
+               ? Reshape(y_, Q1D, Q1D, VDIM, NE)
+               : Reshape(y_, VDIM, Q1D, Q1D, NE);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -131,8 +161,14 @@ static void Values2D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u = QQ(qx,qy);
-               if (Q_LAYOUT == QVectorLayout::byVDIM) { y(c,qx,qy,e) = u; }
-               if (Q_LAYOUT == QVectorLayout::byNODES) { y(qx,qy,c,e) = u; }
+               if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+               {
+                  y(c, qx, qy, e) = u;
+               }
+               if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+               {
+                  y(qx, qy, c, e) = u;
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -143,11 +179,75 @@ static void Values2D(const int NE,
 // Template compute kernel for Values in 2D: tensor product version.
 template <QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
           int T_NBZ = 1>
-static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ,
+static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
                         const real_t *x_, real_t *y_, const int vdim = 0,
                         const int d1d = 0, const int q1d = 0)
 {
-   // TODO
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   const auto detJ = Reshape(detJ_, d1d, d1d, NE);
+
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // nvcc limitation: can't capture y inside a constexpr first
+      auto y = Q_LAYOUT == QVectorLayout::byNODES
+               ? Reshape(y_, Q1D, Q1D, VDIM, NE)
+               : Reshape(y_, VDIM, Q1D, Q1D, NE);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      const int tidz = MFEM_THREAD_ID(z);
+
+      MFEM_SHARED real_t sB[MQ1*MD1];
+      MFEM_SHARED real_t sm0[NBZ][MDQ*MDQ];
+      MFEM_SHARED real_t sm1[NBZ][MDQ*MDQ];
+
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      DeviceMatrix DD(sm0[tidz], MD1, MD1);
+      DeviceMatrix DQ(sm1[tidz], MD1, MQ1);
+      DeviceMatrix QQ(sm0[tidz], MQ1, MQ1);
+
+      for (int c = 0; c < VDIM; c++)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx, x, D1D)
+            {
+               DD(dx, dy) = x(dx, dy, c, e) * detJ(dx, dy, e);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::EvalX(D1D,Q1D,B,DD,DQ);
+         kernels::internal::EvalY(D1D,Q1D,B,DQ,QQ);
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t u = QQ(qx, qy);
+               if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+               {
+                  y(c, qx, qy, e) = u;
+               }
+               if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+               {
+                  y(qx, qy, c, e) = u;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
 }
 
 // Template compute kernel for Values in 3D: tensor product version.
@@ -167,12 +267,13 @@ static void Values3D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
-            Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE):
-            Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
+      // nvcc limitation: can't capture y inside a constexpr first
+      auto y = Q_LAYOUT == QVectorLayout::byNODES
+               ? Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE)
+               : Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -205,8 +306,14 @@ static void Values3D(const int NE,
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
                   const real_t u = QQQ(qz,qy,qx);
-                  if (Q_LAYOUT == QVectorLayout::byVDIM) { y(c,qx,qy,qz,e) = u; }
-                  if (Q_LAYOUT == QVectorLayout::byNODES) { y(qx,qy,qz,c,e) = u; }
+                  if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+                  {
+                     y(c, qx, qy, qz, e) = u;
+                  }
+                  if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+                  {
+                     y(qx, qy, qz, c, e) = u;
+                  }
                }
             }
          }
@@ -217,11 +324,80 @@ static void Values3D(const int NE,
 
 // Template compute kernel for Values in 3D: tensor product version.
 template <QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ,
+static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
                         const real_t *x_, real_t *y_, const int vdim = 0,
                         const int d1d = 0, const int q1d = 0)
 {
-   // TODO
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto b = Reshape(b_, Q1D, D1D);
+   const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   const auto detJ = Reshape(detJ_, d1d, d1d, d1d, NE);
+
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      // nvcc limitation: can't capture y inside a constexpr first
+      auto y = Q_LAYOUT == QVectorLayout::byNODES
+               ? Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE)
+               : Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_INTERP_1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED real_t sB[MQ1*MD1];
+      MFEM_SHARED real_t sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
+
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
+      ConstDeviceMatrix B(sB, D1D,Q1D);
+      DeviceCube DDD(sm0, MD1,MD1,MD1);
+      DeviceCube DDQ(sm1, MD1,MD1,MQ1);
+      DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
+      DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
+
+      for (int c = 0; c < VDIM; c++)
+      {
+         MFEM_FOREACH_THREAD(dz, z, D1D)
+         {
+            MFEM_FOREACH_THREAD(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD(dx, x, D1D)
+               {
+                  DDD(dx, dy, dz) = x(dx, dy, dz, c, e) * detJ(dx, dy, dz, e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
+         kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
+         kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  const real_t u = QQQ(qz,qy,qx);
+                  if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+                  {
+                     y(c, qx, qy, qz, e) = u;
+                  }
+                  if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+                  {
+                     y(qx, qy, qz, c, e) = u;
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
 }
 
 void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
@@ -230,9 +406,9 @@ void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
             const int eval_flags);
 
 void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *geom, const DofToQuad &maps,
-               const Vector &e_vec, Vector &q_val, Vector &q_der, Vector &q_det,
-               const int eval_flags);
+               const GeometricFactors *detJgeom, const GeometricFactors *geom,
+               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+               Vector &q_der, Vector &q_det, const int eval_flags);
 
 // Template compute kernel for 2D quadrature interpolation:
 // * non-tensor product version,
@@ -392,13 +568,14 @@ static void Eval2D(const int NE,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <const int T_VDIM, const int T_ND, const int T_NQ>
-static void IntEval2D(const int NE, const int vdim,
-                      const QVectorLayout q_layout,
-                      const GeometricFactors *geom, const DofToQuad &maps,
-                      const Vector &e_vec, Vector &q_val, Vector &q_der,
-                      Vector &q_det, const int eval_flags)
+static void
+IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
+          const GeometricFactors *detJgeom, const GeometricFactors *geom,
+          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+          Vector &q_der, Vector &q_det, const int eval_flags)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 // Template compute kernel for 3D quadrature interpolation:
@@ -565,13 +742,14 @@ static void Eval3D(const int NE,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <const int T_VDIM, const int T_ND, const int T_NQ>
-static void IntEval3D(const int NE, const int vdim,
-                      const QVectorLayout q_layout,
-                      const GeometricFactors *geom, const DofToQuad &maps,
-                      const Vector &e_vec, Vector &q_val, Vector &q_der,
-                      Vector &q_det, const int eval_flags)
+static void
+IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
+          const GeometricFactors *detJgeom, const GeometricFactors *geom,
+          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+          Vector &q_der, Vector &q_det, const int eval_flags)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 } // namespace quadrature_interpolator
@@ -614,7 +792,7 @@ QuadratureInterpolator::EvalKernels::Kernel()
 }
 
 template <int DIM, int VDIM, int ND, int NQ>
-QuadratureInterpolator::EvalKernelType
+QuadratureInterpolator::IntEvalKernelType
 QuadratureInterpolator::IntEvalKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;

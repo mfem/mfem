@@ -61,6 +61,7 @@ inline void IntDet1D(const int NE, const real_t *b, const real_t *g,
                      const int d1d, const int q1d, Vector *d_buff = nullptr)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
@@ -114,6 +115,7 @@ inline void IntDet1DSurface(const int NE, const real_t *b, const real_t *g,
                             Vector *d_buff = nullptr)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -175,6 +177,7 @@ inline void IntDet2D(const int NE, const real_t *b, const real_t *g,
                      Vector *d_buff = nullptr)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -282,6 +285,7 @@ inline void IntDet2DSurface(const int NE, const real_t *b, const real_t *g,
                             Vector *d_buff = nullptr)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
@@ -366,6 +370,7 @@ inline void IntDet3D(const int NE, const real_t *b, const real_t *g,
                      Vector *d_buff = nullptr) // used only with SMEM = false
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 } // namespace quadrature_interpolator

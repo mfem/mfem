@@ -105,6 +105,7 @@ static void IntDerivatives1D(const int NE, const real_t *b_, const real_t *g_,
                              const int vdim, const int d1d, const int q1d)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
@@ -248,6 +249,7 @@ static void IntDerivatives2D(const int NE, const real_t *b_, const real_t *g_,
                              const int q1d = 0)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
@@ -404,6 +406,7 @@ static void IntDerivatives3D(const int NE, const real_t *b_, const real_t *g_,
                              const int q1d = 0)
 {
    // TODO
+   MFEM_ABORT("Not implemented yet");
 }
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
