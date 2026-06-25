@@ -328,9 +328,13 @@ int main(int argc, char *argv[])
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+#ifdef MFEM_USE_GLVIS
+      glvis_stream sol_sock;
+#else
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
+#endif
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x << flush;

@@ -13,7 +13,7 @@
 #include <istream>
 #include <limits>
 
-#include "../config/config.hpp" // IWYU pragma: keep
+#include "../config/config.hpp"
 
 #ifdef MFEM_USE_GLVIS
 
@@ -64,11 +64,7 @@ inline int MpiRank()
 }
 
 /////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(): glvis_stream(nullptr, 0) {}
-
-glvis_stream::glvis_stream(std::streambuf*): glvis_stream(nullptr, 0) {}
-
-glvis_stream::glvis_stream(const char*, int): std::iostream(nullptr),
+glvis_stream::glvis_stream(): std::iostream(nullptr),
    data(MpiSize() == 1, MpiSize(), MpiRank(), MpiRank() == 0)
 {
    // Sets the associated stream buffer to the data stream
@@ -80,11 +76,11 @@ glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
    // this->flush(); // will trigger the GLVis update
    pf(static_cast<std::ostream&>(*this));
    this->flush();
-   this->glvis();
+   this->operator()();
    return *this;
 }
 
-void glvis_stream::glvis()
+void glvis_stream::operator()()
 {
    if (data.serial)
    {

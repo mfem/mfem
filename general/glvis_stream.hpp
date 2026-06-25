@@ -36,6 +36,12 @@ struct GLVisData
 
 class glvisbuf : public std::streambuf
 {
+protected:
+   int sync() override;
+   int_type underflow() override;
+   int_type overflow(int_type c = traits_type::eof()) override;
+   std::streamsize xsgetn(char_type *s__, std::streamsize n__) override;
+   std::streamsize xsputn(const char_type *s__, std::streamsize n__) override;
 
 public:
    glvisbuf() = default;
@@ -66,13 +72,6 @@ public:
    bool is_open() { return false; }
 
    virtual ~glvisbuf() { close(); }
-
-protected:
-   int sync() override;
-   int_type underflow() override;
-   int_type overflow(int_type c = traits_type::eof()) override;
-   std::streamsize xsgetn(char_type *s__, std::streamsize n__) override;
-   std::streamsize xsputn(const char_type *s__, std::streamsize n__) override;
 };
 
 class glvis_stream: public std::iostream
@@ -81,9 +80,6 @@ class glvis_stream: public std::iostream
 
 public:
    glvis_stream();
-   explicit glvis_stream(std::streambuf*);
-
-   explicit glvis_stream(const char*, int);
 
    glvis_stream(glvis_stream &&) = delete;
    glvis_stream(const glvis_stream &) = delete;
@@ -114,7 +110,7 @@ public:
 
    void flush() { std::iostream::flush();}
 
-   glvisbuf* rdbuf() { return buf__; }
+   glvisbuf* rdbuf() { return buf; }
 
    void reset()
    {
@@ -123,11 +119,11 @@ public:
       data.stream.seekp(0, std::ios::beg);
    }
 
-   void glvis();
+   void operator()();
 
 private:
    GLVisData data;
-   glvisbuf *buf__ {nullptr};
+   glvisbuf *buf {nullptr};
 };
 
 } // namespace mfem

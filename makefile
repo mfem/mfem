@@ -621,7 +621,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(MAKE) -C $(GLVIS_DIR) distclean)
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),-$(MAKE) -C $(GLVIS_DIR) distclean)
 
 # User-definable install permissions.
 # Install permissions for everything except directories and binaries:
