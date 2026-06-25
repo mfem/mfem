@@ -159,29 +159,38 @@ public:
    /// QuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fespace);
 
+   /// @a detJ is only used for Integral basis, set to null otherwise
    using TensorEvalKernelType = void (*)(const int ne, const real_t *B,
                                          const real_t *detJ,
                                          const real_t *e_vec, real_t *q_val,
                                          const int vdim, const int nd,
                                          const int nq);
+   /// @a detJ is only used for Integral basis, set to null otherwise
    using GradKernelType = void (*)(const int ne, const real_t *B,
                                    const real_t *G, const real_t *detJ,
                                    const real_t *J, const real_t *e_vec,
                                    real_t *q_der, const int s_dim,
                                    const int v_dim, const int nd, const int nq);
-   using CollocatedGradKernelType = void (*)(const int, const real_t *,
-                                             const real_t *, const real_t *,
-                                             const real_t *, real_t *,
-                                             const int, const int, const int);
+   /// @a detJ is only used for Integral basis, set to null otherwise
+   using CollocatedGradKernelType = void (*)(const int ne, const real_t *G,
+                                             const real_t *detJ,
+                                             const real_t *J,
+                                             const real_t *e_vec, real_t *q_der,
+                                             const int sdim, const int vdim,
+                                             const int d1d);
+   /// @a detJ is only used for Integral basis, set to null otherwise
    using DetKernelType = void (*)(const int NE, const real_t *B,
                                   const real_t *G, const real_t *detJ,
                                   const real_t *e_vec, real_t *q_det,
                                   const int nd, const int nq, Vector *d_buffer);
-   using EvalKernelType = void (*)(const int, const int, const QVectorLayout,
-                                   const GeometricFactors *,
-                                   const GeometricFactors *, const DofToQuad &,
-                                   const Vector &, Vector &, Vector &, Vector &,
-                                   const int);
+   /// @a detJgeom is only used for Integral basis, set to null otherwise
+   using EvalKernelType = void (*)(const int NE, const int vdim,
+                                   const QVectorLayout q_layout,
+                                   const GeometricFactors *detJgeom,
+                                   const GeometricFactors *geom,
+                                   const DofToQuad &maps, const Vector &e_vec,
+                                   Vector &q_val, Vector &q_der, Vector &q_det,
+                                   const int eval_flags);
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
