@@ -309,6 +309,7 @@ set(HDRS
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
+  gslib/gslib_kernel_helpers.hpp
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
