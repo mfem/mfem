@@ -151,10 +151,10 @@ public:
          MinimalSurfaceEnergyFunctional<real_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
          auto second_derivatives = std::integer_sequence<size_t, U> {};
-         functional_dop->AddDomainIntegrator<LocalQFBackend, true>(
+         functional_dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
-            Outputs<Identity<Q>> {}, /* Value<U>, Gradient<U> */
+            Outputs<FunctionalValue<Q>> {}, /* Value<U>, Gradient<U> */
             ir, all_domain_attr, derivatives /* , second_derivatives */);
       }
 

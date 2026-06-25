@@ -552,7 +552,6 @@ public:
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
       typename backend_t = LocalQFBackend,
-      bool is_functional = false,
       typename entity_t,
       typename qfunc_t,
       typename input_t,
@@ -580,7 +579,6 @@ public:
    /// integrator.
    template <
       typename backend_t = GlobalQFBackend,
-      bool is_functional = false,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -607,7 +605,6 @@ public:
    /// integrator.
    template <
       typename backend_t = GlobalQFBackend,
-      bool is_functional = false,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -676,7 +673,7 @@ public:
    /// apply time through DerivativeOperator::Mult(const MultiVector &,
    /// MultiVector &).
    ///
-   /// Available only for integrators added with @a is_functional set to true.
+   /// Available only for integrators that are declared as functional.
    ///
    /// @param derivative_id The derivative ID to be computed.
    /// @return A shared pointer to the configured DerivativeOperator.
@@ -686,7 +683,7 @@ public:
    ///
    /// Returns a DerivativeOperator representing the second derivative of a
    /// functional with respect to the given derivative ID. This is available for
-   /// integrators added with @a is_functional set to true.
+   /// integrators that are declared as a functional.
    ///
    /// This overload accepts the state as a T-vector BlockVector and uses direct
    /// derivative-action callbacks.
@@ -791,7 +788,6 @@ private:
 
 template <
    typename backend_t,
-   bool is_functional,
    typename qfunc_t,
    typename input_t,
    typename output_t,
@@ -804,13 +800,12 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
-   AddIntegrator<backend_t, is_functional, Entity::Element>(
+   AddIntegrator<backend_t, Entity::Element>(
       qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
 }
 
 template <
    typename backend_t,
-   bool is_functional,
    typename qfunc_t,
    typename input_t,
    typename output_t,
@@ -827,13 +822,12 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
-   AddIntegrator<backend_t, is_functional, Entity::BoundaryElement>(
+   AddIntegrator<backend_t, Entity::BoundaryElement>(
       qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
 }
 
 template <
    typename backend_t,
-   bool is_functional,
    typename entity_t,
    typename qfunc_t,
    typename input_t,
@@ -883,6 +877,8 @@ void DifferentiableOperator::AddIntegrator(
                "in the Q-function doesn't match "
                "the union of FieldDescriptors (" +
                std::to_string(unionfds.size()) + ")");
+
+   constexpr bool is_functional = check_if_functional_v<output_t>;
 
    [[maybe_unused]] auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);

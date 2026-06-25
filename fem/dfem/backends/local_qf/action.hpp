@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include "fem/dfem/fieldoperator.hpp"
 #include "kernels.hpp"
 #include "util.hpp"
 
@@ -228,7 +229,7 @@ public:
             MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
          }
-         else if constexpr (is_identity_fop_v<FOP>)
+         else if constexpr (is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>)
          {
             MFEM_ASSERT(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
@@ -364,7 +365,8 @@ public:
                      using FOP = tuple_element_t<i, outputs_t>;
                      using ARG =
                         typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
+                     if constexpr (is_identity_fop_v<FOP> ||
+                                   is_functionalvalue_fop_v<FOP>)
                      {
                         using DT =
                            typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
@@ -420,7 +422,8 @@ public:
                backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
                   smem, e, d, q, Q1D, B, G, YE, rarg);
             }
-            else if constexpr (is_identity_fop_v<FOP>)
+            else if constexpr (is_identity_fop_v<FOP> ||
+                               is_functionalvalue_fop_v<FOP>)
             {
                // nothing to do
             }
