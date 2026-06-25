@@ -872,9 +872,9 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
       DenseMatrix elmat, elem_mat;
 
       const int nsfaces = pmesh->GetNSharedFaces();
-      for (int i = 0; i < nsfaces; i++)
+      for (int sf = 0; sf < nsfaces; sf++)
       {
-         tr = pmesh->GetSharedFaceTransformations(i);
+         tr = pmesh->GetSharedFaceTransformations(sf);
          if (tr == NULL) { continue; }
 
          const FiniteElement *trial_fe1 = pfes_u.GetFE(tr->Elem1No);
@@ -891,7 +891,7 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
             elmat += elem_mat;
          }
 
-         reduction->AssembleDivSharedFaceMatrix(i, elmat);
+         reduction->AssembleDivSharedFaceMatrix(sf, elmat);
       }
    }
 }
@@ -912,9 +912,9 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
       DenseMatrix elmat, elem_mat;
 
       const int nsfaces = pmesh->GetNSharedFaces();
-      for (int i = 0; i < nsfaces; i++)
+      for (int sf = 0; sf < nsfaces; sf++)
       {
-         tr = pmesh->GetSharedFaceTransformations(i);
+         tr = pmesh->GetSharedFaceTransformations(sf);
 
          const FiniteElement *fe1 = pfes_p.GetFE(tr->Elem1No);
          const FiniteElement *fe2 = pfes_p.GetFaceNbrFE(tr->Elem2No - NE);
@@ -926,7 +926,7 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
             elmat += elem_mat;
          }
 
-         reduction->AssemblePotSharedFaceMatrix(i, elmat);
+         reduction->AssemblePotSharedFaceMatrix(sf, elmat);
       }
    }
 }

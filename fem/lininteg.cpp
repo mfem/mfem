@@ -638,9 +638,9 @@ void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
    }
 
    elvect = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < ir->GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint (&ip);
 
       const IntegrationPoint &eip = Tr.GetElement1IntPoint();
@@ -671,12 +671,14 @@ void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
       for (int di = 0; di < dim; di++)
       {
          // diagonal term
-         const real_t VF_n_d = w * vf(di) * nor(di);
-         for (int i = 0; i < dof; i++)
          {
-            elvect(i + doff*dof) += shape(i) * VF_n_d;
+            const real_t VF_n_d = w * vf(di) * nor(di);
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(i + doff*dof) += shape(i) * VF_n_d;
+            }
+            doff++;
          }
-         doff++;
          // off-diagonal term
          for (int dj = di+1; dj < dim; dj++)
          {

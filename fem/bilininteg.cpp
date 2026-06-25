@@ -5297,7 +5297,6 @@ void NormalStressJumpIntegrator::AssembleFaceMatrix(
       CalcOrtho(Trans.Jacobian(), nor);
       // Side 1 finite element shape function
       test_fe1.CalcPhysShape(*Trans.Elem1, shape1);
-      const real_t w = ip.weight * sign;
 
       auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &te_shape,
                                          const Vector tr_face_shape, int ioff)
@@ -5351,6 +5350,7 @@ void NormalStressJumpIntegrator::AssembleFaceMatrix(
          }
       };
 
+      const real_t w = ip.weight * sign;
       kernel(+w, shape1, face_shape, 0);
 
       if (ndof2)

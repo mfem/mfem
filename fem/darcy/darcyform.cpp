@@ -1311,6 +1311,8 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       // rhs
 
       rhs_p.MakeRef(rhs, ndof_u, ndof_p);
+
+      // element term
       const FiniteElement *fe_p = fes_p->GetFE(z);
       ElementTransformation *Tr = mesh->GetElementTransformation(z);
       bp.AssembleRHSElementVect(*fe_p, *Tr, rhs_p);
@@ -1322,22 +1324,22 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       {
          const FiniteElement *fe_tr = fes_tr->GetFaceElement(f);
          const int ndof_tr_f = fe_tr->GetDof();
-         FaceElementTransformations *Tr = mesh->GetFaceElementTransformations(f);
+         FaceElementTransformations *FTr = mesh->GetFaceElementTransformations(f);
 #ifdef MFEM_USE_MPI
-         if (Tr->Elem2No < 0 && pmesh && pmesh->FaceIsTrueInterior(f))
+         if (FTr->Elem2No < 0 && pmesh && pmesh->FaceIsTrueInterior(f))
          {
-            Tr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
+            FTr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
          }
 #endif //MFEM_USE_MPI
 
          // flux constraint
-         const FiniteElement *fe_u1 = fes_u->GetFE(Tr->Elem1No);
-         const FiniteElement *fe_u2 = (Tr->Elem2No >= 0)?(fes_u->GetFE(Tr->Elem2No)):
+         const FiniteElement *fe_u1 = fes_u->GetFE(FTr->Elem1No);
+         const FiniteElement *fe_u2 = (FTr->Elem2No >= 0)?(fes_u->GetFE(FTr->Elem2No)):
                                       (fe_u1);
 
-         c_bfi->AssembleFaceMatrix(*fe_tr, *fe_u1, *fe_u2, *Tr, Ct_f);
+         c_bfi->AssembleFaceMatrix(*fe_tr, *fe_u1, *fe_u2, *FTr, Ct_f);
 
-         const int off_u = (Tr->Elem1No == z)?(0):(fe_u1->GetDof() * fes_u->GetVDim());
+         const int off_u = (FTr->Elem1No == z)?(0):(fe_u1->GetDof() * fes_u->GetVDim());
          Ct_fz.CopyMN(Ct_f, ndof_u, ndof_tr_f, off_u, 0);
 
          elmat.CopyMN(Ct_fz, 0, off_tr);
@@ -1346,8 +1348,8 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          //potential constraint
          if (c_bfi_p)
          {
-            const int side = (Tr->Elem1No == z)?(0):(1);
-            c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *Tr, DEGH_f);
+            const int side = (FTr->Elem1No == z)?(0):(1);
+            c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *FTr, DEGH_f);
 
             D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, 0, 0);
             elmat.AddMatrix(D_fz, ndof_u, ndof_u);
@@ -1360,7 +1362,7 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          const FiniteElement *fe_ut = fes_ut->GetFaceElement(f);
          const int ndof_ut_f = fe_ut->GetDof();
          int order = fe_ut->GetOrder() + fe_tr->GetOrder();
-         if (fe_tr->GetMapType() != FiniteElement::VALUE) { order += Tr->OrderW(); }
+         if (fe_tr->GetMapType() != FiniteElement::VALUE) { order += FTr->OrderW(); }
          const IntegrationRule &ir = IntRules.Get(fe_ut->GetGeomType(), order);
 
          shape_ut.SetSize(ndof_ut_f);
@@ -1384,14 +1386,14 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
             real_t w = ip.weight * ut_q;
             if (fe_tr->GetMapType() == FiniteElement::INTEGRAL)
             {
-               Tr->SetIntPoint(&ip);
-               w /= Tr->Weight();
+               FTr->SetIntPoint(&ip);
+               w /= FTr->Weight();
             }
 
             rhs_f.Add(w, shape_tr);
          }
 
-         if (Tr->Elem1No != z) { rhs_f.Neg(); }
+         if (FTr->Elem1No != z) { rhs_f.Neg(); }
 
          off_tr += ndof_tr_f;
       }
@@ -1718,9 +1720,9 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
       DenseMatrix elmat, elem_mat;
 
       int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int f = 0; f < nfaces; f++)
       {
-         tr = mesh -> GetInteriorFaceTransformations (i);
+         tr = mesh -> GetInteriorFaceTransformations (f);
          if (tr == NULL) { continue; }
 
          const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
@@ -1737,7 +1739,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
             elmat += elem_mat;
          }
 
-         reduction->AssembleDivFaceMatrix(i, elmat);
+         reduction->AssembleDivFaceMatrix(f, elmat);
 
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
          fes_u->GetElementVDofs(tr->Elem1No, tr_vdofs1);
@@ -1779,12 +1781,12 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
          }
       }
 
-      for (int i = 0; i < fes_p -> GetNBE(); i++)
+      for (int be = 0; be < fes_p -> GetNBE(); be++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = mesh->GetBdrAttribute(be);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         tr = mesh -> GetBdrFaceTransformations (i);
+         tr = mesh -> GetBdrFaceTransformations (be);
          if (tr != NULL)
          {
             const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
@@ -1805,7 +1807,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
                elmat += elem_mat;
             }
 
-            const int face = mesh->GetBdrElementFaceIndex(i);
+            const int face = mesh->GetBdrElementFaceIndex(be);
             reduction->AssembleDivFaceMatrix(face, elmat);
 
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
@@ -1834,9 +1836,9 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
       DenseMatrix elmat, elem_mat;
 
       int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int f = 0; f < nfaces; f++)
       {
-         tr = mesh -> GetInteriorFaceTransformations (i);
+         tr = mesh -> GetInteriorFaceTransformations (f);
          if (tr == NULL) { continue; }
 
          const FiniteElement *fe1 = fes_p->GetFE(tr->Elem1No);
@@ -1849,7 +1851,7 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
             elmat += elem_mat;
          }
 
-         reduction->AssemblePotFaceMatrix(i, elmat);
+         reduction->AssemblePotFaceMatrix(f, elmat);
 
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
          fes_p->GetElementVDofs(tr->Elem1No, vdofs1);
@@ -1893,12 +1895,12 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
          }
       }
 
-      for (int i = 0; i < fes_p -> GetNBE(); i++)
+      for (int be = 0; be < fes_p -> GetNBE(); be++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = mesh->GetBdrAttribute(be);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         tr = mesh -> GetBdrFaceTransformations (i);
+         tr = mesh -> GetBdrFaceTransformations (be);
          if (tr != NULL)
          {
             const FiniteElement *fe1 = fes_p->GetFE(tr->Elem1No);
@@ -1916,7 +1918,7 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
                elmat += elem_mat;
             }
 
-            const int face = mesh->GetBdrElementFaceIndex(i);
+            const int face = mesh->GetBdrElementFaceIndex(be);
             reduction->AssemblePotFaceMatrix(face, elmat);
 
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS

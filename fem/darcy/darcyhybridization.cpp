@@ -507,9 +507,9 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
       face_getter fx([this, &ItHI_f, &face_master](int f, DenseMatrix &m)
       {
-         const int c_dof = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
-         ItHI_f.SetSize(c_dof);
-         m.Reset(ItHI_f.GetData(), c_dof, c_dof);
+         const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+         ItHI_f.SetSize(c_size);
+         m.Reset(ItHI_f.GetData(), c_size, c_size);
          face_master = f;
       });
       AssembleNCSlaveFaceMatrix(face, face_getter(), NULL, face_getter(), NULL,
@@ -818,9 +818,9 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
          oris_s.SetSize(1);
          oris_s[0] = oris[0];
          // check for inverted orientation
-         int inf1, inf2;
-         mesh->GetFaceInfos(slave.index, &inf1, &inf2);
-         if (Mesh::DecodeFaceInfoOrientation(inf2)) { oris_s[0] *= -1; }
+         int sinf1, sinf2;
+         mesh->GetFaceInfos(slave.index, &sinf1, &sinf2);
+         if (Mesh::DecodeFaceInfoOrientation(sinf2)) { oris_s[0] *= -1; }
       }
 
       ord_s = c_fec->DofOrderForOrientation(slave.Geom(), oris_s[0]);
@@ -935,24 +935,25 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    }
 }
 
-void DarcyHybridization::AssembleNCSlaveCtFaceMatrix(int f,
+void DarcyHybridization::AssembleNCSlaveCtFaceMatrix(int face,
                                                      const DenseMatrix &Ct)
 {
-   AssembleNCSlaveFaceMatrix(f,
+   AssembleNCSlaveFaceMatrix(face,
    [this](int f, DenseMatrix &m) { GetCtFaceMatrix(f, 0, m); }, &Ct);
 }
 
-void DarcyHybridization::AssembleNCSlaveEGFaceMatrix(int f,
+void DarcyHybridization::AssembleNCSlaveEGFaceMatrix(int face,
                                                      const DenseMatrix &E, const DenseMatrix &G)
 {
-   AssembleNCSlaveFaceMatrix(f,
+   AssembleNCSlaveFaceMatrix(face,
    [this](int f, DenseMatrix &m) { GetEFaceMatrix(f, 0, m); }, &E,
    [this](int f, DenseMatrix &m) { GetGFaceMatrix(f, 0, m); }, &G);
 }
 
-void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int f, const DenseMatrix &H)
+void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int face,
+                                                    const DenseMatrix &H)
 {
-   AssembleNCSlaveFaceMatrix(f,
+   AssembleNCSlaveFaceMatrix(face,
                              face_getter(), NULL,
                              face_getter(), NULL,
    [this](int f, DenseMatrix &m) { GetHFaceMatrix(f, m); }, &H);
@@ -3089,8 +3090,8 @@ void DarcyHybridization::ReconstructTotalFlux(
    const BlockVector &sol, const Vector &x, total_flux_fun ut_fx,
    GridFunction &ut) const
 {
-   const Vector &u = sol.GetBlock(0);
-   const Vector &p = sol.GetBlock(1);
+   const Vector &sol_u = sol.GetBlock(0);
+   const Vector &sol_p = sol.GetBlock(1);
 
    const FiniteElementSpace &fes_ut = *ut.FESpace();
 
@@ -3107,9 +3108,11 @@ void DarcyHybridization::ReconstructTotalFlux(
    ParGridFunction pu, pp;
    if (pfes && pfes_p && pmesh)
    {
-      pu.MakeRef(const_cast<ParFiniteElementSpace*>(pfes), const_cast<Vector&>(u), 0);
+      pu.MakeRef(const_cast<ParFiniteElementSpace*>(pfes), const_cast<Vector&>(sol_u),
+                 0);
       pu.ExchangeFaceNbrData();
-      pp.MakeRef(const_cast<ParFiniteElementSpace*>(pfes_p), const_cast<Vector&>(p),
+      pp.MakeRef(const_cast<ParFiniteElementSpace*>(pfes_p),
+                 const_cast<Vector&>(sol_p),
                  0);
       pp.ExchangeFaceNbrData();
    }
@@ -3153,7 +3156,7 @@ void DarcyHybridization::ReconstructTotalFlux(
 
          //side 1
          fes.GetElementVDofs(ftr->Elem1No, vdofs1);
-         u.GetSubVector(vdofs1, u1);
+         sol_u.GetSubVector(vdofs1, u1);
          Ct1.CopyMN(Ct, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
          Ct1.MultTranspose(u1, bf);
 
@@ -3185,14 +3188,14 @@ void DarcyHybridization::ReconstructTotalFlux(
          }
 
          fes.GetElementVDofs(ftr->Elem1No, vdofs1);
-         u.GetSubVector(vdofs1, u1);
+         sol_u.GetSubVector(vdofs1, u1);
          Ct1.MultTranspose(u1, bf);
 
          //side 2
          if (ftr->Elem2No >= 0)
          {
             fes.GetElementVDofs(ftr->Elem2No, vdofs2);
-            u.GetSubVector(vdofs2, u2);
+            sol_u.GetSubVector(vdofs2, u2);
             GetCtFaceMatrix(f, 1, Ct2);
             // here we use the constraint integrator as well, but flip the sign
             // corresponding to the opposite normal for the total flux
@@ -3206,7 +3209,7 @@ void DarcyHybridization::ReconstructTotalFlux(
       {
          // first side
          fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
-         p.GetSubVector(dofs1, p1);
+         sol_p.GetSubVector(dofs1, p1);
          c_fes.GetFaceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
 
@@ -3240,7 +3243,7 @@ void DarcyHybridization::ReconstructTotalFlux(
 #endif
          {
             fes_p.GetElementVDofs(ftr->Elem2No, dofs2);
-            p.GetSubVector(dofs2, p2);
+            sol_p.GetSubVector(dofs2, p2);
             fe2_p = fes_p.GetFE(ftr->Elem2No);
          }
 
@@ -3267,7 +3270,7 @@ void DarcyHybridization::ReconstructTotalFlux(
          const FiniteElement *face_fe = c_fes.GetFaceElement(f);
 
          fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
-         p.GetSubVector(dofs1, p1);
+         sol_p.GetSubVector(dofs1, p1);
          c_fes.GetFaceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
 
@@ -3336,10 +3339,10 @@ void DarcyHybridization::ReconstructTotalFlux(
       ElementTransformation *Tr = mesh->GetElementTransformation(z);
 
       fes.GetElementVDofs(z, vdofs);
-      u.GetSubVector(vdofs, u_z);
+      sol_u.GetSubVector(vdofs, u_z);
 
       fes_p.GetElementVDofs(z, dofs);
-      p.GetSubVector(dofs, p_z);
+      sol_p.GetSubVector(dofs, p_z);
 
       fes_ut.GetElementVDofs(z, vdofs_ut);
       const int nvdofs = vdofs_ut.Size();

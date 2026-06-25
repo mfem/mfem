@@ -600,7 +600,6 @@ void DarcyFluxReduction::ComputeS()
    if (Bf_face_data.Size() || D_face_data.Size())
    {
       const int nfaces = mesh->GetNumFaces();
-      Array<int> p_dofs_1, p_dofs_2;
 
       for (int f = 0; f < nfaces; f++)
       {
