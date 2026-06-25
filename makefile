@@ -485,8 +485,8 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib:$(if $(static),$(BLD)libmfem.a)$(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(and $(static), $(GLVIS_DIR)/lib/libglvis.a))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static), $(GLVIS_DIR)/lib/libglvis.a))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
