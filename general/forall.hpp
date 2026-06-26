@@ -1138,6 +1138,9 @@ inline void ForallWrap(const bool use_dev, const int N,
    if (Device::Allows(Backend::CUDA))
    {
 #if defined(MFEM_USE_ENZYME)
+      MFEM_ASSERT(N == 1,
+                  "Enzyme CUDA Wrappers are only implemented "
+                  "for one dimensional thread blocks");
       return CuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
 #else
       return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
