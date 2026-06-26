@@ -16,6 +16,11 @@
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
+#ifdef MFEM_USE_RAJA
+#include "RAJA/RAJA.hpp"
+#endif
+
+#include <memory>
 #include <string>
 
 namespace mfem
@@ -141,6 +146,14 @@ private:
    MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
    MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
+#if defined(RAJA_ENABLE_CUDA)
+   // maps to default stream
+   std::unique_ptr<RAJA::resources::Cuda> raja_resource;
+#elif defined(RAJA_ENABLE_HIP)
+   // maps to default stream
+   std::unique_ptr<RAJA::resources::Hip> raja_resource;
+#endif
+
    /// Current Device MemoryType
    MemoryType device_mem_type = MemoryType::HOST;
    /// Current Device MemoryClass
@@ -265,6 +278,11 @@ public:
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
    { return Get().backends & b_mask; }
+
+#if defined(MFEM_USE_RAJA) &&                                                  \
+   (defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP))
+   static inline auto &GetRajaResource() { return *Get().raja_resource; }
+#endif
 
    /** @brief Get the current Host MemoryType. This is the MemoryType used by
        most MFEM classes when allocating memory used on the host.
