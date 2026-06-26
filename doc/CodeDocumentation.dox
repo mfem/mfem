@@ -130,7 +130,7 @@ namespace mfem {
  * - Variants of Example
  *   <a class="el" href="examples_2caliper_2ex1_8cpp_source.html">1</a> and
  *   <a class="el" href="examples_2caliper_2ex1p_8cpp_source.html">1p</a>,
- *   demonstrating the use of MFEM's \link annotation.hpp Ginkgo integration\endlink.
+ *   demonstrating the use of MFEM's \link annotation.hpp Caliper integration\endlink.
  *
  * <H4>Ginkgo Examples</H4>
  * - Variants of Example
