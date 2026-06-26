@@ -749,7 +749,7 @@ static void CuKernel3DLaunchBounds(const int N, BODY body)
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
 
-template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+template <const int BLCK, typename DBODY>
 void CuWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
@@ -865,6 +865,62 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
       CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
    }
 };
+
+template <typename BODY> struct DerivativeKernelWrapperStruct {
+  MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY &body, const int k) {
+    body(k);
+  }
+  __global__ static void FwdLaunch(const int N, BODY body, BODY d_body) {
+    const int k = blockDim.x * blockIdx.x + threadIdx.x;
+    if (k >= N) {
+      return;
+    }
+
+    __enzyme_fwddiff<void>(
+        (void (*)(const void *, const int))CuWrap1DEnzymeBody, enzyme_dup,
+        (void*)&body, (void*)&d_body, enzyme_const, k);
+  }
+  __global__ static void Launch(const int N, BODY body) {
+    const int k = blockDim.x * blockIdx.x + threadIdx.x;
+    if (k >= N) {
+      return;
+    }
+    body(k);
+  }
+};
+
+template <const int BLCK, typename DBODY> struct CuWrap1DStruct {
+
+  static void Call(const int N, DBODY *body) {
+    if (N == 0) {
+      return;
+    }
+    const int GRID = (N + BLCK - 1) / BLCK;
+    DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, BLCK>>>(N, *body);
+    MFEM_GPU_CHECK(cudaGetLastError());
+  }
+
+  static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body) {
+    const int GRID = (N + BLCK - 1) / BLCK;
+    if (N == 0) {
+      return;
+    }
+    DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, BLCK>>>(N, *body,
+                                                                    *d_body);
+    MFEM_GPU_CHECK(cudaGetLastError());
+  }
+
+  inline static void *__enzyme_register_derivative_CuWrap1D[2] = {
+      (void *)&Call, (void *)&FwdCall};
+};
+
+template <const int BLCK, typename DBODY>
+void CuWrap1DWithEnzyme(const int N, DBODY &&d_body) {
+  if (false) {
+    (void)CuWrap1DStruct<BLCK, DBODY>::__enzyme_register_derivative_CuWrap1D;
+  }
+  CuWrap1DStruct<BLCK, DBODY>::Call(N, &d_body);
+}
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
