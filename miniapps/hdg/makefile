@@ -59,8 +59,21 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+anisodiff-test-seq: anisodiff
+	@$(call mfem-test,$<,, HDG anisotropic diffusion miniapp,\
+	-nx 20 -p 1 -o 3 -hb -dg -amr 2)
+convdiff-test-seq: convdiff
+	@$(call mfem-test,$<,, HDG convection-diffusion miniapp,\
+	-nx 20 -p 2 -o 3 -hb -dg -up -bcn)
+mfem-logo-test-seq: mfem-logo
+	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
+	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)
+panisodiff-test-par: panisodiff
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG anisotropic diffusion miniapp,\
+	-nx 20 -p 1 -o 3 -hb -dg -amr 2)
+pconvdiff-test-par: pconvdiff
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG convection-diffusion miniapp,\
+	-nx 20 -p 2 -o 3 -hb -dg -up -bcn)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
