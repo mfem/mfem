@@ -65,7 +65,7 @@ namespace enzyme_test
 template <int N>
 void f(const double *x, double *y, double *a)
 {
-   mfem::forall(N, [=] MFEM_HOST_DEVICE(int q)
+   mfem::forall<mfem::UseEnzyme>(N, [=] MFEM_HOST_DEVICE(int q)
    {
       y[q] = a[q] * x[q] * x[q];
    });

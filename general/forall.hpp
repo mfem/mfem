@@ -1192,7 +1192,8 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 
 ///////////////////////////////////////////////////////////////////////////////
 // forall interfaces
-template<typename lambda, bool use_enzyme = false>
+
+template<bool use_enzyme = false, typename lambda>
 inline void forall(int N, lambda &&body)
 {
    constexpr int MAX_THREADS_PER_BLOCK = 0;

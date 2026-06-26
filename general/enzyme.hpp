@@ -29,6 +29,11 @@ extern int enzyme_const;
 extern int enzyme_interleave;
 extern int enzyme_runtime_activity;
 
+namespace mfem
+{
+constexpr bool UseEnzyme = true;
+} // namespace mfem
+
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 #define MFEM_DEVICE_EXTERN_STMT(name) extern __device__ int name;
 #else
