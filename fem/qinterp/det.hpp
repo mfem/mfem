@@ -47,7 +47,7 @@ inline void Det1D(const int NE, const real_t *b, const real_t *g,
          {
             if constexpr (Integral)
             {
-               u += G(q, d) * X(d, e) * detJ(d, e);
+               u += G(q, d) * X(d, e) / detJ(d, e);
             }
             if constexpr (!Integral)
             {
@@ -57,6 +57,13 @@ inline void Det1D(const int NE, const real_t *b, const real_t *g,
          Y(q, e) = u;
       }
    });
+}
+
+inline void Det1D(const int NE, const real_t *b, const real_t *g,
+                  const real_t *x, real_t *y, const int d1d, const int q1d,
+                  Vector *d_buff = nullptr)
+{
+   Det1D<false>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
 }
 
 template <bool Integral, int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
@@ -92,7 +99,7 @@ inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
             {
                if constexpr (Integral)
                {
-                  grad[s] += gval * X(d, s, e) * detJ(d, e);
+                  grad[s] += gval * X(d, s, e) / detJ(d, e);
                }
                if constexpr (!Integral)
                {
@@ -108,6 +115,15 @@ inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
          Y(q, e) = std::sqrt(norm2);
       }
    });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
+inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
+                         const real_t *x, real_t *y, const int d1d = 0,
+                         const int q1d = 0, Vector *d_buff = nullptr)
+{
+   Det1DSurface<false, T_D1D, T_Q1D, T_SDIM>(NE, b, g, nullptr, x, y, d1d, q1d,
+                                             d_buff);
 }
 
 template <bool Integral, int T_D1D = 0, int T_Q1D = 0>
@@ -150,7 +166,7 @@ inline void Det2D(const int NE, const real_t *b, const real_t *g,
                if constexpr (Integral)
                {
                   XY[c][MFEM_THREAD_ID(z)][dx + dy * D1D] =
-                     X(dx, dy, c, e) * detJ(dx, dy, e);
+                     X(dx, dy, c, e) / detJ(dx, dy, e);
                }
                if constexpr(!Integral)
                {
@@ -175,6 +191,14 @@ inline void Det2D(const int NE, const real_t *b, const real_t *g,
          }
       }
    });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void Det2D(const int NE, const real_t *b, const real_t *g,
+                  const real_t *x, real_t *y, const int d1d = 0,
+                  const int q1d = 0, Vector *d_buff = nullptr)
+{
+   Det2D<false, T_D1D, T_Q1D>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
 }
 
 template <bool Integral, int T_D1D = 0, int T_Q1D = 0>
@@ -221,7 +245,7 @@ inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
                if constexpr (Integral)
                {
                   XYZ[d][tidz][dx + dy * D1D] =
-                     X(dx, dy, d, e) * detJ(dx, dy, e);
+                     X(dx, dy, d, e) / detJ(dx, dy, e);
                }
                if constexpr (!Integral)
                {
@@ -278,6 +302,14 @@ inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
          }
       }
    });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
+                         const real_t *x, real_t *y, const int d1d = 0,
+                         const int q1d = 0, Vector *d_buff = nullptr)
+{
+   Det2DSurface<false,T_D1D,T_Q1D>(NE,b,g,nullptr,x,y,d1d,q1d,d_buff);
 }
 
 template <bool Integral, int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
@@ -339,11 +371,11 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
                if constexpr (Integral)
                {
                   DDD[0][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 0, e) * detJ(dx, dy, dz, e);
+                     X(dx, dy, dz, 0, e) / detJ(dx, dy, dz, e);
                   DDD[1][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 1, e) * detJ(dx, dy, dz, e);
+                     X(dx, dy, dz, 1, e) / detJ(dx, dy, dz, e);
                   DDD[2][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 2, e) * detJ(dx, dy, dz, e);
+                     X(dx, dy, dz, 2, e) / detJ(dx, dy, dz, e);
                }
                if constexpr (!Integral)
                {
@@ -376,24 +408,49 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
    });
 }
 
+template <int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
+inline void Det3D(const int NE, const real_t *b, const real_t *g,
+                  const real_t *x, real_t *y, const int d1d = 0,
+                  const int q1d = 0,
+                  Vector *d_buff = nullptr) // used only with SMEM = false
+{
+   Det3D<false, T_D1D, T_Q1D, SMEM>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
+}
+
 } // namespace quadrature_interpolator
 } // namespace internal
 
 /// @cond Suppress_Doxygen_warnings
 
-template <int DIM, int SDIM, int D1D, int Q1D, bool Integral>
+template <int DIM, int SDIM, int D1D, int Q1D>
+QuadratureInterpolator::IntDetKernelType
+QuadratureInterpolator::IntDetKernels::Kernel()
+{
+   if constexpr (DIM == 1)
+   {
+      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D<true>; }
+      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<true, D1D, Q1D, 2>; }
+      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<true, D1D, Q1D, 3>; }
+   }
+   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<true, D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<true, D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<true, D1D, Q1D>; }
+   MFEM_ABORT("");
+}
+
+template <int DIM, int SDIM, int D1D, int Q1D>
 QuadratureInterpolator::DetKernelType
 QuadratureInterpolator::DetKernels::Kernel()
 {
    if constexpr (DIM == 1)
    {
-      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D<Integral>; }
-      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<Integral, D1D, Q1D, 2>; }
-      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<Integral, D1D, Q1D, 3>; }
+      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
+      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 2>; }
+      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 3>; }
    }
-   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<Integral, D1D, Q1D>; }
-   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<Integral, D1D, Q1D>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<Integral, D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
    MFEM_ABORT("");
 }
 

@@ -157,14 +157,13 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       const int nq = maps.nqpt;
 
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
-      GK::Run(dim, L, P, vdim, nd, nq, false, nelem, maps.B.Read(),
-              maps.G.Read(), nullptr, geom->J.Read(), evec_values.Read(),
-              qp_der.Write(), sdim, vdim, nd, nq);
+      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(),
+              geom->J.Read(), evec_values.Read(), qp_der.Write(), sdim, vdim,
+              nd, nq);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
-      CGK::Run(dim, L, P, vdim, nd, false, nelem, maps.G.Read(), nullptr,
-               geom->J.Read(), evec_values.Read(), col_der.Write(), sdim, vdim,
-               nd);
+      CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
+               evec_values.Read(), col_der.Write(), sdim, vdim, nd);
 
       const real_t max_norm = qp_der.Normlinf();
 

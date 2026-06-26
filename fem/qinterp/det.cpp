@@ -45,25 +45,23 @@ void InitDetKernels()
 
 /// @cond Suppress_Doxygen_warnings
 
-template <bool Integral>
-static QuadratureInterpolator::DetKernelType
-DetKernelsFallback(int DIM, int SDIM, int D1D, int Q1D)
+QuadratureInterpolator::DetKernelType
+QuadratureInterpolator::DetKernels::Fallback(int DIM, int SDIM, int D1D,
+                                             int Q1D)
 {
    if (DIM == 1)
    {
       if (SDIM == 1)
       {
-         return internal::quadrature_interpolator::Det1D<Integral>;
+         return internal::quadrature_interpolator::Det1D;
       }
       else if (SDIM == 2)
       {
-         return internal::quadrature_interpolator::Det1DSurface<Integral, 0, 0,
-                2>;
+         return internal::quadrature_interpolator::Det1DSurface<0, 0, 2>;
       }
       else if (SDIM == 3)
       {
-         return internal::quadrature_interpolator::Det1DSurface<Integral, 0, 0,
-                3>;
+         return internal::quadrature_interpolator::Det1DSurface<0, 0, 3>;
       }
       else
       {
@@ -72,11 +70,11 @@ DetKernelsFallback(int DIM, int SDIM, int D1D, int Q1D)
    }
    else if (DIM == 2 && SDIM == 2)
    {
-      return internal::quadrature_interpolator::Det2D<Integral>;
+      return internal::quadrature_interpolator::Det2D<>;
    }
    else if (DIM == 2 && SDIM == 3)
    {
-      return internal::quadrature_interpolator::Det2DSurface<Integral>;
+      return internal::quadrature_interpolator::Det2DSurface<>;
    }
    else if (DIM == 3)
    {
@@ -84,11 +82,11 @@ DetKernelsFallback(int DIM, int SDIM, int D1D, int Q1D)
       const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
       if (D1D <= MD && Q1D <= MQ)
       {
-         return internal::quadrature_interpolator::Det3D<Integral, 0, 0, true>;
+         return internal::quadrature_interpolator::Det3D<0, 0, true>;
       }
       else
       {
-         return internal::quadrature_interpolator::Det3D<Integral, 0, 0, false>;
+         return internal::quadrature_interpolator::Det3D<0, 0, false>;
       }
    }
    else
@@ -97,17 +95,53 @@ DetKernelsFallback(int DIM, int SDIM, int D1D, int Q1D)
    }
 }
 
-QuadratureInterpolator::DetKernelType
-QuadratureInterpolator::DetKernels::Fallback(int DIM, int SDIM, int D1D,
-                                             int Q1D, bool Integral)
+QuadratureInterpolator::IntDetKernelType
+QuadratureInterpolator::IntDetKernels::Fallback(int DIM, int SDIM, int D1D,
+                                                int Q1D)
 {
-   if (Integral)
+   if (DIM == 1)
    {
-      return DetKernelsFallback<true>(DIM, SDIM, D1D, Q1D);
+      if (SDIM == 1)
+      {
+         return internal::quadrature_interpolator::Det1D<true>;
+      }
+      else if (SDIM == 2)
+      {
+         return internal::quadrature_interpolator::Det1DSurface<true, 0, 0, 2>;
+      }
+      else if (SDIM == 3)
+      {
+         return internal::quadrature_interpolator::Det1DSurface<true, 0, 0, 3>;
+      }
+      else
+      {
+         MFEM_ABORT("");
+      }
+   }
+   else if (DIM == 2 && SDIM == 2)
+   {
+      return internal::quadrature_interpolator::Det2D<true>;
+   }
+   else if (DIM == 2 && SDIM == 3)
+   {
+      return internal::quadrature_interpolator::Det2DSurface<true>;
+   }
+   else if (DIM == 3)
+   {
+      const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
+      const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
+      if (D1D <= MD && Q1D <= MQ)
+      {
+         return internal::quadrature_interpolator::Det3D<true, 0, 0, true>;
+      }
+      else
+      {
+         return internal::quadrature_interpolator::Det3D<true, 0, 0, false>;
+      }
    }
    else
    {
-      return DetKernelsFallback<false>(DIM, SDIM, D1D, Q1D);
+      MFEM_ABORT("");
    }
 }
 

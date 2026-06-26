@@ -31,10 +31,10 @@ namespace quadrature_interpolator
 {
 
 template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral>
-static void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
-                          const real_t *detJ_, const real_t *j_,
-                          const real_t *x_, real_t *y_, const int sdim,
-                          const int vdim, const int d1d, const int q1d)
+static void IntDerivatives1D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim,
+                             const int vdim, const int d1d, const int q1d)
 {
    MFEM_CONTRACT_VAR(b_);
    const int SDIM = GRAD_PHYS ? sdim : 1;
@@ -57,7 +57,7 @@ static void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
             {
                if constexpr (Integral)
                {
-                  du[0] += g(q, d) * x(d, c, e) * detJ(d, e);
+                  du[0] += g(q, d) * x(d, c, e) / detJ(d, e);
                }
                if constexpr (!Integral)
                {
@@ -109,14 +109,24 @@ static void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
    });
 }
 
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
+                          const real_t *j_, const real_t *x_, real_t *y_,
+                          const int sdim, const int vdim, const int d1d,
+                          const int q1d)
+{
+   IntDerivatives1D<Q_LAYOUT, GRAD_PHYS, false>(NE, b_, g_, nullptr, j_, x_, y_,
+                                                sdim, vdim, d1d, q1d);
+}
+
 // Template compute kernel for derivatives in 2D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral, int T_VDIM = 0,
           int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
-static void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
-                          const real_t *detJ_, const real_t *j_,
-                          const real_t *x_, real_t *y_, const int sdim = 2,
-                          const int vdim = 0, const int d1d = 0,
-                          const int q1d = 0)
+static void IntDerivatives2D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 2,
+                             const int vdim = 0, const int d1d = 0,
+                             const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -162,7 +172,7 @@ static void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
             {
                if constexpr (Integral)
                {
-                  XY[tidz][dx + D1D * dy] = x(dx, dy, c, e) * detJ(dx, dy, e);
+                  XY[tidz][dx + D1D * dy] = x(dx, dy, c, e) / detJ(dx, dy, e);
                }
                if constexpr (!Integral)
                {
@@ -249,14 +259,26 @@ static void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
    });
 }
 
+// Template compute kernel for derivatives in 2D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0, int T_NBZ = 1>
+static void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
+                          const real_t *j_, const real_t *x_, real_t *y_,
+                          const int sdim = 2, const int vdim = 0,
+                          const int d1d = 0, const int q1d = 0)
+{
+   IntDerivatives2D<Q_LAYOUT, GRAD_PHYS, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
+      NE, b_, g_, nullptr, j_, x_, y_, sdim, vdim, d1d, q1d);
+}
+
 // Template compute kernel for derivatives in 3D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral, int T_VDIM = 0,
           int T_D1D = 0, int T_Q1D = 0>
-static void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
-                          const real_t *detJ_, const real_t *j_,
-                          const real_t *x_, real_t *y_, const int sdim = 3,
-                          const int vdim = 0, const int d1d = 0,
-                          const int q1d = 0)
+static void IntDerivatives3D(const int NE, const real_t *b_, const real_t *g_,
+                             const real_t *detJ_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 3,
+                             const int vdim = 0, const int d1d = 0,
+                             const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -303,7 +325,7 @@ static void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
                {
                   if constexpr (Integral)
                   {
-                     X(dx, dy, dz) = x(dx, dy, dz, c, e) * detJ(dx, dy, dz, e);
+                     X(dx, dy, dz) = x(dx, dy, dz, c, e) / detJ(dx, dy, dz, e);
                   }
                   if constexpr (!Integral)
                   {
@@ -408,24 +430,46 @@ static void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
    });
 }
 
-template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral>
-static void
-CollocatedDerivatives1D(const int NE, const real_t *g_, const real_t *detJ,
-                        const real_t *j_, const real_t *x_, real_t *y_,
-                        const int sdim, const int vdim, const int d1d)
+// Template compute kernel for derivatives in 3D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0>
+static void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
+                          const real_t *j_, const real_t *x_, real_t *y_,
+                          const int sdim = 3, const int vdim = 0,
+                          const int d1d = 0, const int q1d = 0)
 {
-   Derivatives1D<Q_LAYOUT, GRAD_PHYS, Integral>(NE, nullptr, g_, detJ, j_, x_,
-                                                y_, sdim, vdim, d1d, d1d);
+   IntDerivatives3D<Q_LAYOUT, GRAD_PHYS, false, T_VDIM, T_D1D, T_Q1D>(
+      NE, b_, g_, nullptr, j_, x_, y_, sdim, vdim, d1d, q1d);
+}
+
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void
+IntCollocatedDerivatives1D(const int NE, const real_t *g_, const real_t *detJ,
+                           const real_t *j_, const real_t *x_, real_t *y_,
+                           const int sdim, const int vdim, const int d1d)
+{
+   IntDerivatives1D<Q_LAYOUT, GRAD_PHYS, true>(NE, nullptr, g_, detJ, j_, x_,
+                                               y_, sdim, vdim, d1d, d1d);
+}
+
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void CollocatedDerivatives1D(const int NE, const real_t *g_,
+                                    const real_t *j_, const real_t *x_,
+                                    real_t *y_, const int sdim, const int vdim,
+                                    const int d1d)
+{
+   IntDerivatives1D<Q_LAYOUT, GRAD_PHYS, false>(NE, nullptr, g_, nullptr, j_,
+                                                x_, y_, sdim, vdim, d1d, d1d);
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral, int T_VDIM = 0,
           int T_D1D = 0, int T_NBZ = 1>
-static void CollocatedDerivatives2D(const int NE, const real_t *g_,
-                                    const real_t *detJ_, const real_t *j_,
-                                    const real_t *x_, real_t *y_,
-                                    const int sdim = 2, const int vdim = 0,
-                                    const int d1d = 0)
+static void IntCollocatedDerivatives2D(const int NE, const real_t *g_,
+                                       const real_t *detJ_, const real_t *j_,
+                                       const real_t *x_, real_t *y_,
+                                       const int sdim = 2, const int vdim = 0,
+                                       const int d1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -459,7 +503,7 @@ static void CollocatedDerivatives2D(const int NE, const real_t *g_,
             {
                if constexpr (Integral)
                {
-                  XY[tidz][dx + dy * D1D] = x(dx, dy, c, e) * detJ(dx, dy, e);
+                  XY[tidz][dx + dy * D1D] = x(dx, dy, c, e) / detJ(dx, dy, e);
                }
                if constexpr (!Integral)
                {
@@ -540,18 +584,26 @@ static void CollocatedDerivatives2D(const int NE, const real_t *g_,
    });
 }
 
+// Template compute kernel for derivatives in 2D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_NBZ = 1>
+static void CollocatedDerivatives2D(const int NE, const real_t *g_,
+                                    const real_t *j_, const real_t *x_,
+                                    real_t *y_, const int sdim = 2,
+                                    const int vdim = 0, const int d1d = 0)
+{
+   IntCollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, false, T_VDIM, T_D1D, T_NBZ>(
+      NE, g_, nullptr, j_, x_, y_, sdim, vdim, d1d);
+}
+
 // Template compute kernel for derivatives in 3D: tensor product version.
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral,
-         int T_VDIM = 0, int T_D1D = 0>
-static void CollocatedDerivatives3D(const int NE,
-                                    const real_t *g_,
-                                    const real_t *detJ_,
-                                    const real_t *j_,
-                                    const real_t *x_,
-                                    real_t *y_,
-                                    const int sdim = 3,
-                                    const int vdim = 0,
-                                    const int d1d = 0)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, bool Integral, int T_VDIM = 0,
+          int T_D1D = 0>
+static void IntCollocatedDerivatives3D(const int NE, const real_t *g_,
+                                       const real_t *detJ_, const real_t *j_,
+                                       const real_t *x_, real_t *y_,
+                                       const int sdim = 3, const int vdim = 0,
+                                       const int d1d = 0)
 {
    MFEM_VERIFY(sdim == 3, "");
 
@@ -585,7 +637,7 @@ static void CollocatedDerivatives3D(const int NE,
                {
                   if constexpr (Integral)
                   {
-                     X(dx, dy, dz) = x(dx, dy, dz, c, e) * detJ(dx, dy, dz, e);
+                     X(dx, dy, dz) = x(dx, dy, dz, c, e) / detJ(dx, dy, dz, e);
                   }
                   if constexpr (!Integral)
                   {
@@ -648,31 +700,101 @@ static void CollocatedDerivatives3D(const int NE,
    });
 }
 
+// Template compute kernel for derivatives in 3D: tensor product version.
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0,
+          int T_D1D = 0>
+static void CollocatedDerivatives3D(const int NE, const real_t *g_,
+                                    const real_t *j_, const real_t *x_,
+                                    real_t *y_, const int sdim = 3,
+                                    const int vdim = 0, const int d1d = 0)
+{
+   IntCollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, false, T_VDIM, T_D1D>(
+      NE, g_, nullptr, j_, x_, y_, sdim, vdim, d1d);
+}
+
 } // namespace quadrature_interpolator
 
 } // namespace internal
 
 /// @cond Suppress_Doxygen_warnings
 
-template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
-         int Q1D, bool Integral, int NBZ>
-QuadratureInterpolator::GradKernelType
-QuadratureInterpolator::GradKernels::Kernel()
+template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+          int Q1D, int NBZ>
+QuadratureInterpolator::IntGradKernelType
+QuadratureInterpolator::IntGradKernels::Kernel()
 {
-   if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS, Integral>; }
-   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, Integral, VDIM, D1D, Q1D, NBZ>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, Integral, VDIM, D1D, Q1D>; }
+   if constexpr (DIM == 1)
+   {
+      return internal::quadrature_interpolator::IntDerivatives1D<
+             Q_LAYOUT, GRAD_PHYS, true>;
+   }
+   else if constexpr (DIM == 2)
+   {
+      return internal::quadrature_interpolator::IntDerivatives2D<
+             Q_LAYOUT, GRAD_PHYS, true, VDIM, D1D, Q1D, NBZ>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::quadrature_interpolator::IntDerivatives3D<
+             Q_LAYOUT, GRAD_PHYS, true, VDIM, D1D, Q1D>;
+   }
    MFEM_ABORT("");
 }
 
 template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
-          bool Integral, int NBZ>
+          int Q1D, int NBZ>
+QuadratureInterpolator::GradKernelType
+QuadratureInterpolator::GradKernels::Kernel()
+{
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   MFEM_ABORT("");
+}
+
+template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+          int NBZ>
+QuadratureInterpolator::IntCollocatedGradKernelType
+QuadratureInterpolator::IntCollocatedGradKernels::Kernel()
+{
+   if constexpr (DIM == 1)
+   {
+      return internal::quadrature_interpolator::IntCollocatedDerivatives1D<
+             Q_LAYOUT, GRAD_PHYS>;
+   }
+   else if constexpr (DIM == 2)
+   {
+      return internal::quadrature_interpolator::IntCollocatedDerivatives2D<
+             Q_LAYOUT, GRAD_PHYS, true, VDIM, D1D, NBZ>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::quadrature_interpolator::IntCollocatedDerivatives3D<
+             Q_LAYOUT, GRAD_PHYS, true, VDIM, D1D>;
+   }
+   MFEM_ABORT("");
+}
+
+template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+          int NBZ>
 QuadratureInterpolator::CollocatedGradKernelType
 QuadratureInterpolator::CollocatedGradKernels::Kernel()
 {
-   if constexpr (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS, Integral>; }
-   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, Integral, VDIM, D1D, NBZ>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, Integral, VDIM, D1D>; }
+   if constexpr (DIM == 1)
+   {
+      return internal::quadrature_interpolator::CollocatedDerivatives1D<
+             Q_LAYOUT, GRAD_PHYS>;
+   }
+   else if constexpr (DIM == 2)
+   {
+      return internal::quadrature_interpolator::CollocatedDerivatives2D<
+             Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::quadrature_interpolator::CollocatedDerivatives3D<
+             Q_LAYOUT, GRAD_PHYS, VDIM, D1D>;
+   }
    MFEM_ABORT("");
 }
 
