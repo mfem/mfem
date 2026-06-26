@@ -1138,7 +1138,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    if (Device::Allows(Backend::CUDA))
    {
 #if defined(MFEM_USE_ENZYME)
-      return
+      return CuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK, d_body);
 #else
       return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
 #endif // defined(MFEM_USE_ENZYME)
