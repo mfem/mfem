@@ -4110,7 +4110,7 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
          if (beta == 0. && tr_ndof2 && te_ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
-            rho_p += rho_p = rho->Eval(*Trans.Elem2, eip2);
+            rho_p += rho->Eval(*Trans.Elem2, eip2);
             rho_p *= 0.5;
          }
          a *= rho_p;
@@ -4333,7 +4333,7 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
          if (beta == 0. && tr_ndof2 && te_ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
-            rho_p += rho_p = rho->Eval(*Trans.Elem2, eip2);
+            rho_p += rho->Eval(*Trans.Elem2, eip2);
             rho_p *= 0.5;
          }
          a *= rho_p;
