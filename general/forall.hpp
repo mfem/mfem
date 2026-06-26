@@ -866,60 +866,74 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
    }
 };
 
-template <typename BODY> struct DerivativeKernelWrapperStruct {
-  MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY &body, const int k) {
-    body(k);
-  }
-  __global__ static void FwdLaunch(const int N, BODY body, BODY d_body) {
-    const int k = blockDim.x * blockIdx.x + threadIdx.x;
-    if (k >= N) {
-      return;
-    }
+template <typename BODY> struct DerivativeKernelWrapperStruct
+{
+   MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY &body, const int k)
+   {
+      body(k);
+   }
+   __global__ static void FwdLaunch(const int N, BODY body, BODY d_body)
+   {
+      const int k = blockDim.x * blockIdx.x + threadIdx.x;
+      if (k >= N)
+      {
+         return;
+      }
 
-    __enzyme_fwddiff<void>(
-        (void (*)(const void *, const int))CuWrap1DEnzymeBody, enzyme_dup,
-        (void*)&body, (void*)&d_body, enzyme_const, k);
-  }
-  __global__ static void Launch(const int N, BODY body) {
-    const int k = blockDim.x * blockIdx.x + threadIdx.x;
-    if (k >= N) {
-      return;
-    }
-    body(k);
-  }
+      __enzyme_fwddiff<void>(
+         (void (*)(const void *, const int))CuWrap1DEnzymeBody, enzyme_dup,
+         (void*)&body, (void*)&d_body, enzyme_const, k);
+   }
+   __global__ static void Launch(const int N, BODY body)
+   {
+      const int k = blockDim.x * blockIdx.x + threadIdx.x;
+      if (k >= N)
+      {
+         return;
+      }
+      body(k);
+   }
 };
 
-template <const int BLCK, typename DBODY> struct CuWrap1DStruct {
+template <const int BLCK, typename DBODY> struct CuWrap1DStruct
+{
+   static void Call(const int N, DBODY *body)
+   {
+      if (N == 0)
+      {
+         return;
+      }
+      const int GRID = (N + BLCK - 1) / BLCK;
+      DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, BLCK>>>(N, *body);
+      MFEM_GPU_CHECK(cudaGetLastError());
+   }
 
-  static void Call(const int N, DBODY *body) {
-    if (N == 0) {
-      return;
-    }
-    const int GRID = (N + BLCK - 1) / BLCK;
-    DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, BLCK>>>(N, *body);
-    MFEM_GPU_CHECK(cudaGetLastError());
-  }
+   static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body)
+   {
+      const int GRID = (N + BLCK - 1) / BLCK;
+      if (N == 0)
+      {
+         return;
+      }
+      DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, BLCK>>>(N, *body,
+                                                                      *d_body);
+      MFEM_GPU_CHECK(cudaGetLastError());
+   }
 
-  static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body) {
-    const int GRID = (N + BLCK - 1) / BLCK;
-    if (N == 0) {
-      return;
-    }
-    DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, BLCK>>>(N, *body,
-                                                                    *d_body);
-    MFEM_GPU_CHECK(cudaGetLastError());
-  }
-
-  inline static void *__enzyme_register_derivative_CuWrap1D[2] = {
-      (void *)&Call, (void *)&FwdCall};
+   inline static void *__enzyme_register_derivative_CuWrap1D[2] =
+   {
+      (void *)&Call, (void *)&FwdCall
+   };
 };
 
 template <const int BLCK, typename DBODY>
-void CuWrap1DWithEnzyme(const int N, DBODY &&d_body) {
-  if (false) {
-    (void)CuWrap1DStruct<BLCK, DBODY>::__enzyme_register_derivative_CuWrap1D;
-  }
-  CuWrap1DStruct<BLCK, DBODY>::Call(N, &d_body);
+void CuWrap1DWithEnzyme(const int N, DBODY &&d_body)
+{
+   if (false)
+   {
+      (void)CuWrap1DStruct<BLCK, DBODY>::__enzyme_register_derivative_CuWrap1D;
+   }
+   CuWrap1DStruct<BLCK, DBODY>::Call(N, &d_body);
 }
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
@@ -1089,7 +1103,7 @@ struct HipWrap<3, MAX_THREADS_PER_BLOCK>
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Forall host & device kernel dispatch
-template <int DIM, int MAX_THREADS_PER_BLOCK = 0,
+template <int DIM, int MAX_THREADS_PER_BLOCK = 0, bool use_enzyme = false,
           typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
                        d_lambda &&d_body, h_lambda &&h_body,
@@ -1123,7 +1137,11 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
+#if defined(MFEM_USE_ENZYME)
+      return
+#else
       return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
+#endif // defined(MFEM_USE_ENZYME)
    }
 #endif
 
@@ -1162,26 +1180,24 @@ backend_cpu:
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Forall host & device kernel wrappers
-template <int DIM, typename lambda>
+template <int DIM, int MAX_THREADS_PER_BLOCK = 0, bool use_enzyme = false,
+          typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
-   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
-}
-
-template <int DIM, int MAX_THREADS_PER_BLOCK, typename lambda>
-inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
-                       const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
-{
-   ForallWrap<DIM, MAX_THREADS_PER_BLOCK>(use_dev, N, body, body, X, Y, Z, G);
+   ForallWrap<DIM, MAX_THREADS_PER_BLOCK, use_enzyme>(use_dev, N, body, body, X, Y,
+                                                      Z, G);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // forall interfaces
-template<typename lambda>
-inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+template<typename lambda, bool use_enzyme = false>
+inline void forall(int N, lambda &&body)
+{
+   constexpr int MAX_THREADS_PER_BLOCK = 0;
+   ForallWrap<1, MAX_THREADS_PER_BLOCK, use_enzyme>(true, N, body);
+}
 
 template<typename lambda>
 inline void forall(int Nx, int Ny, lambda &&body)
