@@ -373,32 +373,32 @@ void ParDarcyForm::FormLinearSystem(
    {
       X_.SetSize(toffsets.Last());
       B_.SetSize(toffsets.Last());
-      BlockVector X(X_, toffsets), B(B_, toffsets);
+      BlockVector block_X(X_, toffsets), block_B(B_, toffsets);
 
       // Variational restriction with P
       const Operator &P = *pfes_u.GetProlongationMatrix();
       const Operator &R = *pfes_u.GetRestrictionOperator();
-      P.MultTranspose(b.GetBlock(0), B.GetBlock(0));
-      R.Mult(x.GetBlock(0), X.GetBlock(0));
+      P.MultTranspose(b.GetBlock(0), block_B.GetBlock(0));
+      R.Mult(x.GetBlock(0), block_X.GetBlock(0));
 
-      B.GetBlock(1) = b.GetBlock(1);
-      X.GetBlock(1) = x.GetBlock(1);
+      block_B.GetBlock(1) = b.GetBlock(1);
+      block_X.GetBlock(1) = x.GetBlock(1);
 
-      ParallelEliminateTDofsInRHS(ess_flux_tdof_list, X, B);
+      ParallelEliminateTDofsInRHS(ess_flux_tdof_list, block_X, block_B);
       if (!copy_interior)
       {
-         X.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
-         X.GetBlock(1) = 0.;
+         block_X.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+         block_X.GetBlock(1) = 0.;
       }
    }
 }
 
 void ParDarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                                    BlockVector &x, OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
+                                    BlockVector &x, OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
 {
    AllocRHS();
 
-   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X, B, copy_interior);
+   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X_, B_, copy_interior);
 }
 
 void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
