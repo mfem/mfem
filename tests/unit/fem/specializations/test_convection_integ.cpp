@@ -6,7 +6,7 @@
 
 #include "fem/integ/bilininteg_convection_kernels.hpp"
 
-TEST_CASE("Mass Kernel Specializations", "[Specializations]")
+TEST_CASE("Convection Kernel Specializations", "[Specializations]")
 {
    using namespace mfem;
 

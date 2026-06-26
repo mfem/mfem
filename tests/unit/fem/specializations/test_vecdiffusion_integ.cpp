@@ -6,7 +6,7 @@
 
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp"
 
-TEST_CASE("CurlCurl Kernel Specializations", "[Specializations]")
+TEST_CASE("VectorDiffusion Kernel Specializations", "[Specializations]")
 {
    using namespace mfem;
 
