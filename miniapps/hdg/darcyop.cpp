@@ -21,7 +21,8 @@ namespace mfem
 {
 namespace hdg
 {
-void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
+void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
+                                      int max_iters_)
 {
    if (darcy->GetHybridization())
    {
@@ -92,9 +93,9 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
 #endif
       solver.reset(new GMRESSolver());
    solver_str = "GMRES";
-   solver->SetAbsTol(atol);
-   solver->SetRelTol(rtol);
-   solver->SetMaxIter(iters);
+   solver->SetAbsTol(atol_);
+   solver->SetRelTol(rtol_);
+   solver->SetMaxIter(max_iters_);
    if (prec) { solver->SetPreconditioner(*prec); }
    solver->SetPrintLevel((btime_u || btime_p)?0:1);
    solver->iterative_mode = true;
@@ -468,9 +469,7 @@ void DarcyOperator::Update()
 DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_)
    : Solver(darcy_->Height()), darcy(darcy_)
 {
-   Vector x(Width());
-   x = 0.;
-   Construct(x);
+   Construct();
 }
 
 #ifdef MFEM_USE_MPI
@@ -478,9 +477,7 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
    const ParDarcyForm *darcy_)
    : Solver(darcy_->Height()), darcy(darcy_), pdarcy(darcy_)
 {
-   Vector x(Width());
-   x = 0.;
-   ConstructPar(x);
+   ConstructPar();
 }
 #endif //MFEM_USE_MPI
 
@@ -489,11 +486,10 @@ void DarcyOperator::SchurPreconditioner::Mult(const Vector &x, Vector &y) const
    darcyPrec->Mult(x,y);
 }
 
-void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v)
+void DarcyOperator::SchurPreconditioner::Construct()
 
 {
    const Array<int> &block_offsets = darcy->GetTrueOffsets();
-   BlockVector x(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
    //
@@ -586,10 +582,9 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v)
 }
 
 #ifdef MFEM_USE_MPI
-void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v)
+void DarcyOperator::SchurPreconditioner::ConstructPar()
 {
    const Array<int> &block_offsets = pdarcy->GetTrueOffsets();
-   BlockVector x(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
    //

@@ -109,9 +109,9 @@ class DarcyOperator : public TimeDependentOperator
 #endif
       mutable bool reconstruct {};
 
-      void Construct(const Vector &x);
+      void Construct();
 #ifdef MFEM_USE_MPI
-      void ConstructPar(const Vector &x);
+      void ConstructPar();
 #endif
 
    public:
