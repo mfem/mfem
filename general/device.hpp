@@ -146,14 +146,6 @@ private:
    MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
    MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
-#if defined(RAJA_ENABLE_CUDA)
-   // maps to default stream
-   std::unique_ptr<RAJA::resources::Cuda> raja_resource;
-#elif defined(RAJA_ENABLE_HIP)
-   // maps to default stream
-   std::unique_ptr<RAJA::resources::Hip> raja_resource;
-#endif
-
    /// Current Device MemoryType
    MemoryType device_mem_type = MemoryType::HOST;
    /// Current Device MemoryClass
@@ -281,7 +273,14 @@ public:
 
 #if defined(MFEM_USE_RAJA) &&                                                  \
    (defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP))
-   static inline auto &GetRajaResource() { return *Get().raja_resource; }
+   static inline auto GetRajaResource()
+   {
+#if defined(RAJA_ENABLE_CUDA)
+      return RAJA::resources::Cuda::CudaFromStream(0, Get().GetId());
+#elif defined(RAJA_ENABLE_HIP)
+      return RAJA::resources::Hip::HipFromStream(0, Get().GetId());
+#endif
+   }
 #endif
 
    /** @brief Get the current Host MemoryType. This is the MemoryType used by

@@ -317,8 +317,8 @@ template <typename DBODY>
 void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   RAJA::forall<RAJA::cuda_exec<MFEM_CUDA_BLOCKS, true>>(
-                                                         Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
+   RAJA::forall<RAJA::cuda_exec<MFEM_CUDA_BLOCKS, true> >(
+      Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
 }
 
 template <typename DBODY>
@@ -364,9 +364,9 @@ void RajaCuWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_bounds_policy<LB>>(
-                                         Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
-                                         [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<cuda_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    {
       loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
       {
@@ -408,9 +408,9 @@ void RajaCuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_bounds_policy<LB>>(
-                                         Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-                                         [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<cuda_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    { loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
@@ -480,8 +480,8 @@ template <typename DBODY>
 void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS,true>>(RAJA::RangeSegment(0,N),
-                                                      d_body);
+   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS,true> >(RAJA::RangeSegment(0,N),
+                                                       d_body);
 }
 
 template <typename DBODY>
@@ -527,9 +527,9 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_bounds_policy<LB>>(
-                                        Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
-                                        [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<hip_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    {
       loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
       {
@@ -571,9 +571,9 @@ void RajaHipWrap3DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_bounds_policy<LB>>(
-                                        Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-                                        [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<hip_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    { loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(hipGetLastError());
 }
