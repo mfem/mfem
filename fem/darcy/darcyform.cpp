@@ -811,11 +811,11 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
 void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, OperatorHandle &A,
-                                 Vector &X, Vector &B, int copy_interior)
+                                 Vector &X_, Vector &B_, int copy_interior)
 {
    AllocRHS();
 
-   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X, B, copy_interior);
+   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X_, B_, copy_interior);
 }
 
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
