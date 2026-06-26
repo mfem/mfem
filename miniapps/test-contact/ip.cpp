@@ -495,6 +495,13 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    MPI_Comm_size(comm, &nranks);
 
    const HYPRE_BigInt local_ptap_row_start = PTAP->GetRowStarts()[0];
+   const HYPRE_BigInt local_ptap_row_end = PTAP->GetRowStarts()[1];
+   std::vector<HYPRE_BigInt> all_ptap_row_starts(nranks);
+   std::vector<HYPRE_BigInt> all_ptap_row_ends(nranks);
+   MPI_Allgather(&local_ptap_row_start, 1, HYPRE_MPI_BIG_INT,
+                 all_ptap_row_starts.data(), 1, HYPRE_MPI_BIG_INT, comm);
+   MPI_Allgather(&local_ptap_row_end, 1, HYPRE_MPI_BIG_INT,
+                 all_ptap_row_ends.data(), 1, HYPRE_MPI_BIG_INT, comm);
 
    struct DofMapping
    {
@@ -684,15 +691,98 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
    std::vector<int> assigned_subdomain_counts(nranks, 0);
    std::vector<int> assigned_subdomain_sizes(nranks, 0);
    std::vector<int> subdomain_owner(total_subdomains, -1);
+   const int target_count_low = total_subdomains / nranks;
+   const int target_count_high = (total_subdomains + nranks - 1) / nranks;
+   const int target_size_low = total_memberships / nranks;
+   const int target_size_high = (total_memberships + nranks - 1) / nranks;
 
+   auto owner_rank = [&](HYPRE_BigInt gdof) -> int
+   {
+      for (int r = 0; r < nranks; ++r)
+      {
+         if (gdof >= all_ptap_row_starts[r] && gdof < all_ptap_row_ends[r])
+         {
+            return r;
+         }
+      }
+      return -1;
+   };
+
+   std::vector<int> assignment_order(total_subdomains);
    for (int i = 0; i < total_subdomains; ++i)
    {
+      assignment_order[i] = i;
+   }
+   std::sort(assignment_order.begin(), assignment_order.end(),
+             [&](int lhs, int rhs)
+   {
+      if (all_subdomain_sizes[lhs] != all_subdomain_sizes[rhs])
+      {
+         return all_subdomain_sizes[lhs] > all_subdomain_sizes[rhs];
+      }
+      return lhs < rhs;
+   });
+
+   for (int idx = 0; idx < total_subdomains; ++idx)
+   {
+      const int i = assignment_order[idx];
+      const int subdomain_size = all_subdomain_sizes[i];
+      std::vector<int> owned_dofs_per_rank(nranks, 0);
+      for (int j = subdomain_value_offsets[i]; j < subdomain_value_offsets[i + 1]; ++j)
+      {
+         const int rank = owner_rank(all_flat_subdomains[j]);
+         MFEM_VERIFY(rank >= 0, "Failed to determine owner of Schwarz subdomain DOF.");
+         owned_dofs_per_rank[rank]++;
+      }
+
       int best_rank = 0;
       for (int r = 1; r < nranks; ++r)
       {
-         if (assigned_subdomain_counts[r] < assigned_subdomain_counts[best_rank] ||
-             (assigned_subdomain_counts[r] == assigned_subdomain_counts[best_rank] &&
-              assigned_subdomain_sizes[r] < assigned_subdomain_sizes[best_rank]))
+         const int new_count_r = assigned_subdomain_counts[r] + 1;
+         const int new_count_best = assigned_subdomain_counts[best_rank] + 1;
+         const int new_size_r = assigned_subdomain_sizes[r] + subdomain_size;
+         const int new_size_best = assigned_subdomain_sizes[best_rank] + subdomain_size;
+         const int remote_dofs_r = subdomain_size - owned_dofs_per_rank[r];
+         const int remote_dofs_best = subdomain_size - owned_dofs_per_rank[best_rank];
+
+         const bool r_exceeds_count = new_count_r > target_count_high;
+         const bool best_exceeds_count = new_count_best > target_count_high;
+         const bool r_exceeds_size = new_size_r > target_size_high;
+         const bool best_exceeds_size = new_size_best > target_size_high;
+
+         const int count_gap_r = std::abs(new_count_r - target_count_low);
+         const int count_gap_best = std::abs(new_count_best - target_count_low);
+         const int size_gap_r = std::abs(new_size_r - target_size_low);
+         const int size_gap_best = std::abs(new_size_best - target_size_low);
+
+         if ((!r_exceeds_count && best_exceeds_count) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size && best_exceeds_size)) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size == !best_exceeds_size) &&
+              count_gap_r < count_gap_best) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size == !best_exceeds_size) &&
+              count_gap_r == count_gap_best &&
+              size_gap_r < size_gap_best) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size == !best_exceeds_size) &&
+              count_gap_r == count_gap_best &&
+              size_gap_r == size_gap_best &&
+              remote_dofs_r < remote_dofs_best) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size == !best_exceeds_size) &&
+              count_gap_r == count_gap_best &&
+              size_gap_r == size_gap_best &&
+              remote_dofs_r == remote_dofs_best &&
+              owned_dofs_per_rank[r] > owned_dofs_per_rank[best_rank]) ||
+             ((!r_exceeds_count == !best_exceeds_count) &&
+              (!r_exceeds_size == !best_exceeds_size) &&
+              count_gap_r == count_gap_best &&
+              size_gap_r == size_gap_best &&
+              remote_dofs_r == remote_dofs_best &&
+              owned_dofs_per_rank[r] == owned_dofs_per_rank[best_rank] &&
+              r < best_rank))
          {
             best_rank = r;
          }
@@ -700,7 +790,7 @@ void IPSolver::BuildSchwarzSubdomains(HypreParMatrix* Areduced, const BlockVecto
 
       subdomain_owner[i] = best_rank;
       assigned_subdomain_counts[best_rank]++;
-      assigned_subdomain_sizes[best_rank] += all_subdomain_sizes[i];
+      assigned_subdomain_sizes[best_rank] += subdomain_size;
    }
 
    std::vector<std::vector<HYPRE_BigInt>> subdomains;

@@ -77,17 +77,27 @@ public:
    MPI_Comm custom_comm = MPI_COMM_NULL;
    HYPRE_BigInt custom_local_row_start = 0;
    HYPRE_Int custom_local_num_rows = 0;
-   int custom_global_num_rows = 0;
    bool custom_use_nonsymm = false;
    bool use_custom_solve = false;
-   std::vector<int> gather_counts;
-   std::vector<int> gather_displs;
    std::vector<std::vector<HYPRE_BigInt>> custom_subdomains;
    std::vector<HYPRE_Int> custom_dense_offsets;
    std::vector<HYPRE_Int> custom_pivot_offsets;
    std::vector<HYPRE_Real> custom_dense_data;
    std::vector<HYPRE_Int> custom_pivots;
    std::unordered_map<HYPRE_BigInt, HYPRE_Real> custom_scale;
+   std::vector<int> rhs_request_send_counts;
+   std::vector<int> rhs_request_send_displs;
+   std::vector<int> rhs_request_recv_counts;
+   std::vector<int> rhs_request_recv_displs;
+   std::vector<HYPRE_BigInt> rhs_request_send_ids;
+   std::vector<HYPRE_BigInt> rhs_request_recv_ids;
+   std::unordered_map<HYPRE_BigInt, HYPRE_Int> rhs_value_index;
+   std::vector<int> correction_send_counts;
+   std::vector<int> correction_send_displs;
+   std::vector<int> correction_recv_counts;
+   std::vector<int> correction_recv_displs;
+   std::vector<HYPRE_BigInt> correction_send_ids;
+   std::vector<HYPRE_BigInt> correction_recv_ids;
 
    static std::unordered_map<HYPRE_Solver, int> & PrintLevels()
    {
@@ -319,12 +329,27 @@ public:
       HYPRE_Real *b_data = hypre_VectorData(b_local);
       HYPRE_Real *x_data = hypre_VectorData(x_local);
 
-      std::vector<HYPRE_Real> global_rhs(custom_global_num_rows, 0.0);
-      MPI_Allgatherv(b_data, custom_local_num_rows, HYPRE_MPI_REAL,
-                     global_rhs.data(), gather_counts.data(), gather_displs.data(),
-                     HYPRE_MPI_REAL, custom_comm);
+      std::vector<HYPRE_Real> rhs_response_values(rhs_request_recv_ids.size(), 0.0);
+      for (size_t i = 0; i < rhs_request_recv_ids.size(); ++i)
+      {
+         const HYPRE_BigInt gdof = rhs_request_recv_ids[i];
+         MFEM_VERIFY(gdof >= custom_local_row_start &&
+                     gdof < custom_local_row_start + custom_local_num_rows,
+                     "Requested RHS DOF is not locally owned.");
+         rhs_response_values[i] = b_data[gdof - custom_local_row_start];
+      }
 
-      std::vector<HYPRE_Real> global_correction(custom_global_num_rows, 0.0);
+      std::vector<HYPRE_Real> remote_rhs_values(rhs_request_send_ids.size(), 0.0);
+      MPI_Alltoallv(rhs_response_values.empty() ? nullptr : rhs_response_values.data(),
+                    rhs_request_recv_counts.data(), rhs_request_recv_displs.data(),
+                    HYPRE_MPI_REAL,
+                    remote_rhs_values.empty() ? nullptr : remote_rhs_values.data(),
+                    rhs_request_send_counts.data(), rhs_request_send_displs.data(),
+                    HYPRE_MPI_REAL, custom_comm);
+
+      std::vector<HYPRE_Real> local_correction(custom_local_num_rows, 0.0);
+      std::unordered_map<HYPRE_BigInt, HYPRE_Real> remote_correction;
+      remote_correction.reserve(correction_send_ids.size());
       char uplo = 'L';
       const char trans = 'N';
       int nrhs = 1;
@@ -337,7 +362,19 @@ public:
          std::vector<HYPRE_Real> rhs(n, 0.0);
          for (int i = 0; i < n; ++i)
          {
-            rhs[i] = global_rhs[custom_subdomains[d][i]];
+            const HYPRE_BigInt gdof = custom_subdomains[d][i];
+            if (gdof >= custom_local_row_start &&
+                gdof < custom_local_row_start + custom_local_num_rows)
+            {
+               rhs[i] = b_data[gdof - custom_local_row_start];
+            }
+            else
+            {
+               auto it = rhs_value_index.find(gdof);
+               MFEM_VERIFY(it != rhs_value_index.end(),
+                           "Missing remote RHS value for Schwarz subdomain DOF.");
+               rhs[i] = remote_rhs_values[it->second];
+            }
          }
 
          int info = 0;
@@ -363,16 +400,49 @@ public:
             const HYPRE_BigInt gdof = custom_subdomains[d][i];
             const auto it = custom_scale.find(gdof);
             const HYPRE_Real dof_scale = (it != custom_scale.end()) ? it->second : 1.0;
-            global_correction[gdof] += dof_scale * rhs[i];
+            const HYPRE_Real contribution = dof_scale * rhs[i];
+            if (gdof >= custom_local_row_start &&
+                gdof < custom_local_row_start + custom_local_num_rows)
+            {
+               local_correction[gdof - custom_local_row_start] += contribution;
+            }
+            else
+            {
+               remote_correction[gdof] += contribution;
+            }
          }
       }
 
-      MPI_Allreduce(MPI_IN_PLACE, global_correction.data(), custom_global_num_rows,
-                    HYPRE_MPI_REAL, MPI_SUM, custom_comm);
+      std::vector<HYPRE_Real> correction_send_values(correction_send_ids.size(), 0.0);
+      for (size_t i = 0; i < correction_send_ids.size(); ++i)
+      {
+         auto it = remote_correction.find(correction_send_ids[i]);
+         if (it != remote_correction.end())
+         {
+            correction_send_values[i] = it->second;
+         }
+      }
+
+      std::vector<HYPRE_Real> correction_recv_values(correction_recv_ids.size(), 0.0);
+      MPI_Alltoallv(correction_send_values.empty() ? nullptr : correction_send_values.data(),
+                    correction_send_counts.data(), correction_send_displs.data(),
+                    HYPRE_MPI_REAL,
+                    correction_recv_values.empty() ? nullptr : correction_recv_values.data(),
+                    correction_recv_counts.data(), correction_recv_displs.data(),
+                    HYPRE_MPI_REAL, custom_comm);
 
       for (HYPRE_Int i = 0; i < custom_local_num_rows; ++i)
       {
-         x_data[i] = global_correction[custom_local_row_start + i];
+         x_data[i] = local_correction[i];
+      }
+
+      for (size_t i = 0; i < correction_recv_ids.size(); ++i)
+      {
+         const HYPRE_BigInt gdof = correction_recv_ids[i];
+         MFEM_VERIFY(gdof >= custom_local_row_start &&
+                     gdof < custom_local_row_start + custom_local_num_rows,
+                     "Received Schwarz correction for non-local DOF.");
+         x_data[gdof - custom_local_row_start] += correction_recv_values[i];
       }
 
       return 0;
@@ -531,15 +601,105 @@ public:
       custom_dense_data.assign(custom_dense_offsets[num_domains], 0.0);
       custom_pivots.assign(custom_use_nonsymm ? custom_pivot_offsets[num_domains] : 0, 0);
 
-      gather_counts.resize(nranks);
-      gather_displs.assign(nranks + 1, 0);
-      custom_global_num_rows = 0;
+      auto owner_rank = [&](HYPRE_BigInt gdof) -> int
+      {
+         for (int r = 0; r < nranks; ++r)
+         {
+            if (gdof >= all_row_starts[r] && gdof < all_row_ends[r])
+            {
+               return r;
+            }
+         }
+         return -1;
+      };
+
+      std::vector<std::set<HYPRE_BigInt>> rhs_request_sets(nranks);
+      std::vector<std::set<HYPRE_BigInt>> correction_send_sets(nranks);
+      for (const auto &domain : custom_subdomains)
+      {
+         for (HYPRE_BigInt gdof : domain)
+         {
+            const int owner = owner_rank(gdof);
+            MFEM_VERIFY(owner >= 0, "Failed to determine owner of Schwarz DOF.");
+            if (owner != myrank)
+            {
+               rhs_request_sets[owner].insert(gdof);
+               correction_send_sets[owner].insert(gdof);
+            }
+         }
+      }
+
+      rhs_request_send_counts.assign(nranks, 0);
+      rhs_request_send_displs.assign(nranks + 1, 0);
       for (int r = 0; r < nranks; ++r)
       {
-         gather_counts[r] = static_cast<int>(all_row_ends[r] - all_row_starts[r]);
-         gather_displs[r + 1] = gather_displs[r] + gather_counts[r];
+         rhs_request_send_counts[r] = static_cast<int>(rhs_request_sets[r].size());
+         rhs_request_send_displs[r + 1] = rhs_request_send_displs[r] + rhs_request_send_counts[r];
       }
-      custom_global_num_rows = gather_displs[nranks];
+      rhs_request_send_ids.resize(rhs_request_send_displs[nranks]);
+      int rhs_idx = 0;
+      for (int r = 0; r < nranks; ++r)
+      {
+         for (HYPRE_BigInt gdof : rhs_request_sets[r])
+         {
+            rhs_request_send_ids[rhs_idx++] = gdof;
+         }
+      }
+      rhs_request_recv_counts.assign(nranks, 0);
+      rhs_request_recv_displs.assign(nranks + 1, 0);
+      MPI_Alltoall(rhs_request_send_counts.data(), 1, MPI_INT,
+                   rhs_request_recv_counts.data(), 1, MPI_INT, comm);
+      for (int r = 0; r < nranks; ++r)
+      {
+         rhs_request_recv_displs[r + 1] = rhs_request_recv_displs[r] + rhs_request_recv_counts[r];
+      }
+      rhs_request_recv_ids.resize(rhs_request_recv_displs[nranks]);
+      MPI_Alltoallv(rhs_request_send_ids.empty() ? nullptr : rhs_request_send_ids.data(),
+                    rhs_request_send_counts.data(), rhs_request_send_displs.data(),
+                    HYPRE_MPI_BIG_INT,
+                    rhs_request_recv_ids.empty() ? nullptr : rhs_request_recv_ids.data(),
+                    rhs_request_recv_counts.data(), rhs_request_recv_displs.data(),
+                    HYPRE_MPI_BIG_INT, comm);
+      rhs_value_index.clear();
+      rhs_value_index.reserve(rhs_request_send_ids.size());
+      for (size_t i = 0; i < rhs_request_send_ids.size(); ++i)
+      {
+         rhs_value_index[rhs_request_send_ids[i]] = static_cast<HYPRE_Int>(i);
+      }
+
+      correction_send_counts.assign(nranks, 0);
+      correction_send_displs.assign(nranks + 1, 0);
+      for (int r = 0; r < nranks; ++r)
+      {
+         correction_send_counts[r] = static_cast<int>(correction_send_sets[r].size());
+         correction_send_displs[r + 1] =
+            correction_send_displs[r] + correction_send_counts[r];
+      }
+      correction_send_ids.resize(correction_send_displs[nranks]);
+      int corr_idx = 0;
+      for (int r = 0; r < nranks; ++r)
+      {
+         for (HYPRE_BigInt gdof : correction_send_sets[r])
+         {
+            correction_send_ids[corr_idx++] = gdof;
+         }
+      }
+      correction_recv_counts.assign(nranks, 0);
+      correction_recv_displs.assign(nranks + 1, 0);
+      MPI_Alltoall(correction_send_counts.data(), 1, MPI_INT,
+                   correction_recv_counts.data(), 1, MPI_INT, comm);
+      for (int r = 0; r < nranks; ++r)
+      {
+         correction_recv_displs[r + 1] =
+            correction_recv_displs[r] + correction_recv_counts[r];
+      }
+      correction_recv_ids.resize(correction_recv_displs[nranks]);
+      MPI_Alltoallv(correction_send_ids.empty() ? nullptr : correction_send_ids.data(),
+                    correction_send_counts.data(), correction_send_displs.data(),
+                    HYPRE_MPI_BIG_INT,
+                    correction_recv_ids.empty() ? nullptr : correction_recv_ids.data(),
+                    correction_recv_counts.data(), correction_recv_displs.data(),
+                    HYPRE_MPI_BIG_INT, comm);
 
       BuildCustomScale(subdomains, comm, relax_weight, unweighted, uniform_weight);
       Instances()[schwarz_solver] = this;
