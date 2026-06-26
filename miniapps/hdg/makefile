@@ -64,7 +64,7 @@ anisodiff-test-seq: anisodiff
 	-nx 20 -p 1 -o 3 -hb -dg -amr 2)
 convdiff-test-seq: convdiff
 	@$(call mfem-test,$<,, HDG convection-diffusion miniapp,\
-	-nx 20 -p 2 -o 3 -hb -dg -up -bcn)
+	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -r 2)
 mfem-logo-test-seq: mfem-logo
 	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
 	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)
@@ -73,7 +73,7 @@ panisodiff-test-par: panisodiff
 	-nx 20 -p 1 -o 3 -hb -dg -amr 2)
 pconvdiff-test-par: pconvdiff
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG convection-diffusion miniapp,\
-	-nx 20 -p 2 -o 3 -hb -dg -up -bcn)
+	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -rs 1 -rp 1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
