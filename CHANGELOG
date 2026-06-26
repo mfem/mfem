@@ -84,6 +84,8 @@ Miscellaneous
   ParFiniteElementSpace -- the method will return immediately if no sign flips
   are needed.
 
+- Implemented interior and trace face assembly in ParMixedBilinearForm.
+
 Version 4.9, released on Dec 11, 2025
 =====================================
 
