@@ -22,7 +22,8 @@ namespace mfem
 namespace hdg
 {
 
-void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
+void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
+                                         int max_iters_)
 {
 #ifdef MFEM_USE_MPI
    MPI_Comm comm = (pdarcy)?(pdarcy->ParFluxFESpace()->GetComm()):(MPI_COMM_NULL);
@@ -137,22 +138,23 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
          lin_solver->SetPreconditioner(*lin_prec);
       }
 
-      lin_solver->SetAbsTol(atol);
-      lin_solver->SetRelTol(rtol * 1e-2);
-      lin_solver->SetMaxIter(iters);
+      lin_solver->SetAbsTol(atol_);
+      lin_solver->SetRelTol(rtol_ * 1e-2);
+      lin_solver->SetMaxIter(max_iters_);
       lin_solver->SetPrintLevel(0);
       prec.reset(lin_solver);
    }
 
-   solver->SetAbsTol(atol);
-   solver->SetRelTol(rtol);
-   solver->SetMaxIter(iters);
+   solver->SetAbsTol(atol_);
+   solver->SetRelTol(rtol_);
+   solver->SetMaxIter(max_iters_);
    if (prec) { solver->SetPreconditioner(*prec); }
    solver->SetPrintLevel((btime_u || btime_p)?0:1);
    solver->iterative_mode = true;
 }
 
-void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
+void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
+                                      int max_iters_)
 {
    if (darcy->GetHybridization())
    {
@@ -223,9 +225,9 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
 #endif
       solver.reset(new GMRESSolver());
    solver_str = "GMRES";
-   solver->SetAbsTol(atol);
-   solver->SetRelTol((sol_type == SolutionController::Type::Native)?(rtol):(0.));
-   solver->SetMaxIter(iters);
+   solver->SetAbsTol(atol_);
+   solver->SetRelTol((sol_type == SolutionController::Type::Native)?(rtol_):(0.));
+   solver->SetMaxIter(max_iters_);
    if (prec) { solver->SetPreconditioner(*prec); }
    solver->SetPrintLevel((btime_u || btime_p)?0:1);
    solver->iterative_mode = true;
@@ -719,9 +721,9 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
 {
    if (!nonlinear)
    {
-      Vector x(Width());
-      x = 0.;
-      Construct(x);
+      Vector x_(Width());
+      x_ = 0.;
+      Construct(x_);
    }
 
    const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
@@ -747,9 +749,9 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
 {
    if (!nonlinear)
    {
-      Vector x(Width());
-      x = 0.;
-      ConstructPar(x);
+      Vector x_(Width());
+      x_ = 0.;
+      ConstructPar(x_);
    }
 
    const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
@@ -765,30 +767,30 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
 }
 #endif //MFEM_USE_MPI
 
-void DarcyOperator::SchurPreconditioner::Mult(const Vector &x, Vector &y) const
+void DarcyOperator::SchurPreconditioner::Mult(const Vector &x_,
+                                              Vector &y_) const
 {
    if (nonlinear && reconstruct)
    {
 #ifdef MFEM_USE_MPI
       if (pdarcy)
       {
-         ConstructPar(x);
+         ConstructPar(x_);
       }
       else
 #endif //MFEM_USE_MPI
       {
-         Construct(x);
+         Construct(x_);
       }
       reconstruct = false;
    }
-   darcyPrec->Mult(x,y);
+   darcyPrec->Mult(x_,y_);
 }
 
 void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
-
 {
    const Array<int> &block_offsets = darcy->GetTrueOffsets();
-   BlockVector x(x_v.GetData(), block_offsets);
+   BlockVector bx(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
    //
@@ -858,11 +860,11 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
       }
       else if (Mqnl)
       {
-         Mqm = static_cast<SparseMatrix*>(&Mqnl->GetGradient(x.GetBlock(0)));
+         Mqm = static_cast<SparseMatrix*>(&Mqnl->GetGradient(bx.GetBlock(0)));
       }
       else if (Mnl)
       {
-         bgrad = static_cast<const BlockOperator*>(&Mnl->GetGradient(x));
+         bgrad = static_cast<const BlockOperator*>(&Mnl->GetGradient(bx));
          Mqm = static_cast<const SparseMatrix*>(&bgrad->GetBlock(0,0));
       }
       else
@@ -897,7 +899,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
       }
       else if (Mtnl)
       {
-         Mtm = static_cast<SparseMatrix*>(&Mtnl->GetGradient(x.GetBlock(1)));
+         Mtm = static_cast<SparseMatrix*>(&Mtnl->GetGradient(bx.GetBlock(1)));
       }
 
       if (Mtm)
@@ -934,7 +936,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
 void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 {
    const Array<int> &block_offsets = pdarcy->GetTrueOffsets();
-   BlockVector x(x_v.GetData(), block_offsets);
+   BlockVector bx(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
    //
@@ -1006,11 +1008,11 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (Mqnl)
       {
-         Mqm = static_cast<const HypreParMatrix*>(&Mqnl->GetGradient(x.GetBlock(0)));
+         Mqm = static_cast<const HypreParMatrix*>(&Mqnl->GetGradient(bx.GetBlock(0)));
       }
       else if (Mnl)
       {
-         bgrad = &Mnl->GetGradient(x);
+         bgrad = &Mnl->GetGradient(bx);
          Mqm = static_cast<const HypreParMatrix*>(&bgrad->GetBlock(0,0));
       }
       else
@@ -1053,7 +1055,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (Mtnl)
       {
-         Mtm = static_cast<HypreParMatrix*>(&Mtnl->GetGradient(x.GetBlock(1)));
+         Mtm = static_cast<HypreParMatrix*>(&Mtnl->GetGradient(bx.GetBlock(1)));
       }
 
       if (Mtm)
