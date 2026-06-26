@@ -15,6 +15,11 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added broken Raviart-Thomas finite element collection (BrokenRT_FECollection).
+  The finite elements from this family have the same construction as classical
+  Raviart-Thomas elements, but do not share the facet DOFs with their neighbors,
+  i.e., they are discontinuous.
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been 
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more 
   details. Supported versions >= 0.6.0.
