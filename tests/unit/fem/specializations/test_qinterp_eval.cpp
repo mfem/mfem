@@ -9,6 +9,6 @@
 TEST_CASE("QInterp Eval Kernel Specializations", "[Specializations]")
 {
    using namespace mfem;
-   
+
    QuadratureInterpolator::AddEvalSpecializations<2, 1, 1, 2>();
 }

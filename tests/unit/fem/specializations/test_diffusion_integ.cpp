@@ -9,7 +9,7 @@
 TEST_CASE("Diffusion Kernel Specializations", "[Specializations]")
 {
    using namespace mfem;
-   
+
    DiffusionIntegrator::AddSpecialization<2, 1, 5>();
    DiffusionIntegrator::AddSimplexSpecialization<2, 2, 3>();
 }

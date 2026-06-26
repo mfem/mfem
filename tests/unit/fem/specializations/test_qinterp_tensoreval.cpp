@@ -9,7 +9,7 @@
 TEST_CASE("QInterp TensorEval Kernel Specializations", "[Specializations]")
 {
    using namespace mfem;
-   
+
    QuadratureInterpolator::AddTensorEvalSpecializations<
    2, QVectorLayout::byNODES, 1, 3, 3, 2>();
 }
