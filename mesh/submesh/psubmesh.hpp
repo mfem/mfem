@@ -73,6 +73,18 @@ public:
                                       const Array<int> &domain_attributes);
 
    /**
+    * @brief Create a domain ParSubMesh from its parent.
+    *
+    * The ParSubMesh object expects the parent ParMesh object to be valid
+    * for the entire object lifetime.
+    *
+    * @param[in] parent Parent ParMesh
+    * @param[in] element_list Local domain element ids to extract
+    */
+   static ParSubMesh CreateFromElements(const ParMesh &parent,
+                                        const Array<int> &element_list);
+
+   /**
    * @brief Create a surface ParSubMesh from its parent.
    *
    * The ParSubMesh object expects the parent ParMesh object to be valid for the
@@ -84,6 +96,18 @@ public:
    */
    static ParSubMesh CreateFromBoundary(const ParMesh &parent,
                                         const Array<int> &boundary_attributes);
+
+   /**
+    * @brief Create a domain ParSubMesh from its parent.
+    *
+    * The ParSubMesh object expects the parent ParMesh object to be valid
+    * for the entire object lifetime.
+    *
+    * @param[in] parent Parent ParMesh
+    * @param[in] element_list Local boundary element ids to extract
+    */
+   static ParSubMesh CreateFromBdrElements(const ParMesh &parent,
+                                           const Array<int> &element_list);
 
    /**
     * @brief Get the parent ParMesh object
@@ -252,7 +276,8 @@ public:
 
 private:
    ParSubMesh(const ParMesh &parent, SubMesh::From from,
-              const Array<int> &attributes);
+              const Array<int> &attributes,
+              const Array<int> &element_list = {});
 
    /**
     * @brief Find shared vertices on the ParSubMesh.
@@ -429,6 +454,10 @@ private:
    /// Attributes on the parent ParMesh on which the ParSubMesh is created.
    /// Could either be domain or boundary attributes (determined by from_).
    Array<int> attributes_;
+
+   /// Local element ids of the parent ParMesh from which the submesh is created.
+   /// Contains either element or boundary element ids.
+   Array<int> element_list_;
 
    /// Mapping from ParSubMesh element ids (index of the array), to the parent
    /// ParMesh element ids.
