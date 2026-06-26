@@ -672,9 +672,9 @@ public:
       : numBlocks(N)
    {
       integs.reserve(numBlocks);
-      for (BilinearFormIntegrator *bfi : integs_)
+      for (int i = 0; i < numBlocks; i++)
       {
-         integs.push_back(bfi);
+         integs.push_back(integs_[i]);
       }
    }
 
