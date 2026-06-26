@@ -337,11 +337,11 @@ public:
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                          BlockVector &x, BlockVector &b,
-                         OpType &A, Vector &X, Vector &B,
+                         OpType &A, Vector &X_, Vector &B_,
                          int copy_interior = 0)
    {
       OperatorHandle Ah;
-      FormLinearSystem(ess_flux_tdof_list, x, b, Ah, X, B, copy_interior);
+      FormLinearSystem(ess_flux_tdof_list, x, b, Ah, X_, B_, copy_interior);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -356,11 +356,11 @@ public:
        destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         BlockVector &x, OpType &A, Vector &X, Vector &B,
+                         BlockVector &x, OpType &A, Vector &X_, Vector &B_,
                          int copy_interior = 0)
    {
       OperatorHandle Ah;
-      FormLinearSystem(ess_flux_tdof_list, x, Ah, X, B, copy_interior);
+      FormLinearSystem(ess_flux_tdof_list, x, Ah, X_, B_, copy_interior);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);

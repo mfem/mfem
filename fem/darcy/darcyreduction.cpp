@@ -351,8 +351,8 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
 #endif //MFEM_USE_MPI
 
 DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u_,
-                                       FiniteElementSpace *fes_p_, bool bsym)
-   : DarcyReduction(fes_u_, fes_p_, bsym)
+                                       FiniteElementSpace *fes_p_, bool bsym_)
+   : DarcyReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_p.GetVSize();
 }
@@ -961,8 +961,8 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
 }
 
 DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u_,
-                                                 FiniteElementSpace *fes_p_, bool bsym)
-   : DarcyReduction(fes_u_, fes_p_, bsym)
+                                                 FiniteElementSpace *fes_p_, bool bsym_)
+   : DarcyReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_u.GetVSize();
 }
