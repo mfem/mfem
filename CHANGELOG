@@ -72,6 +72,7 @@ Meshing improvements
 
 New and updated examples and miniapps
 -------------------------------------
+- Modified example 5(p) to demonstrate usage of (Par)DarcyForm.
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 - Added (Complex)PRefinementMultigrid solver option in DPG miniapps.
