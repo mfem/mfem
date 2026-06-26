@@ -721,7 +721,7 @@ template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
 do_enzyme_call(AccArgs... acc)
 {
-   __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
+   __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc..., enzyme_runtime_activity);
 }
 
 template <auto wrapper_fn, typename qf_return_t,
@@ -840,13 +840,8 @@ inline void enzyme_fwddiff(
                      typename tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
-   // forward action: evaluate the QF at the current quadrature data,
-   // used to populate the primal_storage vector.
-   call_qfunc(qfunc, xq, yq, gnqp, in_layouts, out_layouts,
-              std::make_index_sequence<ninputs> {},
-              std::make_index_sequence<noutputs> {});
-
    std::array<Vector, noutputs> primal_storage;
+   ((primal_storage[Os].UseDevice(true)), ...);
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
    ((primal_storage[Os] = yq.GetBlock(Os)), ...);
 

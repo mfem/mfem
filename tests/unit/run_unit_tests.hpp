@@ -16,6 +16,7 @@
 
 bool launch_all_non_regression_tests = false;
 bool verbose_tests = false;
+bool debug_device = false;
 std::string mfem_data_dir;
 
 static int RunCatchSession(int argc, char *argv[],
@@ -32,7 +33,8 @@ static int RunCatchSession(int argc, char *argv[],
               | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
               | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository")
               | Opt(enable_mfem_out) ["--enable-output"] ("enable mfem::out")
-              | Opt(verbose_tests) ["--verbose"] ("verbose output");
+              | Opt(verbose_tests) ["--verbose"] ("verbose output")
+              | Opt(debug_device) ["--debug-device"] ("enable gpu debug device");
    session.cli(cli);
 
    // For floating point comparisons, print 8 digits for single precision

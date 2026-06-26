@@ -93,11 +93,10 @@ TEST_CASE("AD Global qfunction with GPU", "[Enzyme][GPU]")
    auto y_d = y.ReadWrite();
    auto yd_d = yd.ReadWrite();
    auto a_d = a.Read();
-   auto ad_d = ad.ReadWrite();
 
    __enzyme_fwddiff<void>((void *)enzyme_test::f<N>, enzyme_dup, x_d, xd_d,
                           enzyme_dup, y_d,
-                          yd_d, enzyme_dup, a_d, ad_d);
+                          yd_d, enzyme_const, a_d, enzyme_runtime_activity);
 
    yd.HostRead();
    bool ok = true;

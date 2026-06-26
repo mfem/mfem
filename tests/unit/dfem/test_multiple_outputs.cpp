@@ -103,6 +103,7 @@ public:
    }
 };*/
 
+// __enzyme_fwddiff(.....
 struct mass_diffusion_global_qf
 {
    void operator()(
@@ -116,7 +117,7 @@ struct mass_diffusion_global_qf
       tensor_array<dscalar_t, DIM> &out2,
       tensor_array<real_t, DIM, DIM> &out3) const
    {
-      mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
+      mfem::forall<UseEnzyme>(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
@@ -126,6 +127,7 @@ struct mass_diffusion_global_qf
       });
    }
 };
+// ..... );
 
 struct mass_local_qf
 {
@@ -293,9 +295,15 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
 
-#if !defined(MFEM_USE_CUDA) && !defined(MFEM_USE_HIP)
+#if !defined(MFEM_USE_HIP)
       {
-         MultiVector X {xtvec, nodestvec, qdata, dpf};
+         xtvec.UseDevice(true);
+         nodestvec.UseDevice(true);
+         qdata.UseDevice(true);
+         dpf.UseDevice(true);
+         ytvec.UseDevice(true);
+         yqdata.UseDevice(true);
+         MultiVector X{xtvec, nodestvec, qdata, dpf};
          MultiVector Z{ytvec, yqdata};
 
          ParBilinearForm blf(&fes);
@@ -336,6 +344,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          dop.Mult(X, Z);
 
          Vector Y0(ytvecmfem);
+         Y0.UseDevice(true);
+
          Y0 -= Z[0];
 
          real_t norm_l = Y0.Normlinf();
@@ -347,7 +357,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          auto ddop = dop.GetDerivative(U, X);
 
          ddop->Mult(X[0], Z);
+         Z[0].HostRead();
          Y0 = ytvecmfem;
+         Y0.HostRead();
          Y0 -= Z[0];
 
          norm_l = Y0.Normlinf();

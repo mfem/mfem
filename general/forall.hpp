@@ -882,7 +882,7 @@ template <typename BODY> struct DerivativeKernelWrapperStruct
 
       __enzyme_fwddiff<void>(
          (void (*)(const void *, const int))CuWrap1DEnzymeBody, enzyme_dup,
-         (void*)&body, (void*)&d_body, enzyme_const, k);
+         (void*)&body, (void*)&d_body, enzyme_const, k, enzyme_runtime_activity);
    }
    __global__ static void Launch(const int N, BODY body)
    {
