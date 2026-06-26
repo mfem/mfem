@@ -47,6 +47,7 @@ endif
 ifeq ($(MFEM_USE_GINKGO),YES)
    SUBDIRS += ginkgo
 endif
+SUBDIRS += hdg
 ifeq ($(MFEM_USE_HIOP),YES)
    SUBDIRS += hiop
 endif

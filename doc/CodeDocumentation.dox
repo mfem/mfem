@@ -137,6 +137,22 @@ namespace mfem {
  *   <a class="el" href="examples_2ginkgo_2ex1_8cpp_source.html">1</a>,
  *   demonstrating the use of MFEM's \link ginkgo.hpp Ginkgo integration\endlink.
  *
+ * <H4>HDG Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="hdg_2ex5_8cpp_source.html">5</a>,
+ *   <a class="el" href="hdg_2ex5p_8cpp_source.html">5p</a>,
+ *   <a class="el" href="hdg_2ex6_8cpp_source.html">6</a>,
+ *   <a class="el" href="hdg_2ex6p_8cpp_source.html">6p</a>,
+ *   <a class="el" href="hdg_2ex14_8cpp_source.html">14</a>,
+ *   <a class="el" href="hdg_2ex14p_8cpp_source.html">14p</a>,
+ *   <a class="el" href="hdg_2ex17_8cpp_source.html">21</a>,
+ *   <a class="el" href="hdg_2ex17p_8cpp_source.html">21p</a>,
+ *   <a class="el" href="hdg_2ex21_8cpp_source.html">21</a>,
+ *   <a class="el" href="hdg_2ex21p_8cpp_source.html">21p</a>,
+ *   <a class="el" href="hdg_2ex41_8cpp_source.html">41</a> and
+ *   <a class="el" href="hdg_2ex41p_8cpp_source.html">41p</a>,
+ *   demonstrating the use of MFEM's \link darcyhybridization.hpp hybridization framework for mixed systems\endlink.
+ *
  * <H4>HiOp Examples</H4>
  * - Variants of Examples
  *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and

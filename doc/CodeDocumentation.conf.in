@@ -965,6 +965,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/examples/amgx \
                          @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/ginkgo \
+                         @MFEM_SOURCE_DIR@/examples/hdg \
                          @MFEM_SOURCE_DIR@/examples/hiop \
                          @MFEM_SOURCE_DIR@/examples/moonolith \
                          @MFEM_SOURCE_DIR@/examples/petsc \

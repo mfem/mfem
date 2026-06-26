@@ -120,6 +120,7 @@ The MFEM source code has the following structure:
   │   ├── amgx
   │   ├── caliper
   │   ├── ginkgo
+  │   ├── hdg
   │   ├── hiop
   │   ├── jupyter
   │   ├── moonolith
