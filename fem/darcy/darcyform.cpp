@@ -16,8 +16,8 @@ namespace mfem
 {
 
 DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
-                     bool bsymmetrize)
-   : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrize)
+                     bool bsym_)
+   : fes_u(fes_u_), fes_p(fes_p_), bsym(bsym_)
 {
    UpdateOffsetsAndSize();
 }
@@ -990,16 +990,16 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          ndof_tr += fes_tr->GetFaceElement(f)->GetDof();
       }
 
-      const int width = ndof_u + ndof_p + ndof_tr;
+      const int elmat_w = ndof_u + ndof_p + ndof_tr;
 #if 1
-      const int height = width;
+      const int elmat_h = elmat_w;
 #else
-      const int height = width + 1;
+      const int elmat_h = elmat_w + 1;
 #endif
-      elmat.SetSize(height, width);
+      elmat.SetSize(elmat_h, elmat_w);
       elmat = 0.;
 
-      rhs.SetSize(height);
+      rhs.SetSize(elmat_h);
       rhs = 0.;
 
       M_u->ComputeElementMatrix(z, Mu_z);
@@ -1516,27 +1516,27 @@ void DarcyForm::AllocRHS()
    *block_b = 0.;
 }
 
-const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B) const
+const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B_) const
 {
-   opBt.Reset(Transpose(B->SpMat()));
+   opBt.Reset(Transpose(B_->SpMat()));
    return opBt.Ptr();
 }
 
-const Operator* DarcyForm::ConstructBT(const OperatorHandle &B) const
+const Operator* DarcyForm::ConstructBT(const OperatorHandle &B_) const
 {
-   if (B.Type() == Operator::Type::MFEM_SPARSEMAT)
+   if (B_.Type() == Operator::Type::MFEM_SPARSEMAT)
    {
-      opBt.Reset(Transpose(*B.As<SparseMatrix>()));
+      opBt.Reset(Transpose(*B_.As<SparseMatrix>()));
    }
 #ifdef MFEM_USE_MPI
-   else if (B.Type() == Operator::Type::Hypre_ParCSR)
+   else if (B_.Type() == Operator::Type::Hypre_ParCSR)
    {
-      opBt.Reset(B.As<HypreParMatrix>()->Transpose());
+      opBt.Reset(B_.As<HypreParMatrix>()->Transpose());
    }
 #endif //MFEM_USE_MPI
    else
    {
-      opBt.Reset(new TransposeOperator(B.Ptr()));
+      opBt.Reset(new TransposeOperator(B_.Ptr()));
    }
    return opBt.Ptr();
 }

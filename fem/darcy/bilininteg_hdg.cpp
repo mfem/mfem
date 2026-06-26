@@ -24,13 +24,13 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   const int dim = el1.GetDim();
+   const int el_dim = el1.GetDim();
    const int tr_ndof = trace_el.GetDof();
    const int ndof1 = el1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0);
    const int el_ndof = ndof1 + ndof2;
 
-   Vector vu(dim), nor(dim);
+   Vector vu(el_dim), nor(el_dim);
 
    tr_shape.SetSize(tr_ndof);
    shape1.SetSize(ndof1);
@@ -77,7 +77,7 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim == 1)
+      if (el_dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
@@ -166,11 +166,11 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   const int dim = el.GetDim();
+   const int el_dim = el.GetDim();
    const int tr_ndof = trace_el.GetDof();
    const int el_ndof = el.GetDof();
 
-   Vector vu(dim), nor(dim);
+   Vector vu(el_dim), nor(el_dim);
    Vector &el_shape = shape1;
 
    tr_shape.SetSize(tr_ndof);
@@ -223,7 +223,7 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim == 1)
+      if (el_dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
@@ -293,13 +293,13 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   const int dim = el1.GetDim();
+   const int el_dim = el1.GetDim();
    const int tr_ndof = trace_el.GetDof();
    const int ndof1 = el1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0);
    const int el_ndof = ndof1 + ndof2;
 
-   Vector vu(dim), nor(dim);
+   Vector vu(el_dim), nor(el_dim);
 
    tr_shape.SetSize(tr_ndof);
    shape1.SetSize(ndof1);
@@ -346,7 +346,7 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim == 1)
+      if (el_dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
@@ -430,11 +430,11 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   const int dim = el.GetDim();
+   const int el_dim = el.GetDim();
    const int tr_ndof = trace_el.GetDof();
    const int el_ndof = el.GetDof();
 
-   Vector vu(dim), nor(dim);
+   Vector vu(el_dim), nor(el_dim);
    Vector &el_shape = shape1;
 
    tr_shape.SetSize(tr_ndof);
@@ -487,7 +487,7 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim == 1)
+      if (el_dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }

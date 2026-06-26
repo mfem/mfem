@@ -17,9 +17,9 @@
 
 namespace mfem
 {
-ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u,
-                           ParFiniteElementSpace *fes_p, bool bsymmetrize)
-   : DarcyForm(fes_u, fes_p, bsymmetrize), pfes_u(*fes_u), pfes_p(*fes_p)
+ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u_,
+                           ParFiniteElementSpace *fes_p_, bool bsym_)
+   : DarcyForm(fes_u_, fes_p_, bsym_), pfes_u(*fes_u_), pfes_p(*fes_p_)
 {
    UpdateTOffsets();
 }

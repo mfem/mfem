@@ -207,8 +207,6 @@ private:
    Array<int> &G_offsets{E_offsets};
    mutable Array<real_t> G_data;
 
-   mutable Array<int> f_2_b;
-
    std::unique_ptr<SparseMatrix> He;
    OperatorHandle pHe;
 
@@ -250,7 +248,6 @@ private:
    void GetCtFaceMatrix(int f, int side, DenseMatrix & Ct) const;
    void GetEFaceMatrix(int f, int side, DenseMatrix &E) const;
    void GetGFaceMatrix(int f, int side, DenseMatrix &G) const;
-   void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
 
