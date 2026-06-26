@@ -71,6 +71,8 @@ GPU computing
   details. Supported versions >= 0.6.0.
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  QuadratureInterpolator.
 
 New and updated examples and miniapps
 -------------------------------------

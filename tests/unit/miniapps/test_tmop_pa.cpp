@@ -935,27 +935,35 @@ static void tmop_tests(int id = 0, bool all = false)
 
 #ifndef _WIN32
    {
-      using Det = QuadratureInterpolator::DetKernels;
-      Det::Specialization<2, 2, 3, 3>::Add();
-      Det::Specialization<2, 2, 5, 5>::Add();
-      Det::Specialization<3, 3, 2, 3>::Add();
-      Det::Specialization<3, 3, 3, 4>::Add();
-      Det::Specialization<3, 3, 4, 6>::Add();
+      QuadratureInterpolator::AddDetSpecializations<2, 2, 3, 3>();
+      QuadratureInterpolator::AddDetSpecializations<2, 2, 5, 5>();
+      QuadratureInterpolator::AddDetSpecializations<3, 3, 2, 3>();
+      QuadratureInterpolator::AddDetSpecializations<3, 3, 3, 4>();
+      QuadratureInterpolator::AddDetSpecializations<3, 3, 4, 6>();
 
-      using Grad = QuadratureInterpolator::GradKernels;
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 3, 5>::Add();
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 5, 5>::Add();
-      Grad::Specialization<2, QVectorLayout::byNODES, false, 2, 6, 6>::Add();
-      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
+      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
+                             false, 2, 3, 5>();
+      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
+                             false, 2, 5, 5>();
+      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
+                             false, 2, 6, 6>();
+      QuadratureInterpolator::AddGradSpecializations<3, QVectorLayout::byNODES,
+                             false, 3, 4, 5>();
 
-      using TensorEval = QuadratureInterpolator::TensorEvalKernels;
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 2, 2>::Opt<4>::Add();
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 3, 3>::Opt<4>::Add();
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 4, 4>::Opt<2>::Add();
-      TensorEval::Specialization<2, QVectorLayout::byVDIM, 2, 5, 5>::Opt<2>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 2, 3>::Opt<2>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 3, 4>::Opt<1>::Add();
-      TensorEval::Specialization<3, QVectorLayout::byVDIM, 3, 4, 6>::Opt<1>::Add();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      2, QVectorLayout::byVDIM, 2, 2, 2, 4>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      2, QVectorLayout::byVDIM, 2, 3, 3, 4>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      2, QVectorLayout::byVDIM, 2, 4, 4, 2>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      2, QVectorLayout::byVDIM, 2, 5, 5, 2>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      3, QVectorLayout::byVDIM, 3, 2, 3, 2>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      3, QVectorLayout::byVDIM, 3, 3, 4, 1>();
+      QuadratureInterpolator::AddTensorEvalSpecializations<
+      3, QVectorLayout::byVDIM, 3, 4, 6, 1>();
 
       using MassDiagonal = MassIntegrator::DiagonalPAKernels;
       MassDiagonal::Specialization<2, 2, 3>::Add();
