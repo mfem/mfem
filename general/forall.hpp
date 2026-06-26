@@ -897,26 +897,28 @@ template <typename BODY> struct DerivativeKernelWrapperStruct
 
 template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 {
+   static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_CUDA_BLOCKS : BLCK;
+
    static void Call(const int N, DBODY *body)
    {
       if (N == 0)
       {
          return;
       }
-      const int GRID = (N + BLCK - 1) / BLCK;
-      DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, BLCK>>>(N, *body);
+      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
+      DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, ACTUAL_BLCK>>>(N, *body);
       MFEM_GPU_CHECK(cudaGetLastError());
    }
 
    static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body)
    {
-      const int GRID = (N + BLCK - 1) / BLCK;
       if (N == 0)
       {
          return;
       }
-      DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, BLCK>>>(N, *body,
-                                                                      *d_body);
+      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
+      DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, ACTUAL_BLCK>>>(N, *body,
+                                                                             *d_body);
       MFEM_GPU_CHECK(cudaGetLastError());
    }
 
@@ -929,11 +931,12 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 template <const int BLCK, typename DBODY>
 void CuWrap1DWithEnzyme(const int N, DBODY &&d_body)
 {
+   using DBODY_BASE = std::remove_reference_t<DBODY>;
    if (false)
    {
-      (void)CuWrap1DStruct<BLCK, DBODY>::__enzyme_register_derivative_CuWrap1D;
+      (void)CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
    }
-   CuWrap1DStruct<BLCK, DBODY>::Call(N, &d_body);
+   CuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
 }
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
@@ -1137,14 +1140,18 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-#if defined(MFEM_USE_ENZYME)
+    if constexpr (use_enzyme) {
+#ifdef MFEM_USE_ENZYME
       MFEM_ASSERT(N == 1,
                   "Enzyme CUDA Wrappers are only implemented "
                   "for one dimensional thread blocks");
+
       return CuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
 #else
-      return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
-#endif // defined(MFEM_USE_ENZYME)
+      MFEM_ABORT("Enzyme not available");
+#endif
+    }
+    return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
