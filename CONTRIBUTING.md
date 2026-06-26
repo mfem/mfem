@@ -157,6 +157,7 @@ The MFEM source code has the following structure:
   │   ├── electromagnetics
   │   ├── fluids
   │   ├── gslib
+  │   ├── hdg
   │   ├── hdiv-linear-solver
   │   ├── hooke
   │   ├── meshing
