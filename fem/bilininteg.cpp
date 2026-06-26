@@ -3845,6 +3845,237 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
    }
 }
 
+void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                                 const FiniteElement &test_fe1,
+                                                 const FiniteElement &trial_fe2,
+                                                 const FiniteElement &test_fe2,
+                                                 FaceElementTransformations &Trans,
+                                                 DenseMatrix &elmat)
+{
+   int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
+
+   real_t un, a, b, w;
+
+   const int dim = test_fe1.GetDim();
+   tr_ndof1 = trial_fe1.GetDof();
+   te_ndof1 = test_fe1.GetDof();
+   bool l2 = test_fe1.GetRangeType() == FiniteElement::SCALAR;
+   Vector vu(dim), nor(dim);
+
+   if (Trans.Elem2No >= 0)
+   {
+      tr_ndof2 = trial_fe2.GetDof();
+      te_ndof2 = test_fe2.GetDof();
+   }
+   else
+   {
+      tr_ndof2 = 0;
+      te_ndof2 = 0;
+   }
+
+   tr_shape1.SetSize(tr_ndof1);
+   te_shape1.SetSize(te_ndof1);
+   tr_shape2.SetSize(tr_ndof2);
+   te_shape2.SetSize(te_ndof2);
+   if (l2)
+   {
+      elmat.SetSize((te_ndof1 + te_ndof2) * dim, tr_ndof1 + tr_ndof2);
+   }
+   else
+   {
+      te_vshape1.SetSize(te_ndof1, dim);
+      te_vshape2.SetSize(te_ndof2, dim);
+      elmat.SetSize(te_ndof1 + te_ndof2, tr_ndof1 + tr_ndof2);
+   }
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  max(trial_fe1.GetOrder(), trial_fe2.GetOrder()) +
+                  max(test_fe1.GetOrder(), test_fe2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + trial_fe1.GetOrder() + test_fe1.GetOrder();
+      }
+      if (trial_fe1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1, eip2;
+      Trans.Loc1.Transform(ip, eip1);
+      Trans.Elem1->SetIntPoint(&eip1);
+      if (tr_ndof2 && te_ndof2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+         Trans.Elem2->SetIntPoint(&eip2);
+      }
+      trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
+
+      Trans.Face->SetIntPoint(&ip);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      if (l2)
+      {
+         test_fe1.CalcPhysShape(*Trans.Elem1, te_shape1);
+      }
+      else
+      {
+         test_fe1.CalcPhysVShape(*Trans.Elem1, te_vshape1);
+         te_vshape1.Mult(nor, te_shape1);
+      }
+
+      a = 0.5 * alpha;
+      if (beta != 0.)
+      {
+         u->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+         b = (un != 0.)?(beta * un / fabs(un)):(0.);
+      }
+      else
+      {
+         b = 0.;
+      }
+
+      // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
+      //       and therefore two blocks in the element matrix contribution
+      //       (from the current quadrature point) are 0
+
+      if (rho)
+      {
+         real_t rho_p;
+         if (un >= 0.0 && tr_ndof2 && te_ndof2)
+         {
+            Trans.Elem2->SetIntPoint(&eip2);
+            rho_p = rho->Eval(*Trans.Elem2, eip2);
+         }
+         else
+         {
+            rho_p = rho->Eval(*Trans.Elem1, eip1);
+         }
+         a *= rho_p;
+         b *= rho_p;
+      }
+
+      w = ip.weight * (a+b);
+      if (w != 0.0)
+      {
+         if (l2)
+         {
+            for (int d = 0; d < dim; d++)
+               for (int i = 0; i < te_ndof1; i++)
+                  for (int j = 0; j < tr_ndof1; j++)
+                  {
+                     elmat(i + d*te_ndof1, j) += w * te_shape1(i) * tr_shape1(j) * nor(d);
+                  }
+         }
+         else
+         {
+            for (int i = 0; i < te_ndof1; i++)
+               for (int j = 0; j < tr_ndof1; j++)
+               {
+                  elmat(i, j) += w * te_shape1(i) * tr_shape1(j);
+               }
+         }
+      }
+
+      if (tr_ndof2 && te_ndof2)
+      {
+         trial_fe2.CalcPhysShape(*Trans.Elem2, tr_shape2);
+         if (l2)
+         {
+            test_fe2.CalcPhysShape(*Trans.Elem2, te_shape2);
+         }
+         else
+         {
+            test_fe2.CalcPhysVShape(*Trans.Elem2, te_vshape2);
+            te_vshape2.Mult(nor, te_shape2);
+         }
+
+         if (w != 0.0)
+         {
+            if (l2)
+            {
+               for (int d = 0; d < dim; d++)
+                  for (int i = 0; i < te_ndof2; i++)
+                     for (int j = 0; j < tr_ndof1; j++)
+                     {
+                        elmat(te_ndof1*dim + i + d*te_ndof2, j) -=
+                           w * te_shape2(i) * tr_shape1(j) * nor(d);
+                     }
+            }
+            else
+            {
+               for (int i = 0; i < te_ndof2; i++)
+                  for (int j = 0; j < tr_ndof1; j++)
+                  {
+                     elmat(te_ndof1 + i, j) -=
+                        w * te_shape2(i) * tr_shape1(j);
+                  }
+            }
+         }
+
+         w = ip.weight * (b-a);
+         if (w != 0.0)
+         {
+            if (l2)
+            {
+               for (int d = 0; d < dim; d++)
+                  for (int i = 0; i < te_ndof2; i++)
+                     for (int j = 0; j < tr_ndof2; j++)
+                     {
+                        elmat(te_ndof1*dim + i + d*te_ndof2, tr_ndof1+j) +=
+                           w * te_shape2(i) * tr_shape2(j) * nor(d);
+                     }
+
+               for (int d = 0; d < dim; d++)
+                  for (int i = 0; i < te_ndof1; i++)
+                     for (int j = 0; j < tr_ndof2; j++)
+                     {
+                        elmat(i + d*te_ndof1, tr_ndof1+j) -=
+                           w * te_shape1(i) * tr_shape2(j) * nor(d);
+                     }
+            }
+            else
+            {
+
+               for (int i = 0; i < te_ndof2; i++)
+                  for (int j = 0; j < tr_ndof2; j++)
+                  {
+                     elmat(te_ndof1 + i, tr_ndof1+j) +=
+                        w * te_shape2(i) * tr_shape2(j);
+                  }
+
+               for (int i = 0; i < te_ndof1; i++)
+                  for (int j = 0; j < tr_ndof2; j++)
+                  {
+                     elmat(i, tr_ndof1+j) -=
+                        w * te_shape1(i) * tr_shape2(j);
+                  }
+            }
+         }
+      }
+   }
+}
+
 const IntegrationRule &DGTraceIntegrator::GetRule(
    Geometry::Type geom, int order, const ElementTransformation &T)
 {
@@ -4414,84 +4645,136 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
-   int i, j, face_ndof, ndof1, ndof2, dim;
-   int order;
-
    MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
 
-   face_ndof = trial_face_fe.GetDof();
-   ndof1 = test_fe1.GetDof();
-   dim = test_fe1.GetDim();
+   const int face_ndof = trial_face_fe.GetDof();
+   const int ndof1 = test_fe1.GetDof();
+   const int ndof2 = (Trans.Elem2No >= 0)?(test_fe2.GetDof()):(0);
+   const int dim = test_fe1.GetDim();
 
    face_shape.SetSize(face_ndof);
    normal.SetSize(dim);
-   shape1.SetSize(ndof1,dim);
    shape1_n.SetSize(ndof1);
 
-   if (Trans.Elem2No >= 0)
+   if (ndof2)
    {
-      ndof2 = test_fe2.GetDof();
       shape2.SetSize(ndof2,dim);
       shape2_n.SetSize(ndof2);
    }
+
+   if (test_fe1.GetRangeType() == FiniteElement::SCALAR)
+   {
+      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof);
+      elmat = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order;
+         if (Trans.Elem2No >= 0)
+         {
+            order = max(test_fe1.GetOrder(), test_fe2.GetOrder());
+         }
+         else
+         {
+            order = test_fe1.GetOrder();
+         }
+         order += trial_face_fe.GetOrder() + Trans.OrderW();
+         ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      }
+
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         // Trace finite element shape function
+         trial_face_fe.CalcShape(ip, face_shape);
+         Trans.SetIntPoint(&ip);
+         CalcOrtho(Trans.Jacobian(), normal);
+         // Side 1 finite element shape function
+         test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
+         face_shape *= ip.weight * sign;
+         for (int d = 0; d < dim; d++)
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < face_ndof; j++)
+               {
+                  elmat(i+d*ndof1, j) += shape1_n(i) * face_shape(j) * normal(d);
+               }
+
+         if (ndof2)
+         {
+            // Side 2 finite element shape function
+            test_fe2.CalcPhysShape(*Trans.Elem2, shape2_n);
+            // Subtract contribution from side 2
+            for (int d = 0; d < dim; d++)
+               for (int i = 0; i < ndof2; i++)
+                  for (int j = 0; j < face_ndof; j++)
+                  {
+                     elmat(ndof1*dim+i+d*ndof2, j) -= shape2_n(i) * face_shape(j) * normal(d);
+                  }
+         }
+      }
+   }
    else
    {
-      ndof2 = 0;
-   }
+      shape1.SetSize(ndof1, dim);
+      if (ndof2) { shape2.SetSize(ndof2, dim); }
 
-   elmat.SetSize(ndof1 + ndof2, face_ndof);
-   elmat = 0.0;
+      elmat.SetSize(ndof1 + ndof2, face_ndof);
+      elmat = 0.0;
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      if (Trans.Elem2No >= 0)
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
       {
-         order = max(test_fe1.GetOrder(), test_fe2.GetOrder()) - 1;
-      }
-      else
-      {
-         order = test_fe1.GetOrder() - 1;
-      }
-      order += trial_face_fe.GetOrder();
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-   }
-
-   for (int p = 0; p < ir->GetNPoints(); p++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-      // Trace finite element shape function
-      trial_face_fe.CalcShape(ip, face_shape);
-      Trans.Loc1.Transf.SetIntPoint(&ip);
-      CalcOrtho(Trans.Loc1.Transf.Jacobian(), normal);
-      // Side 1 finite element shape function
-      Trans.Loc1.Transform(ip, eip1);
-      test_fe1.CalcVShape(eip1, shape1);
-      shape1.Mult(normal, shape1_n);
-      if (ndof2)
-      {
-         // Side 2 finite element shape function
-         Trans.Loc2.Transform(ip, eip2);
-         test_fe2.CalcVShape(eip2, shape2);
-         Trans.Loc2.Transf.SetIntPoint(&ip);
-         CalcOrtho(Trans.Loc2.Transf.Jacobian(), normal);
-         shape2.Mult(normal, shape2_n);
-      }
-      face_shape *= ip.weight;
-      for (i = 0; i < ndof1; i++)
-         for (j = 0; j < face_ndof; j++)
+         int order;
+         if (Trans.Elem2No >= 0)
          {
-            elmat(i, j) += shape1_n(i) * face_shape(j);
+            order = max(test_fe1.GetOrder(), test_fe2.GetOrder()) - 1;
          }
-      if (ndof2)
+         else
+         {
+            order = test_fe1.GetOrder() - 1;
+         }
+         order += trial_face_fe.GetOrder();
+         ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      }
+
+      for (int p = 0; p < ir->GetNPoints(); p++)
       {
-         // Subtract contribution from side 2
-         for (i = 0; i < ndof2; i++)
-            for (j = 0; j < face_ndof; j++)
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         IntegrationPoint eip1, eip2;
+         // Trace finite element shape function
+         trial_face_fe.CalcShape(ip, face_shape);
+         Trans.Loc1.Transf.SetIntPoint(&ip);
+         CalcOrtho(Trans.Loc1.Transf.Jacobian(), normal);
+         // Side 1 finite element shape function
+         Trans.Loc1.Transform(ip, eip1);
+         test_fe1.CalcVShape(eip1, shape1);
+         shape1.Mult(normal, shape1_n);
+         if (ndof2)
+         {
+            // Side 2 finite element shape function
+            Trans.Loc2.Transform(ip, eip2);
+            test_fe2.CalcVShape(eip2, shape2);
+            Trans.Loc2.Transf.SetIntPoint(&ip);
+            CalcOrtho(Trans.Loc2.Transf.Jacobian(), normal);
+            shape2.Mult(normal, shape2_n);
+         }
+         face_shape *= ip.weight * sign;
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < face_ndof; j++)
             {
-               elmat(ndof1+i, j) -= shape2_n(i) * face_shape(j);
+               elmat(i, j) += shape1_n(i) * face_shape(j);
             }
+
+         if (ndof2)
+         {
+            // Subtract contribution from side 2
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < face_ndof; j++)
+               {
+                  elmat(ndof1+i, j) -= shape2_n(i) * face_shape(j);
+               }
+         }
       }
    }
 }
