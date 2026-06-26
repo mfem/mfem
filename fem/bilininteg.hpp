@@ -202,6 +202,32 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
+   /// Assemble the HDG face matrix (double-side version)
+   /** The HDG matrix is composed of the element part (block diagonal), trace
+       flux, constraint and face part. Note that the face term contains
+       contributions from both sides.
+       @see AssembleHDGFaceMatrix(int, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &,
+       DenseMatrix &) */
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+
+   /// Assemble the HDG face matrix (single-side version)
+   /** The HDG matrix is composed of the element part, trace flux, constraint
+       and face part. All terms correspond to the contributions from designated
+       side (@a side) of the face (0=side 1, 1=side 2).
+       @note The default implementation in the base class assumes symmetry of
+       the face term, equally splitting the value from the double-side version.
+       @see AssembleHDGFaceMatrix(const FiniteElement &, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &, DenseMatrix &) */
+   virtual void AssembleHDGFaceMatrix(int side,
+                                      const FiniteElement &trace_el,
+                                      const FiniteElement &el,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -293,6 +319,30 @@ public:
    virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
+   { return 0.0; }
+
+   /// Virtual method required in HDGErrorEstimator for energy-like estimator.
+   /** This method evaluates energy-like norm of the provided solution of the
+       hybridized scheme on a face proportional to @a p̂-λ for @a p̂ being
+       trace of the potential and @a λ the trace solution. Refer to
+       HDGErrorEstimator for further explanation.
+       @param[in] side            Side of the face
+       @param[in] trace_face_fe   Trace unknown face finite element
+       @param[in] fe              Finite element of the potential
+       @param[in] Tr              Face element transformations
+       @param[in] trfun           Trace solution
+       @param[in] elfun           Potential solution
+       @param[out] d_energy       If not NULL, the given Vector should be set
+                                  to represent directional energy split that
+                                  can be used for anisotropic error estimation.
+       @returns The computed energy.
+    */
+   virtual real_t ComputeHDGFaceEnergy(int side,
+                                       const FiniteElement &trace_face_fe,
+                                       const FiniteElement &fe,
+                                       FaceElementTransformations &Tr,
+                                       const Vector &trfun, const Vector &elfun,
+                                       Vector *d_energy = NULL)
    { return 0.0; }
 
    /** @brief For bilinear forms on element faces, specifies if the normal
@@ -490,6 +540,21 @@ public:
                            const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceMatrix(int side, const FiniteElement &trace_el,
+                              const FiniteElement &el,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Tr,
+                           const Vector &elfun) override;
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace& fes) override;

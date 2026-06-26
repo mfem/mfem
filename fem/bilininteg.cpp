@@ -236,6 +236,53 @@ void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(
    MFEM_ABORT("Not implemented.");
 }
 
+void BilinearFormIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el, const FiniteElement &el1,
+   const FiniteElement &el2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleHDGFaceMatrix is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleHDGFaceMatrix(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   // Note: This default implementation does not take into account asymmetry
+   // and is not efficient
+   if (Trans.Elem2No >= 0)
+   {
+      DenseMatrix elmat_full;
+      AssembleHDGFaceMatrix(trace_el, el, el, Trans, elmat_full);
+
+      const int tr_ndof = trace_el.GetDof();
+      const int el_ndof = el.GetDof();
+      const int vdim = elmat_full.Width() / (tr_ndof + 2*el_ndof);
+      const int tr_nvdof = tr_ndof * vdim;
+      const int el_nvdof = el_ndof * vdim;
+      MFEM_ASSERT(elmat_full.Width() == elmat_full.Height() &&
+                  elmat_full.Width() == tr_nvdof + 2*el_nvdof, "Wrong size of the HDG matrix");
+      const int off_el = (side == 0)?(0):(el_nvdof);
+      elmat.SetSize(tr_nvdof + el_nvdof);
+      elmat.CopyMN(elmat_full, el_nvdof, el_nvdof, off_el, off_el, 0, 0);
+      elmat.CopyMN(elmat_full, tr_nvdof, el_nvdof, 2*el_nvdof, off_el, el_nvdof, 0);
+      elmat.CopyMN(elmat_full, el_nvdof, tr_nvdof, off_el, 2*el_nvdof, 0, el_nvdof);
+      elmat.CopyMN(elmat_full, tr_nvdof, tr_nvdof, 2*el_nvdof, 2*el_nvdof, el_nvdof,
+                   el_nvdof);
+      // assume symmetry
+      for (int j = 0; j < tr_nvdof; j++)
+         for (int i = 0; i < tr_nvdof; i++)
+         {
+            elmat(el_nvdof+i, el_nvdof+j) *= 0.5;
+         }
+   }
+   else
+   {
+      AssembleHDGFaceMatrix(trace_el, el, el, Trans, elmat);
+   }
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -391,7 +438,50 @@ void SumIntegrator::AssembleFaceMatrix(
    }
 }
 
-void SumIntegrator::AssemblePA(const FiniteElementSpace& fes)
+void SumIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el,
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssembleHDGFaceMatrix(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceMatrix(side, trace_el, el, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceMatrix(side, trace_el, el, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+real_t SumIntegrator::GetElementEnergy(
+   const FiniteElement &el, ElementTransformation &Trans, const Vector &elfun)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   real_t energy = integrators[0]->GetElementEnergy(el, Trans, elfun);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      energy += integrators[i]->GetElementEnergy(el, Trans, elfun);
+   }
+
+   return energy;
+}
+
+void SumIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    for (int i = 0; i < integrators.Size(); i++)
    {

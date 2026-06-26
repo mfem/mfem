@@ -15,6 +15,14 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added framework for mixed systems represented by classes (Par)DarcyForm, which
+  make construction of such systems easier and offer single-line algebraic
+  reduction of the system through DarcyReduction or total flux hybridization
+  through DarcyHybridization. This is supplemented by integrators for
+  convection-diffusion or linear elasticity supporting Local/Hybridizable
+  Discontinuous Galerkin (LDG/HDG) methods. Native trace-based error estimator
+  for AMR with HDG(-like) schemes is also offered by HDGErrorEstimator.
+
 - Added broken Raviart-Thomas finite element collection (BrokenRT_FECollection).
   The finite elements from this family have the same construction as classical
   Raviart-Thomas elements, but do not share the facet DOFs with their neighbors,
