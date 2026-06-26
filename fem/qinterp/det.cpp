@@ -95,56 +95,6 @@ QuadratureInterpolator::DetKernels::Fallback(int DIM, int SDIM, int D1D,
    }
 }
 
-QuadratureInterpolator::IntDetKernelType
-QuadratureInterpolator::IntDetKernels::Fallback(int DIM, int SDIM, int D1D,
-                                                int Q1D)
-{
-   if (DIM == 1)
-   {
-      if (SDIM == 1)
-      {
-         return internal::quadrature_interpolator::Det1D<true>;
-      }
-      else if (SDIM == 2)
-      {
-         return internal::quadrature_interpolator::Det1DSurface<true, 0, 0, 2>;
-      }
-      else if (SDIM == 3)
-      {
-         return internal::quadrature_interpolator::Det1DSurface<true, 0, 0, 3>;
-      }
-      else
-      {
-         MFEM_ABORT("");
-      }
-   }
-   else if (DIM == 2 && SDIM == 2)
-   {
-      return internal::quadrature_interpolator::Det2D<true>;
-   }
-   else if (DIM == 2 && SDIM == 3)
-   {
-      return internal::quadrature_interpolator::Det2DSurface<true>;
-   }
-   else if (DIM == 3)
-   {
-      const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
-      const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
-      if (D1D <= MD && Q1D <= MQ)
-      {
-         return internal::quadrature_interpolator::Det3D<true, 0, 0, true>;
-      }
-      else
-      {
-         return internal::quadrature_interpolator::Det3D<true, 0, 0, false>;
-      }
-   }
-   else
-   {
-      MFEM_ABORT("");
-   }
-}
-
 /// @endcond
 
 } // namespace mfem

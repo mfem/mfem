@@ -347,14 +347,14 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       REQUIRE(xe.Size() == SRN->Height());
       REQUIRE(SRN->Height() == SRL->Height());
       // Full results
-      Vector sq_val_f(NQ*NE), sq_der_f(dim*NQ*NE), sq_pdr_f(dim*NQ*NE);
+      Vector sq_val_f(NQ*NE);
       // Tensor results
-      Vector sq_val_t(NQ*NE), sq_der_t(dim*NQ*NE), sq_pdr_t(dim*NQ*NE);
+      Vector sq_val_t(NQ*NE);
 
       // Full results
-      Vector isq_val_f(NQ*NE), isq_der_f(dim*NQ*NE), isq_pdr_f(dim*NQ*NE);
+      Vector isq_val_f(NQ*NE);
       // Tensor results
-      Vector isq_val_t(NQ*NE), isq_der_t(dim*NQ*NE), isq_pdr_t(dim*NQ*NE);
+      Vector isq_val_t(NQ*NE);
       {
          // Full
          SRN->Mult(x, xe);
@@ -362,18 +362,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
          sqi->Values(xe, sq_val_f);
 
-         // sqi->Derivatives(xe, sq_der_f);
-
-         // sqi->PhysDerivatives(xe, sq_pdr_f);
-
          iSRN->Mult(ix, xe);
          isqi->DisableTensorProducts();
 
          isqi->Values(xe, isq_val_f);
-
-         // isqi->Derivatives(xe, isq_der_f);
-
-         // isqi->PhysDerivatives(xe, isq_pdr_f);
       }
       {
          // Tensor
@@ -382,18 +374,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
          sqi->Values(xe, sq_val_t);
 
-         // sqi->Derivatives(xe, sq_der_t);
-
-         // sqi->PhysDerivatives(xe, sq_pdr_t);
-
          iSRL->Mult(ix, xe);
          isqi->EnableTensorProducts();
 
          isqi->Values(xe, isq_val_t);
-
-         // isqi->Derivatives(xe, isq_der_t);
-
-         // isqi->PhysDerivatives(xe, isq_pdr_t);
       }
       real_t norm, rel_error;
 
@@ -410,34 +394,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       if (verbose_tests)
       { std::cout << "isq_val_t rel. error = " << rel_error << std::endl; }
       REQUIRE(rel_error <= rel_tol);
-
-      // norm = sq_der_f.Normlinf();
-      // isq_der_f -= sq_der_f;
-      // rel_error = isq_der_f.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "isq_der_f rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = sq_der_t.Normlinf();
-      // isq_der_t -= sq_der_t;
-      // rel_error = isq_der_t.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "isq_der_t rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = sq_pdr_f.Normlinf();
-      // isq_pdr_f -= sq_pdr_f;
-      // rel_error = isq_pdr_f.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "isq_pdr_f rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = sq_pdr_t.Normlinf();
-      // isq_pdr_t -= sq_pdr_t;
-      // rel_error = isq_pdr_t.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "isq_pdr_t rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
    }
 
    {
@@ -457,13 +413,9 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
              vq_pdr_t(vdim*dim*NQ*NE);
 
       // Full results
-      Vector ivq_val_f(dim*NQ*NE), ivq_der_f(vdim*dim*NQ*NE),
-             ivq_det_f(NQ*NE),
-             ivq_pdr_f(vdim*dim*NQ*NE);
+      Vector ivq_val_f(dim*NQ*NE);
       // Tensor results
-      Vector ivq_val_t(dim*NQ*NE), ivq_der_t(vdim*dim*NQ*NE),
-             ivq_det_t(NQ*NE),
-             ivq_pdr_t(vdim*dim*NQ*NE);
+      Vector ivq_val_t(dim*NQ*NE);
       {
          // Full
          VRN->Mult(nodes, ne);
@@ -471,22 +423,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
          vqi->Values(ne, vq_val_f);
 
-         // vqi->Derivatives(ne, vq_der_f);
-
-         // vqi->Determinants(ne, vq_det_f);
-
-         // vqi->PhysDerivatives(ne, vq_pdr_f);
-
          iVRN->Mult(inodes, ne);
          ivqi->DisableTensorProducts();
 
          ivqi->Values(ne, ivq_val_f);
-
-         // ivqi->Derivatives(ne, ivq_der_f);
-
-         // ivqi->Determinants(ne, ivq_det_f);
-
-         // ivqi->PhysDerivatives(ne, ivq_pdr_f);
       }
       {
          // Tensor
@@ -495,22 +435,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
          vqi->Values(ne, vq_val_t);
 
-         // vqi->Derivatives(ne, vq_der_t);
-
-         // vqi->Determinants(ne, vq_det_t);
-
-         // vqi->PhysDerivatives(ne, vq_pdr_t);
-
          iVRL->Mult(inodes, ne);
          ivqi->EnableTensorProducts();
 
          ivqi->Values(ne, ivq_val_t);
-
-         // ivqi->Derivatives(ne, ivq_der_t);
-
-         // ivqi->Determinants(ne, ivq_det_t);
-
-         // ivqi->PhysDerivatives(ne, ivq_pdr_t);
       }
       real_t norm, rel_error;
 
@@ -527,48 +455,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       if (verbose_tests)
       { std::cout << "ivq_val_t rel. error = " << rel_error << std::endl; }
       REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_der_f.Normlinf();
-      // vq_der_f -= vq_der_t;
-      // rel_error = vq_der_f.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "vq_der rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_der_t.Normlinf();
-      // ivq_der_t -= vq_der_t;
-      // rel_error = ivq_der_t.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "ivq_der_t rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_det_f.Normlinf();
-      // ivq_det_f -= vq_det_f;
-      // rel_error = ivq_det_f.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "ivq_det_f rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_det_t.Normlinf();
-      // ivq_det_t -= vq_det_t;
-      // rel_error = ivq_det_t.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "ivq_det_t rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_pdr_f.Normlinf();
-      // ivq_pdr_f -= vq_pdr_f;
-      // rel_error = ivq_pdr_f.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "ivq_pdr_f rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
-
-      // norm = vq_pdr_t.Normlinf();
-      // ivq_pdr_t -= vq_pdr_t;
-      // rel_error = ivq_pdr_t.Normlinf()/norm;
-      // if (verbose_tests)
-      // { std::cout << "ivq_pdr_t rel. error = " << rel_error << std::endl; }
-      // REQUIRE(rel_error <= rel_tol);
    }
 
    return true;

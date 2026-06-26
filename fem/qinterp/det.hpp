@@ -26,50 +26,44 @@ namespace internal
 namespace quadrature_interpolator
 {
 
-template <bool Integral>
-inline void Det1D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *detJ_, const real_t *x, real_t *y,
-                  const int d1d, const int q1d, Vector *d_buff = nullptr)
+inline void Det1D(const int NE,
+                  const real_t *b,
+                  const real_t *g,
+                  const real_t *x,
+                  real_t *y,
+                  const int d1d,
+                  const int q1d,
+                  Vector *d_buff = nullptr)
 {
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(d_buff);
+   const auto G = Reshape(g, q1d, d1d);
+   const auto X = Reshape(x, d1d, NE);
+
    auto Y = Reshape(y, q1d, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      const auto G = Reshape(g, q1d, d1d);
-      const auto X = Reshape(x, d1d, NE);
-      const auto detJ = Reshape(detJ_, d1d, NE);
       for (int q = 0; q < q1d; q++)
       {
          real_t u = 0.0;
          for (int d = 0; d < d1d; d++)
          {
-            if constexpr (Integral)
-            {
-               u += G(q, d) * X(d, e) / detJ(d, e);
-            }
-            if constexpr (!Integral)
-            {
-               u += G(q, d) * X(d, e);
-            }
+            u += G(q, d) * X(d, e);
          }
          Y(q, e) = u;
       }
    });
 }
 
-inline void Det1D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *x, real_t *y, const int d1d, const int q1d,
-                  Vector *d_buff = nullptr)
-{
-   Det1D<false>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
-}
-
-template <bool Integral, int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
-inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
-                         const real_t *detJ_, const real_t *x, real_t *y,
-                         const int d1d = 0, const int q1d = 0,
+template<int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
+inline void Det1DSurface(const int NE,
+                         const real_t *b,
+                         const real_t *g,
+                         const real_t *x,
+                         real_t *y,
+                         const int d1d = 0,
+                         const int q1d = 0,
                          Vector *d_buff = nullptr)
 {
    MFEM_CONTRACT_VAR(b);
@@ -79,32 +73,21 @@ inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto G = Reshape(g, Q1D, D1D);
+   const auto X = Reshape(x, D1D, T_SDIM, NE);
    auto Y = Reshape(y, Q1D, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      const auto X = Reshape(x, D1D, T_SDIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, NE);
       for (int q = 0; q < Q1D; q++)
       {
          real_t grad[T_SDIM];
-         for (int s = 0; s < T_SDIM; s++)
-         {
-            grad[s] = 0.0;
-         }
+         for (int s = 0; s < T_SDIM; s++) { grad[s] = 0.0; }
          for (int d = 0; d < D1D; d++)
          {
             const real_t gval = G(q, d);
             for (int s = 0; s < T_SDIM; s++)
             {
-               if constexpr (Integral)
-               {
-                  grad[s] += gval * X(d, s, e) / detJ(d, e);
-               }
-               if constexpr (!Integral)
-               {
-                  grad[s] += gval * X(d, s, e);
-               }
+               grad[s] += gval * X(d, s, e);
             }
          }
          real_t norm2 = 0.0;
@@ -117,19 +100,14 @@ inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
    });
 }
 
-template <int T_D1D = 0, int T_Q1D = 0, int T_SDIM = 3>
-inline void Det1DSurface(const int NE, const real_t *b, const real_t *g,
-                         const real_t *x, real_t *y, const int d1d = 0,
-                         const int q1d = 0, Vector *d_buff = nullptr)
-{
-   Det1DSurface<false, T_D1D, T_Q1D, T_SDIM>(NE, b, g, nullptr, x, y, d1d, q1d,
-                                             d_buff);
-}
-
-template <bool Integral, int T_D1D = 0, int T_Q1D = 0>
-inline void Det2D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *detJ_, const real_t *x, real_t *y,
-                  const int d1d = 0, const int q1d = 0,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void Det2D(const int NE,
+                  const real_t *b,
+                  const real_t *g,
+                  const real_t *x,
+                  real_t *y,
+                  const int d1d = 0,
+                  const int q1d = 0,
                   Vector *d_buff = nullptr)
 {
    MFEM_CONTRACT_VAR(d_buff);
@@ -141,12 +119,11 @@ inline void Det2D(const int NE, const real_t *b, const real_t *g,
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
+   const auto X = Reshape(x,  D1D, D1D, SDIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, NE);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      const auto X = Reshape(x, D1D, D1D, SDIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, D1D, NE);
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -157,25 +134,7 @@ inline void Det2D(const int NE, const real_t *b, const real_t *g,
       MFEM_SHARED real_t DQ[2*SDIM][NBZ][MD1*MQ1];
       MFEM_SHARED real_t QQ[2*SDIM][NBZ][MQ1*MQ1];
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx, x, D1D)
-         {
-            for (int c = 0; c < SDIM; ++c)
-            {
-               if constexpr (Integral)
-               {
-                  XY[c][MFEM_THREAD_ID(z)][dx + dy * D1D] =
-                     X(dx, dy, c, e) / detJ(dx, dy, e);
-               }
-               if constexpr(!Integral)
-               {
-                  XY[c][MFEM_THREAD_ID(z)][dx + dy * D1D] = X(dx, dy, c, e);
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
       kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
@@ -193,18 +152,14 @@ inline void Det2D(const int NE, const real_t *b, const real_t *g,
    });
 }
 
-template <int T_D1D = 0, int T_Q1D = 0>
-inline void Det2D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *x, real_t *y, const int d1d = 0,
-                  const int q1d = 0, Vector *d_buff = nullptr)
-{
-   Det2D<false, T_D1D, T_Q1D>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
-}
-
-template <bool Integral, int T_D1D = 0, int T_Q1D = 0>
-inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
-                         const real_t *detJ_, const real_t *x, real_t *y,
-                         const int d1d = 0, const int q1d = 0,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void Det2DSurface(const int NE,
+                         const real_t *b,
+                         const real_t *g,
+                         const real_t *x,
+                         real_t *y,
+                         const int d1d = 0,
+                         const int q1d = 0,
                          Vector *d_buff = nullptr)
 {
    MFEM_CONTRACT_VAR(d_buff);
@@ -217,12 +172,11 @@ inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
+   const auto X = Reshape(x,  D1D, D1D, SDIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, NE);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      const auto X = Reshape(x, D1D, D1D, SDIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, D1D, NE);
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -242,15 +196,7 @@ inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
          {
             for (int d = 0; d < SDIM; ++d)
             {
-               if constexpr (Integral)
-               {
-                  XYZ[d][tidz][dx + dy * D1D] =
-                     X(dx, dy, d, e) / detJ(dx, dy, e);
-               }
-               if constexpr (!Integral)
-               {
-                  XYZ[d][tidz][dx + dy * D1D] = X(dx, dy, d, e);
-               }
+               XYZ[d][tidz][dx + dy*D1D] = X(dx,dy,d,e);
             }
          }
       }
@@ -304,18 +250,14 @@ inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
    });
 }
 
-template <int T_D1D = 0, int T_Q1D = 0>
-inline void Det2DSurface(const int NE, const real_t *b, const real_t *g,
-                         const real_t *x, real_t *y, const int d1d = 0,
-                         const int q1d = 0, Vector *d_buff = nullptr)
-{
-   Det2DSurface<false,T_D1D,T_Q1D>(NE,b,g,nullptr,x,y,d1d,q1d,d_buff);
-}
-
-template <bool Integral, int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
-inline void Det3D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *detJ_, const real_t *x, real_t *y,
-                  const int d1d = 0, const int q1d = 0,
+template<int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
+inline void Det3D(const int NE,
+                  const real_t *b,
+                  const real_t *g,
+                  const real_t *x,
+                  real_t *y,
+                  const int d1d = 0,
+                  const int q1d = 0,
                   Vector *d_buff = nullptr) // used only with SMEM = false
 {
    constexpr int DIM = 3;
@@ -326,6 +268,7 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
+   const auto X = Reshape(x, D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, Q1D, NE);
 
    real_t *GM = nullptr;
@@ -340,10 +283,8 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
       GM = d_buff->Write();
    }
 
-   mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
-      const auto X = Reshape(x, D1D, D1D, D1D, DIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, D1D, D1D, NE);
       static constexpr int MQ1 = T_Q1D ? T_Q1D :
                                  (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_Q1D);
       static constexpr int MD1 = T_D1D ? T_D1D :
@@ -362,31 +303,7 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
       real_t (*DQQ)[MD1*MQ1*MQ1] = (real_t (*)[MD1*MQ1*MQ1]) (lm0);
       real_t (*QQQ)[MQ1*MQ1*MQ1] = (real_t (*)[MQ1*MQ1*MQ1]) (lm1);
 
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy, y, D1D)
-         {
-            MFEM_FOREACH_THREAD(dx, x, D1D)
-            {
-               if constexpr (Integral)
-               {
-                  DDD[0][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 0, e) / detJ(dx, dy, dz, e);
-                  DDD[1][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 1, e) / detJ(dx, dy, dz, e);
-                  DDD[2][dx + D1D * (dy + D1D * dz)] =
-                     X(dx, dy, dz, 2, e) / detJ(dx, dy, dz, e);
-               }
-               if constexpr (!Integral)
-               {
-                  DDD[0][dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, 0, e);
-                  DDD[1][dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, 1, e);
-                  DDD[2][dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, 2, e);
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
       kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
@@ -408,37 +325,12 @@ inline void Det3D(const int NE, const real_t *b, const real_t *g,
    });
 }
 
-template <int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
-inline void Det3D(const int NE, const real_t *b, const real_t *g,
-                  const real_t *x, real_t *y, const int d1d = 0,
-                  const int q1d = 0,
-                  Vector *d_buff = nullptr) // used only with SMEM = false
-{
-   Det3D<false, T_D1D, T_Q1D, SMEM>(NE, b, g, nullptr, x, y, d1d, q1d, d_buff);
-}
-
 } // namespace quadrature_interpolator
 } // namespace internal
 
 /// @cond Suppress_Doxygen_warnings
 
-template <int DIM, int SDIM, int D1D, int Q1D>
-QuadratureInterpolator::IntDetKernelType
-QuadratureInterpolator::IntDetKernels::Kernel()
-{
-   if constexpr (DIM == 1)
-   {
-      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D<true>; }
-      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<true, D1D, Q1D, 2>; }
-      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<true, D1D, Q1D, 3>; }
-   }
-   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<true, D1D, Q1D>; }
-   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<true, D1D, Q1D>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<true, D1D, Q1D>; }
-   MFEM_ABORT("");
-}
-
-template <int DIM, int SDIM, int D1D, int Q1D>
+template<int DIM, int SDIM, int D1D, int Q1D>
 QuadratureInterpolator::DetKernelType
 QuadratureInterpolator::DetKernels::Kernel()
 {
