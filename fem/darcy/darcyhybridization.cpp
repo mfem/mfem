@@ -1627,7 +1627,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
-   const Operator *tr_cP;
+   const Operator *tr_cP = NULL;
    Vector bu;
 
    if (!ParallelU())
