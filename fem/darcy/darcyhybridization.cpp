@@ -2738,7 +2738,7 @@ void DarcyHybridization::AssembleHDGGrad(
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
-   const Operator *tr_cP;
+   const Operator *tr_cP = NULL;
 
    if (IsNonlinear())
    {

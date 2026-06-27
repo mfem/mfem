@@ -776,7 +776,7 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
    const Vector &bp = b.GetBlock(1);
 
    Vector b_r;
-   const Operator *tr_cP;
+   const Operator *tr_cP = NULL;
 
    if (!Parallel() && !(tr_cP = fes_p.GetConformingProlongation()))
    {
@@ -1421,7 +1421,7 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
    const Vector &bp = b.GetBlock(1);
 
    Vector b_r;
-   const Operator *tr_cP;
+   const Operator *tr_cP = NULL;
 
    if (!Parallel() && !(tr_cP = fes_u.GetConformingProlongation()))
    {
