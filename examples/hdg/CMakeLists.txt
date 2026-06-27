@@ -59,8 +59,8 @@ if (MFEM_ENABLE_TESTING)
       add_test(NAME ${TEST_NAME}_ser
         COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
     else()
-      add_test(NAME ${TEST_NAME}_np=4
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+      add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
         ${MPIEXEC_POSTFLAGS})
