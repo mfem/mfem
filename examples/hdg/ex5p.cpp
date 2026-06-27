@@ -29,10 +29,11 @@
 //               discontinuous polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective
-//               saving of several grid functions in VisIt (visit.llnl.gov) and
-//               ParaView (paraview.org) formats. Optional saving with ADIOS2
-//               (adios2.readthedocs.io) streams is also illustrated.
+//               well as algebraic reduction and hybridization of mixed systems
+//               and the collective saving of several grid functions in VisIt
+//               (visit.llnl.gov) and ParaView (paraview.org) formats. Optional
+//               saving with ADIOS2 (adios2.readthedocs.io) streams is also
+//               illustrated.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
