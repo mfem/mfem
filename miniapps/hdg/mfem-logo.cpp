@@ -72,8 +72,6 @@ typedef function<real_t(const Vector &, real_t)> TFunc;
 typedef function<void(const Vector &, Vector &)> VecFunc;
 typedef function<void(const Vector &, DenseMatrix &)> MatFunc;
 
-constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
-
 struct ProblemParams
 {
    real_t k, ks;
