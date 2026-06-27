@@ -481,9 +481,10 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
 }
 #endif //MFEM_USE_MPI
 
-void DarcyOperator::SchurPreconditioner::Mult(const Vector &x, Vector &y) const
+void DarcyOperator::SchurPreconditioner::Mult(const Vector &x_,
+                                              Vector &y_) const
 {
-   darcyPrec->Mult(x,y);
+   darcyPrec->Mult(x_,y_);
 }
 
 void DarcyOperator::SchurPreconditioner::Construct()
