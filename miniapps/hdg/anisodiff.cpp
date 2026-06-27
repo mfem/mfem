@@ -110,8 +110,6 @@ enum Problem
    DoubleNull,
 };
 
-constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
-
 struct ProblemParams
 {
    Problem prob;
