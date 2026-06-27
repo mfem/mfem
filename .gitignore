@@ -173,7 +173,7 @@ examples/hdg/sol_p.*
 examples/hdg/sol_u.*
 examples/hdg/ex6p-checkpoint.*
 examples/hdg/Example5*
-examples/hdg/Paraview
+examples/hdg/ParaView
 examples/hdg/ex21*.mesh
 examples/hdg/ex21*.sol
 examples/hdg/ex21p_*.*
