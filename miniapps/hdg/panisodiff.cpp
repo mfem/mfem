@@ -1269,7 +1269,7 @@ TFunc GetTFun(const ProblemParams &params)
 
             const real_t dr = min(r - r0 + dr01, r1 + dr01 - r) / dr01;
             const real_t dth = (theta - theta0 + dtheta0) / dtheta0;
-            return min(1., dr) * min(1., dth) * t_0;
+            return min(1_r, dr) * min(1_r, dth) * t_0;
          };
       case Problem::DiffusionRingGauss:
          // Gaussian blobs IC for diffusion along circle
