@@ -30,7 +30,7 @@
 //               homogeneous Dirichlet boundary conditions. Finite element
 //               spaces of any order, including zero on regular grids, are
 //               supported. The example highlights the use of discontinuous
-//               spaces and DG-specific face integrators.
+//               spaces and L/HDG-specific face integrators.
 //
 //               We recommend viewing examples 1 and 5 before viewing this
 //               example.
