@@ -1152,7 +1152,11 @@ public:
    /// Print control points for coarse patches.
    virtual void PrintCoarsePatches(std::ostream &os);
 
-   void PhysicalSpacing(const GridFunction &Nodes);
+   // If sweep1D is true, an approximate 1D sweeping solver is used; otherwise,
+   // a more expensive full-dimensional system solver is used on each patch. The
+   // 1D sweeping solver is more efficient, usually with a small loss of
+   // accuracy.
+   void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true);
 
    void SetNumCoarsePatches(int n);
 };

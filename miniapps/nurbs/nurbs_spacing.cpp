@@ -9,11 +9,14 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/nc3-nurbs.mesh";
+   bool sweep1D = true;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&sweep1D, "-s", "--sweep-1D", "-fs",
+                  "--full-solve", "Use sweeping 1D patch solves.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -33,7 +36,7 @@ int main(int argc, char *argv[])
    Array<NURBSPatch*> patches;
    mesh.NURBSext->GetPatches(patches);
 
-   mesh.NURBSext->PhysicalSpacing(*mesh.GetNodes());
+   mesh.NURBSext->PhysicalSpacing(*mesh.GetNodes(), sweep1D);
    mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes(), 2);
 
    mesh.NURBSext->ConvertToPatches(*mesh.GetNodes());

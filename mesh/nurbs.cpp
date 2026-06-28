@@ -5974,6 +5974,96 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
    }
 }
 
+// Assumes 1 2D patch.
+void SolvePhysicalGridInteriorSweep(Mesh &mesh, int ned, std::array<int, 2> nel,
+                                    const Array3D<real_t> &grid)
+{
+   constexpr int patch = 0; // Assuming one patch
+
+   const int ncp0 = (nel[0] * ned) + 1;
+   const int ncp1 = (nel[1] * ned) + 1;
+   const int ncps[2] = {ncp0, ncp1};
+
+   constexpr int dim = 2; // TODO: hard-coded
+
+   MFEM_VERIFY(grid.GetSize1() == ncp0 && grid.GetSize2() == ncp1 &&
+               grid.GetSize3() == 2, "");
+
+   Array<Vector*> x;
+   for (int i = 0; i < dim; ++i) { x.Append(new Vector(ncps[0])); }
+
+   // Parameter space [0,1]^2 grid point coordinates
+   std::vector<Vector> ugrid(dim);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      const KnotVector *kv_i = mesh.NURBSext->GetKnotVector(i);
+      mesh.NURBSext->GetKnotVector(i)->GetDemko(ugrid[i]);
+   }
+
+   Array<int> pdofs;
+   mesh.NURBSext->GetPatchDofs(0, pdofs);
+
+   // Interpolate a 2D surface by sweeping curve interpolations in each direction. See Algorithm A9.4 of
+   // "The NURBS Book" - 2nd ed - Piegl and Tiller.
+
+   // Sweep in the first direction
+   for (int j = 0; j < ncps[1]; ++j)
+   {
+      for (int i = 0; i < ncps[0]; i++)
+      {
+         for (int c=0; c<dim; ++c)
+         {
+            (*x[c])[i] = grid(i, j, c);
+         }
+      }
+
+      const bool reuse_factorization = j > 0;
+      mesh.NURBSext->GetKnotVector(0)->GetInterpolant(x, ugrid[0],
+                                                      reuse_factorization);
+
+      for (int i = 0; i < ncps[0]; i++)
+      {
+         const int dof = pdofs[i + (ncp0 * j)];
+         for (int c=0; c<dim; ++c)
+         {
+            (*mesh.GetNodes())[(dim * dof) + c] = (*x[c])[i];
+         }
+      }
+   }
+
+   // Resize for sweep in second direction
+   for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncps[1]); }
+
+   // Do another sweep in the second direction
+   for (int i = 0; i < ncps[0]; i++)
+   {
+      for (int j = 0; j < ncps[1]; ++j)
+      {
+         const int dof = pdofs[i + (ncp0 * j)];
+         for (int c=0; c<dim; ++c)
+         {
+            (*x[c])[j] = (*mesh.GetNodes())[(dim * dof) + c];
+         }
+      }
+
+      const bool reuse_factorization = i > 0;
+      mesh.NURBSext->GetKnotVector(1)->GetInterpolant(x, ugrid[1],
+                                                      reuse_factorization);
+
+      for (int j = 0; j < ncps[1]; ++j)
+      {
+         const int dof = pdofs[i + (ncp0 * j)];
+         for (int c=0; c<dim; ++c)
+         {
+            (*mesh.GetNodes())[(dim * dof) + c] = (*x[c])[j];
+         }
+      }
+   }
+
+   for (auto p : x) { delete p; }
+}
+
 // mesh0 is a modifiable, temporary copy of a single-element, single-patch mesh,
 // to be refined to match the number of elements in mesh.
 void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
@@ -6177,7 +6267,8 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 
 // Assumes 1 patch.
 void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int ned,
-                           std::array<int, 2> nel, const Array3D<real_t> &grid)
+                           std::array<int, 2> nel, const Array3D<real_t> &grid,
+                           bool sweep1D)
 {
    SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 0);
    SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 1);
@@ -6187,7 +6278,14 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int ned,
    // Interpolate weights from boundary to the interior.
    // TODO: should we modify interior weights?
 
-   SolvePhysicalGridInterior(mesh, ned, nel, grid);
+   if (sweep1D)
+   {
+      SolvePhysicalGridInteriorSweep(mesh, ned, nel, grid);
+   }
+   else
+   {
+      SolvePhysicalGridInterior(mesh, ned, nel, grid);
+   }
 }
 
 void WriteSinglePatch(NURBSPatch *patch)
@@ -6551,7 +6649,8 @@ Mesh GetQuadPatchMesh(int p, int degree, int ncp,
    return Mesh(ne);
 }
 
-void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel)
+void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel,
+                bool sweep1D)
 {
    MFEM_VERIFY(patch->GetNKV() == 2, "");
    MFEM_VERIFY(patch->GetKV(0)->GetNE() == nel[0], "");
@@ -6575,7 +6674,7 @@ void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel)
 
    //PrintGrid(grid);
 
-   SolvePhysicalGridBdry(mesh, mesh0, ned, nel, grid);
+   SolvePhysicalGridBdry(mesh, mesh0, ned, nel, grid, sweep1D);
 
    /*
    {
@@ -6636,7 +6735,7 @@ void NURBSExtension::SetCoarsePatchCP(int p, const Array2D<real_t> &cp)
    }
 }
 
-void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes)
+void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
 {
    MFEM_VERIFY(Dimension() == 2, "PhysicalSpacing is currently implemented "
                "only for 2D NURBS patches.");
@@ -6685,7 +6784,7 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes)
          mesh0.DegreeElevate(mOrder - mesh0.NURBSext->GetOrder());
       }
 
-      SpacePatch(patch, mesh0, ned, ne);
+      SpacePatch(patch, mesh0, ned, ne, sweep1D);
    }
 }
 
