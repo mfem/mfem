@@ -71,10 +71,13 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_particlevector.cpp
+  linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
+  mesh/test_mfem_mesh_reader.cpp
+  mesh/test_bb_grid_map.cpp
   mesh/test_exodus_writer.cpp
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
@@ -101,6 +104,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcdshape.cpp
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
+  fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
   fem/test_datacollection.cpp
@@ -143,6 +147,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp

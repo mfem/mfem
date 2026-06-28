@@ -123,15 +123,20 @@ EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools \
+MINIAPP_ALL_SUBDIRS = common electromagnetics meshing performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
  hooke multidomain dpg hdiv-linear-solver spde diag-smoothers contact \
- fluids/navier fluids/schrodinger-flow
+ fluids/navier fluids/schrodinger-flow plasma plasma/pic
+MINIAPP_RECURSIVE_SUBDIRS = plasma/pic
+MINIAPP_SUBDIRS := $(filter-out \
+   $(MINIAPP_RECURSIVE_SUBDIRS),$(MINIAPP_ALL_SUBDIRS))
+MINIAPP_ALL_DIRS := $(addprefix miniapps/,$(MINIAPP_ALL_SUBDIRS))
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg diag-smoothers fluids/navier)
+ toys gslib shifted dpg diag-smoothers fluids/navier plasma plasma/pic)
 
+EM_ALL_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_ALL_DIRS)
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
 TEST_SUBDIRS = unit
@@ -146,7 +151,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
+   BUILD_SUBDIRS = $(DIRS) config $(EM_ALL_DIRS) doc $(TEST_DIRS)
    CONFIG_FILE_DEF = -DMFEM_CONFIG_FILE='"$(BUILD_REAL_DIR)/config/_config.hpp"'
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -302,7 +307,7 @@ endif
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
- TRIBOL BENCHMARK MOONOLITH ALGOIM
+ TRIBOL BENCHMARK MOONOLITH ALGOIM CUDSS
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -371,7 +376,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE\
+ MFEM_USE_CUDSS MFEM_CUDSS_COMM_LIB MFEM_CUDSS_THREADING_LIB
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -406,7 +412,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT CUDSS_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -483,10 +489,10 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 
 all: examples miniapps $(TEST_DIRS)
 
-.PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
+.PHONY: miniapps $(EM_ALL_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
-$(EM_DIRS) $(TEST_DIRS): lib
+$(EM_ALL_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
 
 .PHONY: doc
@@ -694,7 +700,7 @@ local-config:
 .PHONY: build-config
 build-config:
 	for d in $(BUILD_SUBDIRS); do mkdir -p $(BLD)$${d}; done
-	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS)); do \
+	for dir in "" $(addsuffix /,config $(EM_ALL_DIRS) doc $(TEST_DIRS)); do\
 	   printf "# Auto-generated file.\n%s\n%s\n" \
 	      "MFEM_DIR = $(MFEM_REAL_DIR)" \
 	      "include \$$(MFEM_DIR)/$${dir}makefile" \
@@ -737,6 +743,7 @@ status info:
 	$(info MFEM_USE_SUPERLU5      = $(MFEM_USE_SUPERLU5))
 	$(info MFEM_USE_MUMPS         = $(MFEM_USE_MUMPS))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
+	$(info MFEM_USE_CUDSS         = $(MFEM_USE_CUDSS))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_MAGMA         = $(MFEM_USE_MAGMA))
@@ -794,16 +801,17 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_ALL_DIRS) config,$(dir)/*.?pp)
 TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
-UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme
-MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme dfem
+MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
+   hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
+FORMAT_FILES += config/cmake/config.hpp.in config/config.hpp.in mfem*.hpp
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
@@ -834,14 +842,29 @@ mfem_check_command = \
 # Verify the C++ code styling in MFEM and check that std::cout and std::cerr are
 # not used in the library (use mfem::out and mfem::err instead).
 style:
-	@echo "Applying C++ code style..."
 	@astyle_version="$$($(ASTYLE_BIN) --version)";\
 	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
 	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
 	           "Please use: '"$(ASTYLE_VER)"'";\
 	    exit 1;\
 	 fi
-	@err_code=0;\
+	@err_code=0; \
+	if command -v git 2>&1 > /dev/null && [ -d $(MFEM_DIR)/.git ]; then \
+	   echo "Checking if all git files are selected for formatting ..."; \
+	   ls -1 $(FORMAT_FILES) | sort > format-files-make.txt; \
+	   git -C $(MFEM_DIR) ls-files '*.[ch]pp*' | sort \
+	      > format-files-git.txt; \
+	   cat format-files-make.txt format-files-git.txt | sort | uniq \
+	      > format-files-make-plus-git.txt; \
+	   rm -f format-files-git.txt; \
+	   $(call mfem_check_command,\
+	      diff format-files-make.txt format-files-make-plus-git.txt | \
+	      grep "^> ",\
+	      "All git files are selected for formatting",\
+	      "The above git files are NOT selected for formatting"); \
+	   rm -f format-files-make.txt format-files-make-plus-git.txt; \
+	fi; \
+	echo "Applying C++ code style...";\
 	$(call mfem_check_command,\
 	    $(ASTYLE) $(FORMAT_LIST) | grep Formatted,\
 	    "No source files were changed",\

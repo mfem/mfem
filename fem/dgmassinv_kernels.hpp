@@ -57,7 +57,7 @@ void DGMassApply(const int e,
       }
       else if (DIM == 3)
       {
-         SmemPAMassApply3D_Element<TD1D,TQ1D,ACCUM>(e, NE, B, pa_data, x, y);
+         SmemPAMassApply3D_Element<TD1D,TQ1D,NBZ,ACCUM>(e, NE, B, pa_data, x, y);
       }
       else
       {
@@ -387,7 +387,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    static constexpr int NB = Q1D ? Q1D : 1; // block size
 
-   mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<NB*NB>(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
       // Perform change of basis if needed
       if (CHANGE_BASIS)
