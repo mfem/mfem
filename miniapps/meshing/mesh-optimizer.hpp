@@ -437,7 +437,7 @@ real_t weight_fun(const Vector &x)
 real_t adapt_lim_fun(const Vector &x)
 {
    // Bump between these rad values, with sf sharpness.
-   real_t r1 = 0.45, r2 = 0.55, sf=30.0, r;
+   real_t r1 = 0.25, r2 = 0.35, sf = 30.0, r;
    if (x.Size() == 2)
    {
       const real_t xc = x(0) - 0.1, yc = x(1) - 0.2;
@@ -446,6 +446,28 @@ real_t adapt_lim_fun(const Vector &x)
    else
    {
       const real_t xc = x(0) - 0.9, yc = x(1) - 0.2, zc = x(2) - 0.0;
+      r = sqrt(xc*xc + yc*yc + zc*zc);
+   }
+
+   real_t val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   val = std::max((real_t) 0.,val);
+   val = std::min((real_t) 1.,val);
+   return val;
+}
+
+// Second field for adaptive limiting examples: uses different xc, yc, zc.
+real_t adapt_lim_fun2(const Vector &x)
+{
+   // Bump between these rad values, with sf sharpness.
+   real_t r1 = 0.25, r2 = 0.35, sf = 30.0, r;
+   if (x.Size() == 2)
+   {
+      const real_t xc = x(0) - 0.9, yc = x(1) - 0.2;
+      r = sqrt(xc*xc + yc*yc);
+   }
+   else
+   {
+      const real_t xc = x(0) - 0.1, yc = x(1) - 0.2, zc = x(2) - 0.0;
       r = sqrt(xc*xc + yc*yc + zc*zc);
    }
 
