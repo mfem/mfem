@@ -1263,7 +1263,6 @@ void CurlInterpolatorTApply3DSmem(const int ne, const int ndof_o,
       }
       MFEM_SYNC_THREAD;
 
-      // TODO
       // x: Vy Boo Bcc Gco - Vz Boo Gco Bcc
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, NDOF_C, NQUAD_O,
