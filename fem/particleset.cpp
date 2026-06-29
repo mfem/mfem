@@ -682,8 +682,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
    crystal_init(cr, gsl_comm);
 #endif // MFEM_USE_GSLIB
 
-   router = new CrystalRouterOld(comm);
-   router_native = new CrystalRouter(comm);
+   crystal_router = new CrystalRouter(comm);
 }
 #endif // MFEM_USE_MPI
 
@@ -935,8 +934,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 ParticleSet::~ParticleSet()
 {
 #ifdef MFEM_USE_MPI
-   delete router;
-   delete router_native;
+   delete crystal_router;
 #endif
 
 // again, more gslib stuff
