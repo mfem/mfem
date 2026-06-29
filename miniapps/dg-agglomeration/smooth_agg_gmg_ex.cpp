@@ -30,7 +30,7 @@ real_t u_true(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../data/ref-cube.mesh";
+   const char *mesh_file = "../../data/inline-hex.mesh";
    int order = 1;
    real_t kappa_0 = 1.0;
    int num_levels = 2;
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
    int ncoarse = pow(2, dim); 
-   int ref_levels = num_levels;
+   int ref_levels = num_levels - 2;
 
 
    for (int i = 0; i < ref_levels; ++i) { mesh.UniformRefinement(); }
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    int ne = mesh.GetNE();
 
    const real_t sigma = -1.0;
-   const real_t kappa = num_levels * kappa_0 * (order + 1) * (order + 1) / 2;
+   const real_t kappa = kappa_0 * (order + 1) * (order + 1) / 2;
 
    // Array<int> ess_bdr(mesh.bdr_attributes.Max());
    // ess_bdr = 0;
@@ -122,19 +122,19 @@ int main(int argc, char *argv[])
    //    }
    // }
 
-   mfem::Array<int> dbc_marker(6);
-   dbc_marker = 1;
-   dbc_marker[4] = 0;
+   // mfem::Array<int> dbc_marker(6);
+   // dbc_marker = 1;
+   // dbc_marker[4] = 0;
 
-   LinearForm b(&fespace);
+   // LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient rhs(rhs_function);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
-   b.AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa), dbc_marker); //make this -1 on just the left bc
-   b.Assemble();
+   // b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+   // b.AddBdrFaceIntegrator(
+   //    new DGDirichletLFIntegrator(zero, one, sigma, kappa), dbc_marker); //make this -1 on just the left bc
+   // b.Assemble();
 
    GridFunction x(&fespace);
    x = 0.0;
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa), dbc_marker);
+   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a.Assemble();
    a.Finalize();
 
@@ -162,17 +162,17 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetOperator(A);
    cg.SetPreconditioner(mg);
-   // Vector bb(fespace.GetVSize());
-   // bb = 1.0;
+   Vector bb(fespace.GetVSize());
+   bb = 1.0;
    x = 0.0;
-   cg.Mult(b, x);
+   cg.Mult(bb, x);
 
-   FunctionCoefficient true_solution(u_true);
-   GridFunction true_sol_gf(&fespace);
-   true_sol_gf.ProjectCoefficient(true_solution);
-   double l2_error = x.ComputeL2Error(true_solution);
+   // FunctionCoefficient true_solution(u_true);
+   // GridFunction true_sol_gf(&fespace);
+   // true_sol_gf.ProjectCoefficient(true_solution);
+   // double l2_error = x.ComputeL2Error(true_solution);
 
-   std::cout << "True  rel L2 Error: " << l2_error/true_sol_gf.Norml2() << std::endl;
+   // std::cout << "True  rel L2 Error: " << l2_error/true_sol_gf.Norml2() << std::endl;
 
    return 0;
 }
