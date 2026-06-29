@@ -11,7 +11,11 @@
 
 #include "particleset.hpp"
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+#include <fstream>
+
+// gslib no longer needed — Redistribute uses the native CrystalRouter.
+//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+#if 0
 
 // Ignore warnings from the gslib header (GCC version)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
