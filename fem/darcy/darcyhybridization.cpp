@@ -419,6 +419,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       AssembleNCSlaveFaceMatrix(face, face_getter(), NULL, face_getter(), NULL,
                                 fx, &H_f);
 
+      if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
       Array<int> c_dofs;
       c_fes.GetFaceVDofs(face_master, c_dofs);
       H->AddSubMatrix(c_dofs, c_dofs, ItHI_f, skip_zeros);
