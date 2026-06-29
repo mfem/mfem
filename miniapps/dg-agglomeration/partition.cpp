@@ -1,6 +1,6 @@
 #include "partition.hpp"
 
-#ifdef MFEM_USE_METIS
+#ifdef MFEM_USE_METIS_5
 #include "metis.h"
 #else
 #error "METIS is required"
@@ -9,10 +9,10 @@
 namespace mfem
 {
 
-Array<idx_t> PartitionMesh(Mesh &mesh, const int npart,
+Array<idx_t> PartitionMesh(Mesh &mesh, const int npart, const int part_method,
                            OptRef<Array<int>> subset)
 {
-   const int part_method = 0;
+   // const int part_method = 3;
 
    const int ne = subset ? subset->Size() : mesh.GetNE();
 
@@ -93,7 +93,7 @@ Array<idx_t> PartitionMesh(Mesh &mesh, const int npart,
       for (int i = 0; i < ne; i++)
       {
          // Sort in increasing order.
-         //std::sort(J+I[i], J+I[i+1]);
+         // std::sort(J+I[i], J+I[i+1]);
 
          // Sort in decreasing order, as in previous versions of MFEM.
          std::sort(J+I[i], J+I[i+1], std::greater<idx_t>());

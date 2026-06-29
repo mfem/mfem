@@ -780,7 +780,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << (print_options.first_and_last ? " ...\n" : "\n");
+                << r.Norml2() << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
    if (nom < 0.0)
@@ -864,7 +864,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       if (print_options.iterations)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << betanom << std::endl;
+                   << r.Norml2() << std::endl;
       }
 
       if (Monitor(i, betanom, r, x) || betanom <= r0)
@@ -909,7 +909,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
-                << betanom << '\n';
+                << r.Norml2() << '\n';
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
@@ -3202,20 +3202,21 @@ void BlockGS::MultTranspose(const Vector &b, Vector &x) const
 
 
 
-BlockILU::BlockILU(int block_size_,
+BlockILU::BlockILU(int block_size_, real_t damping_,
                    Reordering reordering_,
                    int k_fill_)
    : Solver(0),
      block_size(block_size_),
+     damping(damping_),
      k_fill(k_fill_),
      reordering(reordering_)
 { }
 
 BlockILU::BlockILU(const Operator &op,
-                   int block_size_,
+                   int block_size_, real_t damping_,
                    Reordering reordering_,
                    int k_fill_)
-   : BlockILU(block_size_, reordering_, k_fill_)
+   : BlockILU(block_size_, damping_, reordering_, k_fill_)
 {
    SetOperator(op);
 }
@@ -3499,6 +3500,7 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       // x_i = D_ii^{-1} x_i
       A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
+   x *= damping;
 }
 
 void BlockILU::MultTranspose(const Vector &b, Vector &x) const
@@ -3552,6 +3554,7 @@ void BlockILU::MultTranspose(const Vector &b, Vector &x) const
    // TEMPORARY HACK: assuming this operator is symmetric, Mult and
    // MultTranspose have the same action.
    Mult(b, x);
+   x *= damping;
 }
 
 

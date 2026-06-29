@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
    }
 
    CGSolver cg;
-   cg.SetRelTol(1e-12);
+   cg.SetRelTol(1e-7);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    cg.SetPreconditioner(prec);

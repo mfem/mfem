@@ -19,7 +19,7 @@ namespace mfem
 {
 
 Array<int> PartitionMesh(Mesh &mesh,
-                         const int npart,
+                         const int npart, const int part_method,
                          OptRef<Array<int>> subset = NullOpt);
 
 } // namespace mfem

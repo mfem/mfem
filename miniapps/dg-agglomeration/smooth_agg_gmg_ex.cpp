@@ -25,6 +25,9 @@ using namespace mfem;
 // RHS
 real_t rhs_function(const Vector &x);
 
+// true solution
+real_t u_true(const Vector &x);
+
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/ref-cube.mesh";
@@ -53,20 +56,84 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
+   int ne = mesh.GetNE();
+
    const real_t sigma = -1.0;
-   const real_t kappa = num_levels*kappa_0 * (order + 1) * (order + 1) / 2;
+   const real_t kappa = num_levels * kappa_0 * (order + 1) * (order + 1) / 2;
 
    // Array<int> ess_bdr(mesh.bdr_attributes.Max());
    // ess_bdr = 0;
    // ess_bdr[0] = 1;
 
+   // // output a paraview visualization of the partition, if desired
+   // bool paraview_vis = false;
+   // if (paraview_vis)
+   // {
+   //    L2_FECollection l2_fec(0, mesh.Dimension());
+   //    FiniteElementSpace l2_fes(&mesh, &l2_fec);
+   //    GridFunction p_gf(&l2_fes);
+   //    ParaViewDataCollection pv("Indexing", &mesh);
+   //    pv.SetPrefixPath("ParaView");
+   //    pv.RegisterField("p", &p_gf);
+   //    for (int i = 0; i < ne; ++i)
+   //    {
+   //       p_gf[i] = i;
+   //       pv.SetCycle(0);
+   //       pv.SetTime(0);
+   //       pv.Save();
+   //    }
+   // }
+
+   // Array<int> dof_indices;
+   // for (int e = 0; e < ne; ++e)
+   // {
+   //    fespace.GetElementDofs(e, dof_indices);
+   //        std::cout << "Element " << e << " DoF indices: ";
+   //    for (int j = 0; j < dof_indices.Size(); ++j) {
+   //       std::cout << dof_indices[j] << " ";
+   //    }
+   //    std::cout << std::endl;
+   // }
+   // std::string file_name_t2t = "../../../adaptiveMG/t2t_mfem.txt";
+
+   // {
+   //    const auto &e2e = mesh.ElementToElementTable();
+   //    Array<int> fn;
+
+   //    std::ofstream f(file_name_t2t);
+   //    for (int e = 0; e < mesh.GetNE(); ++e)
+   //    {
+   //       e2e.GetRow(e, fn);
+   //       int i = 0;
+   //       for (; i < fn.Size(); ++i)
+   //       {
+   //          if (fn[i] != e)
+   //          {
+   //             f << (fn[i] + 1) << " ";
+   //          }
+   //       }
+   //       const int nf = dim == 2 ? Geometry::NumEdges[mesh.GetElementGeometry(e)]
+   //                      : Geometry::NumFaces[mesh.GetElementGeometry(e)];
+   //       for (; i < nf; ++i)
+   //       {
+   //          f << -1 << " ";
+   //       }
+   //       f << '\n';
+   //    }
+   // }
+
+   mfem::Array<int> dbc_marker(6);
+   dbc_marker = 1;
+   dbc_marker[4] = 0;
+
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient rhs(rhs_function);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
    b.AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa), dbc_marker); //make this -1 on just the left bc
    b.Assemble();
 
    GridFunction x(&fespace);
@@ -75,14 +142,14 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa), dbc_marker);
    a.Assemble();
    a.Finalize();
 
    SparseMatrix &A = a.SpMat();
 
-   //std::string file_name = "A_nl" + std::to_string(num_levels)+".mtx";
-   // std::ofstream ofs1(file_name);
+   // std::string file_name = "A_mfem.mtx";
+   // std::ofstream ofs1("../../../adaptiveMG/" + file_name);
    // A.PrintMM(ofs1); 
    // ofs1.close();
 
@@ -95,7 +162,17 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetOperator(A);
    cg.SetPreconditioner(mg);
+   // Vector bb(fespace.GetVSize());
+   // bb = 1.0;
+   x = 0.0;
    cg.Mult(b, x);
+
+   FunctionCoefficient true_solution(u_true);
+   GridFunction true_sol_gf(&fespace);
+   true_sol_gf.ProjectCoefficient(true_solution);
+   double l2_error = x.ComputeL2Error(true_solution);
+
+   std::cout << "True  rel L2 Error: " << l2_error/true_sol_gf.Norml2() << std::endl;
 
    return 0;
 }
@@ -103,7 +180,7 @@ int main(int argc, char *argv[])
 // Initial condition
 real_t rhs_function(const Vector &x)
 {
-   int dim = x.Size();
+   // int dim = x.Size();
 
    real_t px = M_PI*x(0);
    real_t py = M_PI*x(1);
@@ -116,5 +193,19 @@ real_t rhs_function(const Vector &x)
    real_t css = cos(px)*sin(py)*sin(pz)*cos(px)*sin(py)*sin(pz);
    real_t scs = sin(px)*cos(py)*sin(pz)*sin(px)*cos(py)*sin(pz);
    real_t ssc = sin(px)*sin(py)*cos(pz)*sin(px)*sin(py)*cos(pz);
-   return pi_s*exp(sss)*(-3*sss + css + scs + ssc);
+   return -pi_s*exp(sss)*(-3*sss + css + scs + ssc);
+}
+
+
+// Initial condition
+real_t u_true(const Vector &x)
+{
+   // int dim = x.Size();
+
+   real_t px = M_PI*x(0);
+   real_t py = M_PI*x(1);
+   real_t pz = M_PI*x(2);
+
+   real_t sss = sin(px)*sin(py)*sin(pz);
+   return exp(sss) - 1;
 }

@@ -1021,7 +1021,6 @@ public:
    /// Solve U^{-1} x = b
    virtual void MultTranspose(const Vector &b, Vector &x) const override;
 
-   void SetDamping(real_t damping_) { damping = damping_; }
 
 private:
    /// @brief Set up the block CSR structure corresponding to a sparse matrix @a A and factorize the diagonal blocks.
@@ -1074,7 +1073,6 @@ public:
    /// Solve U^{-1} x = b
    void MultTranspose(const Vector &b, Vector &x) const;
 
-   void SetDamping(real_t damping_) { damping = damping_; }
 
 private:
    /// @brief Set up the block CSR structure corresponding to a sparse matrix @a A and factorize the diagonal blocks.
@@ -1125,7 +1123,7 @@ public:
    /** Create an "empty" BlockILU solver. SetOperator must be called later to
     *  actually form the factorization
     */
-   BlockILU(int block_size_,
+   BlockILU(int block_size_, real_t damping_ = 1.0,
             Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
             int k_fill_ = 0);
 
@@ -1134,7 +1132,7 @@ public:
     *  case that @a op is a HypreParMatrix, the ILU factorization is performed
     *  on the diagonal blocks of the parallel decomposition.
     */
-   BlockILU(const Operator &op, int block_size_ = 1,
+   BlockILU(const Operator &op, int block_size_ = 1, real_t damping_ = 1.0,
             Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
             int k_fill_ = 0);
 
@@ -1166,6 +1164,7 @@ public:
     */
    real_t *GetBlockData() { return AB.Data(); }
 
+
 private:
    /// Set up the block CSR structure corresponding to a sparse matrix @a A
    void CreateBlockPattern(const class SparseMatrix &A);
@@ -1179,6 +1178,8 @@ private:
    int k_fill;
 
    Reordering reordering;
+
+   real_t damping;
 
    /// Temporary vector used in the Mult() function.
    mutable Vector y;
