@@ -567,6 +567,19 @@ static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
    });
 }
 
+/// @param ne number of elements
+/// @param markers array where entry markers[e] == 0 to skip assembly over
+/// element e element
+/// @param jac Spatial Jacobians evaluated at all quadrature points
+/// @param weights 1D quadrature weights
+/// @param testBO 1D open basis test functions
+/// @param testBC 1D closed basis test functions
+/// @param coeff coefficient values evaluated at quadrature points, possibly
+/// compressed.
+/// @param d number of 1D closed dofs
+/// @param q number of 1D quadrature points
+/// @tparam T_D1D maximum number of dofs along any direction, or 0
+/// @tparam T_Q1D maximum number of quadrature points along any direction, or 0
 template <int T_D1D = 0, int T_Q1D = 0>
 static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
                                const Vector &jac, const Array<real_t> &weights,
