@@ -153,15 +153,105 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
            MemoryClassContainsType(mc, src_d_mt));
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+static inline HYPRE_Precision MFEMHypreRealPrecision()
+{
+#ifdef MFEM_USE_SINGLE
+   return HYPRE_REAL_SINGLE;
+#else
+   return HYPRE_REAL_DOUBLE;
+#endif
+}
+
+static inline bool IsSupportedHyprePrecision(HYPRE_Precision precision)
+{
+   return precision == HYPRE_REAL_SINGLE || precision == HYPRE_REAL_DOUBLE;
+}
+
+static hypre_ParVector *CreateHypreParVectorWithPrecision(
+   MPI_Comm comm, HYPRE_BigInt glob_size, HYPRE_BigInt *col,
+   HYPRE_Precision precision)
+{
+   MFEM_VERIFY(IsSupportedHyprePrecision(precision),
+               "unsupported hypre ParVector precision");
+
+   HYPRE_ParVector hvec = NULL;
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorCreate_pre(precision, comm, glob_size, col, &hvec);
+   MFEM_VERIFY(ierr == 0 && hvec != NULL,
+               "error in HYPRE_ParVectorCreate_pre");
+
+   return (hypre_ParVector *) hvec;
+}
+
+static inline void InitializeHypreParVectorWithPrecision(hypre_ParVector *v)
+{
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorInitialize_pre(hypre_ParVectorPrecision(v),
+                                    (HYPRE_ParVector) v);
+   MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInitialize_pre");
+}
+
+static inline void DestroyHypreParVectorWithPrecision(hypre_ParVector *v)
+{
+   if (!v) { return; }
+
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorDestroy_pre(hypre_ParVectorPrecision(v),
+                                 (HYPRE_ParVector) v);
+   MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorDestroy_pre");
+}
+
+static hypre_ParVector *ConvertHypreParVectorWithPrecision(
+   hypre_ParVector *v, HYPRE_Precision precision)
+{
+   if (hypre_ParVectorPrecision(v) == precision) { return v; }
+
+   hypre_ParVector *converted =
+      CreateHypreParVectorWithPrecision(hypre_ParVectorComm(v),
+                                        hypre_ParVectorGlobalSize(v),
+                                        hypre_ParVectorPartitioning(v),
+                                        precision);
+   InitializeHypreParVectorWithPrecision(converted);
+#if MFEM_HYPRE_VERSION <= 22200
+   hypre_ParVectorSetPartitioningOwner(converted,0);
+#endif
+   hypre_ParVectorSetDataOwner(converted,1);
+   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(converted),1);
+
+   const HYPRE_Int ierr = hypre_ParVectorCopy_mp(v, converted);
+   MFEM_VERIFY(ierr == 0, "error in hypre_ParVectorCopy_mp");
+
+   DestroyHypreParVectorWithPrecision(v);
+   return converted;
+}
+
+static inline bool HypreParVectorUsesMFEMReal(const hypre_ParVector *v)
+{
+   return hypre_ParVectorPrecision(v) == MFEMHypreRealPrecision();
+}
+
+static inline bool HypreVectorUsesMFEMReal(const hypre_Vector *v)
+{
+   return hypre_VectorPrecision(v) == MFEMHypreRealPrecision();
+}
+
+#endif // HYPRE_MIXED_PRECISION
 
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#if !defined(HYPRE_USING_GPU)
-   SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
-#else
    size = internal::to_int(hypre_VectorSize(x_loc));
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreVectorUsesMFEMReal(x_loc))
+   {
+      data.Reset();
+      return;
+   }
+#endif
+#if !defined(HYPRE_USING_GPU)
+   SetDataAndSize(hypre_VectorData(x_loc), size);
+#else
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
                     ? MemoryType::HOST : GetHypreMemoryType());
    if (hypre_VectorData(x_loc) != NULL)
@@ -178,8 +268,15 @@ inline void HypreParVector::_SetDataAndSize_()
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
                                HYPRE_BigInt *col) : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(comm, glob_size, col,
+                                         MFEMHypreRealPrecision());
+   InitializeHypreParVectorWithPrecision(x);
+#else
    x = hypre_ParVectorCreate(comm,glob_size,col);
    hypre_ParVectorInitialize(x);
+#endif
+   using_real_t = true;
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -195,7 +292,13 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
                                bool is_device_ptr)
    : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(comm, glob_size, col,
+                                         MFEMHypreRealPrecision());
+#else
    x = hypre_ParVectorCreate(comm,glob_size,col);
+#endif
+   using_real_t = true;
    hypre_ParVectorSetDataOwner(x,1); // owns the seq vector
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_SeqVectorSetDataOwner(x_loc,0);
@@ -212,7 +315,11 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
    // If hypre_ParVectorLocalVector(x) and &tmp are non-NULL,
    // hypre_ParVectorInitialize(x) does not allocate memory!
+#ifdef HYPRE_MIXED_PRECISION
+   InitializeHypreParVectorWithPrecision(x);
+#else
    hypre_ParVectorInitialize(x);
+#endif
    // Set the internal data array to the one passed in
    hypre_VectorData(x_loc) = data_;
    _SetDataAndSize_();
@@ -237,6 +344,23 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+HypreParVector::HypreParVector(const HypreParVector &y)
+   : HypreParVector(y, y.GetHyprePrecision())
+{
+}
+
+HypreParVector::HypreParVector(const HypreParVector &y,
+                               HYPRE_Precision precision)
+   : HypreParVector(y.CreateCompatibleVector(precision))
+{
+   if (HypreParVectorUsesMFEMReal(y.x)) { y.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+
+   const HYPRE_Int ierr = hypre_ParVectorCopy_mp(y.x, x);
+   MFEM_VERIFY(ierr == 0, "error in hypre_ParVectorCopy_mp");
+}
+#else
 // Call the move constructor on the "compatible" temp vector
 HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
@@ -245,6 +369,7 @@ HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
    hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
                        hypre_ParVectorLocalVector(x));
 }
+#endif
 
 HypreParVector::HypreParVector(HypreParVector &&y)
 {
@@ -255,6 +380,25 @@ HypreParVector::HypreParVector(HypreParVector &&y)
 HypreParVector::HypreParVector(const HypreParMatrix &A,
                                int transpose) : Vector()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   hypre_ParCSRMatrix *Ah = const_cast<HypreParMatrix&>(A);
+   if (!transpose)
+   {
+      x = CreateHypreParVectorWithPrecision(hypre_ParCSRMatrixComm(Ah),
+                                            hypre_ParCSRMatrixGlobalNumCols(Ah),
+                                            hypre_ParCSRMatrixColStarts(Ah),
+                                            hypre_ParCSRMatrixPrecision(Ah));
+   }
+   else
+   {
+      x = CreateHypreParVectorWithPrecision(hypre_ParCSRMatrixComm(Ah),
+                                            hypre_ParCSRMatrixGlobalNumRows(Ah),
+                                            hypre_ParCSRMatrixRowStarts(Ah),
+                                            hypre_ParCSRMatrixPrecision(Ah));
+   }
+   InitializeHypreParVectorWithPrecision(x);
+   using_real_t = HypreParVectorUsesMFEMReal(x);
+#else
    if (!transpose)
    {
       x = hypre_ParVectorInDomainOf(const_cast<HypreParMatrix&>(A));
@@ -263,6 +407,8 @@ HypreParVector::HypreParVector(const HypreParMatrix &A,
    {
       x = hypre_ParVectorInRangeOf(const_cast<HypreParMatrix&>(A));
    }
+   using_real_t = true;
+#endif
    _SetDataAndSize_();
    own_ParVector = 1;
 }
@@ -272,13 +418,27 @@ HypreParVector::HypreParVector(HYPRE_ParVector y) : Vector()
    x = (hypre_ParVector *) y;
    _SetDataAndSize_();
    own_ParVector = 0;
+#ifdef HYPRE_MIXED_PRECISION
+   using_real_t = HypreParVectorUsesMFEMReal(x);
+#else
+   using_real_t = true;
+#endif
 }
 
 HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   x = CreateHypreParVectorWithPrecision(pfes->GetComm(),
+                                         pfes->GlobalTrueVSize(),
+                                         pfes->GetTrueDofOffsets(),
+                                         MFEMHypreRealPrecision());
+   InitializeHypreParVectorWithPrecision(x);
+#else
    x = hypre_ParVectorCreate(pfes->GetComm(), pfes->GlobalTrueVSize(),
                              pfes->GetTrueDofOffsets());
    hypre_ParVectorInitialize(x);
+#endif
+   using_real_t = true;
 #if MFEM_HYPRE_VERSION <= 22200
    hypre_ParVectorSetPartitioningOwner(x,0);
 #endif
@@ -291,6 +451,9 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
 
 HypreParVector HypreParVector::CreateCompatibleVector() const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   return CreateCompatibleVector(GetHyprePrecision());
+#else
    HypreParVector result;
    result.x = hypre_ParVectorCreate(x -> comm, x -> global_size,
                                     x -> partitioning);
@@ -302,21 +465,67 @@ HypreParVector HypreParVector::CreateCompatibleVector() const
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
    result._SetDataAndSize_();
    result.own_ParVector = 1;
+   result.using_real_t = true;
+
+   return result;
+#endif
+}
+
+#ifdef HYPRE_MIXED_PRECISION
+HypreParVector HypreParVector::CreateCompatibleVector(
+   HYPRE_Precision precision) const
+{
+   MFEM_VERIFY(x != NULL, "source HypreParVector is empty");
+
+   HypreParVector result;
+   result.x = CreateHypreParVectorWithPrecision(x->comm, x->global_size,
+                                                x->partitioning, precision);
+   InitializeHypreParVectorWithPrecision(result.x);
+#if MFEM_HYPRE_VERSION <= 22200
+   hypre_ParVectorSetPartitioningOwner(result.x,0);
+#endif
+   hypre_ParVectorSetDataOwner(result.x,1);
+   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
+   result._SetDataAndSize_();
+   result.own_ParVector = 1;
+   result.using_real_t = HypreParVectorUsesMFEMReal(result.x);
 
    return result;
 }
+#endif
 
 void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 {
-   if (own_ParVector) { hypre_ParVectorDestroy(x); }
+   if (own_ParVector)
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
+      hypre_ParVectorDestroy(x);
+#endif
+   }
    Destroy();
    x = y;
    _SetDataAndSize_();
    own_ParVector = owner;
+#ifdef HYPRE_MIXED_PRECISION
+   using_real_t = HypreParVectorUsesMFEMReal(x);
+#else
+   using_real_t = true;
+#endif
+}
+
+void HypreParVector::VerifyRealPrecision() const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   MFEM_VERIFY(using_real_t, "This HypreParVector stores hypre data with "
+               "precision different from mfem::real_t");
+#endif
 }
 
 Vector * HypreParVector::GlobalVector() const
 {
+   VerifyRealPrecision();
    MFEM_VERIFY(size > 0,
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
@@ -330,6 +539,16 @@ Vector * HypreParVector::GlobalVector() const
 
 HypreParVector& HypreParVector::operator=(real_t d)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x))
+   {
+      const HYPRE_Int ierr =
+         HYPRE_ParVectorSetConstantValues_pre(GetHyprePrecision(),
+                                              (HYPRE_ParVector) x, d);
+      MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorSetConstantValues_pre");
+      return *this;
+   }
+#endif
    Vector::operator=(d);
    return *this;
 }
@@ -340,6 +559,20 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    if (size != y.Size())
    {
       mfem_error("HypreParVector::operator=");
+   }
+#endif
+
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x) ||
+       !HypreParVectorUsesMFEMReal(y.x) ||
+       GetHyprePrecision() != y.GetHyprePrecision())
+   {
+      if (HypreParVectorUsesMFEMReal(y.x)) { y.HypreRead(); }
+      if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+
+      const HYPRE_Int ierr = hypre_ParVectorCopy_mp(y.x, x);
+      MFEM_VERIFY(ierr == 0, "error in hypre_ParVectorCopy_mp");
+      return *this;
    }
 #endif
 
@@ -357,18 +590,76 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
    const auto x_tmp = y.x;
    y.x = nullptr;
    x = x_tmp;
+   using_real_t = y.using_real_t;
    return *this;
 }
 
 void HypreParVector::SetData(real_t *data_)
 {
+   VerifyRealPrecision();
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
    Vector::SetData(data_);
 }
 
+void *HypreParVector::GetHypreData()
+{
+   return hypre_VectorData(hypre_ParVectorLocalVector(x));
+}
+
+const void *HypreParVector::GetHypreData() const
+{
+   return hypre_VectorData(hypre_ParVectorLocalVector(x));
+}
+
+#ifdef HYPRE_MIXED_PRECISION
+hypre_float *HypreParVector::GetHypreFloatData()
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_SINGLE,
+               "HypreParVector data is not single precision");
+   return reinterpret_cast<hypre_float*>(GetHypreData());
+}
+
+const hypre_float *HypreParVector::GetHypreFloatData() const
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_SINGLE,
+               "HypreParVector data is not single precision");
+   return reinterpret_cast<const hypre_float*>(GetHypreData());
+}
+
+hypre_double *HypreParVector::GetHypreDoubleData()
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_DOUBLE,
+               "HypreParVector data is not double precision");
+   return reinterpret_cast<hypre_double*>(GetHypreData());
+}
+
+const hypre_double *HypreParVector::GetHypreDoubleData() const
+{
+   MFEM_VERIFY(GetHyprePrecision() == HYPRE_REAL_DOUBLE,
+               "HypreParVector data is not double precision");
+   return reinterpret_cast<const hypre_double*>(GetHypreData());
+}
+#endif
+
 void HypreParVector::HypreRead() const
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+#ifdef HYPRE_MIXED_PRECISION
+   if (!HypreParVectorUsesMFEMReal(x))
+   {
+      switch (GetHyprePrecision())
+      {
+         case HYPRE_REAL_SINGLE:
+            (void) GetHypreFloatData();
+            return;
+         case HYPRE_REAL_DOUBLE:
+            (void) GetHypreDoubleData();
+            return;
+         default:
+            MFEM_ABORT("unsupported hypre ParVector precision");
+      }
+   }
+#endif
    hypre_VectorData(x_loc) =
       const_cast<real_t*>(data.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
@@ -378,6 +669,7 @@ void HypreParVector::HypreRead() const
 
 void HypreParVector::HypreReadWrite()
 {
+   VerifyRealPrecision();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -387,6 +679,7 @@ void HypreParVector::HypreReadWrite()
 
 void HypreParVector::HypreWrite()
 {
+   VerifyRealPrecision();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
@@ -396,6 +689,7 @@ void HypreParVector::HypreWrite()
 
 void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 {
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -411,6 +705,7 @@ void HypreParVector::WrapMemoryRead(const Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 {
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -425,6 +720,7 @@ void HypreParVector::WrapMemoryReadWrite(Memory<real_t> &mem)
 
 void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 {
+   VerifyRealPrecision();
    MFEM_ASSERT(CanShallowCopy(mem, GetHypreMemoryClass()), "");
    MFEM_ASSERT(mem.Capacity() >= size, "");
 
@@ -439,43 +735,116 @@ void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (HypreParVectorUsesMFEMReal(x)) { HypreWrite(); }
+   return HYPRE_ParVectorSetRandomValues_pre(GetHyprePrecision(),
+                                             (HYPRE_ParVector) x, seed);
+#else
    return hypre_ParVectorSetRandomValues(x,seed);
+#endif
 }
 
 void HypreParVector::Print(const std::string &fname) const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   if (HypreParVectorUsesMFEMReal(x)) { HypreRead(); }
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorPrint_pre(GetHyprePrecision(), (HYPRE_ParVector) x,
+                               fname.c_str());
+   MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorPrint_pre");
+#else
    hypre_ParVectorPrint(x, fname.c_str());
+#endif
 }
 
 void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
       hypre_ParVectorDestroy(x);
+#endif
    }
    data.Delete();
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParVector hvec = NULL;
+   const HYPRE_Int ierr =
+      HYPRE_ParVectorRead_pre(MFEMHypreRealPrecision(), comm, fname.c_str(),
+                              &hvec);
+   MFEM_VERIFY(ierr == 0 && hvec != NULL, "error in HYPRE_ParVectorRead_pre");
+   x = (hypre_ParVector *) hvec;
+#else
    x = hypre_ParVectorRead(comm, fname.c_str());
+#endif
    own_ParVector = true;
    _SetDataAndSize_();
+#ifdef HYPRE_MIXED_PRECISION
+   using_real_t = HypreParVectorUsesMFEMReal(x);
+#else
+   using_real_t = true;
+#endif
 }
 
 HypreParVector::~HypreParVector()
 {
    if (own_ParVector)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParVectorDestroy_pre(GetHyprePrecision(), (HYPRE_ParVector) x);
+#else
       hypre_ParVectorDestroy(x);
+#endif
    }
 }
 
 
 real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   const HYPRE_Precision precision = x->GetHyprePrecision();
+   MFEM_VERIFY(precision == y->GetHyprePrecision(),
+               "mixed-precision HypreParVector inner product requires "
+               "matching vector precisions");
+
+   hypre_ParVector *xh = *x;
+   hypre_ParVector *yh = *y;
+   if (HypreParVectorUsesMFEMReal(xh)) { x->HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(yh)) { y->HypreRead(); }
+
+   switch (precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float result = 0.0f;
+         const HYPRE_Int ierr =
+            HYPRE_ParVectorInnerProd_pre(precision, (HYPRE_ParVector) xh,
+                                         (HYPRE_ParVector) yh, &result);
+         MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInnerProd_pre");
+         return (real_t) result;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double result = 0.0;
+         const HYPRE_Int ierr =
+            HYPRE_ParVectorInnerProd_pre(precision, (HYPRE_ParVector) xh,
+                                         (HYPRE_ParVector) yh, &result);
+         MFEM_VERIFY(ierr == 0, "error in HYPRE_ParVectorInnerProd_pre");
+         return (real_t) result;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre ParVector precision");
+         return 0.0;
+   }
+#else
    return hypre_ParVectorInnerProd(*x, *y);
+#endif
 }
 
 real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
-   return hypre_ParVectorInnerProd(x, y);
+   return InnerProduct(&x, &y);
 }
 
 
@@ -586,9 +955,15 @@ void HypreParMatrix::Init()
    mem_diag.I.Reset();
    mem_diag.J.Reset();
    mem_diag.data.Reset();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.Reset();
+#endif
    mem_offd.I.Reset();
    mem_offd.J.Reset();
    mem_offd.data.Reset();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.Reset();
+#endif
 }
 
 #if MFEM_HYPRE_VERSION >= 21800
@@ -619,6 +994,13 @@ GetHypreParMatrixMemoryLocation(MemoryClass mc)
 }
 #endif // MFEM_HYPRE_VERSION >= 21800
 
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+static inline bool HypreCSRMatrixUsesFloatData(const hypre_CSRMatrix *mat)
+{
+   return hypre_CSRMatrixPrecision(mat) == HYPRE_REAL_SINGLE;
+}
+#endif
+
 void HypreParMatrix::Read(MemoryClass mc) const
 {
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
@@ -628,10 +1010,22 @@ void HypreParMatrix::Read(MemoryClass mc) const
    const int offd_nnz = internal::to_int(offd->num_nonzeros);
    diag->i = const_cast<HYPRE_Int*>(mem_diag.I.Read(mc, num_rows+1));
    diag->j = const_cast<HYPRE_Int*>(mem_diag.J.Read(mc, diag_nnz));
-   diag->data = const_cast<real_t*>(mem_diag.data.Read(mc, diag_nnz));
    offd->i = const_cast<HYPRE_Int*>(mem_offd.I.Read(mc, num_rows+1));
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
-   offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   if (HypreCSRMatrixUsesFloatData(diag))
+   {
+      diag->data = reinterpret_cast<HYPRE_Complex*>(
+                      const_cast<hypre_float*>(mem_diag.data_f.Read(mc, diag_nnz)));
+      offd->data = reinterpret_cast<HYPRE_Complex*>(
+                      const_cast<hypre_float*>(mem_offd.data_f.Read(mc, offd_nnz)));
+   }
+   else
+#endif
+   {
+      diag->data = const_cast<real_t*>(mem_diag.data.Read(mc, diag_nnz));
+      offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
+   }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
@@ -648,10 +1042,22 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    const int offd_nnz = internal::to_int(offd->num_nonzeros);
    diag->i = mem_diag.I.ReadWrite(mc, num_rows+1);
    diag->j = mem_diag.J.ReadWrite(mc, diag_nnz);
-   diag->data = mem_diag.data.ReadWrite(mc, diag_nnz);
    offd->i = mem_offd.I.ReadWrite(mc, num_rows+1);
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
-   offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   if (HypreCSRMatrixUsesFloatData(diag))
+   {
+      diag->data = reinterpret_cast<HYPRE_Complex*>(
+                      mem_diag.data_f.ReadWrite(mc, diag_nnz));
+      offd->data = reinterpret_cast<HYPRE_Complex*>(
+                      mem_offd.data_f.ReadWrite(mc, offd_nnz));
+   }
+   else
+#endif
+   {
+      diag->data = mem_diag.data.ReadWrite(mc, diag_nnz);
+      offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
+   }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
    diag->memory_location = ml;
@@ -667,13 +1073,33 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
    {
       diag->i = mem_diag.I.Write(mc, mem_diag.I.Capacity());
       diag->j = mem_diag.J.Write(mc, mem_diag.J.Capacity());
-      diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (HypreCSRMatrixUsesFloatData(diag))
+      {
+         diag->data = reinterpret_cast<HYPRE_Complex*>(
+                         mem_diag.data_f.Write(mc, mem_diag.data_f.Capacity()));
+      }
+      else
+#endif
+      {
+         diag->data = mem_diag.data.Write(mc, mem_diag.data.Capacity());
+      }
    }
    if (set_offd)
    {
       offd->i = mem_offd.I.Write(mc, mem_offd.I.Capacity());
       offd->j = mem_offd.J.Write(mc, mem_offd.J.Capacity());
-      offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (HypreCSRMatrixUsesFloatData(offd))
+      {
+         offd->data = reinterpret_cast<HYPRE_Complex*>(
+                         mem_offd.data_f.Write(mc, mem_offd.data_f.Capacity()));
+      }
+      else
+#endif
+      {
+         offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
+      }
    }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
@@ -873,7 +1299,18 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
    const int nnz = internal::to_int(h_mat->num_nonzeros);
    mem.I.Wrap(h_mat->i, nr1, h_mat_mt, own_ija);
    mem.J.Wrap(h_mat->j, nnz, h_mat_mt, own_ija);
-   mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   const bool single_precision_data = HypreCSRMatrixUsesFloatData(h_mat);
+   if (single_precision_data)
+   {
+      mem.data_f.Wrap(reinterpret_cast<hypre_float*>(h_mat->data),
+                      nnz, h_mat_mt, own_ija);
+   }
+   else
+#endif
+   {
+      mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+   }
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    if (!CanShallowCopy(mem.I, hypre_mc))
    {
@@ -885,9 +1322,20 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mem.J.New(nnz, hypre_mt);
       h_mem.J.CopyFrom(mem.J, nnz);
       mem.J.Delete();
-      h_mem.data.New(nnz, hypre_mt);
-      h_mem.data.CopyFrom(mem.data, nnz);
-      mem.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (single_precision_data)
+      {
+         h_mem.data_f.New(nnz, hypre_mt);
+         h_mem.data_f.CopyFrom(mem.data_f, nnz);
+         mem.data_f.Delete();
+      }
+      else
+#endif
+      {
+         h_mem.data.New(nnz, hypre_mt);
+         h_mem.data.CopyFrom(mem.data, nnz);
+         mem.data.Delete();
+      }
       mem = h_mem;
       if (!own_ija)
       {
@@ -918,7 +1366,17 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       }
       h_mat->i = mem.I.ReadWrite(hypre_mc, nr1);
       h_mat->j = mem.J.ReadWrite(hypre_mc, nnz);
-      h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+      if (single_precision_data)
+      {
+         h_mat->data = reinterpret_cast<HYPRE_Complex*>(
+                          mem.data_f.ReadWrite(hypre_mc, nnz));
+      }
+      else
+#endif
+      {
+         h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
+      }
       h_mat->owns_data = 0;
 #if MFEM_HYPRE_VERSION >= 21800
       h_mat->memory_location = mfem::GetHypreMemoryLocation();
@@ -1476,6 +1934,45 @@ HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
    offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
 }
 
+#ifdef HYPRE_MIXED_PRECISION
+HypreParMatrix::HypreParMatrix(const HypreParMatrix &P,
+                               HYPRE_Precision precision)
+{
+   hypre_ParCSRMatrix *Ph = static_cast<hypre_ParCSRMatrix *>(P);
+
+   Init();
+
+   MFEM_VERIFY(Ph != NULL, "source HypreParMatrix is empty");
+   MFEM_VERIFY(precision == HYPRE_REAL_SINGLE ||
+               precision == HYPRE_REAL_DOUBLE,
+               "unsupported target precision");
+
+#ifndef MFEM_USE_DOUBLE
+   MFEM_VERIFY(precision == HYPRE_OBJECT_PRECISION,
+               "mixed-precision HypreParMatrix copy is implemented for "
+               "MFEM real_t == double");
+#endif
+
+   P.HypreRead();
+
+   A = hypre_ParCSRMatrixClone_mp(Ph, precision);
+   MFEM_VERIFY(A != NULL, "error in hypre_ParCSRMatrixClone_mp");
+
+   height = GetNumRows();
+   width = GetNumCols();
+
+   CopyRowStarts();
+   CopyColStarts();
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   hypre_MatvecCommPkgCreate(A);
+
+   diagOwner = HypreCsrToMem(A->diag, GetHypreMemoryType(), false, mem_diag);
+   offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
+}
+#endif
+
 void HypreParMatrix::MakeRef(const HypreParMatrix &master)
 {
    Destroy();
@@ -1488,10 +1985,18 @@ void HypreParMatrix::MakeRef(const HypreParMatrix &master)
    mem_diag.J.MakeAlias(master.mem_diag.J, 0, master.mem_diag.J.Capacity());
    mem_diag.data.MakeAlias(master.mem_diag.data, 0,
                            master.mem_diag.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.MakeAlias(master.mem_diag.data_f, 0,
+                             master.mem_diag.data_f.Capacity());
+#endif
    mem_offd.I.MakeAlias(master.mem_offd.I, 0, master.mem_offd.I.Capacity());
    mem_offd.J.MakeAlias(master.mem_offd.J, 0, master.mem_offd.J.Capacity());
    mem_offd.data.MakeAlias(master.mem_offd.data, 0,
                            master.mem_offd.data.Capacity());
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.MakeAlias(master.mem_offd.data_f, 0,
+                             master.mem_offd.data_f.Capacity());
+#endif
 }
 
 hypre_ParCSRMatrix* HypreParMatrix::StealData()
@@ -1528,6 +2033,10 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
    mem_diag.data.SetHostPtrOwner((diag >= 0) && (diag & 2));
    mem_diag.data.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.SetHostPtrOwner((diag >= 0) && (diag & 2));
+   mem_diag.data_f.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+#endif
 
    offdOwner = offd;
    mem_offd.I.SetHostPtrOwner((offd >= 0) && (offd & 1));
@@ -1538,6 +2047,10 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 
    mem_offd.data.SetHostPtrOwner((offd >= 0) && (offd & 2));
    mem_offd.data.SetDevicePtrOwner((offd >= 0) && (offd & 2));
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.SetHostPtrOwner((offd >= 0) && (offd & 2));
+   mem_offd.data_f.SetDevicePtrOwner((offd >= 0) && (offd & 2));
+#endif
    colMapOwner = colmap;
 }
 
@@ -1660,6 +2173,11 @@ static void MakeWrapper(const hypre_CSRMatrix *mat,
                         const MemoryIJData &mem,
                         SparseMatrix &wrapper)
 {
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   MFEM_VERIFY(!HypreCSRMatrixUsesFloatData(mat),
+               "cannot expose single-precision hypre CSR data as an MFEM "
+               "SparseMatrix with real_t == double");
+#endif
    const int nrows = internal::to_int(hypre_CSRMatrixNumRows(mat));
    const int ncols = internal::to_int(hypre_CSRMatrixNumCols(mat));
    const int nnz = internal::to_int(mat->num_nonzeros);
@@ -1873,9 +2391,30 @@ void HypreParMatrix::ResetTranspose() const
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                real_t a, real_t b) const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   const HYPRE_Precision precision = x.GetHyprePrecision();
+   MFEM_VERIFY(precision == y.GetHyprePrecision(),
+               "mixed-precision HypreParMatrix::Mult requires matching "
+               "x and y vector precisions");
+   MFEM_VERIFY(precision == GetHyprePrecision(),
+               "mixed-precision HypreParMatrix::Mult requires matching "
+               "matrix and vector precisions");
+
+   if (HypreParVectorUsesMFEMReal(x)) { x.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(y))
+   {
+      (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
+   }
+
+   return HYPRE_ParCSRMatrixMatvec_pre(precision, a, (HYPRE_ParCSRMatrix) A,
+                                       (HYPRE_ParVector)(hypre_ParVector *) x,
+                                       b,
+                                       (HYPRE_ParVector)(hypre_ParVector *) y);
+#else
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
+#endif
 }
 
 void HypreParMatrix::Mult(real_t a, const Vector &x, real_t b, Vector &y) const
@@ -2889,6 +3428,9 @@ void HypreParMatrix::Destroy()
    mem_diag.I.Delete();
    mem_diag.J.Delete();
    mem_diag.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_diag.data_f.Delete();
+#endif
    if (diagOwner >= 0)
    {
       hypre_CSRMatrixI(A->diag) = NULL;
@@ -2898,6 +3440,9 @@ void HypreParMatrix::Destroy()
    mem_offd.I.Delete();
    mem_offd.J.Delete();
    mem_offd.data.Delete();
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   mem_offd.data_f.Delete();
+#endif
    if (offdOwner >= 0)
    {
       hypre_CSRMatrixI(A->offd) = NULL;
@@ -4176,12 +4721,23 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
    if (!iterative_mode)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      if (HypreParVectorUsesMFEMReal(x)) { x.HypreWrite(); }
+      HYPRE_ParVectorSetConstantValues_pre(
+         x.GetHyprePrecision(), (HYPRE_ParVector)(hypre_ParVector *) x, 0.0);
+#else
       x.HypreWrite();
       hypre_ParVectorSetConstantValues(x, 0.0);
+#endif
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   if (HypreParVectorUsesMFEMReal(b)) { b.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(x)) { x.HypreReadWrite(); }
+#else
    b.HypreRead();
    x.HypreReadWrite();
+#endif
 
    Setup(b, x);
 
@@ -4221,15 +4777,29 @@ void HyprePCG::SetDefaultOptions()
    SetMaxIter(1000);
 }
 
-HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
+HyprePCG::HyprePCG(MPI_Comm comm)
+#ifdef HYPRE_MIXED_PRECISION
+   : precond(NULL), pcg_precision(MFEMHypreRealPrecision())
+#else
+   : precond(NULL)
+#endif
 {
    iterative_mode = true;
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGCreate_pre(pcg_precision, comm, &pcg_solver);
+#else
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+#endif
    SetDefaultOptions();
 }
 
-HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
+HyprePCG::HyprePCG(const HypreParMatrix &A_)
+#ifdef HYPRE_MIXED_PRECISION
+   : HypreSolver(&A_), precond(NULL), pcg_precision(A_.GetHyprePrecision())
+#else
+   : HypreSolver(&A_), precond(NULL)
+#endif
 {
    MPI_Comm comm;
 
@@ -4237,14 +4807,35 @@ HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
 
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGCreate_pre(pcg_precision, comm, &pcg_solver);
+#else
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+#endif
    SetDefaultOptions();
 }
+
+#ifdef HYPRE_MIXED_PRECISION
+HyprePCG::HyprePCG(MPI_Comm comm, HYPRE_Precision precision)
+   : precond(NULL), pcg_precision(precision)
+{
+   MFEM_VERIFY(IsSupportedHyprePrecision(precision),
+               "unsupported hypre PCG precision");
+   iterative_mode = true;
+
+   HYPRE_ParCSRPCGCreate_pre(precision, comm, &pcg_solver);
+   SetDefaultOptions();
+}
+#endif
 
 void HyprePCG::SetOperator(const Operator &op)
 {
    const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+#ifdef HYPRE_MIXED_PRECISION
+   MFEM_VERIFY(new_A->GetHyprePrecision() == pcg_precision,
+               "HyprePCG operator precision does not match the PCG precision");
+#endif
 
    // update base classes: Operator, Solver, HypreSolver
    height = new_A->Height();
@@ -4252,7 +4843,15 @@ void HyprePCG::SetOperator(const Operator &op)
    A = const_cast<HypreParMatrix *>(new_A);
    if (precond)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      const HypreBoomerAMG *amg = dynamic_cast<const HypreBoomerAMG *>(precond);
+      if (!amg || amg->GetHyprePrecision() == pcg_precision)
+      {
+         precond->SetOperator(*A);
+      }
+#else
       precond->SetOperator(*A);
+#endif
       this->SetPreconditioner(*precond);
    }
    setup_called = 0;
@@ -4265,107 +4864,325 @@ void HyprePCG::SetOperator(const Operator &op)
 
 void HyprePCG::SetUseTwoNorm(bool val)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetTwoNorm_pre(pcg_precision, pcg_solver, val);
+#else
    HYPRE_PCGSetTwoNorm(pcg_solver, val);
+#endif
 }
 
 bool HyprePCG::GetUseTwoNorm() const
 {
    HYPRE_Int val;
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_PCGGetTwoNorm_pre(pcg_precision, pcg_solver, &val);
+#else
    HYPRE_PCGGetTwoNorm(pcg_solver, &val);
+#endif
    return val != 0;
 }
 
 void HyprePCG::SetTol(real_t tol)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetTol_pre(pcg_precision, pcg_solver, tol);
+#else
    HYPRE_PCGSetTol(pcg_solver, tol);
+#endif
 }
 
 real_t HyprePCG::GetTol() const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   switch (pcg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float tol;
+         HYPRE_PCGGetTol_pre(pcg_precision, pcg_solver, &tol);
+         return tol;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double tol;
+         HYPRE_PCGGetTol_pre(pcg_precision, pcg_solver, &tol);
+         return tol;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre PCG precision");
+   }
+#else
    HYPRE_Real tol;
    HYPRE_PCGGetTol(pcg_solver, &tol);
    return tol;
+#endif
 }
 
 void HyprePCG::SetAbsTol(real_t atol)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetAbsoluteTol_pre(pcg_precision, pcg_solver, atol);
+#else
    HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
+#endif
 }
 
 real_t HyprePCG::GetAbsTol() const
 {
+#ifdef HYPRE_MIXED_PRECISION
+   switch (pcg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float atol;
+         hypre_PCGGetAbsoluteTol_flt(pcg_solver, &atol);
+         return atol;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double atol;
+         hypre_PCGGetAbsoluteTol_dbl(pcg_solver, &atol);
+         return atol;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre PCG precision");
+   }
+#else
    HYPRE_Real atol;
    hypre_PCGGetAbsoluteTol(pcg_solver, &atol);
    return atol;
+#endif
 }
 
 void HyprePCG::SetMaxIter(int max_iter)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetMaxIter_pre(pcg_precision, pcg_solver, max_iter);
+#else
    HYPRE_PCGSetMaxIter(pcg_solver, max_iter);
+#endif
 }
 
 int HyprePCG::GetMaxIter() const
 {
    HYPRE_Int max_iter;
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_PCGGetMaxIter_pre(pcg_precision, pcg_solver, &max_iter);
+#else
    HYPRE_PCGGetMaxIter(pcg_solver, &max_iter);
+#endif
    return max_iter;
 }
 
 void HyprePCG::SetLogging(int logging)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetLogging_pre(pcg_precision, pcg_solver, logging);
+#else
    HYPRE_PCGSetLogging(pcg_solver, logging);
+#endif
 }
 
 void HyprePCG::SetPrintLevel(int print_lvl)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetPrintLevel_pre(pcg_precision, pcg_solver, print_lvl);
+#else
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_lvl);
+#endif
 }
 
 void HyprePCG::SetPreconditioner(HypreSolver &precond_)
 {
    precond = &precond_;
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_PtrToParSolverFcn precond_solve = precond_.SolveFcn();
+   HYPRE_PtrToParSolverFcn precond_setup = precond_.SetupFcn();
+
+   const HypreBoomerAMG *amg =
+      dynamic_cast<const HypreBoomerAMG *>(&precond_);
+   if (amg)
+   {
+      precond_solve = amg->SolveFcn(pcg_precision);
+      precond_setup = amg->SetupFcn(pcg_precision);
+   }
+
+   HYPRE_ParCSRPCGSetPrecond_pre(pcg_precision,
+                                 pcg_solver,
+                                 precond_solve,
+                                 precond_setup,
+                                 precond_);
+   if (amg && amg->GetHyprePrecision() != pcg_precision)
+   {
+      const HypreParMatrix *precond_A = amg->GetOperator();
+      MFEM_VERIFY(precond_A != NULL,
+                  "mixed-precision BoomerAMG preconditioner is missing its "
+                  "HypreParMatrix operator");
+      MFEM_VERIFY(precond_A->GetHyprePrecision() == amg->GetHyprePrecision(),
+                  "mixed-precision BoomerAMG preconditioner matrix precision "
+                  "does not match the AMG precision");
+      MFEM_VERIFY(A == NULL ||
+                  (precond_A->Height() == A->Height() &&
+                   precond_A->Width() == A->Width()),
+                  "mixed-precision BoomerAMG preconditioner matrix dimensions "
+                  "do not match the PCG operator dimensions");
+      HYPRE_ParCSRMatrix precond_A_hyp =
+         (HYPRE_ParCSRMatrix)(hypre_ParCSRMatrix *) *precond_A;
+      HYPRE_PCGSetPrecondMatrix_pre(pcg_precision, pcg_solver,
+                                    (HYPRE_Matrix) precond_A_hyp);
+   }
+#else
    HYPRE_ParCSRPCGSetPrecond(pcg_solver,
                              precond_.SolveFcn(),
                              precond_.SetupFcn(),
                              precond_);
+#endif
 }
 
 void HyprePCG::SetResidualConvergenceOptions(int res_frequency, real_t rtol)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetTwoNorm_pre(pcg_precision, pcg_solver, 1);
+#else
    HYPRE_PCGSetTwoNorm(pcg_solver, 1);
+#endif
    if (res_frequency > 0)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_PCGSetRecomputeResidualP_pre(pcg_precision, pcg_solver,
+                                         res_frequency);
+#else
       HYPRE_PCGSetRecomputeResidualP(pcg_solver, res_frequency);
+#endif
    }
    if (rtol > 0.0)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_PCGSetResidualTol_pre(pcg_precision, pcg_solver, rtol);
+#else
       HYPRE_PCGSetResidualTol(pcg_solver, rtol);
+#endif
    }
+}
+
+void HyprePCG::GetNumIterations(int &num_iterations) const
+{
+   HYPRE_Int num_it;
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGGetNumIterations_pre(pcg_precision, pcg_solver, &num_it);
+#else
+   HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_it);
+#endif
+   num_iterations = internal::to_int(num_it);
+}
+
+void HyprePCG::GetFinalResidualNorm(real_t &final_res_norm) const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   switch (pcg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float norm;
+         HYPRE_ParCSRPCGGetFinalRelativeResidualNorm_pre(
+            pcg_precision, pcg_solver, &norm);
+         final_res_norm = norm;
+         return;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double norm;
+         HYPRE_ParCSRPCGGetFinalRelativeResidualNorm_pre(
+            pcg_precision, pcg_solver, &norm);
+         final_res_norm = norm;
+         return;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre PCG precision");
+   }
+#else
+   HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver, &final_res_norm);
+#endif
+}
+
+HYPRE_PtrToParSolverFcn HyprePCG::SetupFcn() const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   switch (pcg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup_flt;
+      case HYPRE_REAL_DOUBLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup_dbl;
+      default:
+         MFEM_ABORT("unsupported hypre PCG precision");
+   }
+#else
+   return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup;
+#endif
+}
+
+HYPRE_PtrToParSolverFcn HyprePCG::SolveFcn() const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   switch (pcg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve_flt;
+      case HYPRE_REAL_DOUBLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve_dbl;
+      default:
+         MFEM_ABORT("unsupported hypre PCG precision");
+   }
+#else
+   return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve;
+#endif
 }
 
 void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    int myid;
    HYPRE_Int time_index = 0;
-   HYPRE_Int num_iterations;
+   int num_iterations;
    real_t final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_PCGGetPrintLevel_pre(pcg_precision, pcg_solver, &print_level);
+   HYPRE_ParCSRPCGSetPrintLevel_pre(pcg_precision, pcg_solver, print_level%3);
+#else
    HYPRE_PCGGetPrintLevel(pcg_solver, &print_level);
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level%3);
+#endif
 
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    if (!iterative_mode)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      if (HypreParVectorUsesMFEMReal(x)) { x.HypreWrite(); }
+      HYPRE_ParVectorSetConstantValues_pre(
+         x.GetHyprePrecision(), (HYPRE_ParVector)(hypre_ParVector *) x, 0.0);
+#else
       x.HypreWrite();
       hypre_ParVectorSetConstantValues(x, 0.0);
+#endif
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   MFEM_VERIFY(A->GetHyprePrecision() == pcg_precision,
+               "HyprePCG matrix precision does not match the PCG precision");
+   MFEM_VERIFY(b.GetHyprePrecision() == pcg_precision &&
+               x.GetHyprePrecision() == pcg_precision,
+               "HyprePCG vector precisions do not match the PCG precision");
+   if (HypreParVectorUsesMFEMReal(b)) { b.HypreRead(); }
+   if (HypreParVectorUsesMFEMReal(x)) { x.HypreReadWrite(); }
+#else
    b.HypreRead();
    x.HypreReadWrite();
+#endif
 
    if (!setup_called)
    {
@@ -4375,7 +5192,11 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_BeginTiming(time_index);
       }
 
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_ParCSRPCGSetup_pre(pcg_precision, pcg_solver, *A, b, x);
+#else
       HYPRE_ParCSRPCGSetup(pcg_solver, *A, b, x);
+#endif
       setup_called = 1;
 
       if (print_level > 0 && print_level < 3)
@@ -4393,7 +5214,11 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
       hypre_BeginTiming(time_index);
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSolve_pre(pcg_precision, pcg_solver, *A, b, x);
+#else
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
+#endif
 
    if (print_level > 0)
    {
@@ -4405,9 +5230,8 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_ClearTiming();
       }
 
-      HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_iterations);
-      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
-                                                  &final_res_norm);
+      GetNumIterations(num_iterations);
+      GetFinalResidualNorm(final_res_norm);
 
       MPI_Comm_rank(comm, &myid);
 
@@ -4418,12 +5242,20 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
                    << endl;
       }
    }
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGSetPrintLevel_pre(pcg_precision, pcg_solver, print_level);
+#else
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level);
+#endif
 }
 
 HyprePCG::~HyprePCG()
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_ParCSRPCGDestroy_pre(pcg_precision, pcg_solver);
+#else
    HYPRE_ParCSRPCGDestroy(pcg_solver);
+#endif
 }
 
 #if MFEM_HYPRE_VERSION >= 21500
@@ -5197,16 +6029,43 @@ HypreILU::~HypreILU()
 
 
 HypreBoomerAMG::HypreBoomerAMG()
+#ifdef HYPRE_MIXED_PRECISION
+   : amg_precision(MFEMHypreRealPrecision())
+#endif
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGCreate_pre(amg_precision, &amg_precond);
+#else
    HYPRE_BoomerAMGCreate(&amg_precond);
+#endif
    SetDefaultOptions();
 }
 
-HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
+HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A)
+#ifdef HYPRE_MIXED_PRECISION
+   : HypreSolver(&A), amg_precision(A.GetHyprePrecision())
+#else
+   : HypreSolver(&A)
+#endif
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGCreate_pre(amg_precision, &amg_precond);
+#else
    HYPRE_BoomerAMGCreate(&amg_precond);
+#endif
    SetDefaultOptions();
 }
+
+#ifdef HYPRE_MIXED_PRECISION
+HypreBoomerAMG::HypreBoomerAMG(HYPRE_Precision precision)
+   : amg_precision(precision)
+{
+   MFEM_VERIFY(IsSupportedHyprePrecision(precision),
+               "unsupported hypre BoomerAMG precision");
+   HYPRE_BoomerAMGCreate_pre(amg_precision, &amg_precond);
+   SetDefaultOptions();
+}
+#endif
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
@@ -5254,6 +6113,26 @@ void HypreBoomerAMG::SetDefaultOptions()
       max_levels   = 25;   // max number of levels in AMG hierarchy
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetCoarsenType_pre(amg_precision, amg_precond,
+                                     coarsen_type);
+   HYPRE_BoomerAMGSetAggNumLevels_pre(amg_precision, amg_precond,
+                                      agg_levels);
+   HYPRE_BoomerAMGSetRelaxType_pre(amg_precision, amg_precond, relax_type);
+   // default in hypre is 1.0 with some exceptions, e.g. for relax_type = 7
+   // HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0);
+   HYPRE_BoomerAMGSetNumSweeps_pre(amg_precision, amg_precond,
+                                   relax_sweeps);
+   HYPRE_BoomerAMGSetStrongThreshold_pre(amg_precision, amg_precond, theta);
+   HYPRE_BoomerAMGSetInterpType_pre(amg_precision, amg_precond, interp_type);
+   HYPRE_BoomerAMGSetPMaxElmts_pre(amg_precision, amg_precond, Pmax);
+   HYPRE_BoomerAMGSetPrintLevel_pre(amg_precision, amg_precond, print_level);
+   HYPRE_BoomerAMGSetMaxLevels_pre(amg_precision, amg_precond, max_levels);
+
+   // Use as a preconditioner (one V-cycle, zero tolerance)
+   HYPRE_BoomerAMGSetMaxIter_pre(amg_precision, amg_precond, 1);
+   HYPRE_BoomerAMGSetTol_pre(amg_precision, amg_precond, 0.0);
+#else
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
@@ -5269,6 +6148,7 @@ void HypreBoomerAMG::SetDefaultOptions()
    // Use as a preconditioner (one V-cycle, zero tolerance)
    HYPRE_BoomerAMGSetMaxIter(amg_precond, 1);
    HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
+#endif
 }
 
 void HypreBoomerAMG::ResetAMGPrecond()
@@ -5295,27 +6175,117 @@ void HypreBoomerAMG::ResetAMGPrecond()
    hypre_ParAMGData *amg_data = (hypre_ParAMGData *)amg_precond;
 
    // read options from amg_precond
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGGetCoarsenType_pre(amg_precision, amg_precond,
+                                     &coarsen_type);
+#else
    HYPRE_BoomerAMGGetCoarsenType(amg_precond, &coarsen_type);
+#endif
    agg_levels = hypre_ParAMGDataAggNumLevels(amg_data);
    relax_type = hypre_ParAMGDataUserRelaxType(amg_data);
    relax_sweeps = hypre_ParAMGDataUserNumSweeps(amg_data);
+#ifdef HYPRE_MIXED_PRECISION
+   switch (amg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+      {
+         hypre_float theta_f;
+         HYPRE_BoomerAMGGetStrongThreshold_pre(amg_precision, amg_precond,
+                                               &theta_f);
+         theta = theta_f;
+         break;
+      }
+      case HYPRE_REAL_DOUBLE:
+      {
+         hypre_double theta_d;
+         HYPRE_BoomerAMGGetStrongThreshold_pre(amg_precision, amg_precond,
+                                               &theta_d);
+         theta = theta_d;
+         break;
+      }
+      default:
+         MFEM_ABORT("unsupported hypre BoomerAMG precision");
+   }
+#else
    HYPRE_BoomerAMGGetStrongThreshold(amg_precond, &theta);
+#endif
+#ifdef HYPRE_MIXED_PRECISION
+   switch (amg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+         hypre_BoomerAMGGetInterpType_flt(amg_precond, &interp_type);
+         break;
+      case HYPRE_REAL_DOUBLE:
+         hypre_BoomerAMGGetInterpType_dbl(amg_precond, &interp_type);
+         break;
+      default:
+         MFEM_ABORT("unsupported hypre BoomerAMG precision");
+   }
+#else
    hypre_BoomerAMGGetInterpType(amg_precond, &interp_type);
+#endif
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGGetPMaxElmts_pre(amg_precision, amg_precond, &Pmax);
+   HYPRE_BoomerAMGGetPrintLevel_pre(amg_precision, amg_precond, &print_level);
+   HYPRE_BoomerAMGGetMaxLevels_pre(amg_precision, amg_precond, &max_levels);
+   HYPRE_BoomerAMGGetNumFunctions_pre(amg_precision, amg_precond, &dim);
+#else
    HYPRE_BoomerAMGGetPMaxElmts(amg_precond, &Pmax);
    HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
    HYPRE_BoomerAMGGetMaxLevels(amg_precond, &max_levels);
    HYPRE_BoomerAMGGetNumFunctions(amg_precond, &dim);
+#endif
    if (nrbms) // elasticity solver options
    {
       nodal = hypre_ParAMGDataNodal(amg_data);
       nodal_diag = hypre_ParAMGDataNodalDiag(amg_data);
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGGetCycleRelaxType_pre(amg_precision, amg_precond,
+                                           &relax_coarse, 3);
+#else
       HYPRE_BoomerAMGGetCycleRelaxType(amg_precond, &relax_coarse, 3);
+#endif
       interp_vec_variant = hypre_ParAMGInterpVecVariant(amg_data);
       q_max = hypre_ParAMGInterpVecQMax(amg_data);
       smooth_interp_vectors = hypre_ParAMGSmoothInterpVectors(amg_data);
       interp_refine = hypre_ParAMGInterpRefine(amg_data);
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGDestroy_pre(amg_precision, amg_precond);
+   HYPRE_BoomerAMGCreate_pre(amg_precision, &amg_precond);
+
+   HYPRE_BoomerAMGSetCoarsenType_pre(amg_precision, amg_precond,
+                                     coarsen_type);
+   HYPRE_BoomerAMGSetAggNumLevels_pre(amg_precision, amg_precond, agg_levels);
+   HYPRE_BoomerAMGSetRelaxType_pre(amg_precision, amg_precond, relax_type);
+   HYPRE_BoomerAMGSetNumSweeps_pre(amg_precision, amg_precond, relax_sweeps);
+   HYPRE_BoomerAMGSetMaxLevels_pre(amg_precision, amg_precond, max_levels);
+   HYPRE_BoomerAMGSetTol_pre(amg_precision, amg_precond, 0.0);
+   HYPRE_BoomerAMGSetMaxIter_pre(amg_precision, amg_precond, 1);
+   HYPRE_BoomerAMGSetStrongThreshold_pre(amg_precision, amg_precond, theta);
+   HYPRE_BoomerAMGSetInterpType_pre(amg_precision, amg_precond, interp_type);
+   HYPRE_BoomerAMGSetPMaxElmts_pre(amg_precision, amg_precond, Pmax);
+   HYPRE_BoomerAMGSetPrintLevel_pre(amg_precision, amg_precond, print_level);
+   HYPRE_BoomerAMGSetNumFunctions_pre(amg_precision, amg_precond, dim);
+   if (nrbms)
+   {
+      HYPRE_BoomerAMGSetNodal_pre(amg_precision, amg_precond, nodal);
+      HYPRE_BoomerAMGSetNodalDiag_pre(amg_precision, amg_precond, nodal_diag);
+      HYPRE_BoomerAMGSetCycleRelaxType_pre(amg_precision, amg_precond,
+                                           relax_coarse, 3);
+      HYPRE_BoomerAMGSetInterpVecVariant_pre(amg_precision, amg_precond,
+                                             interp_vec_variant);
+      HYPRE_BoomerAMGSetInterpVecQMax_pre(amg_precision, amg_precond, q_max);
+      HYPRE_BoomerAMGSetSmoothInterpVectors_pre(amg_precision, amg_precond,
+                                                smooth_interp_vectors);
+      HYPRE_BoomerAMGSetInterpRefine_pre(amg_precision, amg_precond,
+                                         interp_refine);
+      RecomputeRBMs();
+      HYPRE_BoomerAMGSetInterpVectors_pre(amg_precision, amg_precond,
+                                          rbms.Size(), rbms.GetData());
+   }
+#else
    HYPRE_BoomerAMGDestroy(amg_precond);
    HYPRE_BoomerAMGCreate(&amg_precond);
 
@@ -5343,12 +6313,17 @@ void HypreBoomerAMG::ResetAMGPrecond()
       RecomputeRBMs();
       HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
    }
+#endif
 }
 
 int HypreBoomerAMG::GetMaxIter() const
 {
    HYPRE_Int max_iter;
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGGetMaxIter_pre(amg_precision, amg_precond, &max_iter);
+#else
    HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
+#endif
    return max_iter;
 }
 
@@ -5356,6 +6331,11 @@ void HypreBoomerAMG::SetOperator(const Operator &op)
 {
    const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+#ifdef HYPRE_MIXED_PRECISION
+   MFEM_VERIFY(new_A->GetHyprePrecision() == amg_precision,
+               "HypreBoomerAMG operator precision does not match the AMG "
+               "precision");
+#endif
 
    if (A) { ResetAMGPrecond(); }
 
@@ -5373,7 +6353,11 @@ void HypreBoomerAMG::SetOperator(const Operator &op)
 
 void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
 {
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetNumFunctions_pre(amg_precision, amg_precond, dim);
+#else
    HYPRE_BoomerAMGSetNumFunctions(amg_precond, dim);
+#endif
 
    // The default "system" ordering in hypre is Ordering::byVDIM. When we are
    // using Ordering::byNODES, we have to specify the ordering explicitly with
@@ -5413,12 +6397,21 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
 
       // hypre actually deletes the mapping pointer in HYPRE_BoomerAMGDestroy,
       // so we don't need to track it
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetDofFunc_pre(amg_precision, amg_precond, mapping);
+#else
       HYPRE_BoomerAMGSetDofFunc(amg_precond, mapping);
+#endif
    }
 
    // More robust options with respect to convergence
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetAggNumLevels_pre(amg_precision, amg_precond, 0);
+   HYPRE_BoomerAMGSetStrongThreshold_pre(amg_precision, amg_precond, 0.5);
+#else
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, 0.5);
+#endif
 }
 
 // Rotational rigid-body mode functions, used in SetElasticityOptions()
@@ -5443,7 +6436,11 @@ void HypreBoomerAMG::RecomputeRBMs()
 
    for (int i = 0; i < rbms.Size(); i++)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      DestroyHypreParVectorWithPrecision((hypre_ParVector *) rbms[i]);
+#else
       HYPRE_ParVectorDestroy(rbms[i]);
+#endif
    }
 
    if (dim == 2)
@@ -5493,7 +6490,11 @@ void HypreBoomerAMG::RecomputeRBMs()
    // Transfer the RBMs from the ParGridFunction to the HYPRE_ParVector objects
    for (int i = 0; i < nrbms; i++)
    {
-      rbms[i] = gf_rbms[i]->StealParVector();
+      hypre_ParVector *rbm = gf_rbms[i]->StealParVector();
+#ifdef HYPRE_MIXED_PRECISION
+      rbm = ConvertHypreParVectorWithPrecision(rbm, amg_precision);
+#endif
+      rbms[i] = (HYPRE_ParVector) rbm;
       delete gf_rbms[i];
    }
 }
@@ -5533,6 +6534,19 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    // refinement (this is generally applicable for any system)
    int interp_refine         = interp_refine_;
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetNodal_pre(amg_precision, amg_precond, nodal);
+   HYPRE_BoomerAMGSetNodalDiag_pre(amg_precision, amg_precond, nodal_diag);
+   HYPRE_BoomerAMGSetCycleRelaxType_pre(amg_precision, amg_precond,
+                                        relax_coarse, 3);
+   HYPRE_BoomerAMGSetInterpVecVariant_pre(amg_precision, amg_precond,
+                                          interp_vec_variant);
+   HYPRE_BoomerAMGSetInterpVecQMax_pre(amg_precision, amg_precond, q_max);
+   HYPRE_BoomerAMGSetSmoothInterpVectors_pre(amg_precision, amg_precond,
+                                             smooth_interp_vectors);
+   HYPRE_BoomerAMGSetInterpRefine_pre(amg_precision, amg_precond,
+                                      interp_refine);
+#else
    HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
    HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
    HYPRE_BoomerAMGSetCycleRelaxType(amg_precond, relax_coarse, 3);
@@ -5540,9 +6554,15 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    HYPRE_BoomerAMGSetInterpVecQMax(amg_precond, q_max);
    HYPRE_BoomerAMGSetSmoothInterpVectors(amg_precond, smooth_interp_vectors);
    HYPRE_BoomerAMGSetInterpRefine(amg_precond, interp_refine);
+#endif
 
    RecomputeRBMs();
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetInterpVectors_pre(amg_precision, amg_precond,
+                                       rbms.Size(), rbms.GetData());
+#else
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
+#endif
 
    // The above BoomerAMG options may result in singular matrices on the coarse
    // grids, which are handled correctly in hypre's Solve method, but can produce
@@ -5617,38 +6637,95 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
          }
       }
 
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetRestriction_pre(amg_precision, amg_precond,
+                                        distanceR);
+#else
       HYPRE_BoomerAMGSetRestriction(amg_precond, distanceR);
+#endif
 
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetGridRelaxPoints_pre(amg_precision, amg_precond,
+                                            grid_relax_points);
+#else
       HYPRE_BoomerAMGSetGridRelaxPoints(amg_precond, grid_relax_points);
+#endif
 
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetInterpType_pre(amg_precision, amg_precond,
+                                       interp_type);
+#else
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
+#endif
    }
 
    if (Sabs)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetSabs_pre(amg_precision, amg_precond, Sabs);
+#else
       HYPRE_BoomerAMGSetSabs(amg_precond, Sabs);
+#endif
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetCoarsenType_pre(amg_precision, amg_precond,
+                                     coarsen_type);
+#else
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
+#endif
 
    // does not support aggressive coarsening
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetAggNumLevels_pre(amg_precision, amg_precond, 0);
+#else
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
+#endif
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGSetStrongThreshold_pre(amg_precision, amg_precond,
+                                         strength_tolC);
+#else
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
+#endif
 
    if (distanceR > 0)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetStrongThresholdR_pre(amg_precision, amg_precond,
+                                             strength_tolR);
+      HYPRE_BoomerAMGSetFilterThresholdR_pre(amg_precision, amg_precond,
+                                             filter_tolR);
+#else
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
       HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filter_tolR);
+#endif
    }
 
    if (relax_type > -1)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetRelaxType_pre(amg_precision, amg_precond, relax_type);
+#else
       HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+#endif
    }
 
    if (distanceR > 0)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetCycleNumSweeps_pre(amg_precision, amg_precond,
+                                           ns_coarse, 3);
+      HYPRE_BoomerAMGSetCycleNumSweeps_pre(amg_precision, amg_precond,
+                                           ns_down,   1);
+      HYPRE_BoomerAMGSetCycleNumSweeps_pre(amg_precision, amg_precond,
+                                           ns_up,     2);
+
+      HYPRE_BoomerAMGSetADropTol_pre(amg_precision, amg_precond,
+                                     filterA_tol);
+      // type = -1: drop based on row inf-norm
+      HYPRE_BoomerAMGSetADropType_pre(amg_precision, amg_precond, -1);
+#else
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
@@ -5656,19 +6733,100 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
       HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
       // type = -1: drop based on row inf-norm
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
+#endif
    }
 }
 
+#endif
+
+HYPRE_PtrToParSolverFcn HypreBoomerAMG::SetupFcn() const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   switch (amg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_flt;
+      case HYPRE_REAL_DOUBLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_dbl;
+      default:
+         MFEM_ABORT("unsupported hypre BoomerAMG precision");
+   }
+#else
+   return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup;
+#endif
+}
+
+#ifdef HYPRE_MIXED_PRECISION
+HYPRE_PtrToParSolverFcn
+HypreBoomerAMG::SetupFcn(HYPRE_Precision vector_precision) const
+{
+   MFEM_VERIFY(IsSupportedHyprePrecision(vector_precision),
+               "unsupported hypre vector precision");
+   if (amg_precision == vector_precision)
+   {
+      return SetupFcn();
+   }
+   if (amg_precision == HYPRE_REAL_SINGLE &&
+       vector_precision == HYPRE_REAL_DOUBLE)
+   {
+      return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup_mp;
+   }
+   MFEM_ABORT("unsupported mixed-precision BoomerAMG setup");
+}
+#endif
+
+HYPRE_PtrToParSolverFcn HypreBoomerAMG::SolveFcn() const
+{
+#ifdef HYPRE_MIXED_PRECISION
+   switch (amg_precision)
+   {
+      case HYPRE_REAL_SINGLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_flt;
+      case HYPRE_REAL_DOUBLE:
+         return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_dbl;
+      default:
+         MFEM_ABORT("unsupported hypre BoomerAMG precision");
+   }
+#else
+   return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve;
+#endif
+}
+
+#ifdef HYPRE_MIXED_PRECISION
+HYPRE_PtrToParSolverFcn
+HypreBoomerAMG::SolveFcn(HYPRE_Precision vector_precision) const
+{
+   MFEM_VERIFY(IsSupportedHyprePrecision(vector_precision),
+               "unsupported hypre vector precision");
+   if (amg_precision == vector_precision)
+   {
+      return SolveFcn();
+   }
+   if (amg_precision == HYPRE_REAL_SINGLE &&
+       vector_precision == HYPRE_REAL_DOUBLE)
+   {
+      return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve_mp;
+   }
+   MFEM_ABORT("unsupported mixed-precision BoomerAMG solve");
+}
 #endif
 
 HypreBoomerAMG::~HypreBoomerAMG()
 {
    for (int i = 0; i < rbms.Size(); i++)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      DestroyHypreParVectorWithPrecision((hypre_ParVector *) rbms[i]);
+#else
       HYPRE_ParVectorDestroy(rbms[i]);
+#endif
    }
 
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_BoomerAMGDestroy_pre(amg_precision, amg_precond);
+#else
    HYPRE_BoomerAMGDestroy(amg_precond);
+#endif
 }
 
 HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)

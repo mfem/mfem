@@ -234,10 +234,19 @@ private:
    /// The actual object
    hypre_ParVector *x;
 
+   /// Indicates whether x has real_t as its floating point type.
+   bool using_real_t;
+
    friend class HypreParMatrix;
 
-   // Set Vector::data and Vector::size from *x
+   /// Set Vector::data and Vector::size from *x
    inline void _SetDataAndSize_();
+
+   /** @brief Verify that x uses real_t as its floating point type.
+
+       This verification is used only by functions that assume the precision
+       type to match the MFEM real_t type. */
+   void VerifyRealPrecision() const;
 
 public:
 
@@ -246,6 +255,7 @@ public:
    {
       own_ParVector = false;
       x = NULL;
+      using_real_t = true;
    }
 
    /** @brief Creates vector with given global size and parallel partitioning of
@@ -279,6 +289,16 @@ public:
                   int offset, HYPRE_BigInt *col);
    /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Creates a deep copy of @a y using the requested hypre precision.
+
+       When MFEM is built with `real_t == double` and hypre is configured with
+       `--enable-mixed-precision`, this constructor can be used both to create
+       a single-precision hypre vector from a double-precision HypreParVector
+       and to create a double-precision hypre vector from a single-precision
+       HypreParVector. */
+   HypreParVector(const HypreParVector &y, HYPRE_Precision precision);
+#endif
    /// Move constructor for HypreParVector. "Steals" data from its argument.
    HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
@@ -291,6 +311,11 @@ public:
    /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
    /// - meaning that it will be the same size and have the same partitioning.
    HypreParVector CreateCompatibleVector() const;
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Constructs a compatible HypreParVector using the requested hypre
+       runtime precision. */
+   HypreParVector CreateCompatibleVector(HYPRE_Precision precision) const;
+#endif
 
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
@@ -311,6 +336,48 @@ public:
 
    /// Returns the global number of rows
    inline HYPRE_BigInt GlobalSize() const { return x->global_size; }
+
+#ifdef HYPRE_MIXED_PRECISION
+   /// Return the precision currently used by the wrapped hypre vector data.
+   HYPRE_Precision GetHyprePrecision() const
+   { return hypre_ParVectorPrecision(x); }
+#endif
+
+   /** @brief Return an untyped pointer to the local hypre vector data.
+
+       In mixed-precision builds, the pointer should be interpreted according
+       to GetHyprePrecision(): HYPRE_REAL_SINGLE corresponds to hypre_float *
+       and HYPRE_REAL_DOUBLE corresponds to hypre_double *. */
+   void *GetHypreData();
+
+   /** @brief Return a const untyped pointer to the local hypre vector data.
+
+       In mixed-precision builds, the pointer should be interpreted according
+       to GetHyprePrecision(): HYPRE_REAL_SINGLE corresponds to const
+       hypre_float * and HYPRE_REAL_DOUBLE corresponds to const hypre_double *. */
+   const void *GetHypreData() const;
+
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Return the local hypre vector data as hypre_float *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_SINGLE. */
+   hypre_float *GetHypreFloatData();
+
+   /** @brief Return the local hypre vector data as const hypre_float *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_SINGLE. */
+   const hypre_float *GetHypreFloatData() const;
+
+   /** @brief Return the local hypre vector data as hypre_double *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_DOUBLE. */
+   hypre_double *GetHypreDoubleData();
+
+   /** @brief Return the local hypre vector data as const hypre_double *.
+
+       This method verifies that GetHyprePrecision() is HYPRE_REAL_DOUBLE. */
+   const hypre_double *GetHypreDoubleData() const;
+#endif
 
    /// Typecasting to hypre's hypre_ParVector*
    operator hypre_ParVector*() const { return x; }
@@ -602,6 +669,19 @@ public:
        structure and data from @a P. */
    HypreParMatrix(const HypreParMatrix &P);
 
+#ifdef HYPRE_MIXED_PRECISION
+   /** @brief Mixed-precision copy constructor for a ParCSR matrix.
+
+       Creates a deep copy of @a P using the requested hypre precision. In
+       particular, when MFEM is built with `real_t == double`, calling
+       `HypreParMatrix(P, HYPRE_REAL_SINGLE)` creates a hypre_ParCSRMatrix whose
+       numerical data is stored by hypre as single precision (`hypre_float`).
+
+       The constructor requires hypre to be configured with
+       `--enable-mixed-precision`. */
+   HypreParMatrix(const HypreParMatrix &P, HYPRE_Precision precision);
+#endif
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 
@@ -616,6 +696,12 @@ public:
 #endif
    /// Changes the ownership of the matrix
    hypre_ParCSRMatrix* StealData();
+
+#ifdef HYPRE_MIXED_PRECISION
+   /// Return the precision currently used by the wrapped hypre matrix data.
+   HYPRE_Precision GetHyprePrecision() const
+   { return hypre_ParCSRMatrixPrecision(A); }
+#endif
 
    /// Explicitly set the three ownership flags, see docs for diagOwner etc.
    void SetOwnerFlags(signed char diag, signed char offd, signed char colmap);
@@ -1293,6 +1379,9 @@ public:
    void SetOperator(const Operator &op) override
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
+   /// Return the HypreParMatrix used to set up the solver, if any.
+   const HypreParMatrix *GetOperator() const { return A; }
+
    MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
 
    ///@{
@@ -1355,6 +1444,11 @@ private:
 
    HypreSolver * precond;
 
+#ifdef HYPRE_MIXED_PRECISION
+   /// Runtime precision of the hypre PCG solver object.
+   HYPRE_Precision pcg_precision;
+#endif
+
    /// Default PCG options
    void SetDefaultOptions();
 
@@ -1362,6 +1456,13 @@ public:
    HyprePCG(MPI_Comm comm);
 
    HyprePCG(const HypreParMatrix &A_);
+
+#ifdef HYPRE_MIXED_PRECISION
+   HyprePCG(MPI_Comm comm, HYPRE_Precision precision);
+
+   /// Return the runtime precision of the hypre PCG solver object.
+   HYPRE_Precision GetHyprePrecision() const { return pcg_precision; }
+#endif
 
    void SetOperator(const Operator &op) override;
 
@@ -1388,19 +1489,10 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
-   void GetNumIterations(int &num_iterations) const
-   {
-      HYPRE_Int num_it;
-      HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_it);
-      num_iterations = internal::to_int(num_it);
-   }
+   void GetNumIterations(int &num_iterations) const;
 
    /// Gets the relative residual norm
-   void GetFinalResidualNorm(real_t &final_res_norm) const
-   {
-      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
-                                                  &final_res_norm);
-   }
+   void GetFinalResidualNorm(real_t &final_res_norm) const;
 
    /// @param[in] use
    ///   Convergence criterion:
@@ -1425,11 +1517,9 @@ public:
    operator HYPRE_Solver() const override { return pcg_solver; }
 
    /// PCG Setup function
-   HYPRE_PtrToParSolverFcn SetupFcn() const override
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup; }
+   HYPRE_PtrToParSolverFcn SetupFcn() const override;
    /// PCG Solve function
-   HYPRE_PtrToParSolverFcn SolveFcn() const override
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve; }
+   HYPRE_PtrToParSolverFcn SolveFcn() const override;
 
    /// Solve Ax=b with hypre's PCG
    void Mult(const HypreParVector &b, HypreParVector &x) const override;
@@ -1835,6 +1925,11 @@ private:
    /// Finite element space for elasticity problems, see SetElasticityOptions()
    ParFiniteElementSpace *fespace;
 
+#ifdef HYPRE_MIXED_PRECISION
+   /// Runtime precision of the hypre BoomerAMG solver object.
+   HYPRE_Precision amg_precision;
+#endif
+
    /// Recompute the rigid-body modes vectors (in the rbms array)
    void RecomputeRBMs();
 
@@ -1850,6 +1945,13 @@ public:
    HypreBoomerAMG();
 
    HypreBoomerAMG(const HypreParMatrix &A);
+
+#ifdef HYPRE_MIXED_PRECISION
+   HypreBoomerAMG(HYPRE_Precision precision);
+
+   /// Return the runtime precision of the hypre BoomerAMG solver object.
+   HYPRE_Precision GetHyprePrecision() const { return amg_precision; }
+#endif
 
    void SetOperator(const Operator &op) override;
 
@@ -1882,94 +1984,211 @@ public:
 
    /// Expert option - consult hypre documentation/team
    void SetStrongThresholdR(real_t strengthR)
-   { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetStrongThresholdR_pre(amg_precision, amg_precond,
+                                             strengthR);
+#else
+      HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetFilterThresholdR(real_t filterR)
-   { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetFilterThresholdR_pre(amg_precision, amg_precond,
+                                             filterR);
+#else
+      HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetRestriction(int restrict_type)
-   { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetRestriction_pre(amg_precision, amg_precond,
+                                        restrict_type);
+#else
+      HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetIsTriangular()
-   { HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetIsTriangular_pre(amg_precision, amg_precond, 1);
+#else
+      HYPRE_BoomerAMGSetIsTriangular(amg_precond, 1);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetGMRESSwitchR(int gmres_switch)
-   { HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetGMRESSwitchR_pre(amg_precision, amg_precond,
+                                         gmres_switch);
+#else
+      HYPRE_BoomerAMGSetGMRESSwitchR(amg_precond, gmres_switch);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetCycleNumSweeps(int prerelax, int postrelax)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetCycleNumSweeps_pre(amg_precision, amg_precond,
+                                           prerelax,  1);
+      HYPRE_BoomerAMGSetCycleNumSweeps_pre(amg_precision, amg_precond,
+                                           postrelax, 2);
+#else
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
+#endif
    }
 #endif
 
    void SetPrintLevel(int print_level)
-   { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetPrintLevel_pre(amg_precision, amg_precond,
+                                       print_level);
+#else
+      HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level);
+#endif
+   }
 
    void SetMaxIter(int max_iter)
-   { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetMaxIter_pre(amg_precision, amg_precond, max_iter);
+#else
+      HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter);
+#endif
+   }
    int GetMaxIter() const;
 
    /// Expert option - consult hypre documentation/team
    void SetMaxLevels(int max_levels)
-   { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetMaxLevels_pre(amg_precision, amg_precond, max_levels);
+#else
+      HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetTol(real_t tol)
-   { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetTol_pre(amg_precision, amg_precond, tol);
+#else
+      HYPRE_BoomerAMGSetTol(amg_precond, tol);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetStrengthThresh(real_t strength)
-   { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetStrongThreshold_pre(amg_precision, amg_precond,
+                                            strength);
+#else
+      HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetInterpolation(int interp_type)
-   { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetInterpType_pre(amg_precision, amg_precond,
+                                       interp_type);
+#else
+      HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetCoarsening(int coarsen_type)
-   { HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetCoarsenType_pre(amg_precision, amg_precond,
+                                        coarsen_type);
+#else
+      HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
+#endif
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
-   { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetRelaxType_pre(amg_precision, amg_precond, relax_type);
+#else
+      HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+#endif
+   }
    // not implemented in hypre
    // int GetRelaxType() const;
 
    /// Expert option - consult hypre documentation/team
    void SetCycleType(int cycle_type)
-   { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetCycleType_pre(amg_precision, amg_precond, cycle_type);
+#else
+      HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type);
+#endif
+   }
 
    void GetNumIterations(int &num_iterations) const
    {
       HYPRE_Int num_it;
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGGetNumIterations_pre(amg_precision, amg_precond,
+                                          &num_it);
+#else
       HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it);
+#endif
       num_iterations = internal::to_int(num_it);
    }
 
    /// Expert option - consult hypre documentation/team
    void SetNodal(int blocksize)
    {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetNumFunctions_pre(amg_precision, amg_precond, blocksize);
+      HYPRE_BoomerAMGSetNodal_pre(amg_precision, amg_precond, 1);
+#else
       HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
       HYPRE_BoomerAMGSetNodal(amg_precond, 1);
+#endif
    }
 
    /// Expert option - consult hypre documentation/team
    void SetAggressiveCoarsening(int num_levels)
-   { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
+   {
+#ifdef HYPRE_MIXED_PRECISION
+      HYPRE_BoomerAMGSetAggNumLevels_pre(amg_precision, amg_precond, num_levels);
+#else
+      HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels);
+#endif
+   }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    operator HYPRE_Solver() const override { return amg_precond; }
 
-   HYPRE_PtrToParSolverFcn SetupFcn() const override
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
-   HYPRE_PtrToParSolverFcn SolveFcn() const override
-   { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
+   HYPRE_PtrToParSolverFcn SetupFcn() const override;
+   HYPRE_PtrToParSolverFcn SolveFcn() const override;
+#ifdef HYPRE_MIXED_PRECISION
+   HYPRE_PtrToParSolverFcn SetupFcn(HYPRE_Precision vector_precision) const;
+   HYPRE_PtrToParSolverFcn SolveFcn(HYPRE_Precision vector_precision) const;
+#endif
 
    using HypreSolver::Mult;
 

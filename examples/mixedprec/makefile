@@ -13,20 +13,15 @@
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/amgx/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/mixedprec/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1
 PAR_EXAMPLES = ex1p
-ifeq ($(MFEM_USE_MPI),NO)
-   EXAMPLES = $(SEQ_EXAMPLES)
-else
-   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
-endif
+EXAMPLES = $(PAR_EXAMPLES)
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -41,22 +36,19 @@ endif
 
 all: $(EXAMPLES)
 
-ifeq ($(MFEM_USE_AMGX),NO)
+ifeq ($(MFEM_USE_MPI),NO)
 $(EXAMPLES):
-	$(error MFEM is not configured with AMGX)
+	$(error MFEM is not configured with MPI)
 endif
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
-# Testing: Parallel vs. serial runs
+# Testing:
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-SERIAL_NAME := Serial AMGX example
-PARALLEL_NAME := Parallel AMGX example
+PARALLEL_NAME := Mixed precision ex1p
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -67,8 +59,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f .logamgx refined.mesh sol.gf mesh.* sol.*
+	@rm -f sol.gf mesh.* sol.*
