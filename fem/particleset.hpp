@@ -337,8 +337,7 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   CrystalRouterOld* router = nullptr;     // backs Redistribute (scalar columns)
-   CrystalRouter* router_native = nullptr; // backs RedistributeNative (ParticleVector columns)
+   CrystalRouter* crystal_router = nullptr; // backs Redistribute (flat-buffer router)
 #endif // MFEM_USE_MPI
 
 //#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)

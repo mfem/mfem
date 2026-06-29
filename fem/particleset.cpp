@@ -445,128 +445,21 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    MFEM_ASSERT(rank_list.Size() == GetNParticles(),
                "rank_list must be of size GetNParticles().");
 
-   int rank = GetRank(comm);
-   int N = rank_list.Size();
-   int sdim = coords.GetVDim();
-   int nfields = GetNFields();
-   int ntags = GetNTags();
+   // The router rewrites ranks in place (compact/append) and rank_list is const,
+   // so route through a mutable copy. Stays unsigned -- no narrowing cast.
+   Array<unsigned int> ranks(rank_list);
 
-   // send_idxs: local indices of particles to be sent
-   // ranks: destination ranks of particles to be sent
-   Array<int> send_idxs, ranks;
-   send_idxs.Reserve(N);
-   ranks.Reserve(N);
-   for (int i = 0; i < N; i++){
-      int dest = static_cast<int>(rank_list[i]);
-      if (rank != dest){
-         send_idxs.Append(i);
-         ranks.Append(dest);
-      }
-   }
-   int nsend = send_idxs.Size();
+   std::vector<ParticleVector*> data;
+   data.reserve(1 + fields.size());
+   data.push_back(&coords);
+   for (auto &f : fields) { data.push_back(f.get()); }
 
-   // real components
-   // reals stored in a 2d vector of arrays
-   // real_data = &real_storage
-   // ** route works via pointers to arrays, point to change in full Array<T> implementation **
-   int nreals = sdim;
-   for (int f = 0; f < nfields; f++){
-      nreals += Field(f).GetVDim();
-   }
+   std::vector<Array<int>*> tag_cols;
+   tag_cols.reserve(tags.size());
+   for (auto &t : tags) { tag_cols.push_back(t.get()); }
 
-   std::vector<Array<real_t>> real_storage(nreals);
-   std::vector<Array<real_t>*> real_data(nreals);
-   for (int j = 0; j < nreals; j++){
-      real_storage[j].SetSize(nsend);
-      real_data[j] = &real_storage[j];
-   }
-
-   // int components
-   // ints stored in a 2d vector of arrays
-   // int_data = &int_storage
-   // same reason as reals, ask about arch/storage layout later
-   int n_int_arr = 2 + ntags;
-   std::vector<Array<int>> int_storage(n_int_arr);
-   std::vector<Array<int>*> int_data(n_int_arr);
-   for(int j = 0; j < n_int_arr; j++)
-   {
-      int_storage[j].SetSize(nsend);
-      int_data[j] = &int_storage[j];
-   }
-
-   // pack all data, by VDIM ordering
-   // ** consider NODE ordering for full build **
-   // reals:
-   /*
-      |x_0 | x_1 | x_2 | ... | x_n | c loop
-      |y_0 | y_1 | y_2 | ... | y_n |
-      |z_0 | z_1 | z_2 | ... | z_n |
-      |vx_0 | vx_1 | vx_2| ... | vx_n | f loop
-      |vy_0 | vy_1 | vy_2| ... | vy_n |
-      |vz_0 | vz_1 | vz_2| ... | vz_n |
-   */
-   for (int i = 0; i < nsend; i++){
-      int idx = send_idxs[i];
-      int j = 0;
-      for (int c = 0; c < sdim; c++){
-         real_storage[j++][i] = coords(idx, c);
-      }
-      for (int f = 0; f < nfields; f++){
-         ParticleVector &pv = Field(f);
-         for (int c = 0; c < pv.GetVDim(); c++){
-            real_storage[j++][i] = pv(idx, c);
-         }
-      }
-
-      // id is unsigned long long, split across two 32-bit ints
-      // when rewriting for Array<T> functionality, take this into consideration
-      // this is stupid, need do be changed later
-      IDType id = ids[idx];
-      int_storage[0][i] = static_cast<int>(id & 0xFFFFFFFFu);
-      int_storage[1][i] = static_cast<int>(id >> 32);
-      for (int t = 0; t < ntags; t++){
-         int_storage[2 + t][i] = (*tags[t])[idx];
-      }
-   }
-
-   // CRYSTAL ROUTER
-   router->Route(ranks, int_data, real_data);
-
-
-   int nrecv = ranks.Size();
-   if (nsend > 0){
-      RemoveParticles(send_idxs);
-   }
-
-   // unpack data and id metadata
-   Array<IDType> recv_ids(nrecv);
-   for (int i = 0; i < nrecv; i++){
-      IDType lo = static_cast<unsigned int>(int_storage[0][i]);
-      IDType hi = static_cast<unsigned int>(int_storage[1][i]);
-      recv_ids[i] = (hi << 32) | lo;
-   }
-   Array<int> new_idxs;
-   AddParticles(recv_ids, &new_idxs);
-
-   for (int i = 0; i < nrecv; i++){
-      int idx = new_idxs[i];
-      int j = 0;
-
-      for (int c = 0; c < sdim; c++){
-         coords(idx, c) = real_storage[j++][i];
-      }
-      for (int f = 0; f < nfields; f++){
-         ParticleVector &pv = Field(f);
-         for (int c = 0; c < pv.GetVDim(); c++){
-            pv(idx, c) = real_storage[j++][i];
-         }
-      }
-      for (int t = 0; t < ntags; t++){
-         (*tags[t])[idx] = int_storage[2 + t][i];
-      }
-   }
+   crystal_router->Route(ranks, ids, tag_cols, data);
 }
-
 #endif // MFEM_USE_MPI
 
 Particle ParticleSet::CreateParticle() const

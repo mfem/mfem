@@ -6,6 +6,7 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <vector>
+#include <type_traits>
 #include "../linalg/vector.hpp"
 #include "../linalg/particlevector.hpp"
 #include "array.hpp"
@@ -13,42 +14,62 @@
 namespace mfem
 {
 
+template <typename T>
+// true if T is a ParticleVector or an Array<int> (tags)
+inline constexpr bool Routable =
+   std::is_base_of<ParticleVector, std::decay_t<T>>::value ||
+   std::is_same<std::decay_t<T>, Array<int>>::value;
+
 class CrystalRouter
 {
 public:
    CrystalRouter(MPI_Comm comm);
    ~CrystalRouter();
 
-   // Route ids/tags/ranks plus an arbitrary number of ParticleVectors
-   // Each ParticleVector keeps its own vdim/ordering.
-   // Template collapses ParticleVectors into std::vector<mfem::ParticleVector*> for internal use [RouteInternal].
-   template <typename... PVs>
-   void Route(Array<unsigned long long> &ids, Array<int> &tags,
-              Array<int> &ranks, PVs &... pvs)
+   // enable this overload only if all the input columns are routable (ParticleVector or tags Array<int>)
+   template <typename... Cols, std::enable_if_t<(Routable<Cols> && ...), int> = 0>
+
+   void Route(Array<unsigned int> &ranks, Array<unsigned long long> &ids, Cols &... cols)
    {
-      std::vector<ParticleVector*> data{ &pvs... };
-      RouteInternal(ids, tags, ranks, data);
+      std::vector<Array<int>*>     tags;
+      std::vector<ParticleVector*> data;
+      (Bucket(cols, tags, data), ...);
+
+      Route(ranks, ids, tags, data);
    }
+
+   void Route(Array<unsigned int> &ranks, Array<unsigned long long> &ids,
+              const std::vector<Array<int>*> &tags,
+              const std::vector<ParticleVector*> &data);
 
 private:
    MPI_Comm comm;
    int rank, nprocs;
 
-   int tag_vdim;
-
    Array<char> send_buf;
    Array<char> recv_buf;
 
-   void RouteInternal(Array<unsigned long long> &ids, Array<int> &tags,
-                  Array<int> &ranks, const std::vector<ParticleVector*> &data);
+   template <typename T>
+   static void Bucket(T &col, std::vector<Array<int>*> &tags,
+                      std::vector<ParticleVector*> &data)
+   {
+      if constexpr (std::is_base_of<ParticleVector, T>::value) {
+         data.push_back(&col);
+      }
+      else {
+         tags.push_back(&col);
+      }
+   }
 
-   void Move(const std::vector<ParticleVector*> &data,
-             Array<unsigned long long> &ids, Array<int> &tags,
-             Array<int> &ranks, int cutoff, bool send_hi);
+   void Move(Array<unsigned int> &ranks, Array<unsigned long long> &ids,
+             const std::vector<Array<int>*> &tags,
+             const std::vector<ParticleVector*> &data,
+             unsigned int cutoff, bool send_hi);
 
-   void Exchange(const std::vector<ParticleVector*> &data,
-                 Array<unsigned long long> &ids, Array<int> &tags,
-                 Array<int> &ranks, int target, int recvn, int msg_tag);
+   void Exchange(Array<unsigned int> &ranks, Array<unsigned long long> &ids,
+                 const std::vector<Array<int>*> &tags,
+                 const std::vector<ParticleVector*> &data,
+                 int target, int recvn, int msg_tag);
 };
 
 }
