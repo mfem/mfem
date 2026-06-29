@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "../general/crystal.hpp"
-#include "../general/crystal_old.hpp"
 
 // gslib no longer needed by ParticleSet::Redistribute (native CrystalRouter
 // replaces it); kept commented out to avoid the gslib build dependency.
