@@ -1149,8 +1149,7 @@ void CurlInterpolatorApply3DSmem(const int ne, const int ndof_o,
       }
       // threads assigned to mitigate bank conflicts
       MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, NQUAD_O, NQUAD_O,
-                                           NDOF_C, mnq, mnq, mnq)
-      {
+                                           NDOF_C, mnq, mnq - 1, mnq) {
          real_t u = 0;
          for (int dy = 0; dy < NDOF_C; ++dy)
          {
