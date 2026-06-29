@@ -757,6 +757,13 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    }
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
    smoothers[0] = new UMFPackSolver(Ac);
+
+   for (int i = num_levels - 1; i >= 0; --i)
+   {
+      std::cout << "Level " << i << ": " << operators[i]->Height() << " DOFs. ";
+      std::cout << "nnz = " << static_cast<SparseMatrix*>
+                (operators[i])->NumNonZeroElems() << ".\n";
+   }
 }
 } // namespace mfem
 

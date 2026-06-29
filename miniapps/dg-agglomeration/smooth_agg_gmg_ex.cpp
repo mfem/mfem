@@ -153,6 +153,36 @@ int main(int argc, char *argv[])
    // A.PrintMM(ofs1); 
    // ofs1.close();
 
+   {
+      std::ofstream f("A.txt");
+      A.PrintMatlab(f);
+   }
+   {
+      const auto &e2e = mesh.ElementToElementTable();
+      Array<int> fn;
+
+      std::ofstream f("t2t.txt");
+      for (int e = 0; e < mesh.GetNE(); ++e)
+      {
+         e2e.GetRow(e, fn);
+         int i = 0;
+         for (; i < fn.Size(); ++i)
+         {
+            if (fn[i] != e)
+            {
+               f << (fn[i] + 1) << " ";
+            }
+         }
+         const int nf = dim == 2 ? Geometry::NumEdges[mesh.GetElementGeometry(e)]
+                        : Geometry::NumFaces[mesh.GetElementGeometry(e)];
+         for (; i < nf; ++i)
+         {
+            f << -1 << " ";
+         }
+         f << '\n';
+      }
+   }
+
    SmoothedAggregationGMG mg(fespace, A, ncoarse, num_levels, false);
    mg.SetCycleType(mfem::MultigridBase::CycleType::VCYCLE, 3, 3);
 
