@@ -1,0 +1,15 @@
+# Python dependencies for topology optimization visualization
+#
+# Install with:
+#   pip install --user -r requirements.txt
+# or:
+#   python3 -m pip install --user -r requirements.txt
+
+# Core visualization
+numpy>=1.20.0
+matplotlib>=3.3.0
+
+# Optional: For VTK/ParaView file processing and 3D rendering
+# Uncomment if you want GIF generation from ParaView files:
+# pyvista>=0.35.0
+# pillow>=8.0.0

@@ -2,6 +2,9 @@
 *.o
 ElastTopOpt
 ElastTopOpt_maxlen
+ElastTopOpt_transient
+ForwardElastodynamics
+elasticity_topopt_par
 
 # Outputs
 ParaView/
@@ -9,3 +12,22 @@ ParaView/
 
 # macOS
 .DS_Store
+
+# ParaView files
+*.vtu
+*.vtk
+
+# Shell scripts
+*.sh
+
+# Overleaf
+6a0d1d2ed0a8576233e59255/
+
+# ParaView application folder
+ParaView/
+
+# Gmsh application folder
+gmsh-4.11.1-Linux64/
+
+# Mesh files (generated)
+*.msh
