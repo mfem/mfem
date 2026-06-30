@@ -141,8 +141,7 @@ jobs:
 
     continue-on-error: ${{ matrix.enzyme && true || false }}
 
-    # Enable ccache for all jobs except Windows (which would need sccache for
-    # MSVC) and the macOS Enzyme job (custom OMPI_CXX clang toolchain).
+    # Enable ccache for all jobs except Windows and macOS enzyme
     env:
       USE_CCACHE: ${{ matrix.os != 'windows-latest' && !matrix.enzyme }}
 
