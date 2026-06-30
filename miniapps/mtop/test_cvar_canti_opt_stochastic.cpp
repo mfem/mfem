@@ -41,6 +41,29 @@ bool is_deterministic_step(
     return deterministic_until || deterministic_after;
 }
 
+// Return true if Heaviside projection should be active at this outer iteration.
+bool is_heaviside_step(
+    unsigned int outer_iteration,
+    const bool ENABLE_HEAVISIDE_PROJECTION,
+    const int RUN_HEAVISIDE_AFTER
+) {
+    if (!ENABLE_HEAVISIDE_PROJECTION)
+    {
+        return false;
+    }
+    return (RUN_HEAVISIDE_AFTER < 0) || (outer_iteration >= static_cast<unsigned int>(RUN_HEAVISIDE_AFTER));
+}
+
+// Cosine schedule for SIMP power during non-Heaviside phases.
+real_t simp_power_schedule(
+    unsigned int outer_iteration,
+    const real_t simp_power_mean,
+    const real_t simp_power_amplitude,
+    const real_t simp_power_period)
+{
+    return simp_power_mean - simp_power_amplitude * std::cos(M_PI * static_cast<real_t>(outer_iteration) / simp_power_period);
+}
+
 int main(int argc, char *argv[])
 {
     // initialization. {} scoping helps wih navigating code.
@@ -53,7 +76,21 @@ int main(int argc, char *argv[])
     int myid = Mpi::WorldRank();
     Hypre::Init();
     // 2. Parse command-line options.
-    const char *mesh_file = "canti_2D_6.msh";
+    // const char *mesh_file = "canti_2D_6.msh"; // SYMMETRIC MESH
+    const char *mesh_file = "canti_n_2D_6.msh"; // ASYMMETRIC MESH
+
+    // canti_2D_6.msh
+    // const int fixed_node_bc_index = 1;
+    // const int outer_boundary_bc_index = 8;
+    // const std::array<int, N> bit_index_to_mesh_bc_index = {2, 3, 4, 5, 6, 7};
+    
+
+    // canti_n_2D_6.msh
+    const int fixed_node_bc_index = 5;
+    const int outer_boundary_bc_index = 8;
+    const std::array<int, N> bit_index_to_mesh_bc_index = {2, 3, 4, 6, 7, 1};
+
+
     int order = 2;
     bool static_cond = false;
     bool pa = false;
@@ -63,7 +100,8 @@ int main(int argc, char *argv[])
     bool algebraic_ceed = false;
     real_t filter_radius = real_t(0.07); // original 0.01
 
-    const real_t starting_gamma = 0.005; // gamma is the stepsize for updating the prox for the latent probabilities. Original 0.001.
+    // original 0.005 for symmetric.
+    const real_t starting_gamma = 0.005; // gamma is the stepsize for updating the prox for the latent probabilities.
     real_t gamma = starting_gamma;
 
     // starting for armijo backtracking line search. Nothing to do with cvar.
@@ -79,10 +117,11 @@ int main(int argc, char *argv[])
 
     const real_t CLAMP_VAL = 20;
 
-    const real_t starting_rho = 5.0;
+    // originally 0.01 for symmetric. 0.005 for asymmetric. This is the rho in the augmented Lagrangian for the CVaR constraint. It is a penalty parameter for the CVaR constraint. It is updated in the outer loop.
+    const real_t starting_rho = 0.1; 
     real_t rho = starting_rho;
 
-    real_t vol_fraction = 0.45;
+    real_t vol_fraction = 0.3;
     // int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
@@ -100,11 +139,14 @@ int main(int argc, char *argv[])
     real_t hole_size_x = 0.15;              // Position of hole center in x-direction as fraction from left edge
 
     // Promote black-white designs without changing the filter radius.
-    bool use_heaviside_projection = true;
-    real_t heaviside_eta_d = 0.3;
-    real_t heaviside_eta_e = 0.7;
+    bool use_heaviside_projection = false;
+    real_t heaviside_eta_d = 0.45; // Small is 0.475
+    real_t heaviside_eta_e = 0.55; // Small is 0.525
     real_t heaviside_beta = 8.0;
-    real_t simp_power = 1.0;
+    real_t simp_power_mean = 3.5;                          // Mean value in cosine SIMP schedule when Heaviside is OFF
+    real_t simp_power_amplitude = 0.5;                     // Amplitude in cosine SIMP schedule when Heaviside is OFF
+    real_t simp_power_period = 2;                       // Period in cosine SIMP schedule when Heaviside is OFF
+    const real_t SIMP_POWER_DEFAULT_FOR_HEAVISIDE = 1.0; // SIMP power used when Heaviside is ON (projection handles binarization)
 
     const real_t tau = 1e-10; // threshold for probability truncation.
 
@@ -118,7 +160,7 @@ int main(int argc, char *argv[])
     const int inner_loop_iterations = 15;
     const int MAX_BACKTRACKING_ATTEMPTS = 20; // maximum number of backtracking attempts in each inner loop iteration.
 
-    const real_t block_size_ratio = 1.0; // trying full blocks // change back to 0.35
+    const real_t block_size_ratio = 0.35; // trying full blocks // change back to 0.35
     const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 5;
 
     // Deterministic for outer <= RUN_DETERMINISTIC_UNTIL.
@@ -127,7 +169,11 @@ int main(int argc, char *argv[])
     // Purely deterministic configuration: deterministic window always activates.
     const int RUN_DETERMINISTIC_UNTIL = -1;
     const int RUN_DETERMINISTIC_AFTER = -1;
-    const bool RUN_SYMMETRIC = true;
+    const bool RUN_SYMMETRIC = false;
+
+    // Enable Heaviside projection starting from this outer iteration.
+    // -1 means active from the start (when use_heaviside_projection is true).
+    const int RUN_HEAVISIDE_AFTER = -1;
 
     if (RUN_DETERMINISTIC_UNTIL >= 0 && RUN_DETERMINISTIC_AFTER >= 0 &&
         RUN_DETERMINISTIC_AFTER < RUN_DETERMINISTIC_UNTIL)
@@ -136,12 +182,30 @@ int main(int argc, char *argv[])
             "RUN_DETERMINISTIC_AFTER must be >= RUN_DETERMINISTIC_UNTIL when both are non-negative.");
     }
 
+    if (RUN_HEAVISIDE_AFTER == 0)
+    {
+        throw std::invalid_argument("RUN_HEAVISIDE_AFTER must be -1 or >= 1.");
+    }
+
+    if (simp_power_period <= 0.0)
+    {
+        throw std::invalid_argument("simp_power_period must be > 0.");
+    }
+
+    const bool heaviside_active_at_start =
+        is_heaviside_step(1, use_heaviside_projection, RUN_HEAVISIDE_AFTER);
+    const real_t simp_power_at_start = 3.0;
+    // simp_power_schedule(
+        // 1, simp_power_mean, simp_power_amplitude, simp_power_period);
+    bool heaviside_active = heaviside_active_at_start;
+
     // "const" or "gradient"
     const float epsilon_TV = 1e-3;
     const float epsilon_g = 1e-3;
     const float epsilon_q = 1e-6;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
+    // std::vector<std::pair<std::bitset<N>, real_t>> probability_space = nonProbabilitySpace();
 
     std::vector<size_t> symmetric_index_vector(probability_space.size());
     generate_symmetric_index_vector(probability_space, symmetric_index_vector);
@@ -193,8 +257,12 @@ int main(int argc, char *argv[])
                    "Threshold eta for Heaviside projection in compliance and gradient computations (default 0.7).");
     args.AddOption(&heaviside_beta, "-hb", "--heaviside-beta",
                    "Beta for Heaviside projection continuation (default 1.0).");
-    args.AddOption(&simp_power, "-sp", "--simp-power",
-                   "SIMP penalization power used for stiffness interpolation (default 3.0).");
+    args.AddOption(&simp_power_mean, "-sp", "--simp-power",
+                   "Mean SIMP power used in cosine schedule during non-Heaviside phases.");
+    args.AddOption(&simp_power_amplitude, "-spa", "--simp-power-amplitude",
+                   "Amplitude for cosine SIMP schedule during non-Heaviside phases.");
+    args.AddOption(&simp_power_period, "-spp", "--simp-power-period",
+                   "Period for cosine SIMP schedule during non-Heaviside phases.");
     args.Parse();
     if (!args.Good())
     {
@@ -254,14 +322,22 @@ int main(int argc, char *argv[])
     // set the boundary conditions
 
     // @TODO handle this within the initialization code. Too manual.
-    filt->AddBC(1, 1.0); // free hold
-    filt->AddBC(2, 1.0);
-    filt->AddBC(3, 1.0);
-    filt->AddBC(4, 1.0);
-    filt->AddBC(5, 1.0);
-    filt->AddBC(6, 1.0);
-    filt->AddBC(7, 1.0);
-    filt->AddBC(8, 0.0); // outer boundary
+    filt->AddBC(fixed_node_bc_index, 1.0); // free hold
+
+    for (int i = 0; i < N; i++)
+    {
+        filt->AddBC(bit_index_to_mesh_bc_index[i], 1.0);
+    };
+
+    // filt->AddBC(2, 1.0);
+    // filt->AddBC(3, 1.0);
+    // filt->AddBC(4, 1.0);
+    // filt->AddBC(5, 1.0);
+    // filt->AddBC(6, 1.0);
+    // filt->AddBC(7, 1.0);
+
+    filt->AddBC(outer_boundary_bc_index, 0.0); // outer boundary
+
     // allocate the slover after setting the BC and before applying the filter
     filt->Assemble();
 
@@ -284,9 +360,9 @@ int main(int argc, char *argv[])
     ParGridFunction hbeta_fdens_d(filt->GetFilterFES());
 
     PostHeavisideCoefficient post_heaviside_coeff_e(
-        &fdens, &use_heaviside_projection, &heaviside_eta_e, &heaviside_beta);
+        &fdens, &heaviside_active, &heaviside_eta_e, &heaviside_beta);
     PostHeavisideCoefficient post_heaviside_coeff_d(
-        &fdens, &use_heaviside_projection, &heaviside_eta_d, &heaviside_beta);
+        &fdens, &heaviside_active, &heaviside_eta_d, &heaviside_beta);
 
     // hold the gradient of the functional. Used for GBB step size estimation.
     ParGridFunction odens_weighted_gradient(filt->GetDesignFES());
@@ -336,7 +412,7 @@ int main(int argc, char *argv[])
         }
         initialize_with_hole(odens_latent, target_volume, domain_volume, myid,
                              hole_radius, hole_strength, hole_size_x,
-                             use_heaviside_projection, heaviside_eta_d, heaviside_beta);
+                             heaviside_active_at_start, heaviside_eta_d, heaviside_beta);
     }
     else
     {
@@ -394,7 +470,7 @@ int main(int argc, char *argv[])
     MPI_Bcast(timestamp_buffer, static_cast<int>(sizeof(timestamp_buffer)), MPI_CHAR, 0, MPI_COMM_WORLD);
 
     const std::string run_name =
-        "cvar_optimization_purely_deterministic_14May2026_simp1_inner15_" + std::string(timestamp_buffer);
+        "cvar_optimization_asymmetric_18Jun2026_DET_RHO=0.1_" + std::string(timestamp_buffer);
 
     // set up the paraview
     mfem::ParaViewDataCollection paraview_dc(run_name, &pmesh);
@@ -419,8 +495,8 @@ int main(int argc, char *argv[])
     IsoComplCoef icc;
     icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements())); // (1) density (2) displacements. Deferred calculation.
     icc.SetMaterial(E_min, E_max, poisson_ratio);
-    icc.SetSIMP(simp_power);
-    if (use_heaviside_projection)
+    icc.SetSIMP(heaviside_active_at_start ? SIMP_POWER_DEFAULT_FOR_HEAVISIDE : simp_power_at_start);
+    if (heaviside_active_at_start)
     {
         icc.SetProj(heaviside_eta_e, heaviside_beta);
     }
@@ -429,7 +505,7 @@ int main(int argc, char *argv[])
     elsolver->SetMaterial(*(icc.GetE()), *(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
 
     // set surface load
-    elsolver->AddSurfLoad(1, 0.0, 1.0); // set the load on the free hole. 0.0 == x direction, 1.0 == y direction.
+    elsolver->AddSurfLoad(fixed_node_bc_index, 0.0, 1.0); // set the load on the free hole. 0.0 == x direction, 1.0 == y direction.
 
     ParBilinearForm mass(filt->GetDesignFES());
     mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
@@ -522,16 +598,17 @@ int main(int argc, char *argv[])
         }
 
         elsolver->DelDispBC();
-        for (int bit_index = 2; bit_index < 8; bit_index++)
+        for (int bit_index = 0; bit_index < N; bit_index++)
         {
-            if (!(bits.test(bit_index - 2)))
+            if (!(bits.test(bit_index)))
             {
-                elsolver->AddDispBC(bit_index, 4, 0.0);
+                elsolver->AddDispBC(bit_index_to_mesh_bc_index[bit_index], 4, 0.0);
             }
             else if (myid == 0 && verbose_bits_logging)
             {
                 std::cout << inner_iter_tag << " [compliance-eval:" << eval_reason
                           << "] Skipping bit " << (bit_index - 2)
+                          << " (mesh BC " << bit_index_to_mesh_bc_index[bit_index] << ")\n"
                           << " in scenario " << bits << ".\n";
             }
         }
@@ -572,15 +649,25 @@ int main(int argc, char *argv[])
     // loop
     for (unsigned int outer = 1; outer <= outer_loop_iterations; outer++)
     {
-        icc.SetProj(heaviside_eta_e, heaviside_beta);
+        heaviside_active = is_heaviside_step(outer, use_heaviside_projection, RUN_HEAVISIDE_AFTER);
+        const real_t simp_power_current = simp_power_at_start;
+        // simp_power_schedule(
+            // outer, simp_power_mean, simp_power_amplitude, simp_power_period);
+
+        icc.SetSIMP(heaviside_active ? SIMP_POWER_DEFAULT_FOR_HEAVISIDE : simp_power_current);
+        if (heaviside_active)
+        {
+            icc.SetProj(heaviside_eta_e, heaviside_beta);
+        }
 
         if (myid == 0)
         {
             std::cout << "[projection] outer=" << outer
+                        << " heaviside_active=" << heaviside_active
                         << " eta_d=" << heaviside_eta_d
                         << " eta_e=" << heaviside_eta_e
                         << " beta=" << heaviside_beta
-                        << " simp_power=" << simp_power
+                        << " simp_power_current=" << simp_power_current
                         << std::endl;
         }
 
@@ -675,7 +762,7 @@ int main(int argc, char *argv[])
         odens_latent.median(CLAMP_MIN_VECTOR, CLAMP_MAX_VECTOR);
 
         real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                      use_heaviside_projection, heaviside_eta_d, heaviside_beta); // last two are tol and max its
+                                      heaviside_active, heaviside_eta_d, heaviside_beta); // last two are tol and max its
         if (0 == myid)
         {
             cout << "For clamping on outer step " << outer << ", got material " << material_volume << ". Expected Material " << target_volume << "\n";
@@ -1046,11 +1133,11 @@ int main(int argc, char *argv[])
                 // set up the boundary conditions
                 // set the boundary conditions [1,2,..,7]
                 elsolver->DelDispBC();
-                for (int i = 2; i < 8; i++)
+                for (int i = 0; i < N; i++)
                 {
-                    if (!(bits.test(i - 2)))
+                    if (!(bits.test(i)))
                     {
-                        elsolver->AddDispBC(i, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
+                        elsolver->AddDispBC(bit_index_to_mesh_bc_index[i], 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
                     }
                 }
 
@@ -1326,7 +1413,7 @@ int main(int argc, char *argv[])
 
                 // project our design onto the one with the proper volume
                 real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25,
-                                              use_heaviside_projection, heaviside_eta_d, heaviside_beta); // last two are tol and max its
+                                              heaviside_active, heaviside_eta_d, heaviside_beta); // last two are tol and max its
                 if (0 == myid)
                 {
                     cout << inner_iter_tag << ", prox_iter=" << prox_iter_attempts

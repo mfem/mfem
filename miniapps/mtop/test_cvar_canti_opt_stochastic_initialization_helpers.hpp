@@ -86,6 +86,17 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
     return probability_space;
 }
 
+// For testing. Just the basic vector.
+std::vector<std::pair<std::bitset<N>, real_t>> nonProbabilitySpace()
+{
+    std::vector<std::pair<std::bitset<N>, real_t>> probability_space;
+
+    std::bitset<N> noFailures;
+    probability_space.emplace_back(noFailures, 1.0);
+
+    return probability_space;
+}
+
 
 /**
  * @brief Initialize latent variable with a symmetric hole in the left-center of the domain.
