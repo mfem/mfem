@@ -46,16 +46,12 @@ struct qp_scalar_traits<dual<V, G>>
    using dual_type = dual<V, G>;
 };
 
-using native_dual_t = dual<real_t, real_t>;
-using nested_native_dual_t = dual<native_dual_t, native_dual_t>;
-
 
 ///////////////////////////////////////////////////////////////
 ///---- Utils for Nested dual numbers (2nd derivatives) ----///
 ///////////////////////////////////////////////////////////////
 
 //<--- Types
-/// TODO: Should we move the 'hyper' (nested) duals to the dual.hpp?
 template <typename T>
 struct make_nested_qp_type
 {
@@ -78,65 +74,16 @@ template <typename T>
 using make_nested_qp_type_t = typename make_nested_qp_type<T>::type;
 
 
-//<--- Lift of dual to nested dual
-// Maps dual(a,b) --> dual(dual(a,0), dual(b,0)) for 2nd derivative computation
-
-template <typename Dst, typename Src>
-MFEM_HOST_DEVICE void lift_to_nested_arg(const Src &src, Dst &dst)
-{
-   using dst_t = std::decay_t<Dst>;
-   constexpr bool dst_uses_dual = is_dual_number<dst_t>::value ||
-                                  qf_param_uses_dual_v<dst_t> ||
-                                  is_nested_dual_number<dst_t>::value ||
-                                  qf_param_uses_nested_dual_v<dst_t>;
-   if constexpr (dst_uses_dual)
-   {
-      constexpr int ncomp = qf_param_shape<dst_t>::rank == 0 ?
-                            1 : []() constexpr
-      {
-         int n = 1;
-         for (int extent : qf_param_shape<dst_t>::extents) { n *= extent; }
-         return n;
-      }();
-      for (int component = 0; component < ncomp; component++)
-      {
-         qf_set_flat_value(dst, component,
-                           qf_flat_value(src, component));
-         qf_set_flat_gradient(dst, component,
-                              qf_flat_gradient(src, component));
-      }
-   }
-   else
-   {
-      // If the destination type does not use dual numbers, just copy the source to destination.
-      dst = src;
-   }
-}
-
-template <typename Tuple, size_t... Is>
-auto nested_tuple_types_impl(std::index_sequence<Is...>)
-   -> tuple<make_nested_qp_type_t<std::decay_t<tuple_element_t<Is, Tuple>>>...>;
-
-template <typename Tuple>
-using nested_tuple_t = decltype(nested_tuple_types_impl<Tuple>(
-                                  std::make_index_sequence<tuple_size<Tuple>::value> {}));
-
-template <typename SrcTuple, typename DstTuple, size_t... Is>
-MFEM_HOST_DEVICE void lift_tuple_to_nested_impl(const SrcTuple &src, DstTuple &dst,
-                                                std::index_sequence<Is...>)
-{
-   (lift_to_nested_arg(get<Is>(src), get<Is>(dst)), ...);
-}
-
-template <typename SrcTuple, typename DstTuple>
-MFEM_HOST_DEVICE void lift_tuple_to_nested(const SrcTuple &src, DstTuple &dst)
-{
-   lift_tuple_to_nested_impl(src, dst,
-                             std::make_index_sequence<tuple_size<SrcTuple>::value> {});
-}
+using native_dual_t = typename qp_scalar_traits<real_t>::dual_type;
+using nested_native_dual_t = make_nested_qp_type_t<native_dual_t>;
 
 
 //<--- Qfunc rebinding to nested duals arguments
+// Rebinds qfunc to lift scalar types to nested duals for 2nd derivative computation
+// This is used in the RevDiff transformer to compute 2nd derivatives with hyper dual numbers.
+//
+// Currently lifts the first scalar type in the qfunc signature to nested duals, and leaves the rest unchanged.
+//
 
 template <typename qfunc_t, typename nested_scalar_t, typename = void>
 struct rebind_qfunc_scalar
@@ -193,6 +140,35 @@ template <typename T, int... Sizes> struct qp_traits<tensor<T, Sizes...>>
 template <typename... T1s, typename... T2s>
 constexpr tuple<T1s..., T2s...> concat_tuples(tuple<T1s...>, tuple<T2s...>);
 
+
+//<--- Lift of dual to nested dual
+// Maps dual(a,b) --> dual(dual(a,0), dual(b,0)) for 2nd derivative computation
+
+template <typename Dst, typename Src>
+MFEM_HOST_DEVICE void lift_to_nested_arg(const Src &src, Dst &dst)
+{
+   using dst_t = std::decay_t<Dst>;
+   constexpr bool dst_uses_dual = is_dual_number<dst_t>::value ||
+                                  qf_param_uses_dual_v<dst_t> ||
+                                  is_nested_dual_number<dst_t>::value ||
+                                  qf_param_uses_nested_dual_v<dst_t>;
+   if constexpr (dst_uses_dual)
+   {
+      constexpr int ncomp = qp_traits<dst_t>::components;
+      for (int component = 0; component < ncomp; component++)
+      {
+         qf_set_flat_value(dst, component,
+                           qf_flat_value(src, component));
+         qf_set_flat_gradient(dst, component,
+                              qf_flat_gradient(src, component));
+      }
+   }
+   else
+   {
+      // If the destination type does not use dual numbers, just copy the source to destination.
+      dst = src;
+   }
+}
 
 // RevDiff: computes the full gradient of a pointwise qfunction at a single
 // quadrature point using one Enzyme reverse-mode (autodiff) call.

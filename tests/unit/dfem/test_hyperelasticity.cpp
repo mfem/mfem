@@ -299,6 +299,14 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    Vector action_diff(energy_action);
    action_diff -= stress_action;
    REQUIRE(action_diff.Norml2() < 1e-10);
+
+   // Print  the residuals, grad actions, for debugging purposes.
+   mfem::out << "Energy residual norm: " << energy_residual.Norml2() << std::endl;
+   mfem::out << "Stress residual norm: " << stress_residual.Norml2() << std::endl;
+   mfem::out << "Residual difference norm: " << residual_diff.Norml2() << std::endl;
+   mfem::out << "Energy action norm: " << energy_action.Norml2() << std::endl;
+   mfem::out << "Stress action norm: " << stress_action.Norml2() << std::endl;
+   mfem::out << "Action difference norm: " << action_diff.Norml2() << std::endl;
 }
 
 #endif

@@ -369,6 +369,12 @@ void second_derivative(const char *filename, int p)
    diff -= exact_Hv;
    REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
 
+
+   mfem::out << "Hessian-vector (functional) product norm: " << Hv_functional.Norml2() << std::endl;
+   mfem::out << "Hessian-vector (hand-coded residual) product norm: " << Hv_dres.Norml2() << std::endl;
+   mfem::out << "Hessian-vector (forward over reverse) product norm: " << Hv.Norml2() << std::endl;
+   mfem::out << "Exact Hessian-vector product norm: " << exact_Hv.Norml2() << std::endl;
+
    // std::cout << "Gradient using FwdDiff<f>:\n";
    // pretty_print(g);
 
