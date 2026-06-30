@@ -55,6 +55,8 @@ BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
 
 void BandMatrix::Reset(const DenseMatrix &dm, int bw)
 {
+   constexpr tol = 1e-16;
+
    height = dm.Height();
    width = dm.Width();
    if (bw < 0)
@@ -64,7 +66,7 @@ void BandMatrix::Reset(const DenseMatrix &dm, int bw)
       {
          for (int j = 0; j < dm.Width(); j++)
          {
-            if (dm(i,j)*dm(i,j) > 1e-16)
+            if (dm(i,j)*dm(i,j) > tol)
             {
                bandwidth = std::max(i - j, bandwidth);
                bandwidth = std::max(j - i, bandwidth);
@@ -278,13 +280,12 @@ DenseMatrix BandMatrix::ToDenseMatrix() const
    return dm;
 }
 
-void BandMatrix::Print(std::ostream &os, int width33_) const
+void BandMatrix::Print(std::ostream &os, int width) const
 {
-   int width_ = 999;
    // save current output flags
    std::ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   // os << setiosflags(std::ios::scientific | std::ios::showpos);
+   os << setiosflags(std::ios::scientific | std::ios::showpos);
    for (int i = 0; i < height; i++)
    {
       // os << "[row " << i << "]\n";
@@ -302,7 +303,7 @@ void BandMatrix::Print(std::ostream &os, int width33_) const
       }
    }
    // reset output flags to original values
-   //  os.flags(old_flags);
+   os.flags(old_flags);
 }
 
 void Mult(const BandMatrix &b,  const DenseMatrix &c, DenseMatrix &a)

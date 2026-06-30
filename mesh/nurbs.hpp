@@ -55,9 +55,12 @@ protected:
    mutable Vector demko;
 
    /// Compute all the Demko points
+   /** @brief Checks if demko vector is already defined. If vector has the
+       correct size the computation is skipped, unless @a force is set to true.
+       in that case the computation is done regardless.
    void ComputeDemko(bool force = false) const;
 
-public:
+   public:
    /// Create an empty KnotVector.
    KnotVector() = default;
 

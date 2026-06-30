@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-/// Band matrix storing (2xbandwidth + 1) numbers per row.
+/// Band matrix storing (2 x bandwidth + 1) numbers per row.
 class BandMatrix : public Matrix
 {
    friend class BandMatrixInverse;
@@ -185,8 +185,10 @@ public:
 
    /// Matrix vector multiplication with the inverse.
    /** Uses Inverse() and deletes factorisation afterwards.
-       Unnecesarily inefficient when called multiple times,
-       use Inverse() instead when solving multiple times. */
+       Unnecesarily inefficient when called multiple times.
+       When solving multiple times, please consider using Inverse()
+       and reuse the factorisation, or Invert() which
+       computes an inplace inverse.*/
    void Solve(const Vector &x, Vector &y) const;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
@@ -197,12 +199,12 @@ public:
 
    /// Replaces the current matrix with its inverse
    /** If @a tol is not specified (or is negative) the exact inverse is
-       computed.  If @a tol is specified the reuslting matrix has the minimum
-       bandwidth to achieve tolerance, when computing the Frobenius norm of
-       approc_inv(A)*A - I
-       If @a bw is this bandwidth is used, the result is compared with the tolerance.*/
+       computed.  If @a tol is specified the resulting matrix has the minimum
+       bandwidth to achieve the specified tolerance, when computing the
+       Frobenius norm of approx_inv(A)*A - I. If @a bw is specified this is the
+       bandwidth used, the result is compared with the tolerance.
+       Please not that in general the inverse is effectively a DenseMatrix.*/
    void Invert(real_t tol = -1.0, int bw = -1);
-
 
    /// Replaces the given DenseMatrix @ dm with the inverse
    void Inverse(DenseMatrix &dm);
@@ -251,11 +253,11 @@ public:
     * Factorize the current matrix of size (m x m) using LAPACK
     *
     * @param [in] m size of the square matrix
-    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    * @param [in] tol optional fuzzy comparison tolerance. Defaults to 0.0.
     *
     * @return status set to true if successful, otherwise, false.
     */
-   bool Factor(int m, real_t TOL = 0.0) override;
+   bool Factor(int m, real_t tol = 0.0) override;
 
    /// Compute the matrix determinant from the factors.
    real_t Det(int m) const override;
@@ -290,6 +292,7 @@ public:
    /// Same as above but does not factorize the matrix.
    BandMatrixInverse(const BandMatrix *mat);
 
+
    ///  Get the size of the inverse matrix
    int Size() const { return Width(); }
 
@@ -299,6 +302,8 @@ public:
    /// Factor a new BandMatrix of the same size
    void Factor(const BandMatrix &mat);
 
+   /// Set the BandMatrix to be factorized.
+   /// Specified @a op operator needs to be a BandMatrix
    void SetOperator(const Operator &op) override;
 
    /// Matrix vector multiplication with the inverse of dense matrix.
