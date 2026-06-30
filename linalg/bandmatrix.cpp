@@ -55,7 +55,7 @@ BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
 
 void BandMatrix::Reset(const DenseMatrix &dm, int bw)
 {
-   constexpr int tol = 1e-16;
+   constexpr real_t tol = 1e-16;
 
    height = dm.Height();
    width = dm.Width();
@@ -292,7 +292,7 @@ void BandMatrix::Print(std::ostream &os, int width) const
       for (int j = 0; j < width; j++)
       {
          os << (*this)(i,j);
-         if (j+1 == width || (j+1) % width_ == 0)
+         if (j+1 == width || (j+1) % width == 0)
          {
             os << '\n';
          }
