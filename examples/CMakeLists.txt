@@ -48,6 +48,7 @@ list(APPEND ALL_EXE_SRCS
   ex40.cpp
   ex41.cpp
   ex42.cpp
+  ex43.cpp
   )
 
 if (MFEM_USE_MPI)

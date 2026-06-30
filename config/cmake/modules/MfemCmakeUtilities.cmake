@@ -962,7 +962,7 @@ function(mfem_export_mk_files)
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
   endforeach()
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
-  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
+  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) -I\$(MFEM_SOURCE_DIR) \$(MFEM_TPLFLAGS)")
   set(MFEM_PICFLAG "")
   if (BUILD_SHARED_LIBS)
     set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
@@ -1098,6 +1098,7 @@ function(mfem_export_mk_files)
     "${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_LIB_DIR)
   mfem_path_to_fullpath(
     "${INSTALL_SHARE_DIR}/mfem/test.mk" "${CMAKE_INSTALL_PREFIX}" MFEM_TEST_MK)
+  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
