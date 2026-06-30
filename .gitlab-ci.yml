@@ -35,7 +35,11 @@
 # File dependencies: direct, through jobs, through variables
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # .gitlab-ci.yml
-#  ├── .build-and-test  [job]
+#  ├── <radiuss-shared-ci>/templates/base-pipeline/template.yml  [component]
+#  │    ├── .machine-check        [job]
+#  │    ├── .build-and-test       [job]
+#  │    └── .dane/.matrix/.tioga  [machine selector jobs]
+#  ├── .build-and-test  [job, from base-pipeline component above]
 #  │    ├── .gitlab/custom-variables.yml
 #  │    │    └── JOB_CMD              [var]
 #  │    │         └── tests/gitlab/build_and_test            [script]
@@ -111,7 +115,6 @@
 #  │              ├── report_job_success
 #  │              └── report_job_failure
 #  └── .gitlab/subscribed-pipelines.yml
-#       ├── .machine-check         [job]
 #       ├── generate-job-lists     [job]
 #       ├── dane-up-check          [job]
 #       ├── dane-build-and-test    [job]
@@ -142,18 +145,21 @@
 #
 # <mfem root>
 #  ├── .gitlab-ci.yml  [this file]
-#  │    ├── <jobs>
-#  │    │    └── .build-and-test
 #  │    ├── <included files>
+#  │    │    ├── <component>  [base-pipeline, by parent pipeline]
+#  │    │    │    ├── project:   'radiuss/radiuss-shared-ci'
+#  │    │    │    ├── ref:       '2026.6.0'
+#  │    │    │    ├── component: 'base-pipeline'
+#  │    │    │    └── provides:  .machine-check, .build-and-test, .dane/.matrix/.tioga
 #  │    │    ├── .gitlab/subscribed-pipelines.yml
 #  │    │    ├── .gitlab/custom-variables.yml  [by parent pipeline]
 #  │    │    ├── .gitlab/custom-jobs.yml  [by ".build-and-test"]
 #  │    │    ├── <artifact>  [by ".build-and-test"]
 #  │    │    │    ├── artifact: '${CI_MACHINE}-jobs.yml'
 #  │    │    │    └── job:      'generate-job-lists'
-#  │    │    └── <component>  [by ".build-and-test"]
-#  │    │         ├── project: 'radiuss/radiuss-shared-ci'
-#  │    │         ├── ref:     '2026.6.0'
+#  │    │    └── <component>  [${CI_MACHINE}-pipeline, by ".build-and-test"]
+#  │    │         ├── project:   'radiuss/radiuss-shared-ci'
+#  │    │         ├── ref:       '2026.6.0'
 #  │    │         └── component: '${CI_MACHINE}-pipeline'
 #  │    └── <defined variables>
 #  │         ├── CUSTOM_CI_BUILDS_DIR
@@ -344,7 +350,6 @@
 #  │    │         └── REBASELINE     [defined by .gitlab-ci.yml]
 #  │    └── subscribed-pipelines.yml
 #  │         ├── <jobs>
-#  │         │    ├── .machine-check
 #  │         │    ├── generate-job-lists
 #  │         │    ├── dane-up-check
 #  │         │    ├── dane-build-and-test
@@ -354,7 +359,8 @@
 #  │         │    ├── matrix-up-check
 #  │         │    └── matrix-build-and-test
 #  │         ├── <used jobs>
-#  │         │    └── .build-and-test  [from ".gitlab-ci.yml"]
+#  │         │    ├── .machine-check    [from base-pipeline component]
+#  │         │    └── .build-and-test   [from base-pipeline component]
 #  │         ├── <included files>
 #  │         │    └── .gitlab/dane-baseline.yml  [by "dane-baseline"]
 #  │         └── <used variables>
@@ -398,6 +404,13 @@
 #
 # <root of radiuss/radiuss-shared-ci, ref: '2026.6.0'>
 #  └── templates
+#       ├── base-pipeline/template.yml
+#       │    └── <jobs>
+#       │         ├── .machine-check
+#       │         ├── .build-and-test
+#       │         ├── .dane
+#       │         ├── .matrix
+#       │         └── .tioga
 #       ├── matrix-pipeline/template.yml
 #       │    ├── <jobs>
 #       │    │    ├── .on_matrix
