@@ -451,18 +451,8 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 
    // The router rewrites ranks in place (compact/append) and rank_list is const,
    // so route through a mutable copy. Stays unsigned -- no narrowing cast.
-   Array<unsigned int> ranks(rank_list);
 
-   std::vector<ParticleVector*> data;
-   data.reserve(1 + fields.size());
-   data.push_back(&coords);
-   for (auto &f : fields) { data.push_back(f.get()); }
-
-   std::vector<Array<int>*> tag_cols;
-   tag_cols.reserve(tags.size());
-   for (auto &t : tags) { tag_cols.push_back(t.get()); }
-
-   crystal_router->Route(ranks, ids, tag_cols, data);
+   crystal_router->Route(ranks, ids, coords(dim), fields(), tags());
 }
 #endif // MFEM_USE_MPI
 
