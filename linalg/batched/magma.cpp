@@ -26,20 +26,6 @@
 namespace mfem
 {
 
-namespace
-{
-
-void VerifyBatchedLUInfo(const Array<int> &info_array, const char *message)
-{
-   const int *info = info_array.HostRead();
-   for (int i = 0; i < info_array.Size(); i++)
-   {
-      MFEM_VERIFY(info[i] == 0, message);
-   }
-}
-
-}
-
 Magma::Magma()
 {
    const magma_int_t status = magma_init();

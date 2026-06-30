@@ -13,6 +13,7 @@
 #include "native.hpp"
 #include "gpu_blas.hpp"
 #include "magma.hpp"
+#include "../../general/reducers.hpp"
 
 namespace mfem
 {
@@ -117,6 +118,18 @@ void BatchedLinAlgBase::MultTranspose(const DenseTensor &A, const Vector &x,
                                       Vector &y) const
 {
    AddMult(A, x, y, 1.0, 0.0, Op::T);
+}
+
+void VerifyBatchedLUInfo(const Array<int> &info_array, const char *message)
+{
+   static Array<int> workspace;
+   int status = 0;
+   const int *d_info = info_array.Read();
+   mfem::reduce(
+      info_array.Size(), status,
+      [=] MFEM_HOST_DEVICE (int i, int &r) { r |= d_info[i]; },
+      BOrReducer<int> {}, true, workspace);
+   MFEM_VERIFY(status == 0, message);
 }
 
 }
