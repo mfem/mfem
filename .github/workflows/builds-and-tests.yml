@@ -323,6 +323,10 @@ jobs:
           echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
           echo "CCACHE_MAXSIZE=400M" >> $GITHUB_ENV
           echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          # Ignore header timestamps (restamped by each checkout) so direct mode hits.
+          echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros" >> $GITHUB_ENV
+          # Hash absolute paths relative to the workspace.
+          echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
           if [[ "${{ matrix.build-system }}" == "cmake" ]]; then
             echo 'CCACHE_CONFIG_OPTS=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' >> $GITHUB_ENV
           else
