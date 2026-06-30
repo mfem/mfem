@@ -285,7 +285,7 @@ void BandMatrix::Print(std::ostream &os, int width) const
    // save current output flags
    std::ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   os << setiosflags(std::ios::scientific | std::ios::showpos);
+   os << std::setiosflags(std::ios::scientific | std::ios::showpos);
    for (int i = 0; i < height; i++)
    {
       // os << "[row " << i << "]\n";
