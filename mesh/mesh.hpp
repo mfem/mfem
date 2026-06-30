@@ -41,6 +41,7 @@ class FaceGeometricFactors;
 class KnotVector;
 class NURBSPatch;
 class NURBSExtension;
+enum class NURBSPointSet;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
@@ -988,8 +989,15 @@ public:
        SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
-   /// Create a linear mesh with nodes at the specified points of @a orig_mesh.
-   static Mesh MakeNURBSInterpolation(const Mesh &orig_mesh, int pSet = 0);
+   /// Create a linear mesh with nodes at the specified @a points in the
+   /// parametric domain.
+   Mesh GetLinearNURBSMesh(Array<Vector *> points);
+
+   /// Create a linear mesh with nodes at the requested pointset
+   Mesh GetLinearNURBSMesh(NURBSPointSet pSet);
+
+   /// Create a linear mesh with nodes at the demko points.
+   Mesh GetLinearNURBSMesh();
 
    ///@}
 

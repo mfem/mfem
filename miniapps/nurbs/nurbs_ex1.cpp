@@ -159,6 +159,13 @@ real_t sol(const Vector & x)
 
 int main(int argc, char *argv[])
 {
+
+   // 0. Initialize MPI and HYPRE.
+  // Mpi::Init(argc, argv);
+   // int num_procs = Mpi::WorldSize();
+   // int myid = Mpi::WorldRank();
+  // Hypre::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
@@ -168,6 +175,7 @@ int main(int argc, char *argv[])
    Array<int> slave(0);
    Array<int> neu(0);
    bool static_cond = false;
+   bool use_lor = false;
    bool visualization = 1;
    int lod = 0;
    bool ibp = 1;
@@ -210,6 +218,8 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&use_lor, "-lor", "--use-lor", "-no-lor",
+                  "--no-lor", "Enable LOR preconditioning.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -412,7 +422,6 @@ int main(int argc, char *argv[])
    cout <<" - Essential : "; ess_bdr.Print();
    cout <<" - Neumann   : "; neu_bdr.Print();
 
-
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -482,18 +491,24 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-#ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple Jacobi preconditioner and use it to
    //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   Solver *P;
+   if (use_lor)
+   {
+#ifndef MFEM_USE_SUITESPARSE
+      P = new LORSolver<GSSmoother>(*a, ess_tdof_list);
 #else
-   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
+      std::cout<<"UMF"<<std::endl;
+      P = new LORSolver<UMFPackSolver>(*a, ess_tdof_list);
 #endif
+   }
+   else
+   {
+      P = new GSSmoother(A);
+   }
+
+   PCG(A, *P, B, X, 1, 200, 1e-12, 0.0);
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -570,12 +585,56 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
+   // 15. Save data in the VisIt format -- on projected mesh!!
+   /*{
+      // Create interpolation mesh
+      Array<Vector *> points;
+      fespace->GetNURBSext()->GetPointsCompr(points, NURBSPointSet::DEMKO);
+      Mesh imesh = mesh->GetLinearNURBSMesh(points);
+      for (int i = 0; i < points.Size(); i++) { delete points[i]; }
+
+      // Create interpolation space
+      NURBSFECollection ifec(1);
+      FiniteElementSpace ifespace(&imesh, new NURBSExtension(imesh.NURBSext, 1),
+                                  &ifec);
+
+      // Create transfer operations
+      fespace->GetNURBSext()->CreatePatches();
+      ifespace.GetNURBSext()->CreatePatches();
+
+      GridTransfer *gt = new InterpolationGridTransfer(*fespace, ifespace);
+      const Operator &ho_2_lo = gt->ForwardOperator();
+      const Operator &lo_2_ho = gt->BackwardOperator();
+
+      fespace->GetNURBSext()->DeletePatches();
+      ifespace.GetNURBSext()->DeletePatches();
+
+      // Project on nodal solution
+      GridFunction ix(&ifespace);
+      ho_2_lo.Mult(x, ix);
+
+      VisItDataCollection visit_dc1("Example1_linear", &imesh);
+      visit_dc1.RegisterField("solution",   &ix);
+      visit_dc1.Save();
+
+      // Project on nodal solution on original
+      x = 0.0;
+      lo_2_ho.Mult(ix, x);
+
+      VisItDataCollection visit_dc2("Example1_orig", mesh);
+      visit_dc2.RegisterField("solution",   &x);
+      visit_dc2.Save();
+
+      delete gt;
+   }*/
+
    // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;
    if (own_fec) { delete fec; }
    delete mesh;
+   delete P;
 
    return 0;
 }

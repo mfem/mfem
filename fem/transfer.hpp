@@ -142,6 +142,8 @@ protected:
    OperatorHandle F; ///< Forward, coarse-to-fine, operator
    OperatorHandle B; ///< Backward, fine-to-coarse, operator
 
+   Solver *prec = nullptr;
+   bool own_prec = false;
 public:
    InterpolationGridTransfer(FiniteElementSpace &coarse_fes,
                              FiniteElementSpace &fine_fes)

@@ -2378,6 +2378,45 @@ void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
    }
 }
 
+FiniteElementSpace::GlobalDerefinementOperator::GlobalDerefinementOperator(
+   FiniteElementSpace *f_fes, FiniteElementSpace *c_fes,
+   BilinearFormIntegrator *m_integ, const Operator *ForwardOperator)
+   : Operator(c_fes->GetVSize(), f_fes->GetVSize()),
+     fine_fes(f_fes), F(ForwardOperator)
+{
+   MFEM_VERIFY(F->Width() <= F->Height(),
+               "Forward operator needs full column rank.");
+   MFEM_ASSERT(F->Width() == c_fes->GetVSize(),
+               "Forward operator width does not match input space.");
+   MFEM_ASSERT(F->Height() == f_fes->GetVSize(),
+               "Forward operator height.does not match input space.");
+
+   // Fine scale mass matrix
+   a_f = new BilinearForm(fine_fes);
+   a_f->AddDomainIntegrator(m_integ);
+   a_f->Assemble();
+   a_f->Finalize();
+
+   // Galerkin projection of fine scale mass matrix
+   FTM = new ProductOperator(new TransposeOperator(F), &a_f->SpMat(), true, false);
+   FTMF = new ProductOperator(FTM, F, false, false);
+   b.SetSize(c_fes->GetVSize());
+}
+
+FiniteElementSpace::GlobalDerefinementOperator::~GlobalDerefinementOperator()
+{
+   delete a_f;
+   delete FTM;
+   delete FTMF;
+}
+
+void FiniteElementSpace::GlobalDerefinementOperator::Mult(const Vector &x,
+                                                          Vector &y) const
+{
+   FTM->Mult(x, b);
+   CG(*FTMF, b, y, 2, 1400, 1e-24, 0.0);
+}
+
 void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
                                                       DenseTensor &localR) const
 {
@@ -2499,6 +2538,66 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    R->Finalize(); // no-op if fixed width
    return R;
+}
+
+
+SparseMatrix* FiniteElementSpace::NURBSInterpolationMatrix(
+   FiniteElementSpace *lo, NURBSPointSet pSet)
+{
+   NURBSExtension *ho_ext = NURBSext;
+   NURBSExtension *lo_ext = lo->NURBSext;
+
+   MFEM_VERIFY(ho_ext, "First argument must be a NURBS mesh.")
+   MFEM_VERIFY(lo_ext, "Second argument must be a NURBS mesh.")
+   MFEM_VERIFY(lo_ext->GetNP() == ho_ext->GetNP(), "Patch count must match.")
+
+   int NP = lo_ext->GetNP();
+
+   SparseMatrix *Pi = new SparseMatrix(lo_ext->GetNDof(), ho_ext->GetNDof());
+
+   Array<NURBSPatch*> ho_patches(NP);
+   Array<NURBSPatch*> lo_patches(NP);
+
+   ho_ext->CreatePatches();
+   lo_ext->CreatePatches();
+
+   ho_ext->GetPatches(ho_patches);
+   lo_ext->GetPatches(lo_patches);
+
+   ho_ext->DeletePatches();
+   lo_ext->DeletePatches();
+
+   Array<int> ho_dofs;
+   Array<int> lo_dofs;
+   for (int p = 0; p < NP; p++)
+   {
+      int ho_NCP = ho_patches[p]->GetNCP();
+      int lo_NCP = lo_patches[p]->GetNCP();
+
+      SparseMatrix smat(lo_NCP, ho_NCP);
+      SparseMatrix imat(lo_NCP, lo_NCP);
+
+      Array<Vector *> uknot(lo_patches[p]->GetNKV());
+      lo_patches[p]->GetPoints(uknot, pSet);
+
+      ho_patches[p]->GetInterpolationMatrix(uknot, smat);
+      // For now assume the lo space is linear
+      //lo_patches[p]->GetInterpolationMatrix(uknot, imat);
+      //lo_patches[p]->GetInverseInterpolationMatrix(uknot, imat);
+
+      ho_ext->GetPatchDofs(p, ho_dofs);
+      lo_ext->GetPatchDofs(p, lo_dofs);
+
+      // Set contributions in the global matrix - apply dof ordering
+      Pi->SetSubMatrix(lo_dofs, ho_dofs, smat);
+
+      for (int d = 0; d < uknot.Size(); d++) { delete uknot[d]; }
+      delete lo_patches[p];
+      delete ho_patches[p];
+   }
+
+   Pi->Finalize();
+   return Pi;
 }
 
 void FiniteElementSpace::GetLocalRefinementMatrices(

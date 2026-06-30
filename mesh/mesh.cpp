@@ -6079,23 +6079,53 @@ Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
    return periodic_mesh;
 }
 
-Mesh Mesh::MakeNURBSInterpolation(const Mesh &orig_mesh, int pSet)
+Mesh Mesh::GetLinearNURBSMesh(Array<Vector *> points)
 {
-   NURBSExtension *orig_ext = orig_mesh.NURBSext;
-   MFEM_VERIFY(orig_ext,"Mesh::MakeNURBSInterpolation: Not a NURBS mesh!");
-   orig_ext->ConvertToPatches(*orig_mesh.Nodes);
+   MFEM_VERIFY(NURBSext,"Mesh::MakeNURBSInterpolation: Not a NURBS mesh!");
+   NURBSext->ConvertToPatches2(*Nodes);
 
-   int npatch = orig_ext->GetNP();
+   int npatch = NURBSext->GetNP();
    Array<NURBSPatch*> orig_patches(npatch);
    Array<const NURBSPatch*> new_patches(npatch);
 
-   orig_ext->GetPatches(orig_patches);
+   NURBSext->GetPatches(orig_patches);
    for (int p = 0; p < npatch; p++)
    {
-      new_patches[p] = MakeInterpolation(orig_patches[p],static_cast<NURBSPointSet>(pSet));
+      Array<Vector *> pts(Dimension());
+      for (int d = 0; d < Dimension(); d++)
+      {
+         pts[d] = points[Dimension()*p + d];
+      }
+      new_patches[p] = orig_patches[p]->MakeInterpolation(pts);
+   }
+   Mesh imesh(NURBSExtension(NURBSext->GetPatchTopo(), new_patches));
+
+   for (int p = 0; p < npatch; p++)
+   {
+      delete orig_patches[p];
+      delete new_patches[p];
    }
 
-   return Mesh(NURBSExtension(orig_ext->GetPatchTopo(), new_patches));
+   return imesh;
+}
+
+Mesh Mesh::GetLinearNURBSMesh(NURBSPointSet pSet)
+{
+   Array<Vector *> points;
+   Nodes->FESpace()->GetNURBSext()->GetPointsCompr(points, pSet);
+
+   Mesh imesh  = GetLinearNURBSMesh(points);
+   for (int i=0; i<points.Size(); ++i)
+   {
+      delete points[i];
+   }
+
+   return imesh;
+}
+
+Mesh Mesh::GetLinearNURBSMesh()
+{
+   return GetLinearNURBSMesh(NURBSPointSet::DEMKO);
 }
 
 std::vector<int> Mesh::CreatePeriodicVertexMapping(

@@ -28,11 +28,6 @@
 namespace mfem
 {
 
-Mesh MakeNURBSInterpolation(const Mesh &orig_mesh, NURBSPointSet pSet)
-{
-   return Mesh::MakeNURBSInterpolation(orig_mesh, static_cast<int>(pSet));
-}
-
 using namespace std;
 
 const int KnotVector::MaxOrder = 10;
@@ -1296,8 +1291,8 @@ KnotVector* KnotVector::FullyCoarsen()
 
 void NURBSPatch::init(int dim)
 {
-   MFEM_ASSERT(dim > 1, "NURBS patch dimension (including weight) must be "
-               "greater than 1.");
+   MFEM_ASSERT(dim >= 0, "NURBS patch dimension (including weight) must be "
+               "greater than 0.");
    Dim = dim;
    sd = nd = -1;
 
@@ -2641,22 +2636,18 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang, int times)
    return newpatch;
 }
 
-
-NURBSPatch *MakeInterpolation(NURBSPatch *parent, NURBSPointSet pSet)
+NURBSPatch *NURBSPatch::MakeInterpolation(Array<Vector *>  &points)
 {
+   MFEM_VERIFY(points.Size() == GetNKV(),"Mismatch");
 
-   Array<const KnotVector *> new_kv(parent->GetNKV());
-   for (int i = 0; i < parent->GetNKV() ; i++)
+   Array<const KnotVector *> new_kv(GetNKV());
+   for (int i = 0; i < GetNKV() ; i++)
    {
-      Vector k;
-      parent->kv[i]->GetPoints(k, pSet);
-      new_kv[i] = new KnotVector(1, k);
-      new_kv[i]->Print(std::cout);
+      new_kv[i] = new KnotVector(1, *points[i]);
    }
 
-   int dim = parent->Dim;
-   NURBSPatch *new_patch = new NURBSPatch(new_kv, dim);
-   Vector val(dim);
+   NURBSPatch *new_patch = new NURBSPatch(new_kv, Dim);
+   Vector val(Dim);
 
    if (new_kv.Size() == 1)
    {
@@ -2665,10 +2656,10 @@ NURBSPatch *MakeInterpolation(NURBSPatch *parent, NURBSPointSet pSet)
       for (int i = 0; i < kv0.GetNCP() ; i++)
       {
          int ii = i;
-         parent->eval(kv0[i+1], val);
-         for (int d = 0; d < dim; d++)
+         eval(kv0[i+1], val);
+         for (int d = 0; d < Dim; d++)
          {
-            new_patch->data[dim*ii + d] = val[d];
+            new_patch->data[Dim*ii + d] = val[d];
          }
       }
    }
@@ -2683,10 +2674,10 @@ NURBSPatch *MakeInterpolation(NURBSPatch *parent, NURBSPointSet pSet)
          for (int j = 0; j < kv1.GetNCP(); j++)
          {
             int jj = ii + j*kv0.GetNCP();
-            parent->eval(kv0[i+1], kv1[j+1], val);
-            for (int d = 0; d < dim; d++)
+            eval(kv0[i+1], kv1[j+1], val);
+            for (int d = 0; d < Dim; d++)
             {
-               new_patch->data[dim*jj + d] = val[d];
+               new_patch->data[Dim*jj + d] = val[d];
             }
          }
       }
@@ -2706,10 +2697,10 @@ NURBSPatch *MakeInterpolation(NURBSPatch *parent, NURBSPointSet pSet)
             for (int k = 0; k < kv2.GetNCP(); k++)
             {
                int kk = jj + k*kv0.GetNCP()*kv1.GetNCP();
-               parent->eval(kv0[i+1], kv1[j+1], kv2[k+1], val);
-               for (int d = 0; d < dim; d++)
+               eval(kv0[i+1], kv1[j+1], kv2[k+1], val);
+               for (int d = 0; d < Dim; d++)
                {
-                  new_patch->data[dim*kk  + d] = val[d];
+                  new_patch->data[Dim*kk  + d] = val[d];
                }
             }
          }
@@ -2720,8 +2711,109 @@ NURBSPatch *MakeInterpolation(NURBSPatch *parent, NURBSPointSet pSet)
       mfem_error("MakeInterpolation wrong dimension");
    }
 
+   for (int i = 0; i < GetNKV() ; i++)
+   {
+      delete new_kv[i];
+   }
    return new_patch;
 }
+
+void NURBSPatch::GetInterpolationMatrix(Array<Vector *> kvs,
+                                        SparseMatrix &smat)
+{
+   // Check inputs
+   const int dim = kvs.Size();  // Topological dimension
+   constexpr int maxdim = 3;
+   MFEM_VERIFY(dim == kv.Size(), "dim != number of knot vectors.");
+
+   // Setup
+   Array<int> sizes(maxdim); // Number of knots (per dim) to interpolate to
+   Array<int> ndofs(maxdim); // Number of dofs in this patch (per dim)
+   Array<int> nnzs(maxdim);  // Maximum non-zero shape functions (per dim)
+   sizes = 1;                // Initialize to 1
+   ndofs = 1;
+   nnzs = 1;
+
+   Array<DenseMatrix *> shape(maxdim);
+   Array<Array<int> *> loc(maxdim);
+   for (int d = 0; d < dim; d++)
+   {
+      sizes[d] = kvs[d]->Size();
+      ndofs[d] = kv[d]->GetNCP();
+      nnzs[d] = kv[d]->GetOrder() + 1;
+      // Check that the output knots are contained within the patch
+      MFEM_VERIFY(kvs[d]->Min() >= (*kv[d])[0] &&
+                  kvs[d]->Max() <= (*kv[d])[kv[d]->Size()-1],
+                  "NURBSPatch::GetInterpolationMatrix : "
+                  "Output knots must be contained within the patch.");
+   }
+
+   for (int d = 0; d < maxdim; d++)
+   {
+      loc[d] = new Array<int>(sizes[d]);
+      shape[d] = new DenseMatrix(nnzs[d], sizes[d]);
+      Array<int>  &rloc = *(loc[d]);
+      DenseMatrix &rsh = *(shape[d]);
+
+      rloc  = 0;
+      rsh = 1.0;
+
+      if (d<dim)
+      {
+         Vector sh(nnzs[d]);
+         for (int i = 0; i < sizes[d]; i++)
+         {
+            real_t u0 =  kvs[d]->Elem(i);
+            int n0 = kv[d]->GetSpan(u0);
+            real_t x0 = kv[d]->GetRefPoint(u0, n0);
+            n0 -= kv[d]->GetOrder();
+            kv[d]->CalcShape  (sh, n0, x0);
+            rsh.SetCol(i, sh);
+            rloc[i] = n0;
+         }
+      }
+   }
+
+   Array<int>  &rloc0 = *(loc[0]);
+   Array<int>  &rloc1 = *(loc[1]);
+   Array<int>  &rloc2 = *(loc[2]);
+
+   for (int k = 0; k < sizes[2]; k++)
+   {
+      for (int j = 0; j < sizes[1]; j++)
+      {
+         for (int i = 0; i < sizes[0]; i++)
+         {
+            int row = i + j*sizes[0] + k*sizes[0]*sizes[1];
+            int dof = rloc0 [i] + rloc1[j]*ndofs[0] + rloc2[k]*ndofs[0]*ndofs[1];
+
+            for (int dk = 0; dk < nnzs[2]; dk++)
+            {
+               real_t shz = shape[2]->Elem(dk,k);
+               for (int dj = 0; dj < nnzs[1]; dj++)
+               {
+                  real_t shzy = shz*shape[1]->Elem(dj,j);
+                  for (int di = 0; di < nnzs[0]; di++)
+                  {
+                     real_t shzyx = shzy*shape[0]->Elem(di,i);
+                     int col = dof + di + dj*ndofs[0] + dk*ndofs[0]*ndofs[1];
+
+                     // Assign
+                     smat.Set(row, col, shzyx);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   for (int d = 0; d < maxdim; d++)
+   {
+      delete loc[d];
+      delete shape[d];
+   }
+}
+
 
 void NURBSPatch::eval(Vector &u, Vector &val)
 {
@@ -5239,8 +5331,11 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 
 void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 {
-   delete el_dof;
-   delete bel_dof;
+   if (el_dof) { delete el_dof; }
+   if (bel_dof) { delete bel_dof; }
+
+   el_dof = NULL;
+   bel_dof = NULL;
 
    if (patches.Size() == 0)
    {
@@ -5255,6 +5350,57 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
       GetPatchNets(Nodes, phys_vdim);
    }
 }
+
+void NURBSExtension::ConvertToPatches2(const Vector &Nodes)
+{
+   if (patches.Size() == 0)
+   {
+      // Determine the physical vector dimension from the coordinate vector and
+      // the number of DOFs. This is needed in particular for curves/surfaces
+      // embedded in higher-dimensional physical spaces.
+      MFEM_VERIFY(GetNDof() > 0,
+                  "NURBSExtension::ConvertToPatches: invalid number of DOFs.");
+      MFEM_VERIFY(Nodes.Size() % GetNDof() == 0,
+                  "NURBSExtension::ConvertToPatches: coordinate size not divisible by DOFs.");
+      const int phys_vdim = Nodes.Size() / GetNDof();
+      GetPatchNets(Nodes, phys_vdim);
+   }
+}
+
+void NURBSExtension::CreatePatches()
+{
+   if (patches.Size() == 0)
+   {
+      // Determine the physical vector dimension from the coordinate vector and
+      // the number of DOFs. This is needed in particular for curves/surfaces
+      // embedded in higher-dimensional physical spaces.
+      MFEM_VERIFY(GetNDof() > 0,
+                  "NURBSExtension::ConvertToPatches: invalid number of DOFs.");
+
+      Array<const KnotVector *> kv(Dimension());
+      NURBSPatchMap p2g(this);
+
+      patches.SetSize(GetNP());
+      for (int p = 0; p < GetNP(); p++)
+      {
+         p2g.SetPatchDofMap(p, kv);
+         patches[p] = new NURBSPatch(kv, 0);
+      }
+   }
+}
+
+void NURBSExtension::DeletePatches()
+{
+   if (patches.Size() != 0)
+   {
+      for (int p = 0; p < GetNP(); p++)
+      {
+         delete patches[p];
+      }
+      patches.SetSize(0);
+   }
+}
+
 
 void NURBSExtension::SetCoordsFromPatches(Vector &Nodes, int vdim)
 {
