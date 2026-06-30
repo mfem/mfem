@@ -711,7 +711,8 @@ void MixedDotProductIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "Trial/test dimension mismatch.");
 
    ne = trial_fes.GetNE();
-   MFEM_VERIFY(ne == test_fes.GetNE(), "Different meshes for test and trial spaces");
+   MFEM_VERIFY(ne == test_fes.GetNE(),
+               "Different meshes for test and trial spaces");
 
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
