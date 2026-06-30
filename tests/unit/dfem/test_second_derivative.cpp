@@ -13,7 +13,7 @@
 
 #include "mfem.hpp"
 
-#ifdef MFEM_USE_ENZYME
+//#ifdef MFEM_USE_ENZYME
 
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
@@ -44,7 +44,7 @@ struct MinimalSurfaceEnergyFunctional
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f /* dfdu, dfddudxi */
+                   dscalar_t &f /* dfdu, dfddudxi */
                   ) const
    {
       const auto invJ = inv(J);
@@ -62,7 +62,7 @@ struct MinimalSurfaceEnergy
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -79,7 +79,7 @@ struct MinimalSurfaceResidual
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   tensor<real_t, dim> &dvdx) const
+                   tensor<dscalar_t, dim> &dvdx) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -148,7 +148,7 @@ public:
          };
 
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
-         MinimalSurfaceEnergyFunctional<real_t, dim> energy;
+         MinimalSurfaceEnergyFunctional<dscalar_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
          auto second_derivatives = std::integer_sequence<size_t, U> {};
          functional_dop->AddDomainIntegrator<LocalQFBackend, true>(
@@ -171,7 +171,7 @@ public:
          };
 
          residual_dop = std::make_unique<DifferentiableOperator>(in, out, pmesh);
-         MinimalSurfaceResidual<real_t, dim> residual;
+         MinimalSurfaceResidual<dscalar_t, dim> residual;
          auto derivatives = std::integer_sequence<size_t, U> {};
          residual_dop->AddDomainIntegrator<LocalQFBackend>(
             residual,
@@ -195,7 +195,7 @@ public:
          dfunctional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          // Differentiate output f (argument 3) with respect to dudxi
          // (argument 0).
-         RevDiff<MinimalSurfaceEnergy<real_t, dim>, tuple<Active, Const, Const>, tuple<Active>>
+            RevDiff<MinimalSurfaceEnergy<dscalar_t, dim>, tuple<Active, Const, Const>, tuple<Active>, RevDiffDualMode::Derivative>
                fd;
 
          auto derivatives = std::integer_sequence<size_t, U> {};
@@ -421,4 +421,4 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_USE_ENZYME
+//#endif // MFEM_USE_ENZYME

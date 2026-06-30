@@ -1845,12 +1845,20 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
  * apply Gauss elimination directly on the dual number types
  *
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
+ * TODO: restricted to rank-2 tensors, but could be generalized to higher rank tensors if needed
+ * 
+ * believe it was broken, get_value(a) would have just worked on a single dual number. Now we  extract it for a rank-2 tensor
  */
-template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
+/* template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> inv(
-   tensor<dual<value_type, gradient_type>, n, n> A)
+   const tensor<dual<value_type, gradient_type>, n, n> &A)
 {
-   auto invA = inv(get_value(A));
+   auto valueA = make_tensor<n, n>([&](int i, int j) 
+   {
+      return A[i][j].value;
+   });
+   auto invA = inv(valueA); 
+
    return make_tensor<n, n>([&](int i, int j)
    {
       auto          value = invA[i][j];
@@ -1864,7 +1872,7 @@ dual<value_type, gradient_type> inv(
       }
       return dual<value_type, gradient_type> {value, gradient};
    });
-}
+} */
 
 /**
  * @brief recursively serialize the entries in a tensor to an output stream.

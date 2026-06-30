@@ -74,7 +74,7 @@ struct NeoHookeanStress
       const auto dudx = dudxi * invJ;
       const auto F = IdentityMatrix<dim>() + dudx;
       const auto JF = det(F);
-      const auto FinvT = inv(transpose(F));
+      const auto FinvT = transpose(inv(F));
       const auto I1 = tr(transpose(F) * F);
       const auto P = 2.0_r * D1 * JF * (JF - 1.0_r) * FinvT
                      + 2.0_r * C1 * pow(JF, -2.0_r / 3.0_r)
@@ -293,12 +293,12 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    energy.problem->GradientAction(energy.state, energy.direction, energy_action);
    stress.problem->GradientAction(stress.state, stress.direction, stress_action);
 
+   REQUIRE(energy_action.Norml2() > 0.0);
+   REQUIRE(stress_action.Norml2() > 0.0);
+
    Vector action_diff(energy_action);
    action_diff -= stress_action;
    REQUIRE(action_diff.Norml2() < 1e-10);
-
-   REQUIRE(energy_action.Norml2() > 0.0);
-   REQUIRE(stress_action.Norml2() > 0.0);
 }
 
 #endif

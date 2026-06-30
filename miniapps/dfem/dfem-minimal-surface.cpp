@@ -554,6 +554,7 @@ int main(int argc, char *argv[])
 #else
    // When Enzyme is not available, use the dual type for automatic
    // differentiation
+   mfem::out << "Enzyme not available, using dual type for automatic differentiation." << std::endl;
    using mfem::future::dual;
    using dual_t = dual<real_t, real_t>;
    minsurface = std::make_unique<MinimalSurface<dual_t>>(H1, *ir,

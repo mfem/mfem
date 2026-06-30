@@ -29,30 +29,31 @@ namespace mfem::future
 template <typename T>
 MFEM_HOST_DEVICE auto qf_store_value(const T &v)
 {
-   if constexpr (is_dual_number<T>::value) { return v.value; }
+   if constexpr (is_nested_dual_number<T>::value) { return v.value.value; }
+   else if constexpr (is_dual_number<T>::value) { return v.value; }
    else { return v; }
 }
 
 template <typename T>
 MFEM_HOST_DEVICE auto qf_store_gradient(const T &v)
 {
-   if constexpr (is_dual_number<T>::value) { return v.gradient; }
+   if constexpr (is_nested_dual_number<T>::value) { return v.gradient.value; }
+   else if constexpr (is_dual_number<T>::value) { return v.gradient; }
    else { return v; }
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// True when quadrature-point values of `T` carry dual-number derivatives
 template <typename T>
-struct qf_param_uses_dual : std::false_type {};
+struct qf_param_uses_nested_dual : std::false_type {};
 
 template <typename S, int... Is>
-struct qf_param_uses_dual<tensor<S, Is...>> : is_dual_number<S> {};
+struct qf_param_uses_nested_dual<tensor<S, Is...>> : is_nested_dual_number<S> {};
 
 template <typename V, typename G>
-struct qf_param_uses_dual<dual<V, G>> : std::true_type {};
+struct qf_param_uses_nested_dual<dual<V, G>> : is_nested_dual_number<dual<V, G>> {};
 
 template <typename T>
-constexpr bool qf_param_uses_dual_v = qf_param_uses_dual<T>::value;
+constexpr bool qf_param_uses_nested_dual_v =
+   qf_param_uses_nested_dual<T>::value;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Static shape for one decayed q-function parameter type
@@ -162,6 +163,26 @@ using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
 /// These let the cached derivative setup/apply seed trial directions and gather
 /// Jacobian rows directly through the register driver, without an intermediate
 /// per-quadrature-point buffer or `map_scratch`.
+///
+/// 'nested duals'  dual<dual<V,G>, dual<V,G>>  are used for second derivatives
+/// computation for the native dual number backend.
+///
+/// When Dual number is 'lifted' to nested dual, the following mapping is used:
+///
+/// Dual(V, G) -> ( (V, 0), (G, 0) ) = dual<dual<V,G>, dual<V,G>>
+///               ( a, b ) -> ( (a, c), (b, d) )
+///
+/// a,b are the original primal/gradient, c,d are the new primal/gradient for the nested dual number.
+/// c is used for seeding the second derivative, d is used to retrieve the second derivative.
+///   
+/// The notation for getter/setter is the following:
+/// qf_set_flat_value          -> value.value
+/// qf_set_flat_gradient       -> gradient.value
+///
+/// qf_set_flat_value_gradient -> value.gradient
+/// qf_flat_gradient_gradient  -> gradient.gradient
+///
+
 template <typename ARG>
 MFEM_HOST_DEVICE inline real_t qf_flat_value(const ARG &a, int c)
 {
@@ -186,7 +207,23 @@ MFEM_HOST_DEVICE inline real_t qf_flat_value(const ARG &a, int c)
 template <typename ARG>
 MFEM_HOST_DEVICE inline real_t qf_flat_gradient(const ARG &a, int c)
 {
-   if constexpr (is_dual_number<ARG>::value)
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient.value;
+   }
+   else if constexpr (qf_param_uses_nested_dual<ARG>::value)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient.value; }
+      else if constexpr (RNK == 1) { return a(c).gradient.value; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient.value;
+      }
+   }
+   else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(c);
       return a.gradient;
@@ -215,6 +252,22 @@ template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
 {
    if constexpr (std::is_same_v<ARG, real_t>) { MFEM_CONTRACT_VAR(c); a = v; }
+   else if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.value.value = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).value.value = v; }
+      else if constexpr (RNK == 1) { a(c).value.value = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).value.value = v;
+      }
+   }
    else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(c);
@@ -246,7 +299,23 @@ MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
 template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
 {
-   if constexpr (is_dual_number<ARG>::value)
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.gradient.value = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).gradient.value = v; }
+      else if constexpr (RNK == 1) { a(c).gradient.value = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).gradient.value = v;
+      }
+   }
+   else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(c);
       a.gradient = v;
@@ -270,6 +339,89 @@ MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
       MFEM_CONTRACT_VAR(v);
    }
 }
+
+
+template <typename ARG>
+MFEM_HOST_DEVICE void qf_set_flat_value_gradient(ARG &a, int c, real_t v)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.value.gradient = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).value.gradient = v; }
+      else if constexpr (RNK == 1) { a(c).value.gradient = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).value.gradient = v;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      MFEM_CONTRACT_VAR(v);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_value_gradient(const ARG &a, int c)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.value.gradient;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).value.gradient; }
+      else if constexpr (RNK == 1) { return a(c).value.gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).value.gradient;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_gradient_gradient(const ARG &a, int c)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient.gradient;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient.gradient; }
+      else if constexpr (RNK == 1) { return a(c).gradient.gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient.gradient;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
+   }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps

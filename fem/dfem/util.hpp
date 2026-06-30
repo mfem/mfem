@@ -244,6 +244,70 @@ constexpr auto make_dependency_tuple_ct()
              std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
+template <typename T>
+struct qf_param_uses_dual : std::false_type {};
+
+template <typename S, int... Is>
+struct qf_param_uses_dual<tensor<S, Is...>> : is_dual_number<S> {};
+
+template <typename V, typename G>
+struct qf_param_uses_dual<dual<V, G>> : std::true_type {};
+
+template <typename T>
+constexpr bool qf_param_uses_dual_v = qf_param_uses_dual<T>::value;
+
+template <size_t>
+using active_for_index_t = Active;
+
+template <size_t... Is>
+constexpr auto make_active_tuple_impl(std::index_sequence<Is...>)
+{
+   return tuple<active_for_index_t<Is>...> {};
+}
+
+template <size_t N>
+using make_active_tuple_t = decltype(make_active_tuple_impl(
+                                        std::make_index_sequence<N> {}));
+
+template <typename activity_tuple_t, size_t I>
+inline constexpr bool qf_param_is_active_v =
+   std::is_same_v<tuple_element_t<I, activity_tuple_t>, Active>;
+
+template <typename activity_tuple_t, size_t Lo, size_t Hi, size_t... Is>
+constexpr size_t find_single_active_qparam_impl(std::index_sequence<Is...>)
+{
+   size_t idx = tuple_size<activity_tuple_t>::value, count = 0;
+   (((Is >= Lo && Is < Hi && qf_param_is_active_v<activity_tuple_t, Is>) ?
+     (idx = Is, ++count) : size_t{0}), ...);
+   return count == 1 ? idx : tuple_size<activity_tuple_t>::value;
+}
+
+template <typename activity_tuple_t, size_t Lo, size_t Hi>
+constexpr size_t find_single_active_qparam()
+{
+   return find_single_active_qparam_impl<activity_tuple_t, Lo, Hi>(
+             std::make_index_sequence<tuple_size<activity_tuple_t>::value> {});
+}
+
+template <typename param_tuple_t, typename activity_tuple_t, size_t... Is>
+constexpr bool active_qparams_use_dual_impl(std::index_sequence<Is...>)
+{
+   return ((qf_param_is_active_v<activity_tuple_t, Is> &&
+            qf_param_uses_dual_v<
+               std::remove_cv_t<
+                  std::remove_reference_t<tuple_element_t<Is, param_tuple_t>>>>) || ...);
+}
+
+template <typename param_tuple_t, typename activity_tuple_t>
+constexpr bool active_qparams_use_dual()
+{
+   static_assert(tuple_size<param_tuple_t>::value ==
+                 tuple_size<activity_tuple_t>::value,
+                 "q-function parameter/activity tuple size mismatch");
+   return active_qparams_use_dual_impl<param_tuple_t, activity_tuple_t>(
+             std::make_index_sequence<tuple_size<param_tuple_t>::value> {});
+}
+
 template <typename... Tuples>
 struct tuple_cat_type;
 

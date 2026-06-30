@@ -782,9 +782,8 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
-#ifdef MFEM_USE_ENZYME
    bool has_functional_integrator = false;
-#endif
+   bool dop_uses_native_dual = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -1058,19 +1057,28 @@ void DifferentiableOperator::AddIntegrator(
                                                         inputs, outputs));
       };
 
-#ifdef MFEM_USE_ENZYME
       constexpr size_t idx = decltype(i)::value;
-#endif
+      constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
+      // The check on  the use of dual numbers will be done on active inputs and all outputs (defined as active).
+      using derivative_activity_t = decltype(concat_tuples(
+                                                std::decay_t<decltype(darr)> {},
+                                                make_active_tuple_t<num_outputs> {}));  
+      constexpr bool derivative_uses_native_dual =
+         active_qparams_use_dual<qf_param_ts, derivative_activity_t>();
+      dop_uses_native_dual = dop_uses_native_dual || derivative_uses_native_dual;
 
       if constexpr (is_functional)
       {
-#ifdef MFEM_USE_ENZYME
          has_functional_integrator = true;
 
-         // Check dependencies of the quadrature function inputs for the derivative
-         constexpr auto darr =
-            make_dependency_tuple_ct<idx, input_t>();
-         using dqfunc_t = RevDiff<qfunc_t, std::decay_t<decltype(darr)>, tuple<Active>>;
+            using dqfunc_t = RevDiff<qfunc_t, std::decay_t<decltype(darr)>, tuple<Active>>;
+
+            // If using dual numbers, we need to ensure this function is called with 'hyper-dual' (i.e. nested) dual numbers,
+            // This way the differentiation will be performed on the second dual pair, without overwriting the first dual pair. 
+            using second_dqfunc_t = RevDiff<qfunc_t,
+                                            std::decay_t<decltype(darr)>,
+                                            tuple<Active>,
+                                            RevDiffDualMode::Derivative>;
 
          //mfem::out << darr << "\n";
          // dqfunc_t::print();
@@ -1089,6 +1097,7 @@ void DifferentiableOperator::AddIntegrator(
          //mfem::out << get_type_name<input_t>() << "\n";
 
          dqfunc_t dqfunc;
+         second_dqfunc_t second_dqfunc;
 
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
@@ -1102,7 +1111,8 @@ void DifferentiableOperator::AddIntegrator(
                           assemble_second_derivative_sparsematrix_callbacks,
                           assemble_second_derivative_diagonal_callbacks,
                           second_derivative_action_callbacks,
-                          derivative_ctx, dqfunc, first_derivative_outputs);
+                          derivative_ctx, second_dqfunc,
+                          first_derivative_outputs);
 
          // The first derivative (gradient) of the functional is the plain
          // action of the reverse-mode-differentiated energy dqfunc. Register
@@ -1131,9 +1141,6 @@ void DifferentiableOperator::AddIntegrator(
             MFEM_VERIFY(stored_first_out == derivative_outputs_fds,
                         "inconsistent first derivative output FieldDescriptors");
          }
-#else
-         MFEM_ABORT("functional integrators require Enzyme support to compute derivatives");
-#endif
       }
       else
       {
