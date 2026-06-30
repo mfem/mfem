@@ -4148,8 +4148,8 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 
    // Solve the system. Pass nullptr for b when empty (PETSc treats it as zero RHS).
    ierr = SNESSolve(snes, b_nonempty ? B->x : nullptr, X->x); PCHKERRQ(snes, ierr);
-   if (x.Size()) { X->ResetMemory(); }
-   if (b.Size()) { B->ResetMemory(); }
+   X->ResetMemory();
+   if (b_nonempty) { B->ResetMemory(); }
 }
 
 // PetscODESolver methods
