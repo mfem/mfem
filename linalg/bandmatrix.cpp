@@ -55,7 +55,7 @@ BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
 
 void BandMatrix::Reset(const DenseMatrix &dm, int bw)
 {
-   constexpr tol = 1e-16;
+   constexpr int tol = 1e-16;
 
    height = dm.Height();
    width = dm.Width();
