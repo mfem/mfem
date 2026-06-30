@@ -1514,6 +1514,18 @@ public:
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
    }
 
+   /// @brief Return true if the mesh contains only one topology, the elements are
+   /// all triangles or tetrahedrons, and the elements are ragged tensor elements
+   /// i.e. Bernstein/positive basis.
+   bool UsesRaggedTensorBasis() const
+   {
+      bool simplex = this->GetMesh()->IsSimplexMesh();
+      bool positive =
+         dynamic_cast<const mfem::H1Pos_TriangleElement *>(this->GetTypicalFE()) ||
+         dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(this->GetTypicalFE());
+      return simplex && positive;
+   }
+
    /** In variable-order spaces on nonconforming (NC) meshes, this function
        controls whether strict conformity is enforced in cases where coarse
        edges/faces have higher polynomial order than their fine NC neighbors.
