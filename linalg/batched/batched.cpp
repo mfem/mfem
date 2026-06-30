@@ -127,8 +127,8 @@ void VerifyBatchedLUInfo(const Array<int> &info_array, const char *message)
    const int *d_info = info_array.Read();
    mfem::reduce(
       info_array.Size(), status,
-      [=] MFEM_HOST_DEVICE (int i, int &r) { r |= d_info[i]; },
-      BOrReducer<int> {}, true, workspace);
+   [=] MFEM_HOST_DEVICE (int i, int &r) { r |= d_info[i]; },
+   BOrReducer<int> {}, true, workspace);
    MFEM_VERIFY(status == 0, message);
 }
 
