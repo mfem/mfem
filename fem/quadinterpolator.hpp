@@ -159,26 +159,49 @@ public:
    /// QuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fespace);
 
-   using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
-                                        real_t *, const int, const int, const int);
-   using GradKernelType = void(*)(const int, const real_t *, const real_t *,
-                                  const real_t *, const real_t *, real_t *,
-                                  const int, const int, const int, const int);
-   using CollocatedGradKernelType = void(*)(const int, const real_t *,
-                                            const real_t *, const real_t *,
-                                            real_t *, const int, const int,
-                                            const int);
-   using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
-                                 const real_t *, real_t *, const int, const int,
-                                 Vector *);
-   using EvalKernelType = void(*)(const int, const int, const QVectorLayout,
-                                  const GeometricFactors *, const DofToQuad &,
-                                  const Vector &, Vector &, Vector &, Vector &,
-                                  const int);
+   // value map types
+   using TensorEvalKernelType = void (*)(const int ne, const real_t *B,
+                                         const real_t *e_vec, real_t *q_val,
+                                         const int vdim, const int nd,
+                                         const int nq);
+   using GradKernelType = void (*)(const int ne, const real_t *B,
+                                   const real_t *G, const real_t *J,
+                                   const real_t *e_vec, real_t *q_der,
+                                   const int s_dim, const int v_dim,
+                                   const int nd, const int nq);
+   using CollocatedGradKernelType = void (*)(const int ne, const real_t *G,
+                                             const real_t *J,
+                                             const real_t *e_vec, real_t *q_der,
+                                             const int sdim, const int vdim,
+                                             const int d1d);
+   using DetKernelType = void (*)(const int NE, const real_t *B,
+                                  const real_t *G, const real_t *e_vec,
+                                  real_t *q_det, const int nd, const int nq,
+                                  Vector *d_buffer);
+   using EvalKernelType = void (*)(const int NE, const int vdim,
+                                   const QVectorLayout q_layout,
+                                   const GeometricFactors *geom,
+                                   const DofToQuad &maps, const Vector &e_vec,
+                                   Vector &q_val, Vector &q_der, Vector &q_det,
+                                   const int eval_flags);
+
+   // integral map types
+   using IntTensorEvalKernelType = void (*)(const int ne, const real_t *B,
+                                            const real_t *detJ,
+                                            const real_t *e_vec, real_t *q_val,
+                                            const int vdim, const int nd,
+                                            const int nq);
+   using IntEvalKernelType =
+      void (*)(const int NE, const int vdim, const QVectorLayout q_layout,
+               const GeometricFactors *detJgeom, const GeometricFactors *geom,
+               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+               Vector &q_der, Vector &q_det, const int eval_flags);
+
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
 
+   // value-type mapping
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
                          (int, QVectorLayout, int, int, int), (int));
    MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
@@ -187,8 +210,84 @@ public:
    MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
    MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
                          (int, QVectorLayout, bool, int, int), (int));
+
+   // integral-type mapping
+   MFEM_REGISTER_KERNELS(IntTensorEvalKernels, IntTensorEvalKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(IntEvalKernels, IntEvalKernelType, (int, int, int, int));
+
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
+
+   /// Adds specializations for TensorEvalKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D,
+             int NBZ = 0>
+   static void AddTensorEvalSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         IntTensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                              Q1D>::template Opt<NBZ>::Add();
+         TensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                           Q1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         IntTensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                              Q1D>::Add();
+         TensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                           Q1D>::Add();
+      }
+   }
+
+   /// Adds specializations for EvalKernels
+   template <int DIM, int VDIM, int ND, int NQ>
+   static void AddEvalSpecializations()
+   {
+      IntEvalKernels::Specialization<DIM, VDIM, ND, NQ>::Add();
+      EvalKernels::Specialization<DIM, VDIM, ND, NQ>::Add();
+   }
+
+   /// Adds specializations for GradKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+             int Q1D, int NBZ = 0>
+   static void AddGradSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         GradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM, D1D,
+                     Q1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         GradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM, D1D,
+                     Q1D>::Add();
+      }
+   }
+
+   /// Adds specializations for CollocatedGradKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+             int NBZ = 0>
+   static void AddCollocatedGradSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         CollocatedGradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM,
+                               D1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         CollocatedGradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM,
+                               D1D>::Add();
+      }
+   }
+
+   /// Adds specializations for DetKernels
+   template <int DIM, int SDIM, int D1D, int Q1D>
+   static void AddDetSpecializations()
+   {
+      DetKernels::Specialization<DIM, SDIM, D1D, Q1D>::Add();
+   }
 };
 
 }

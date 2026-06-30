@@ -21,36 +21,59 @@ namespace quadrature_interpolator
 
 void InitEvalByVDimKernels()
 {
-   using k = QuadratureInterpolator::TensorEvalKernels;
    // 2D
-   k::Specialization<2,QVectorLayout::byVDIM,1,2,4>::Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,1,3,6>::Opt<4>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,1,4,8>::Opt<2>::Add();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 1, 2, 4, 8>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 1, 3, 6, 4>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 1, 4, 8, 2>();
 
-   k::Specialization<2,QVectorLayout::byVDIM,2,2,4>::Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,2,3,4>::Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,2,3,6>::Opt<4>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,2,4,6>::Opt<2>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,2,4,8>::Opt<2>::Add();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 2, 2, 4, 8>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 2, 3, 4, 8>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 2, 3, 6, 4>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 2, 4, 6, 2>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byVDIM, 2, 4, 8, 2>();
    // 3D
-   k::Specialization<3,QVectorLayout::byVDIM,1,2,4>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,1,3,6>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,1,4,8>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,2,4>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,3,6>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,4,8>::Opt<1>::Add();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 1, 2, 4, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 1, 3, 6, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 1, 4, 8, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 2, 4, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 3, 6, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 4, 8, 1>();
 
-   k::Specialization<3,QVectorLayout::byVDIM,3,2,2>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,3,3>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,4,4>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,5,5>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,6,6>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,7,7>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,8,8>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,9,9>::Opt<1>::Add();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 2, 2, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 3, 3, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 4, 4, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 5, 5, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 6, 6, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 7, 7, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 8, 8, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 9, 9, 1>();
 
-   k::Specialization<3,QVectorLayout::byVDIM,3,4,6>::Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,3,3,4>::Opt<1>::Add();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 4, 6, 1>();
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   3, QVectorLayout::byVDIM, 3, 3, 4, 1>();
 }
 
 } // namespace quadrature_interpolator

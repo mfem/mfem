@@ -21,24 +21,23 @@ namespace quadrature_interpolator
 
 void InitDetKernels()
 {
-   using k = QuadratureInterpolator::DetKernels;
    // 2D
-   k::Specialization<2,2,2,2>::Add();
-   k::Specialization<2,2,2,3>::Add();
-   k::Specialization<2,2,2,4>::Add();
-   k::Specialization<2,2,2,6>::Add();
-   k::Specialization<2,2,3,4>::Add();
-   k::Specialization<2,2,3,6>::Add();
-   k::Specialization<2,2,4,4>::Add();
-   k::Specialization<2,2,4,6>::Add();
-   k::Specialization<2,2,5,6>::Add();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,2>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,3>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,3,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,3,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,4,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,4,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,5,6>();
    // 3D
-   k::Specialization<3,3,2,4>::Add();
-   k::Specialization<3,3,3,3>::Add();
-   k::Specialization<3,3,3,5>::Add();
-   k::Specialization<3,3,3,6>::Add();
-   k::Specialization<3,3,4,6>::Add();
-   k::Specialization<3,3,3,4>::Add();
+   QuadratureInterpolator::AddDetSpecializations<3,3,2,4>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,3>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,5>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,6>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,4,6>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,4>();
 }
 
 } // namespace quadrature_interpolator
@@ -47,26 +46,53 @@ void InitDetKernels()
 /// @cond Suppress_Doxygen_warnings
 
 QuadratureInterpolator::DetKernelType
-QuadratureInterpolator::DetKernels::Fallback(
-   int DIM, int SDIM, int D1D, int Q1D)
+QuadratureInterpolator::DetKernels::Fallback(int DIM, int SDIM, int D1D,
+                                             int Q1D)
 {
    if (DIM == 1)
    {
-      if (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
-      else if (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<0,0,2>; }
-      else if (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<0,0,3>; }
-      else { MFEM_ABORT(""); }
+      if (SDIM == 1)
+      {
+         return internal::quadrature_interpolator::Det1D;
+      }
+      else if (SDIM == 2)
+      {
+         return internal::quadrature_interpolator::Det1DSurface<0, 0, 2>;
+      }
+      else if (SDIM == 3)
+      {
+         return internal::quadrature_interpolator::Det1DSurface<0, 0, 3>;
+      }
+      else
+      {
+         MFEM_ABORT("");
+      }
    }
-   else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D; }
-   else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface; }
+   else if (DIM == 2 && SDIM == 2)
+   {
+      return internal::quadrature_interpolator::Det2D<>;
+   }
+   else if (DIM == 2 && SDIM == 3)
+   {
+      return internal::quadrature_interpolator::Det2DSurface<>;
+   }
    else if (DIM == 3)
    {
       const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
       const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
-      if (D1D <= MD && Q1D <= MQ) { return internal::quadrature_interpolator::Det3D<0,0,true>; }
-      else { return internal::quadrature_interpolator::Det3D<0,0,false>; }
+      if (D1D <= MD && Q1D <= MQ)
+      {
+         return internal::quadrature_interpolator::Det3D<0, 0, true>;
+      }
+      else
+      {
+         return internal::quadrature_interpolator::Det3D<0, 0, false>;
+      }
    }
-   else { MFEM_ABORT(""); }
+   else
+   {
+      MFEM_ABORT("");
+   }
 }
 
 /// @endcond
