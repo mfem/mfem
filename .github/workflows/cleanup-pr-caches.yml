@@ -1,0 +1,39 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+# A closed PR's caches can never be restored again, so delete them to free
+# space against the 10 GB per-repo cache limit.
+name: Cleanup PR caches
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete caches for the closed PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          echo "Deleting caches for $PR_REF"
+          gh cache list --ref "$PR_REF" --limit 100 --json id --jq '.[].id' \
+            | while read -r id; do
+                [ -n "$id" ] || continue
+                echo "Deleting cache $id"
+                gh cache delete "$id" || echo "  (already gone)"
+              done
