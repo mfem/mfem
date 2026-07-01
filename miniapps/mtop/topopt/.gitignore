@@ -34,3 +34,7 @@ gmsh-4.11.1-Linux64/
 
 # Mesh files (generated)
 *.msh
+
+# SLURM stuff
+*.err
+*.out
