@@ -1107,7 +1107,8 @@ public:
 
    void MultTranspose(const Vector &x, Vector &y) const override;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const real_t a = 1.0) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
