@@ -9,22 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+
+#include <utility>
 
 using namespace mfem;
 
 namespace pa_kernels
 {
 
-///////////////////////////////////////////////////////////////////////////////
 template <typename INTEGRATOR, bool TRANSPOSE>
 void pa_mixed_test(FiniteElementSpace &fes1,
                    FiniteElementSpace &fes2)
@@ -63,7 +59,6 @@ void pa_mixed_test(FiniteElementSpace &fes1,
    REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
 }
 
-///////////////////////////////////////////////////////////////////////////////
 template<int DIM>
 void test_pa_divergence(const char *filename, int p)
 {
@@ -84,12 +79,8 @@ void test_pa_divergence(const char *filename, int p)
    pa_mixed_test<VectorDivergenceIntegrator, true>(sfes, vfes);
 }
 
-///////////////////////////////////////////////////////////////////////////////
 TEST_CASE("VecDivPA", "[PartialAssembly][VecDivPA][GPU]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
-
    if (static auto done = false; !std::exchange(done, true))
    {
       using Grad = QuadratureInterpolator::GradKernels;
@@ -100,32 +91,26 @@ TEST_CASE("VecDivPA", "[PartialAssembly][VecDivPA][GPU]")
 
    SECTION("2D")
    {
-      const auto filename2d =
-         all_tests
-         ? GENERATE("../../data/star-q2.mesh",
-                    "../../data/star-q3.mesh",
-                    "../../data/rt-2d-q3.mesh",
-                    "../../data/inline-quad.mesh",
-                    "../../data/periodic-square.mesh")
-         : GENERATE("../../data/inline-quad.mesh",
-                    "../../data/periodic-square.mesh");
-      test_pa_divergence<2>(filename2d, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star-q2.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      test_pa_divergence<2>(GenAll(meshs, extra), GenAll({1, 2}, {3, 4}));
    }
 
    SECTION("3D")
    {
-      const auto filename3d =
-         all_tests
-         ? GENERATE("../../data/beam-hex.mesh",
-                    "../../data/fichera.mesh",
-                    "../../data/fichera-q2.mesh",
-                    "../../data/fichera-q3.mesh",
-                    "../../data/inline-hex.mesh",
-                    "../../data/periodic-cube.mesh",
-                    "../../data/toroid-hex.mesh")
-         : GENERATE("../../data/inline-hex.mesh",
-                    "../../data/periodic-cube.mesh");
-      test_pa_divergence<3>(filename3d, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/beam-hex.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/fichera-q2.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      test_pa_divergence<3>(GenAll(meshs, extra), GenAll({1, 2}, {3, 4}));
    }
 }
 
