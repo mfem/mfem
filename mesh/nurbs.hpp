@@ -503,12 +503,7 @@ public:
    int GetNKV() const { return kv.Size(); }
 
    /// Get number of control points for the entire patch
-   int GetNCP() const
-   {
-      int ncp = 1;
-      for (int d = 0; d < kv.Size(); d++) { ncp *= kv[d]->GetNCP();}
-      return ncp;
-   }
+   int GetNCP() const;
 
    /// Return a pointer to the KnotVector in direction @a dir.
    /// @note The returned object should NOT be deleted by the caller.
@@ -516,15 +511,7 @@ public:
 
    /// Uniform interface for obtaining Greville/Botella/Demko points
    /// Caller needs to delete the vectors.
-   void GetPoints(Array<Vector *> &uknot, NURBSPointSet pSet) const
-   {
-      for (int d = 0; d < kv.Size(); d++)
-      {
-         uknot[d] = new Vector();
-         kv[d]->GetPoints(*uknot[d], pSet);
-      }
-   }
-
+   void GetPoints(Array<Vector *> &uknot, NURBSPointSet pSet) const;
 
    // Standard B-NET access functions
 

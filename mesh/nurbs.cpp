@@ -1592,6 +1592,22 @@ int NURBSPatch::SetLoopDirection(int dir)
    return -1;
 }
 
+int NURBSPatch::GetNCP() const
+{
+   int ncp = 1;
+   for (int d = 0; d < kv.Size(); d++) { ncp *= kv[d]->GetNCP();}
+   return ncp;
+}
+
+void NURBSPatch::GetPoints(Array<Vector *> &uknot, NURBSPointSet pSet) const
+{
+   for (int d = 0; d < kv.Size(); d++)
+   {
+      uknot[d] = new Vector();
+      kv[d]->GetPoints(*uknot[d], pSet);
+   }
+}
+
 void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 {
    Vector new_knots;
