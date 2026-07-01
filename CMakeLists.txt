@@ -320,6 +320,37 @@ endif()
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
+  # Detect the MPI implementation (vendor) once, for downstream code that needs
+  # implementation-specific handling (e.g. cuDSS ships a prebuilt communication
+  # layer for Open MPI only). Open MPI defines OMPI_MAJOR_VERSION and the MPICH
+  # family (MPICH, Intel MPI, MVAPICH, Cray MPICH) defines MPICH_VERSION in
+  # mpi.h. Results are cached in MFEM_MPI_IS_OPENMPI and MFEM_MPI_IS_MPICH for
+  # reuse by any Find module or feature below.
+  include(CheckCXXSourceCompiles)
+  set(_mfem_mpi_req_incl_save "${CMAKE_REQUIRED_INCLUDES}")
+  list(APPEND CMAKE_REQUIRED_INCLUDES ${MPI_CXX_INCLUDE_DIRS})
+  check_cxx_source_compiles("
+#include <mpi.h>
+#ifndef OMPI_MAJOR_VERSION
+#error MPI implementation is not Open MPI.
+#endif
+int main() { return 0; }
+" MFEM_MPI_IS_OPENMPI)
+  check_cxx_source_compiles("
+#include <mpi.h>
+#ifndef MPICH_VERSION
+#error MPI implementation is not MPICH.
+#endif
+int main() { return 0; }
+" MFEM_MPI_IS_MPICH)
+  set(CMAKE_REQUIRED_INCLUDES "${_mfem_mpi_req_incl_save}")
+  if (MFEM_MPI_IS_OPENMPI)
+    message(STATUS "MPI implementation: Open MPI")
+  elseif (MFEM_MPI_IS_MPICH)
+    message(STATUS "MPI implementation: MPICH-family")
+  else()
+    message(STATUS "MPI implementation: unrecognized")
+  endif()
   if (MFEM_MPIEXEC)
     string(REPLACE " " ";" MPIEXEC ${MFEM_MPIEXEC})
   endif()
