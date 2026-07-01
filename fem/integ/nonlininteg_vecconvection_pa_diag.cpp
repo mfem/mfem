@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
@@ -128,7 +128,7 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
    });
 }
 
-template<int T_MDQ, int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
 static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
@@ -310,15 +310,12 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 
 /// \cond DO_NOT_DOCUMENT
 
-// Maximum D1D or Q1D for the VectorConvectionNLFGradDiagPA kernels
-namespace { constexpr int MDQ = 16; }
-
 template<int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
-   return SmemPAConvectionNLGradDiagonal2D<MDQ, T_D1D, T_Q1D>;
+   return SmemPAConvectionNLGradDiagonal2D<T_D1D, T_Q1D>;
 }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
@@ -326,9 +323,9 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= MDQ, "d1d > " << MDQ << " is not supported");
-   MFEM_VERIFY(q1d <= MDQ, "q1d > " << MDQ << " is not supported");
-   return SmemPAConvectionNLGradDiagonal2D<MDQ>;
+   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
+   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   return SmemPAConvectionNLGradDiagonal2D<>;
 }
 
 template<int T_D1D, int T_Q1D>
@@ -336,7 +333,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
-   return SmemPAConvectionNLGradDiagonal3D<MDQ, T_D1D, T_Q1D>;
+   return SmemPAConvectionNLGradDiagonal3D<T_D1D, T_Q1D>;
 }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
@@ -344,9 +341,9 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= MDQ, "d1d > " << MDQ << " is not supported");
-   MFEM_VERIFY(q1d <= MDQ, "q1d > " << MDQ << " is not supported");
-   return SmemPAConvectionNLGradDiagonal3D<MDQ>;
+   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
+   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   return SmemPAConvectionNLGradDiagonal3D<>;
 }
 
 /// \endcond DO_NOT_DOCUMENT
