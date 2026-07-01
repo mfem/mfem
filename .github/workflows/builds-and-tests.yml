@@ -141,6 +141,10 @@ jobs:
 
     continue-on-error: ${{ matrix.enzyme && true || false }}
 
+    # Enable ccache for all jobs except Windows and macOS enzyme
+    env:
+      USE_CCACHE: ${{ matrix.os != 'windows-latest' && !matrix.enzyme }}
+
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
@@ -289,6 +293,47 @@ jobs:
           echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "OMPI_CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
 
+      # Restore the compiler cache (ccache). The key embeds the run id, so new
+      # runs save a fresh snapshot; the restore-keys prefix warm-starts from the
+      # most recent prior run (incl. the base branch for PRs).
+      - name: cache ccache
+        if: ${{ env.USE_CCACHE == 'true' }}
+        uses: actions/cache@v5
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-
+
+      # Configure ccache and select how it is injected into the MFEM build:
+      # - make:  set CXX/MPICXX so MFEM_CXX becomes "ccache <compiler>".
+      # - cmake: set CMAKE_<LANG>_COMPILER_LAUNCHER=ccache.
+      # The chosen options are passed through build-mfem's 'config-options'
+      # input (see the build step below).
+      - name: configure ccache
+        if: ${{ env.USE_CCACHE == 'true' }}
+        run: |
+          command -v ccache >/dev/null 2>&1 || {
+            if [[ "${{ runner.os }}" == "Linux" ]]; then
+              sudo apt-get update && sudo apt-get install -y ccache
+            else
+              brew install ccache
+            fi
+          }
+          echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=1G" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          # Ignore header timestamps (restamped by each checkout) so direct mode hits.
+          echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros" >> $GITHUB_ENV
+          # Hash absolute paths relative to the workspace.
+          echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
+          if [[ "${{ matrix.build-system }}" == "cmake" ]]; then
+            echo 'CCACHE_CONFIG_OPTS=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' >> $GITHUB_ENV
+          else
+            echo 'CCACHE_CONFIG_OPTS=CXX="ccache g++" MPICXX="ccache mpicxx"' >> $GITHUB_ENV
+          fi
+        shell: bash
+
       # MFEM build and test
       - name: build
         uses: mfem/github-actions/build-mfem@v2.7
@@ -304,8 +349,13 @@ jobs:
           metis-dir: ${{ env.METIS_TOP_DIR }}
           mfem-dir: ${{ env.MFEM_TOP_DIR }}
           precision: ${{ matrix.precision }}
-          config-options: ${{ matrix.config-opts }}
+          config-options: ${{ matrix.config-opts }} ${{ env.CCACHE_CONFIG_OPTS }}
           library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
+
+      - name: ccache stats
+        if: ${{ env.USE_CCACHE == 'true' }}
+        run: ccache -s
+        shell: bash
 
       # Run checks (and only checks) on debug targets
       - name: checks
