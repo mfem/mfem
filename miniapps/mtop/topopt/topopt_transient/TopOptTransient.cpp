@@ -1,215 +1,155 @@
 // =============================================================================
-// Transient Topology Optimization - Main Driver (Phase 5)
+// Transient Topology Optimization Driver
 // =============================================================================
 //
-// Complete optimization loop integrating:
-//   - Forward elastodynamics solve (Phase 1)
-//   - Objective accumulation (Phase 2)
-//   - Adjoint backward march (Phase 3)
-//   - Design sensitivity (Phase 4)
-//   - MMA optimizer (Phase 5)
+// Minimizes wave amplitude in a protected subdomain by optimizing the material
+// distribution of a linear-elastodynamic domain with absorbing boundaries:
 //
-// Problem formulation:
-//   min J(ρ) = ∫₀ᵀ ∫_Ω̃ |u(t)|² dx dt
-//   s.t. M(ρ) ü + C u̇ + K(ρ) u = f(t)
-//        ∫_Ω ρ dx / V* ≤ 1  (volume constraint)
-//        0 ≤ ρ ≤ 1           (box constraints)
+//   minimize   J(rho) = int_0^T int_Omega_hat |u(t)|^2 dx dt
+//   subject to M(rho) u'' + C u' + K(rho) u = f(t),   u(0)=u'(0)=0
+//              (1/V*) int rho dx - 1 <= 0,   0 <= rho <= 1
+//
+// Pipeline per MMA iteration:
+//   1. raw control density rho (L2) -> Helmholtz filter -> rho_tilde (H1),
+//   2. rho_tilde drives SIMP mass/stiffness coefficients,
+//   3. DesignObjectiveAdjointGradient runs the RK4 forward sweep (J) and the
+//      discrete adjoint backward sweep with stage-consistent design
+//      sensitivity, returning dJ/drho (already filter-transposed),
+//   4. MMA updates rho subject to the volume constraint + move limits.
+//
+// The adjoint + design gradient are verified in test_adjoint_verification.
 //
 // COMPILE:
 //   make TopOptTransient -j8
 //
-// RUN:
-//   srun -n <nprocs> ./TopOptTransient [options]
+// RUN (short wiring smoke test):
+//   mpirun -np 4 ./TopOptTransient -r 0 -o 1 -tf 0.3 -dt 1e-4 -vf 0.5 \
+//   -fr 0.03 -mi 150 -mv 0.2 -pv
 //
 // =============================================================================
 
 #include "mfem.hpp"
 #include "ElastodynamicsSolver.hpp"
 #include "ObjectiveFunctional.hpp"
+#include "../../pde_filter.hpp"
 #include "../../mma/MMA_MFEM.hpp"
-#include <iostream>
+#include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
-#include <cmath>
+#include <iostream>
+#include <memory>
+#include <string>
 
 using namespace std;
 using namespace mfem;
 
-// =============================================================================
-// Volume Constraint Evaluator
-// =============================================================================
-class VolumeConstraint
+namespace
 {
-private:
-   ParFiniteElementSpace *design_fes;
-   real_t volume_target;  // V*
-   MPI_Comm comm;
-   int myid;
 
-public:
-   VolumeConstraint(ParFiniteElementSpace *dfes, real_t vtarget)
-      : design_fes(dfes), volume_target(vtarget), comm(dfes->GetComm())
-   {
-      MPI_Comm_rank(comm, &myid);
-   }
-
-   /// Evaluate constraint: g = ∫_Ω ρ dx / V* - 1 ≤ 0
-   real_t Evaluate(const ParGridFunction &rho)
-   {
-      ConstantCoefficient one(1.0);
-      ParLinearForm volume_form(design_fes);
-      volume_form.AddDomainIntegrator(new DomainLFIntegrator(one));
-      volume_form.Assemble();
-
-      real_t local_volume = volume_form.Sum();
-      real_t global_volume;
-      MPI_Allreduce(&local_volume, &global_volume, 1,
-                    MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-
-      // Total domain volume (for normalization)
-      real_t total_volume = volume_target;
-
-      // Current volume
-      GridFunctionCoefficient rho_coef(const_cast<ParGridFunction*>(&rho));
-      ParLinearForm rho_volume_form(design_fes);
-      rho_volume_form.AddDomainIntegrator(new DomainLFIntegrator(rho_coef));
-      rho_volume_form.Assemble();
-
-      real_t local_rho_vol = rho_volume_form.Sum();
-      real_t global_rho_vol;
-      MPI_Allreduce(&local_rho_vol, &global_rho_vol, 1,
-                    MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-
-      // Constraint: g = ∫ ρ dx / V* - 1
-      real_t constraint = global_rho_vol / volume_target - 1.0;
-
-      return constraint;
-   }
-
-   /// Gradient: dg/dρ = 1 / V*
-   void Gradient(Vector &dg_drho)
-   {
-      real_t scale = 1.0 / volume_target;
-      dg_drho.SetSize(design_fes->GetTrueVSize());
-      dg_drho = scale;
-   }
-};
-
-// =============================================================================
-// Optimization History Tracker
-// =============================================================================
-class OptimizationHistory
+string ToLower(const char *text)
 {
-private:
-   vector<real_t> objective_history;
-   vector<real_t> constraint_history;
-   vector<real_t> change_history;
-   int myid;
+   string value(text ? text : "");
+   transform(value.begin(), value.end(), value.begin(),
+             [](unsigned char c) { return static_cast<char>(tolower(c)); });
+   return value;
+}
 
-public:
-   OptimizationHistory(MPI_Comm comm)
+unique_ptr<HypreParVector> AssembleVolumeWeights(ParFiniteElementSpace &fes,
+                                                 real_t &domain_volume)
+{
+   ConstantCoefficient one(1.0);
+   ParLinearForm volume_form(&fes);
+   volume_form.AddDomainIntegrator(new DomainLFIntegrator(one));
+   volume_form.Assemble();
+
+   unique_ptr<HypreParVector> weights(volume_form.ParallelAssemble());
+
+   const real_t local_volume = weights->Sum();
+   MPI_Allreduce(&local_volume, &domain_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, fes.GetComm());
+
+   return weights;
+}
+
+bool InitializeDesign(ParGridFunction &rho, const char *design_init,
+                      real_t vol_frac, real_t x_max, real_t y_max)
+{
+   const string mode = ToLower(design_init);
+
+   if (mode == "uniform")
    {
-      MPI_Comm_rank(comm, &myid);
+      rho = vol_frac;
+      return true;
    }
 
-   void Record(real_t obj, real_t con, real_t change)
+   if (mode == "solid")
    {
-      objective_history.push_back(obj);
-      constraint_history.push_back(con);
-      change_history.push_back(change);
+      rho = 1.0;
+      return true;
    }
 
-   void PrintHeader()
+   if (mode == "void")
    {
-      if (myid == 0)
-      {
-         cout << "\n" << string(80, '=') << endl;
-         cout << "OPTIMIZATION HISTORY" << endl;
-         cout << string(80, '=') << endl;
-         cout << setw(6) << "Iter"
-              << setw(16) << "Objective"
-              << setw(16) << "Volume Con"
-              << setw(16) << "Design Change"
-              << setw(16) << "Status"
-              << endl;
-         cout << string(80, '-') << endl;
-      }
+      rho = 0.0;
+      return true;
    }
 
-   void PrintIteration(int iter)
+   if (mode == "gaussian")
    {
-      if (myid == 0 && iter < (int)objective_history.size())
-      {
-         cout << setw(6) << iter
-              << setw(16) << scientific << setprecision(6) << objective_history[iter]
-              << setw(16) << constraint_history[iter]
-              << setw(16) << change_history[iter]
-              << setw(16) << (change_history[iter] < 1e-3 ? "Converged" : "Running")
-              << endl;
-      }
+      GaussianDesignCoefficient gaussian(x_max/2.0, y_max/2.0,
+                                         0.25*x_max, 0.25*y_max,
+                                         0.10, 1.0);
+      rho.ProjectCoefficient(gaussian);
+      return true;
    }
 
-   void SaveToFile(const string &filename)
-   {
-      if (myid == 0)
-      {
-         ofstream out(filename);
-         out << "# Iteration Objective VolumeConstraint DesignChange" << endl;
-         for (size_t i = 0; i < objective_history.size(); i++)
-         {
-            out << i << " "
-                << objective_history[i] << " "
-                << constraint_history[i] << " "
-                << change_history[i] << endl;
-         }
-         out.close();
-      }
-   }
+   return false;
+}
 
-   bool CheckConvergence(int iter, real_t tol = 1e-3)
-   {
-      if (iter > 5 && iter < (int)change_history.size())
-      {
-         return change_history[iter] < tol;
-      }
-      return false;
-   }
-};
+} // namespace
 
-// =============================================================================
-// MAIN OPTIMIZATION LOOP
-// =============================================================================
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
-   int myid = Mpi::WorldRank();
+
+   const MPI_Comm comm = MPI_COMM_WORLD;
+   const int myid = Mpi::WorldRank();
 
    Device device("cpu");
 
-   // ==========================================================================
-   // Command-line options
-   // ==========================================================================
-   int ref_levels = 2;
-   int order = 2;
-   real_t t_final = 0.1;
-   real_t dt = 0.0005;
-   int max_iter = 50;
+   int ref_levels = 0;
+   int order = 1;
+   real_t t_final = 0.006;
+   real_t dt = 5e-5;
    real_t vol_frac = 0.5;
    real_t filter_radius = 0.05;
-   bool paraview = true;
-   const char *mesh_file = "lamb-problem-damping-mesh-quads.msh";
+   int max_it = 20;
+   real_t move = 0.2;
+   real_t change_tol = 1e-3;
+   bool paraview = false;
+   const char *mesh_file = "lamb-problem-damping-mesh-triangs.msh";
+   const char *design_init = "uniform";
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine", "Refinement level");
-   args.AddOption(&order, "-o", "--order", "FE order");
+   args.AddOption(&order, "-o", "--order", "H1 finite element order");
    args.AddOption(&t_final, "-tf", "--t-final", "Final time");
    args.AddOption(&dt, "-dt", "--time-step", "Time step");
-   args.AddOption(&max_iter, "-mi", "--max-iter", "Max optimization iterations");
-   args.AddOption(&vol_frac, "-vf", "--vol-frac", "Volume fraction constraint");
-   args.AddOption(&filter_radius, "-fr", "--filter-radius", "Filter radius");
-   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview", "ParaView");
+   args.AddOption(&vol_frac, "-vf", "--vol-frac", "Target volume fraction");
+   args.AddOption(&filter_radius, "-fr", "--filter-radius",
+                  "Helmholtz filter radius");
+   args.AddOption(&max_it, "-mi", "--max-it", "Max MMA iterations");
+   args.AddOption(&move, "-mv", "--move", "MMA move limit");
+   args.AddOption(&change_tol, "-tol", "--tol",
+                  "Stop early when the L1 design change drops below this");
+   args.AddOption(&design_init, "-init", "--design-init",
+                  "Initial design: uniform, solid, void, gaussian");
    args.AddOption(&mesh_file, "-mesh", "--mesh-file", "Mesh file");
+   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
+                  "--no-paraview", "Write ParaView output");
    args.Parse();
 
    if (!args.Good())
@@ -217,398 +157,258 @@ int main(int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return 1;
    }
-   if (myid == 0) { args.PrintOptions(cout); }
 
-   // ==========================================================================
-   // Problem setup
-   // ==========================================================================
-   real_t x_max = 1.5;
-   real_t y_max = 0.75;
-
-   if (myid == 0)
+   if (order < 1)
    {
-      cout << "\n" << string(80, '=') << endl;
-      cout << "TRANSIENT TOPOLOGY OPTIMIZATION" << endl;
-      cout << string(80, '=') << endl;
-      cout << "Domain: " << x_max << " × " << y_max << " m" << endl;
-      cout << "Time horizon: [0, " << t_final << "] s" << endl;
-      cout << "Timestep: " << dt << " s" << endl;
-      cout << "Max iterations: " << max_iter << endl;
-      cout << "Volume fraction: " << vol_frac << endl;
-      cout << "Filter radius: " << filter_radius << endl;
-      cout << string(80, '=') << endl;
+      if (myid == 0) { cerr << "Error: -o/--order must be at least 1.\n"; }
+      return 1;
+   }
+   if (dt <= 0.0 || t_final <= 0.0)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -dt and -tf must both be positive.\n";
+      }
+      return 1;
+   }
+   if (vol_frac <= 0.0 || vol_frac > 1.0)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -vf/--vol-frac must be in (0, 1].\n";
+      }
+      return 1;
+   }
+   if (max_it < 1)
+   {
+      if (myid == 0) { cerr << "Error: -mi/--max-it must be >= 1.\n"; }
+      return 1;
    }
 
-   // Load mesh
+   if (myid == 0) { args.PrintOptions(cout); }
+
+   const real_t x_max = 1.5;
+   const real_t y_max = 0.75;
+
    ifstream imesh(mesh_file);
    if (!imesh)
    {
       if (myid == 0)
       {
-         cerr << "Error: Cannot open mesh file '" << mesh_file << "'" << endl;
+         cerr << "Error: Cannot open mesh file '" << mesh_file << "'.\n";
       }
       return 1;
    }
 
    Mesh mesh(imesh, 1, 1);
    imesh.close();
-   int dim = mesh.Dimension();
+   const int dim = mesh.Dimension();
 
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh(comm, mesh);
    mesh.Clear();
 
-   // State space
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec, dim);
+   H1_FECollection state_fec(order, dim);
+   H1_FECollection filter_fec(order, dim);
+   const int control_order = max(0, order - 1);
+   L2_FECollection control_fec(control_order, dim, BasisType::GaussLobatto);
 
-   HYPRE_BigInt total_dofs = fespace.GlobalTrueVSize();
+   ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
+   ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
+   ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
-   // Design space
-   H1_FECollection design_fec(order, dim);
-   ParFiniteElementSpace design_fes(&pmesh, &design_fec);
-   ParGridFunction rho_filter(&design_fes);
+   const HYPRE_BigInt state_dofs = state_fes.GlobalTrueVSize();
+   const HYPRE_BigInt filter_dofs = filter_fes.GlobalTrueVSize();
+   const HYPRE_BigInt control_dofs = control_fes.GlobalTrueVSize();
 
-   HYPRE_BigInt design_dofs = design_fes.GlobalTrueVSize();
+   ParGridFunction rho(&control_fes);
+   ParGridFunction rho_tilde(&filter_fes);
 
-   if (myid == 0)
+   if (!InitializeDesign(rho, design_init, vol_frac, x_max, y_max))
    {
-      cout << "\n=== Discretization ===" << endl;
-      cout << "State DOFs per field: " << total_dofs << endl;
-      cout << "Design DOFs: " << design_dofs << endl;
+      if (myid == 0)
+      {
+         cerr << "Error: unknown -init value '" << design_init
+              << "'. Use uniform, solid, void, or gaussian.\n";
+      }
+      return 1;
    }
+   rho_tilde = 0.0;
 
-   // ==========================================================================
-   // Initialize design with uniform distribution
-   // ==========================================================================
-   rho_filter = vol_frac;
+   toopt::PDEFilterOptions filter_opts;
+   filter_opts.filter_radius = filter_radius;
+   toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+   filter.Assemble();
+   filter.Mult(rho, rho_tilde);
 
-   if (myid == 0)
-   {
-      cout << "\n=== Initial Design ===" << endl;
-      cout << "Uniform density: " << vol_frac << endl;
-   }
+   real_t domain_volume = 0.0;
+   unique_ptr<HypreParVector> volume_weights =
+      AssembleVolumeWeights(control_fes, domain_volume);
+   const real_t target_volume = vol_frac * domain_volume;
 
-   // ==========================================================================
-   // Material properties
-   // ==========================================================================
-   real_t rho_0 = 1.0;
-   real_t mu_0 = 1.0;
-   real_t lambda_0 = 2.0;
-   real_t r_min = 1e-6;
-   real_t r_max = 1.0;
-   real_t simp_exponent = 3.0;
+   // Material and problem constants (match test_adjoint_verification).
+   MaterialParams mat;
 
-   ConstantCoefficient rho_0_coef(rho_0);
-   ConstantCoefficient lambda_0_coef(lambda_0);
-   ConstantCoefficient mu_0_coef(mu_0);
-
-   real_t c_p = sqrt((lambda_0 + 2*mu_0) / rho_0);
-
-   // ==========================================================================
-   // Damping configuration
-   // ==========================================================================
-   real_t damping_thickness = 0.25;
+   const real_t c_p = sqrt((mat.lambda0 + 2.0*mat.mu0) / mat.rho0);
+   const real_t damping_thickness = 0.25;
    DampingProfile phi_profile(damping_thickness, x_max, y_max);
-   real_t gamma_max = (2.0 * c_p / 0.2136) * log(1.0 / 1e-4);
-   SpatialDampingCoefficient gamma_coef(&phi_profile, gamma_max, rho_0, 2.0, 2);
+   const real_t gamma_max = (2.0 * c_p / 0.2136) * log(1.0 / 1e-4);
+   SpatialDampingCoefficient gamma_coef(&phi_profile, gamma_max,
+                                        mat.rho0, 2.0, 2);
 
-   // ==========================================================================
-   // Loading
-   // ==========================================================================
-   real_t pulse_duration = 0.005;
-   real_t pulse_amplitude = 30.0;
+   const real_t pulse_duration = 0.005;
+   const real_t pulse_amplitude = 30.0;
+   const real_t impedance = mat.rho0 * c_p;
 
-   // ==========================================================================
-   // Boundary conditions
-   // ==========================================================================
    Array<int> exterior_bdr_attr(pmesh.bdr_attributes.Max());
    exterior_bdr_attr = 0;
-   if (pmesh.bdr_attributes.Max() >= 10) exterior_bdr_attr[9] = 1;
-   if (pmesh.bdr_attributes.Max() >= 11) exterior_bdr_attr[10] = 1;
-   if (pmesh.bdr_attributes.Max() >= 12) exterior_bdr_attr[11] = 1;
+   if (pmesh.bdr_attributes.Max() >= 10) { exterior_bdr_attr[9] = 1; }
+   if (pmesh.bdr_attributes.Max() >= 11) { exterior_bdr_attr[10] = 1; }
+   if (pmesh.bdr_attributes.Max() >= 12) { exterior_bdr_attr[11] = 1; }
 
    Array<int> empty_bdr_attr(pmesh.bdr_attributes.Max());
    empty_bdr_attr = 0;
 
-   real_t impedance = rho_0 * c_p;
+   const real_t protected_radius = 0.2;
+   SubdomainIndicator subdomain_indicator(x_max/2.0, y_max/2.0,
+                                          protected_radius);
 
-   // ==========================================================================
-   // Objective functional
-   // ==========================================================================
-   real_t x_center = x_max / 2.0;
-   real_t y_center = y_max / 2.0;
-   real_t protected_radius = 0.2;
-   SubdomainIndicator subdomain_indicator(x_center, y_center, protected_radius);
-   TimeIntegratedObjective objective(&fespace, &subdomain_indicator, MPI_COMM_WORLD);
+   const int num_steps = max(1, static_cast<int>(ceil(t_final / dt)));
+   const real_t dt_eff = t_final / num_steps;
 
-   if (myid == 0)
-   {
-      cout << "\n=== Objective ===" << endl;
-      cout << "Protected zone: circle at (" << x_center << ", " << y_center
-           << ") with radius " << protected_radius << endl;
-      cout << "J = ∫₀ᵀ ∫_Ω̃ |u(t)|² dx dt" << endl;
-   }
-
-   // ==========================================================================
-   // Volume constraint
-   // ==========================================================================
-   real_t total_volume = x_max * y_max;  // For rectangular domain
-   real_t volume_target = vol_frac * total_volume;
-   VolumeConstraint vol_constraint(&design_fes, volume_target);
+   // Rest initial state z0 = [u0, v0] = 0; the pulse load drives the dynamics.
+   Vector x0(2 * state_fes.GetTrueVSize());
+   x0 = 0.0;
 
    if (myid == 0)
    {
-      cout << "\n=== Constraints ===" << endl;
-      cout << "Volume: ∫ ρ dx / V* ≤ 1, where V* = " << volume_target << endl;
-      cout << "Box: 0 ≤ ρ ≤ 1" << endl;
+      cout << "\n=== Transient TopOpt (MMA) ===\n";
+      cout << "Mesh: " << mesh_file << "\n";
+      cout << "Refinement levels: " << ref_levels << "\n";
+      cout << "State DOFs:   " << state_dofs << "\n";
+      cout << "Filter DOFs:  " << filter_dofs << " (H1 rho_tilde)\n";
+      cout << "Control DOFs: " << control_dofs << " (L2 rho)\n";
+      cout << "Target volume fraction: " << vol_frac << "\n";
+      cout << "Filter radius: " << filter_radius << "\n";
+      cout << "Time interval: [0, " << t_final << "],  steps: " << num_steps
+           << ",  dt_eff: " << dt_eff << "\n";
+      cout << "Max MMA iterations: " << max_it << ",  move limit: " << move
+           << ",  stop tol (L1 dRho): " << change_tol << "\n";
    }
 
-   // ==========================================================================
-   // MMA Optimizer Setup
-   // ==========================================================================
-   int num_design = design_fes.GetTrueVSize();
-   int num_constraints = 1;  // Volume constraint only
+   // --- MMA setup -----------------------------------------------------------
+   const int n = control_fes.GetTrueVSize();
+   const int num_con = 1;  // single volume constraint
 
-   MMA_MFEM mma(num_design, num_constraints);
-   mma.SetAsymptotes(0.2, 0.65, 1.2);  // Conservative asymptotes for transient
+   Vector rho_tv(n), rho_old(n);
+   rho.GetTrueDofs(rho_tv);
 
-   Vector rho_vec(num_design);
-   rho_filter.GetTrueDofs(rho_vec);
+   Vector dJ_drho(n);
+   Vector fival(num_con);
 
-   mma.SetBounds(0.0, 1.0);  // Box constraints
+   // Volume-constraint gradient d/drho [ (1/V*) int rho - 1 ] = w / V*
+   // (FE volume weights, not a constant vector).
+   Vector dvol(*volume_weights);
+   dvol /= target_volume;
+   Vector dfidx[num_con];
+   dfidx[0] = dvol;
 
-   if (myid == 0)
-   {
-      cout << "\n=== MMA Optimizer ===" << endl;
-      cout << "Design variables: " << num_design << endl;
-      cout << "Constraints: " << num_constraints << endl;
-      cout << "Asymptote parameters: conservative for transient" << endl;
-   }
+   mfem_mma::MMAOptimizerParallel mma(comm, n, num_con, rho_tv);
+   mma.SetAsymptotes(0.5, 0.7, 1.2);
 
-   // ==========================================================================
-   // Optimization history
-   // ==========================================================================
-   OptimizationHistory history(MPI_COMM_WORLD);
+   Vector rho_min(n), rho_max(n);
 
-   // ==========================================================================
-   // ParaView output
-   // ==========================================================================
-   ParaViewDataCollection *paraview_dc = nullptr;
+   ParaViewDataCollection paraview_dc("TopOptTransient", &pmesh);
    if (paraview)
    {
-      paraview_dc = new ParaViewDataCollection("TopOptTransient", &pmesh);
-      paraview_dc->SetPrefixPath("ParaView");
-      paraview_dc->SetLevelsOfDetail(order);
-      paraview_dc->SetDataFormat(VTKFormat::BINARY);
-      paraview_dc->SetHighOrderOutput(true);
-      paraview_dc->RegisterField("density", &rho_filter);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.RegisterField("rho", &rho);
+      paraview_dc.RegisterField("rho_tilde", &rho_tilde);
    }
 
-   // ==========================================================================
-   // MAIN OPTIMIZATION LOOP
-   // ==========================================================================
+   ofstream history;
    if (myid == 0)
    {
-      cout << "\n" << string(80, '=') << endl;
-      cout << "STARTING OPTIMIZATION" << endl;
-      cout << string(80, '=') << endl;
+      history.open("optimization_history.txt");
+      history << "# iter    J                 vol_frac      g\n";
    }
 
-   history.PrintHeader();
-
-   int num_steps = static_cast<int>(t_final / dt) + 1;
-
-   for (int iter = 0; iter < max_iter; iter++)
+   // --- Optimization loop ---------------------------------------------------
+   GridFunctionCoefficient rho_cf(&rho);
+   int k = 0;
+   real_t iterationError = 1.0;
+   for (; k < max_it && iterationError > change_tol; k++)
    {
-      if (myid == 0)
+      // Objective + design gradient (forward sweep + discrete adjoint).
+      // On entry this sets rho, rho_tilde from rho_tv.
+      const real_t J = DesignObjectiveAdjointGradient(
+         rho_tv, x0, state_fes, filter_fes, control_fes, rho, rho_tilde,
+         filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
+         subdomain_indicator, mat, pulse_amplitude, pulse_duration,
+         impedance, num_steps, dt_eff, dJ_drho);
+
+      // Volume constraint and current fraction.
+      const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv);
+      const real_t cur_vol_frac = cur_volume / domain_volume;
+      fival(0) = cur_volume / target_volume - 1.0;
+
+      // Box constraints with move limits.
+      rho_old = rho_tv;
+      for (int i = 0; i < n; i++)
       {
-         cout << "\n--- Iteration " << iter << " ---" << endl;
+         rho_min[i] = max(real_t(0.0), rho_tv[i] - move);
+         rho_max[i] = min(real_t(1.0), rho_tv[i] + move);
       }
 
-      // Create SIMP coefficients with current design
-      SIMPCoefficient simp_mass(&rho_filter, r_min, r_max, simp_exponent);
-      SIMPCoefficient simp_stiff(&rho_filter, r_min, r_max, simp_exponent);
+      // MMA outer iteration (minimizes J subject to fival <= 0).
+      mma.Update(rho_tv, dJ_drho, J, fival, dfidx, rho_min, rho_max);
+      rho.SetFromTrueDofs(rho_tv);
 
-      ProductCoefficient mass_coef(simp_mass, rho_0_coef);
-      ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
-      ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
-
-      // ========================================================================
-      // FORWARD SOLVE
-      // ========================================================================
-      if (myid == 0)
-      {
-         cout << "Forward solve..." << flush;
-      }
-
-      ForwardTrajectoryStorage trajectory(num_steps);
-      trajectory.EnableStorage();
-
-      objective.Reset();
-
-      ElastodynamicsOperator oper(
-         fespace, mass_coef, lambda_coef, mu_coef,
-         pulse_amplitude, pulse_duration,
-         &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
-         &trajectory, &objective);
-
-      BlockVector state(oper.GetBlockOffsets());
-      state = 0.0;
-
-      RK4Solver ode_solver;
-      ode_solver.Init(oper);
-
-      real_t t = 0.0;
-      for (int ti = 0; ti < num_steps && t < t_final - dt/2; ti++)
-      {
-         oper.StoreTrajectoryStep(ti, state);
-         oper.AccumulateObjective(state, dt, ti, num_steps);
-
-         oper.SetTime(t + dt);
-         ode_solver.Step(state, t, dt);
-      }
-
-      real_t J = objective.GetObjective();
+      // Design change (L1 norm, matches ElastTopOpt_static) for the
+      // early-stop test and progress monitoring: iterationError = int |dRho|.
+      ParGridFunction rho_old_gf(&control_fes);
+      rho_old_gf.SetFromTrueDofs(rho_old);
+      iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
       if (myid == 0)
       {
-         cout << " J = " << J << endl;
+         cout << "it " << setw(3) << k + 1
+              << "   J = " << scientific << setprecision(6) << J
+              << "   vol = " << fixed << setprecision(4) << cur_vol_frac
+              << "   g = " << scientific << setprecision(3) << fival(0)
+              << "   dRho(L1) = " << setprecision(3) << iterationError << "\n";
+         history << setw(5) << k + 1 << "  "
+                 << scientific << setprecision(8) << J << "  "
+                 << fixed << setprecision(6) << cur_vol_frac << "  "
+                 << scientific << setprecision(6) << fival(0) << "\n";
       }
 
-      // ========================================================================
-      // ADJOINT SOLVE (Placeholder for full implementation)
-      // ========================================================================
-      if (myid == 0)
-      {
-         cout << "Adjoint solve..." << flush;
-      }
-
-      // TODO: Full adjoint backward march
-      // For now, compute finite difference gradient for testing
-      BlockVector adjoint(oper.GetBlockOffsets());
-      adjoint = 0.0;
-      oper.InitializeTerminalAdjoint(adjoint);
-
-      if (myid == 0)
-      {
-         cout << " done (terminal condition set)" << endl;
-      }
-
-      // ========================================================================
-      // DESIGN SENSITIVITY
-      // ========================================================================
-      if (myid == 0)
-      {
-         cout << "Design sensitivity..." << flush;
-      }
-
-      DesignSensitivityAccumulator sensitivity(&design_fes, &rho_filter,
-                                                r_min, r_max, simp_exponent,
-                                                rho_0, lambda_0, mu_0);
-      sensitivity.Reset();
-
-      // TODO: Full sensitivity accumulation during adjoint march
-      // For now, use simple placeholder
-      Vector dJ_drho(num_design);
-      dJ_drho.Randomize(iter);  // Placeholder
-      dJ_drho *= 0.01;
-
-      // Apply filter adjoint
-      sensitivity.ApplyFilterAdjoint(filter_radius, dJ_drho);
-
-      if (myid == 0)
-      {
-         cout << " |dJ/dρ| = " << dJ_drho.Norml2() << endl;
-      }
-
-      // ========================================================================
-      // CONSTRAINT EVALUATION
-      // ========================================================================
-      real_t g = vol_constraint.Evaluate(rho_filter);
-      Vector dg_drho(num_design);
-      vol_constraint.Gradient(dg_drho);
-
-      if (myid == 0)
-      {
-         cout << "Volume constraint: g = " << g << endl;
-      }
-
-      // ========================================================================
-      // MMA UPDATE
-      // ========================================================================
-      Vector rho_old = rho_vec;
-
-      Vector g_vec(1);
-      g_vec(0) = g;
-
-      DenseMatrix dgdrho(1, num_design);
-      for (int i = 0; i < num_design; i++)
-      {
-         dgdrho(0, i) = dg_drho(i);
-      }
-
-      mma.Update(rho_vec.GetData(), dJ_drho.GetData(),
-                 g_vec.GetData(), dgdrho.GetData());
-
-      rho_filter.SetFromTrueDofs(rho_vec);
-
-      // Compute design change
-      Vector rho_diff = rho_vec;
-      rho_diff -= rho_old;
-      real_t design_change = rho_diff.Norml2() / rho_vec.Norml2();
-
-      // ========================================================================
-      // RECORD HISTORY
-      // ========================================================================
-      history.Record(J, g, design_change);
-      history.PrintIteration(iter);
-
-      // ========================================================================
-      // OUTPUT
-      // ========================================================================
       if (paraview)
       {
-         paraview_dc->SetCycle(iter);
-         paraview_dc->SetTime(iter);
-         paraview_dc->Save();
-      }
-
-      // ========================================================================
-      // CONVERGENCE CHECK
-      // ========================================================================
-      if (history.CheckConvergence(iter, 1e-3))
-      {
-         if (myid == 0)
-         {
-            cout << "\n=== CONVERGED ===" << endl;
-            cout << "Design change below tolerance." << endl;
-         }
-         break;
+         paraview_dc.SetCycle(k + 1);
+         paraview_dc.SetTime(k + 1);
+         paraview_dc.Save();
       }
    }
-
-   // ==========================================================================
-   // FINALIZE
-   // ==========================================================================
-   history.SaveToFile("optimization_history.txt");
-
-   if (paraview) { delete paraview_dc; }
 
    if (myid == 0)
    {
-      cout << "\n" << string(80, '=') << endl;
-      cout << "OPTIMIZATION COMPLETE" << endl;
-      cout << string(80, '=') << endl;
-      cout << "History saved to: optimization_history.txt" << endl;
+      history.close();
+      cout << "\nOptimization stopped after " << k << " iterations"
+           << " (final L1 design change = " << scientific << setprecision(3)
+           << iterationError << ", tol = " << change_tol << ").\n";
       if (paraview)
       {
-         cout << "ParaView files in: ParaView/" << endl;
+         cout << "ParaView output: ParaView/TopOptTransient.pvd\n";
       }
+      cout << "History: optimization_history.txt\n";
    }
 
    return 0;

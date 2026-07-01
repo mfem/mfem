@@ -29,6 +29,9 @@
 //   srun -n <nprocs> ./ForwardElastodynamics [options]
 //   Options: -r <refine> -o <order> -tf <final_time> -dt <timestep> -pv
 //
+// LOCAL SWEET SPOT:
+// mpirun -np 8 ./ForwardElastodynamics -r 0 -o 2 -tf 0.3 -dt 0.00005 -no-pv (IDEAL)
+// mpirun -np 8 ./ForwardElastodynamics -r 0 -o 1 -tf 0.3 -dt 0.0001 -no-pv (CHEAP)
 // =============================================================================
 
 #include "mfem.hpp"
@@ -60,28 +63,6 @@ public:
       rho_val = std::min(std::max(rho_val, 0.0), 1.0);  // Clamp to [0,1]
       real_t rho_pow = std::pow(rho_val, exponent);
       return r_min + rho_pow * (r_max - r_min);
-   }
-};
-
-// SIMP derivative: r'(ρ̃) = p ρ̃^(p-1) (r_max - r_min)
-class SIMPGradCoefficient : public Coefficient
-{
-private:
-   GridFunction *rho_filter;
-   real_t r_min, r_max;
-   real_t exponent;
-
-public:
-   SIMPGradCoefficient(GridFunction *rho_filt, real_t rmin, real_t rmax, real_t p)
-      : rho_filter(rho_filt), r_min(rmin), r_max(rmax), exponent(p) {}
-
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      real_t rho_val = rho_filter->GetValue(T, ip);
-      rho_val = std::min(std::max(rho_val, 0.0), 1.0);
-      if (rho_val < 1e-12) return 0.0;  // Avoid singularity at ρ=0
-      real_t rho_pow = std::pow(rho_val, exponent - 1.0);
-      return exponent * rho_pow * (r_max - r_min);
    }
 };
 
@@ -355,13 +336,17 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    C_abs->Finalize();
    Cabs_mat = C_abs->ParallelAssemble();
 
+   // NNZ() is collective (global reduction over all ranks); every rank must call it
+   // together. Compute on all ranks, then print on rank 0 only.
+   HYPRE_BigInt m_nnz = Mmat->NNZ(), k_nnz = Kmat->NNZ(),
+                cvol_nnz = Cvol_mat->NNZ(), cabs_nnz = Cabs_mat->NNZ();
    if (myid == 0)
    {
       cout << "Matrix assembly complete:" << endl;
-      cout << "  Mass NNZ:     " << Mmat->NNZ() << endl;
-      cout << "  Stiffness NNZ: " << Kmat->NNZ() << endl;
-      cout << "  Damping NNZ:   " << Cvol_mat->NNZ() << endl;
-      cout << "  ABC NNZ:       " << Cabs_mat->NNZ() << endl;
+      cout << "  Mass NNZ:     " << m_nnz << endl;
+      cout << "  Stiffness NNZ: " << k_nnz << endl;
+      cout << "  Damping NNZ:   " << cvol_nnz << endl;
+      cout << "  ABC NNZ:       " << cabs_nnz << endl;
    }
 
    // Set up mass matrix solver (CG with AMG preconditioner)
@@ -527,7 +512,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
    bool enable_damping = true;
    bool gaussian_design = true;  // Use Gaussian vs. uniform design
-   const char *mesh_file = "lamb-problem-damping-mesh-quads.msh";
+   const char *mesh_file = "lamb-problem-damping-mesh-triangs.msh";
    real_t target_attenuation = 1e-4;
    real_t beta = 2.0;
    int m = 2;
@@ -619,11 +604,18 @@ int main(int argc, char *argv[])
    }
 
    // ==========================================================================
-   // DESIGN VARIABLE: Initialize filtered density ρ̃
+   // FILTERED DESIGN FIELD: initialize ρ̃ in H1.
+   // This forward-only driver has no raw control ρ; this is the density field
+   // that enters the mass and stiffness coefficients.
    // ==========================================================================
    H1_FECollection design_fec(order, dim);
    ParFiniteElementSpace design_fes(&pmesh, &design_fec);
    ParGridFunction rho_filter(&design_fes);
+
+   // GlobalTrueVSize() is collective: every rank must call it together. Calling it
+   // only inside an if(myid==0) block (as the prints below do) deadlocks all other
+   // ranks. Compute it here on all ranks, then just print the stored value.
+   HYPRE_BigInt design_dofs = design_fes.GlobalTrueVSize();
 
    // Damping layer thickness (used for both sponge layers and design centering)
    real_t damping_thickness = 0.25;
@@ -657,7 +649,7 @@ int main(int argc, char *argv[])
          cout << "Center: (" << x_center << ", " << y_center << ")" << endl;
          cout << "Std dev: σ_x = " << sigma_x << ", σ_y = " << sigma_y << endl;
          cout << "Density range: [" << rho_min_design << ", " << rho_max_design << "]" << endl;
-         cout << "Design DOFs: " << design_fes.GlobalTrueVSize() << endl;
+         cout << "Design DOFs: " << design_dofs << endl;
          cout << "Non-damped domain: [" << damping_thickness << ", "
               << x_max - damping_thickness << "] × [" << damping_thickness << ", "
               << y_max << "]" << endl;
@@ -674,7 +666,7 @@ int main(int argc, char *argv[])
       {
          cout << "\n=== Design Field: Uniform (Fully Solid) ===" << endl;
          cout << "Density: 1.0" << endl;
-         cout << "Design DOFs: " << design_fes.GlobalTrueVSize() << endl;
+         cout << "Design DOFs: " << design_dofs << endl;
       }
    }
 

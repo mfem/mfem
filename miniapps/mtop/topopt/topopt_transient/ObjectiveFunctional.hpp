@@ -2,25 +2,20 @@
 // Objective Functional for Transient Topology Optimization
 // =============================================================================
 //
-// Minimize displacement in protected subdomain:
-//   J = ∫₀ᵀ ∫_Ω̃ |u|² dx dt
+// Minimize displacement in a protected subdomain:
+//   J = integral_0^T integral_{Omega_hat} |u(t)|^2 dx dt
 //
-// Based on paper Section 5.1 (eq. 840-844)
 // =============================================================================
 
 #ifndef OBJECTIVE_FUNCTIONAL_HPP
 #define OBJECTIVE_FUNCTIONAL_HPP
 
 #include "mfem.hpp"
+#include <cmath>
 
 namespace mfem
 {
 
-// =============================================================================
-// Subdomain Indicator Coefficient
-// =============================================================================
-// χ_Ω̃(x) = 1 if x ∈ Ω̃, 0 otherwise
-// For circular subdomain: |x - x_c| < r
 class SubdomainIndicator : public Coefficient
 {
 private:
@@ -30,27 +25,19 @@ public:
    SubdomainIndicator(real_t xc, real_t yc, real_t r)
       : x_center(xc), y_center(yc), radius(r) {}
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector x(2);
       T.Transform(ip, x);
 
-      real_t dx = x(0) - x_center;
-      real_t dy = x(1) - y_center;
-      real_t dist = sqrt(dx*dx + dy*dy);
+      const real_t dx = x(0) - x_center;
+      const real_t dy = x(1) - y_center;
+      const real_t dist = std::sqrt(dx*dx + dy*dy);
 
       return (dist < radius) ? 1.0 : 0.0;
    }
 };
 
-// =============================================================================
-// Time-Integrated Objective Functional
-// =============================================================================
-// J = ∫₀ᵀ ∫_Ω̃ |u(t)|² dx dt
-//
-// Discrete form (with trapezoidal rule in time):
-// J_h = Σₙ ωₙ ∫_Ω̃ |u^n|² dx
-//
 class TimeIntegratedObjective
 {
 private:
@@ -58,10 +45,14 @@ private:
    Coefficient *subdomain_indicator;
 
    real_t accumulated_objective;
-   Array<real_t> quadrature_weights;  // Time quadrature: ωₙ
 
    MPI_Comm comm;
    int myid;
+
+   real_t TimeWeight(real_t dt, int timestep, int total_steps) const
+   {
+      return (timestep == 0 || timestep == total_steps - 1) ? 0.5 * dt : dt;
+   }
 
 public:
    TimeIntegratedObjective(ParFiniteElementSpace *fes,
@@ -73,116 +64,127 @@ public:
       MPI_Comm_rank(comm, &myid);
    }
 
-   // Initialize for new optimization iteration
    void Reset() { accumulated_objective = 0.0; }
 
-   // Accumulate contribution at timestep n
-   // u: displacement at time t^n
-   // dt: timestep size
-   // quadrature_type: "trapezoidal", "midpoint", "simpson"
    real_t AccumulateTimestep(const ParGridFunction &u, real_t dt,
-                              int timestep, int total_steps)
+                             int timestep, int total_steps)
    {
-      // Compute ∫_Ω̃ |u|² dx using subdomain indicator
-      ParLinearForm integrand(fespace);
+      real_t local_integral = 0.0;
+      Vector u_val;
 
-      // |u|² coefficient
-      GridFunctionCoefficient u_coef(const_cast<ParGridFunction*>(&u));
-
-      // Custom coefficient: χ_Ω̃(x) * |u(x)|²
-      class WeightedNormSquared : public Coefficient
+      for (int e = 0; e < fespace->GetNE(); e++)
       {
-      private:
-         GridFunctionCoefficient *u_cf;
-         Coefficient *chi;
-      public:
-         WeightedNormSquared(GridFunctionCoefficient *uc, Coefficient *c)
-            : u_cf(uc), chi(c) {}
+         const FiniteElement *el = fespace->GetFE(e);
+         ElementTransformation *T = fespace->GetElementTransformation(e);
+         const int int_order = 2 * el->GetOrder() + 2;
+         const IntegrationRule &ir = IntRules.Get(el->GetGeomType(), int_order);
 
-         virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+         for (int q = 0; q < ir.GetNPoints(); q++)
          {
-            Vector u_val;
-            u_cf->Eval(u_val, T, ip);
-            real_t u_norm_sq = u_val * u_val;
-            real_t chi_val = chi->Eval(T, ip);
-            return chi_val * u_norm_sq;
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            T->SetIntPoint(&ip);
+            u.GetVectorValue(*T, ip, u_val);
+
+            const real_t u_norm_sq = u_val * u_val;
+            const real_t chi_val = subdomain_indicator->Eval(*T, ip);
+            local_integral += ip.weight * T->Weight() * chi_val * u_norm_sq;
          }
-      };
+      }
 
-      WeightedNormSquared weighted_u(&u_coef, subdomain_indicator);
-      integrand.AddDomainIntegrator(new DomainLFIntegrator(weighted_u));
-      integrand.Assemble();
-
-      // Sum across processors
-      real_t local_integral = integrand.Sum();
-      real_t global_integral;
+      real_t global_integral = 0.0;
       MPI_Allreduce(&local_integral, &global_integral, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
 
-      // Time quadrature weight (trapezoidal rule)
-      real_t omega;
-      if (timestep == 0 || timestep == total_steps - 1)
-      {
-         omega = 0.5 * dt;  // Half weight at endpoints
-      }
-      else
-      {
-         omega = dt;  // Full weight for interior points
-      }
-
-      real_t contribution = omega * global_integral;
+      const real_t contribution = TimeWeight(dt, timestep, total_steps)
+                                  * global_integral;
       accumulated_objective += contribution;
 
       return contribution;
    }
 
-   // Get total accumulated objective
    real_t GetObjective() const { return accumulated_objective; }
 
-   // Compute objective gradient at timestep n: ∂J_Ω/∂u
-   // This becomes the RHS for the adjoint equation
-   //
-   // From paper eq. 877-882:
-   //   ∂J_Ω/∂u = 2 χ_Ω̃(x) u(x)
-   //
    void ComputeObjectiveGradient(const ParGridFunction &u,
-                                  real_t dt, int timestep, int total_steps,
-                                  ParLinearForm &grad_form)
+                                 real_t dt, int timestep, int total_steps,
+                                 ParLinearForm &grad_form)
    {
-      // Time quadrature weight
-      real_t omega;
-      if (timestep == 0 || timestep == total_steps - 1)
-         omega = 0.5 * dt;
-      else
-         omega = dt;
-
-      // ∂J_Ω/∂u = 2 ω χ_Ω̃(x) u(x)
-      GridFunctionCoefficient u_coef(const_cast<ParGridFunction*>(&u));
+      const real_t omega = TimeWeight(dt, timestep, total_steps);
+      VectorGridFunctionCoefficient u_coef(&u);
 
       class ObjectiveGradientCoef : public VectorCoefficient
       {
       private:
-         GridFunctionCoefficient *u_cf;
+         VectorGridFunctionCoefficient *u_cf;
          Coefficient *chi;
          real_t weight;
+
       public:
-         ObjectiveGradientCoef(int dim, GridFunctionCoefficient *uc,
+         ObjectiveGradientCoef(int vdim, VectorGridFunctionCoefficient *uc,
                                Coefficient *c, real_t w)
-            : VectorCoefficient(dim), u_cf(uc), chi(c), weight(w) {}
+            : VectorCoefficient(vdim), u_cf(uc), chi(c), weight(w) {}
 
          void Eval(Vector &V, ElementTransformation &T,
                    const IntegrationPoint &ip) override
          {
-            u_cf->Eval(V, T, ip);  // Get u(x)
-            real_t chi_val = chi->Eval(T, ip);
-            V *= 2.0 * weight * chi_val;  // 2 ω χ_Ω̃ u
+            u_cf->Eval(V, T, ip);
+            const real_t chi_val = chi->Eval(T, ip);
+            V *= 2.0 * weight * chi_val;
          }
       };
 
-      int dim = u.FESpace()->GetMesh()->Dimension();
-      ObjectiveGradientCoef grad_coef(dim, &u_coef, subdomain_indicator, omega);
+      ObjectiveGradientCoef grad_coef(u.VectorDim(), &u_coef,
+                                      subdomain_indicator, omega);
 
-      grad_form.AddDomainIntegrator(new VectorDomainLFIntegrator(grad_coef));
+      class HighOrderVectorDomainLFIntegrator : public LinearFormIntegrator
+      {
+      private:
+         Vector shape, q_vec;
+         VectorCoefficient &q;
+
+      public:
+         HighOrderVectorDomainLFIntegrator(VectorCoefficient &q_)
+            : q(q_) {}
+
+         void AssembleRHSElementVect(const FiniteElement &el,
+                                     ElementTransformation &T,
+                                     Vector &elvect) override
+         {
+            const int vdim = q.GetVDim();
+            const int dof = el.GetDof();
+
+            shape.SetSize(dof);
+            elvect.SetSize(dof * vdim);
+            elvect = 0.0;
+
+            const int int_order = 2 * el.GetOrder() + 2;
+            const IntegrationRule &ir =
+               IntRules.Get(el.GetGeomType(), int_order);
+
+            for (int i = 0; i < ir.GetNPoints(); i++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(i);
+               T.SetIntPoint(&ip);
+
+               el.CalcPhysShape(T, shape);
+               q.Eval(q_vec, T, ip);
+
+               const real_t trans_weight = T.Weight();
+               for (int k = 0; k < vdim; k++)
+               {
+                  const real_t coeff = ip.weight * trans_weight * q_vec(k);
+                  for (int s = 0; s < dof; s++)
+                  {
+                     elvect(dof*k + s) += coeff * shape(s);
+                  }
+               }
+            }
+         }
+
+         using LinearFormIntegrator::AssembleRHSElementVect;
+      };
+
+      grad_form.AddDomainIntegrator(
+         new HighOrderVectorDomainLFIntegrator(grad_coef));
       grad_form.Assemble();
    }
 };

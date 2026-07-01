@@ -1,0 +1,5 @@
+# MFEM's `make config` generates config/_config.hpp from this template with a
+# sed that uncomments `// #define MFEM_USE_X` using an end-of-line anchor ($).
+# A trailing CR (from core.autocrlf on Windows checkouts) defeats the anchor and
+# produces an all-disabled header. Pin the template to LF on all platforms.
+config/config.hpp.in text eol=lf

@@ -15,7 +15,6 @@
 //
 // REFERENCE:
 //   - Theory: topopt.tex Section 5 (transient topology optimization)
-//   - Implementation: IMPLEMENTATION_PLAN.txt
 //   - Pattern: mtop-chkpt/mtop_solvers.hpp
 //
 // =============================================================================
@@ -25,7 +24,9 @@
 
 #include "mfem.hpp"
 #include "ObjectiveFunctional.hpp"
+#include "../../pde_filter.hpp"
 #include <memory>
+#include <vector>
 
 namespace mfem
 {
@@ -315,6 +316,7 @@ public:
 
    /// Adjoint RHS evaluation: dη/dt = -f_y(y,t)^T η + q(y,t)
    /// Following mtop-chkpt pattern with JacobianMultTranspose
+   // Returns the plain transpose action y = (df/dx)^T eta.
    virtual void JacobianMultTranspose(const Vector &x,
                                        const Vector &eta,
                                        Vector &eta_rhs) const;
@@ -330,6 +332,13 @@ public:
    HypreParMatrix* GetStiffnessMatrix() const { return Kmat; }
    HypreParMatrix* GetVolDampingMatrix() const { return Cvol_mat; }
    HypreParMatrix* GetAbsDampingMatrix() const { return Cabs_mat; }
+
+   void MultInvMass(const Vector &rhs, Vector &sol) const
+   {
+      sol.SetSize(true_size);
+      sol = 0.0;
+      M_solver->Mult(rhs, sol);
+   }
 
    void SetTrajectory(ForwardTrajectoryStorage *traj) { trajectory = traj; }
    void SetObjective(TimeIntegratedObjective *obj) { objective = obj; }
@@ -369,7 +378,7 @@ public:
 
       // If terminal objective exists: η^N = ∂J_T/∂z^N
       // For our case J_T = 0, so terminal adjoint is zero
-      // This would be modified if you have a terminal cost
+      // This would be modified if we have a terminal cost
    }
 
    /// Compute objective gradient at current timestep
@@ -446,9 +455,9 @@ ElastodynamicsOperator::ElastodynamicsOperator(
 
    if (myid == 0)
    {
-      cout << "\n=== Elastodynamics Operator ===" << endl;
-      cout << "DOFs per field: " << true_size << endl;
-      cout << "Essential DOFs: " << ess_tdof_list.Size() << endl;
+      std::cout << "\n=== Elastodynamics Operator ===" << std::endl;
+      std::cout << "DOFs per field: " << true_size << std::endl;
+      std::cout << "Essential DOFs: " << ess_tdof_list.Size() << std::endl;
    }
 
    // Assemble design-dependent mass matrix: M(ρ)
@@ -480,13 +489,18 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    C_abs->Finalize();
    Cabs_mat = C_abs->ParallelAssemble();
 
+   HYPRE_BigInt mass_nnz = Mmat->NNZ();
+   HYPRE_BigInt stiff_nnz = Kmat->NNZ();
+   HYPRE_BigInt cvol_nnz = Cvol_mat->NNZ();
+   HYPRE_BigInt cabs_nnz = Cabs_mat->NNZ();
+
    if (myid == 0)
    {
-      cout << "Matrix assembly complete:" << endl;
-      cout << "  Mass NNZ:     " << Mmat->NNZ() << endl;
-      cout << "  Stiffness NNZ: " << Kmat->NNZ() << endl;
-      cout << "  Damping NNZ:   " << Cvol_mat->NNZ() << endl;
-      cout << "  ABC NNZ:       " << Cabs_mat->NNZ() << endl;
+      std::cout << "Matrix assembly complete:" << std::endl;
+      std::cout << "  Mass NNZ:     " << mass_nnz << std::endl;
+      std::cout << "  Stiffness NNZ: " << stiff_nnz << std::endl;
+      std::cout << "  Damping NNZ:   " << cvol_nnz << std::endl;
+      std::cout << "  ABC NNZ:       " << cabs_nnz << std::endl;
    }
 
    // Set up mass matrix solver
@@ -518,11 +532,11 @@ ElastodynamicsOperator::ElastodynamicsOperator(
 
    if (myid == 0)
    {
-      cout << "\nTime-dependent loading:" << endl;
-      cout << "  Type: Smooth Gaussian pulse" << endl;
-      cout << "  Peak amplitude: " << amplitude << endl;
-      cout << "  Duration: " << duration << " s" << endl;
-      cout << "====================================\n" << endl;
+      std::cout << "\nTime-dependent loading:" << std::endl;
+      std::cout << "  Type: Smooth Gaussian pulse" << std::endl;
+      std::cout << "  Peak amplitude: " << amplitude << std::endl;
+      std::cout << "  Duration: " << duration << " s" << std::endl;
+      std::cout << "====================================\n" << std::endl;
    }
 }
 
@@ -616,6 +630,38 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
                                                     const Vector &eta,
                                                     Vector &eta_rhs) const
 {
+   // Plain transpose of the forward RHS Jacobian:
+   // F([u,v]) = [v, M^{-1}(-K u - C v + f(t))].
+   // Therefore (dF/dx)^T [mu,lambda] =
+   // [-K^T M^{-T} lambda, mu - C^T M^{-T} lambda].
+   // The applied load is independent of the state, so it contributes zero.
+   (void)x;
+
+   eta_rhs = 0.0;
+
+   BlockVector b_eta_new(const_cast<Vector&>(eta), block_true_offsets);
+   BlockVector b_eta_rhs_new(eta_rhs, block_true_offsets);
+
+   Vector mu_new(b_eta_new.GetBlock(0).GetData(), true_size);
+   Vector lambda_new(b_eta_new.GetBlock(1).GetData(), true_size);
+
+   Vector m_inv_lambda(true_size);
+   m_inv_lambda = 0.0;
+   M_solver->Mult(lambda_new, m_inv_lambda);
+
+   Kmat->MultTranspose(m_inv_lambda, tmp);
+   b_eta_rhs_new.GetBlock(0).Add(-1.0, tmp);
+
+   b_eta_rhs_new.GetBlock(1) = mu_new;
+
+   Cvol_mat->MultTranspose(m_inv_lambda, tmp);
+   b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
+
+   Cabs_mat->MultTranspose(m_inv_lambda, tmp);
+   b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
+
+   return;
+
    // Adjoint RHS evaluation for discrete adjoint (DO) via RK4 transpose
    // Following the pattern from tst_rk4_adj.cpp (lines 108-121)
    //
@@ -690,272 +736,529 @@ ElastodynamicsOperator::~ElastodynamicsOperator()
 }
 
 // =============================================================================
-// DESIGN SENSITIVITY ACCUMULATOR (PHASE 4)
+// REUSABLE ADJOINT + DESIGN SENSITIVITY
 // =============================================================================
-// Accumulates design sensitivity during adjoint backward march
+// Verified to machine precision / expected Taylor orders in
+// test_adjoint_verification.cpp. These replaced the earlier (incorrect)
+// DesignSensitivityAccumulator / AdjointBackwardMarch stubs (now removed).
 //
-// From paper eq. 912-921:
-//   dJ/dρ̃ = Σₙ (∂F^n/∂ρ̃)^T η^{n+1}
-//
-// Contributions:
-//   - Mass term: (∂M/∂ρ̃) v̇^n · λ^{n+1}
-//   - Stiffness term: (∂K/∂ρ̃) u^n · λ^{n+1}
-//
-class DesignSensitivityAccumulator
+// The per-step adjoint (RK4AdjointOneStep / RK4AdjointOneStepWithDesign)
+// consumes a SINGLE forward state, matching the adjoint_step(adj, fwd_state, i)
+// callback of mtop-chkpt's DynamicCheckpointing. Today the forward states come
+// from full storage; adding checkpointing later only changes how they are
+// supplied, not the math here.
+
+struct MaterialParams
 {
-private:
-   ParFiniteElementSpace *design_fes;
-   ParGridFunction *rho_filter;
-
-   real_t r_min, r_max, simp_p;
-   real_t rho_0, lambda_0, mu_0;
-
-   Vector sensitivity;  // Accumulated dJ/dρ̃
-
-   MPI_Comm comm;
-   int myid;
-
-public:
-   DesignSensitivityAccumulator(ParFiniteElementSpace *dfes,
-                                 ParGridFunction *rho,
-                                 real_t rmin, real_t rmax, real_t p,
-                                 real_t rho0, real_t lam0, real_t mu0)
-      : design_fes(dfes), rho_filter(rho),
-        r_min(rmin), r_max(rmax), simp_p(p),
-        rho_0(rho0), lambda_0(lam0), mu_0(mu0),
-        sensitivity(dfes->GetTrueVSize()),
-        comm(dfes->GetComm())
-   {
-      MPI_Comm_rank(comm, &myid);
-      sensitivity = 0.0;
-   }
-
-   void Reset() { sensitivity = 0.0; }
-
-   /// Add sensitivity contribution from timestep n
-   /// From eq. 912-921: (∂M/∂ρ̃) v̇^n · λ^{n+1} + (∂K/∂ρ̃) u^n · λ^{n+1}
-   void AddTimestepContribution(const Vector &u_n, const Vector &v_n,
-                                 const Vector &vdot_n, const Vector &lambda_np1,
-                                 real_t dt, ParFiniteElementSpace &state_fes)
-   {
-      // Create SIMP gradient coefficient: r'(ρ̃) = p ρ̃^{p-1} (r_max - r_min)
-      SIMPGradCoefficient simp_grad(rho_filter, r_min, r_max, simp_p);
-
-      // Mass sensitivity: ∫ ρ₀ r'_m(ρ̃) v̇^n · λ^{n+1} dx
-      ParGridFunction u_gf(&state_fes), v_gf(&state_fes),
-                      vdot_gf(&state_fes), lambda_gf(&state_fes);
-      u_gf.SetFromTrueDofs(u_n);
-      v_gf.SetFromTrueDofs(v_n);
-      vdot_gf.SetFromTrueDofs(vdot_n);
-      lambda_gf.SetFromTrueDofs(lambda_np1);
-
-      // Coefficient: ρ₀ r'(ρ̃) v̇ · λ
-      GridFunctionCoefficient vdot_coef(&vdot_gf);
-      GridFunctionCoefficient lambda_coef(&lambda_gf);
-
-      // For mass: scalar product of velocities
-      class MassSensitivityCoef : public Coefficient
-      {
-      private:
-         SIMPGradCoefficient *simp_grad;
-         GridFunctionCoefficient *vdot, *lam;
-         real_t rho0;
-      public:
-         MassSensitivityCoef(SIMPGradCoefficient *sg,
-                             GridFunctionCoefficient *v,
-                             GridFunctionCoefficient *l,
-                             real_t r)
-            : simp_grad(sg), vdot(v), lam(l), rho0(r) {}
-
-         virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
-         {
-            real_t simp_deriv = simp_grad->Eval(T, ip);
-            Vector v_val, l_val;
-            vdot->Eval(v_val, T, ip);
-            lam->Eval(l_val, T, ip);
-            return rho0 * simp_deriv * (v_val * l_val);
-         }
-      };
-
-      MassSensitivityCoef mass_sens(&simp_grad, &vdot_coef, &lambda_coef, rho_0);
-
-      ParLinearForm mass_contrib(design_fes);
-      mass_contrib.AddDomainIntegrator(new DomainLFIntegrator(mass_sens));
-      mass_contrib.Assemble();
-
-      Vector mass_vec(design_fes->GetTrueVSize());
-      mass_contrib.ParallelAssemble(mass_vec);
-
-      sensitivity.Add(-dt, mass_vec);  // Negative from adjoint derivation
-
-      // Stiffness sensitivity: ∫ C₀ r'_k(ρ̃) ε(u^n) : ε(λ^{n+1}) dx
-      // This is more complex - we need the stress-strain product
-      // For now, we use a simplified form (can be enhanced later)
-
-      GridFunctionCoefficient u_coef(&u_gf);
-
-      class StiffnessSensitivityCoef : public Coefficient
-      {
-      private:
-         SIMPGradCoefficient *simp_grad;
-         GridFunctionCoefficient *u, *lam;
-         real_t lam0, mu0;
-      public:
-         StiffnessSensitivityCoef(SIMPGradCoefficient *sg,
-                                   GridFunctionCoefficient *uc,
-                                   GridFunctionCoefficient *lc,
-                                   real_t l, real_t m)
-            : simp_grad(sg), u(uc), lam(lc), lam0(l), mu0(m) {}
-
-         virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
-         {
-            real_t simp_deriv = simp_grad->Eval(T, ip);
-
-            // Simplified: use displacement magnitude product
-            // Full implementation would compute ε(u) : ε(λ)
-            Vector u_val, l_val;
-            u->Eval(u_val, T, ip);
-            lam->Eval(l_val, T, ip);
-
-            // Approximate strain energy density derivative
-            real_t factor = lam0 + 2.0 * mu0;
-            return factor * simp_deriv * (u_val * l_val);
-         }
-      };
-
-      StiffnessSensitivityCoef stiff_sens(&simp_grad, &u_coef, &lambda_coef,
-                                           lambda_0, mu_0);
-
-      ParLinearForm stiff_contrib(design_fes);
-      stiff_contrib.AddDomainIntegrator(new DomainLFIntegrator(stiff_sens));
-      stiff_contrib.Assemble();
-
-      Vector stiff_vec(design_fes->GetTrueVSize());
-      stiff_contrib.ParallelAssemble(stiff_vec);
-
-      sensitivity.Add(-dt, stiff_vec);  // Negative from adjoint derivation
-   }
-
-   /// Apply filter adjoint: (r² K_filter + M_filter) w̃ = -dJ/dρ̃
-   /// Final gradient: dJ/dρ = w̃
-   void ApplyFilterAdjoint(real_t filter_radius, Vector &gradient)
-   {
-      if (myid == 0)
-      {
-         cout << "\n=== Applying Filter Adjoint ===" << endl;
-         cout << "Filter radius: " << filter_radius << endl;
-      }
-
-      // For now, use simple Helmholtz filter
-      // (r² ∇² + I) w̃ = -dJ/dρ̃
-      // Weak form: (r² ∇w̃ · ∇ψ + w̃ ψ) = -dJ/dρ̃ · ψ
-
-      ParBilinearForm filter_form(design_fes);
-      ConstantCoefficient one(1.0);
-      ConstantCoefficient r_squared(filter_radius * filter_radius);
-
-      filter_form.AddDomainIntegrator(new DiffusionIntegrator(r_squared));
-      filter_form.AddDomainIntegrator(new MassIntegrator(one));
-      filter_form.Assemble();
-      filter_form.Finalize();
-
-      HypreParMatrix *filter_mat = filter_form.ParallelAssemble();
-
-      // RHS: -dJ/dρ̃
-      ParLinearForm rhs_form(design_fes);
-      Vector neg_sens(sensitivity);
-      neg_sens *= -1.0;
-
-      ParGridFunction neg_sens_gf(design_fes);
-      neg_sens_gf.SetFromTrueDofs(neg_sens);
-      GridFunctionCoefficient neg_sens_coef(&neg_sens_gf);
-
-      rhs_form.AddDomainIntegrator(new DomainLFIntegrator(neg_sens_coef));
-      rhs_form.Assemble();
-
-      Vector rhs(design_fes->GetTrueVSize());
-      rhs_form.ParallelAssemble(rhs);
-
-      // Solve for filtered gradient
-      HypreBoomerAMG prec(*filter_mat);
-      prec.SetPrintLevel(0);
-
-      CGSolver solver(comm);
-      solver.SetPreconditioner(prec);
-      solver.SetOperator(*filter_mat);
-      solver.SetRelTol(1e-12);
-      solver.SetAbsTol(0.0);
-      solver.SetMaxIter(500);
-      solver.SetPrintLevel(0);
-
-      gradient = 0.0;
-      solver.Mult(rhs, gradient);
-
-      delete filter_mat;
-
-      if (myid == 0)
-      {
-         cout << "Filter adjoint solved: |dJ/dρ| = " << gradient.Norml2() << endl;
-      }
-   }
-
-   Vector& GetRawSensitivity() { return sensitivity; }
+   real_t rho0 = 1.0;
+   real_t lambda0 = 2.0;
+   real_t mu0 = 1.0;
+   real_t r_min = 1e-6;
+   real_t r_max = 1.0;
+   real_t simp_p = 3.0;
 };
 
-// =============================================================================
-// ADJOINT BACKWARD MARCH (PHASE 3 COMPLETE)
-// =============================================================================
-// Performs backward time integration for adjoint solve using RK4 transpose
-//
-// From paper Section 5.8 and equations 1154-1170:
-//   - Initialize: η^N = 0 (terminal condition for J_T = 0)
-//   - Loop backward: n = N-1, N-2, ..., 0
-//     - Set current timestep for operator
-//     - RK4 backward step with objective gradient injection
-//
-// Usage:
-//   AdjointBackwardMarch(adjoint_state, dt, num_steps, total_time);
-//
-void AdjointBackwardMarch(const ElastodynamicsOperator &oper,
-                          Vector &adjoint,
-                          real_t dt,
-                          int num_steps,
-                          real_t t_final)
+inline real_t SimpDerivative(const ParGridFunction &rho_tilde,
+                             ElementTransformation &T,
+                             const IntegrationPoint &ip,
+                             const MaterialParams &mat)
 {
-   int myid = Mpi::WorldRank();
+   real_t rho = rho_tilde.GetValue(T, ip);
+   rho = std::min(std::max(rho, real_t(0.0)), real_t(1.0));
+   if (rho <= 0.0) { return 0.0; }
+   return mat.simp_p * std::pow(rho, mat.simp_p - 1.0)
+          * (mat.r_max - mat.r_min);
+}
 
-   if (myid == 0)
+class StageMassDesignLFIntegrator : public LinearFormIntegrator
+{
+private:
+   ParGridFunction &rho_tilde;
+   ParGridFunction &accel;
+   ParGridFunction &z;
+   MaterialParams mat;
+   Vector shape, accel_val, z_val;
+
+public:
+   StageMassDesignLFIntegrator(ParGridFunction &rho_tilde_,
+                               ParGridFunction &accel_,
+                               ParGridFunction &z_,
+                               const MaterialParams &mat_)
+      : rho_tilde(rho_tilde_), accel(accel_), z(z_), mat(mat_) {}
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &T,
+                               Vector &elvect) override
    {
-      cout << "\n=== Adjoint Backward March ===" << endl;
-      cout << "Number of timesteps: " << num_steps << endl;
-      cout << "Timestep size: " << dt << endl;
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+
+      const int int_order = 2 * el.GetOrder() + T.OrderW();
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), int_order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T.SetIntPoint(&ip);
+         el.CalcPhysShape(T, shape);
+
+         accel.GetVectorValue(T, ip, accel_val);
+         z.GetVectorValue(T, ip, z_val);
+
+         const real_t rp = SimpDerivative(rho_tilde, T, ip, mat);
+         const real_t density = -mat.rho0 * rp * (accel_val * z_val);
+         const real_t weight = ip.weight * T.Weight() * density;
+
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i) += weight * shape(i);
+         }
+      }
    }
 
-   // Initialize terminal condition: η^N = 0
-   oper.InitializeTerminalAdjoint(adjoint);
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
-   // Note: For full RK4 adjoint, we would use MFEM's built-in capability:
-   //
-   // RK4Solver adjoint_ode;
-   // adjoint_ode.Init(const_cast<ElastodynamicsOperator&>(oper));
-   // adjoint_ode.EnableAdjoint(ODESolver::AdjointMode::Discrete);
-   //
-   // Then backward loop with adjoint steps + objective gradient injection
-   //
-   // However, MFEM's discrete adjoint requires careful setup of the
-   // forward solver state at each timestep. For now, we prepare the
-   // infrastructure for manual implementation following eq. 1154-1170.
+class StageStiffnessDesignLFIntegrator : public LinearFormIntegrator
+{
+private:
+   ParGridFunction &rho_tilde;
+   ParGridFunction &u;
+   ParGridFunction &z;
+   MaterialParams mat;
+   Vector shape;
+   DenseMatrix grad_u, grad_z;
 
-   if (myid == 0)
+public:
+   StageStiffnessDesignLFIntegrator(ParGridFunction &rho_tilde_,
+                                    ParGridFunction &u_,
+                                    ParGridFunction &z_,
+                                    const MaterialParams &mat_)
+      : rho_tilde(rho_tilde_), u(u_), z(z_), mat(mat_) {}
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &T,
+                               Vector &elvect) override
    {
-      cout << "Terminal adjoint initialized: |η^N| = " << adjoint.Norml2() << endl;
-      cout << "\nAdjoint backward march infrastructure ready." << endl;
-      cout << "Full RK4 transpose implementation to follow." << endl;
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+
+      const int int_order = 2 * T.OrderGrad(&el);
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), int_order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T.SetIntPoint(&ip);
+         el.CalcPhysShape(T, shape);
+
+         u.GetVectorGradient(T, grad_u);
+         z.GetVectorGradient(T, grad_z);
+
+         const int dim = T.GetSpaceDim();
+         const real_t div_u = grad_u.Trace();
+         const real_t div_z = grad_z.Trace();
+
+         real_t elastic_density = mat.lambda0 * div_u * div_z;
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               elastic_density += mat.mu0 * grad_z(i, j)
+                                  * (grad_u(i, j) + grad_u(j, i));
+            }
+         }
+
+         const real_t rp = SimpDerivative(rho_tilde, T, ip, mat);
+         const real_t density = -rp * elastic_density;
+         const real_t weight = ip.weight * T.Weight() * density;
+
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i) += weight * shape(i);
+         }
+      }
    }
 
-   // Manual backward RK4 transpose (following paper eq. 1154-1170)
-   // Would be implemented here for full discrete adjoint
-   // For now, the JacobianMultTranspose provides the core operator
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+inline void EvalRHS(ElastodynamicsOperator &oper,
+                    const Vector &x, real_t t, Vector &y)
+{
+   y.SetSize(x.Size());
+   oper.SetTime(t);
+   oper.Mult(x, y);
+}
+
+inline void EvalJacobianTranspose(ElastodynamicsOperator &oper,
+                                  const Vector &x, real_t t,
+                                  const Vector &eta, Vector &jt_eta)
+{
+   jt_eta.SetSize(x.Size());
+   oper.SetTime(t);
+   oper.JacobianMultTranspose(x, eta, jt_eta);
+}
+
+inline void RK4Stages(ElastodynamicsOperator &oper,
+                      const Vector &x0, real_t t0, real_t h,
+                      Vector &k1, Vector &k2, Vector &k3, Vector &k4,
+                      Vector &y1, Vector &y2, Vector &y3)
+{
+   EvalRHS(oper, x0, t0, k1);
+
+   y1 = x0;
+   y1.Add(0.5*h, k1);
+   EvalRHS(oper, y1, t0 + 0.5*h, k2);
+
+   y2 = x0;
+   y2.Add(0.5*h, k2);
+   EvalRHS(oper, y2, t0 + 0.5*h, k3);
+
+   y3 = x0;
+   y3.Add(h, k3);
+   EvalRHS(oper, y3, t0 + h, k4);
+}
+
+inline void RK4AdjointOneStep(ElastodynamicsOperator &oper,
+                              const Vector &x0, real_t t0, real_t h,
+                              const Vector &lambda_next,
+                              Vector &lambda_prev)
+{
+   const int n = x0.Size();
+   Vector k1(n), k2(n), k3(n), k4(n);
+   Vector y1(n), y2(n), y3(n);
+   RK4Stages(oper, x0, t0, h, k1, k2, k3, k4, y1, y2, y3);
+
+   Vector adj_x0(lambda_next);
+   Vector adj_k1(n), adj_k2(n), adj_k3(n), adj_k4(n);
+   Vector adj_y(n), jt(n);
+
+   adj_k1.Set(h/6.0, lambda_next);
+   adj_k2.Set(h/3.0, lambda_next);
+   adj_k3.Set(h/3.0, lambda_next);
+   adj_k4.Set(h/6.0, lambda_next);
+
+   EvalJacobianTranspose(oper, y3, t0 + h, adj_k4, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k3.Add(h, adj_y);
+
+   EvalJacobianTranspose(oper, y2, t0 + 0.5*h, adj_k3, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k2.Add(0.5*h, adj_y);
+
+   EvalJacobianTranspose(oper, y1, t0 + 0.5*h, adj_k2, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k1.Add(0.5*h, adj_y);
+
+   EvalJacobianTranspose(oper, x0, t0, adj_k1, jt);
+   adj_x0.Add(1.0, jt);
+
+   lambda_prev = adj_x0;
+}
+
+inline void AddStageDesignGradientTilde(ElastodynamicsOperator &oper,
+                                        ParFiniteElementSpace &state_fes,
+                                        ParFiniteElementSpace &filter_fes,
+                                        ParGridFunction &rho_tilde,
+                                        const MaterialParams &mat,
+                                        const Vector &stage_state,
+                                        const Vector &stage_rhs,
+                                        const Vector &stage_seed,
+                                        Vector &dJ_drho_tilde)
+{
+   const Array<int> &offsets = oper.GetBlockOffsets();
+   BlockVector state_blocks(const_cast<Vector&>(stage_state), offsets);
+   BlockVector rhs_blocks(const_cast<Vector&>(stage_rhs), offsets);
+   BlockVector seed_blocks(const_cast<Vector&>(stage_seed), offsets);
+
+   Vector z_true;
+   oper.MultInvMass(seed_blocks.GetBlock(1), z_true);
+
+   ParGridFunction u_gf(&state_fes);
+   ParGridFunction accel_gf(&state_fes);
+   ParGridFunction z_gf(&state_fes);
+
+   u_gf.SetFromTrueDofs(state_blocks.GetBlock(0));
+   accel_gf.SetFromTrueDofs(rhs_blocks.GetBlock(1));
+   z_gf.SetFromTrueDofs(z_true);
+
+   ParLinearForm mass_lf(&filter_fes);
+   mass_lf.AddDomainIntegrator(
+      new StageMassDesignLFIntegrator(rho_tilde, accel_gf, z_gf, mat));
+   mass_lf.Assemble();
+   std::unique_ptr<HypreParVector> mass_vec(mass_lf.ParallelAssemble());
+
+   ParLinearForm stiffness_lf(&filter_fes);
+   stiffness_lf.AddDomainIntegrator(
+      new StageStiffnessDesignLFIntegrator(rho_tilde, u_gf, z_gf, mat));
+   stiffness_lf.Assemble();
+   std::unique_ptr<HypreParVector> stiffness_vec(stiffness_lf.ParallelAssemble());
+
+   dJ_drho_tilde.Add(1.0, *mass_vec);
+   dJ_drho_tilde.Add(1.0, *stiffness_vec);
+}
+
+inline void RK4AdjointOneStepWithDesign(ElastodynamicsOperator &oper,
+                                        ParFiniteElementSpace &state_fes,
+                                        ParFiniteElementSpace &filter_fes,
+                                        ParGridFunction &rho_tilde,
+                                        const MaterialParams &mat,
+                                        const Vector &x0, real_t t0, real_t h,
+                                        const Vector &lambda_next,
+                                        Vector &lambda_prev,
+                                        Vector &dJ_drho_tilde)
+{
+   const int n = x0.Size();
+   Vector k1(n), k2(n), k3(n), k4(n);
+   Vector y1(n), y2(n), y3(n);
+   RK4Stages(oper, x0, t0, h, k1, k2, k3, k4, y1, y2, y3);
+
+   Vector adj_x0(lambda_next);
+   Vector adj_k1(n), adj_k2(n), adj_k3(n), adj_k4(n);
+   Vector adj_y(n), jt(n);
+
+   adj_k1.Set(h/6.0, lambda_next);
+   adj_k2.Set(h/3.0, lambda_next);
+   adj_k3.Set(h/3.0, lambda_next);
+   adj_k4.Set(h/6.0, lambda_next);
+
+   AddStageDesignGradientTilde(oper, state_fes, filter_fes, rho_tilde, mat,
+                               y3, k4, adj_k4, dJ_drho_tilde);
+   EvalJacobianTranspose(oper, y3, t0 + h, adj_k4, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k3.Add(h, adj_y);
+
+   AddStageDesignGradientTilde(oper, state_fes, filter_fes, rho_tilde, mat,
+                               y2, k3, adj_k3, dJ_drho_tilde);
+   EvalJacobianTranspose(oper, y2, t0 + 0.5*h, adj_k3, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k2.Add(0.5*h, adj_y);
+
+   AddStageDesignGradientTilde(oper, state_fes, filter_fes, rho_tilde, mat,
+                               y1, k2, adj_k2, dJ_drho_tilde);
+   EvalJacobianTranspose(oper, y1, t0 + 0.5*h, adj_k2, adj_y);
+   adj_x0.Add(1.0, adj_y);
+   adj_k1.Add(0.5*h, adj_y);
+
+   AddStageDesignGradientTilde(oper, state_fes, filter_fes, rho_tilde, mat,
+                               x0, k1, adj_k1, dJ_drho_tilde);
+   EvalJacobianTranspose(oper, x0, t0, adj_k1, jt);
+   adj_x0.Add(1.0, jt);
+
+   lambda_prev = adj_x0;
+}
+
+inline real_t AddObjectiveContribution(ParFiniteElementSpace &state_fes,
+                                       const Array<int> &offsets,
+                                       TimeIntegratedObjective &objective,
+                                       const Vector &state,
+                                       real_t dt, int step, int total_steps)
+{
+   BlockVector bstate(const_cast<Vector&>(state), offsets);
+   ParGridFunction u_gf(&state_fes);
+   u_gf.SetFromTrueDofs(bstate.GetBlock(0));
+   return objective.AccumulateTimestep(u_gf, dt, step, total_steps);
+}
+
+inline void ObjectiveGradientAtState(ParFiniteElementSpace &state_fes,
+                                     const Array<int> &offsets,
+                                     TimeIntegratedObjective &objective,
+                                     const Vector &state,
+                                     real_t dt, int step, int total_steps,
+                                     Vector &q_state)
+{
+   q_state.SetSize(state.Size());
+   q_state = 0.0;
+
+   BlockVector bstate(const_cast<Vector&>(state), offsets);
+   BlockVector bq(q_state, offsets);
+
+   ParGridFunction u_gf(&state_fes);
+   u_gf.SetFromTrueDofs(bstate.GetBlock(0));
+
+   ParLinearForm grad_form(&state_fes);
+   objective.ComputeObjectiveGradient(u_gf, dt, step, total_steps, grad_form);
+
+   std::unique_ptr<HypreParVector> q_u(grad_form.ParallelAssemble());
+   bq.GetBlock(0) = *q_u;
+   bq.GetBlock(1) = 0.0;
+}
+
+inline real_t RolloutObjective(ElastodynamicsOperator &oper,
+                               ParFiniteElementSpace &state_fes,
+                               const Array<int> &offsets,
+                               TimeIntegratedObjective &objective,
+                               const Vector &x_init,
+                               int nsteps, real_t t_init, real_t h,
+                               std::vector<Vector> *states,
+                               std::vector<real_t> *times)
+{
+   const int n = x_init.Size();
+   Vector x(x_init);
+   real_t t = t_init;
+   const int total_steps = nsteps + 1;
+
+   objective.Reset();
+
+   RK4Solver solver;
+   solver.Init(oper);
+
+   if (states)
+   {
+      states->resize(nsteps + 1);
+      for (int i = 0; i <= nsteps; i++) { (*states)[i].SetSize(n); }
+      (*states)[0] = x;
+   }
+   if (times)
+   {
+      times->assign(nsteps + 1, 0.0);
+      (*times)[0] = t;
+   }
+
+   AddObjectiveContribution(state_fes, offsets, objective, x, h, 0,
+                            total_steps);
+
+   for (int i = 0; i < nsteps; i++)
+   {
+      real_t dt = h;
+      solver.Step(x, t, dt);
+
+      AddObjectiveContribution(state_fes, offsets, objective, x, h, i + 1,
+                               total_steps);
+
+      if (states) { (*states)[i + 1] = x; }
+      if (times)  { (*times)[i + 1] = t; }
+   }
+
+   return objective.GetObjective();
+}
+
+inline real_t EvaluateDesignObjective(const Vector &rho_tv,
+                                      const Vector &x0,
+                                      ParFiniteElementSpace &state_fes,
+                                      ParFiniteElementSpace &control_fes,
+                                      ParGridFunction &rho,
+                                      ParGridFunction &rho_tilde,
+                                      toopt::PDEFilter &filter,
+                                      SpatialDampingCoefficient &gamma_coef,
+                                      Array<int> &exterior_bdr_attr,
+                                      Array<int> &empty_bdr_attr,
+                                      Coefficient &subdomain_indicator,
+                                      const MaterialParams &mat,
+                                      real_t pulse_amplitude,
+                                      real_t pulse_duration,
+                                      real_t impedance,
+                                      int nsteps,
+                                      real_t h)
+{
+   rho.SetFromTrueDofs(rho_tv);
+   filter.Mult(rho, rho_tilde);
+
+   ConstantCoefficient rho_0_coef(mat.rho0);
+   ConstantCoefficient lambda_0_coef(mat.lambda0);
+   ConstantCoefficient mu_0_coef(mat.mu0);
+
+   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+
+   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
+
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      pulse_amplitude, pulse_duration,
+      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
+
+   TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
+                                     state_fes.GetComm());
+
+   (void)control_fes;
+   return RolloutObjective(oper, state_fes, oper.GetBlockOffsets(), objective,
+                           x0, nsteps, 0.0, h, nullptr, nullptr);
+}
+
+inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
+                                             const Vector &x0,
+                                             ParFiniteElementSpace &state_fes,
+                                             ParFiniteElementSpace &filter_fes,
+                                             ParFiniteElementSpace &control_fes,
+                                             ParGridFunction &rho,
+                                             ParGridFunction &rho_tilde,
+                                             toopt::PDEFilter &filter,
+                                             SpatialDampingCoefficient &gamma_coef,
+                                             Array<int> &exterior_bdr_attr,
+                                             Array<int> &empty_bdr_attr,
+                                             Coefficient &subdomain_indicator,
+                                             const MaterialParams &mat,
+                                             real_t pulse_amplitude,
+                                             real_t pulse_duration,
+                                             real_t impedance,
+                                             int nsteps,
+                                             real_t h,
+                                             Vector &dJ_drho)
+{
+   rho.SetFromTrueDofs(rho_tv);
+   filter.Mult(rho, rho_tilde);
+
+   ConstantCoefficient rho_0_coef(mat.rho0);
+   ConstantCoefficient lambda_0_coef(mat.lambda0);
+   ConstantCoefficient mu_0_coef(mat.mu0);
+
+   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+
+   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
+
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      pulse_amplitude, pulse_duration,
+      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
+
+   TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
+                                     state_fes.GetComm());
+
+   std::vector<Vector> states;
+   std::vector<real_t> times;
+   const real_t J = RolloutObjective(oper, state_fes, oper.GetBlockOffsets(),
+                                     objective, x0, nsteps, 0.0, h,
+                                     &states, &times);
+
+   const int n = x0.Size();
+   const int total_steps = nsteps + 1;
+
+   Vector dJ_drho_tilde(filter_fes.GetTrueVSize());
+   dJ_drho_tilde = 0.0;
+
+   Vector q(n), lambda(n), lambda_prev(n);
+   ObjectiveGradientAtState(state_fes, oper.GetBlockOffsets(), objective,
+                            states[nsteps], h, nsteps, total_steps, lambda);
+
+   for (int i = nsteps - 1; i >= 0; i--)
+   {
+      const real_t hi = times[i + 1] - times[i];
+      RK4AdjointOneStepWithDesign(oper, state_fes, filter_fes, rho_tilde,
+                                  mat, states[i], times[i], hi,
+                                  lambda, lambda_prev, dJ_drho_tilde);
+
+      ObjectiveGradientAtState(state_fes, oper.GetBlockOffsets(), objective,
+                               states[i], h, i, total_steps, q);
+      lambda = lambda_prev;
+      lambda += q;
+   }
+
+   filter.MultTranspose(dJ_drho_tilde, dJ_drho);
+   MFEM_VERIFY(dJ_drho.Size() == control_fes.GetTrueVSize(),
+               "Raw design gradient has unexpected size.");
+
+   return J;
 }
 
 } // namespace mfem

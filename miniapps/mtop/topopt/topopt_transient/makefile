@@ -11,10 +11,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 # Shared source compiled into local objects
-COMMON_OBJ = MMA_MFEM.o LatentMirrorOptimizer.o mtop_solvers.o pde_filter.o
+MTOP_OBJ = mtop_solvers.o pde_filter.o
+MMA_OBJ = MMA_MFEM.o
+MMA_LIBS ?= -llapack -lblas
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = TopOptTransient test_convergence_study test_physical_validation ElastTopOpt_transient ForwardElastodynamics test_unified_solver test_gradient_taylor SemiInfiniteWave SemiInfiniteWave_damped SemiInfiniteWave_proper_damping SemiInfiniteWave_checkpoint_ready SemiInfiniteWave_gmsh SemiInfiniteWave_semicircle SimpleWaveTest
+PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static test_adjoint_verification
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -30,12 +32,19 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(COMMON_OBJ)
+%: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
-# TopOptTransient needs MMA
-TopOptTransient: TopOptTransient.o MMA_MFEM.o
+# TopOptTransient: full MMA optimizer (adjoint design gradient + volume MMA).
+TopOptTransient: TopOptTransient.o pde_filter.o $(MMA_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(MMA_LIBS)
+
+test_adjoint_verification: test_adjoint_verification.o pde_filter.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+# Static topology optimization uses the mtop helpers and MMA
+ElastTopOpt_static: ElastTopOpt_static.o $(MMA_OBJ) $(MTOP_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(MMA_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@

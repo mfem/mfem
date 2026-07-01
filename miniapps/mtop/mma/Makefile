@@ -61,6 +61,12 @@ endif
 # Pull in MFEM's own definitions: CXX, MFEM_FLAGS, MFEM_LIBS, MFEM_INC, …
 include $(firstword $(MFEM_CONFIG))
 
+MFEM_DIR ?= $(MFEM_BUILD_DIR)
+
+ifeq ($(origin CXX), default)
+  CXX := $(MFEM_CXX)
+endif
+
 AR ?= ar
 
 # ---------------------------------------------------------------------------
@@ -70,7 +76,8 @@ AR ?= ar
 # MFEM_INC / MFEM_LIBS come from config.mk.
 # We add the project source directory so #include "MMA_MFEM.hpp" works.
 INC    := -I. $(MFEM_INC)
-LIBS   := $(MFEM_LIBS) $(LDFLAGS)
+MMA_LIBS ?= -llapack -lblas
+LIBS   := $(MFEM_LIBS) $(LDFLAGS) $(MMA_LIBS)
 
 # MFEM_FLAGS already contains -std=c++11/14, optimisation level, and any
 # feature macros (MFEM_USE_MPI, MFEM_USE_LAPACK, …).
