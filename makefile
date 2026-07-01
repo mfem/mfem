@@ -807,7 +807,7 @@ FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_ALL_DIRS) config,$(dir)/*.?pp)
 TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme dfem
 MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
-   hooke/materials hooke/kernels
+   hooke/materials hooke/kernels plasma/diffusion
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)

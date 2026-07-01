@@ -24,4 +24,5 @@ if (MFEM_USE_MPI)
 
 endif()
 
+add_subdirectory(diffusion)
 add_subdirectory(pic)
