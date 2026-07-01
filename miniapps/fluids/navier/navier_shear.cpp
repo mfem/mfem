@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 2;
 
-   Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
+   Mesh *mesh = new Mesh("../../../data/periodic-square.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    *nodes -= -1.0;

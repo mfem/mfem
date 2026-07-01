@@ -789,7 +789,6 @@ void Hybridization::ComputeH()
    }
    else
    {
-      // TODO: add ones on the diagonal of zero rows
       V->Finalize();
       Array<HYPRE_BigInt> V_J(V->NumNonZeroElems());
       MFEM_ASSERT(c_pfes, "");
@@ -823,6 +822,13 @@ void Hybridization::ComputeH()
       MFEM_VERIFY(pH.Type() != Operator::PETSC_MATIS, "To be implemented");
       pH.MakePtAP(plpH, pP);
       delete lpH;
+
+      HypreParMatrix *hH = pH.As<HypreParMatrix>();
+      MFEM_ASSERT(hH, "");
+
+      SparseMatrix H_diag;
+      hH->GetDiag(H_diag);
+      H_diag.SetDiagIdentity();
    }
 #endif
 }

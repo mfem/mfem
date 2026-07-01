@@ -12,13 +12,14 @@
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
-#include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
+
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -637,8 +638,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
                                    const Array<real_t> &g_,
-                                   const Array<real_t> &bt_,
-                                   const Array<real_t> &gt_,
+                                   const Array<real_t> &,
+                                   const Array<real_t> &,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1004,13 +1005,16 @@ inline void SmemPADiffusionApply3D(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_VERIFY(D1D <= Q1D, "THREAD_DIRECT requires D1D <= Q1D");
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+
+   mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE,
+                                      Q1D, Q1D, Q1D,
+                                      [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1215,43 +1219,47 @@ inline void SmemPADiffusionApply3D(const int NE,
 namespace
 {
 using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using ApplySimplexKernelType = DiffusionIntegrator::ApplySimplexKernelType;
 using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
-   MFEM_ABORT("");
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline
-ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionApply2D; }
-   else if (DIM == 3) { return internal::PADiffusionApply3D; }
+   if (dim == 2) { return internal::PADiffusionApply2D; }
+   else if (dim == 3) { return internal::PADiffusionApply3D; }
    else { MFEM_ABORT(""); }
 }
 
 template<int DIM, int D1D, int Q1D>
 DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
-   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
-   MFEM_ABORT("");
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline DiagonalKernelType
-DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int dim, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
-   else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
+   if (dim == 2) { return internal::PADiffusionDiagonal2D; }
+   else if (dim == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
+
 /// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
-
 
 #endif

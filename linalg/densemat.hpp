@@ -82,6 +82,15 @@ public:
       }
    }
 
+   /// Make the DenseMatrix to reference the given sub-Memory of @a base.
+   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
+       not delete the @a base Memory. */
+   void MakeRef(Memory<real_t> &base, int offset, int h, int w)
+   {
+      data.MakeRef(base, offset, h*w);
+      height = h; width = w;
+   }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. */
@@ -346,8 +355,12 @@ public:
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
-   void Getl1Diag(Vector &l) const;
-   /// Compute the row sums of the DenseMatrix
+   MFEM_DEPRECATED void Getl1Diag(Vector &l) const;
+   /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
+   void GetRowl1(Vector &l) const;
+   /// Returns the l2norm of the rows of the DenseMatrix
+   void GetRowl2(Vector &l) const;
+   /// Returns the row sums of the DenseMatrix
    void GetRowSums(Vector &l) const;
 
    /// Creates n x n diagonal matrix with diagonal elements c
@@ -461,7 +474,13 @@ public:
    void GetFromVector(int offset, const Vector &v);
    /** If (dofs[i] < 0 and dofs[j] >= 0) or (dofs[i] >= 0 and dofs[j] < 0)
        then (*this)(i,j) = -(*this)(i,j).  */
-   void AdjustDofDirection(Array<int> &dofs);
+   void AdjustDofDirection(const Array<int> &dofs);
+
+   /** If (row_dofs[i] < 0) xor (col_dofs[j] < 0) then
+    (*this)(i,j) = -(*this)(i,j). This method also converts
+    row_dofs/col_dofs to unsigned indices (d -> -d-1). */
+   void AdjustDofDirection(Array<int> &row_dofs,
+                           Array<int> &col_dofs);
 
    /// Replace small entries, abs(a_ij) <= eps, with zero.
    void Threshold(real_t eps);
@@ -1236,7 +1255,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   std::size_t MemoryUsage() const { return tdata.Capacity(); }
+   std::size_t MemoryUsage() const { return tdata.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }
