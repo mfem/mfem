@@ -607,20 +607,107 @@ void VectorFEDomainLFDivIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
-void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dim = el.GetDim()+1;
+   mfem_error("DGBdrDisplacementLFIntegrator::AssembleRHSElementVect\n"
+              "  is not implemented as boundary integrator!\n"
+              "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
+              "  LinearForm::AddBoundaryIntegrator.");
+}
+
+void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim();
+   const int dim_lame = 1 + dim * (dim+1) / 2;
+   const int vdim = VF.GetVDim();
+   MFEM_ASSERT(dim == vdim, "");
    int dof = el.GetDof();
 
-   shape.SetSize (dof);
-   nor.SetSize (dim);
-   elvect.SetSize (dim*dof);
+   shape.SetSize(dof);
+   nor.SetSize(dim);
+   vf.SetSize(vdim);
+   elvect.SetSize(dof * dim_lame);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   elvect = 0.0;
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint (&ip);
+
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      el.CalcPhysShape (*Tr.Elem1, shape);
+      real_t w = Sign * ip.weight;
+
+      VF.Eval(vf, Tr, ip);
+
+      // scalar term
+      const real_t VF_n = w * (vf * nor);
+      for (int d = 0; d < dim; d++)
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i) += shape(i) * VF_n;
+         }
+
+      // symmetric tensor term
+      int doff = 1;
+      for (int di = 0; di < dim; di++)
+      {
+         // diagonal term
+         {
+            const real_t VF_n_d = w * vf(di) * nor(di);
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(i + doff*dof) += shape(i) * VF_n_d;
+            }
+            doff++;
+         }
+         // off-diagonal term
+         for (int dj = di+1; dj < dim; dj++)
+         {
+            const real_t VF_n_d = w * (vf(di) * nor(dj) + vf(dj) * nor(di));
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(i + doff*dof) += shape(i) * VF_n_d;
+            }
+            doff++;
+         }
+      }
+   }
+}
+
+void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim()+1;
+   const int dof = el.GetDof();
+
+   shape.SetSize (dof);
+   nor.SetSize (dim);
+   elvect.SetSize (dim * dof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    elvect = 0.0;
@@ -630,15 +717,67 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       CalcOrtho(Tr.Jacobian(), nor);
       el.CalcShape (ip, shape);
-      nor *= Sign * ip.weight * F -> Eval (Tr, ip);
-      for (int j = 0; j < dof; j++)
-         for (int k = 0; k < dim; k++)
+      real_t w = Sign * ip.weight;
+      if (F)
+      {
+         w *= F->Eval(Tr, ip);
+      }
+
+      for (int k = 0; k < dim; k++)
+         for (int j = 0; j < dof; j++)
          {
-            elvect(dof*k+j) += nor(k) * shape(j);
+            elvect(dof*k+j) += w * nor(k) * shape(j);
          }
    }
 }
 
+void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+
+   shape.SetSize (dof);
+   nor.SetSize (dim);
+   elvect.SetSize (dim * dof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   elvect = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint (&ip);
+
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      el.CalcPhysShape (*Tr.Elem1, shape);
+      real_t w = Sign * ip.weight;
+      if (F)
+      {
+         w *= F->Eval(Tr, ip);
+      }
+
+      for (int k = 0; k < dim; k++)
+         for (int j = 0; j < dof; j++)
+         {
+            elvect(dof*k+j) += w * nor(k) * shape(j);
+         }
+   }
+}
 
 void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -665,6 +804,63 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       if (F)
       {
          Tr.SetIntPoint (&ip);
+         val *= F->Eval(Tr, ip);
+      }
+
+      elvect.Add(val, shape);
+   }
+}
+
+void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   MFEM_ASSERT(el.GetMapType() == FiniteElement::H_DIV,
+               "Implemented only for RT elements");
+
+   int dim = el.GetDim();
+   int sdim = Tr.GetSpaceDim();
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);
+   vshape.SetSize(dof, dim);
+   nor.SetSize(sdim);
+   nor_xt.SetSize(dim);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint(&ip);
+
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      el.CalcVShape(eip, vshape);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      Tr.Elem1->SetIntPoint(&eip);
+
+      Tr.Elem1->Jacobian().MultTranspose(nor, nor_xt);
+
+      vshape.Mult(nor_xt, shape);
+
+      real_t val = ip.weight / Tr.Elem1->Weight();
+      if (F)
+      {
          val *= F->Eval(Tr, ip);
       }
 
@@ -778,7 +974,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
    dim  = el.GetDim();
    ndof = el.GetDof();
-   Vector vu(vu_data, dim), nor(nor_data, dim);
+   Vector vu(vu_data, dim), nor(nor_data, dim), vvf(dim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -822,7 +1018,16 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
-      w *= ip.weight*f->Eval(Tr, ip);
+      if (f)
+      {
+         w *= f->Eval(Tr, ip);
+      }
+      else if (vf && un != 0.)
+      {
+         vf->Eval(vvf, Tr, ip);
+         w *= (vvf * nor) / fabs(un);
+      }
+      w *= ip.weight;
       elvect.Add(w, shape);
    }
 }

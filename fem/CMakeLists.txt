@@ -181,6 +181,12 @@ set(SRCS
   gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  darcy/bilininteg_hdg.cpp
+  darcy/darcyform.cpp
+  darcy/darcyhybridization.cpp
+  darcy/darcyreduction.cpp
+  darcy/estimators_hdg.cpp
+  darcy/pdarcyform.cpp
   integrator.cpp
   bounds.cpp
   particleset.cpp
@@ -313,6 +319,13 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  darcy/bilininteg_hdg.hpp
+  darcy/darcy.hpp
+  darcy/darcyform.hpp
+  darcy/darcyhybridization.hpp
+  darcy/darcyreduction.hpp
+  darcy/estimators_hdg.hpp
+  darcy/pdarcyform.hpp
   integrator.hpp
   bounds.hpp
   particleset.hpp

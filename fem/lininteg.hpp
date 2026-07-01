@@ -437,9 +437,35 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/** $ (f, v \cdot n)_{\partial\Omega} $ for test decomposed stress function $v$
+    (scalar and symmetric gradient parts) where all components are in the same
+    scalar FE space and $f$ is a vector function. */
+class DGBdrDisplacementLFIntegrator : public LinearFormIntegrator
+{
+private:
+   real_t Sign;
+   VectorCoefficient &VF;
+   Vector shape, nor, vf;
+
+public:
+   DGBdrDisplacementLFIntegrator(VectorCoefficient &f, real_t s = 1.0,
+                                 const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir), Sign(s), VF(f) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 /** $ (f, v \cdot n)_{\partial\Omega} $ for vector test function
-    $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is a
-    scalar function. */
+    $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is
+    a scalar function. */
 class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -456,27 +482,37 @@ public:
                                ElementTransformation &Tr,
                                Vector &elvect) override;
 
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of $ (f, v \cdot n) $ for scalar coefficient $f$ and
-    RT vector test function $v$. This integrator works with RT spaces defined
-    using the RT_FECollection class. */
+/** Class for boundary integration of $ (f, v \cdot n) $ for a scalar
+    coefficient $f$ and RT vector test function $v$. This integrator works with
+    RT spaces defined using the RT_FECollection class. */
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
    Coefficient *F;
-   Vector shape;
+   DenseMatrix vshape;
+   Vector shape, nor, nor_xt;
    int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
       : F(NULL), oa(a), ob(b) { }
+
    VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
       : F(&f), oa(a), ob(b) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
                                Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -530,12 +566,16 @@ public:
 /** Class for boundary integration of the linear form:
     $ \frac{\alpha}{2} \langle (u \cdot n) f, w \rangle - \beta \langle |u \cdot n| f, w \rangle $
     where $f$ and $u$ are given scalar and vector coefficients, respectively,
-    and $w$ is the scalar test function. */
+    and $w$ is the scalar test function. Alternatively, vector coefficient $vf$
+    can ber provided to calculate $f = vf \cdot n / |u \cdot n|$, which allows
+    to integrate a vector boundary flux with upwinding given by a different
+    field. */
 class BoundaryFlowIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient *f;
-   VectorCoefficient *u;
+   Coefficient *f = nullptr;
+   VectorCoefficient *vf = nullptr;
+   VectorCoefficient *u = nullptr;
    real_t alpha, beta;
 
    Vector shape;
@@ -548,6 +588,14 @@ public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
+
+   BoundaryFlowIntegrator(VectorCoefficient &vf_, VectorCoefficient &u_,
+                          real_t a)
+   { vf = &vf_; u = &u_; alpha = a; beta = 0.5*a; }
+
+   BoundaryFlowIntegrator(VectorCoefficient &vf_, VectorCoefficient &u_,
+                          real_t a, real_t b)
+   { vf = &vf_; u = &u_; alpha = a; beta = b; }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

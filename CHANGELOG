@@ -15,6 +15,19 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added framework for mixed systems represented by classes (Par)DarcyForm, which
+  make construction of such systems easier and offer single-line algebraic
+  reduction of the system through DarcyReduction or total flux hybridization
+  through DarcyHybridization. This is supplemented by integrators for
+  convection-diffusion or linear elasticity supporting Local/Hybridizable
+  Discontinuous Galerkin (LDG/HDG) methods. Native trace-based error estimator
+  for AMR with HDG(-like) schemes is also offered by HDGErrorEstimator.
+
+- Added broken Raviart-Thomas finite element collection (BrokenRT_FECollection).
+  The finite elements from this family have the same construction as classical
+  Raviart-Thomas elements, but do not share the facet DOFs with their neighbors,
+  i.e., they are discontinuous.
+
 - Added GPU-enabled partial assembly for simplicial Bernstein H1 basis based on
   ragged tensor algorithms (see DOI: 10.1137/11082539X) for mass and diffusion
   integrators.
@@ -74,6 +87,22 @@ GPU computing
 
 New and updated examples and miniapps
 -------------------------------------
+- Modified example 5(p) to demonstrate usage of (Par)DarcyForm.
+
+- Added directory 'examples/hdg' with modified verisons examples 5, 6, 14, 17,
+  21 and 41 to demonstrate algebraically reduced or hybridized methods for
+  (convection-)diffusion, Darcy problem and linear elasticity.
+
+- Added directory 'miniapps/hdg' with miniapps demonstrating capabilities of the
+  framework for mixed/reduced/hybridized systems:
+  * (p)anisodiff - Demonstrates the asymptotic or steady-state heat diffusion
+                   with an anisotrotropic heat conductivity tensor solved with
+                   adaptive mesh refinement.
+  * (p)convdiff - Shows examples of steady/time-evolving convection-diffusion
+                  problems.
+  * mfem-logo - Randomized single-step convection-diffusion of MFEM text mask as
+                the initial condition.
+
 - The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
   leverage the ParticleSet capability.
 
@@ -86,6 +115,8 @@ Miscellaneous
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
 
+
+- Implemented interior and trace face assembly in ParMixedBilinearForm.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
