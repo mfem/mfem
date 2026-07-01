@@ -7,9 +7,9 @@
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
-#include "MMA_MFEM.hpp"
-#include "pde_filter.hpp"
-#include "mtop_solvers.hpp"
+#include "../../mma/MMA_MFEM.hpp"
+#include "../../pde_filter.hpp"
+#include "../../mtop_solvers.hpp"
 #include <memory>
 #include <fstream>
 
@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
     // 3. Refined the mesh and construct pmesh
     for (int l = 0; l < ref_levels; l++) 
     { 
-        mesh.UniformRefinement(); 
+        mesh.UniformRefinement();
     }
 
     // 3b. Construct ray field and mark the outflow boundaries
@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
             if (mesh.GetBdrAttribute(i) == clamp_attr) { continue; }
 
             ElementTransformation *trans = mesh.GetBdrElementTransformation(i);
-
             const IntegrationPoint &ip = Geometries.GetCenter(
                                             mesh.GetBdrElementGeometry(i));
             trans->SetIntPoint(&ip);
@@ -107,7 +106,14 @@ int main(int argc, char *argv[])
 
             real_t dot = v * normal;
 
-            int attr = dot > 0;
+            Vector phys_pt(dim);
+            trans->Transform(ip, phys_pt);
+            real_t x = phys_pt(0);
+
+            bool in_x_range = (x >= 1.5 && x <= 2.5);
+            bool is_outflow = dot > 0;
+
+            int attr = in_x_range && is_outflow;
             mesh.SetBdrAttribute(i, attr+1);
         }
         mesh.SetAttributes();
@@ -160,6 +166,8 @@ int main(int argc, char *argv[])
     // 6. Advection thickness-constraint and its solver
     PseudoTransientSolver advect(rho_a, rho_filter, ray_cf);
     AdvectThicknessResidual adv_res(outflow, advect.GetRhoA(), alpha);
+
+    // advect.SetTimeStep(1 / std::pow(2, ref_levels+1));  // pseudo-transient time step
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);

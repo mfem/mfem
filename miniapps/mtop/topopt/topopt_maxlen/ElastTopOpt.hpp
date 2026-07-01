@@ -79,7 +79,6 @@ public:
 };
 
 // Time stepping for du/dt = M^-1 (K x + b)
-// M and K are assembled externally and passed in by reference (not owned here).
 class DG_AdvectionSolver : public TimeDependentOperator
 {
 private:
@@ -88,9 +87,9 @@ private:
    DGMassInverse *m_inv;          // M^{-1}, element-local DG mass inverse
 
    VectorCoefficient &v_cf;
-   HypreParMatrix *Kmat;          // not owned
+   HypreParMatrix *Kmat;          // advection operator K
 
-   const Vector *b;               // optional constant source, not owned
+   const Vector *b;
    mutable Vector z;
 
 public:
@@ -122,41 +121,50 @@ public:
    }
 };
 
-// pseudo transient solver that solve the steady state by adding a time derivative
-// forward solve: time stepping solve for  M (drho_a/dt) = K rho_a + b,  b = N rho_p
-// adjoint solve: linear solve  K^T lambda = (rhs)  in steady state
+// Pseudo-transient solver for the advection equation  K rho_a = -b,  b = N rho_p
+// forward : Mult   -> direct solve  K rho_a = -b
+//           FSolve -> pseudo-transient march  M(drho_a/dt)=K rho_a+b
+// adjoint : ASolve -> linear solve  K^T lambda = rhs  (steady state)
 class PseudoTransientSolver : public Operator
 {
 private:
    MPI_Comm comm;
-   ParFiniteElementSpace *dgfes;   // DG space of rho_a (borrowed from rho_a_gf)
+   ParFiniteElementSpace *dgfes;   // DG space of rho_a
 
    VectorCoefficient &v_cf;        // advection direction
+   GridFunctionCoefficient rf_gfcf;  // rho_filter coefficient
 
-   ParGridFunction rho_a_gf;       // forward DG field (unknown / output)
-   ParGridFunction *rho_filter;    // source rho_p (H1, live; borrowed from driver)
+   ParGridFunction rho_a_gf;       // forward DG field 
+   ParGridFunction *rho_filter;    // source rho_p 
 
-   // forward operators (owned)
    ParBilinearForm *K;
    HypreParMatrix  *Kmat;
    DG_AdvectionSolver *adv;
-   mutable Vector b;               // source  b = N rho_p  (T-dof)
-   Vector adj_rhs;                 // adjoint RHS (T-dof)
+   mutable Vector b;               // source  b = N rho_p  
+   Vector adj_rhs;                 // adjoint RHS 
    Vector lambda;
 
-   // adjoint transport solve  K^T lambda = rhs (built once, K is design-independent)
+   real_t dt = 1e-3;               // pseudo-transient time step
+
+   // forward transport solve  K rho_a = -b   (direct, design-independent K)
+   std::unique_ptr<BlockILU>       fwd_prec;
+   std::unique_ptr<GMRESSolver>    fwd_gmres;
+
+   // adjoint transport solve  K^T lambda = rhs
    std::unique_ptr<HypreParMatrix> Kt;
    std::unique_ptr<BlockILU>       adj_prec;
    std::unique_ptr<GMRESSolver>    adj_gmres;
 
    void Assemble();
-   void AssembleSource(const ParGridFunction &rf) const;  // b = N rf, adv->SetSource(b)
+   void AssembleSource(const ParGridFunction &rf) const;  // b = N rf
+   void rho_a_init(Vector &r_a);
+   void SetupForwardSolver();
    void SetupAdjointSolver();
 
 public:
    PseudoTransientSolver(ParGridFunction &rho_a_, ParGridFunction &rho_filter_,
                          VectorCoefficient &v_cf_)
-   : v_cf(v_cf_), rho_a_gf(rho_a_), rho_filter(&rho_filter_),
+   : v_cf(v_cf_), rho_a_gf(rho_a_), rho_filter(&rho_filter_), rf_gfcf(&rho_filter_),
      K(nullptr), Kmat(nullptr), adv(nullptr)
    {
       dgfes = rho_a_gf.ParFESpace();
@@ -167,33 +175,28 @@ public:
       Assemble();                                    // -> Kmat
       adv = new DG_AdvectionSolver(*Kmat, *dgfes, v_cf);
 
+      SetupForwardSolver();                          // K   solver, reused every solve
       SetupAdjointSolver();                          // K^T solver, reused every solve
    }
 
    ~PseudoTransientSolver()
-   {
-      delete adv;
-      delete Kmat;
-      delete K;
-   }
+   { delete adv; delete Kmat; delete K; }
 
-   ParGridFunction &GetRhoA() { return rho_a_gf; }  // forward field (full DG)
+   ParGridFunction &GetRhoA() { return rho_a_gf; }
    Vector &GetAdjoint() { return lambda; }
-   void GetFilterGrad(Vector &dGdrf) const;    // dG/drho_filter (H1) = -N^T lambda 
+   void GetFilterGrad(Vector &dGdrf) const;        // dG/drho_filter = -N^T lambda 
 
-   // set the adjoint RHS from an assembled dG/drho_a (T-dof)
+   // set the adjoint RHS from an assembled dG/drho_a
    void SetAdjointRHS(const Vector &rhs) { adj_rhs = rhs; }
+   void SetTimeStep(const real_t dt_) { dt = dt_; }
 
-   void Mult(const Vector &x, Vector &y) const override;
-
-   // solve for rho_a -> M (drho_a/dt) = K rho_a + N rho_p
-   void FSolve();
-
-   // solve for lambda -> K^T lambda = (rhs)
-   void ASolve();
+   // forward direct steady solve  K r_a = -b(r_f)
+   void Mult(const Vector &r_f, Vector &r_a) const override;
+   void FSolve();    // time march forward solve
+   void ASolve();    // solve for lambda -> K^T lambda = (rhs)
 };
 
-// K (upwind discretization of -v.grad); K carries the minus sign so that
+// K (upwind discretization of -v.grad)
 // M drho_a/dt = K rho_a + b.
 void PseudoTransientSolver::Assemble()
 {
@@ -218,6 +221,29 @@ void PseudoTransientSolver::AssembleSource(const ParGridFunction &rf) const
    adv->SetSource(b);
 }
 
+void PseudoTransientSolver::rho_a_init(Vector &r_a)
+{
+   ParGridFunction rf_dg_gf(dgfes);
+   rf_dg_gf.ProjectDiscCoefficient(rf_gfcf);
+   rf_dg_gf.GetTrueDofs(r_a);
+}
+
+// gmres solver for K^-1  (forward steady transport)
+void PseudoTransientSolver::SetupForwardSolver()
+{
+   const int bs = dgfes->GetFE(0)->GetDof();   // DG dofs/element
+   fwd_prec  = std::make_unique<BlockILU>(*Kmat, bs);
+   fwd_gmres = std::make_unique<GMRESSolver>(comm);
+   fwd_gmres->SetKDim(100);
+   fwd_gmres->SetRelTol(1e-12);
+   fwd_gmres->SetAbsTol(0.0);
+   fwd_gmres->SetMaxIter(5000);
+   fwd_gmres->SetPrintLevel(0);
+   fwd_gmres->SetOperator(*Kmat);
+   fwd_gmres->SetPreconditioner(*fwd_prec);
+}
+
+// gmres solver for K^-T
 void PseudoTransientSolver::SetupAdjointSolver()
 {
    Kt.reset(adv->GetKMat().Transpose());
@@ -233,22 +259,32 @@ void PseudoTransientSolver::SetupAdjointSolver()
    adj_gmres->SetPreconditioner(*adj_prec);
 }
 
-// forward map: filtered density (H1 T-dof) -> steady advected density (DG T-dof)
+// forward direct steady solve:  rho_filter -> rho_a
+// assemble the DG source b = N r_f, then solve  K r_a = -b.
 void PseudoTransientSolver::Mult(const Vector &r_f, Vector &r_a) const
 {
    ParGridFunction rf_gf(rho_filter->ParFESpace());
    rf_gf.SetFromTrueDofs(r_f);
-   AssembleSource(rf_gf);
+   AssembleSource(rf_gf);         // b = N r_f  (H1 -> DG)
 
-   const int n = adv->Height();
-   r_a.SetSize(n);
+   Vector rhs(b); rhs.Neg();      // rhs = -b
+   r_a.SetSize(adv->Height());
    r_a = 0.0;
-   Vector rate(n);
+   fwd_gmres->Mult(rhs, r_a);     // K r_a = -b   =>   r_a = -K^{-1} b
+}
 
-   RK3SSPSolver ode;
-   ode.Init(*adv);
+// forward pseudo-transient solve:  M (drho_a/dt) = K rho_a + b
+void PseudoTransientSolver::FSolve()
+{
+   AssembleSource(*rho_filter);   // b = N rho_filter
+   const int n = adv->Height();
 
-   real_t t = 0.0, dt = 1e-3;     // explicit step  (set < CFL limit)
+   Vector r_a(n), rate(n);
+   rho_a_init(r_a);     // initial guess for rho_a
+   
+   RK3SSPSolver ode; ode.Init(*adv);
+
+   real_t t = 0.0;     // explicit step  (set < CFL limit)
    real_t eps = 1e-10;            // steady-state stop tolerance
    real_t res = 2.0 * eps;
 
@@ -261,16 +297,6 @@ void PseudoTransientSolver::Mult(const Vector &r_f, Vector &r_a) const
       ode.Step(r_a, t, dt);                       // 3-stage SSP-RK3 step
       step++;
    }
-}
-
-// forward solve on the live rho_filter -> rho_a_gf
-void PseudoTransientSolver::FSolve()
-{
-   Vector r_f;
-   rho_filter->GetTrueDofs(r_f);
-
-   Vector r_a;
-   Mult(r_f, r_a);
 
    rho_a_gf.SetFromTrueDofs(r_a);
 }
@@ -284,7 +310,7 @@ void PseudoTransientSolver::ASolve()
    adj_gmres->Mult(adj_rhs, lambda);
 }
 
-// dG/drho_filter (H1) = -N^T lambda,  (N^T lambda)_j = INT phi_j^H1 lambda_h
+// dG/drho_filter (H1) = -N^T lambda
 void PseudoTransientSolver::GetFilterGrad(Vector &dGdrf) const
 {
    ParGridFunction lam_gf(dgfes);

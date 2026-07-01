@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     // Thickness constraint parameters
     int    nrays        = 5;          // number of thickness measurement rays
     int    nsamples     = 100;        // samples per ray for integration
-    real_t alpha_min    = 0.1;        // minimum thickness bound
+    real_t alpha_min    = 1e-6;        // minimum thickness bound
     real_t alpha_max    = 0.6;        // maximum thickness bound
     
     bool visualization = true;
