@@ -738,6 +738,13 @@ void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
    y.Add(a, w);
 }
 
+void ConstrainedOperator::AddMultTranspose(const Vector &x, Vector &y,
+                                           const real_t a) const
+{
+   MultTranspose(x, w);
+   y.Add(a, w);
+}
+
 RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
