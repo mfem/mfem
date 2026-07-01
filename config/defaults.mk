@@ -376,9 +376,18 @@ CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
 CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
 CUDSS_LIB         = \
  $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
-# The cuDSS communication and threading libraries. 
+# The cuDSS communication and threading libraries.
+# NVIDIA ships a prebuilt cuDSS communication layer for Open MPI only, and cuDSS
+# requires a layer matching the MPI implementation. Detect MPICH-family MPI
+# (MPICH, Intel MPI, MVAPICH, Cray MPICH all define MPICH_VERSION in mpi.h) so
+# we do not bake in the Open MPI layer for a non-Open MPI build. This mirrors
+# the CMake MFEM_MPI_IS_MPICH detection and is evaluated lazily, i.e. only when
+# MFEM_CUDSS_COMM_LIB is expanded (cuDSS builds). For MPICH-family MPI, build a
+# matching layer (see cuDSS's cudss_build_commlayer.sh) and set CUDSS_COMM_LIB.
+MFEM_MPI_IS_MPICH = $(shell $(MPICXX) -E -dM -include mpi.h -x c++ /dev/null 2>/dev/null | grep -c 'define MPICH_VERSION')
 MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
-   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+   $(if $(filter-out 0,$(MFEM_MPI_IS_MPICH)),,\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so)))))
 MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
    $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
 

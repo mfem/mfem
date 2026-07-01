@@ -49,20 +49,53 @@ if (MFEM_USE_OPENMP)
   message(STATUS "CUDSS threading layer library: ${MFEM_CUDSS_THREADING_LIB}")
 endif()
 
-# Set the full name of the cuDSS communication library if MFEM use OpenMPI.
-# The communication layer library (libcudss_commlayer_mpi.so) is located under the
-# cuDSS library directory by default.
-# The communication layer library is used pre-built communication layers for OpenMPI 
-# by default.
+# Set the full name of the cuDSS communication layer library when MFEM is built
+# with MPI. cuDSS requires a communication layer that matches the MPI
+# implementation MFEM is linked against, so we must not bake in a layer for the
+# wrong implementation. NVIDIA ships a prebuilt layer for Open MPI
+# (libcudss_commlayer_openmpi.so), which we locate automatically. For other
+# implementations (e.g. MPICH) no prebuilt layer is shipped: a matching layer
+# must be built (see cuDSS's cudss_build_commlayer.sh) and its path supplied via
+# the CUDSS_COMM_LIB environment variable at runtime. These layers live under
+# the cuDSS library directory by default.
 if (MFEM_USE_MPI)
-  find_file(
-    CUDSS_COMM_LIB
-    NAMES libcudss_commlayer_openmpi.so
-    PATHS ${CUDSS_LIBRARY_DIR}
-    NO_DEFAULT_PATH
-  )
+  # cuDSS requires a communication layer matching the MPI implementation. Use
+  # the vendor detected during MPI setup (MFEM_MPI_IS_MPICH). We only deviate
+  # from the prebuilt Open MPI layer when the MPI is positively identified as
+  # MPICH-family, so the previous behavior is preserved when the vendor cannot
+  # be determined.
+  if (MFEM_MPI_IS_MPICH)
+    # MPICH-family MPI: NVIDIA does not ship a prebuilt layer. Use a user-built
+    # layer if one has been installed alongside cuDSS; otherwise leave
+    # MFEM_CUDSS_COMM_LIB unset and rely on the CUDSS_COMM_LIB environment
+    # variable at runtime.
+    find_file(
+      CUDSS_COMM_LIB
+      NAMES libcudss_commlayer_mpich.so libcudss_commlayer_mpi.so
+      PATHS ${CUDSS_LIBRARY_DIR}
+      NO_DEFAULT_PATH
+    )
+  else()
+    # Open MPI (or an undetermined implementation): use the prebuilt Open MPI
+    # communication layer shipped with cuDSS.
+    find_file(
+      CUDSS_COMM_LIB
+      NAMES libcudss_commlayer_openmpi.so
+      PATHS ${CUDSS_LIBRARY_DIR}
+      NO_DEFAULT_PATH
+    )
+  endif()
+
   if (NOT DEFINED MFEM_CUDSS_COMM_LIB AND CUDSS_COMM_LIB)
     set(MFEM_CUDSS_COMM_LIB "${CUDSS_COMM_LIB}")
   endif()
-  message(STATUS "CUDSS communication layer library: ${MFEM_CUDSS_COMM_LIB}")
+
+  if (MFEM_CUDSS_COMM_LIB)
+    message(STATUS "CUDSS communication layer library: ${MFEM_CUDSS_COMM_LIB}")
+  else()
+    message(STATUS
+      "CUDSS communication layer library not found for the detected MPI "
+      "implementation; set the CUDSS_COMM_LIB environment variable at runtime to "
+      "a layer matching your MPI (see cuDSS's cudss_build_commlayer.sh).")
+  endif()
 endif()
