@@ -30,9 +30,9 @@ static void PADivergenceSetup2D(const int Q1D,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD(qx, x, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
             const real_t J11 = J(qx, qy, 0, 0, e);
             const real_t J21 = J(qx, qy, 1, 0, e);
@@ -62,11 +62,11 @@ static void PADivergenceSetup3D(const int Q1D,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD(qx, x, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qz, z, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
             {
                const real_t J11 = J(qx, qy, qz, 0, 0, e);
                const real_t J21 = J(qx, qy, qz, 1, 0, e);
@@ -529,7 +529,9 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Fallback
 (int dim, int tr_d1d, int te_d1d, int q1d)
 {
    MFEM_VERIFY(tr_d1d <= q1d && te_d1d <= q1d, "");
-   MFEM_VERIFY(tr_d1d <= 16 && te_d1d <= 16 && q1d <= 16, "");
+   MFEM_VERIFY(tr_d1d <= DofQuadLimits::MAX_T1D &&
+               te_d1d <= DofQuadLimits::MAX_T1D &&
+               q1d <= DofQuadLimits::MAX_T1D, "");
    if (dim == 2)
    {
       return SmemPADivergenceApply2D<>;
@@ -562,7 +564,9 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Fallback
 (int dim, int tr_d1d, int te_d1d, int q1d)
 {
    MFEM_VERIFY(tr_d1d <= q1d && te_d1d <= q1d, "");
-   MFEM_VERIFY(tr_d1d <= 16 && te_d1d <= 16 && q1d <= 16, "");
+   MFEM_VERIFY(tr_d1d <= DofQuadLimits::MAX_T1D &&
+               te_d1d <= DofQuadLimits::MAX_T1D &&
+               q1d <= DofQuadLimits::MAX_T1D, "");
    if (dim == 2)
    {
       return SmemPADivergenceApplyTranspose2D<>;
