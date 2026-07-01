@@ -1,7 +1,10 @@
 # Build artifacts
 *.o
+DiffuTopOpt
 ElastTopOpt
 ElastTopOpt_maxlen
+ElastTopOpt_maxthick
+ElastTopOpt_adv
 ElastTopOpt_transient
 ForwardElastodynamics
 elasticity_topopt_par

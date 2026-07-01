@@ -1,14 +1,15 @@
-// Parallel compliance-minimization topology optimization for linear elasticity.
+// Linear elasticity topology optimization with a thickness constraint
+// Thickness measure is calculated by solving an advection pde
 //
-// Sample run:  mpirun -np 4 ./ElastTopOpt_maxlen
-//              mpirun -np 4 ./ElastTopOpt_maxlen -gv 0.2 -gs 0.8 -mi 300
+// Sample run:  mpirun -np 4 ./ElastTopOpt_adv
+//              mpirun -np 4 ./ElastTopOpt_adv -r 5 -amax 0.4 -tol 1e-4 -mi 500
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
-#include "../../mma/MMA_MFEM.hpp"
-#include "../../pde_filter.hpp"
-#include "../../mtop_solvers.hpp"
+#include "MMA_MFEM.hpp"
+#include "pde_filter.hpp"
+#include "mtop_solvers.hpp"
 #include <memory>
 #include <fstream>
 
@@ -16,6 +17,7 @@ using namespace std;
 using namespace mfem;
 
 void bodyload(const Vector &x, Vector &f);
+void rayfield(const Vector &x, Vector &v);
 
 int main(int argc, char *argv[])
 {
@@ -27,16 +29,17 @@ int main(int argc, char *argv[])
     // 1. Options.
     int    dim          = 2;          // problem dimension (2 or 3)
     int    ref_levels   = 5;
-    int    order        = 2;
-    real_t r_f          = 0.01;       // min filter length
-    real_t r_s          = 0.1;        // max filter length
-    real_t gamma_v      = 1e-6;       // max filter lower bound
-    real_t gamma_s      = 0.7;        // max filter upper bound
+    int    order        = 1;
+    real_t r_f          = 0.03;       // min filter length
     real_t vol_fraction = 0.5;
-    int    max_it       = 100;
+    int    max_it       = 300;
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
-    real_t epsilon      = 1e-2;       // gamma - alpha tolerance
+    real_t epsilon      = 1e-4;       // thickness residual tolerance
+
+    // Thickness constraint parameters
+    real_t alpha_min    = 1e-6;        // minimum thickness bound
+    real_t alpha_max    = 0.5;        // maximum thickness bound
     
     bool visualization = true;
     bool paraview      = false;
@@ -45,21 +48,15 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
 
-    real_t decay = 0.5;
-    int decay_int = 50;
-
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
     args.AddOption(&order, "-o", "--order", "finite element order");
     args.AddOption(&vol_fraction, "-vf", "--volume-fraction", "volume fraction");
     args.AddOption(&r_f, "-rf", "--r_fwidth", "min filter width");
-    args.AddOption(&r_s, "-rs", "--r_swidth", "max filter width");
-    args.AddOption(&gamma_v, "-gv", "--gamma_v", "lower bound for max filtered density");
-    args.AddOption(&gamma_s, "-gs", "--gamma_s", "upper bound for max filtered density");
-    args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
-    args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
-    args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
+    args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
+    args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
+    args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -76,9 +73,7 @@ int main(int argc, char *argv[])
     if (myid == 0) { args.PrintOptions(cout); }
 
     // 2. Build the mesh (3 x 1 box in 2D, 3 x 1 x 1 prism in 3D).
-    //    The Cartesian generators auto-assign per-face boundary attributes, so no
-    //    manual marking is needed: the elasticity solver clamps by attribute id.
-    //    Native attribute of the x = 0 face:  4 in 2D, 5 in 3D.
+    //    Clamp the x = 0 edge or face in 3D
     Mesh mesh = (dim == 2)
         ? Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL, true, 3.0, 1.0)
         : Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON, 3.0, 1.0, 1.0);
@@ -90,46 +85,81 @@ int main(int argc, char *argv[])
         mesh.UniformRefinement(); 
     }
 
+    // 3b. Construct ray field and mark the outflow boundaries
+    VectorFunctionCoefficient ray_cf(dim, rayfield);
+    {
+        for (int i = 0; i < mesh.GetNBE(); i++)
+        {
+            // skip the clamped boundary
+            if (mesh.GetBdrAttribute(i) == clamp_attr) { continue; }
+
+            ElementTransformation *trans = mesh.GetBdrElementTransformation(i);
+
+            const IntegrationPoint &ip = Geometries.GetCenter(
+                                            mesh.GetBdrElementGeometry(i));
+            trans->SetIntPoint(&ip);
+
+            Vector v(dim);
+            ray_cf.Eval(v, *trans, ip);
+
+            Vector normal(dim);
+            CalcOrtho(trans->Jacobian(), normal);
+
+            real_t dot = v * normal;
+
+            int attr = dot > 0;
+            mesh.SetBdrAttribute(i, attr+1);
+        }
+        mesh.SetAttributes();
+    }
+
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
 
+    Array<int> submesh_attr; submesh_attr.Append(2);
+    ParSubMesh outflow = ParSubMesh::CreateFromBoundary(pmesh, submesh_attr);
+
     // 4. Define finite element collections and spaces
-    H1_FECollection state_fec(order, dim);
-    H1_FECollection filter_fec(order, dim);
-    L2_FECollection control_fec(order - 1, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
-    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
-    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
+    H1_FECollection H1_fec(order, dim);
+    L2_FECollection L2_fec(order-1, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace H1_fes(&pmesh, &H1_fec);
+    ParFiniteElementSpace L2_fes(&pmesh, &L2_fec);
 
     // Printing all true dofs.
-    HYPRE_BigInt state_size  = state_fes.GlobalTrueVSize();
-    HYPRE_BigInt filter_size = filter_fes.GlobalTrueVSize();
-    HYPRE_BigInt design_size = control_fes.GlobalTrueVSize();
+    HYPRE_BigInt state_size  = H1_fes.GlobalTrueVSize();
+    HYPRE_BigInt design_size = L2_fes.GlobalTrueVSize();
     if (myid == 0)
     {
         cout << "\nstate dofs = "  << state_size
-            << ",  filter dofs = " << filter_size
             << ",  design dofs = " << design_size << endl;
     }
 
-    // 5. Initialized all the grid funcitons and coefficients
-    // min filter varaibles
-    ParGridFunction rho(&control_fes);          
-    ParGridFunction rho_filter(&filter_fes); 
+    // 5. Initialize all the grid functions and coefficients
+    ParGridFunction rho(&L2_fes);
+    ParGridFunction rho_filter(&H1_fes);
     rho = vol_fraction;
     rho_filter = vol_fraction;
 
-    // max filter variables
-    ParGridFunction alpha(&control_fes);
-    ParGridFunction gamma(&filter_fes);
-    alpha = vol_fraction;                           // initialize ⍺ design variable
-    gamma = vol_fraction;                           // initialize ɣ filtered maxlen
-
     GridFunctionCoefficient rho_cf(&rho);
-    GridFunctionCoefficient alpha_cf(&alpha);
 
-    // Max-length constraint residual:  1/2 ∫(γ−α)²
-    MaxFilterResidual max_residual(MPI_COMM_WORLD, gamma, alpha);
+    // Set up the thickness design variables on the submesh.
+    // solving rho_a requires DG, so alpha also lives in DG
+    const int sub_dim = outflow.Dimension();
+
+    DG_FECollection dgfec(order, dim, BasisType::GaussLobatto);
+    DG_FECollection sub_dg_fec(order, sub_dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace dgfes(&pmesh, &dgfec);
+    ParFiniteElementSpace sub_dg_fes(&outflow, &sub_dg_fec);
+
+    ParGridFunction rho_a(&dgfes);
+    ParGridFunction alpha(&sub_dg_fes);
+
+    rho_a = vol_fraction;
+    alpha = 0.5 * (alpha_min + alpha_max);  // initialize to mid-range
+
+    // 6. Advection thickness-constraint and its solver
+    PseudoTransientSolver advect(rho_a, rho_filter, ray_cf);
+    AdvectThicknessResidual adv_res(outflow, advect.GetRhoA(), alpha);
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);
@@ -140,7 +170,7 @@ int main(int argc, char *argv[])
     SIMPGradCoefficient simp_grad_cf(&rho_filter, E_min, E_max, exponent);       // r'(rho~)
 
     // 7. Construct the solvers.
-    // 7a. Linear elasticity solver (clamp the x = 0 face, all components).
+    // 7a. Linear elasticity solver.
     VectorFunctionCoefficient force(dim, bodyload);     // body force f
     ProductCoefficient E_simp(simp_cf, E_cf);           // r(rho~) * E0
 
@@ -154,22 +184,16 @@ int main(int argc, char *argv[])
                                              &elast.GetDisplacements());
     ProductCoefficient prod(energy_cf, simp_grad_cf);   // r'(rho~) * psi0
     ProductCoefficient dcdrho_cf(-1.0, prod);           // dc/drho~ = -r'(rho~) * psi0
-    Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
+    Compliance comp(MPI_COMM_WORLD, &H1_fes, simp_cf, energy_cf);
 
     // 7b. Min length scale filter solver
     toopt::PDEFilterOptions filter_opts;
     filter_opts.filter_radius = r_f;
-    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+    toopt::PDEFilter filter(H1_fes, L2_fes, filter_opts);
     filter.Assemble();
 
-    // 7c. Max length scale filter solver
-    toopt::PDEFilterOptions maxfilter_opts;
-    maxfilter_opts.filter_radius = r_s;
-    toopt::PDEFilter maxfilter(filter_fes, control_fes, maxfilter_opts);
-    maxfilter.Assemble();
-
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
-    ParLinearForm vol_form(&control_fes);
+    ParLinearForm vol_form(&L2_fes);
     vol_form.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
     vol_form.Assemble();
     std::unique_ptr<HypreParVector> vol_w(vol_form.ParallelAssemble());
@@ -180,28 +204,29 @@ int main(int argc, char *argv[])
     const real_t Vstar = vol_fraction * domain_volume;
 
     // 9. MMA optimizer and its per-iteration work vectors.
-    const int n = control_fes.GetTrueVSize();
-    const int m = control_fes.GetTrueVSize();
-    // Array<int>  offsets(3);  offsets[0] = 0;  offsets[1] = n;  offsets[2] = m;  offsets.PartialSum();
+    const int n = L2_fes.GetTrueVSize();       // local rho design variables
+    const int m = sub_dg_fes.GetTrueVSize();           // local alpha design variables
     Array<int> toffsets(3); toffsets[0] = 0; toffsets[1] = n; toffsets[2] = m; toffsets.PartialSum();
 
-    const int num_con = 2;                       // constraints: volume + max-length
+    const int num_con = 2;                          // constraints: volume + thickness
     Vector dcdrho(n), fival(num_con);
-    Vector rho_tv(n), rho_old(n);    
-    Vector alpha_tv(m);  
+    Vector rho_tv(n), rho_old(n);
+    Vector alpha_tv(m);
 
     rho.GetTrueDofs(rho_tv);
     alpha.GetTrueDofs(alpha_tv);
 
-    // stacked design  x = [ rho ; alpha ]
-    BlockVector tx_local(toffsets); tx_local.GetBlock(0) = rho_tv; tx_local.GetBlock(1) = alpha_tv;
+    // stacked design  x = [ rho ; alpha ] 
+    BlockVector tx_local(toffsets);
+    tx_local.GetBlock(0) = rho_tv;
+    tx_local.GetBlock(1) = alpha_tv;
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n+m, 2, tx_local);
 
     BlockVector tx_min(toffsets), tx_max(toffsets);
-    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]   
-    BlockVector dgmax(toffsets);                    // max-length constraint gradient  [ dG/drho ; dG/dalpha ]
+    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]
+    BlockVector dthick(toffsets);                   // thickness constraint gradient  [ dR/drho ; dR/dalpha ]
     BlockVector dvol(toffsets);                     // volume constraint gradient is constant:  [ vol_w/Vstar ; 0 ]
-    dvol.GetBlock(0) = *vol_w;  dvol.GetBlock(0) /= Vstar;  
+    dvol.GetBlock(0) = *vol_w;  dvol.GetBlock(0) /= Vstar;
     dvol.GetBlock(1) = 0.0;
 
     Vector dfidx[num_con];  dfidx[0] = dvol;        // dfidx[1] set each iteration
@@ -213,7 +238,7 @@ int main(int argc, char *argv[])
     if (visualization) { sout.open(vishost, visport);  sout.precision(8); }
 
     // 10b. Paraview
-    ParGridFunction phys_density(&filter_fes);
+    ParGridFunction phys_density(&H1_fes);
     ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
 
     if (paraview) {
@@ -236,10 +261,7 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-    real_t eps_ceiling  = epsilon;
     real_t eps_floor    = 1e-10;
-    int    infeas_count = 0;         // consecutive iterations with maxres > ε
-
     for (; k < max_it && iterationError > tol; k++)
     {
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
@@ -252,72 +274,48 @@ int main(int argc, char *argv[])
 
         // (3) adjoint filter + objective gradient:
         //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) psi_0) φ_i
-        //     dc/drho = M_fc^T w~ 
-        ParLinearForm adj_rhs(&filter_fes);
+        //     dc/drho = M_fc^T w~
+        ParLinearForm adj_rhs(&H1_fes);
         adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
         adj_rhs.Assemble();
         std::unique_ptr<HypreParVector> adj_rhs_tv(adj_rhs.ParallelAssemble());
         filter.MultTranspose(*adj_rhs_tv, dcdrho);
 
-        // (4) max filter: (r_s^2 K + M) γ = M_fc ρ
-        maxfilter.Mult(rho, gamma);
-
-        // (5) max adjoint filter:
-        //     s~ = (r_s^2 K + M)^{-1} ∫ (γ-α) φ_i
-        //     dG/drho = M_fc^T s~
-        ParLinearForm max_adj_rhs(&filter_fes);
-        max_adj_rhs.AddDomainIntegrator(
-            new DomainLFIntegrator(*max_residual.GetResidualCoefficient()));
-        max_adj_rhs.Assemble();
-        std::unique_ptr<HypreParVector> max_adj_rhs_tv(max_adj_rhs.ParallelAssemble());
-        maxfilter.MultTranspose(*max_adj_rhs_tv, dgmax.GetBlock(0));
-
-        // (6) objective gradient:  df0/dx = [ dc/drho ; 0 ]  (dc/drho from step 3)
+        // (4) objective gradient:  df0/dx = [ dc/drho ; 0 ]
         df0dx.GetBlock(0) = dcdrho;
         df0dx.GetBlock(1) = 0.0;
 
-        // max-length constraint gradient w.r.t. alpha:  dG/dalpha = (α − γ, ·)_L2
-        max_residual.GetGrad(dgmax.GetBlock(1));
-        dfidx[1] = dgmax;
+        // (5) thickness constraint evaluation and gradient
+        advect.FSolve();
+        real_t thickness_res = adv_res.Eval();
 
-        // (7) MMA update
+        Vector dGdrhoa;
+        adv_res.GetGrad(dGdrhoa, dthick.GetBlock(1));
+
+        // transfer dGdrhoa back to the parent fes
+        ParGridFunction g_sub(&sub_dg_fes);   g_sub.SetFromTrueDofs(dGdrhoa);
+        ParGridFunction g_full(&dgfes);       g_full = 0.0;
+        outflow.Transfer(g_sub, g_full);
+        Vector rhs_full;  g_full.GetTrueDofs(rhs_full);
+
+        // chain rule adjoint solve: dG/drho = M_fc^T N^T g
+        advect.SetAdjointRHS(rhs_full);
+        advect.ASolve();
+        Vector dGdrf;
+        advect.GetFilterGrad(dGdrf);
+        filter.MultTranspose(dGdrf, dthick.GetBlock(0));
+        dfidx[1] = dthick;
+
+        // (6) MMA update
         rho.GetTrueDofs(rho_tv);
         alpha.GetTrueDofs(alpha_tv);
 
-        // max-length residual at the current design
-        real_t maxres = max_residual.Eval();
-
-        // ========================================================================
-        // Adaptively adjust ε every 10 iterations.
-        // If constraint is enforce in 10 iterations, then relax the eps tolerance.
-        // Otherwise decay it by 0.8. We also set a hard decaying rate of 0.95.
-        // =====================================================================
-        // infeas_count = (maxres > epsilon) ? infeas_count + 1 : 0;
-
-        // if (k % 10 == 0 && k > 0)
-        // {
-        //     eps_ceiling *= 0.95;                                        // hard decaying
-        //     if (infeas_count >= 10)                                     // relaxation
-        //         epsilon = std::min(eps_ceiling, 1.05 * epsilon);
-        //     else                                                        // tighten
-        //         epsilon *= 0.8;
-        //     epsilon = std::min(epsilon, eps_ceiling);                   // cap the ceiling
-        //     epsilon = std::max(epsilon, eps_floor);                     // numerical floor
-        //     infeas_count = 0;
-        // }
-
-        // fixed step restriction for eps
-        if (k % decay_int == 0 && k > 0)
-        {
-            epsilon = std::max(epsilon * decay, eps_floor);
-        }
-
-        // constraints:  volume constraint  and  1/2 ∫(γ−α)² − ε ≤ 0
+        // constraints:  volume constraint  and  ∑_i 1/2 (A_i - α_i)² − ε ≤ 0
         real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
         fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 1.0;
-        fival(1) = maxres - epsilon;
+        fival(1) = thickness_res - epsilon;
 
-        // box constraints:  rho ∈ [0,1],  ɑ ∈ [γ_v, γ_s]  (move limits)
+        // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
         for (int i = 0; i < n; i++)
         {
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
@@ -325,12 +323,13 @@ int main(int argc, char *argv[])
         }
         for (int i = 0; i < m; i++)
         {
-            tx_min[n+i] = std::max(real_t(gamma_v), alpha_tv[i] - move);
-            tx_max[n+i] = std::min(real_t(gamma_s), alpha_tv[i] + move);
+            tx_min[n+i] = std::max(alpha_min, alpha_tv[i] - move);
+            tx_max[n+i] = std::min(alpha_max, alpha_tv[i] + move);
         }
 
-        // stacked update  x = [ ρ ; ɑ ]
-        tx_local.GetBlock(0) = rho_tv;  tx_local.GetBlock(1) = alpha_tv;
+        // stacked update  x = [ ρ ; α ]
+        tx_local.GetBlock(0) = rho_tv;
+        tx_local.GetBlock(1) = alpha_tv;
         rho_old = rho_tv;
         real_t compliance = comp.Eval();
         mma.Update(tx_local, df0dx, compliance, fival, dfidx, tx_min, tx_max);
@@ -338,7 +337,7 @@ int main(int argc, char *argv[])
         alpha.SetFromTrueDofs(tx_local.GetBlock(1));
 
         // measure iteration error
-        ParGridFunction rho_old_gf(&control_fes);
+        ParGridFunction rho_old_gf(&L2_fes);
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
@@ -383,6 +382,7 @@ int main(int argc, char *argv[])
         csv.close();
         mfem::out << "\nfinished after " << k << " iterations\n";
     }
+
     return 0;
 }
 
@@ -396,10 +396,19 @@ void bodyload(const Vector &x, Vector &f)
 
     f = 0.0;
 
-    // Localized load region (disk in 2D, sphere in 3D); force in the last
-    // component: -y in 2D, -z in 3D.
     real_t xdiff = x[0] - xcenter;
     real_t ydiff = x[1] - ycenter;
     real_t zdiff = (dim == 3) ? (x[2] - zcenter) : 0.0;
-    if (sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff) < radius) { f[dim-1] = -1.0; }
+    if (sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff) < radius) 
+    { 
+        f[dim-1] = -1.0; 
+    }
+}
+
+void rayfield(const Vector &x, Vector &v)
+{
+    const int dim = x.Size();
+    v.SetSize(dim);
+    v = 1.0;
+    // v = 0.0; v[dim-1] = 1.0;
 }
