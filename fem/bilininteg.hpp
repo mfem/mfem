@@ -1124,6 +1124,22 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a scalar field";
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
+
+private:
+   Vector pa_data;
+   const DofToQuad *mapsO = nullptr;      ///< Not owned. Trial open map.
+   const DofToQuad *mapsC = nullptr;      ///< Not owned. Trial closed map.
+   const DofToQuad *mapsTest = nullptr;   ///< Not owned. Scalar test map.
+   const GeometricFactors *geom = nullptr;///< Not owned.
+   int dim = 0, ne = 0, dofs1D = 0, dofs1Dtest = 0, quad1D = 0;
+   bool test_map_integral = false;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (-\vec{V} \cdot u, \nabla \cdot v)$ in 2D or
