@@ -128,6 +128,12 @@ public:
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
    const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
 
+   /** @brief Access all boundary markers added with AddDomainIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetDNFI_Marker() { return &dnfi_marker; }
+   const Array<Array<int>*> *GetDNFI_Marker() const { return &dnfi_marker; }
+
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi)
    { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
@@ -140,6 +146,12 @@ public:
    /// Access all integrators added with AddBoundaryIntegrator().
    Array<NonlinearFormIntegrator*> *GetBNFI() { return &bnfi; }
    const Array<NonlinearFormIntegrator*> *GetBNFI() const { return &bnfi; }
+
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBNFI_Marker() { return &bnfi_marker; }
+   const Array<Array<int>*> *GetBNFI_Marker() const { return &bnfi_marker; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)

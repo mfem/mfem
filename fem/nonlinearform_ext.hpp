@@ -92,8 +92,41 @@ protected:
    mutable Vector xe, ye;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *elemR; // not owned
+   const Array<NonlinearFormIntegrator*> &bnfi;
+   const Operator *elemR = nullptr; // not owned
    mutable Gradient Grad;
+   /// Attributes of all mesh elements.
+   const Array<int> *elem_attributes = nullptr; // Not owned
+   const Array<int> *bdr_face_attributes = nullptr; // Not owned
+   const FaceRestriction *int_face_restrict_lex = nullptr; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex = nullptr; // Not owned
+   mutable Vector int_face_X, int_face_Y;
+   mutable Vector bdr_face_X, bdr_face_Y;
+   mutable Vector tmp_evec; // Work array
+
+   void SetupRestrictionOperators(const L2FaceValues m);
+
+   /// @brief Accumulate the action of the integrator on @a x
+   /// into @a y, taking into account the (possibly null) @a markers array.
+   ///
+   /// If @a markers is non-null, then only those elements or boundary elements
+   /// whose attribute is marked in the markers array will be added to @a y.
+   ///
+   /// @param integ The integrator (domain, boundary, or boundary face).
+   /// @param x Input E-vector.
+   /// @param markers Marked attributes (possibly null, meaning all attributes).
+   /// @param attributes Array of element or boundary element attributes.
+   /// @param y Output E-vector
+   void AddMultWithMarkers(const NonlinearFormIntegrator &integ,
+                           const Vector &x,
+                           const Array<int> *markers,
+                           const Array<int> &attributes,
+                           Vector &y) const;
+   void AddMultGradWithMarkers(const NonlinearFormIntegrator &integ,
+                           const Vector &x,
+                           const Array<int> *markers,
+                           const Array<int> &attributes,
+                           Vector &y) const;
 
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);
