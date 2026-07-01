@@ -1047,10 +1047,6 @@ void VectorFiniteElement::SetDerivMembers()
          switch (dim)
          {
             case 3: // div: 3D H_DIV -> 3D INTEGRAL
-               deriv_type = DIV;
-               deriv_range_type = SCALAR;
-               deriv_map_type = INTEGRAL;
-               break;
             case 2: // div: 2D H_DIV -> 2D INTEGRAL
                deriv_type = DIV;
                deriv_range_type = SCALAR;
@@ -1064,10 +1060,6 @@ void VectorFiniteElement::SetDerivMembers()
          switch (dim)
          {
             case 2: // div: 2D H_DIV_R2D -> 2D INTEGRAL
-               deriv_type = DIV;
-               deriv_range_type = SCALAR;
-               deriv_map_type = INTEGRAL;
-               break;
             case 1: // div: 1D H_DIV_R2D -> 1D INTEGRAL
                deriv_type = DIV;
                deriv_range_type = SCALAR;
@@ -1097,8 +1089,7 @@ void VectorFiniteElement::SetDerivMembers()
                deriv_range_type = VECTOR;
                deriv_map_type = H_DIV;
                break;
-            case 2:
-               // curl: 2D H_CURL -> INTEGRAL
+            case 2: // curl: 2D H_CURL -> INTEGRAL
                deriv_type = CURL;
                deriv_range_type = SCALAR;
                deriv_map_type = INTEGRAL;
@@ -1115,14 +1106,8 @@ void VectorFiniteElement::SetDerivMembers()
       case H_CURL_R2D:
          switch (dim)
          {
-            case 2:
-               // curl: 2D H_CURL_R2D -> H_DIV_R2D
-               deriv_type = CURL;
-               deriv_range_type = VECTOR;
-               deriv_map_type = H_DIV_R2D;
-               break;
-            case 1:
-               // curl: 1D H_CURL_R2D -> H_DIV_R2D
+            case 2: // curl: 2D H_CURL_R2D -> H_DIV_R2D
+            case 1: // curl: 1D H_CURL_R2D -> H_DIV_R2D
                deriv_type = CURL;
                deriv_range_type = VECTOR;
                deriv_map_type = H_DIV_R2D;
