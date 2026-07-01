@@ -2872,8 +2872,8 @@ void HypreParMatrix::Destroy()
    if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
-      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
-      // is called below.
+      // that they can be destroyed by mfem_hypre_TFree_host() or hypre when
+      // hypre_ParCSRMatrixDestroy(A) is called below, respectively.
 
       // Check that if both diagOwner and offdOwner are negative then they have
       // the same value.
@@ -2882,7 +2882,33 @@ void HypreParMatrix::Destroy()
 
       MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
                        Device::GetHostMemoryClass() : GetHypreMemoryClass();
-      Write(mc, diagOwner < 0, offdOwner <0);
+      Write(mc, diagOwner < 0, offdOwner < 0);
+      if (diagOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
+         if (hypre_CSRMatrixOwnsData(A->diag))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->diag) = GetHypreMemoryLocation();
+#endif
+      }
+      if (offdOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
+         if (hypre_CSRMatrixOwnsData(A->offd))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->offd) = GetHypreMemoryLocation();
+#endif
+      }
    }
 #endif
 
