@@ -243,4 +243,102 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    BLFEvalAssemble(fes, ir, markers, coeff, true, b);
 }
 
+static void VBFEvalAssemble(const FiniteElementSpace &fes,
+                            const IntegrationRule *ir,
+                            const Array<int> &markers, const Vector &coeff,
+                            const real_t sign, Vector &y)
+{
+   if (fes.GetNBE() == 0) { return; }
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   if (dim == 1)
+   {
+      MFEM_ABORT("VectorBoundaryFluxLFIntegrator is not defined in 1D");
+      return;
+   }
+   const FiniteElement &el = *fes.GetBE(0);
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
+   int flags = FaceGeometricFactors::DETERMINANTS;
+   flags |= FaceGeometricFactors::NORMALS;
+   const FaceGeometricFactors *geom = mesh->GetFaceGeometricFactors(*ir, flags,
+                                                                    FaceType::Boundary, mt);
+
+   const int vdim = fes.GetVDim();
+   const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
+   const int *M = markers.Read();
+   const real_t *B = maps.B.Read();
+   const real_t *detJ = geom->detJ.Read();
+   const real_t *n = geom->normal.Read();
+   const real_t *W = ir->GetWeights().Read();
+   real_t *Y = y.ReadWrite();
+   VectorBoundaryFluxLFIntegrator::AssembleKernels::Run(dim, d, q, vdim, nbe, d, q,
+                                                        M, B, detJ, W, n, coeff, sign, Y);
+}
+
+void VectorBoundaryFluxLFIntegrator::AssembleDevice(const FiniteElementSpace
+                                                    &fes,
+                                                    const Array<int> &markers,
+                                                    Vector &b)
+{
+   if (fes.GetNBE() == 0) { return; }
+   const FiniteElement &fe = *fes.GetBE(0);
+   const int qorder = 2 * fe.GetOrder();
+   const Geometry::Type gtype = fe.GetGeomType();
+   const auto *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
+
+   FaceQuadratureSpace qs(*fes.GetMesh(), *ir, FaceType::Boundary);
+   CoefficientVector coeff(F, qs, CoefficientStorage::COMPRESSED);
+   VBFEvalAssemble(fes, ir, markers, coeff, Sign, b);
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+VectorBoundaryFluxLFIntegrator::AssembleKernelType
+VectorBoundaryFluxLFIntegrator::AssembleKernels::Fallback(int DIM, int, int)
+{
+   switch (DIM)
+   {
+      case 1:
+         MFEM_ABORT("VectorBoundaryFluxLFIntegrator is not defined in 1D");
+         return nullptr;
+      case 2:
+         return mfem::VBFEvalAssemble2D<0,0>;
+      case 3:
+         return mfem::VBFEvalAssemble3D<0,0>;
+   }
+   MFEM_ABORT("");
+}
+
+VectorBoundaryFluxLFIntegrator::Kernels::Kernels()
+{
+   // 2D
+   // Q = P+1
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 1, 1>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 2, 2>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 3, 3>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 4, 4>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 5, 5>();
+   // Q = P+2
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 2, 3>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 3, 4>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 4, 5>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<2, 5, 6>();
+   // 3D
+   // Q = P+1
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 1, 1>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 2, 2>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 3, 3>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 4, 4>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 5, 5>();
+   // Q = P+2
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 2, 3>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 3, 4>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 4, 5>();
+   VectorBoundaryFluxLFIntegrator::AddSpecialization<3, 5, 6>();
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 } // namespace mfem
