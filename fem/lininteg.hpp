@@ -468,9 +468,9 @@ public:
    using AssembleKernelType = void (*)(const int, const int, const int,
                                        const int, const int *,
                                        const real_t *, const real_t *,
-                                       const real_t *, const real_t *, 
+                                       const real_t *, const real_t *,
                                        const Vector &,
-                                       const real_t , real_t *);
+                                       const real_t, real_t *);
 
    /// parameters: use DIM, T_D1D, T_Q1D
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));

@@ -264,7 +264,8 @@ static void VBFEvalAssemble(const FiniteElementSpace &fes,
    const int d = maps.ndof, q = maps.nqpt;
    int flags = FaceGeometricFactors::DETERMINANTS;
    flags |= FaceGeometricFactors::NORMALS;
-   const FaceGeometricFactors *geom = mesh->GetFaceGeometricFactors(*ir, flags, FaceType::Boundary, mt);
+   const FaceGeometricFactors *geom = mesh->GetFaceGeometricFactors(*ir, flags,
+                                                                    FaceType::Boundary, mt);
 
    const int vdim = fes.GetVDim();
    const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
@@ -275,12 +276,13 @@ static void VBFEvalAssemble(const FiniteElementSpace &fes,
    const real_t *W = ir->GetWeights().Read();
    real_t *Y = y.ReadWrite();
    VectorBoundaryFluxLFIntegrator::AssembleKernels::Run(dim, d, q, vdim, nbe, d, q,
-                                            M, B, detJ, W, n, coeff, sign, Y);
+                                                        M, B, detJ, W, n, coeff, sign, Y);
 }
 
-void VectorBoundaryFluxLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
-                                              const Array<int> &markers,
-                                              Vector &b)
+void VectorBoundaryFluxLFIntegrator::AssembleDevice(const FiniteElementSpace
+                                                    &fes,
+                                                    const Array<int> &markers,
+                                                    Vector &b)
 {
    if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
