@@ -71,7 +71,8 @@ void PANonlinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
    // Construct face restriction operators only if the nonlinear form has
    // interior or boundary face integrators
-   if (int_face_restrict_lex == NULL && nlf->GetInteriorFaceIntegrators().Size() > 0)
+   if (int_face_restrict_lex == NULL &&
+       nlf->GetInteriorFaceIntegrators().Size() > 0)
    {
       MFEM_ABORT("TODO: add support for interior face integrators in PANonlinearFormExtension");
    }
@@ -110,7 +111,7 @@ void PANonlinearFormExtension::Assemble()
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   auto &dnfi = *nlf->GetDNFI();  
+   auto &dnfi = *nlf->GetDNFI();
    if (dnfi.Size() > 0)
    {
       auto &dnfi_marker = *nlf->GetDNFI_Marker();
@@ -118,7 +119,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          elemR->Mult(x, xe);
          ye = 0.0;
-         for (int i = 0; i < dnfi.Size(); ++i) 
+         for (int i = 0; i < dnfi.Size(); ++i)
          {
             AddMultWithMarkers(*dnfi[i], xe, dnfi_marker[i], *elem_attributes, ye);
          }
@@ -164,7 +165,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
          for (int i = 0; i < n_bdr_integs; ++i)
          {
             AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bnfi_marker[i],
-                              *bdr_face_attributes, bdr_face_Y);
+                               *bdr_face_attributes, bdr_face_Y);
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
@@ -194,11 +195,12 @@ static void AddWithMarkers_(
    });
 }
 
-void PANonlinearFormExtension::AddMultWithMarkers(const NonlinearFormIntegrator &integ,
-                                                   const Vector &x,
-                                                   const Array<int> *markers,
-                                                   const Array<int> &attributes,
-                                                   Vector &y) const
+void PANonlinearFormExtension::AddMultWithMarkers(const NonlinearFormIntegrator
+                                                  &integ,
+                                                  const Vector &x,
+                                                  const Array<int> *markers,
+                                                  const Array<int> &attributes,
+                                                  Vector &y) const
 {
    if (markers)
    {
@@ -244,7 +246,8 @@ void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
       }
    }
 
-   if (ext.int_face_restrict_lex && ext.nlf->GetInteriorFaceIntegrators().Size() > 0)
+   if (ext.int_face_restrict_lex &&
+       ext.nlf->GetInteriorFaceIntegrators().Size() > 0)
    {
       MFEM_ABORT("TODO: add contribution from interior face integrators in PANonlinearFormExtension::Gradient::AssembleGrad");
    }
@@ -266,11 +269,12 @@ void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
    }
 }
 
-void PANonlinearFormExtension::AddMultGradWithMarkers(const NonlinearFormIntegrator &integ,
-                                                   const Vector &x,
-                                                   const Array<int> *markers,
-                                                   const Array<int> &attributes,
-                                                   Vector &y) const
+void PANonlinearFormExtension::AddMultGradWithMarkers(const
+                                                      NonlinearFormIntegrator &integ,
+                                                      const Vector &x,
+                                                      const Array<int> *markers,
+                                                      const Array<int> &attributes,
+                                                      Vector &y) const
 {
    if (markers)
    {
@@ -319,7 +323,7 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
             ext_nlf_dnfi[i]->AddMultGradPA(x, y);
          }
       }
-   }      
+   }
 
    auto &intFaceIntegrators = ext.nlf->GetInteriorFaceIntegrators();
    if (intFaceIntegrators.Size() > 0)
@@ -346,7 +350,7 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
          for (int i = 0; i < n_bdr_integs; ++i)
          {
             ext.AddMultGradWithMarkers(*bdr_integs[i], ext.bdr_face_X, bnfi_marker[i],
-                              *ext.bdr_face_attributes, ext.bdr_face_Y);
+                                       *ext.bdr_face_attributes, ext.bdr_face_Y);
          }
          ext.bdr_face_restrict_lex->AddMultTransposeInPlace(ext.bdr_face_Y, y);
       }
@@ -417,7 +421,8 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
       }
    }
 
-   if (ext.int_face_restrict_lex && ext.nlf->GetInteriorFaceIntegrators().Size() > 0)
+   if (ext.int_face_restrict_lex &&
+       ext.nlf->GetInteriorFaceIntegrators().Size() > 0)
    {
       MFEM_ABORT("TODO: add contribution from interior face integrators in PANonlinearFormExtension::Gradient::AssembleDiagonal");
    }

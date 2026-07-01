@@ -123,10 +123,10 @@ protected:
                            const Array<int> &attributes,
                            Vector &y) const;
    void AddMultGradWithMarkers(const NonlinearFormIntegrator &integ,
-                           const Vector &x,
-                           const Array<int> *markers,
-                           const Array<int> &attributes,
-                           Vector &y) const;
+                               const Vector &x,
+                               const Array<int> *markers,
+                               const Array<int> &attributes,
+                               Vector &y) const;
 
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);
