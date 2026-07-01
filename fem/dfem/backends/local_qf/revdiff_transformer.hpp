@@ -270,9 +270,16 @@ struct RevDiff
    template <size_t I>
    using primal_arg_t = tuple_element_t<I, args_tuple>;
 
+#ifdef MFEM_USE_ENZYME
+   static constexpr bool use_native_dual_derivative = false;
+#else
+   static constexpr bool use_native_dual_derivative =
+      mode == RevDiffDualMode::Derivative;
+#endif
+
    template <size_t I>
    using derivative_arg_t =
-      std::conditional_t<mode == RevDiffDualMode::Derivative && is_active<I>,
+      std::conditional_t<use_native_dual_derivative && is_active<I>,
                          typename qp_traits<std::decay_t<tuple_element_t<I, args_tuple>>>::dual_type,
                          primal_arg_t<I>>;
 
@@ -287,7 +294,7 @@ struct RevDiff
 
    template <size_t S>
    using grad_arg_t =
-      std::conditional_t<mode == RevDiffDualMode::Derivative || active_arg_uses_dual<S>,
+      std::conditional_t<use_native_dual_derivative || active_arg_uses_dual<S>,
                          typename qp_traits<active_arg_decay_t<S>>::dual_type,
                          typename qp_traits<active_arg_decay_t<S>>::view_type>
       &;
