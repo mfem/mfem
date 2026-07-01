@@ -111,6 +111,16 @@ void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
    }
 }
 
+void Operator::Mult(const MultiVector &, MultiVector &)
+{
+   MFEM_ABORT("this method is not overriden for this class!");
+}
+
+Operator &Operator::GetGradient(const MultiVector &) const
+{
+   MFEM_ABORT("this method is not overriden for this class!");
+}
+
 void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Vector &x, Vector &b,
                                 Operator* &Aout, Vector &X, Vector &B,
