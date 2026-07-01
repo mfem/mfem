@@ -290,8 +290,8 @@ void PANonlinearFormExtension::AddMultGradWithMarkers(const NonlinearFormIntegra
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
 {
-   auto &dnfi = *ext.nlf->GetDNFI();
-   if (!dnfi.Size())
+   auto &ext_nlf_dnfi = *ext.nlf->GetDNFI();
+   if (!ext_nlf_dnfi.Size())
    {
       y = 0.0;
       return;
@@ -303,9 +303,10 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
          ext.elemR->Mult(x, ext.xe);
          ext.ye = 0.0;
          auto &dnfi_marker = *ext.nlf->GetDNFI_Marker();
-         for (int i = 0; i < dnfi.Size(); ++i) 
+         for (int i = 0; i < ext_nlf_dnfi.Size(); ++i)
          {
-            ext.AddMultGradWithMarkers(*dnfi[i], ext.xe, dnfi_marker[i], *ext.elem_attributes, ext.ye);
+            ext.AddMultGradWithMarkers(*ext_nlf_dnfi[i], ext.xe, dnfi_marker[i],
+                                       *ext.elem_attributes, ext.ye);
          }
          ext.elemR->MultTranspose(ext.ye, y);
       }
@@ -313,9 +314,9 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
       {
          y.UseDevice(true); // typically this is a large vector, so store on device
          y = 0.0;
-         for (int i = 0; i < dnfi.Size(); ++i)
+         for (int i = 0; i < ext_nlf_dnfi.Size(); ++i)
          {
-            dnfi[i]->AddMultGradPA(x, y);
+            ext_nlf_dnfi[i]->AddMultGradPA(x, y);
          }
       }
    }      
@@ -384,17 +385,17 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
    MFEM_ASSERT(diag.Size() == Height(),
                "Vector for holding diagonal has wrong size!");
 
-   auto &dnfi = *ext.nlf->GetDNFI();
+   auto &ext_nlf_dnfi = *ext.nlf->GetDNFI();
 
    if (ext.elemR && !DeviceCanUseCeed())
    {
-      if (dnfi.Size() > 0)
+      if (ext_nlf_dnfi.Size() > 0)
       {
          auto &dnfi_marker = *ext.nlf->GetDNFI_Marker();
          ext.ye = 0.0;
-         for (int i = 0; i < dnfi.Size(); ++i)
+         for (int i = 0; i < ext_nlf_dnfi.Size(); ++i)
          {
-            assemble_diagonal_with_markers(*dnfi[i], dnfi_marker[i],
+            assemble_diagonal_with_markers(*ext_nlf_dnfi[i], dnfi_marker[i],
                                            *ext.elem_attributes, ext.ye);
          }
          ext.elemR->MultTranspose(ext.ye, diag);
@@ -409,9 +410,9 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
       diag.UseDevice(true); // typically this is a large vector, so store on device
       diag = 0.0;
       auto &dnfi_marker = *ext.nlf->GetDNFI_Marker();
-      for (int i = 0; i < dnfi.Size(); ++i)
+      for (int i = 0; i < ext_nlf_dnfi.Size(); ++i)
       {
-         assemble_diagonal_with_markers(*dnfi[i], dnfi_marker[i],
+         assemble_diagonal_with_markers(*ext_nlf_dnfi[i], dnfi_marker[i],
                                         *ext.elem_attributes, diag);
       }
    }
