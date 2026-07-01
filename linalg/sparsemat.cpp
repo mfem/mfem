@@ -2932,9 +2932,9 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows,
                                 const Array<int> &cols,
                                 const SparseMatrix &subm)
 {
-   MFEM_ASSERT(subm.Height() >= rows.Max()+1,
+   MFEM_ASSERT(Height() >= rows.Max()+1,
                "SparseMatrix::SetSubMatrix row index does not match size");
-   MFEM_ASSERT(subm.Width() >= cols.Max()+1,
+   MFEM_ASSERT(Width() >= cols.Max()+1,
                "SparseMatrix::SetSubMatrix col index does not match size");
 
    Array<int> lcols;
