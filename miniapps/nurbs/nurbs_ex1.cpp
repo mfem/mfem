@@ -160,12 +160,6 @@ real_t sol(const Vector & x)
 int main(int argc, char *argv[])
 {
 
-   // 0. Initialize MPI and HYPRE.
-  // Mpi::Init(argc, argv);
-   // int num_procs = Mpi::WorldSize();
-   // int myid = Mpi::WorldRank();
-  // Hypre::Init();
-
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
@@ -444,6 +438,11 @@ int main(int argc, char *argv[])
    //    projection type, also in the case of a NURBS spaces. For a NURBS space
    //    this will give a projection without any over and undershoots.
    GridFunction x(fespace);
+
+   VisItDataCollection visit_dc22("Test", mesh);
+   visit_dc22.RegisterField("solution", &x);
+   visit_dc22.Save();
+
    if (homogenousBC)
    {
       x = 0.0;
@@ -584,49 +583,6 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("solution", &x);
       visit_dc.Save();
    }
-
-   // 15. Save data in the VisIt format -- on projected mesh!!
-   /*{
-      // Create interpolation mesh
-      Array<Vector *> points;
-      fespace->GetNURBSext()->GetPointsCompr(points, NURBSPointSet::DEMKO);
-      Mesh imesh = mesh->GetLinearNURBSMesh(points);
-      for (int i = 0; i < points.Size(); i++) { delete points[i]; }
-
-      // Create interpolation space
-      NURBSFECollection ifec(1);
-      FiniteElementSpace ifespace(&imesh, new NURBSExtension(imesh.NURBSext, 1),
-                                  &ifec);
-
-      // Create transfer operations
-      fespace->GetNURBSext()->CreatePatches();
-      ifespace.GetNURBSext()->CreatePatches();
-
-      GridTransfer *gt = new InterpolationGridTransfer(*fespace, ifespace);
-      const Operator &ho_2_lo = gt->ForwardOperator();
-      const Operator &lo_2_ho = gt->BackwardOperator();
-
-      fespace->GetNURBSext()->DeletePatches();
-      ifespace.GetNURBSext()->DeletePatches();
-
-      // Project on nodal solution
-      GridFunction ix(&ifespace);
-      ho_2_lo.Mult(x, ix);
-
-      VisItDataCollection visit_dc1("Example1_linear", &imesh);
-      visit_dc1.RegisterField("solution",   &ix);
-      visit_dc1.Save();
-
-      // Project on nodal solution on original
-      x = 0.0;
-      lo_2_ho.Mult(ix, x);
-
-      VisItDataCollection visit_dc2("Example1_orig", mesh);
-      visit_dc2.RegisterField("solution",   &x);
-      visit_dc2.Save();
-
-      delete gt;
-   }*/
 
    // 15. Free the used memory.
    delete a;
