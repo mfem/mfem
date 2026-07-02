@@ -104,7 +104,8 @@ void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
    {
       for (int i = 0; i < ext.dnfi.Size(); ++i)
       {
-         MFEM_VERIFY(dynamic_cast<VectorConvectionNLFIntegrator *>(ext.dnfi[i]) == nullptr,
+         MFEM_VERIFY(dynamic_cast<VectorConvectionNLFIntegrator *>
+                     (ext.dnfi[i]) == nullptr,
                      "VectorConvectionNLFIntegrator PA gradients are not supported "
                      "with the libCEED backend");
       }
