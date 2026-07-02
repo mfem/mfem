@@ -66,11 +66,15 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  QuadratureInterpolator.
 
 New and updated examples and miniapps
 -------------------------------------
