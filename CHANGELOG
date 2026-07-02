@@ -86,6 +86,11 @@ Miscellaneous
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
 
+Miscellaneous
+-------------
+- Added a dFEM Sedov parallel miniapp in the unit tests (`psedov_dfem_tests`)
+  and updated the PA version of the tests (`[p]sedov_pa_tests`).
+
 
 Version 4.9, released on Dec 11, 2025
 =====================================
