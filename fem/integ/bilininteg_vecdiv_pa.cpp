@@ -296,10 +296,6 @@ static void SmemPADivergenceApplyTranspose3D(const int NE,
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-
    const auto Bt = bt.Read(), Gt = gt.Read(), B = b.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
    const auto X = Reshape(x_.Read(), TE_D1D, TE_D1D, TE_D1D, 1, NE);
@@ -307,7 +303,7 @@ static void SmemPADivergenceApplyTranspose3D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -366,10 +362,6 @@ static void SmemPADivergenceApply3D(const int NE,
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-
    const auto B = b_.Read(), G = g_.Read(), Bt = bt_.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3,3, NE);
    const auto X = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
@@ -377,7 +369,7 @@ static void SmemPADivergenceApply3D(const int NE,
 
    mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -529,9 +521,9 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Fallback
 (int dim, int tr_d1d, int te_d1d, int q1d)
 {
    MFEM_VERIFY(tr_d1d <= q1d && te_d1d <= q1d, "");
-   MFEM_VERIFY(tr_d1d <= DofQuadLimits::MAX_T1D &&
-               te_d1d <= DofQuadLimits::MAX_T1D &&
-               q1d <= DofQuadLimits::MAX_T1D, "");
+   MFEM_VERIFY(tr_d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(te_d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    if (dim == 2)
    {
       return SmemPADivergenceApply2D<>;
@@ -564,9 +556,9 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Fallback
 (int dim, int tr_d1d, int te_d1d, int q1d)
 {
    MFEM_VERIFY(tr_d1d <= q1d && te_d1d <= q1d, "");
-   MFEM_VERIFY(tr_d1d <= DofQuadLimits::MAX_T1D &&
-               te_d1d <= DofQuadLimits::MAX_T1D &&
-               q1d <= DofQuadLimits::MAX_T1D, "");
+   MFEM_VERIFY(tr_d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(te_d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    if (dim == 2)
    {
       return SmemPADivergenceApplyTranspose2D<>;
