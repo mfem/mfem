@@ -311,7 +311,10 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
             real_t sum = 0.0;
             for (int p = 0; p < numPoints; p++)
             {
-               auto invJ = inv(make_tensor<d, d>([&](int r, int c) { return J(p, r, c, e); }));
+               const auto invJ = inv(make_tensor<d, d>([&](int r, int c)
+               {
+                  return J(p, r, c, e);
+               }));
                const real_t w = ipWeights[p] / det(invJ);
 
                for (int n = 0; n < d; n++)
@@ -321,19 +324,21 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                      // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
                      // this contraction could be made slightly cheaper using Voigt
                      // notation, but repeated entries are summed for simplicity.
-                     real_t contraction = 0.;
+                     real_t contraction = 0.0;
                      for (int a = 0; a < d; a++)
                      {
                         for (int b = 0; b < d; b++)
                         {
-                           contraction += ((a == q) * invJ(m, b) + (b == q) * invJ(m, a)) *
-                                          ((a == q) * invJ(n, b) + (b == q) * invJ(n, a));
+                           contraction +=
+                              ((a == q) * invJ(m, b) + (b == q) * invJ(m, a)) *
+                              ((a == q) * invJ(n, b) + (b == q) * invJ(n, a));
                         }
                      }
                      // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                      // contraction = 4*sym(grad(u))sym(grad(v))
-                     const real_t Q = w *
-                                      (lamDev(p, e) * invJ(m, q) * invJ(n, q) + 0.5 * muDev(p, e) * contraction);
+                     const real_t Q =
+                        w * (lamDev(p, e) * invJ(m, q) * invJ(n, q)
+                             + 0.5 * muDev(p, e) * contraction);
                      sum += Q * G(p, m, i) * G(p, n, i);
                   }
                }
