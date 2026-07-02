@@ -251,7 +251,7 @@ MatrixInverse *BandMatrix::Inverse(real_t tol, int bw) const
    {
       DenseMatrix I = DenseMatrix::Identity(height);
       DenseMatrix ans(height);
-      MatrixInverse *inv;
+      MatrixInverse *inv = nullptr;
       if (bw < 0) // Find bandwidth
       {
          int i;
