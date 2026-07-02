@@ -94,6 +94,9 @@ TEST_CASE("VecDivPA", "[PartialAssembly][VecDivPA][GPU]")
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 9>::Add();
    }
 
+   const auto p_base = {1, 2}, p_extra = {3, 4};
+   const auto p = MFEM_GENERATE_RANGES(p_base, p_extra);
+
    SECTION("2D")
    {
       const auto meshs = { "../../data/inline-quad.mesh" };
@@ -102,7 +105,7 @@ TEST_CASE("VecDivPA", "[PartialAssembly][VecDivPA][GPU]")
                            "../../data/rt-2d-q3.mesh",
                            "../../data/periodic-square.mesh"
                          };
-      test_pa_divergence<2>(GenAll(meshs, extra), GenAll({1, 2}, {3, 4}));
+      test_pa_divergence<2>(MFEM_GENERATE_RANGES(meshs, extra), p);
    }
 
    SECTION("3D")
@@ -115,7 +118,7 @@ TEST_CASE("VecDivPA", "[PartialAssembly][VecDivPA][GPU]")
                            "../../data/fichera-q3.mesh",
                            "../../data/periodic-cube.mesh"
                          };
-      test_pa_divergence<3>(GenAll(meshs, extra), GenAll({1, 2}, {3, 4}));
+      test_pa_divergence<3>(MFEM_GENERATE_RANGES(meshs, extra), p);
    }
 }
 
