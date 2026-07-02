@@ -516,11 +516,14 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                            double *hess = jac + sDIM*rDIM;
 
                            findptsElementGEdge_t edge;
+                           for (int d=0; d<sDIM; ++d)
+                           {
+                              edge.x[d] = constraint_workspace + d*D1D;
+                           }
                            MFEM_FOREACH_THREAD(j,x,D1D)
                            {
                               for (int d=0; d<sDIM; ++d)
                               {
-                                 edge.x[d] = constraint_workspace + d*D1D;
                                  edge.x[d][j] = elx[d][j];
                               }
                            }

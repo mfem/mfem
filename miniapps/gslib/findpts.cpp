@@ -424,7 +424,7 @@ int main (int argc, char *argv[])
         << "Searched points:     "   << pts_cnt
         << "\nFound points:        " << found
         << "\nMax interp error:    " << max_err
-        << "\nMax dist (of found): " << max_dist
+        << "\nMax dist^2 (of found): " << max_dist
         << "\nPoints not found:    " << not_found;
    if (randomization == 1)
    {
