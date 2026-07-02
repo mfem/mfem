@@ -39,15 +39,15 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
 {
    // Add some specializations for the kernels
    // DIM, LAYOUT, PHYS, VDIM, D1D, Q1D
-   QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2, 2>::Add();
-   QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2, 2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<1, QVectorLayout::byNODES,
+                          false, 1, 2, 2>();
+   QuadratureInterpolator::AddGradSpecializations<1, QVectorLayout::byNODES,
+                          true, 1, 2, 2>();
 
-   QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2>::Add();
-   QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<
+   1, QVectorLayout::byNODES, false, 1, 2>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<
+   1, QVectorLayout::byNODES, true, 1, 2>();
 
    const auto mesh_fname = GENERATE(
                               "../../data/inline-segment.mesh",
@@ -157,9 +157,9 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       const int nq = maps.nqpt;
 
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
-      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(),
-              maps.G.Read(), geom->J.Read(), evec_values.Read(),
-              qp_der.Write(), sdim, vdim, nd, nq);
+      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(),
+              geom->J.Read(), evec_values.Read(), qp_der.Write(), sdim, vdim,
+              nd, nq);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
       CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
