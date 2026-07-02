@@ -151,7 +151,6 @@ FindPointsGSLIB::FindPointsGSLIB()
    }
 
    gsl_comm = new gslib::comm;
-   cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
    if (!Mpi::IsInitialized()) { Mpi::Init(); }
    MPI_Comm comm = MPI_COMM_WORLD;
@@ -159,7 +158,6 @@ FindPointsGSLIB::FindPointsGSLIB()
 #else
    comm_init(gsl_comm, 0);
 #endif
-   crystal_init(cr, gsl_comm);
 }
 
 FindPointsGSLIB::FindPointsGSLIB(Mesh &mesh_in,
@@ -177,10 +175,8 @@ FindPointsGSLIB::~FindPointsGSLIB()
    if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
 #endif
    {
-      crystal_free(cr);
       comm_free(gsl_comm);
       delete gsl_comm;
-      delete cr;
    }
    for (int i = 0; i < mesh_split.Size(); i++)
    {
@@ -217,9 +213,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    }
 
    gsl_comm = new gslib::comm;
-   cr      = new gslib::crystal;
    comm_init(gsl_comm, comm_);
-   crystal_init(cr, gsl_comm);
 }
 
 FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in,
@@ -230,6 +224,30 @@ FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in,
    Setup(mesh_in, bbox_rel_size_inc, newt_tol, npt_max);
 }
 #endif
+
+void FindPointsGSLIB::SetupCrystal()
+{
+   if (cr == NULL)
+   {
+      cr = new gslib::crystal;
+      crystal_init(cr, gsl_comm);
+   }
+}
+
+void FindPointsGSLIB::FreeCrystal()
+{
+   if (cr == NULL) { return; }
+
+#ifdef MFEM_USE_MPI
+   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+#endif
+   {
+      crystal_free(cr);
+   }
+   delete cr;
+   cr = NULL;
+   DEV.cr = NULL;
+}
 
 void FindPointsGSLIB::Setup(Mesh &m, const double bbox_rel_size_inc,
                             const double newt_tol,
@@ -245,6 +263,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bbox_rel_size_inc,
       return;
    }
    if (setupflag) { FreeData(); }
+
+   SetupCrystal();
 
    mesh = &m;
    dim  = mesh->Dimension();
@@ -1120,6 +1140,8 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
    obb_check = (aabb_sz_inc == nullptr);
+
+   SetupCrystal();
 
    mesh     = &m;
    dim      = mesh->Dimension();       // This is reference dimension
@@ -2931,6 +2953,7 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
 
 void FindPointsGSLIB::FreeData()
 {
+   FreeCrystal();
    if (!setupflag) { return; }
    if (dim == spacedim)
    {
@@ -4658,6 +4681,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
+   SetupCrystal();
 
    mesh = &m;
    dim  = mesh->Dimension();

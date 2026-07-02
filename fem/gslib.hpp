@@ -178,6 +178,10 @@ protected:
       mutable double surf_dist_tol;
    } DEV;
 
+   // Helper function to setup and free gslib's crystal router.
+   void SetupCrystal(); // Called inside Setup and SetupSurf_base
+   void FreeCrystal();   // Called inside FreeData
+
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out,
                               const int field_out_ordering);

@@ -378,10 +378,8 @@ TEST_CASE("GSLIBSurfInterpolate", "[GSLIBSurfInterpolate][GSLIB]")
    const int sdim = SurfaceSpaceDim(surface_mesh_type);
    mesh.SetCurvature(mesh_order, false, sdim, mesh_node_ordering);
 
-   FiniteElementCollection *c_fec = new H1_FECollection(func_order,
-                                                        mesh.Dimension());
-
-   FiniteElementSpace c_fespace(&mesh, c_fec, ncomp, gf_ordering);
+   H1_FECollection c_fec(func_order, mesh.Dimension());
+   FiniteElementSpace c_fespace(&mesh, &c_fec, ncomp, gf_ordering);
    GridFunction field_vals(&c_fespace);
 
    VectorFunctionCoefficient F(ncomp, F_exact);
@@ -437,8 +435,6 @@ TEST_CASE("GSLIBSurfInterpolate", "[GSLIBSurfInterpolate][GSLIB]")
    REQUIRE(max_err < 1e-12);
    REQUIRE(max_dist < 1e-10);
    REQUIRE(not_found == 0);
-
-   delete c_fec;
 }
 
 // Generates meshes with different element types, followed by points at
@@ -508,9 +504,8 @@ TEST_CASE("GSLIBFindAtElementBoundary",
       int nptface = xyz.Size()/dim;
 
       // Generate points inside each element
-      FiniteElementCollection *l2_fec = new L2_FECollection(l2_order, dim);
-      FiniteElementSpace l2_fespace =
-         FiniteElementSpace(&mesh, l2_fec, 1);
+      L2_FECollection l2_fec(l2_order, dim);
+      FiniteElementSpace l2_fespace(&mesh, &l2_fec, 1);
       DenseMatrix vals;
       DenseMatrix tr;
       for (int e = 0; e < mesh.GetNE(); e++)
@@ -546,7 +541,6 @@ TEST_CASE("GSLIBFindAtElementBoundary",
          cmax = std::max(code_out[i], cmax);
       }
       REQUIRE((cmin == 0 && cmax == 0)); // should be found inside element
-      delete l2_fec;
    }
 }
 
@@ -659,9 +653,8 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    mesh.SetCurvature(mesh_order);
 
    // Set GridFunction to be interpolated
-   FiniteElementCollection *c_fec = new L2_FECollection(3, dim);
-   FiniteElementSpace c_fespace =
-      FiniteElementSpace(&mesh, c_fec, 1);
+   L2_FECollection c_fec(3, dim);
+   FiniteElementSpace c_fespace(&mesh, &c_fec, 1);
    GridFunction field_vals(&c_fespace);
    Array<int> dofs;
    double leftval = 1.0;
@@ -703,7 +696,6 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    REQUIRE(interp_vals(0) == MFEM_Approx(0.5*(leftval+rightval)));
 
    finder.FreeData();
-   delete c_fec;
 }
 
 #ifdef MFEM_USE_MPI
