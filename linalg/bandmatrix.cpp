@@ -424,7 +424,7 @@ void Add(real_t alpha, const BandMatrix &A,
    }
 }
 
-bool BandLUFactors::Factor(int m, real_t TOL)
+bool BandLUFactors::Factor(int m, real_t tol)
 {
 #ifdef MFEM_USE_LAPACK
    int ldab = 3*bw + 1;

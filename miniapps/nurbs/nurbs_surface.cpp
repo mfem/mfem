@@ -533,8 +533,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
 
          for (int i = 0; i < 3; i++)
          {
-            Vector tmp;
-            tmp = *x[i];
+            Vector tmp(*x[i]);
             A_coll_inv->Mult(tmp, *x[i]);
          }
 
@@ -560,10 +559,9 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*x[1])[j] = (*patch)(i,j,k,1);
             (*x[2])[j] = (*patch)(i,j,k,2);
          }
-         for (int i = 0; i < 3; i++)
+         for (int j = 0; j < 3; j++)
          {
-            Vector tmp;
-            tmp = *x[i];
+            Vector tmp( *x[i]);
             A_coll_inv->Mult(tmp, *x[i]);
          }
          for (int j = 0; j < ncp[1]; ++j)

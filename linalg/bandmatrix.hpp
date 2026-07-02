@@ -267,7 +267,7 @@ public:
     * Factorize the current matrix of size (m x m) using LAPACK
     *
     * @param [in] m size of the square matrix
-    * @param [in] tol optional fuzzy comparison tolerance. Defaults to 0.0.
+    * @param [in] tol is unused -- present to match baseclass function signature
     *
     * @return status set to true if successful, otherwise, false.
     */
@@ -307,10 +307,10 @@ public:
    /// Same as above but does not factorize the matrix.
    BandMatrixInverse(const BandMatrix *mat);
 
-   ///  Get the bandwidth of the input matrix
+   /// Get the bandwidth of the input matrix
    int GetBandWidth() const { return bandwidth; } const
 
-   ///  Get the size of the inverse matrix
+   /// Get the size of the inverse matrix
    int Size() const { return Width(); }
 
    /// Factor the current BandMatrix, *a
