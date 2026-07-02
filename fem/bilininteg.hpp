@@ -1110,15 +1110,15 @@ public:
    MixedDotProductIntegrator(VectorCoefficient &vq)
       : MixedScalarVectorIntegrator(vq, true) {}
 
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedDotProductIntegrator:  "
              "Trial space must be a vector field "
