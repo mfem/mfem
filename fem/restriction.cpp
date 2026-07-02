@@ -50,14 +50,21 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const FiniteElement *fe = fes.GetFE(e);
          auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
          auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
-         if (el_t || el_n) { continue; }
+         auto el_p = dynamic_cast<const H1Pos_TriangleElement*>(fe) ||
+                     dynamic_cast<const H1Pos_TetrahedronElement*>(fe);
+         if (el_t || el_n || el_p) { continue; }
          MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
       const FiniteElement *fe = fes.GetTypicalFE();
       auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
       auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
+      auto el_p_tri = dynamic_cast<const H1Pos_TriangleElement*>(fe);
+      auto el_p_tet = dynamic_cast<const H1Pos_TetrahedronElement*>(fe);
       const Array<int> &fe_dof_map =
-         (el_t) ? el_t->GetDofMap() : el_n->GetLexicographicOrdering();
+         el_n ? el_n->GetLexicographicOrdering() :
+         el_t ? el_t->GetDofMap() :
+         el_p_tri ? el_p_tri->GetDofMap() :
+         el_p_tet->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
       dof_map = fe_dof_map.HostRead();
    }
@@ -1398,20 +1405,17 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetTypicalFE()->GetOrder()+1;
    fes.GetTypicalFE()->GetFaceMap(face_id2, face_map);
-   Array<int> face_nbr_dofs;
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
-   pfes.GetFaceNbrElementVDofs(elem_index, face_nbr_dofs);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
       const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, face_dof_elem1);
       const int volume_dof_elem2 = face_map[face_dof_elem2];
-      const int global_dof_elem2 = face_nbr_dofs[volume_dof_elem2];
+      // Encode the volume DOF index and element index
+      const int global_dof_elem2 = elem_index*elem_dofs + volume_dof_elem2;
       const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
       // Trick to differentiate dof location inter/shared
-      scatter_indices2[restriction_dof_elem2] = ndofs+global_dof_elem2;
+      scatter_indices2[restriction_dof_elem2] = ndofs + global_dof_elem2;
    }
 #endif
 }
