@@ -193,8 +193,3 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
       }
    }
 }
-
-TEST_CASE("Approximate inverse of BandMatrix bla", "[BandMatrix]")
-{
-   mfem_error("");
-}
