@@ -3476,7 +3476,7 @@ real_t LUFactors::Det(int m) const
    real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
-      if (ipiv[i] != i + ipiv_base) //???
+      if (ipiv[i] != i + ipiv_base)
       {
          det *= -data[m * i + i];
       }

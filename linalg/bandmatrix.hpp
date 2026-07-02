@@ -30,24 +30,32 @@ private:
    int bandwidth, stride;
    real_t zero = -0.0;
 
+   /// Replaces the given DenseMatrix @ dm with the inverse
+   void Inverse(DenseMatrix &dm);
+
 public:
 
    /** Default constructor for BandMatrix.
        Sets data = NULL and height = width = 0. */
    BandMatrix();
 
-   /// Creates square matrix of size s and bandwidth bw.
+   /// Creates square BandMartix of size s and bandwidth bw.
    explicit BandMatrix(int s, int bw);
 
-   /// Creates a matrix of the given height, width and bandwidth bw.
+   /// Creates a BandMartix of the given height, width and bandwidth bw.
    explicit BandMatrix(int h, int w, int bw);
 
-   /// Creates a band matrix from a given DenseMartix.
+   /// Creates a BandMartix from a given DenseMartix.
    /** If @a bw is not specified (or negative) then the bandwidth is determined.
        If @a bw is specified this bandwidth is used.*/
    explicit BandMatrix(const DenseMatrix &dm, int bw = -1);
 
-   /// Copy constructor: default
+   /// Creates a BandMartix from a given BandMartix.
+   /** If @a bw is not specified (or negative) then the bandwidth is determined.
+       If @a bw is specified this bandwidth is used.*/
+   explicit BandMatrix(const BandMatrix &bm,
+                       int bw);   /// Copy constructor: default
+
    BandMatrix(const BandMatrix &) = default;
 
    /// Move constructor: default
@@ -110,7 +118,7 @@ public:
    }
 
    /// Change the size of the BandMatrix to s x s.
-   int GetBandWidth() { return bandwidth; };
+   int GetBandWidth() const { return bandwidth; };
 
    /// Change the size of the BandMatrix to s x s, with bandwidth bw
    void SetSize(int s, int bw);
@@ -191,23 +199,30 @@ public:
        computes an inplace inverse.*/
    void Solve(const Vector &x, Vector &y) const;
 
-   /// Returns a pointer to (an approximation) of the matrix inverse.
+   /// Returns a pointer to the matrix inverse.
    MatrixInverse *Inverse() const override;
+
+   /// Returns a pointer to (an approximation) of the matrix inverse.
+   /** If @a tol is not specified (or is negative) the exact inverse is
+       computed.  If @a tol is specified the factorisation is computed with a
+       matrix with a reduced bandwidth. The bandwidth is the minimum bandwidth
+       required to achieve the specified tolerance, when computing the
+       Frobenius norm of inv(approx(A))*A - I. If @a bw is specified this is the
+       bandwidth used, the result is compared with the tolerance.
+       Note: the INPUT matrix of the factorisation is reduced in bandwidth.*/
+   MatrixInverse *Inverse(real_t tol, int bw = -1) const ;
+
+   /// Replaces the current matrix with its inverse
+   /** If @a tol is negative the exact inverse is computed, oteherwise the
+       resulting matrix has the minimum bandwidth to achieve the specified
+       tolerance, when computing the Frobenius norm of approx(inv(A))*A - I.
+       If @a bw is specified this is thebandwidth used, the result is compared
+       with the tolerance. Note that in general the inverse is fully dense.
+       Note: the OUTPUT matrix of the factorisation is reduced in bandwidth.*/
+   void Invert(real_t tol = -1.0, int bw = -1);
 
    /// Returns a reference to BandMatrix as DenseMatrix.
    DenseMatrix ToDenseMatrix() const;
-
-   /// Replaces the current matrix with its inverse
-   /** If @a tol is not specified (or is negative) the exact inverse is
-       computed.  If @a tol is specified the resulting matrix has the minimum
-       bandwidth to achieve the specified tolerance, when computing the
-       Frobenius norm of approx_inv(A)*A - I. If @a bw is specified this is the
-       bandwidth used, the result is compared with the tolerance.
-       Please not that in general the inverse is effectively a DenseMatrix.*/
-   void Invert(real_t tol = -1.0, int bw = -1);
-
-   /// Replaces the given DenseMatrix @ dm with the inverse
-   void Inverse(DenseMatrix &dm);
 
    /// Prints matrix to stream os.
    void Print(std::ostream & os = mfem::out, int width_ = 4) const override;
@@ -218,7 +233,6 @@ public:
 void Mult(const BandMatrix &b,  const DenseMatrix &c, DenseMatrix &a);
 void Mult(const DenseMatrix &b, const BandMatrix &c,  DenseMatrix &a);
 void Mult(const BandMatrix &b,  const BandMatrix &c,  DenseMatrix &a);
-
 
 /// C = A + beta*B
 void Add(const DenseMatrix &A, const BandMatrix &B,
@@ -277,6 +291,7 @@ class BandMatrixInverse : public MatrixInverse
 {
 private:
    const BandMatrix *a;
+   int bandwidth = -1;
    BandLUFactors * factors = nullptr;
 
    void Init(int m, int bw);
@@ -292,6 +307,8 @@ public:
    /// Same as above but does not factorize the matrix.
    BandMatrixInverse(const BandMatrix *mat);
 
+   ///  Get the bandwidth of the input matrix
+   int GetBandWidth() const { return bandwidth; } const
 
    ///  Get the size of the inverse matrix
    int Size() const { return Width(); }
@@ -314,6 +331,9 @@ public:
 
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
+
+   /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
+   void Mult(const BandMatrix &B, DenseMatrix &X) const;
 
    /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
    void Mult(DenseMatrix &X) const {factors->Solve(width, X.Width(), X.Data());}

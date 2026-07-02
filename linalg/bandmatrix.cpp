@@ -53,6 +53,26 @@ BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
    Reset(dm, bw);
 }
 
+BandMatrix::BandMatrix(const BandMatrix &bm, int bw) : Matrix(bm.Height(),
+                                                                 bm.Width())
+{
+   bandwidth = bw;
+   stride = 2*bandwidth + 1;
+   if (Height() > 0)
+   {
+      data.SetSize(Height()*stride);
+   }
+
+   for (int i = 0; i < bm.Height(); i++)
+   {
+      for (int j  = std::max(i - bandwidth, 0);
+           j <= std::min(i + bandwidth, width-1) ; j++)
+      {
+         Elem(i,j) = bm(i,j);
+      }
+   }
+}
+
 void BandMatrix::Reset(const DenseMatrix &dm, int bw)
 {
    constexpr real_t tol = 1e-16;
@@ -192,16 +212,6 @@ void BandMatrix::Solve(const Vector &x, Vector &y) const
    delete inv;
 }
 
-MatrixInverse *BandMatrix::Inverse() const
-{
-#ifdef MFEM_USE_LAPACK
-   return new BandMatrixInverse(*this);
-#else
-   MFEM_WARNING("LAPACK not linked. Converting BandMatrix to DenseMatrix.");
-   return new DenseMatrixInverse(ToDenseMatrix());
-#endif
-}
-
 void BandMatrix::Inverse(DenseMatrix &dm)
 {
 #ifdef MFEM_DEBUG
@@ -221,6 +231,55 @@ void BandMatrix::Inverse(DenseMatrix &dm)
 #endif
 }
 
+MatrixInverse *BandMatrix::Inverse() const
+{
+#ifdef MFEM_USE_LAPACK
+   return new BandMatrixInverse(*this);
+#else
+   MFEM_WARNING("LAPACK not linked. Converting BandMatrix to DenseMatrix.");
+   return new DenseMatrixInverse(ToDenseMatrix());
+#endif
+}
+
+MatrixInverse *BandMatrix::Inverse(real_t tol, int bw) const
+{
+   if (tol < 0.0)
+   {
+      return Inverse();
+   }
+   else
+   {
+      DenseMatrix I = DenseMatrix::Identity(height);
+      DenseMatrix ans(height);
+      MatrixInverse *inv;
+      if (bw < 0) // Find bandwidth
+      {
+         int i;
+         for (i = 0; i < height - 1; i++)
+         {
+            BandMatrix a_red(*this, i);
+            inv = a_red.Inverse();
+            dynamic_cast< BandMatrixInverse*>(inv)->Mult(*this, ans);
+            ans -= I;
+            if (ans.FNorm() < tol) { break; }
+            delete inv;
+         }
+         bw = i;
+      }
+      else  // Use given bandwidth
+      {
+         BandMatrix a_red(*this, bw);
+         inv = a_red.Inverse();
+         dynamic_cast< BandMatrixInverse*>(inv)->Mult(*this, ans);
+         ans -= I;
+         MFEM_VERIFY(ans.FNorm() > tol,
+                     "Specified bandwidth does not achieve accuracy");
+      }
+      return inv;
+   }
+   return nullptr;
+}
+
 void BandMatrix::Invert(real_t tol, int bw)
 {
 #ifdef MFEM_DEBUG
@@ -238,34 +297,31 @@ void BandMatrix::Invert(real_t tol, int bw)
    }
    else
    {
+      DenseMatrix ans(height);
       DenseMatrix I = DenseMatrix::Identity(height);
-      DenseMatrix diff(height);
       if (bw < 0) // Find bandwidth
       {
          int i;
          for (i = 0; i < height - 1; i++)
          {
             BandMatrix binv(inv, i);
-            DenseMatrix ans(height);
             mfem::Mult(binv, *this, ans);
-            Add(ans, I, -1.0, diff);
-            if (diff.FNorm()  < tol) { break; }
+            ans -= I;
+            if (ans.FNorm()  < tol) { break; }
          }
          bw = i;
       }
       else  // Use given bandwidth
       {
          BandMatrix binv(inv, bw);
-         DenseMatrix ans(height);
          mfem::Mult(binv, *this, ans);
-         Add(ans, I, -1.0, diff);
-         MFEM_VERIFY(diff.FNorm() > tol,
+         ans -= I;
+         MFEM_VERIFY(ans.FNorm() > tol,
                      "Specified bandwidth does not achieve accuracy");
       }
       Reset(inv, bw);
    }
 }
-
 
 DenseMatrix BandMatrix::ToDenseMatrix() const
 {
@@ -280,7 +336,7 @@ DenseMatrix BandMatrix::ToDenseMatrix() const
    return dm;
 }
 
-void BandMatrix::Print(std::ostream &os, int width) const
+void BandMatrix::Print(std::ostream &os, int width_) const
 {
    // save current output flags
    std::ios::fmtflags old_flags = os.flags();
@@ -292,7 +348,7 @@ void BandMatrix::Print(std::ostream &os, int width) const
       for (int j = 0; j < width; j++)
       {
          os << (*this)(i,j);
-         if (j+1 == width || (j+1) % width == 0)
+         if (j+1 == width || (j+1) % width_ == 0)
          {
             os << '\n';
          }
@@ -440,7 +496,8 @@ BandMatrixInverse::BandMatrixInverse(const BandMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   Init(width, a->bandwidth);
+   bandwidth = a->bandwidth;
+   Init(width, bandwidth);
    Factor();
 }
 
@@ -449,13 +506,15 @@ BandMatrixInverse::BandMatrixInverse(const BandMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   Init(width, a->bandwidth);
+   bandwidth = a->bandwidth;
+   Init(width, bandwidth);
 }
 
 void BandMatrixInverse::Factor()
 {
    MFEM_ASSERT(a, "DenseMatrix is not given");
-   int bw = a->bandwidth;
+   bandwidth = a->bandwidth;
+   int bw = bandwidth;
    factors->bw = bw;
    int ldab = 3*bw + 1;
 #ifdef MFEM_DEBUG
@@ -475,12 +534,6 @@ void BandMatrixInverse::Factor()
    factors->Factor(width);
 }
 
-void BandMatrixInverse::GetInverseMatrix(DenseMatrix &Ainv) const
-{
-   Ainv.SetSize(width);
-   factors->GetInverseMatrix(width,Ainv.Data());
-}
-
 void BandMatrixInverse::Factor(const BandMatrix &mat)
 {
    MFEM_VERIFY(mat.height == mat.width, "DenseMatrix is not square!");
@@ -497,7 +550,14 @@ void BandMatrixInverse::Factor(const BandMatrix &mat)
       own_data = true;
    }
    a = &mat;
+   bandwidth = a->bandwidth;
    Factor();
+}
+
+void BandMatrixInverse::GetInverseMatrix(DenseMatrix &Ainv) const
+{
+   Ainv.SetSize(width);
+   factors->GetInverseMatrix(width,Ainv.Data());
 }
 
 void BandMatrixInverse::SetOperator(const Operator &op)
@@ -525,6 +585,12 @@ void BandMatrixInverse::Mult(const Vector &x, Vector &y) const
 void BandMatrixInverse::Mult(const DenseMatrix &B, DenseMatrix &X) const
 {
    X = B;
+   factors->Solve(width, X.Width(), X.Data());
+}
+
+void BandMatrixInverse::Mult(const BandMatrix &B, DenseMatrix &X) const
+{
+   X = B.ToDenseMatrix();
    factors->Solve(width, X.Width(), X.Data());
 }
 
