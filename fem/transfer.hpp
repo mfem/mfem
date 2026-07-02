@@ -14,6 +14,7 @@
 
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
+#include "../mesh/nurbs.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
