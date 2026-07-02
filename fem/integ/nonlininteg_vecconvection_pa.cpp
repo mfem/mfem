@@ -195,7 +195,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 // PA Convection NL 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLApply2D(const int NE,
                                       const real_t *b,
                                       const real_t *g,
@@ -217,8 +217,8 @@ static void SmemPAConvectionNLApply2D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
@@ -264,7 +264,7 @@ static void SmemPAConvectionNLApply2D(const int NE,
 }
 
 // PA Convection NL 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLApply3D(const int NE,
                                       const real_t *b,
                                       const real_t *g,
@@ -286,8 +286,8 @@ static void SmemPAConvectionNLApply3D(const int NE,
 
    mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
@@ -379,8 +379,8 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
 (int dim, int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    if (dim == 2)
    {
       return SmemPAConvectionNLApply2D<>;

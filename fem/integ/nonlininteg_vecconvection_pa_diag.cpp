@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLGradDiagonal2D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
@@ -39,8 +39,8 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t sM[3][MQ1][MQ1], sQ[3][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -129,7 +129,7 @@ static void SmemPAConvectionNLGradDiagonal2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MDQ = 16>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAConvectionNLGradDiagonal3D(const int NE,
                                              const real_t *b,
                                              const real_t *g,
@@ -149,8 +149,8 @@ static void SmemPAConvectionNLGradDiagonal3D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MD1 = T_D1D ? T_D1D : T_MDQ;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t sM[4][MQ1][MQ1], sQ[4][MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -328,8 +328,8 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    return SmemPAConvectionNLGradDiagonal2D<>;
 }
 
@@ -346,8 +346,8 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
-   MFEM_VERIFY(d1d <= 16, "d1d > 16 is not supported");
-   MFEM_VERIFY(q1d <= 16, "q1d > 16 is not supported");
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    return SmemPAConvectionNLGradDiagonal3D<>;
 }
 
