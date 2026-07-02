@@ -505,13 +505,13 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <typename field_operator_ts, size_t num_inputs, size_t num_fields>
+template <typename field_operator_ts, size_t N, size_t M>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
-   std::array<DeviceTensor<2>, num_inputs> &fields_qp,
-   const std::array<DeviceTensor<1>, num_fields> &fields_e,
-   const std::array<DofToQuadMap, num_inputs> &dtqmaps,
-   const std::array<size_t, num_inputs> &input_to_field,
+   std::array<DeviceTensor<2>, N> &fields_qp,
+   const std::array<DeviceTensor<1>, M> &fields_e,
+   const std::array<DofToQuadMap, N> &dtqmaps,
+   const std::array<size_t, N> &input_to_field,
    const field_operator_ts &fops,
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
@@ -523,7 +523,7 @@ void map_fields_to_quadrature_data(
    // attached to them and we create a dummy field which is not accessed
    // inside the functions it is passed to.
    const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
-   for_constexpr<num_inputs>([&](auto i)
+   for_constexpr<N>([&](auto i)
    {
       const DeviceTensor<1> &field_e =
          (input_to_field[i] == SIZE_MAX) ? dummy_field_weight :
@@ -549,12 +549,7 @@ void map_fields_to_quadrature_data(
                fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
                integration_weights, scratch_mem);
          }
-         else
-         {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-            MFEM_ABORT("unsupported dimension");
-#endif
-         }
+         else { MFEM_ABORT_KERNEL("unsupported dimension"); }
       }
       else
       {
@@ -627,20 +622,20 @@ void map_fields_to_quadrature_data_conditional(
    });
 }
 
-template <size_t num_inputs, typename field_operator_ts>
+template <size_t N, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
-   std::array<DeviceTensor<2>, num_inputs> &directions_qp,
+   std::array<DeviceTensor<2>, N> &directions_qp,
    const DeviceTensor<1> &direction_e,
-   const std::array<DofToQuadMap, num_inputs> &dtqmaps,
+   const std::array<DofToQuadMap, N> &dtqmaps,
    field_operator_ts fops,
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
-   const std::array<bool, num_inputs> &conditions,
+   const std::array<bool, N> &conditions,
    const int &dimension,
    const bool &use_sum_factorization)
 {
-   for_constexpr<num_inputs>([&](auto i)
+   for_constexpr<N>([&](auto i)
    {
       if (conditions[i])
       {
