@@ -82,6 +82,15 @@ public:
       }
    }
 
+   /// Static function to make an identity matrix of given size.
+   static DenseMatrix Identity(int m)
+   {
+      DenseMatrix dm(m);
+      dm = 0.0;
+      for (int i = 0; i < m; i++) { dm(i,i) = 1.0; }
+      return dm;
+   }
+
    /// Make the DenseMatrix to reference the given sub-Memory of @a base.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the @a base Memory. */
@@ -901,7 +910,7 @@ public:
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
-   real_t Det() const { return factors->Det(width); }
+   real_t Det() const override { return factors->Det(width); } ;
 
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();
@@ -1303,13 +1312,6 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     @param [in, out] X vector storing right-hand side and then solution -
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
-
-#ifdef MFEM_USE_LAPACK
-void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                 Array<int> &ipiv);
-void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
-                           bool transpose, Array<int> &ipiv);
-#endif
 
 // Inline methods
 
