@@ -13,6 +13,7 @@
 #define MFEM_LOR
 
 #include "../bilinearform.hpp"
+#include "../transfer.hpp"
 
 namespace mfem
 {
@@ -58,7 +59,7 @@ private:
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
 protected:
-   enum FESpaceType { H1, ND, RT, L2, INVALID };
+   enum FESpaceType { H1, ND, RT, L2, NURBS, INVALID };
 
    int ref_type;
    FiniteElementSpace &fes_ho;
@@ -68,6 +69,7 @@ protected:
    BilinearForm *a = nullptr;
    class BatchedLORAssembly *batched_lor = nullptr;
    OperatorHandle A;
+   GridTransfer *gt = nullptr;
    mutable Array<int> perm;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
@@ -105,6 +107,12 @@ public:
 
    /// Returns the assembled LOR system (non-const version).
    OperatorHandle &GetAssembledSystem();
+
+   /// Returns the lo-2-ho transfer (const version).
+   const GridTransfer *GetGridTransfer() const;
+
+   /// Returns the lo-2-ho transfer (non-const version).
+   GridTransfer *GetGridTransfer();
 
    /// Assembles the LOR system corresponding to @a a_ho.
    void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
@@ -155,6 +163,7 @@ public:
 
    /// Return the assembled LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
+
 };
 
 #ifdef MFEM_USE_MPI
@@ -204,6 +213,7 @@ protected:
    LORBase *lor;
    bool own_lor = true;
    SolverType solver;
+   Operator *RAP_solver = nullptr;
 public:
    /// @brief Create a solver of type @a SolverType, formed using the assembled
    /// SparseMatrix of the LOR version of @a a_ho. @see LORDiscretization
@@ -248,9 +258,27 @@ public:
       solver.SetOperator(op);
       width = solver.Width();
       height = solver.Height();
+
+      GridTransfer *gt = lor->GetGridTransfer();
+      if (gt)
+      {
+         delete RAP_solver;
+         const Operator &lo_2_ho = gt->BackwardOperator();
+         RAP_solver = new RAPOperator(lo_2_ho, solver, lo_2_ho);
+      }
    }
 
-   void Mult(const Vector &x, Vector &y) const { solver.Mult(x, y); }
+   void Mult(const Vector &x, Vector &y) const
+   {
+      if (RAP_solver)
+      {
+         RAP_solver->Mult(x, y);
+      }
+      else
+      {
+         solver.Mult(x, y);
+      }
+   }
 
    /// Access the underlying solver.
    SolverType &GetSolver() { return solver; }
@@ -261,7 +289,11 @@ public:
    /// Access the LOR discretization object.
    const LORBase &GetLOR() const { return *lor; }
 
-   ~LORSolver() { if (own_lor) { delete lor; } }
+   ~LORSolver()
+   {
+      if (own_lor) { delete lor; }
+      delete RAP_solver;
+   }
 };
 
 #ifdef MFEM_USE_MPI

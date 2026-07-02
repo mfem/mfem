@@ -28,6 +28,10 @@ namespace mfem
 
 class GridFunction;
 
+/** This enumerated type describes the point set to use for NURBS*/
+enum class NURBSPointSet { DEFAULT = 0, GREVILLE, BOTELLA, DEMKO };
+
+
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
     a prescribed order.
 
@@ -191,6 +195,9 @@ public:
    real_t GetDemko(int i) const;
 
    void GetDemko(Vector &xi) const;
+
+   /// Uniform interface for obtaining Greville/Botella/Demko points
+   void GetPoints(Vector &xi, NURBSPointSet) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -495,9 +502,16 @@ public:
    /// Return the number of KnotVectors, which is the patch dimension.
    int GetNKV() const { return kv.Size(); }
 
+   /// Get number of control points for the entire patch
+   int GetNCP() const;
+
    /// Return a pointer to the KnotVector in direction @a dir.
    /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int dir) { return kv[dir]; }
+
+   /// Uniform interface for obtaining Greville/Botella/Demko points
+   /// Caller needs to delete the vectors.
+   void GetPoints(Array<Vector *> &uknot, NURBSPointSet pSet) const;
 
    // Standard B-NET access functions
 
@@ -556,7 +570,19 @@ public:
    /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang,
                                 int times);
+
+   NURBSPatch *MakeInterpolation(Array<Vector *>  &points);
+
+   void GetInterpolationMatrix(Array<Vector *> uknot, SparseMatrix &smat);
+
+   void eval(Vector &u, Vector &val);
+   void eval(real_t u0, Vector & val);
+   void eval(real_t u0, real_t u1, Vector & val);
+   void eval(real_t u0, real_t u1, real_t u2, Vector &val);
 };
+
+Mesh MakeNURBSInterpolation(const Mesh &orig_mesh, NURBSPointSet pSet);
+
 
 
 #ifdef MFEM_USE_MPI
@@ -1025,6 +1051,28 @@ public:
    /// Return the number of knotvector elements for edge @a edge.
    inline int KnotVecNE(int edge) const;
 
+   /// Uniform interface for obtaining Greville/Botella/Demko points
+   /// Caller needs to delete the vectors.
+   void GetPoints(Array<Vector *> &uknot, NURBSPointSet pSet) const
+   {
+      uknot.SetSize(knotVectors.Size());
+      for (int d = 0; d < knotVectors.Size(); d++)
+      {
+         uknot[d] = new Vector();
+         knotVectors[d]->GetPoints(*uknot[d], pSet);
+      }
+   }
+
+   void GetPointsCompr(Array<Vector *> &uknot, NURBSPointSet pSet) const
+   {
+      uknot.SetSize(knotVectorsCompr.Size());
+      for (int d = 0; d < knotVectorsCompr.Size(); d++)
+      {
+         uknot[d] = new Vector();
+         knotVectorsCompr[d]->GetPoints(*uknot[d], pSet);
+      }
+   }
+
    // Load functions
 
    /// Load element @a i into @a FE.
@@ -1040,6 +1088,15 @@ public:
 
    /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
    void ConvertToPatches(const Vector &Nodes);
+   void ConvertToPatches2(const Vector
+                          &Nodes); // --> No deletion of tables (crazy side effect!!)
+
+   /// Create empty patches
+   void CreatePatches();
+
+   /// Delete patches
+   void DeletePatches();
+
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
    /** @brief Set FE coordinates in @a Nodes, using data from @a patches,
@@ -1110,6 +1167,9 @@ public:
 
    /// Returns a deep copy of the patch topology mesh
    Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
+
+   /// Returns a pointer of the patch topology mesh
+   Mesh *GetPatchTopo() const { return patchTopo; }
 
    /** Returns a deep copy of all instantiated patches. To ensure that patches
        are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets

@@ -2971,6 +2971,91 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
+void SparseMatrix::SetSubMatrix(const Array<int> &rows,
+                                const Array<int> &cols,
+                                const SparseMatrix &subm)
+{
+   MFEM_ASSERT(Height() >= rows.Max()+1,
+               "SparseMatrix::SetSubMatrix row index does not match size");
+   MFEM_ASSERT(Width() >= cols.Max()+1,
+               "SparseMatrix::SetSubMatrix col index does not match size");
+
+   Array<int> lcols;
+   Vector rval;
+   for (int r=0; r<rows.Size(); ++r)
+   {
+      subm.GetRow(r, lcols, rval);
+
+      for (int i=0; i<lcols.Size(); ++i)
+      {
+         lcols[i] = cols[lcols[i]];
+      }
+      SetRow(rows[r], lcols, rval);
+   }
+}
+
+void SparseMatrix::GetSubMatrix(const Array<int> &rows,
+                                const Array<int> &cols,
+                                SparseMatrix &subm) const
+{
+   MFEM_ASSERT(subm.Height() >= rows.Max()+1,
+               "SparseMatrix::GetSubMatrix row index does not match size");
+   MFEM_ASSERT(subm.Width() >= cols.Max()+1,
+               "SparseMatrix::GetSubMatrix col index does not match size");
+
+   Array<int> lcols, scols;
+   Vector rval, sval;
+   for (int r=0; r<rows.Size(); ++r)
+   {
+      GetRow(rows[r], lcols, rval);
+
+      int size = 0;
+      for (int i=0; i<lcols.Size(); ++i)
+      {
+         if (cols.Find(lcols[i])>=0) { size++; }
+      }
+      sval.SetSize(size);
+      scols.SetSize(size);
+      size = 0;
+      for (int i=0; i<lcols.Size(); ++i)
+      {
+         if (cols.Find(lcols[i])>=0)
+         {
+            sval[size] = rval[i];
+            scols[size] = cols.Find(lcols[i]);// lcols[i];
+            size++;
+         }
+      }
+      subm.SetRow(r, scols, sval);
+   }
+   subm.Finalize();
+}
+
+
+void SparseMatrix::AddSubMatrix(const Array<int> &rows,
+                                const Array<int> &cols,
+                                const SparseMatrix &subm)
+{
+   MFEM_ASSERT(subm.Height() == rows.Size(),
+               "SparseMatrix::SetSubMatrix row index does not match size");
+   MFEM_ASSERT(subm.Width() == cols.Size(),
+               "SparseMatrix::SetSubMatrix col index does not match size");
+
+   Array<int> lcols;
+   Vector rval;
+   for (int r=0; r<rows.Size(); ++r)
+   {
+      subm.GetRow(r, lcols, rval);
+
+      for (int i=0; i<lcols.Size(); ++i)
+      {
+         lcols[i] = cols[lcols[i]];
+      }
+
+      AddRow(rows[r], lcols, rval);
+   }
+}
+
 bool SparseMatrix::RowIsEmpty(const int row) const
 {
    int gi;
