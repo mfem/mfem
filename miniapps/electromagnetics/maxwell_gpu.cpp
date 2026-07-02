@@ -72,6 +72,8 @@
 
 #include "fem/kernels.hpp"
 
+#include "fem/integ/bilininteg_vectorfemass_kernels.hpp"
+
 #include "../common/mesh_extras.hpp"
 #include "electromagnetics.hpp"
 
@@ -479,6 +481,24 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
+
+   // quadratic mesh specializations
+   // SO 1
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::DIV, FiniteElement::DIV, 3, 2, 2, 4>();
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 4>();
+   // SO 2
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::DIV, FiniteElement::DIV, 3, 3, 3, 5>();
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 5>();
+   // SO 3
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::DIV, FiniteElement::DIV, 3, 4, 4, 6>();
+   mfem::VectorFEMassIntegrator::AddSpecialization<
+   FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 6>();
+
    // KernelReporter::Enable();
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
