@@ -85,8 +85,8 @@ void test_nl_convection_pa_grad(const char *filename, int p)
 TEST_CASE("NL Convection PA Gradient",
           "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+   const auto p_base = {1, 2}, p_extra = {3, 4};
+   const auto p = MFEM_GENERATE_RANGES(p_base, p_extra);
 
    if (static auto done = false; !std::exchange(done, true))
    {
@@ -102,30 +102,26 @@ TEST_CASE("NL Convection PA Gradient",
 
    SECTION("2D")
    {
-      const auto filename2d = all_tests
-                              ? GENERATE("../../data/star-q2.mesh",
-                                         "../../data/star-q3.mesh",
-                                         "../../data/rt-2d-q3.mesh",
-                                         "../../data/inline-quad.mesh",
-                                         "../../data/periodic-square.mesh")
-                              : GENERATE("../../data/inline-quad.mesh",
-                                         "../../data/periodic-square.mesh");
-      test_nl_convection_pa_grad<2>(filename2d, p);
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star-q2.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/rt-2d-q3.mesh",
+                           "../../data/periodic-square.mesh"
+                         };
+      test_nl_convection_pa_grad<2>(MFEM_GENERATE_RANGES(meshs, extra), p);
    }
 
    SECTION("3D")
    {
-      const auto filename3d = all_tests
-                              ? GENERATE("../../data/beam-hex.mesh",
-                                         "../../data/fichera.mesh",
-                                         "../../data/fichera-q2.mesh",
-                                         "../../data/fichera-q3.mesh",
-                                         "../../data/inline-hex.mesh",
-                                         "../../data/periodic-cube.mesh",
-                                         "../../data/toroid-hex.mesh")
-                              : GENERATE("../../data/inline-hex.mesh",
-                                         "../../data/periodic-cube.mesh");
-      test_nl_convection_pa_grad<3>(filename3d, p);
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh",
+                           "../../data/beam-hex.mesh",
+                           "../../data/toroid-hex.mesh",
+                           "../../data/fichera-q2.mesh",
+                           "../../data/fichera-q3.mesh",
+                           "../../data/periodic-cube.mesh"
+                         };
+      test_nl_convection_pa_grad<3>(MFEM_GENERATE_RANGES(meshs, extra), p);
    }
 }
 

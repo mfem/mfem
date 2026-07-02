@@ -14,6 +14,7 @@
 #include "../kernels.hpp"
 #include "../nonlininteg.hpp"
 #include "../../general/forall.hpp"
+#include "../ceed/interface/util.hpp"
 
 namespace mfem
 {
@@ -21,6 +22,10 @@ namespace mfem
 void VectorConvectionNLFIntegrator::AssembleGradPA(
    const Vector &u, const FiniteElementSpace &fes)
 {
+   MFEM_VERIFY(!DeviceCanUseCeed(),
+               "VectorConvectionNLFIntegrator PA gradients are not supported "
+               "with the libCEED backend");
+
    this->pa_u = u;
    AssemblePA(fes);
 
@@ -248,6 +253,10 @@ static void SmemPAConvectionNLGradApply3D(const int ne,
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
+   MFEM_VERIFY(!DeviceCanUseCeed(),
+               "VectorConvectionNLFIntegrator PA gradients are not supported "
+               "with the libCEED backend");
+
    if (dim == 2)
    {
       VectorConvectionNLFAddMultGradPA2D::Run(d1d, q1d, ne,
