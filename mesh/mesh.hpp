@@ -312,7 +312,6 @@ public:
    /// Named sets of boundary element attributes
    AttributeSets bdr_attribute_sets;
 
-   // NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric

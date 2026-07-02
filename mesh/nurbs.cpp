@@ -5711,7 +5711,7 @@ const Array<int>& NURBSExtension::GetPatchElements(int patch)
 
 const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
 {
-   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_el not set");
+   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_bel not set");
 
    return patch_to_bel[patch];
 }
