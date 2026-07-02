@@ -545,6 +545,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      h_(NULL),
      hr_(NULL),
      hi_(NULL),
+     temp_(NULL),
      //ht_real_(NULL),
      //ht_imag_(NULL),
      e_(NULL),
@@ -1108,6 +1109,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    hi_  = new ParGridFunction(HCurlFESpace_);
    *hi_ = 0.0;
 
+   temp_ = new ParGridFunction(HCurlFESpace_);
+   *temp_ = 0.0;
+
    //ht_real_  = new ParGridFunction(HCurlFESpace_);
    //*ht_real_ = 0.0;
    //ht_imag_  = new ParGridFunction(HCurlFESpace_);
@@ -1320,6 +1324,7 @@ CPDSolverDH::~CPDSolverDH()
    delete h_;
    delete hr_;
    delete hi_;
+   delete temp_;
    //delete ht_real_;
    //delete ht_imag_;
    delete e_;
@@ -1712,6 +1717,7 @@ CPDSolverDH::Update()
    h_->Update();
    hr_->Update();
    hi_->Update();
+   temp_->Update();
    //ht_real_->Update();
    //ht_imag_->Update();
    e_->Update();
@@ -1851,6 +1857,7 @@ CPDSolverDH::Solve()
    if (dbcs_->Size() > 0)
    {
       Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+      Array<int> ess_bdr_vdofs;
       for (int i = 0; i<dbcs_->Size(); i++)
       {
          attr_marker = 0;
@@ -1858,12 +1865,27 @@ CPDSolverDH::Solve()
          {
             attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
          }
-         h_->ProjectCoefficient(*(*dbcs_)[i]->real,
-                                *(*dbcs_)[i]->imag);
-         // h_->ProjectBdrCoefficientTangent(*(*dbcs_)[i]->real,
-         //                                  *(*dbcs_)[i]->imag,
-         //                                  attr_marker);
+         // Determine marker array in vDoF space
+         HCurlFESpace_->GetEssentialVDofs(attr_marker, ess_bdr_vdofs);
+
+         temp_->ProjectCoefficient(*(*dbcs_)[i]->real);
+         for (int j=0; j<ess_bdr_vdofs.Size(); j++)
+         {
+            if (ess_bdr_vdofs[j]) { h_->real()[j] = (*temp_)[j]; }
+         }
+
+         temp_->ProjectCoefficient(*(*dbcs_)[i]->imag);
+         for (int j=0; j<ess_bdr_vdofs.Size(); j++)
+         {
+            if (ess_bdr_vdofs[j]) { h_->imag()[j] = (*temp_)[j]; }
+         }
+
       }
+
+         // create temp GF (follow temp_ pargridfunction, 956) -> project real + imag dbcs values onto temp GF (ProjectCoefficient) -> 
+         // over the whole volume -> get essential_VDOFS from dbcs_marker array 
+         // -> copy onto H GF (follow EB formulation around line 1709)
+      
       if (logging_ > 1)
       {
          Vector zeroVec(3); zeroVec = 0.0;
@@ -1873,6 +1895,7 @@ CPDSolverDH::Solve()
          if (myid_ == 0) { cout << "norm of H (w DBC): " << nrmh << endl; }
       }
    }
+
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
 

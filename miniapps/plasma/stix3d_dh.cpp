@@ -272,13 +272,10 @@ private:
    double nhaty_;
    double nhatz_;
    int index_;
-   double omega_;
-   bool realPart_;
 
 public:
-   PortBCHfield(const Vector &params, int index, double omega, bool realPart)
-      : VectorCoefficient(3), params_(params), index_(index), x_(3), 
-        omega_(omega), realPart_(realPart)
+   PortBCHfield(const Vector &params, int index)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3)
    {  
       MFEM_ASSERT(params.Size() % 9 == 0,
                   "Incorrect number of parameters provided to "
@@ -301,6 +298,7 @@ public:
       nhaty_ = params_[7+index_];
       nhatz_ = params_[8+index_];
 
+
       Vector r(3);
       r[0] = x_[0]-x0_;
       r[1] = x_[1]-y0_;
@@ -310,10 +308,12 @@ public:
       rdisk[0] = r[0] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatx_;
       rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
       rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
-
+     
       double rdisknorm = rdisk.Norml2();
 
-      double Hfield = (1/376.73)*(V0_/log(b_/a_))*(1.0/r.Norml2());
+      double Efield = (V0_/log(b_/a_))*(1.0/r.Norml2());
+
+      double Hfield = (1/376.73)*Efield;
 
       Vector thetadisk(3);
       thetadisk[0] = nhaty_*(rdisk[2]/rdisknorm) - nhatz_*(rdisk[1]/rdisknorm);
@@ -2125,9 +2125,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
    VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
-   PortBCHfield * PortBC_Real = NULL;
-   PortBCHfield * PortBC_Imag = NULL;
-
    if (dbcsSize > 0)
    {
       int c = 0;
@@ -2180,15 +2177,11 @@ int main(int argc, char *argv[])
          {
             int index = i*9;
             temp_attribute = portbca[i];
-            PortBC_Real = new PortBCHfield(portbcv,index,omega,true);
-            PortBC_Imag = new PortBCHfield(portbcv,index,omega,false);
             dbcs[c] = new ComplexVectorCoefficientByAttr;
             dbcs[c]->attr = temp_attribute;
-            dbcs[c]->real = PortBC_Real;
-            dbcs[c]->imag = PortBC_Imag;
-            if (Mpi::Root()){
-            mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out); 
-            }
+            dbcs[c]->real = new PortBCHfield(portbcv,index);
+            dbcs[c]->imag = &zeroCoef;
+            mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out);
             c++;
          }
       }

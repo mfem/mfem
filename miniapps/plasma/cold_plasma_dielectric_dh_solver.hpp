@@ -682,6 +682,7 @@ private:
    ParComplexGridFunction * h_;   // Complex magnetic field (HCurl)
    ParGridFunction * hr_;   // Real component to magnetic field (HCurl)
    ParGridFunction * hi_;   // Imag component to magnetic field (HCurl)
+   ParGridFunction * temp_; // Temporary field used for Dirichlet BCs (HCurl)
    //ParGridFunction * ht_real_;   // Tangential real component to magnetic field (HCurl)
    //ParGridFunction * ht_imag_;   // Tangential imag component to magnetic field (HCurl)
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)

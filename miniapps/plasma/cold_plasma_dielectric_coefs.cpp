@@ -155,7 +155,7 @@ complex<double> L_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.0;
+   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -205,7 +205,7 @@ complex<double> S_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.0;
+   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -257,7 +257,7 @@ complex<double> D_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.0;
+   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -2519,17 +2519,17 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      /*
+      
       double x0 = 2.2404;
-      double delta_x = 0.12;
+      double delta_x = 0.15+0.25;
 
       if (xyz_[0] <= x0)
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
       
-      double y0 = 0.84;
-      double y1 = -0.84;
+      double y0 = 0.565;
+      double y1 = -0.565;
       double delta_y = 0.22;
       if (xyz_[1] >= y0)
       {
@@ -2540,8 +2540,8 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.6;
-      double z1 = 0;
+      double z0 = 0.3;
+      double z1 = -0.3;
       double delta_z = 0.2;
       if (xyz_[2] >= z0)
       {
@@ -2551,8 +2551,8 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      */
       
+      /*
       double x0 = 0.2;
       double x1 = 0.8;
       double delta_x = x0;
@@ -2564,6 +2564,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
+
       
       /*
       double x1 = 0.5;
@@ -2643,17 +2644,16 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      /*
       double x0 = 2.2404;
-      double delta_x = 0.12;
+      double delta_x = 0.15+0.25;
 
       if (xyz_[0] <= x0)
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
       
-      double y0 = 0.84;
-      double y1 = -0.84;
+      double y0 = 0.565;
+      double y1 = -0.565;
       double delta_y = 0.22;
       if (xyz_[1] >= y0)
       {
@@ -2664,8 +2664,8 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.6;
-      double z1 = 0;
+      double z0 = 0.3;
+      double z1 = -0.3;
       double delta_z = 0.2;
       if (xyz_[2] >= z0)
       {
@@ -2675,8 +2675,8 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      */
-       
+      
+      /*
       double x0 = 0.2;
       double x1 = 0.8;
       double delta_x = x0;
@@ -2689,7 +2689,6 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
       
-      /*
       double x1 = 0.5;
       double delta_x = 2.5;
       if (xyz_[2] >= x1)
@@ -2990,12 +2989,14 @@ double PlasmaProfile::EvalByType(Type type,
          double d = cyl_ ? rz_[0] : xyz_[0];
 
          //return nu0*exp(-(d-shift)/decay) + 5e7*test;
-         //return nu0*exp(-(d-shift)/decay);
+         
          double val = 5e9*exp(-((xyz_[0]-2.4)*(xyz_[0]-2.4))/0.0005);// + 1e8*exp((xyz_[1]*xyz_[1])/0.2);
          //+ (nu0*exp(-(xyz_[0]-shift)/decay));
          //if (xyz_[0] <= 2.2404){val = 0.0;}
-         return val;
+         //return (nu0*exp(-((xyz_[0]-shift)*(xyz_[0]-shift))/decay)) + (5e8*exp(-(xyz_[0]-2.3)/0.1));
          //return 1e10*exp(-((xyz_[0]-2.48)*(xyz_[0]-2.48))/0.005); 
+
+         return nu0*exp(-(d-shift)/decay);
       }
       break;
       case NUI:
@@ -3584,7 +3585,7 @@ double PlasmaProfile::EvalByType(Type type,
       case SIMP_SHEATH:
       {
          double pmax = 2e20;
-         double pmin = 1e17;
+         double pmin = 5e17;
          double lambda_n = 2.34; // Damping length
          double nu = 34.0; // Strength of decline
          double den = params[0];
@@ -3608,7 +3609,7 @@ double PlasmaProfile::EvalByType(Type type,
             //if (xyz_[0] >= 2.468){val = 1e12;}
 
             //val = 2e20 - 1.5e21*((xyz_[0]-2.2404)/1.8);
-            //if (xyz_[0] <= 2.2404){val = 2e20;}
+            if (xyz_[0] <= 2.2404){val = 2e20;}
          }
          else
          {
@@ -3624,6 +3625,14 @@ double PlasmaProfile::EvalByType(Type type,
          }
 
          return val;
+      }
+      break;
+      case CUSTOM:
+      {
+         double pmin = params[0];
+         double pmax = params[1];
+
+         return pmax*pow((pmin/pmax),xyz_[0]);
       }
       break;
       default:
@@ -4042,12 +4051,12 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          V[1] = p_[1]/r; 
          V[2] = p_[2];
 
-         /*
+         
          if (xyz_[0] <= 2.2404)
          {
             V[1] = p_[1]/2.2404; 
          }
-         */
+
 
          if (unit_)
          {

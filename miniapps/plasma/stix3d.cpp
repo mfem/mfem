@@ -1910,7 +1910,8 @@ int main(int argc, char *argv[])
 
    // Setup coefficients for Dirichlet BC
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
-   if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) + portbca.Size();}
+   if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + 
+      (dbca2.Size() > 0) + portbca.Size();}
 
    Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
@@ -1959,8 +1960,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
    VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
-   PortBCEfield * PortBC = NULL;
-
    if (dbcsSize > 0)
    {
       int c = 0;
@@ -1999,10 +1998,9 @@ int main(int argc, char *argv[])
          {
             int index = i*9;
             temp_attribute = portbca[i];
-            PortBC = new PortBCEfield(portbcv,index);
             dbcs[c] = new ComplexVectorCoefficientByAttr;
             dbcs[c]->attr = temp_attribute;
-            dbcs[c]->real = PortBC;
+            dbcs[c]->real = new PortBCEfield(portbcv,index);;
             dbcs[c]->imag = &zeroCoef;
             mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out);
             c++;
