@@ -172,11 +172,11 @@ int main(int argc, char *argv[])
          own_fec = 1;
       }
    }
-   else if (pmesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
+   else if (pmesh->IsNURBS() && (order[0] > 0) )  // Subparametric NURBS
    {
       fec = new NURBSFECollection(order[0]);
       own_fec = 1;
-      int nkv = pmesh->NURBSext->GetNKV();
+      int nkv = pmesh->NURBSExt()->GetNKV();
 
       if (order.Size() == 1)
       {
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
          order = tmp;
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      NURBSext = new NURBSExtension(pmesh->NURBSExt(), order);
    }
    else
    {

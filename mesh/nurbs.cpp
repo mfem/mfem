@@ -3058,7 +3058,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 {
-   NURBSExtension *parent = mesh_array[0]->NURBSext;
+   NURBSExtension *parent = mesh_array[0]->NURBSExt();
 
    if (!parent->own_topo)
    {
@@ -3190,6 +3190,7 @@ NURBSExtension::~NURBSExtension()
 void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
 {
    Array<int> kvSpacing;
+
    if (patches.Size() == 0)
    {
       for (int i = 0; i < NumOfKnotVectors; i++)
@@ -3649,7 +3650,7 @@ void NURBSExtension::MergeWeights(Mesh *mesh_array[], int num_pieces)
 
    for (int i = 0; i < num_pieces; i++)
    {
-      NURBSExtension *lext = mesh_array[i]->NURBSext;
+      NURBSExtension *lext = mesh_array[i]->NURBSExt();
 
       lext->GetElementLocalToGlobal(lelem_elem);
 
@@ -3678,7 +3679,7 @@ void NURBSExtension::MergeGridFunctions(
    for (int i = 0; i < num_pieces; i++)
    {
       FiniteElementSpace *lfes = gf_array[i]->FESpace();
-      NURBSExtension *lext = lfes->GetMesh()->NURBSext;
+      NURBSExtension *lext = lfes->GetMesh()->NURBSExt();
 
       lext->GetElementLocalToGlobal(lelem_elem);
 
@@ -5655,7 +5656,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    }
 }
 
-void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
+void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk) const
 {
    MFEM_VERIFY(ijk.Size() == el_to_IJK.NumCols(), "");
    el_to_IJK.GetRow(elem, ijk);
@@ -5710,7 +5711,7 @@ const Array<int>& NURBSExtension::GetPatchElements(int patch)
 
 const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
 {
-   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_el not set");
+   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_bel not set");
 
    return patch_to_bel[patch];
 }
@@ -5764,7 +5765,7 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
-void NURBSExtension::PrintCoarsePatches(std::ostream &os)
+void NURBSExtension::PrintCoarsePatches(std::ostream &os) const
 {
    const int patchCP_size1 = patchCP.GetSize1();
    MFEM_VERIFY(patchCP_size1 == num_structured_patches || patchCP_size1 == 0,

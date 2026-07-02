@@ -350,10 +350,10 @@ void VisItDataCollection::UpdateMeshInfo()
    {
       spatial_dim = mesh->SpaceDimension();
       topo_dim = mesh->Dimension();
-      if (mesh->NURBSext)
+      if (mesh->NURBSExt())
       {
          visit_levels_of_detail =
-            std::max(visit_levels_of_detail, mesh->NURBSext->GetOrder());
+            std::max(visit_levels_of_detail, mesh->NURBSExt()->GetOrder());
       }
    }
    else

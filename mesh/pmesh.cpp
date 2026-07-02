@@ -262,12 +262,13 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       delete vert_element;
    }
 
-   if (mesh.NURBSext)
+   NURBSExtension* NURBSext = NULL;
+   if (mesh.IsNURBS())
    {
       MFEM_ASSERT(mesh.GetNodes() &&
-                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
+                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSExt(),
                   "invalid NURBS mesh");
-      NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
+      NURBSext = new ParNURBSExtension(comm, mesh.NURBSExt(), partitioning,
                                        activeBdrElem);
    }
 
@@ -283,7 +284,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
          FiniteElementCollection *nfec =
             FiniteElementCollection::New(glob_fes->FEColl()->Name());
          ParFiniteElementSpace *pfes =
-            new ParFiniteElementSpace(this, nfec, glob_fes->GetVDim(),
+            new ParFiniteElementSpace(this, NURBSext, nfec, glob_fes->GetVDim(),
                                       glob_fes->GetOrdering());
          Nodes = new ParGridFunction(pfes);
          Nodes->MakeOwner(nfec); // Nodes will own nfec and pfes
@@ -398,7 +399,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 Table*& edge_element)
 {
    int nbdry = 0;
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       activeBdrElem.SetSize(mesh.GetNBE());
       activeBdrElem = false;
@@ -414,7 +415,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
          if (partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2] == MyRank)
          {
             nbdry++;
-            if (mesh.NURBSext)
+            if (mesh.IsNURBS())
             {
                activeBdrElem[i] = true;
             }
@@ -453,7 +454,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
          if (partitioning[el1] == MyRank)
          {
             nbdry++;
-            if (mesh.NURBSext)
+            if (mesh.IsNURBS())
             {
                activeBdrElem[i] = true;
             }
@@ -3934,7 +3935,7 @@ bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {
-   if (NURBSext)
+   if (IsNURBS())
    {
       MFEM_ABORT("NURBS meshes are not supported. Please project the "
                  "NURBS to Nodes first with SetCurvature().");
@@ -3993,7 +3994,7 @@ bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
                                         real_t threshold, int nc_limit, int op)
 {
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
-   MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
+   MFEM_VERIFY(!IsNURBS(), "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
 
    const Table &dt = pncmesh->GetDerefinementTable();
@@ -4858,7 +4859,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    Array<int> interface_faces;
    int interface_bdr_attr = 0;
 
-   if (NURBSext)
+   if (IsNURBS())
    {
       Printer(os, "", comments); // does not print shared boundary
       return;
@@ -5541,7 +5542,7 @@ void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
 
 Mesh ParMesh::GetSerialMesh(int save_rank) const
 {
-   if (pncmesh || NURBSext)
+   if (pncmesh || IsNURBS())
    {
       MFEM_ABORT("Nonconforming meshes and NURBS meshes are not yet supported.");
    }
@@ -6569,7 +6570,7 @@ long long ParMesh::ReduceInt(int value) const
 
 void ParMesh::ParPrint(ostream &os, const std::string &comments) const
 {
-   if (NURBSext)
+   if (IsNURBS())
    {
       // TODO: NURBS meshes.
       Print(os, comments); // use the serial MFEM v1.0 format for now

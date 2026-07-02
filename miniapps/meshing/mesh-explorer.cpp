@@ -1312,7 +1312,7 @@ int main (int argc, char *argv[])
                else
                {
                   // NURBS meshes do not support PrintWithPartitioning
-                  if (mesh->NURBSext)
+                  if (mesh->IsNURBS())
                   {
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
@@ -1361,7 +1361,7 @@ int main (int argc, char *argv[])
                else
                {
                   // NURBS meshes do not support PrintWithPartitioning
-                  if (mesh->NURBSext)
+                  if (mesh->IsNURBS())
                   {
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)

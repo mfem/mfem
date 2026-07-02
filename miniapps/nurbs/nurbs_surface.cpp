@@ -61,6 +61,14 @@ public:
    /// Constructor for a given 2D point grid size and NURBS order.
    SurfaceInterpolator(int num_elem_x, int num_elem_y, int order);
 
+   ~SurfaceInterpolator()
+   {
+      for (int i = 0; i < cmesh.size(); ++i)
+      {
+         delete cmesh[i];
+      }
+   }
+
    /// Create a surface interpolating the 2D grid of 3D points in @a input3D.
    void CreateSurface(const Array3D<real_t> &input3D);
 
@@ -77,7 +85,7 @@ public:
 protected:
    /** @brief Compute the NURBS mesh interpolating the given coordinate of the
        grid of 3D points in @a input3D. */
-   void ComputeNURBS(int coordinate, const Array3D<real_t> &input3D);
+   Mesh *ComputeNURBS(int coordinate, const Array3D<real_t> &input3D);
 
 private:
    int nx, ny; // Number of elements in two directions of the surface grid
@@ -96,8 +104,7 @@ private:
 
    std::unique_ptr<NURBSPatch> patch; // Pointer to the only patch in the mesh
 
-   Mesh mesh; // NURBS mesh representing the surface
-   std::vector<Mesh> cmesh; // NURBS meshes representing point components
+   std::vector<Mesh*> cmesh; // NURBS meshes representing point components
 };
 
 
@@ -469,8 +476,7 @@ void SurfaceInterpolator::CreateSurface(const Array3D<real_t> &input3D)
    cmesh.clear();
    for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
-      ComputeNURBS(c, input3D);
-      cmesh.emplace_back(mesh);
+      cmesh.emplace_back(ComputeNURBS(c, input3D));
    }
 
    initial3D = input3D;
@@ -483,11 +489,11 @@ void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
    Array3D<real_t> vpos(num_elem_x + 1, num_elem_y + 1, dim);
    for (int c = 0; c < dim; ++c) // Loop over coordinates
    {
-      SampleNURBS(true, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
+      SampleNURBS(true, num_elem_x, num_elem_y, *cmesh[c], nks, ugrid, vpos);
 
       if (compareOriginal)
       {
-         SampleNURBS(false, num_elem_x, num_elem_y, cmesh[c], nks, ugrid, vpos);
+         SampleNURBS(false, num_elem_x, num_elem_y, *cmesh[c], nks, ugrid, vpos);
          CheckError(initial3D, vpos, c, nx, ny);
       }
 
@@ -501,8 +507,8 @@ void SurfaceInterpolator::SampleSurface(int num_elem_x, int num_elem_y,
    }
 }
 
-void SurfaceInterpolator::ComputeNURBS(int coordinate,
-                                       const Array3D<real_t> &input3D)
+Mesh *SurfaceInterpolator::ComputeNURBS(int coordinate,
+                                        const Array3D<real_t> &input3D)
 {
    Array<Vector*> x;
    for (int i = 0; i < dim; ++i) { x.Append(new Vector(ncp[0])); }
@@ -573,21 +579,20 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
    patches[0] = patch.get();
    Mesh patch_topology = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    NURBSExtension nurbsExt(&patch_topology, patches);
-
-   mesh = Mesh(nurbsExt);
+   return new Mesh(nurbsExt);
 }
 
 void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
                                          bool visualization,
                                          int x, int y, int w, int h)
 {
-   GridFunction *nodes = cmesh[0].GetNodes();
+   GridFunction *nodes = cmesh[0]->GetNodes();
    NURBSPatch patch2D(&kv[0], &kv[1], dim);
    Array<const NURBSPatch*> patches(1);
    patches[0] = &patch2D;
    Mesh patch_topology = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
    Array<int> dofs;
-   cmesh[0].NURBSext->GetPatchDofs(0, dofs);
+   cmesh[0]->NURBSExt()->GetPatchDofs(0, dofs);
 
    MFEM_VERIFY(dofs.Size() == (nx + 1) * (ny + 1) * (orderNURBS + 1), "");
 
@@ -604,20 +609,22 @@ void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
    NURBSExtension nurbsExt(&patch_topology, patches);
    Mesh mesh2D(nurbsExt);
 
-   FiniteElementCollection *fec = nodes->OwnFEC();
-   FiniteElementSpace fespace(&mesh2D, fec, dim, Ordering::byVDIM);
-   GridFunction nodes2D(&fespace);
-
+   FiniteElementCollection *fec = FiniteElementCollection::New(
+                                     nodes->OwnFEC()->Name());
+   FiniteElementSpace &fespace=*(new FiniteElementSpace(&mesh2D, fec, dim,
+                                                        Ordering::byVDIM));
+   GridFunction &nodes2D=*(new GridFunction (&fespace));
+   nodes2D.MakeOwner(fec);
    const int n = mesh2D.GetNodes()->Size() / (dim - 1);
    MFEM_VERIFY((dim - 1) * n == mesh2D.GetNodes()->Size(), "");
    MFEM_VERIFY(dim * n == nodes2D.Size(), "");
 
    Array<int> dofs2D;
-   mesh2D.NURBSext->GetPatchDofs(0, dofs2D);
+   mesh2D.NURBSExt()->GetPatchDofs(0, dofs2D);
 
    for (int k = 0; k < dim; ++k)
    {
-      const GridFunction &nodes_k = *cmesh[k].GetNodes();
+      const GridFunction &nodes_k = *cmesh[k]->GetNodes();
 
       for (int j = 0; j < ncp[1]; ++j)
       {
@@ -631,8 +638,7 @@ void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
    }
 
    // Make mesh2D into a surface mesh with nodes given by nodes2D
-   mesh2D.NewNodes(nodes2D);
-
+   mesh2D.NewNodes(nodes2D, true);
    ofstream mesh_ofs(basename + ".mesh");
    mesh_ofs.precision(8);
    mesh2D.Print(mesh_ofs);

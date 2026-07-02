@@ -48,7 +48,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    fec_ = fec_ ? fec_ : orig.fec;
 
    NURBSExtension *nurbs_ext = NULL;
-   if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
+   if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSExt())
    {
 #ifdef MFEM_USE_MPI
       ParNURBSExtension *pNURBSext =
@@ -66,6 +66,16 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
 }
+
+FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
+                                       Mesh *mesh, NURBSExtension *ext,
+                                       const FiniteElementCollection *fec_)
+{
+   fec_ = fec_ ? fec_ : orig.fec;
+
+   Constructor(mesh, ext, fec_, orig.vdim, orig.ordering);
+}
+
 
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        const FiniteElementCollection *fec,
@@ -2552,11 +2562,11 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
 
    if (nurbs_fec)
    {
-      MFEM_VERIFY(mesh_->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
       if (NURBSext_ == NULL)
       {
-         NURBSext = mesh_->NURBSext;
+         MFEM_VERIFY(mesh_->NURBSExt(), "NURBS FE space requires a NURBS mesh.");
+         NURBSext = mesh_->NURBSExt();
          own_ext = 0;
       }
       else
@@ -2638,6 +2648,18 @@ NURBSExtension *FiniteElementSpace::StealNURBSext()
    own_ext = 0;
 
    return NURBSext;
+}
+
+void FiniteElementSpace::OwnNURBSext(NURBSExtension *ext)
+{
+   MFEM_VERIFY(!own_ext, "FESpace already owns the NURBSExtension");
+
+   if (ext)
+   {
+      MFEM_VERIFY(ext == NURBSext, "Different NURBSExtensions!");
+   }
+
+   own_ext = 1;
 }
 
 void FiniteElementSpace::UpdateNURBS()
@@ -4426,7 +4448,7 @@ void FiniteElementSpace::Save(std::ostream &os) const
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);
       if ((NURBSext->GetOrder() == NURBSFECollection::VariableOrder) ||
-          (NURBSext != mesh->NURBSext && !nurbs_unit_weights) ||
+          (NURBSext != mesh->NURBSExt() && !nurbs_unit_weights) ||
           (NURBSext->GetMaster().Size() != 0 ))
       {
          fes_format = 100; // v1.0 format
@@ -4445,7 +4467,7 @@ void FiniteElementSpace::Save(std::ostream &os) const
       {
          // TODO: this is a variable-order FE space --> write 'element_orders'.
       }
-      else if (NURBSext != mesh->NURBSext)
+      else if (NURBSext != mesh->NURBSExt())
       {
          if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
          {
@@ -4529,6 +4551,19 @@ void FiniteElementSpace
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {
+   return Load(m, NULL, input);
+}
+
+FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, NURBSExtension *ext,
+                                                  std::istream &input)
+{
+   if (m->IsNURBS() & (ext != NULL) )
+   {
+      MFEM_VERIFY(m->NURBSExt() == ext,
+                  "FiniteElementSpace::Load() Extension provided and Mesh has its own NURBS extension!!");
+   }
+   if (m->NURBSExt()) { ext = m->NURBSExt(); }
+
    string buff;
    int fes_format = 0, ord;
    FiniteElementCollection *r_fec;
@@ -4558,12 +4593,16 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    {
       if (nurbs_fec)
       {
-         MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
+         MFEM_VERIFY(ext, "NURBS FE collection requires a NURBS mesh!");
          const int order = nurbs_fec->GetOrder();
-         if (order != m->NURBSext->GetOrder() &&
+         if (order != ext->GetOrder() &&
              order != NURBSFECollection::VariableOrder)
          {
-            nurbs_ext = new NURBSExtension(m->NURBSext, order);
+            nurbs_ext = new NURBSExtension(ext, order);
+         }
+         else
+         {
+            nurbs_ext = ext;
          }
       }
    }
@@ -4579,23 +4618,25 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          {
             MFEM_VERIFY(nurbs_fec,
                         buff << ": NURBS FE collection is required!");
-            MFEM_VERIFY(m->NURBSext, buff << ": NURBS mesh is required!");
+            MFEM_VERIFY(ext, buff << ": NURBS mesh is required!");
             MFEM_VERIFY(!nurbs_ext, buff << ": order redefinition!");
             if (buff == "NURBS_order")
             {
                int order;
                input >> order;
-               nurbs_ext = new NURBSExtension(m->NURBSext, order);
+               nurbs_ext = new NURBSExtension(ext, order);
             }
             else
             {
                Array<int> orders;
-               orders.Load(m->NURBSext->GetNKV(), input);
-               nurbs_ext = new NURBSExtension(m->NURBSext, orders);
+               orders.Load(m->NURBSExt()->GetNKV(), input);
+               nurbs_ext = new NURBSExtension(ext, orders);
             }
          }
          else if (buff == "NURBS_periodic")
          {
+            MFEM_VERIFY(nurbs_ext, "NURBS_weights: NURBS_orders have to be "
+                        "specified before NURBS_weights!");
             Array<int> master, slave;
             master.Load(input);
             slave.Load(input);

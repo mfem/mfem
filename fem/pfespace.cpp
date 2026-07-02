@@ -49,7 +49,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, const FiniteElementSpace *global_fes, const int *partitioning,
    const FiniteElementCollection *f)
    : FiniteElementSpace(pm, MakeLocalNURBSext(global_fes->GetNURBSext(),
-                                              pm->NURBSext),
+                                              pm->NURBSExt()),
                         f ? f : global_fes->FEColl(),
                         global_fes->GetVDim(), global_fes->GetOrdering())
 {
@@ -116,7 +116,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       MFEM_ASSERT(own_ext, "internal error");
 
       ParNURBSExtension *pNe = new ParNURBSExtension(
-         NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+         NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSExt()));
       // serial NURBSext is destroyed by the above constructor
       NURBSext = pNe;
       UpdateNURBS();

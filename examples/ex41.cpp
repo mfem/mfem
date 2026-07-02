@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++) {mesh.UniformRefinement();}
-   if (mesh.NURBSext) {mesh.SetCurvature(max(order, 1));}
+   if (mesh.IsNURBS()) {mesh.SetCurvature(max(order, 1));}
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given

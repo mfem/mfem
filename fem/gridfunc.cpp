@@ -37,14 +37,27 @@ namespace mfem
 
 using namespace std;
 
+
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
+{
+   InitFromStream(m, NULL, input);
+}
+
+GridFunction::GridFunction(Mesh *m, NURBSExtension *ext, std::istream &input)
+   : Vector()
+{
+   InitFromStream(m, ext, input);
+}
+
+void GridFunction::InitFromStream(Mesh *m, NURBSExtension *ext,
+                                  std::istream &input)
 {
    // Grid functions are stored on the device
    UseDevice(true);
 
    fes = new FiniteElementSpace;
-   fec_owned = fes->Load(m, input);
+   fec_owned = fes->Load(m, ext, input);
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -80,6 +93,18 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 {
+   InitFromGFArray(m, NULL, gf_array, num_pieces);
+}
+
+GridFunction::GridFunction(Mesh *m, NURBSExtension *ext,
+                           GridFunction *gf_array[], int num_pieces)
+{
+   InitFromGFArray(m, ext, gf_array, num_pieces);
+}
+
+void GridFunction::InitFromGFArray(Mesh *m, NURBSExtension *ext,
+                                   GridFunction *gf_array[], int num_pieces)
+{
    UseDevice(true);
 
    // all GridFunctions must have the same FE collection, vdim, ordering
@@ -89,12 +114,12 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
-   fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
+   fes = new FiniteElementSpace(m, ext, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
-   if (m->NURBSext)
+   if (ext)
    {
-      m->NURBSext->MergeGridFunctions(gf_array, num_pieces, *this);
+      ext->MergeGridFunctions(gf_array, num_pieces, *this);
       return;
    }
 
