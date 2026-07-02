@@ -17,6 +17,10 @@
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
+#include <map>
+#include <set>
+#include <vector>
+
 namespace mfem
 {
 
@@ -65,18 +69,36 @@ protected:
    /// Set of Internal Face Integrators to be applied.
    Array<LinearFormIntegrator*> interior_face_integs;
 
-   /// The element ids where the centers of the delta functions lie
-   Array<int> domain_delta_integs_elem_id;
+   /// Element ids containing each domain delta integrator center.
+   std::vector<std::set<int>> domain_delta_integs_elems;
 
-   /// The reference coordinates where the centers of the delta functions lie
-   Array<IntegrationPoint> domain_delta_integs_ip;
+   /// Reference points for #domain_delta_integs_elems, keyed by element id.
+   std::vector<std::map<int, IntegrationPoint>> domain_delta_integs_ips;
+
+   /// Number of elements sharing each delta center.
+   Array<int> domain_delta_integs_count;
 
    /// If true, the delta locations are not (re)computed during assembly.
    bool HaveDeltaLocations()
-   { return (domain_delta_integs_elem_id.Size() != 0); }
+   { return !domain_delta_integs_elems.empty(); }
 
    /// Force (re)computation of delta locations.
-   void ResetDeltaLocations() { domain_delta_integs_elem_id.SetSize(0); }
+   void ResetDeltaLocations()
+   {
+      domain_delta_integs_elems.clear();
+      domain_delta_integs_ips.clear();
+      domain_delta_integs_count.SetSize(0);
+   }
+
+   /// Locate an element containing each delta center, returning the element
+   /// ids and reference points (-1 where a center is not found). The base
+   /// performs a geometric point search over the form's mesh.
+   virtual void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                                 Array<IntegrationPoint> &ips);
+
+   /// Compute containing elements, reference points, and split counts for all
+   /// domain delta integrators.
+   void ComputeDeltaLocations();
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -205,8 +227,9 @@ public:
    /// Return true if assembly on device is supported, false otherwise.
    virtual bool SupportsDevice() const;
 
-   /// Assembles delta functions of the linear form
-   void AssembleDelta();
+   /// Assembles delta functions of the linear form. A delta on a shared mesh
+   /// entity is split uniformly over the elements containing its center.
+   virtual void AssembleDelta();
 
    /// Update the object according to the associated FE space #fes.
    /** This method should be called when the associated FE space #fes has been
