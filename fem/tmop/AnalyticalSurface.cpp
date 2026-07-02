@@ -163,6 +163,18 @@ void Analytic2DCurve::Deriv_2(const double *param, DenseTensor &deriv) const
    deriv(1, 0, 0) = dy_dtdt(param[0]);
 }
 
+void Analytic2DCurve::NormalVector(const double *param, double *normal) const
+{
+   double offset, t;
+   t_of_xy(param[0], param[1], offset, t);
+
+   normal[0] = -dy_dt(t);
+   normal[1] =  dx_dt(t);
+   const double mag = sqrt(normal[0] * normal[0] + normal[1] * normal[1]);
+   normal[0] /= mag;
+   normal[1] /= mag;
+}
+
 void Analytic3DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
                                               Vector &coord_t)
 {
@@ -234,6 +246,54 @@ void Analytic3DCurve::Deriv_2(const double *param, DenseTensor &deriv) const
    deriv(0, 0, 0) = dx_dtdt(param[0]);
    deriv(1, 0, 0) = dy_dtdt(param[0]);
    deriv(2, 0, 0) = dz_dtdt(param[0]);
+}
+
+void Analytic3DCurve::NormalVector(const double *param, double *normal) const
+{
+   double dist1, dist2, t;
+   t_of_xyz(param[0], param[1], param[2], dist1, dist2, t);
+
+   const double tx = dx_dt(t);
+   const double ty = dy_dt(t);
+   const double tz = dz_dt(t);
+   const double tnorm2 = tx * tx + ty * ty + tz * tz;
+   MFEM_VERIFY(tnorm2 > 0.0, "Degenerate tangent vector.");
+
+   const double ax = dx_dtdt(t);
+   const double ay = dy_dtdt(t);
+   const double az = dz_dtdt(t);
+   const double scale = (ax * tx + ay * ty + az * tz) / tnorm2;
+
+   normal[0] = ax - scale * tx;
+   normal[1] = ay - scale * ty;
+   normal[2] = az - scale * tz;
+
+   double nnorm2 = normal[0] * normal[0] +
+                   normal[1] * normal[1] +
+                   normal[2] * normal[2];
+
+   if (nnorm2 <= 0.0)
+   {
+      // Straight curves do not have a unique principal normal, so choose a
+      // stable unit vector orthogonal to the tangent.
+      const double rx = (std::abs(tx) <= std::abs(ty) &&
+                         std::abs(tx) <= std::abs(tz)) ? 1.0 : 0.0;
+      const double ry = (std::abs(ty) <  std::abs(tx) &&
+                         std::abs(ty) <= std::abs(tz)) ? 1.0 : 0.0;
+      const double rz = (rx == 0.0 && ry == 0.0) ? 1.0 : 0.0;
+
+      normal[0] = ty * rz - tz * ry;
+      normal[1] = tz * rx - tx * rz;
+      normal[2] = tx * ry - ty * rx;
+      nnorm2 = normal[0] * normal[0] +
+               normal[1] * normal[1] +
+               normal[2] * normal[2];
+   }
+
+   const double inv_nnorm = 1.0 / sqrt(nnorm2);
+   normal[0] *= inv_nnorm;
+   normal[1] *= inv_nnorm;
+   normal[2] *= inv_nnorm;
 }
 
 void Analytic3DSurface::ConvertPhysCoordToParam(const Vector &coord_x,
@@ -320,16 +380,30 @@ void Analytic3DSurface::Deriv_2(const double *param, DenseTensor &deriv) const
    deriv(2, 1, 1) = dz_dvdv(param[0], param[1]);
 }
 
-void Analytic2DCurve::NormalVector(const double *param, double *normal) const
+void Analytic3DSurface::NormalVector(const double *param, double *normal) const
 {
-   double offset, t;
-   t_of_xy(param[0], param[1], offset, t);
+   double dist, u, v;
+   uv_of_xyz(param[0], param[1], param[2], dist, u, v);
 
-   normal[0] = -dy_dt(t);
-   normal[1] =  dx_dt(t);
-   const double mag = sqrt(normal[0] * normal[0] + normal[1] * normal[1]);
+   const double xu = dx_du(u, v);
+   const double yu = dy_du(u, v);
+   const double zu = dz_du(u, v);
+   const double xv = dx_dv(u, v);
+   const double yv = dy_dv(u, v);
+   const double zv = dz_dv(u, v);
+
+   normal[0] = yu * zv - zu * yv;
+   normal[1] = zu * xv - xu * zv;
+   normal[2] = xu * yv - yu * xv;
+
+   const double mag = sqrt(normal[0] * normal[0] +
+                           normal[1] * normal[1] +
+                           normal[2] * normal[2]);
+   MFEM_VERIFY(mag > 0.0, "Degenerate surface normal.");
+
    normal[0] /= mag;
    normal[1] /= mag;
+   normal[2] /= mag;
 }
 
 } // namespace mfem

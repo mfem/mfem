@@ -76,7 +76,7 @@ public:
 
    // 2D curve: (x, y)    -> (n_x, n_y).
    // 3D curve: (x, y, z) -> (n_x, n_y, n_z).
-   // 3D surf:  error out.
+   // 3D surf:  (x, y, z) -> (n_x, n_y, n_z).
    virtual void NormalVector(const double *param, double *normal) const = 0;
 };
 
@@ -196,6 +196,8 @@ public:
    // t -> (dx_dtdt, dy_dtdt, dz_dtdt).
    void Deriv_2(const double *param, DenseTensor &deriv) const override;
 
+   void NormalVector(const double *param, double *normal) const override;
+
    virtual void t_of_xyz(double x, double y, double z,
                          double &dist1, double &dist2, double &t) const = 0;
    virtual void xyz_of_t(double t, double dist1, double dist2,
@@ -240,6 +242,8 @@ public:
    //           dy_dudu, dy_dudv,    dy_dudv, dy_dvdv,
    //           dz_dudu, dz_dudv),   dz_dudv, dz_dvdv)
    void Deriv_2(const double *param, DenseTensor &deriv) const override;
+
+   void NormalVector(const double *param, double *normal) const override;
 
    virtual void uv_of_xyz(double x, double y, double z,
                           double &dist, double &u, double &v) const = 0;
