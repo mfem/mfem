@@ -87,6 +87,10 @@ Miscellaneous
   method will return immediately if no sign flips are needed.
 
 
+- Added support for (Par)MixedBilinearForm assembly over test and trial FE spaces 
+  where one is defined on a (Par)SubMesh of the other FE space's mesh.
+
+
 Version 4.9, released on Dec 11, 2025
 =====================================
 
