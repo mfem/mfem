@@ -176,8 +176,145 @@ void SmemPAVectorMassApply3D(const int NE,
    });
 }
 
+template <int T_Q1D = 0, int T_MDQ = 16>
+static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
+                                               const int d1d,
+                                               const int q1d,
+                                               const real_t *b_r,
+                                               const real_t *d_r,
+                                               real_t *y_rw)
+{
+   constexpr int VDIM = 2;
+
+   const int D1D = d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(Q1D <= T_MDQ && D1D <= Q1D, "");
+
+   const auto B = Reshape(b_r, Q1D, D1D);
+   const auto D = Reshape(d_r, Q1D, Q1D, ne);
+   auto Y = Reshape(y_rw, D1D, D1D, VDIM, ne);
+
+   mfem::forall_2D<T_Q1D*T_Q1D>(
+      ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+
+      MFEM_SHARED real_t sm[MQ1][MQ1];
+
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            real_t u = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
+            }
+            sm[qx][dy] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            real_t u = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               u += B(qx, dx) * B(qx, dx) * sm[qx][dy];
+            }
+            Y(dx, dy, 0, e) = u;
+            Y(dx, dy, 1, e) = u;
+         }
+      }
+   });
+}
+
+template <int T_Q1D = 0, int T_MDQ = 12>
+static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
+                                               const int d1d,
+                                               const int q1d,
+                                               const real_t *b_r,
+                                               const real_t *d_r,
+                                               real_t *y_rw)
+{
+   constexpr int VDIM = 3;
+
+   const int D1D = d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(Q1D <= T_MDQ && D1D <= Q1D, "");
+
+   const auto B = Reshape(b_r, Q1D, D1D);
+   const auto D = Reshape(d_r, Q1D, Q1D, Q1D, ne);
+   auto Y = Reshape(y_rw, D1D, D1D, D1D, VDIM, ne);
+
+   mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(
+      ne, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MDQ;
+
+      MFEM_SHARED real_t sm[2][MQ1][MQ1][MQ1];
+
+      MFEM_FOREACH_THREAD_DIRECT(dz, z, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               real_t u = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u += B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
+               }
+               sm[0][dz][qy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dz, z, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               real_t u = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += B(qy, dy) * B(qy, dy) * sm[0][dz][qy][qx];
+               }
+               sm[1][dz][dy][qx] = u;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dz, z, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+            {
+               real_t u = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += B(qx, dx) * B(qx, dx) * sm[1][dz][dy][qx];
+               }
+               Y(dx, dy, dz, 0, e) = u;
+               Y(dx, dy, dz, 1, e) = u;
+               Y(dx, dy, dz, 2, e) = u;
+            }
+         }
+      }
+   });
+}
+
 } // namespace internal
 
+// AddMultPA kernels
 template<int DIM, int T_D1D, int T_Q1D>
 VectorMassIntegrator::VectorMassAddMultPAType
 VectorMassIntegrator::VectorMassAddMultPA::Kernel()
@@ -190,11 +327,11 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
    {
       return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
    }
-   MFEM_ABORT("Unsupported kernel");
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
 
 inline VectorMassIntegrator::VectorMassAddMultPAType
-VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int d1d, int q1d)
+VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
 {
    if (dim == 2)
    {
@@ -203,6 +340,36 @@ VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int d1d, int q1d)
    else if (dim == 3)
    {
       return internal::SmemPAVectorMassApply3D;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+// DiagonalPA kernels
+template<int DIM, int T_Q1D>
+VectorMassIntegrator::VectorMassAssembleDiagonalPAType
+VectorMassIntegrator::VectorMassAssembleDiagonalPA::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::SmemPAVectorMassAssembleDiagonal2D<T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::SmemPAVectorMassAssembleDiagonal3D<T_Q1D>;
+   }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+inline VectorMassIntegrator::VectorMassAssembleDiagonalPAType
+VectorMassIntegrator::VectorMassAssembleDiagonalPA::Fallback(int dim, int)
+{
+   if (dim == 2)
+   {
+      return internal::SmemPAVectorMassAssembleDiagonal2D;
+   }
+   else if (dim == 3)
+   {
+      return internal::SmemPAVectorMassAssembleDiagonal3D;
    }
    else { MFEM_ABORT("Unsupported kernel"); }
 }
