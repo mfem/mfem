@@ -6,8 +6,10 @@ ElastTopOpt_maxlen
 ElastTopOpt_maxthick
 ElastTopOpt_adv
 ElastTopOpt_transient
+ElastTopOpt_static
 ForwardElastodynamics
 elasticity_topopt_par
+test_adjoint_verification
 
 # Outputs
 ParaView/
@@ -38,3 +40,6 @@ gmsh-4.11.1-Linux64/
 # SLURM stuff
 *.err
 *.out
+
+# Optimization logs
+topopt_transient/optimization_history.txt

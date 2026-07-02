@@ -27,6 +27,8 @@
 #include "../../pde_filter.hpp"
 #include <memory>
 #include <vector>
+#include <iomanip>
+#include <iostream>
 
 namespace mfem
 {
@@ -257,6 +259,15 @@ struct ForwardTrajectoryStorage
 };
 
 // =============================================================================
+// MASS SOLVER STRATEGIES
+// =============================================================================
+enum class MassSolverType
+{
+   LUMPED,     // Diagonal (row-sum) mass matrix, optimal for explicit RK4
+   ITERATIVE   // CG + AMG, for verification/comparison
+};
+
+// =============================================================================
 // ELASTODYNAMICS OPERATOR (Forward and Adjoint)
 // =============================================================================
 // Implements both forward and adjoint elastodynamics operators.
@@ -272,6 +283,14 @@ private:
    ParFiniteElementSpace &fespace;
    ParBilinearForm *M, *K, *C_vol, *C_abs;
    HypreParMatrix *Mmat, *Kmat, *Cvol_mat, *Cabs_mat;
+
+   // Mass solver strategy
+   MassSolverType mass_solver_type;
+
+   // Lumped mass inverse (diagonal vector)
+   Vector M_lumped_inv;
+
+   // Iterative solver (CG + AMG) - only used if mass_solver_type == ITERATIVE
    HypreBoomerAMG *M_prec;
    CGSolver *M_solver;
 
@@ -285,7 +304,9 @@ private:
    mutable Vector res;
    mutable Vector tmp;
 
-   mutable Vector load_params;    // [duration, amplitude]
+   // Precomputed load vector (optimization B)
+   Vector load_base_vector;
+   real_t load_duration, load_amplitude;
    Array<int> load_bdr_markers;
 
    // Trajectory storage for adjoint
@@ -306,6 +327,7 @@ public:
       real_t impedance,
       Array<int> &exterior_bdr_attr,
       Array<int> &ess_bdr_attr,
+      MassSolverType mass_type = MassSolverType::LUMPED,
       ForwardTrajectoryStorage *traj = nullptr,
       TimeIntegratedObjective *obj = nullptr);
 
@@ -336,8 +358,19 @@ public:
    void MultInvMass(const Vector &rhs, Vector &sol) const
    {
       sol.SetSize(true_size);
-      sol = 0.0;
-      M_solver->Mult(rhs, sol);
+      if (mass_solver_type == MassSolverType::LUMPED)
+      {
+         // Diagonal solve: sol[i] = M_lumped_inv[i] * rhs[i]
+         for (int i = 0; i < true_size; i++)
+         {
+            sol[i] = M_lumped_inv[i] * rhs[i];
+         }
+      }
+      else // ITERATIVE
+      {
+         sol = 0.0;
+         M_solver->Mult(rhs, sol);
+      }
    }
 
    void SetTrajectory(ForwardTrajectoryStorage *traj) { trajectory = traj; }
@@ -421,16 +454,22 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    real_t impedance,
    Array<int> &exterior_bdr_attr,
    Array<int> &ess_bdr_attr,
+   MassSolverType mass_type,
    ForwardTrajectoryStorage *traj,
    TimeIntegratedObjective *obj)
    : TimeDependentOperator(2 * f.GetTrueVSize(), 0.0),
      fespace(f),
+     mass_solver_type(mass_type),
+     M_prec(nullptr),
+     M_solver(nullptr),
      u_gf(&fespace),
      v_gf(&fespace),
      true_size(f.GetTrueVSize()),
      res(true_size),
      tmp(true_size),
-     load_params(2),
+     load_base_vector(true_size),
+     load_duration(duration),
+     load_amplitude(amplitude),
      trajectory(traj),
      objective(obj),
      current_adjoint_step(-1)
@@ -447,9 +486,7 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    v_gf = 0.0;
    res = 0.0;
    tmp = 0.0;
-
-   load_params(0) = duration;
-   load_params(1) = amplitude;
+   load_base_vector = 0.0;
 
    fespace.GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);
 
@@ -458,6 +495,9 @@ ElastodynamicsOperator::ElastodynamicsOperator(
       std::cout << "\n=== Elastodynamics Operator ===" << std::endl;
       std::cout << "DOFs per field: " << true_size << std::endl;
       std::cout << "Essential DOFs: " << ess_tdof_list.Size() << std::endl;
+      std::cout << "Mass solver: "
+                << (mass_solver_type == MassSolverType::LUMPED ? "LUMPED" : "ITERATIVE")
+                << std::endl;
    }
 
    // Assemble design-dependent mass matrix: M(ρ)
@@ -503,17 +543,55 @@ ElastodynamicsOperator::ElastodynamicsOperator(
       std::cout << "  ABC NNZ:       " << cabs_nnz << std::endl;
    }
 
-   // Set up mass matrix solver
-   M_prec = new HypreBoomerAMG(*Mmat);
-   M_prec->SetPrintLevel(0);
+   // Set up mass matrix solver based on selected strategy
+   if (mass_solver_type == MassSolverType::LUMPED)
+   {
+      // Compute lumped (row-sum) mass matrix: M_lumped = M * ones
+      M_lumped_inv.SetSize(true_size);
+      Vector ones(true_size);
+      ones = 1.0;
+      Mmat->Mult(ones, M_lumped_inv);
 
-   M_solver = new CGSolver(fespace.GetComm());
-   M_solver->SetPreconditioner(*M_prec);
-   M_solver->SetOperator(*Mmat);
-   M_solver->SetRelTol(1e-12);
-   M_solver->SetAbsTol(0.0);
-   M_solver->SetMaxIter(100);
-   M_solver->SetPrintLevel(0);
+      // Check for near-zero entries (shouldn't happen for proper mass matrix)
+      real_t min_mass = M_lumped_inv.Min();
+      if (min_mass < 1e-14)
+      {
+         if (myid == 0)
+         {
+            std::cerr << "Warning: lumped mass has near-zero entries (min="
+                      << min_mass << "). Using max(m, 1e-14)." << std::endl;
+         }
+         for (int i = 0; i < true_size; i++)
+         {
+            M_lumped_inv[i] = std::max(M_lumped_inv[i], 1e-14);
+         }
+      }
+
+      // Invert: M_lumped_inv[i] = 1 / M_lumped[i]
+      for (int i = 0; i < true_size; i++)
+      {
+         M_lumped_inv[i] = 1.0 / M_lumped_inv[i];
+      }
+
+      if (myid == 0)
+      {
+         std::cout << "Lumped mass range: [" << M_lumped_inv.Max()
+                   << ", " << M_lumped_inv.Min() << "]^{-1}" << std::endl;
+      }
+   }
+   else // ITERATIVE
+   {
+      M_prec = new HypreBoomerAMG(*Mmat);
+      M_prec->SetPrintLevel(0);
+
+      M_solver = new CGSolver(fespace.GetComm());
+      M_solver->SetPreconditioner(*M_prec);
+      M_solver->SetOperator(*Mmat);
+      M_solver->SetRelTol(1e-12);
+      M_solver->SetAbsTol(0.0);
+      M_solver->SetMaxIter(100);
+      M_solver->SetPrintLevel(0);
+   }
 
    // Set up boundary markers for loading
    ParMesh *pmesh = fespace.GetParMesh();
@@ -530,12 +608,35 @@ ElastodynamicsOperator::ElastodynamicsOperator(
       }
    }
 
+   // Precompute base load vector (optimization B)
+   // The time-varying load is: load(t) = load_base_vector * gauss(t)
+   // This eliminates boundary assembly from the inner loop
+   class UnitLoad : public VectorCoefficient
+   {
+   public:
+      UnitLoad(int dim) : VectorCoefficient(dim) {}
+      void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
+      {
+         V.SetSize(vdim);
+         V = 0.0;
+         V(1) = -1.0;  // Unit downward traction
+      }
+   };
+
+   UnitLoad unit_load_coef(pmesh->SpaceDimension());
+   ParLinearForm load_form(&fespace);
+   load_form.AddBoundaryIntegrator(
+      new VectorBoundaryLFIntegrator(unit_load_coef), load_bdr_markers);
+   load_form.Assemble();
+   load_form.ParallelAssemble(load_base_vector);
+
    if (myid == 0)
    {
       std::cout << "\nTime-dependent loading:" << std::endl;
       std::cout << "  Type: Smooth Gaussian pulse" << std::endl;
       std::cout << "  Peak amplitude: " << amplitude << std::endl;
       std::cout << "  Duration: " << duration << " s" << std::endl;
+      std::cout << "  Base load norm: " << load_base_vector.Norml2() << std::endl;
       std::cout << "====================================\n" << std::endl;
    }
 }
@@ -571,59 +672,18 @@ void ElastodynamicsOperator::Mult(const Vector &x, Vector &y) const
    Cabs_mat->Mult(v_true, tmp);
    res.Add(-1.0, tmp);
 
-   // Time-dependent applied load
-   real_t duration = load_params(0);
-   real_t amplitude = load_params(1);
-
-   real_t t_center = duration / 2.0;
-   real_t sigma = duration / 4.0;
+   // Time-dependent applied load (optimization B: precomputed base vector)
+   real_t t_center = load_duration / 2.0;
+   real_t sigma = load_duration / 4.0;
    real_t t_diff = time - t_center;
    real_t gauss_factor = exp(-t_diff * t_diff / (2.0 * sigma * sigma));
-   real_t current_amplitude = amplitude * gauss_factor;
+   real_t current_amplitude = load_amplitude * gauss_factor;
 
-   class GaussianLoad : public VectorCoefficient
-   {
-   private:
-      real_t amp;
-   public:
-      GaussianLoad(int dim, real_t a) : VectorCoefficient(dim), amp(a) {}
-      void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
-      {
-         V.SetSize(vdim);
-         V = 0.0;
-         V(1) = -amp;
-      }
-   };
+   // Scale precomputed load: res += current_amplitude * load_base_vector
+   res.Add(current_amplitude, load_base_vector);
 
-   GaussianLoad load_coef(fespace.GetParMesh()->SpaceDimension(), current_amplitude);
-
-   ParLinearForm load_form(&fespace);
-   load_form.AddBoundaryIntegrator(
-      new VectorBoundaryLFIntegrator(load_coef),
-      const_cast<Array<int>&>(load_bdr_markers));
-   load_form.Assemble();
-
-   Vector load_vec(true_size);
-   load_form.ParallelAssemble(load_vec);
-
-   res.Add(1.0, load_vec);
-
-   // Solve M v̇ = res
-   real_t local_res_norm_sq = res * res;
-   real_t global_res_norm_sq;
-   MPI_Allreduce(&local_res_norm_sq, &global_res_norm_sq, 1,
-                 MPI_DOUBLE, MPI_SUM, fespace.GetComm());
-   real_t global_res_norm = sqrt(global_res_norm_sq);
-
-   if (global_res_norm < 1e-14)
-   {
-      by.GetBlock(1) = 0.0;
-   }
-   else
-   {
-      by.GetBlock(1) = 0.0;
-      M_solver->Mult(res, by.GetBlock(1));
-   }
+   // Solve M v̇ = res (optimization C: removed allreduce guard)
+   MultInvMass(res, by.GetBlock(1));
 }
 
 void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
@@ -1096,12 +1156,18 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
                                const Vector &x_init,
                                int nsteps, real_t t_init, real_t h,
                                std::vector<Vector> *states,
-                               std::vector<real_t> *times)
+                               std::vector<real_t> *times,
+                               const char *progress_label = nullptr)
 {
    const int n = x_init.Size();
    Vector x(x_init);
    real_t t = t_init;
    const int total_steps = nsteps + 1;
+
+   // Progress monitoring (rank 0 only, throttled to ~10 lines per sweep).
+   const bool report = (progress_label != nullptr) && (Mpi::WorldRank() == 0);
+   const double phase_t0 = MPI_Wtime();
+   const int report_every = std::max(1, nsteps / 10);
 
    objective.Reset();
 
@@ -1133,6 +1199,15 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
       if (states) { (*states)[i + 1] = x; }
       if (times)  { (*times)[i + 1] = t; }
+
+      if (report && ((i + 1) % report_every == 0 || i + 1 == nsteps))
+      {
+         std::cout << "      " << progress_label << ' '
+                   << std::setw(6) << (i + 1) << '/' << nsteps
+                   << "  (" << std::setw(3) << (100 * (i + 1) / nsteps) << "%)"
+                   << "   " << std::fixed << std::setprecision(2)
+                   << (MPI_Wtime() - phase_t0) << " s\n";
+      }
    }
 
    return objective.GetObjective();
@@ -1154,7 +1229,8 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
                                       real_t pulse_duration,
                                       real_t impedance,
                                       int nsteps,
-                                      real_t h)
+                                      real_t h,
+                                      MassSolverType mass_type = MassSolverType::LUMPED)
 {
    rho.SetFromTrueDofs(rho_tv);
    filter.Mult(rho, rho_tilde);
@@ -1173,7 +1249,8 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
       pulse_amplitude, pulse_duration,
-      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
+      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
+      mass_type);
 
    TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
                                      state_fes.GetComm());
@@ -1188,6 +1265,7 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
                                              ParFiniteElementSpace &state_fes,
                                              ParFiniteElementSpace &filter_fes,
                                              ParFiniteElementSpace &control_fes,
+                                             MassSolverType mass_type,
                                              ParGridFunction &rho,
                                              ParGridFunction &rho_tilde,
                                              toopt::PDEFilter &filter,
@@ -1201,8 +1279,11 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
                                              real_t impedance,
                                              int nsteps,
                                              real_t h,
-                                             Vector &dJ_drho)
+                                             Vector &dJ_drho,
+                                             int outer_it = -1)
 {
+   const int myid = Mpi::WorldRank();
+
    rho.SetFromTrueDofs(rho_tv);
    filter.Mult(rho, rho_tilde);
 
@@ -1220,16 +1301,23 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
       pulse_amplitude, pulse_duration,
-      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
+      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
+      mass_type);
 
    TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
                                      state_fes.GetComm());
+
+   if (myid == 0)
+   {
+      std::cout << "    [it " << outer_it + 1 << "] forward sweep ("
+                << nsteps << " steps)\n";
+   }
 
    std::vector<Vector> states;
    std::vector<real_t> times;
    const real_t J = RolloutObjective(oper, state_fes, oper.GetBlockOffsets(),
                                      objective, x0, nsteps, 0.0, h,
-                                     &states, &times);
+                                     &states, &times, "forward");
 
    const int n = x0.Size();
    const int total_steps = nsteps + 1;
@@ -1240,6 +1328,14 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
    Vector q(n), lambda(n), lambda_prev(n);
    ObjectiveGradientAtState(state_fes, oper.GetBlockOffsets(), objective,
                             states[nsteps], h, nsteps, total_steps, lambda);
+
+   if (myid == 0)
+   {
+      std::cout << "    [it " << outer_it + 1 << "] adjoint sweep ("
+                << nsteps << " steps)\n";
+   }
+   const double adj_t0 = MPI_Wtime();
+   const int adj_report_every = std::max(1, nsteps / 10);
 
    for (int i = nsteps - 1; i >= 0; i--)
    {
@@ -1252,6 +1348,15 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
                                states[i], h, i, total_steps, q);
       lambda = lambda_prev;
       lambda += q;
+
+      const int done = nsteps - i;
+      if (myid == 0 && (done % adj_report_every == 0 || done == nsteps))
+      {
+         std::cout << "      adjoint " << std::setw(6) << done << '/' << nsteps
+                   << "  (" << std::setw(3) << (100 * done / nsteps) << "%)"
+                   << "   " << std::fixed << std::setprecision(2)
+                   << (MPI_Wtime() - adj_t0) << " s\n";
+      }
    }
 
    filter.MultTranspose(dJ_drho_tilde, dJ_drho);

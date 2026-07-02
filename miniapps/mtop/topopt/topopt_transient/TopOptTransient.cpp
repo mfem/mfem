@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
    real_t move = 0.2;
    real_t change_tol = 1e-3;
    bool paraview = false;
+   bool use_iterative_mass = false;
    const char *mesh_file = "lamb-problem-damping-mesh-triangs.msh";
    const char *design_init = "uniform";
 
@@ -150,6 +151,9 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-mesh", "--mesh-file", "Mesh file");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Write ParaView output");
+   args.AddOption(&use_iterative_mass, "-iterative-mass", "--iterative-mass",
+                  "-lumped-mass", "--lumped-mass",
+                  "Use iterative (CG+AMG) mass solver instead of lumped (default: lumped)");
    args.Parse();
 
    if (!args.Good())
@@ -341,6 +345,9 @@ int main(int argc, char *argv[])
    }
 
    // --- Optimization loop ---------------------------------------------------
+   MassSolverType mass_solver = use_iterative_mass ?
+                                MassSolverType::ITERATIVE : MassSolverType::LUMPED;
+
    GridFunctionCoefficient rho_cf(&rho);
    int k = 0;
    real_t iterationError = 1.0;
@@ -349,10 +356,11 @@ int main(int argc, char *argv[])
       // Objective + design gradient (forward sweep + discrete adjoint).
       // On entry this sets rho, rho_tilde from rho_tv.
       const real_t J = DesignObjectiveAdjointGradient(
-         rho_tv, x0, state_fes, filter_fes, control_fes, rho, rho_tilde,
+         rho_tv, x0, state_fes, filter_fes, control_fes, mass_solver,
+         rho, rho_tilde,
          filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
          subdomain_indicator, mat, pulse_amplitude, pulse_duration,
-         impedance, num_steps, dt_eff, dJ_drho);
+         impedance, num_steps, dt_eff, dJ_drho, k);
 
       // Volume constraint and current fraction.
       const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv);

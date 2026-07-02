@@ -39,7 +39,7 @@
 
 #include "mfem.hpp"
 #include "../topopt_maxlen/ElastTopOpt.hpp"
-#include "../topopt_maxlen/QuantityOfInterest.hpp"
+#include "../QuantityOfInterest.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../pde_filter.hpp"
 #include "../../mtop_solvers.hpp"
