@@ -439,10 +439,6 @@ int main(int argc, char *argv[])
    //    this will give a projection without any over and undershoots.
    GridFunction x(fespace);
 
-   VisItDataCollection visit_dc22("Test", mesh);
-   visit_dc22.RegisterField("solution", &x);
-   visit_dc22.Save();
-
    if (homogenousBC)
    {
       x = 0.0;
