@@ -183,13 +183,13 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
       {
          int bw_used;
          MatrixInverse *ainv = bm.Inverse(tol, bw_used);
-         real_t err = bm.TestInverse(ainv);
+         real_t inv_err = bm.TestInverse(ainv);
 
          mfem::out<<std::setw(8)<<tol
                   <<" --> "<<std::setw(3)<<bw_used
                   <<"/"<<std::setw(3)<<bandwidth
-                  <<" : "<<err<<std::endl;
-         REQUIRE(err <tol);
+                  <<" : "<<inv_err<<std::endl;
+         REQUIRE(inv_err <tol);
          delete ainv;
       }
    }
