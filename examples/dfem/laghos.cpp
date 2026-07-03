@@ -409,13 +409,13 @@ matd_t<DIM> qdata_setup(
 
          // Coarses mesh h for the domain.
          const real_t h_coarse = 1.0;
-         real_t dv_scale = 0.5 * h / h_coarse * cs;
+         real_t dv_scale = 5.0 * h / h_coarse * cs;
 
          // Smooth activation switch.
          // Motivation: in compression, delta_v < 0.
          //             in shocks, delta_v starts to be comparable to cs.
          // -> this viscosity becomes noticable when delta_v > dv_scale.
-         const auto psi = softstep7(dv_scale, 0.5 * h0 / h_coarse, -delta_v);
+         const auto psi = softstep7(dv_scale, 0.5, -delta_v);
 
          // Smooths the kink at |delta_v| ~ 0 with correct units scaling.
          // The smoothing becomes active when |delta_v| approaches dv_scale.
@@ -445,14 +445,8 @@ matd_t<DIM> qdata_setup(
    else
    {
       real_t sv = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
-      if (dt_est_method == 1)
-      {
-         if constexpr (DIM == 2)
-         {
-            sv = calcsv(J, DIM-1);
-         }
-      }
-      // out << sv << ", ";
+      if constexpr (DIM == 2) { sv = calcsv(J, DIM-1); }
+
       const real_t hmin = sv / static_cast<real_t>(order_v);
       const real_t ihmin = 1.0 / hmin;
       const real_t irhoihminsq = ihmin * ihmin / rho;
