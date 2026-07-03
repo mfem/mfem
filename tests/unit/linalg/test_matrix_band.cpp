@@ -182,6 +182,7 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
       {
          MatrixInverse *ainv = bm.Inverse(tol);
          BandMatrixInverse *bainv = dynamic_cast< BandMatrixInverse*>(ainv);
+         REQUIRE(bainv != nullptr);
          bainv->Mult(bm, ans);
          ans -= DenseMatrix::Identity(size);
 

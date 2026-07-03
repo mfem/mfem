@@ -200,6 +200,7 @@ public:
    void Solve(const Vector &x, Vector &y) const;
 
    /// Returns a pointer to the matrix inverse.
+   /// Caller gets ownership.
    MatrixInverse *Inverse() const override;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
