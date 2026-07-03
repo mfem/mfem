@@ -605,7 +605,9 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
             // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
             // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
             // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
-            // Gauss-Jacobi rule).
+            // Gauss-Jacobi rule). Additionally, the Bernstein PA algorithms expect evaluation of the
+            // component 1D bases at the Stroud nodes pulled back to the unit square, so perform the pullback
+            // on the fly.
             const real_t x = ir.IntPoint(i).x;
             const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
 
@@ -971,7 +973,9 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
             // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
             // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
             // Gauss-Jacobi rule). The first 'nqpt' points in the third dimension have the same z-coordinates
-            // as those of the 1D rule for the third dimension (i.e. Gauss-Legendre rule)
+            // as those of the 1D rule for the third dimension (i.e. Gauss-Legendre rule). Additionally,
+            // the Bernstein PA algorithms expect evaluation of the component 1D bases at the Stroud nodes
+            // pulled back to the unit cube, so perform the pullback on the fly.
             const real_t x = ir.IntPoint(i).x;
             const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
             const real_t z = ir.IntPoint(nqpt*nqpt*i).z / (1.0 - ir.IntPoint(

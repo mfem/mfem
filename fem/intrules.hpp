@@ -269,6 +269,13 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
+   /** @brief  Returns an integration rule such that the new IntegrationPoints
+    *  are re-ordered based on @a ordering.
+    *
+    *  @details In the new integration rule, ip_new[i] = ip_old[ordering[i]]
+    */
+   IntegrationRule Reorder(const Array<int> &ordering) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
@@ -493,8 +500,6 @@ public:
 class StroudIntegrationRules
 {
 private:
-   int own_rules;
-
    Array<IntegrationRule *> SquareStroudIntRules;
    Array<IntegrationRule *> TriangleStroudIntRules;
    Array<IntegrationRule *> CubeStroudIntRules;
@@ -535,8 +540,6 @@ public:
 
    /// Returns a Stroud integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);
-
-   void SetOwnRules(int o) { own_rules = o; }
 
    /// Destroys an StroudIntegrationRules object
    ~StroudIntegrationRules();

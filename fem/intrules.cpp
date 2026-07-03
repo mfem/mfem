@@ -236,6 +236,23 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
+IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
+{
+   const int np = GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
 IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim)
 {
    IntegrationRule ir_mapped(ir.GetNPoints());
@@ -499,6 +516,18 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
    ir->SetPointIndices();
    ir->SetOrder(2*np - 1);
 
+   if (alpha <= -1.0 || beta <= -1.0)
+   {
+      MFEM_ABORT("Gauss-Jacobi quadrature only defined for alpha > -1 and beta > -1");
+   }
+   // Jacobi weight function is undefined whenever alpha <= -1 or beta <= -1
+
+   if (alpha > 4.0 || beta > 4.0)
+   {
+      MFEM_ABORT("Current Gauss-Jacobi quadrature implementation only tested for alpha <= 4 and beta <= 4");
+   }
+   // current asymptotic expansions for initial guess may perform poorly for large alpha, beta
+
    switch (np)
    {
       case 1:
@@ -512,18 +541,6 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
                                4.0 * w / ((1.0 - x*x) * (alpha + beta + 2) * (alpha + beta + 2)));
          return;
    }
-
-   if (alpha <= -1.0 || beta <= -1.0)
-   {
-      MFEM_ABORT("Gauss-Jacobi quadrature only defined for alpha > -1 and beta > -1");
-   }
-   // Jacobi weight function is undefined whenever alpha <= -1 or beta <= -1
-
-   if (alpha > 4.0 || beta > 4.0)
-   {
-      MFEM_ABORT("Current Gauss-Jacobi quadrature implementation only tested for alpha <= 4 and beta <= 4");
-   }
-   // current asymptotic expansions for initial guess may perform poorly for large alpha, beta
 
 #ifndef MFEM_USE_MPFR
 
@@ -577,7 +594,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
             // this seems to cause trouble if we try std::abs(dz) < 1e-16
 #else
          MFEM_ABORT("Floating point type undefined");
-         if (std::abs(dz) < 1e-16)
+         // if (std::abs(dz) < 1e-16)
 #endif
          {
             done = true;
@@ -597,7 +614,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
 
 #else // MFEM_USE_MPFR is defined
 
-   MFEM_ABORT("MPFR implemented of Gauss-Jacobi quadrature not defined yet")
+   MFEM_ABORT("MPFR implementation of Gauss-Jacobi quadrature not defined yet");
 
 #endif // MFEM_USE_MPFR
 
@@ -2537,8 +2554,6 @@ StroudIntegrationRules StroudIntRules;
 
 StroudIntegrationRules::StroudIntegrationRules()
 {
-   own_rules = 1;
-
    const MemoryType h_mt = MemoryType::HOST;
    SquareStroudIntRules.SetSize(32, h_mt);
    SquareStroudIntRules = NULL;
@@ -2572,6 +2587,8 @@ const IntegrationRule &StroudIntegrationRules::Get(int GeomType, int Order)
       case Geometry::INVALID:
       case Geometry::NUM_GEOMETRIES:
          MFEM_ABORT("Unknown type of reference element!");
+      default:
+         MFEM_ABORT("Stroud rules only valid for triangular and tetrahedral elements!");
    }
 
    if (Order < 0)
@@ -2629,9 +2646,6 @@ StroudIntegrationRules::~StroudIntegrationRules()
       omp_destroy_lock(&IntRuleLocks[i]);
    }
 #endif
-
-   if (!own_rules) { return; }
-
    DeleteIntRuleArray(SquareStroudIntRules);
    DeleteIntRuleArray(TriangleStroudIntRules);
    DeleteIntRuleArray(CubeStroudIntRules);
@@ -2651,6 +2665,8 @@ IntegrationRule *StroudIntegrationRules::GenerateIntegrationRule(int GeomType,
       case Geometry::INVALID:
       case Geometry::NUM_GEOMETRIES:
          MFEM_ABORT("Unknown type of reference element!");
+      default:
+         MFEM_ABORT("Stroud rules only valid for triangular and tetrahedral elements!");
    }
    return NULL;
 }
