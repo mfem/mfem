@@ -40,6 +40,7 @@ env:
   METIS_ARCHIVE_MAC: metis-4.0.3-mac.tgz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
+  MFEM_ACTIONS_VERSION: v2.7
 
 # Note for future improvements:
 #
@@ -170,20 +171,6 @@ jobs:
           env
         shell: bash
 
-      # For info on Xcode see:
-      #  - https://github.com/actions/runner-images/issues/12541
-      #  - https://github.com/actions/runner-images/blob/releases/macos-15-arm64/20250811/images/macos/macos-15-arm64-Readme.md#xcode
-      - name: Xcode version setup (MacOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          XCODE_PATH="/Applications/Xcode_16.4.app"
-          echo "> sudo xcode-select -s ${XCODE_PATH}"
-          sudo xcode-select -s ${XCODE_PATH}
-          echo "> g++ -v"
-          g++ -v
-          echo "> clang++ -v"
-          clang++ -v
-
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
       # action, but I (@adrienbernede) don't see how at the moment.
@@ -228,11 +215,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-${{ env.MFEM_ACTIONS_VERSION }}
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
-        uses: mfem/github-actions/build-hypre@v2.5
+        uses: mfem/github-actions/build-hypre@v2.7
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
@@ -242,7 +229,7 @@ jobs:
 
       - name: get hypre (Windows)
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
-        uses: mfem/github-actions/build-hypre@v2.5
+        uses: mfem/github-actions/build-hypre@v2.7
         with:
           archive: ${{ env.HYPRE_ARCHIVE }}
           dir: ${{ env.HYPRE_TOP_DIR }}
@@ -258,11 +245,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.METIS_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5
+          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ env.MFEM_ACTIONS_VERSION }}
 
       - name: install metis
         if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@v2.5
+        uses: mfem/github-actions/build-metis@v2.7
         with:
           archive: ${{ matrix.os != 'macos-latest' && env.METIS_ARCHIVE || env.METIS_ARCHIVE_MAC }}
           dir: ${{ env.METIS_TOP_DIR }}
@@ -295,7 +282,8 @@ jobs:
           export HOMEBREW_NO_INSTALL_CLEANUP=1
           brew update
           brew install enzyme
-          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required:.*\(llvm[^ ]*\).*/\1/p')
+          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required.*:.*\(llvm[^ ]*\).*/\1/p')
+          echo "ENZYME_LLVM=$ENZYME_LLVM"
           LLVM_PREFIX=$(brew --prefix $ENZYME_LLVM)
           echo "LLVM_PREFIX=$LLVM_PREFIX" >> $GITHUB_ENV
           echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
@@ -303,7 +291,7 @@ jobs:
 
       # MFEM build and test
       - name: build
-        uses: mfem/github-actions/build-mfem@v2.5
+        uses: mfem/github-actions/build-mfem@v2.7
         env:
           VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
         with:
@@ -374,8 +362,10 @@ jobs:
       # Code coverage (process and upload reports)
       - name: codecov
         if: matrix.codecov == 'YES'
-        uses: mfem/github-actions/upload-coverage@v2.5
+        uses: mfem/github-actions/upload-coverage@v2.7
         with:
-          name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+          name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
           project_dir: ${{ env.MFEM_TOP_DIR }}
           directories: "fem general linalg mesh"
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

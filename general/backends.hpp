@@ -37,6 +37,7 @@
 // removed in a future release).
 #define CUB_IGNORE_DEPRECATED_CPP_DIALECT
 #define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
+
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
