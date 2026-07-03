@@ -190,6 +190,7 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
                   <<"/"<<std::setw(3)<<bandwidth
                   <<" : "<<ans.FNorm()<<std::endl;
          REQUIRE(ans.FNorm() <tol);
+         delete ainv;
       }
    }
 }
