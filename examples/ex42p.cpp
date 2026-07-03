@@ -4,27 +4,33 @@
 //
 // Sample runs: mpirun -np 4 ex42p
 //
-// Description: This example code demostrates the use of MFEM to
-//              solve a bound-constrained energy minimization problem
+// Description: This example code demonstrates the use of MFEM to
+//              solve the bound-constrained energy minimization problem
 //
-//                 minimize ||∇u||² subject to u ≥ ϕ on Γ in H¹₀(Ω).
+//              minimize 1/2 [λ (∇·u, ∇·u) + 2μ (ε(u), ε(u))] - (f,u)
+//              subject to          u·ñ ≤ ϕ on Γ,
+//
+//              where ε(u) = (∇u + ∇uᵀ)/2 is the symmetric gradient of
+//              the displacement u, λ and μ are the Lamé parameters,
+//              f is a body force, ϕ is a gap function, and ñ is a
+//              fixed approximation of the contact normal.
 //
 //              This corresponds to a unilateral Signorini-type contact
-//              problem, where the solution u is constrained to lie above
-//              a prescribed obstacle ϕ on the contact boundary Γ.
+//              problem, where the displacement u on the contact boundary
+//              Γ is constrained to not penetrate a rigid obstacle.
 //
 //              The problem is discretized and solved using the proximal
-//              Galerkin finite element method, introduced by Keith and
-//              Surowiec [1].
+//              Galerkin finite element method (see Example 2 of [1]).
 //
 //              This example highlights the use of MFEM's SubMesh and
 //              MixedBilinearForm features to construct a coupled
 //              nonlinear system involving variables defined separately
 //              over the domain and the boundary submesh.
 //
-// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints.
-//     arXiv:2307.12444 [math.NA]
+// [1] Dokken, J. S., Farrell, P. E., Keith, B., Papadopoulos, I. P. A. and
+//     Surowiec, T. M. (2025) The latent variable proximal point algorithm
+//     for variational problems with inequality constraints. Computer
+//     Methods in Applied Mechanics and Engineering, 445, 118181.
 
 #include "mfem.hpp"
 #include "ex42.hpp"
@@ -50,7 +56,6 @@ int main(int argc, char *argv[])
 
    const real_t lambda = 1.0;
    const real_t mu = 1.0;
-   Array<int> col_markers;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -113,8 +118,8 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order-1, sub_dim);
    ParFiniteElementSpace L2fes(&contact_mesh, &L2fec, 1);
 
-   int num_dofs_H1 = H1fes.GlobalTrueVSize();
-   int num_dofs_L2 = L2fes.GlobalTrueVSize();
+   HYPRE_BigInt num_dofs_H1 = H1fes.GlobalTrueVSize();
+   HYPRE_BigInt num_dofs_L2 = L2fes.GlobalTrueVSize();
 
    if (myid == 0)
    {
@@ -153,13 +158,6 @@ int main(int argc, char *argv[])
    H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
    H1fes.GetEssentialTrueDofs(ess_bdr_y, tmp, 1); ess_tdof_list.Append(tmp);
 
-   col_markers.SetSize(H1fes.GetTrueVSize());
-   col_markers = 0;
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-   {
-      col_markers[ess_tdof_list[i]] = 1;
-   }
-
    // 8. Set up the coefficients.
    Vector f(dim);
    f = 0.0; f(dim-1) = -0.1;
@@ -170,8 +168,10 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient f_coeff(f);
    VectorConstantCoefficient n_tilde_c(n_tilde);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
+   Vector zero_vec(dim);  zero_vec = 0.0;
+   VectorConstantCoefficient zero(zero_vec);
 
+   // 9. Initialize the solutions.
    ParGridFunction u_gf, delta_psi_gf;
    u_gf.MakeRef(&H1fes,x,offsets[0]);
    delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
@@ -183,7 +183,6 @@ int main(int argc, char *argv[])
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
-   // 9. Initialize the solutions.
    VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
@@ -201,8 +200,8 @@ int main(int argc, char *argv[])
    psi_gf.ProjectCoefficient(psi_init_cf);
    psi_old_gf = psi_gf;
 
-   delete trace_fec;
    delete trace_fes;
+   delete trace_fec;
 
    // 10. Set up linear and bilinear forms.
    ParLinearForm b_force(&H1fes);
@@ -222,7 +221,7 @@ int main(int argc, char *argv[])
    a10.Finalize();
 
    HypreParMatrix *A10 = a10.ParallelAssemble();
-   A10->EliminateCols(col_markers);
+   delete A10->EliminateCols(ess_tdof_list);
 
    HypreParMatrix *A01 = A10->Transpose();
 
@@ -234,12 +233,13 @@ int main(int argc, char *argv[])
    // 11. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
-
-   // Visualize the initial solution.
+   socketstream sol_sock;
    if (visualization)
    {
+      sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
+
+      // Visualize the initial solution.
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock << "solution\n" << pmesh << u_gf << flush;
    }
@@ -407,8 +407,9 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    u->GetVectorValue(T, ip, u_val);
 
    // Return -ln(ϕ₁ - u · ñ)
-   real_t val = -log(gap->Eval(T, ip) - u_val * *n_tilde);
-   return min(max_val, val);
+   // clamping the argument away from zero
+   real_t arg = max(gap->Eval(T, ip) - u_val * *n_tilde, exp(-max_val));
+   return -log(arg);
 }
 
 real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,

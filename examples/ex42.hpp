@@ -88,24 +88,24 @@ public:
       auto *sub_pmesh = dynamic_cast<ParSubMesh*>(test_sub_fes->GetMesh());
 
       MFEM_VERIFY(sub_mesh != nullptr || sub_pmesh != nullptr,
-                  "SubMeshToParentCouplingTransfer: test_sub_fes should be defined on a SubMesh");
+                  "ParentToSubMixedBilinearForm: test_sub_fes should be defined on a SubMesh");
 
       if (sub_mesh)
       {
          MFEM_VERIFY(sub_mesh->GetParent() == parent_mesh,
-                     "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+                     "ParentToSubMixedBilinearForm: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
       }
       else
       {
          MFEM_VERIFY(sub_pmesh->GetParent() == parent_mesh,
-                     "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+                     "ParentToSubMixedBilinearForm: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
       }
 #else
       auto *sub_mesh = dynamic_cast<SubMesh*>(test_sub_fes->GetMesh());
       MFEM_VERIFY(sub_mesh != nullptr,
-                  "SubMeshToParentCouplingTransfer: test_sub_fes should be defined on a SubMesh");
+                  "ParentToSubMixedBilinearForm: test_sub_fes should be defined on a SubMesh");
       MFEM_VERIFY(sub_mesh->GetParent() == parent_mesh,
-                  "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+                  "ParentToSubMixedBilinearForm: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
 #endif
 
 #ifdef MFEM_USE_MPI

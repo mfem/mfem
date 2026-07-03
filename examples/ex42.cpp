@@ -4,27 +4,33 @@
 //
 // Sample runs: ./ex42
 //
-// Description: This example code demostrates the use of MFEM to
-//              solve a bound-constrained energy minimization problem
+// Description: This example code demonstrates the use of MFEM to
+//              solve the bound-constrained energy minimization problem
 //
-//                 minimize ||∇u||² subject to u ≥ ϕ on Γ in H¹₀(Ω).
+//              minimize 1/2 [λ (∇·u, ∇·u) + 2μ (ε(u), ε(u))] - (f,u)
+//              subject to          u·ñ ≤ ϕ on Γ,
+//
+//              where ε(u) = (∇u + ∇uᵀ)/2 is the symmetric gradient of
+//              the displacement u, λ and μ are the Lamé parameters,
+//              f is a body force, ϕ is a gap function, and ñ is a
+//              fixed approximation of the contact normal.
 //
 //              This corresponds to a unilateral Signorini-type contact
-//              problem, where the solution u is constrained to lie above
-//              a prescribed obstacle ϕ on the contact boundary Γ.
+//              problem, where the displacement u on the contact boundary
+//              Γ is constrained to not penetrate a rigid obstacle.
 //
 //              The problem is discretized and solved using the proximal
-//              Galerkin finite element method, introduced by Keith and
-//              Surowiec [1].
+//              Galerkin finite element method (see Example 2 of [1]).
 //
 //              This example highlights the use of MFEM's SubMesh and
 //              MixedBilinearForm features to construct a coupled
 //              nonlinear system involving variables defined separately
 //              over the domain and the boundary submesh.
 //
-// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints.
-//     arXiv:2307.12444 [math.NA]
+// [1] Dokken, J. S., Farrell, P. E., Keith, B., Papadopoulos, I. P. A. and
+//     Surowiec, T. M. (2025) The latent variable proximal point algorithm
+//     for variational problems with inequality constraints. Computer
+//     Methods in Applied Mechanics and Engineering, 445, 118181.
 
 #include "mfem.hpp"
 #include "ex42.hpp"
@@ -45,7 +51,6 @@ int main(int argc, char *argv[])
 
    const real_t lambda = 1.0;
    const real_t mu = 1.0;
-   Array<int> col_markers;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -127,7 +132,7 @@ int main(int argc, char *argv[])
    H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
    H1fes.GetEssentialTrueDofs(ess_bdr_y, tmp, 1); ess_tdof_list.Append(tmp);
 
-   col_markers.SetSize(H1fes.GetTrueVSize());
+   Array<int> col_markers(H1fes.GetTrueVSize());
    col_markers = 0;
    for (int i=0; i<ess_tdof_list.Size(); i++)
    {
@@ -144,7 +149,8 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient f_coeff(f);
    VectorConstantCoefficient n_tilde_c(n_tilde);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
+   Vector zero_vec(dim);  zero_vec = 0.0;
+   VectorConstantCoefficient zero(zero_vec);
 
    // 9. Initialize the solutions.
    GridFunction u_gf, delta_psi_gf;
@@ -175,8 +181,8 @@ int main(int argc, char *argv[])
    psi_gf.ProjectCoefficient(psi_init_cf);
    psi_old_gf = psi_gf;
 
-   delete trace_fec;
    delete trace_fes;
+   delete trace_fec;
 
    // 10. Set up linear and bilinear forms.
    LinearForm b_force(&H1fes);
@@ -207,12 +213,13 @@ int main(int argc, char *argv[])
    // 11. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
-
-   // Visualize the initial solution.
+   socketstream sol_sock;
    if (visualization)
    {
+      sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
+
+      // Visualize the initial solution.
       sol_sock << "solution\n" << mesh << u_gf << std::flush;
    }
 
@@ -220,11 +227,12 @@ int main(int argc, char *argv[])
    int newton_iterations = 10;
    real_t increment_u = 0.1;
 
+   // Define GMRES solver for the linearized system
    GMRESSolver gmres;
    gmres.SetRelTol(1e-8);
    gmres.SetKDim(500);
    gmres.SetPrintLevel(0);
-   gmres.SetMaxIter(100000);
+   gmres.SetMaxIter(20000);
 
    // Extract the diagonal of A00 for preconditioning.
    Vector A00_diag_base(A00.Height());
@@ -234,8 +242,6 @@ int main(int argc, char *argv[])
    {
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
-
-      alpha *= 2.0;
 
       mfem::out << "\nOuter iteration: " << k+1
                 << "\n----------------------------------------" << endl;
@@ -250,7 +256,10 @@ int main(int argc, char *argv[])
          b0.Update(&H1fes,rhs.GetBlock(0),0);
          b1.Update(&L2fes,rhs.GetBlock(1),0);
 
+         // Assemble b_force = (f, v) and set b0 = alpha * b_force
          b0.Set(alpha, b_force);
+
+         // Add the mixed term to the rhs.
          A01->AddMult(psi_old_gf, b0, 1.0);
          A01->AddMult(psi_gf, b0, -1.0);
 
@@ -262,14 +271,14 @@ int main(int argc, char *argv[])
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
-         A11 *= -1.0;
 
          A.SetBlockCoef(0,0,alpha);
          A.SetBlock(1,1,&A11);
+         A.SetBlockCoef(1,1,-1.0);
 
          // Construct the Schur complement preconditioner.
          // P =   [ diag(K)                  0          ]
-         //       [  0           - H - M diag(K)^(-1) M^T ]
+         //       [  0          -H - M diag(K)^(-1) M^T ]
          Vector A00_diag(A00_diag_base);
          A00_diag *= alpha;
          SparseMatrix KinvMt(*A01);
@@ -293,6 +302,8 @@ int main(int argc, char *argv[])
          gmres.SetPreconditioner(prec);
          gmres.SetOperator(A);
          gmres.Mult(rhs, x);
+         int num_iter = gmres.GetNumIterations();
+         mfem::out << "\tLinear solver iterations: " << num_iter << endl;
 
          delete MKinvMt;
          delete S;
@@ -331,6 +342,7 @@ int main(int argc, char *argv[])
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
+      alpha *= 2.0;
 
       if (increment_u < tol || k == max_iterations-1)
       {
@@ -354,8 +366,9 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    u->GetVectorValue(T, ip, u_val);
 
    // Return -ln(ϕ₁ - u · ñ)
-   real_t val = -log(gap->Eval(T, ip) - u_val * *n_tilde);
-   return min(max_val, val);
+   // clamping the argument away from zero
+   real_t arg = max(gap->Eval(T, ip) - u_val * *n_tilde, exp(-max_val));
+   return -log(arg);
 }
 
 real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
