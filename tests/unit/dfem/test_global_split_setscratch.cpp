@@ -76,6 +76,57 @@ void qfunction_wrapper(const dscalar_t *x, dscalar_t *y,
    qf(x_t, y_t);
 }
 
+template <int N>
+void qfunction_apply(const CubicQFunctionWithMemberScratch &qf,
+                           const dscalar_t *x, dscalar_t *y)
+{
+   auto x_t = make_tensor_array(x, N);
+   auto y_t = make_tensor_array(y, N);
+
+   qf(x_t, y_t);
+}
+
+inline void print_results(const char *label,
+                          const mfem::Vector &x,
+                          const mfem::Vector &coef,
+                          const mfem::Vector &y,
+                          const mfem::Vector &yd,
+                          const mfem::Vector &scratch,
+                          const mfem::Vector &scratchd,
+                          const bool qf_const = false)
+{
+   std::printf("%s\n", label);
+   if (qf_const)
+   {
+      std::printf("%3s %10s %10s %10s %10s %10s %10s\n",
+                  "q", "y", "yd", "yd_ex", "yd_obs", "sc", "scd");
+   }
+   else
+   {
+      std::printf("%3s %10s %10s %10s %10s %10s\n",
+                  "q", "y", "yd", "yd_ex", "sc", "scd");
+   }
+
+   for (int q = 0; q < x.Size(); q++)
+   {
+      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
+      const double observed_yd = coef[q] * x[q] * x[q];
+
+      if (qf_const)
+      {
+         std::printf("%3d %10.4g %10.4g %10.4g %10.4g %10.4g %10.4g\n",
+                     q, y[q], yd[q], exact_yd, observed_yd,
+                     scratch[q], scratchd[q]);
+      }
+      else
+      {
+         std::printf("%3d %10.4g %10.4g %10.4g %10.4g %10.4g\n",
+                     q, y[q], yd[q], exact_yd, scratch[q], scratchd[q]);
+      }
+   }
+}
+
+
 } // namespace enzyme_test_setscratch
 
 TEST_CASE("Enzyme qfunction with SetScratch member", "[Enzyme][GPU][Global-SetScratch]")
@@ -131,21 +182,136 @@ TEST_CASE("Enzyme qfunction with SetScratch member", "[Enzyme][GPU][Global-SetSc
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
-   std::printf("Function: y = coef * x^3\n");
-   std::printf("Exact (for xd = 1): yd = 3*coef*x^2, scratch = x^2, scratchd = 2*x\n");
-   std::printf("%-6s%-18s%-18s%-18s%-18s%-18s%-18s%-18s\n",
-               "q", "y", "yd", "yd_exact", "scratch", "scratch_exact",
-               "scratchd", "scratchd_exact");
+   enzyme_test_setscratch::print_results("Function: y = coef * x^3",
+                                         x, coef, y, yd, scratch, scratchd);
+}
+
+TEST_CASE("Enzyme qfunction with SetScratch member and qf dup", "[Enzyme][GPU][Global-SetScratch-QFDup]")
+{
+   constexpr int N = 100;
+   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N), scratchd(N);
+   x.UseDevice(true);
+   xd.UseDevice(true);
+   y.UseDevice(true);
+   yd.UseDevice(true);
+   coef.UseDevice(true);
+   coefd.UseDevice(true);
+   scratch.UseDevice(true);
+   scratchd.UseDevice(true);
+
+   for (int i = 0; i < N; i++)
+   {
+      x(i) = i + 1.0;
+      xd(i) = 1.0;
+      y(i) = 0.0;
+      yd(i) = 0.0;
+      coef(i) = 0.5 + 0.25 * i;
+      coefd(i) = 0.0;
+      scratch(i) = -1.0;
+      scratchd(i) = 0.0;
+   }
+
+   auto x_d = x.Read();
+   auto xd_d = xd.ReadWrite();
+   auto y_d = y.ReadWrite();
+   auto yd_d = yd.ReadWrite();
+   auto coef_d = coef.Read();
+   auto coefd_d = coefd.ReadWrite();
+   auto scratch_d = scratch.ReadWrite();
+   auto scratchd_d = scratchd.ReadWrite();
+
+   enzyme_test_setscratch::CubicQFunctionWithMemberScratch qf;
+   enzyme_test_setscratch::CubicQFunctionWithMemberScratch qf_d;
+   qf.SetCoef(coef_d);
+   qf.SetScratch(scratch_d);
+   qf_d.SetCoef(coefd_d);
+   qf_d.SetScratch(scratchd_d);
+
+   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_apply<N>,
+                          enzyme_dup, &qf, &qf_d,
+                          enzyme_dup, x_d, xd_d,
+                          enzyme_dup, y_d, yd_d,
+                          enzyme_runtime_activity);
+
+   y.HostRead();
+   yd.HostRead();
+   scratch.HostRead();
+   scratchd.HostRead();
+
    for (int q = 0; q < N; q++)
    {
-       const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-       const double exact_scratch = x[q] * x[q];
-       const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
+      const double exact_scratch = x[q] * x[q];
+      const double exact_scratchd = 2.0 * x[q];
 
-       std::printf("%-6d%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g\n",
-                   q, y[q], yd[q], exact_yd, scratch[q], exact_scratch,
-                   scratchd[q], exact_scratchd);
+      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
+   enzyme_test_setscratch::print_results("Function: y = coef * x^3 (qf const), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
+                                         x, coef, y, yd, scratch, scratchd);
+}
+
+TEST_CASE("Enzyme qfunction with SetScratch member and qf const",
+          "[Enzyme][GPU][Global-SetScratch-QFConst]")
+{
+   constexpr int N = 100;
+   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
+   x.UseDevice(true);
+   xd.UseDevice(true);
+   y.UseDevice(true);
+   yd.UseDevice(true);
+   coef.UseDevice(true);
+   scratch.UseDevice(true);
+   scratchd.UseDevice(true);
+
+   for (int i = 0; i < N; i++)
+   {
+      x(i) = i + 1.0;
+      xd(i) = 1.0;
+      y(i) = 0.0;
+      yd(i) = 0.0;
+      coef(i) = 0.5 + 0.25 * i;
+      scratch(i) = -1.0;
+      scratchd(i) = 0.0;
+   }
+
+   auto x_d = x.Read();
+   auto xd_d = xd.ReadWrite();
+   auto y_d = y.ReadWrite();
+   auto yd_d = yd.ReadWrite();
+   auto coef_d = coef.Read();
+   auto scratch_d = scratch.ReadWrite();
+
+   enzyme_test_setscratch::CubicQFunctionWithMemberScratch qf;
+   qf.SetCoef(coef_d);
+   qf.SetScratch(scratch_d);
+
+   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_apply<N>,
+                          enzyme_const, &qf,
+                          enzyme_dup, x_d, xd_d,
+                          enzyme_dup, y_d, yd_d,
+                          enzyme_runtime_activity);
+
+   y.HostRead();
+   yd.HostRead();
+   scratch.HostRead();
+   scratchd.HostRead();
+
+   for (int q = 0; q < N; q++)
+   {
+      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
+      const double observed_yd = coef[q] * x[q] * x[q];
+      const double exact_scratch = x[q] * x[q];
+
+      REQUIRE(yd[q] == MFEM_Approx(observed_yd));
+      REQUIRE(yd[q] != MFEM_Approx(exact_yd));
+      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd[q] == MFEM_Approx(0.0));
+   }
+   enzyme_test_setscratch::print_results("Function: y = coef * x^3 (qf const), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
+                                         x, coef, y, yd, scratch, scratchd,
+                                         true);
 }
 
 #endif

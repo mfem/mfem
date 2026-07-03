@@ -78,6 +78,26 @@ namespace enzyme_test_split
         qf(x_t, coef_t, scratch_t, y_t);
     }
 
+    inline void print_results(const mfem::Vector &x,
+                              const mfem::Vector &coef,
+                              const mfem::Vector &y,
+                              const mfem::Vector &yd,
+                              const mfem::Vector &scratch,
+                              const mfem::Vector &scratchd)
+    {
+        std::printf("Function: y = coef * x^3\n");
+        std::printf("%3s %10s %10s %10s %10s %10s\n",
+                    "q", "y", "yd", "yd_ex", "sc", "scd");
+
+        for (int q = 0; q < x.Size(); q++)
+        {
+            const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
+
+            std::printf("%3d %10.4g %10.4g %10.4g %10.4g %10.4g\n",
+                        q, y[q], yd[q], exact_yd, scratch[q], scratchd[q]);
+        }
+    }
+
 } // namespace enzyme_test_split
 
 TEST_CASE("Minimal Enzyme qfunction example", "[Enzyme][GPU][Global-Monolithic]")
@@ -173,22 +193,7 @@ TEST_CASE("Enzyme qfunction with split scratch chain", "[Enzyme][GPU][Global-Spl
         REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
     }
 
-    std::printf("Function: y = coef * x^3\n");
-    std::printf("Exact (for xd = 1): yd = 3*coef*x^2, scratch = x^2, scratchd = 2*x\n");
-    std::printf("%-6s%-18s%-18s%-18s%-18s%-18s%-18s%-18s\n",
-                "q", "y", "yd", "yd_exact", "scratch", "scratch_exact",
-                "scratchd", "scratchd_exact");
-    for (int q = 0; q < N; q++)
-    {
-        const double exact_y = coef[q] * x[q] * x[q] * x[q];
-        const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-        const double exact_scratch = x[q] * x[q];
-        const double exact_scratchd = 2.0 * x[q];
-
-        std::printf("%-6d%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g%-18.10g\n",
-                    q, y[q], yd[q], exact_yd, scratch[q], exact_scratch,
-                    scratchd[q], exact_scratchd);
-    }
+    enzyme_test_split::print_results(x, coef, y, yd, scratch, scratchd);
 }
 
 #endif
