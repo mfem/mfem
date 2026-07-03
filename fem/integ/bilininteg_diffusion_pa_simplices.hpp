@@ -443,7 +443,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       {
          real_t us[D1Dm1];
          real_t vs[D1Dm1];
-         MFEM_UNROLL(D1D - 1)
+         MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
          for (int a2 = 0; a2 < D1D - 1; a2++)
          {
             if (a1 + a2 >= D1D - 1) { break; }
@@ -456,7 +456,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          for (int i2 = 0; i2 < Q1D; i2++)
          {
             real_t uu = 0.0, vv = 0.0;
-            MFEM_UNROLL(D1D - 1)
+            MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
             for (int a2 = 0; a2 < D1D - 1; ++a2)
             {
                if (a2 >= D1D - a1 - 1) { break; }
@@ -473,7 +473,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       MFEM_FOREACH_THREAD_DIRECT(i2, x, Q1D)
       {
          real_t us[D1Dm1], vs[D1Dm1];
-         MFEM_UNROLL(D1D - 1)
+         MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
          for (int a1 = 0; a1 < D1D - 1; a1++)
          {
             us[a1] = DQ0[a1][i2];
@@ -484,7 +484,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          for (int i1 = 0; i1 < Q1D; i1++)
          {
             real_t u = 0.0, v = 0.0;
-            MFEM_UNROLL(D1D - 1)
+            MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
             for (int a1 = 0; a1 < D1D - 1; a1++)
             {
                const real_t Gai = Ga1_view[i1][a1];
@@ -513,7 +513,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
             vs[i1] = QQ1[i1][i2];
          }
 
-         MFEM_UNROLL(D1D - 1)
+         MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
          for (int a1 = 0; a1 < D1D - 1; a1++)
          {
             real_t u = 0.0, v = 0.0;
@@ -534,7 +534,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       // Multiple (a1, a2) threads write to overlapping entries of Y.
       MFEM_FOREACH_THREAD_DIRECT(a1, x, D1D - 1)
       {
-         MFEM_UNROLL(D1D - 1)
+         MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
          for (int a2 = 0; a2 < D1D - 1; ++a2)
          {
             if (a2 >= D1D - a1 - 1) { break; }
@@ -994,7 +994,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a2, x, D1D - a1 - 1)
             {
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a3 = 0; a3 < D1D - 1; a3++)
                {
                   if (a1 + a2 + a3 >= D1D - 1) { break; }
@@ -1014,7 +1014,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                for (int i3 = 0; i3 < Q1D; i3++)
                {
                   real_t uu = 0.0, vv = 0.0, ww = 0.0;
-                  MFEM_UNROLL(D1D - 1)
+                  MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                   for (int a3 = 0; a3 < D1D - 1; a3++)
                   {
                      if (a1 + a2 + a3 >= D1D - 1) { break; }
@@ -1040,7 +1040,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a2 = 0; a2 < D1D - 1; a2++)
                {
                   if (a1 + a2 >= D1D - 1) { break; }
@@ -1059,7 +1059,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                for (int i2 = 0; i2 < Q1D; i2++)
                {
                   real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(D1D - 1)
+                  MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                   for (int a2 = 0; a2 < D1D - 1; a2++)
                   {
                      if (a1 + a2 >= D1D - 1) { break; }
@@ -1085,7 +1085,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a1 = 0; a1 < D1D - 1; a1++)
                {
                   us[a1] = DQQ0[a1][a2][a3];
@@ -1103,7 +1103,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                for (int i1 = 0; i1 < Q1D; i1++)
                {
                   real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(D1D - 1)
+                  MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                   for (int a1 = 0; a1 < D1D - 1; a1++)
                   {
                      const real_t Gai = Ga1_view[i1][a1];
@@ -1151,7 +1151,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a1 = 0; a1 < D1D - 1; a1++)
                {
                   real_t u = 0.0, v = 0.0, w = 0.0;
@@ -1193,7 +1193,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a2 = 0; a2 < D1D - 1; a2++)
                {
                   if (a1 + a2 >= D1D - 1) { break; }
@@ -1232,7 +1232,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                   ws[i3] = QDD2[a1][a2][i3];
                }
 
-               MFEM_UNROLL(D1D - 1)
+               MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a3 = 0; a3 < D1D - 1; a3++)
                {
                   if (a1 + a2 + a3 >= D1D - 1) { break; }
