@@ -38,6 +38,37 @@ namespace mfem
 class MUMPSSolver : public Solver
 {
 public:
+   struct MUMPSSummary
+   {
+      double analysis_time_seconds = 0.0;
+      double factorization_time_seconds = 0.0;
+      double solve_time_seconds = 0.0;
+
+      HYPRE_BigInt input_nnz = 0;
+      double lu_nnz = 0.0;
+
+      double estimated_factor_workspace = 0.0;
+      double estimated_integer_workspace = 0.0;
+      double factor_workspace = 0.0;
+      double factor_integer_workspace = 0.0;
+
+      double theoretical_factor_entries = 0.0;
+      double effective_factor_entries = 0.0;
+      int largest_front_size = 0;
+      int num_pivots = 0;
+      int num_delayed_pivots = 0;
+
+      double theoretical_operations = 0.0;
+      double effective_operations = 0.0;
+      double estimated_disk_space_mib = 0.0;
+      double actual_disk_space_mib = 0.0;
+
+      double accelerator_flops = 0.0;
+      double accelerator_time_seconds = 0.0;
+
+      void PrintSummary() const;
+   };
+
    /// Specify the type of matrix we are applying the solver to
    enum MatType
    {
@@ -187,6 +218,11 @@ public:
    void SetBLRTol(double tol);
 #endif
 
+   /**
+    * @brief Return the most recent MUMPS summary.
+    */
+   const MUMPSSummary &GetGlobalSummary() const { return summary; }
+
    // Destructor
    ~MUMPSSolver();
 
@@ -256,6 +292,9 @@ private:
    int *recv_counts, *displs;
    mutable real_t *rhs_glob;
 #endif
+
+   // Summary of the most recent analysis/factorization/solve
+   mutable MUMPSSummary summary;
 }; // mfem::MUMPSSolver class
 
 } // namespace mfem

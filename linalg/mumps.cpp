@@ -18,6 +18,7 @@
 #include "mumps.hpp"
 
 #include <algorithm>
+#include <chrono>
 
 #if MFEM_MUMPS_VERSION >= 530
 #ifdef MUMPS_INTSIZE64
@@ -34,9 +35,68 @@
 #define MUMPS_CNTL(I) cntl[(I) -1]
 #define MUMPS_INFO(I) info[(I) -1]
 #define MUMPS_INFOG(I) infog[(I) -1]
+#define MUMPS_RINFOG(I) rinfog[(I) -1]
+
+namespace
+{
+
+double ParallelMaxSeconds(MPI_Comm comm, double local_seconds)
+{
+   double global_seconds = 0.0;
+   MPI_Allreduce(&local_seconds, &global_seconds, 1, MPI_DOUBLE, MPI_MAX, comm);
+   return global_seconds;
+}
+
+HYPRE_BigInt ParallelSumBigInt(MPI_Comm comm, HYPRE_BigInt local_value)
+{
+   long long local_ll = static_cast<long long>(local_value);
+   long long global_ll = 0;
+   MPI_Allreduce(&local_ll, &global_ll, 1, MPI_LONG_LONG_INT, MPI_SUM, comm);
+   return static_cast<HYPRE_BigInt>(global_ll);
+}
+
+} // namespace
 
 namespace mfem
 {
+
+void MUMPSSolver::MUMPSSummary::PrintSummary() const
+{
+   if (!Mpi::Root()) { return; }
+
+   mfem::out << "MUMPS summary:\n"
+             << "  analysis time: " << analysis_time_seconds << " s\n"
+             << "  factorization time: " << factorization_time_seconds << " s\n"
+             << "  solve time: " << solve_time_seconds << " s\n"
+             << "  input nnz: " << input_nnz << '\n'
+             << "  factor nnz (INFOG(35)): " << lu_nnz << '\n'
+             << "  estimated factor workspace (INFOG(3)): "
+             << estimated_factor_workspace << '\n'
+             << "  estimated integer workspace (INFOG(4)): "
+             << estimated_integer_workspace << '\n'
+             << "  factor workspace (INFOG(9)): " << factor_workspace << '\n'
+             << "  factor integer workspace (INFOG(10)): "
+             << factor_integer_workspace << '\n'
+             << "  theoretical factor entries (INFOG(29)): "
+             << theoretical_factor_entries << '\n'
+             << "  effective factor entries (INFOG(35)): "
+             << effective_factor_entries << '\n'
+             << "  largest front size (INFOG(11)): " << largest_front_size << '\n'
+             << "  pivots (INFOG(12)): " << num_pivots << '\n'
+             << "  delayed pivots (INFOG(13)): " << num_delayed_pivots << '\n'
+             << "  theoretical operations (RINFOG(3)): "
+             << theoretical_operations << '\n'
+             << "  effective operations (RINFOG(14)): "
+             << effective_operations << '\n'
+             << "  estimated disk space (RINFOG(15)): "
+             << estimated_disk_space_mib << " MiB\n"
+             << "  actual disk space (RINFOG(16)): "
+             << actual_disk_space_mib << " MiB\n"
+             << "  accelerator flops (RINFOG(22)): "
+             << accelerator_flops << '\n'
+             << "  accelerator time (RINFOG(23)): "
+             << accelerator_time_seconds << " s\n";
+}
 
 MUMPSSolver::MUMPSSolver(MPI_Comm comm_)
 {
@@ -63,6 +123,7 @@ void MUMPSSolver::Init(MPI_Comm comm_)
    reorder_method = ReorderingStrategy::AUTOMATIC;
    reorder_reuse = false;
    blr_tol = 0.0;
+   summary = MUMPSSummary();
 
 #if MFEM_MUMPS_VERSION >= 530
    irhs_loc = nullptr;
@@ -104,6 +165,8 @@ void MUMPSSolver::SetOperator(const Operator &op)
 {
    auto APtr = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(APtr, "Not a compatible matrix type");
+
+   summary = MUMPSSummary();
 
    height = op.Height();
    width = op.Width();
@@ -234,12 +297,19 @@ void MUMPSSolver::SetOperator(const Operator &op)
       id->a_loc = data;
 
       // MUMPS analysis
+      const auto analysis_t0 = std::chrono::high_resolution_clock::now();
       id->job = 1;
 #ifdef MFEM_USE_SINGLE
       smumps_c(id);
 #else
       dmumps_c(id);
 #endif
+      const auto analysis_t1 = std::chrono::high_resolution_clock::now();
+      summary.analysis_time_seconds = ParallelMaxSeconds(
+          comm, std::chrono::duration<double>(analysis_t1 - analysis_t0).count());
+      summary.estimated_factor_workspace = id->MUMPS_INFOG(3);
+      summary.estimated_integer_workspace = id->MUMPS_INFOG(4);
+      summary.largest_front_size = id->MUMPS_INFOG(11);
    }
    else
    {
@@ -248,7 +318,10 @@ void MUMPSSolver::SetOperator(const Operator &op)
       id->a_loc = data;
    }
 
+   summary.input_nnz = ParallelSumBigInt(comm, static_cast<HYPRE_BigInt>(nnz));
+
    // MUMPS factorization
+      const auto factorization_t0 = std::chrono::high_resolution_clock::now();
    id->job = 2;
    {
       const int mem_relax_lim = 200;
@@ -280,6 +353,22 @@ void MUMPSSolver::SetOperator(const Operator &op)
          else { break; }
       }
    }
+   const auto factorization_t1 = std::chrono::high_resolution_clock::now();
+   summary.factorization_time_seconds = ParallelMaxSeconds(
+       comm, std::chrono::duration<double>(factorization_t1 - factorization_t0).count());
+   summary.factor_workspace = id->MUMPS_INFOG(9);
+   summary.factor_integer_workspace = id->MUMPS_INFOG(10);
+   summary.lu_nnz = id->MUMPS_INFOG(35);
+   summary.effective_factor_entries = summary.lu_nnz;
+   summary.theoretical_factor_entries = id->MUMPS_INFOG(29);
+   summary.num_pivots = id->MUMPS_INFOG(12);
+   summary.num_delayed_pivots = id->MUMPS_INFOG(13);
+   summary.theoretical_operations = id->MUMPS_RINFOG(3);
+   summary.effective_operations = id->MUMPS_RINFOG(14);
+   summary.estimated_disk_space_mib = id->MUMPS_RINFOG(15);
+   summary.actual_disk_space_mib = id->MUMPS_RINFOG(16);
+   summary.accelerator_flops = id->MUMPS_RINFOG(22);
+   summary.accelerator_time_seconds = id->MUMPS_RINFOG(23);
 
    hypre_CSRMatrixDestroy(csr_op);
    delete [] I;
@@ -365,6 +454,7 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in MUMPSSolver::Mult!");
    InitRhsSol(X.Size());
+   const auto solve_t0 = std::chrono::high_resolution_clock::now();
 #if MFEM_MUMPS_VERSION >= 530
    if (id->nrhs == 1)
    {
@@ -419,6 +509,9 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
                    Y[i]->GetData(), Y[i]->Size(), MPITypeMap<real_t>::mpi_type, 0, comm);
    }
 #endif
+   const auto solve_t1 = std::chrono::high_resolution_clock::now();
+   summary.solve_time_seconds = ParallelMaxSeconds(
+       comm, std::chrono::duration<double>(solve_t1 - solve_t0).count());
 }
 
 void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
