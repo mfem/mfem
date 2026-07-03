@@ -193,7 +193,7 @@ public:
                                             const int nq);
    using IntEvalKernelType =
       void (*)(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *detJgeom, const GeometricFactors *geom,
+               const real_t *detJ, const GeometricFactors *geom,
                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
                Vector &q_der, Vector &q_det, const int eval_flags);
 
