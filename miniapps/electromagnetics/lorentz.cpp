@@ -560,7 +560,7 @@ void Boris::StepDevice(real_t &t, real_t &dt)
    auto d_e = E.Read();
    auto d_b = B.Read();
 
-   MFEM_FORALL(i, N,
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
    {
       const real_t m = d_m[i];
       const real_t q = d_q[i];

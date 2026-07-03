@@ -175,17 +175,16 @@ static MFEM_HOST_DEVICE inline double norm2(const double x[sDIM])
 #define CONVERGED_FLAG (1u<<2)
 #define FLAG_MASK 0x07u
 
-/* returns the number of constrained reference coordinates, max 2
+/* returns the number of constrained reference coordinates, max 1
 */
 static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
 {
-   const int y = (flags | flags>>1);
-   return (y & 1u) + (y>>2 & 1u);
+   return ((flags | flags>>1) & 1u);
 }
 
 static MFEM_HOST_DEVICE inline int point_index(const int x)
 {
-   return ((x>>1)&1u) | ((x>>2)&2u);
+   return ((x>>1)&1u);
 }
 
 /* check reduction in objective against prediction, and adjust
@@ -521,11 +520,14 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                            double *hess = jac + sDIM*rDIM;
 
                            findptsElementGEdge_t edge;
+                           for (int d=0; d<sDIM; ++d)
+                           {
+                              edge.x[d] = constraint_workspace + d*D1D;
+                           }
                            MFEM_FOREACH_THREAD(j,x,D1D)
                            {
                               for (int d=0; d<sDIM; ++d)
                               {
-                                 edge.x[d] = constraint_workspace + d*D1D;
                                  edge.x[d][j] = elx[d][j];
                               }
                            }

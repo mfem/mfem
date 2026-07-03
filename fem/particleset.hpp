@@ -375,7 +375,10 @@ protected:
     *  ID of a particle.
     */
    void UpdateID(int local_idx, IDType new_global_id)
-   { ids[local_idx] = new_global_id; }
+   {
+      ids.HostReadWrite();
+      ids[local_idx] = new_global_id;
+   }
 
    /** @brief Create a Particle object with the same spatial dimension,
     *  number of fields and field vdims, and number of tags as this ParticleSet.
@@ -671,8 +674,8 @@ public:
 
    /** @brief Determine if GetParticleRef is valid.
     *
-    * If coordinates and all fields are ordered byVDIM, then returns true.
-    * Otherwise, false.
+    * Returns true when coordinates and all fields are ordered byVDIM and
+    * particle data is host-resident. Otherwise, false.
     */
    bool IsParticleRefValid() const;
 
