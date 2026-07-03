@@ -46,6 +46,8 @@ struct DofQuadLimits_CUDA
 {
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_D1D_SIMPLEX = 14;
+   static constexpr int MAX_Q1D_SIMPLEX = 14;
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 6;
@@ -59,6 +61,8 @@ struct DofQuadLimits_HIP
 {
    static constexpr int MAX_D1D = 10;
    static constexpr int MAX_Q1D = 10;
+   static constexpr int MAX_D1D_SIMPLEX = 9;
+   static constexpr int MAX_Q1D_SIMPLEX = 9;
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 5;
@@ -73,9 +77,13 @@ struct DofQuadLimits_CPU
 #ifndef _WIN32
    static constexpr int MAX_D1D = 24;
    static constexpr int MAX_Q1D = 24;
+   static constexpr int MAX_D1D_SIMPLEX = 24;
+   static constexpr int MAX_Q1D_SIMPLEX = 24;
 #else
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_D1D_SIMPLEX = 14;
+   static constexpr int MAX_Q1D_SIMPLEX = 14;
 #endif
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 10;
@@ -117,6 +125,8 @@ struct DeviceDofQuadLimits
 {
    int MAX_D1D; ///< Maximum number of 1D nodal points.
    int MAX_Q1D; ///< Maximum number of 1D quadrature points.
+   int MAX_D1D_SIMPLEX; ///< Maximum number of 1D nodal points for simplices.
+   int MAX_Q1D_SIMPLEX; ///< Maximum number of 1D quadrature points for simplices.
    int HCURL_MAX_D1D; ///< Maximum number of 1D nodal points for H(curl).
    int HCURL_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(curl).
    int HDIV_MAX_D1D; ///< Maximum number of 1D nodal points for H(div).
@@ -148,6 +158,8 @@ private:
    {
       MAX_D1D = T::MAX_D1D;
       MAX_Q1D = T::MAX_Q1D;
+      MAX_D1D_SIMPLEX = T::MAX_D1D_SIMPLEX;
+      MAX_Q1D_SIMPLEX = T::MAX_Q1D_SIMPLEX;
       HCURL_MAX_D1D = T::HCURL_MAX_D1D;
       HCURL_MAX_Q1D = T::HCURL_MAX_Q1D;
       HDIV_MAX_D1D = T::HDIV_MAX_D1D;
@@ -305,8 +317,8 @@ template <typename DBODY>
 void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   RAJA::forall<RAJA::cuda_exec<MFEM_CUDA_BLOCKS,true>>(RAJA::RangeSegment(0,N),
-                                                        d_body);
+   RAJA::forall<RAJA::cuda_exec<MFEM_CUDA_BLOCKS, true> >(
+      Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
 }
 
 template <typename DBODY>
@@ -319,9 +331,9 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_policy>
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
+   launch<cuda_launch_policy>(Device::GetRajaResource(),
+                              LaunchParams(Teams(G), Threads(X, Y, BZ)),
+                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
       loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
@@ -337,7 +349,6 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
          });
 
       });
-
    });
 
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -353,9 +364,9 @@ void RajaCuWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_bounds_policy<LB> >
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<cuda_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    {
       loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
       {
@@ -378,13 +389,12 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_policy>
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
+   launch<cuda_launch_policy>(Device::GetRajaResource(),
+                              LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
       loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
-
    });
 
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -398,12 +408,10 @@ void RajaCuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<cuda_launch_bounds_policy<LB> >
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE(LaunchContext ctx)
-   {
-      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
-   });
+   launch<cuda_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
+   { loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -472,8 +480,8 @@ template <typename DBODY>
 void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS,true>>(RAJA::RangeSegment(0,N),
-                                                      d_body);
+   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS,true> >(RAJA::RangeSegment(0,N),
+                                                       d_body);
 }
 
 template <typename DBODY>
@@ -486,9 +494,9 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_policy>
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
+   launch<hip_launch_policy>(Device::GetRajaResource(),
+                             LaunchParams(Teams(G), Threads(X, Y, BZ)),
+                             [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
       loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
@@ -504,7 +512,6 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
          });
 
       });
-
    });
 
    MFEM_GPU_CHECK(hipGetLastError());
@@ -520,9 +527,9 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_bounds_policy<LB> >
-   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE(LaunchContext ctx)
+   launch<hip_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
    {
       loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
       {
@@ -545,13 +552,12 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_policy>
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
+   launch<hip_launch_policy>(Device::GetRajaResource(),
+                             LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+                             [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
       loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
-
    });
 
    MFEM_GPU_CHECK(hipGetLastError());
@@ -565,12 +571,10 @@ void RajaHipWrap3DLaunchBounds(const int N, DBODY &&d_body, const int X,
    using namespace RAJA;
    using RAJA::RangeSegment;
 
-   launch<hip_launch_bounds_policy<LB> >
-   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE(LaunchContext ctx)
-   {
-      loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
-   });
+   launch<hip_launch_bounds_policy<LB> >(
+      Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
+      [=] RAJA_DEVICE(LaunchContext ctx)
+   { loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
