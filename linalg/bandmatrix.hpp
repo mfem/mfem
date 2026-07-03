@@ -204,14 +204,20 @@ public:
    MatrixInverse *Inverse() const override;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
-   /** If @a tol is not specified (or is negative) the exact inverse is
-       computed.  If @a tol is specified the factorisation is computed with a
-       matrix with a reduced bandwidth. The bandwidth is the minimum bandwidth
+   /** If @a tol is zero or negative the exact inverse is computed.
+       Otherwise the factorisation is computed with a matrix
+       with a reduced bandwidth. The bandwidth is the minimum bandwidth
        required to achieve the specified tolerance, when computing the
        Frobenius norm of inv(approx(A))*A - I. If @a bw is specified this is the
        bandwidth used, the result is compared with the tolerance.
        Note: the INPUT matrix of the factorisation is reduced in bandwidth.*/
-   MatrixInverse *Inverse(real_t tol, int bw = -1) const ;
+   MatrixInverse *Inverse(real_t tol, int &bw) const;
+
+   MatrixInverse *Inverse(real_t tol) const
+   {
+      int bw;
+      return Inverse(tol, bw);
+   }
 
    /// Replaces the current matrix with its inverse
    /** If @a tol is negative the exact inverse is computed, oteherwise the
@@ -224,6 +230,9 @@ public:
 
    /// Returns a reference to BandMatrix as DenseMatrix.
    DenseMatrix ToDenseMatrix() const;
+
+   /// Returns the Frobenius norm of inv*A - I.
+   real_t TestInverse(const MatrixInverse *inv) const;
 
    /// Prints matrix to stream os.
    void Print(std::ostream & os = mfem::out, int width_ = 4) const override;

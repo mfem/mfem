@@ -241,7 +241,7 @@ MatrixInverse *BandMatrix::Inverse() const
 #endif
 }
 
-MatrixInverse *BandMatrix::Inverse(real_t tol, int bw) const
+MatrixInverse *BandMatrix::Inverse(real_t tol, int& bw) const
 {
    if (tol < 0.0)
    {
@@ -250,30 +250,16 @@ MatrixInverse *BandMatrix::Inverse(real_t tol, int bw) const
    else
    {
       DenseMatrix I = DenseMatrix::Identity(height);
+      DenseMatrix dm = ToDenseMatrix();
       DenseMatrix ans(height);
       MatrixInverse *inv = nullptr;
-      if (bw < 0) // Find bandwidth
-      {
-         int i;
-         for (i = 0; i < height - 1; i++)
-         {
-            BandMatrix a_red(*this, i);
-            inv = a_red.Inverse();
-            dynamic_cast< BandMatrixInverse*>(inv)->Mult(*this, ans);
-            ans -= I;
-            if (ans.FNorm() < tol) { break; }
-            delete inv;
-         }
-         bw = i;
-      }
-      else  // Use given bandwidth
+
+      for (bw = 0; bw < height - 1; bw++)
       {
          BandMatrix a_red(*this, bw);
          inv = a_red.Inverse();
-         dynamic_cast< BandMatrixInverse*>(inv)->Mult(*this, ans);
-         ans -= I;
-         MFEM_VERIFY(ans.FNorm() > tol,
-                     "Specified bandwidth does not achieve accuracy");
+         if (TestInverse(inv) < tol) { break; }
+         delete inv;
       }
       return inv;
    }
@@ -334,6 +320,32 @@ DenseMatrix BandMatrix::ToDenseMatrix() const
       }
    }
    return dm;
+}
+
+real_t BandMatrix::TestInverse(const MatrixInverse *inv) const
+{
+   const BandMatrixInverse *binv = dynamic_cast<const BandMatrixInverse *>(inv);
+
+   if (binv)
+   {
+      DenseMatrix ans(width);
+      binv->Mult(*this, ans);
+      ans -= DenseMatrix::Identity(width);
+      return ans.FNorm();
+   }
+
+   const DenseMatrixInverse *dinv = dynamic_cast<const DenseMatrixInverse *>(inv);
+
+   if (dinv)
+   {
+      DenseMatrix ans(width);
+      dinv->Mult(ToDenseMatrix(), ans);
+      ans -= DenseMatrix::Identity(width);
+      return ans.FNorm();
+   }
+
+   mfem_error("BandMatrix::TestInverse could not cast inverse");
+   return -1.0;
 }
 
 void BandMatrix::Print(std::ostream &os, int width_) const

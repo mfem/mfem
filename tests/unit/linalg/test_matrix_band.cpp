@@ -148,14 +148,15 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
       DenseMatrix I = DenseMatrix::Identity(size);
       DenseMatrix ans(size);
 
-      real_t tol = 1;
-      int steps  = 3;
-      real_t fac = 1e2;
+      real_t tol = 0.1;
+      int steps  = 4;
+      real_t fac = 10;
       mfem::out<<"Approximate inverse of band matrix"<<std::endl;
       mfem::out<<"req.tol --> bandwidth/bandwidth & achieved tol"<<std::endl;
       for (int i = 0; i < steps; i++, tol/=fac)
       {
          BandMatrix ainv(bm);
+
          ainv.Invert(tol);
          mfem::Mult(ainv, bm, ans);
          DenseMatrix diff(size);
@@ -173,24 +174,22 @@ TEST_CASE("Approximate inverse of BandMatrix", "[BandMatrix]")
    {
       DenseMatrix ans(size);
 
-      real_t tol = 1;
-      int steps  = 3;
-      real_t fac = 1e2;
+      real_t tol = 0.1;
+      int steps  = 4;
+      real_t fac = 10;
       mfem::out<<"Inverse of approx band matrix"<<std::endl;
       mfem::out<<"req.tol --> bandwidth/bandwidth & achieved tol"<<std::endl;
       for (int i = 0; i < steps; i++, tol/=fac)
       {
-         MatrixInverse *ainv = bm.Inverse(tol);
-         BandMatrixInverse *bainv = dynamic_cast< BandMatrixInverse*>(ainv);
-         REQUIRE(bainv != nullptr);
-         bainv->Mult(bm, ans);
-         ans -= DenseMatrix::Identity(size);
+         int bw_used;
+         MatrixInverse *ainv = bm.Inverse(tol, bw_used);
+         real_t err = bm.TestInverse(ainv);
 
          mfem::out<<std::setw(8)<<tol
-                  <<" --> "<<std::setw(3)<<bainv->GetBandWidth()
+                  <<" --> "<<std::setw(3)<<bw_used
                   <<"/"<<std::setw(3)<<bandwidth
-                  <<" : "<<ans.FNorm()<<std::endl;
-         REQUIRE(ans.FNorm() <tol);
+                  <<" : "<<err<<std::endl;
+         REQUIRE(err <tol);
          delete ainv;
       }
    }
