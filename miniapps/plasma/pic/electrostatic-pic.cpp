@@ -750,9 +750,10 @@ FieldSolver::~FieldSolver()
 const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
    ParFiniteElementSpace* pfes, const ParticleVector& Q, MPI_Comm comm)
 {
-   int npt = Q.Size();
-   // Get E_finder references
-   const Array<unsigned int>& code = E_finder.GetCode();
+    Q.HostRead();
+    int npt = Q.Size();
+    const Array<unsigned int>& code = E_finder.GetCode();
+    code.HostRead();
 
    if (!precompute_neutralizing_const || precomputed_neutralizing_lf == nullptr)
    {
@@ -795,6 +796,7 @@ const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
 void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
                                 const ParticleVector& Q)
 {
+    Q.HostRead();
    int npt = Q.Size();
    ParMesh* pmesh = pfes->GetParMesh();
    int dim = pmesh->SpaceDimension();
@@ -803,10 +805,15 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
 
    // Get E_finder references
    // 0: inside, 1: boundary, 2: not found
-   const Array<unsigned int>& code = E_finder.GetCode();
-   const Array<unsigned int>& proc = E_finder.GetProc();  // owning MPI rank
-   const Array<unsigned int>& elem = E_finder.GetElem();  // local element id
-   const Vector& rref = E_finder.GetReferencePosition();  // (r,s,t) byVDIM
+    const Array<unsigned int>& code = E_finder.GetCode();
+    const Array<unsigned int>& proc = E_finder.GetProc();
+    const Array<unsigned int>& elem = E_finder.GetElem();
+    const Vector& rref = E_finder.GetReferencePosition();
+
+    code.HostRead();
+    proc.HostRead();
+    elem.HostRead();
+    rref.HostRead();
 
    Array<int> dofs;
 
