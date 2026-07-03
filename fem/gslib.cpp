@@ -1009,12 +1009,15 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
 
 #ifdef MFEM_USE_MPI
    // build global map
-   GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                  nel, 3, global_hash_size, true);
-   devs.gh_min = gbbmap.GetGridMin();
-   devs.gh_fac = gbbmap.GetGridFac();
-   devs.gh_offset = gbbmap.GetGridMap();
-   devs.gh_nx = gbbmap.GetGridN()[0];
+   if (gsl_comm->np > 1)
+   {
+      GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
+                                     nel, 3, global_hash_size, true);
+      devs.gh_min = gbbmap.GetGridMin();
+      devs.gh_fac = gbbmap.GetGridFac();
+      devs.gh_offset = gbbmap.GetGridMap();
+      devs.gh_nx = gbbmap.GetGridN()[0];
+   }
 #endif
 }
 
@@ -1081,12 +1084,15 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
 
 #ifdef MFEM_USE_MPI
    // build global map
-   GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                  nel, 2, global_hash_size, true);
-   devs.gh_min = gbbmap.GetGridMin();
-   devs.gh_fac = gbbmap.GetGridFac();
-   devs.gh_offset = gbbmap.GetGridMap();
-   devs.gh_nx = gbbmap.GetGridN()[0];
+   if (gsl_comm->np > 1)
+   {
+      GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
+                                     nel, 2, global_hash_size, true);
+      devs.gh_min = gbbmap.GetGridMin();
+      devs.gh_fac = gbbmap.GetGridFac();
+      devs.gh_offset = gbbmap.GetGridMap();
+      devs.gh_nx = gbbmap.GetGridN()[0];
+   }
 #endif
 }
 
@@ -3909,7 +3915,6 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
             h_lagcoeff_sol[i] = h_lagcoeff[i];
          }
       }
-      MFEM_DEVICE_SYNC;
 
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(use_dev);
@@ -5357,7 +5362,6 @@ GlobalBBoxTensorGridMap::~GlobalBBoxTensorGridMap()
 {
    if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
    {
-
       crystal_free(cr);
       comm_free(gsl_comm);
       delete gsl_comm;
