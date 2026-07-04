@@ -1648,6 +1648,119 @@ T calcsv(const tensor<T, 2, 2> A, const int i)
    return t*mult;
 }
 
+/**
+ * @brief Compute the i-th singular value of a 3x3 matrix A.
+ *
+ * The singular values are ordered in descending order, i.e.:
+ * - i = 0: largest singular value
+ * - i = 1: middle singular value
+ * - i = 2: smallest singular value
+ *
+ * This implementation computes the eigenvalues of the symmetric matrix
+ * B = A^T A using a robust closed-form method for 3x3 symmetric matrices and
+ * returns the square root of the requested eigenvalue.
+ */
+template <typename T> MFEM_HOST_DEVICE
+T calcsv(const tensor<T, 3, 3> A, const int i)
+{
+   double mult;
+   double a00, a01, a02, a10, a11, a12, a20, a21, a22;
+
+   a00 = A(0, 0); a01 = A(0, 1); a02 = A(0, 2);
+   a10 = A(1, 0); a11 = A(1, 1); a12 = A(1, 2);
+   a20 = A(2, 0); a21 = A(2, 1); a22 = A(2, 2);
+
+   {
+      double d_max = fabs(a00);
+      if (d_max < fabs(a01)) { d_max = fabs(a01); }
+      if (d_max < fabs(a02)) { d_max = fabs(a02); }
+      if (d_max < fabs(a10)) { d_max = fabs(a10); }
+      if (d_max < fabs(a11)) { d_max = fabs(a11); }
+      if (d_max < fabs(a12)) { d_max = fabs(a12); }
+      if (d_max < fabs(a20)) { d_max = fabs(a20); }
+      if (d_max < fabs(a21)) { d_max = fabs(a21); }
+      if (d_max < fabs(a22)) { d_max = fabs(a22); }
+      GetScalingFactor(d_max, mult);
+   }
+
+   a00 /= mult; a01 /= mult; a02 /= mult;
+   a10 /= mult; a11 /= mult; a12 /= mult;
+   a20 /= mult; a21 /= mult; a22 /= mult;
+
+   // Build B = A^T A (symmetric positive semidefinite).
+   const double b00 = a00*a00 + a10*a10 + a20*a20;
+   const double b01 = a00*a01 + a10*a11 + a20*a21;
+   const double b02 = a00*a02 + a10*a12 + a20*a22;
+   const double b11 = a01*a01 + a11*a11 + a21*a21;
+   const double b12 = a01*a02 + a11*a12 + a21*a22;
+   const double b22 = a02*a02 + a12*a12 + a22*a22;
+
+   double e0, e1, e2;
+
+   // Closed-form eigenvalues for symmetric 3x3 matrix.
+   // See eigenvalue algorithm - stable trigonometric form.
+   const double p1 = b01*b01 + b02*b02 + b12*b12;
+   if (p1 == 0.0)
+   {
+      // B is diagonal.
+      e0 = b00;
+      e1 = b11;
+      e2 = b22;
+   }
+   else
+   {
+      const double q = (b00 + b11 + b22) / 3.0;
+
+      const double c00 = b00 - q;
+      const double c11 = b11 - q;
+      const double c22 = b22 - q;
+
+      const double p2 = c00*c00 + c11*c11 + c22*c22 + 2.0*p1;
+      const double p = std::sqrt(p2 / 6.0);
+
+      // C = (1/p) * (B - q I)
+      const double invp = 1.0 / p;
+      const double c01 = b01 * invp;
+      const double c02 = b02 * invp;
+      const double c12 = b12 * invp;
+      const double cc00 = c00 * invp;
+      const double cc11 = c11 * invp;
+      const double cc22 = c22 * invp;
+
+      // r = det(C) / 2
+      const double detC =
+         cc00*(cc11*cc22 - c12*c12) -
+         c01*(c01*cc22 - c12*c02) +
+         c02*(c01*c12 - cc11*c02);
+      double r = 0.5 * detC;
+
+      // Clamp r into [-1, 1] to avoid NaNs from acos due to roundoff.
+      if (r < -1.0) { r = -1.0; }
+      if (r >  1.0) { r =  1.0; }
+
+      const double pi = 3.141592653589793238462643383279502884;
+      const double phi = std::acos(r) / 3.0;
+
+      // These are the eigenvalues of B, ordered as e0 >= e1 >= e2 in exact arithmetic.
+      e0 = q + 2.0*p*std::cos(phi);
+      e2 = q + 2.0*p*std::cos(phi + 2.0*pi/3.0);
+      e1 = 3.0*q - e0 - e2;
+   }
+
+   // Enforce non-negativity (B is PSD, but roundoff can make tiny negatives).
+   if (e0 < 0.0) { e0 = 0.0; }
+   if (e1 < 0.0) { e1 = 0.0; }
+   if (e2 < 0.0) { e2 = 0.0; }
+
+   // Select requested eigenvalue by sorting (robust even in nearly-degenerate cases).
+   const double emax = fmax(e0, fmax(e1, e2));
+   const double emin = fmin(e0, fmin(e1, e2));
+   const double emid = (e0 + e1 + e2) - emax - emin;
+
+   const double chosen = (i == 0) ? emax : ((i == 1) ? emid : emin);
+   return std::sqrt(chosen) * mult;
+}
+
 
 /**
  * @brief Return whether a square rank 2 tensor is symmetric

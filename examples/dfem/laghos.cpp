@@ -444,8 +444,7 @@ matd_t<DIM> qdata_setup(
    }
    else
    {
-      real_t sv = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
-      if constexpr (DIM == 2) { sv = calcsv(J, DIM-1); }
+      real_t sv = calcsv(J, DIM-1);
 
       const real_t hmin = sv / static_cast<real_t>(order_v);
       const real_t ihmin = 1.0 / hmin;
