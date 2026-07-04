@@ -19,6 +19,8 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
+#include "bilininteg_mass_pa_simplices.hpp"
+
 namespace mfem
 {
 
@@ -1424,6 +1426,7 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
       }
    }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
@@ -1433,6 +1436,7 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
    else if (dim == 2) { return internal::PAMassApply2D; }
    else if (dim == 3) { return internal::PAMassApply3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 template<int DIM, int D1D, int Q1D>
@@ -1442,6 +1446,7 @@ DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
    else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
@@ -1451,6 +1456,7 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    else if (dim == 2) { return internal::PAMassAssembleDiagonal2D; }
    else if (dim == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 /// \endcond DO_NOT_DOCUMENT
