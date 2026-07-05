@@ -51,13 +51,6 @@ int main(int argc, char *argv[])
 
    using Step = mfem::DynamicCheckpointing<double>::Step;
 
-   auto dt_func = [&](Step i)
-   {
-      const double dt = dt0 * (1.0 + 0.5 * std::sin(omega * double(i)));
-      MFEM_VERIFY(dt > 0.0, "dt_func produced non-positive dt.");
-      return dt;
-   };
-
    struct my_state
    {
       my_state(double a, double b, double c, double d=0.0, double tp_=0.0){
