@@ -172,7 +172,7 @@ void run_fixed_slot_memory_storage( mfem::real_t Tfinal /*Final time*/,
         ++i;
     }
 
-    mfem::out << "Total number of steps m="<<i-1<<"\n";
+    mfem::out << "Total number of steps m="<<i<<"\n";
     mfem::out << "\nBackward sweep.\n";
 
     const Step m=i;

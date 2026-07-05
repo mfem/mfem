@@ -100,11 +100,6 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // Backend selection:
-   //   0 = fixed-slot memory (single RAM block)
-   //   1 = fixed-slot file   (single file with fixed offsets)
-   int backend = 0;
-
     const int n = 100/* fixed State.v size */;
     StateSnapshotLayout layout(n);
     const std::size_t snapshot_bytes = (std::size_t)layout.Bytes();
@@ -112,15 +107,15 @@ int main(int argc, char *argv[])
     const int Nsteps = 20 /* known number of time steps */;
     const int Ncheck = 5 /* number of checkpoints (snaps) */;
 
-    // Memory backend (single block)
-    // FixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
-    // FixedStepRevolveCheckpointing<FixedSlotMemoryStorage>  
-    //                        cktp(Nsteps, Ncheck, snapshot_bytes, storage);
-
-    // or file backend (single file)
+    // Fixed-slot file backend (single file)
     FixedSlotFileStorage storage("revolve_ckpts.bin", Ncheck, snapshot_bytes);
     FixedStepRevolveCheckpointing<FixedSlotFileStorage>  
                             cktp(Nsteps, Ncheck, snapshot_bytes, storage);
+
+    // Memory backend (single block) alternative:
+    // FixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
+    // FixedStepRevolveCheckpointing<FixedSlotMemoryStorage>  
+    //                        cktp(Nsteps, Ncheck, snapshot_bytes, storage);
 
     
     auto make_snapshot = [&](const State &s, uint8_t *outb, std::size_t bytes)
