@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 
    auto dt_func = [&](Step i)
    {
-      const double dt = dt0 ; //* (1.0 + 0.5 * std::sin(omega * double(i)));
+      const double dt = dt0 * (1.0 + 0.5 * std::sin(omega * double(i)));
       MFEM_VERIFY(dt > 0.0, "dt_func produced non-positive dt.");
       return dt;
    };
