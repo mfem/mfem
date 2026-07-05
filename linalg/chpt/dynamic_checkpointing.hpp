@@ -134,13 +134,13 @@ public:
 
    std::vector<CheckpointInfo> GetCheckpointInfo() const
    {
-      std::vector<CheckpointInfo> out;
-      out.reserve(cps_.size());
+      std::vector<CheckpointInfo> info;
+      info.reserve(cps_.size());
       for (const auto &kv : cps_)
       {
-         out.push_back({kv.first, kv.second.level, storage_->IsValid(kv.second.h)});
+         info.push_back({kv.first, kv.second.level, storage_->IsValid(kv.second.h)});
       }
-      return out;
+      return info;
    }
 
    Step GetMaxStep() const

@@ -37,9 +37,9 @@ public:
       std::memcpy(dst, &snap, sizeof(Snapshot));
    }
 
-   void Unpack(const void *src, Snapshot &out) const
+   void Unpack(const void *src, Snapshot &snap) const
    {
-      std::memcpy(&out, src, sizeof(Snapshot));
+      std::memcpy(&snap, src, sizeof(Snapshot));
    }
 };
 
@@ -67,10 +67,10 @@ public:
       std::memcpy(dst, v.HostRead(), SlotBytes());
    }
 
-   void Unpack(const void *src, mfem::Vector &out) const
+   void Unpack(const void *src, mfem::Vector &v) const
    {
-      out.SetSize(n_);
-      std::memcpy(out.HostWrite(), src, SlotBytes());
+      v.SetSize(n_);
+      std::memcpy(v.HostWrite(), src, SlotBytes());
    }
 
    int Size() const { return n_; }
@@ -406,4 +406,3 @@ private:
 } // namespace mfem
 
 #endif // MFEM_FIXED_SLOT_CHECKPOINT_STORAGE_HPP
-
