@@ -29,16 +29,11 @@ public:
       {
          id = free_.back();
          free_.pop_back();
+         MFEM_VERIFY(!slots_[id],
+                     "InMemoryCheckpointStorage: free slot unexpectedly occupied.");
 
-         if (slots_[id])
-         {
-            // reuse existing allocation
-            *slots_[id] = std::move(snap);
-         }
-         else
-         {
-            slots_[id].reset(new Snapshot(std::move(snap)));
-         }
+         // Reuse the handle ID only; erased Snapshot objects are not reused.
+         slots_[id].reset(new Snapshot(std::move(snap)));
       }
       else
       {
@@ -307,4 +302,3 @@ private:
 } // namespace mfem
 
 #endif // MFEM_DYNAMIC_CHECKPOINTING_HPP
-
