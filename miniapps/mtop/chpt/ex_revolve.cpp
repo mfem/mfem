@@ -11,11 +11,13 @@ using namespace mfem;
 static void RunScalarExample(int Nsteps, int Ncheck, double factor)
 {
    out << "\n--- Scalar REVOLVE example ---\n";
-   out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck << ", factor=" << factor << "\n";
+   out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck << ", factor=" <<
+       factor << "\n";
 
    const size_t snap_bytes = sizeof(double);
    FixedSlotMemoryStorage storage(Ncheck, snap_bytes);
-   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck, snap_bytes, storage);
+   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck,
+                                                              snap_bytes, storage);
 
    auto make_snapshot = [](const double &u, uint8_t *outb, size_t bytes)
    {
@@ -32,7 +34,8 @@ static void RunScalarExample(int Nsteps, int Ncheck, double factor)
    {
       u *= factor;
    };
-   auto adjoint_step = [factor](int /*step*/, const double & /*u_step*/, double &lambda)
+   auto adjoint_step = [factor](int /*step*/, const double & /*u_step*/,
+                                double &lambda)
    {
       lambda *= factor;
    };
@@ -85,16 +88,19 @@ static void RunVectorExample(int Nsteps, int Ncheck, int dim, double factor)
 
    const size_t snap_bytes = sizeof(double) * size_t(dim);
    FixedSlotMemoryStorage storage(Ncheck, snap_bytes);
-   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck, snap_bytes, storage);
+   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck,
+                                                              snap_bytes, storage);
 
    auto make_snapshot = [](const mfem::Vector &u, uint8_t *outb, size_t bytes)
    {
-      MFEM_VERIFY(bytes == sizeof(double) * size_t(u.Size()), "Vector snapshot size mismatch");
+      MFEM_VERIFY(bytes == sizeof(double) * size_t(u.Size()),
+                  "Vector snapshot size mismatch");
       std::memcpy(outb, u.GetData(), bytes);
    };
    auto restore_snapshot = [](mfem::Vector &u, const uint8_t *inb, size_t bytes)
    {
-      MFEM_VERIFY(bytes == sizeof(double) * size_t(u.Size()), "Vector snapshot size mismatch");
+      MFEM_VERIFY(bytes == sizeof(double) * size_t(u.Size()),
+                  "Vector snapshot size mismatch");
       std::memcpy(u.GetData(), inb, bytes);
    };
 
@@ -102,7 +108,8 @@ static void RunVectorExample(int Nsteps, int Ncheck, int dim, double factor)
    {
       u *= factor;
    };
-   auto adjoint_step = [factor](int /*step*/, const mfem::Vector & /*u_step*/, mfem::Vector &lambda)
+   auto adjoint_step = [factor](int /*step*/, const mfem::Vector & /*u_step*/,
+                                mfem::Vector &lambda)
    {
       lambda *= factor;
    };
@@ -151,9 +158,12 @@ int main(int argc, char *argv[])
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&Nsteps, "-n", "--num-steps", "Number of primal steps.");
-   args.AddOption(&Ncheck, "-s", "--num-checkpoints", "Number of checkpoints (snaps).");
-   args.AddOption(&dim, "-d", "--dim", "Vector dimension for the mfem::Vector example.");
-   args.AddOption(&factor, "-f", "--factor", "Scalar factor in the toy update u_{n+1}=f*u_n.");
+   args.AddOption(&Ncheck, "-s", "--num-checkpoints",
+                  "Number of checkpoints (snaps).");
+   args.AddOption(&dim, "-d", "--dim",
+                  "Vector dimension for the mfem::Vector example.");
+   args.AddOption(&factor, "-f", "--factor",
+                  "Scalar factor in the toy update u_{n+1}=f*u_n.");
    args.Parse();
 
    if (!args.Good())

@@ -15,11 +15,11 @@
 #include <type_traits>
 
 #if __has_include(<filesystem>)
-  #include <filesystem>
-  namespace mfem_fs = std::filesystem;
-  #define MFEM_HAVE_FILESYSTEM 1
+#include <filesystem>
+namespace mfem_fs = std::filesystem;
+#define MFEM_HAVE_FILESYSTEM 1
 #else
-  #define MFEM_HAVE_FILESYSTEM 0
+#define MFEM_HAVE_FILESYSTEM 0
 #endif
 
 namespace mfem
@@ -67,14 +67,16 @@ struct DefaultCheckpointBinaryIO<
    static void Write(std::ostream &os, const Snapshot &x)
    {
       os.write(reinterpret_cast<const char*>(&x), sizeof(Snapshot));
-      MFEM_VERIFY(os.good(), "DefaultCheckpointBinaryIO: failed to write POD snapshot.");
+      MFEM_VERIFY(os.good(),
+                  "DefaultCheckpointBinaryIO: failed to write POD snapshot.");
    }
 
    static Snapshot Read(std::istream &is)
    {
       Snapshot x;
       is.read(reinterpret_cast<char*>(&x), sizeof(Snapshot));
-      MFEM_VERIFY(is.good(), "DefaultCheckpointBinaryIO: failed to read POD snapshot.");
+      MFEM_VERIFY(is.good(),
+                  "DefaultCheckpointBinaryIO: failed to read POD snapshot.");
       return x;
    }
 };
@@ -111,7 +113,7 @@ struct DefaultCheckpointBinaryIO<mfem::Vector, void>
          mfem::real_t *data = v.HostWrite();
          is.read(reinterpret_cast<char*>(data),
                  (std::streamsize)(n * (std::int64_t)sizeof(mfem::real_t)));
-         v.Read();         
+         v.Read();
          MFEM_VERIFY(is.good(), "VectorBinaryIO: failed to read vector data.");
       }
       return v;
@@ -159,9 +161,12 @@ public:
         ext_(extension),
         keep_files_(keep_files)
    {
-      MFEM_VERIFY(!dir_.empty(), "FileCheckpointStorage: directory must be non-empty.");
-      MFEM_VERIFY(!prefix_.empty(), "FileCheckpointStorage: prefix must be non-empty.");
-      MFEM_VERIFY(!ext_.empty(), "FileCheckpointStorage: extension must be non-empty.");
+      MFEM_VERIFY(!dir_.empty(),
+                  "FileCheckpointStorage: directory must be non-empty.");
+      MFEM_VERIFY(!prefix_.empty(),
+                  "FileCheckpointStorage: prefix must be non-empty.");
+      MFEM_VERIFY(!ext_.empty(),
+                  "FileCheckpointStorage: extension must be non-empty.");
 
       if (create_dir)
       {
@@ -193,7 +198,8 @@ public:
 
       {
          std::ofstream os(tmp, std::ios::binary | std::ios::trunc);
-         MFEM_VERIFY(os.is_open(), "FileCheckpointStorage: failed to open for write: " << tmp);
+         MFEM_VERIFY(os.is_open(),
+                     "FileCheckpointStorage: failed to open for write: " << tmp);
 
          // Write payload
          SnapshotIO::Write(os, snap);
@@ -202,7 +208,8 @@ public:
 
       // Rename tmp -> final
       const int rc = std::rename(tmp.c_str(), path.c_str());
-      MFEM_VERIFY(rc == 0, "FileCheckpointStorage: rename failed: " << tmp << " -> " << path);
+      MFEM_VERIFY(rc == 0, "FileCheckpointStorage: rename failed: " << tmp << " -> "
+                  << path);
 
       return id;
    }
@@ -215,11 +222,13 @@ public:
    template <typename Func>
    void Read(const Handle &h, Func &&f) const
    {
-      MFEM_VERIFY(IsValid(h), "FileCheckpointStorage: Read called with invalid handle.");
+      MFEM_VERIFY(IsValid(h),
+                  "FileCheckpointStorage: Read called with invalid handle.");
       const std::string path = Path_(h);
 
       std::ifstream is(path, std::ios::binary);
-      MFEM_VERIFY(is.is_open(), "FileCheckpointStorage: failed to open for read: " << path);
+      MFEM_VERIFY(is.is_open(),
+                  "FileCheckpointStorage: failed to open for read: " << path);
 
       Snapshot snap = SnapshotIO::Read(is);
       MFEM_VERIFY(is.good(), "FileCheckpointStorage: read failed for: " << path);
@@ -272,7 +281,8 @@ private:
 
    std::string Path_(Handle id) const
    {
-      MFEM_VERIFY(IsValid(id), "FileCheckpointStorage: Path_ called with invalid id.");
+      MFEM_VERIFY(IsValid(id),
+                  "FileCheckpointStorage: Path_ called with invalid id.");
 
       std::ostringstream oss;
       oss << prefix_ << std::setw(12) << std::setfill('0') << id << ext_;

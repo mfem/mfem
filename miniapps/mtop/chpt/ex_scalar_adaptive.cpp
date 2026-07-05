@@ -29,14 +29,18 @@ int main(int argc, char *argv[])
    double err = 1e-4;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&s,      "-s",   "--checkpoints", "Checkpoint budget s (real checkpoints).");
+   args.AddOption(&s,      "-s",   "--checkpoints",
+                  "Checkpoint budget s (real checkpoints).");
    args.AddOption(&alpha,  "-a",   "--alpha",       "Logistic growth alpha.");
    args.AddOption(&dt0,    "-dt0", "--dt0",         "Base for the time step dt.");
-   args.AddOption(&Tfinal, "-T",   "--tfinal",      "Terminate when accumulated time reaches Tfinal.");
+   args.AddOption(&Tfinal, "-T",   "--tfinal",
+                  "Terminate when accumulated time reaches Tfinal.");
    args.AddOption(&u0,     "-u0",  "--u0",          "Initial scalar state u0.");
-   args.AddOption(&target, "-ut",  "--target",      "Target value in J=0.5*(u_m-target)^2.");
+   args.AddOption(&target, "-ut",  "--target",
+                  "Target value in J=0.5*(u_m-target)^2.");
    args.AddOption(&eps,    "-eps", "--fd-eps",      "Finite-difference epsilon.");
-   args.AddOption(&err,    "-err", "--time_err",     "Allowed time integration error per time step.");
+   args.AddOption(&err,    "-err", "--time_err",
+                  "Allowed time integration error per time step.");
    args.Parse();
    if (!args.Good())
    {
@@ -53,7 +57,8 @@ int main(int argc, char *argv[])
 
    struct my_state
    {
-      my_state(double a, double b, double c, double d=0.0, double tp_=0.0){
+      my_state(double a, double b, double c, double d=0.0, double tp_=0.0)
+      {
          t=a; dt=b; u=c; up=d; tp=tp_;
       }
 
@@ -63,7 +68,7 @@ int main(int argc, char *argv[])
       double u;
       double tp;
       double up;
-   }; 
+   };
 
    // Checkpoint manager:
    //   State   = double
@@ -84,7 +89,7 @@ int main(int argc, char *argv[])
       double dt = su.dt;
       bool flag=true;
 
-      if((tmax-t)<su.dt)
+      if ((tmax-t)<su.dt)
       {
          dt=tmax-t;
          flag=false;
@@ -98,23 +103,23 @@ int main(int argc, char *argv[])
       double uh=u + 0.5 * dt * (s0 + s1);
       double ee = std::abs(uh-ue);
 
-      if((ee < 0.5*err) && (flag))
+      if ((ee < 0.5*err) && (flag))
       {
          dt=1.25*dt;
          ue=u+dt*s0;
          s1=alpha * ue * (1.0 - ue);
          uh=u + 0.5 * dt * (s0 + s1);
          ee = std::abs(uh-ue);
-      } 
+      }
 
-      while(ee > err)
+      while (ee > err)
       {
          dt=0.5*dt;
          ue=u+dt*s0;
          s1=alpha * ue * (1.0 - ue);
          uh=u + 0.5 * dt * (s0 + s1);
          ee = std::abs(uh-ue);
-      } 
+      }
 
       //std::cout<<" t="<<t+dt<<" dt="<<dt<<" err="<<ee<<std::endl;
 
@@ -158,7 +163,8 @@ int main(int argc, char *argv[])
    mfem::out << "  u_m       = " << u_m << "\n";
    mfem::out << "  J         = " << J << "\n\n";
 
-   mfem::out << "[Scalar] Checkpoint set after forward sweep (step, level, stored):\n";
+   mfem::out <<
+             "[Scalar] Checkpoint set after forward sweep (step, level, stored):\n";
    for (const auto &cp : ckpt.GetCheckpointInfo())
    {
       mfem::out << "  step=" << cp.step

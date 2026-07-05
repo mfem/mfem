@@ -10,7 +10,8 @@
 #include <vector>
 #include <algorithm>
 
-namespace mfem {
+namespace mfem
+{
 
 // -------------------------------
 // Fixed-slot storage: Memory
@@ -341,9 +342,9 @@ private:
 
 public:
    FixedStepRevolveCheckpointing(int num_steps,
-                                int num_checkpoints,
-                                size_t snapshot_bytes,
-                                StorageT &storage)
+                                 int num_checkpoints,
+                                 size_t snapshot_bytes,
+                                 StorageT &storage)
       : num_steps_(num_steps),
         num_checkpoints_(num_checkpoints),
         snapshot_bytes_(snapshot_bytes),
@@ -482,7 +483,8 @@ public:
                const int step = ctrl_.Fine();
                MFEM_VERIFY(step == ctrl_.Capo(), "youturn: fine != capo");
                MFEM_VERIFY(step == u_work_time_, "youturn: u_work_time != step");
-               MFEM_VERIFY(step == i, "BackwardStep called with i that doesn't match REVOLVE schedule");
+               MFEM_VERIFY(step == i,
+                           "BackwardStep called with i that doesn't match REVOLVE schedule");
 
                // One adjoint step.
                adjoint_step(step, u_work, lambda);

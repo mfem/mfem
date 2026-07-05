@@ -50,10 +50,14 @@ int main(int argc, char *argv[])
    std::string dir_vector = "chk_vector_files";
 
    OptionsParser args(argc, argv);
-   args.AddOption(&s, "-s", "--checkpoints", "Checkpoint budget s (real checkpoints).");
-   args.AddOption(&dt0, "-dt0", "--dt0", "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&omega, "-om", "--omega", "Omega for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&Tfinal, "-T", "--tfinal", "Stop when accumulated time reaches Tfinal.");
+   args.AddOption(&s, "-s", "--checkpoints",
+                  "Checkpoint budget s (real checkpoints).");
+   args.AddOption(&dt0, "-dt0", "--dt0",
+                  "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&omega, "-om", "--omega",
+                  "Omega for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&Tfinal, "-T", "--tfinal",
+                  "Stop when accumulated time reaches Tfinal.");
    args.AddOption(&keep_files, "-k", "--keep-files", "-nk", "--no-keep-files",
                   "Keep checkpoint files (debug).");
    args.AddOption(&purge_dirs, "-p", "--purge-dirs", "-np", "--no-purge-dirs",
@@ -62,13 +66,17 @@ int main(int argc, char *argv[])
    args.AddOption(&alpha, "-a", "--alpha", "Logistic growth alpha.");
    args.AddOption(&u0, "-u0", "--u0", "Scalar initial u0.");
    args.AddOption(&target_s, "-ts", "--target-scalar", "Scalar target.");
-   args.AddOption(&eps, "-eps", "--fd-eps", "FD epsilon (scalar and vector directional).");
+   args.AddOption(&eps, "-eps", "--fd-eps",
+                  "FD epsilon (scalar and vector directional).");
 
    args.AddOption(&n, "-n", "--size", "Vector dimension.");
-   args.AddOption(&target_v, "-tv", "--target-vector", "Vector target value per component.");
+   args.AddOption(&target_v, "-tv", "--target-vector",
+                  "Vector target value per component.");
 
-   args.AddOption(&dir_scalar, "-ds", "--dir-scalar", "Directory for scalar checkpoint files.");
-   args.AddOption(&dir_vector, "-dv", "--dir-vector", "Directory for vector checkpoint files.");
+   args.AddOption(&dir_scalar, "-ds", "--dir-scalar",
+                  "Directory for scalar checkpoint files.");
+   args.AddOption(&dir_vector, "-dv", "--dir-vector",
+                  "Directory for vector checkpoint files.");
 
    args.Parse();
    if (!args.Good())
@@ -92,7 +100,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(!purge_dirs, "purge_dirs requires <filesystem> support.");
 #endif
 
-   using StepS = mfem::DynamicCheckpointing<double, mfem::FileCheckpointStorage<double>>::Step;
+   using StepS =
+      mfem::DynamicCheckpointing<double, mfem::FileCheckpointStorage<double>>::Step;
    auto dt_func = [&](StepS i)
    {
       const double dt = dt0 * (1.0 + 0.5 * std::sin(omega * double(i)));
@@ -106,8 +115,10 @@ int main(int argc, char *argv[])
    // A) Scalar run (double) with FileCheckpointStorage
    // ============================================================
    {
-      mfem::FileCheckpointStorage<double> storage(dir_scalar, "ckpt_", ".bin", true, keep_files);
-      mfem::DynamicCheckpointing<double, mfem::FileCheckpointStorage<double>> ckpt(s, storage);
+      mfem::FileCheckpointStorage<double> storage(dir_scalar, "ckpt_", ".bin", true,
+                                                  keep_files);
+      mfem::DynamicCheckpointing<double, mfem::FileCheckpointStorage<double>> ckpt(s,
+                                                                                   storage);
 
       auto make_snapshot = [](const double &u) { return u; };
       auto restore_snapshot = [](const double &snap, double &out) { out = snap; };
@@ -185,10 +196,13 @@ int main(int argc, char *argv[])
    // B) Vector run (mfem::Vector) with FileCheckpointStorage
    // ============================================================
    {
-      mfem::FileCheckpointStorage<mfem::Vector> storage(dir_vector, "ckpt_", ".bin", true, keep_files);
-      mfem::DynamicCheckpointing<mfem::Vector, mfem::FileCheckpointStorage<mfem::Vector>> ckpt(s, storage);
+      mfem::FileCheckpointStorage<mfem::Vector> storage(dir_vector, "ckpt_", ".bin",
+                                                        true, keep_files);
+      mfem::DynamicCheckpointing<mfem::Vector, mfem::FileCheckpointStorage<mfem::Vector>>
+            ckpt(s, storage);
 
-      using StepV = mfem::DynamicCheckpointing<mfem::Vector, mfem::FileCheckpointStorage<mfem::Vector>>::Step;
+      using StepV =
+         mfem::DynamicCheckpointing<mfem::Vector, mfem::FileCheckpointStorage<mfem::Vector>>::Step;
 
       auto dt_func_v = [&](StepV i)
       {
@@ -287,7 +301,8 @@ int main(int argc, char *argv[])
       mfem::out << "  J                   = " << J << "\n";
       mfem::out << "  v·grad adjoint      = " << dJ_dir_adj << "\n";
       mfem::out << "  FD directional      = " << dJ_dir_fd << "\n";
-      mfem::out << "  abs err             = " << std::abs(dJ_dir_adj - dJ_dir_fd) << "\n";
+      mfem::out << "  abs err             = " << std::abs(dJ_dir_adj - dJ_dir_fd) <<
+                "\n";
       mfem::out << "  ||u_m||_2           = " << u_m.Norml2() << "\n";
       mfem::out << "  ||u_m - u_target||2 = " << diff.Norml2() << "\n";
    }

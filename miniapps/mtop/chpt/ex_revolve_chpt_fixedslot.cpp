@@ -8,7 +8,7 @@
 using namespace mfem;
 
 
-// the forward state consists of vector and 
+// the forward state consists of vector and
 // several additional values
 struct State
 {
@@ -21,7 +21,7 @@ struct State
 class StateSnapshotLayout
 {
 public:
-   // Constructor: n - size of the vector in the state 
+   // Constructor: n - size of the vector in the state
    explicit StateSnapshotLayout(int n) : n_(n)
    {
       MFEM_VERIFY(n_ > 0, "StateSnapshotLayout: n must be > 0.");
@@ -82,7 +82,7 @@ private:
         and a storage backend with:
         * Save(slot, bytes)
         * Load(slot, bytes)
-    
+
     REVOLVE manager will:
         *request storing snapshots into checkpoint slots (takeshot)
         *request restoring a checkpoint slot (restore)
@@ -92,7 +92,7 @@ private:
 
     Fixed-step REVOLVE manager:
         * Snapshot is raw bytes packed/unpacked by your callbacks.
-        * Storage is a fixed indexed array (Save(slot) / Load(slot)), 
+        * Storage is a fixed indexed array (Save(slot) / Load(slot)),
                because REVOLVE addresses checkpoints by slot index.
 
     Best use when Nsteps is known in the begining of the simulation.
@@ -100,72 +100,73 @@ private:
 
 int main(int argc, char *argv[])
 {
-    const int n = 100/* fixed State.v size */;
-    StateSnapshotLayout layout(n);
-    const std::size_t snapshot_bytes = (std::size_t)layout.Bytes();
+   const int n = 100/* fixed State.v size */;
+   StateSnapshotLayout layout(n);
+   const std::size_t snapshot_bytes = (std::size_t)layout.Bytes();
 
-    const int Nsteps = 20 /* known number of time steps */;
-    const int Ncheck = 5 /* number of checkpoints (snaps) */;
+   const int Nsteps = 20 /* known number of time steps */;
+   const int Ncheck = 5 /* number of checkpoints (snaps) */;
 
-    // Fixed-slot file backend (single file)
-    FixedSlotFileStorage storage("revolve_ckpts.bin", Ncheck, snapshot_bytes);
-    FixedStepRevolveCheckpointing<FixedSlotFileStorage>  
-                            cktp(Nsteps, Ncheck, snapshot_bytes, storage);
+   // Fixed-slot file backend (single file)
+   FixedSlotFileStorage storage("revolve_ckpts.bin", Ncheck, snapshot_bytes);
+   FixedStepRevolveCheckpointing<FixedSlotFileStorage>
+   cktp(Nsteps, Ncheck, snapshot_bytes, storage);
 
-    // Memory backend (single block) alternative:
-    // FixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
-    // FixedStepRevolveCheckpointing<FixedSlotMemoryStorage>  
-    //                        cktp(Nsteps, Ncheck, snapshot_bytes, storage);
+   // Memory backend (single block) alternative:
+   // FixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
+   // FixedStepRevolveCheckpointing<FixedSlotMemoryStorage>
+   //                        cktp(Nsteps, Ncheck, snapshot_bytes, storage);
 
-    
-    auto make_snapshot = [&](const State &s, uint8_t *outb, std::size_t bytes)
-    {
-        MFEM_VERIFY(bytes == snapshot_bytes, "make_snapshot: byte size mismatch");
-        layout.Pack(s, reinterpret_cast<unsigned char*>(outb), (int)bytes);
-    };
 
-    auto restore_snapshot = [&](State &s, const uint8_t *inb, std::size_t bytes)
-    {
-        MFEM_VERIFY(bytes == snapshot_bytes, "restore_snapshot: byte size mismatch");
-        layout.Unpack(reinterpret_cast<const unsigned char*>(inb), (int)bytes, s);
-    };
+   auto make_snapshot = [&](const State &s, uint8_t *outb, std::size_t bytes)
+   {
+      MFEM_VERIFY(bytes == snapshot_bytes, "make_snapshot: byte size mismatch");
+      layout.Pack(s, reinterpret_cast<unsigned char*>(outb), (int)bytes);
+   };
 
-    // set the work state
-    State u_work;
-    u_work.v.SetSize(n); u_work.v=0.0; 
+   auto restore_snapshot = [&](State &s, const uint8_t *inb, std::size_t bytes)
+   {
+      MFEM_VERIFY(bytes == snapshot_bytes, "restore_snapshot: byte size mismatch");
+      layout.Unpack(reinterpret_cast<const unsigned char*>(inb), (int)bytes, s);
+   };
 
-    State u;
-    u.v.SetSize(n); u.v=0.0; u.obj=0.0; u.time=0.0;
-    // init u.time, u.obj, u.v ...
+   // set the work state
+   State u_work;
+   u_work.v.SetSize(n); u_work.v=0.0;
 
-    auto primal_step = [&](int step, State &u_inout)
-    {
-        (void)step;
-        // advance u_inout -> u_{step+1}
-    };
+   State u;
+   u.v.SetSize(n); u.v=0.0; u.obj=0.0; u.time=0.0;
+   // init u.time, u.obj, u.v ...
 
-    struct AdjointState { /* ... */ };
-    AdjointState lambda;
+   auto primal_step = [&](int step, State &u_inout)
+   {
+      (void)step;
+      // advance u_inout -> u_{step+1}
+   };
 
-    auto adjoint_step = [&](int step, const State &u_step, AdjointState &lambda_inout)
-    {
-        (void)step;
-        // update lambda_{step+1} -> lambda_step using u_step
-    };
+   struct AdjointState { /* ... */ };
+   AdjointState lambda;
 
-    // Forward: i = 0..Nsteps-1
-    for (int i = 0; i < Nsteps; ++i)
-    {
-        cktp.ForwardStep(i, u, primal_step, make_snapshot);
-    }
+   auto adjoint_step = [&](int step, const State &u_step,
+                           AdjointState &lambda_inout)
+   {
+      (void)step;
+      // update lambda_{step+1} -> lambda_step using u_step
+   };
 
-    // Reverse: i = Nsteps-1..0
-    for (int i = Nsteps - 1; i >= 0; --i)
-    {
-        cktp.BackwardStep(i, lambda, u_work,
+   // Forward: i = 0..Nsteps-1
+   for (int i = 0; i < Nsteps; ++i)
+   {
+      cktp.ForwardStep(i, u, primal_step, make_snapshot);
+   }
+
+   // Reverse: i = Nsteps-1..0
+   for (int i = Nsteps - 1; i >= 0; --i)
+   {
+      cktp.BackwardStep(i, lambda, u_work,
                         primal_step, adjoint_step,
                         make_snapshot, restore_snapshot);
-    }
+   }
 
    mfem::out << "\nDone.\n";
    return 0;

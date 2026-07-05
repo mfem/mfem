@@ -20,12 +20,14 @@ using namespace mfem;
 //   dF/du = 1 + dt_i*alpha*(1 - 2*u_i)
 //   lambda_i = (dF/du at u_i) * lambda_{i+1}
 
-static inline double LogisticStep(const double u, const double alpha, const double dt)
+static inline double LogisticStep(const double u, const double alpha,
+                                  const double dt)
 {
    return u + dt * alpha * u * (1.0 - u);
 }
 
-static inline double LogisticJac(const double u, const double alpha, const double dt)
+static inline double LogisticJac(const double u, const double alpha,
+                                 const double dt)
 {
    return 1.0 + dt * alpha * (1.0 - 2.0*u);
 }
@@ -261,7 +263,8 @@ static void RunVectorFixedSlot(int s,
    mfem::out << "  ||u_m-u_target|| = " << diff.Norml2() << "\n";
    mfem::out << "  v·grad adjoint   = " << dJ_dir_adj << "\n";
    mfem::out << "  FD directional   = " << dJ_dir_fd << "\n";
-   mfem::out << "  abs err          = " << std::abs(dJ_dir_adj - dJ_dir_fd) << "\n";
+   mfem::out << "  abs err          = " << std::abs(dJ_dir_adj - dJ_dir_fd) <<
+             "\n";
 }
 
 int main(int argc, char *argv[])
@@ -296,22 +299,29 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&backend, "-b", "--backend",
                   "Backend: 0=memory fixed-slots, 1=file fixed-slots (single file).");
-   args.AddOption(&s, "-s", "--checkpoints", "Checkpoint budget s (real checkpoints).");
+   args.AddOption(&s, "-s", "--checkpoints",
+                  "Checkpoint budget s (real checkpoints).");
 
    args.AddOption(&alpha, "-a", "--alpha", "Logistic growth alpha.");
-   args.AddOption(&dt0, "-dt0", "--dt0", "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&omega, "-om", "--omega", "Omega for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&Tfinal, "-T", "--tfinal", "Stop when accumulated time reaches Tfinal.");
+   args.AddOption(&dt0, "-dt0", "--dt0",
+                  "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&omega, "-om", "--omega",
+                  "Omega for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&Tfinal, "-T", "--tfinal",
+                  "Stop when accumulated time reaches Tfinal.");
    args.AddOption(&eps, "-eps", "--fd-eps", "FD epsilon.");
 
    args.AddOption(&u0, "-u0", "--u0", "Scalar initial condition u0.");
    args.AddOption(&target_s, "-ts", "--target-scalar", "Scalar target.");
 
    args.AddOption(&n, "-n", "--size", "Vector dimension (fixed).");
-   args.AddOption(&target_v, "-tv", "--target-vector", "Vector target value per component.");
+   args.AddOption(&target_v, "-tv", "--target-vector",
+                  "Vector target value per component.");
 
-   args.AddOption(&scalar_file, "-sf", "--scalar-file", "File for scalar fixed-slot storage.");
-   args.AddOption(&vector_file, "-vf", "--vector-file", "File for vector fixed-slot storage.");
+   args.AddOption(&scalar_file, "-sf", "--scalar-file",
+                  "File for scalar fixed-slot storage.");
+   args.AddOption(&vector_file, "-vf", "--vector-file",
+                  "File for vector fixed-slot storage.");
    args.AddOption(&truncate_files, "-tr", "--truncate", "-ntr", "--no-truncate",
                   "Truncate checkpoint files on startup.");
    args.AddOption(&flush_on_store, "-fl", "--flush", "-nfl", "--no-flush",
@@ -342,24 +352,26 @@ int main(int argc, char *argv[])
 
       // Vector: fixed-size packing (n must remain constant)
       mfem::FixedVectorPacker packer(n);
-      mfem::FixedSlotMemoryCheckpointStorage<mfem::Vector, mfem::FixedVectorPacker> stor_v(s, packer);
+      mfem::FixedSlotMemoryCheckpointStorage<mfem::Vector, mfem::FixedVectorPacker>
+      stor_v(s, packer);
       RunVectorFixedSlot(s, stor_v, n, alpha, dt0, omega, Tfinal, target_v, eps);
    }
    else if (backend == 1)
    {
-      mfem::out << "\nUsing fixed-slot FILE backend (single file with fixed offsets)\n";
+      mfem::out <<
+                "\nUsing fixed-slot FILE backend (single file with fixed offsets)\n";
 
       // Scalar file
       mfem::FixedSlotFileCheckpointStorage<double> stor_s(scalar_file, s,
-                                                         mfem::TrivialFixedPacker<double>(),
-                                                         truncate_files,
-                                                         flush_on_store);
+                                                          mfem::TrivialFixedPacker<double>(),
+                                                          truncate_files,
+                                                          flush_on_store);
       RunScalarFixedSlot(s, stor_s, alpha, dt0, omega, Tfinal, u0, target_s, eps);
 
       // Vector file (fixed-size packing with n)
       mfem::FixedVectorPacker packer(n);
       mfem::FixedSlotFileCheckpointStorage<mfem::Vector, mfem::FixedVectorPacker>
-         stor_v(vector_file, s, packer, truncate_files, flush_on_store);
+      stor_v(vector_file, s, packer, truncate_files, flush_on_store);
       RunVectorFixedSlot(s, stor_v, n, alpha, dt0, omega, Tfinal, target_v, eps);
    }
    else

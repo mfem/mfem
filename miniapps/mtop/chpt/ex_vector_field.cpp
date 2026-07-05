@@ -28,14 +28,20 @@ int main(int argc, char *argv[])
    double eps = 1e-7;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&s,         "-s",   "--checkpoints", "Checkpoint budget s (real checkpoints).");
+   args.AddOption(&s,         "-s",   "--checkpoints",
+                  "Checkpoint budget s (real checkpoints).");
    args.AddOption(&n,         "-n",   "--size",        "Vector dimension n.");
    args.AddOption(&alpha,     "-a",   "--alpha",       "Logistic growth alpha.");
-   args.AddOption(&dt0,       "-dt0", "--dt0",         "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&omega,     "-om",  "--omega",       "Omega in dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&Tfinal,    "-T",   "--tfinal",      "Terminate when accumulated time reaches Tfinal.");
-   args.AddOption(&target_val,"-tv",  "--target",      "Target value for each component.");
-   args.AddOption(&eps,       "-eps", "--fd-eps",      "Finite-difference epsilon (directional).");
+   args.AddOption(&dt0,       "-dt0", "--dt0",
+                  "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&omega,     "-om",  "--omega",
+                  "Omega in dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&Tfinal,    "-T",   "--tfinal",
+                  "Terminate when accumulated time reaches Tfinal.");
+   args.AddOption(&target_val,"-tv",  "--target",
+                  "Target value for each component.");
+   args.AddOption(&eps,       "-eps", "--fd-eps",
+                  "Finite-difference epsilon (directional).");
    args.Parse();
    if (!args.Good())
    {
@@ -122,7 +128,8 @@ int main(int argc, char *argv[])
    mfem::out << "  ||u_m||   = " << u_m.Norml2() << "\n";
    mfem::out << "  ||u_m-ut||= " << diff.Norml2() << "\n\n";
 
-   mfem::out << "[Vector] Checkpoint set after forward sweep (step, level, stored):\n";
+   mfem::out <<
+             "[Vector] Checkpoint set after forward sweep (step, level, stored):\n";
    for (const auto &cp : ckpt.GetCheckpointInfo())
    {
       mfem::out << "  step=" << cp.step

@@ -15,16 +15,16 @@
 #include <vector>
 
 #if __cplusplus >= 201703L
-  #include <filesystem>
-  #include <system_error>
+#include <filesystem>
+#include <system_error>
 #else
-  #if defined(_WIN32)
-    #include <direct.h>   // _mkdir
-  #else
-    #include <sys/stat.h> // mkdir
-    #include <sys/types.h>
-    #include <errno.h>
-  #endif
+#if defined(_WIN32)
+#include <direct.h>   // _mkdir
+#else
+#include <sys/stat.h> // mkdir
+#include <sys/types.h>
+#include <errno.h>
+#endif
 #endif
 
 namespace mfem
@@ -60,15 +60,15 @@ class RevolveSeparateFileCheckpointStorage
 {
 public:
    RevolveSeparateFileCheckpointStorage(const std::string &directory,
-                                       const std::string &prefix,
-                                       const std::string &ext,
-                                       int max_slots,
-                                       std::size_t slot_bytes,
-                                       bool create_dir = true,
-                                       bool truncate_files = true,
-                                       bool keep_files = true,
-                                       bool keep_open = false,
-                                       bool flush_on_save = false)
+                                        const std::string &prefix,
+                                        const std::string &ext,
+                                        int max_slots,
+                                        std::size_t slot_bytes,
+                                        bool create_dir = true,
+                                        bool truncate_files = true,
+                                        bool keep_files = true,
+                                        bool keep_open = false,
+                                        bool flush_on_save = false)
       : dir_(directory),
         prefix_(prefix),
         ext_(ext),
@@ -78,9 +78,12 @@ public:
         keep_open_(keep_open),
         flush_on_save_(flush_on_save)
    {
-      MFEM_VERIFY(max_slots_ > 0, "RevolveSeparateFileCheckpointStorage: max_slots must be > 0.");
-      MFEM_VERIFY(slot_bytes_ > 0, "RevolveSeparateFileCheckpointStorage: slot_bytes must be > 0.");
-      MFEM_VERIFY(!prefix_.empty(), "RevolveSeparateFileCheckpointStorage: prefix must not be empty.");
+      MFEM_VERIFY(max_slots_ > 0,
+                  "RevolveSeparateFileCheckpointStorage: max_slots must be > 0.");
+      MFEM_VERIFY(slot_bytes_ > 0,
+                  "RevolveSeparateFileCheckpointStorage: slot_bytes must be > 0.");
+      MFEM_VERIFY(!prefix_.empty(),
+                  "RevolveSeparateFileCheckpointStorage: prefix must not be empty.");
 
       if (create_dir) { EnsureDirectory_(dir_); }
 
@@ -326,7 +329,7 @@ private:
    {
       if (dir.empty()) { return; }
 
-   #if __cplusplus >= 201703L
+#if __cplusplus >= 201703L
       namespace fs = std::filesystem;
       std::error_code ec;
 
@@ -335,22 +338,22 @@ private:
          fs::create_directories(dir, ec);
       }
       MFEM_VERIFY(!ec, "EnsureDirectory: failed to create directory: " + dir);
-   #else
-      #if defined(_WIN32)
-         const int rc = _mkdir(dir.c_str());
-         if (rc != 0)
-         {
-            // If directory already exists, _mkdir fails. We accept that.
-            // There's no reliable portable "exists" check in pre-C++17 without more code.
-         }
-      #else
-         const int rc = mkdir(dir.c_str(), 0755);
-         if (rc != 0 && errno != EEXIST)
-         {
-            MFEM_ABORT("EnsureDirectory: failed to create directory: " + dir);
-         }
-      #endif
-   #endif
+#else
+#if defined(_WIN32)
+      const int rc = _mkdir(dir.c_str());
+      if (rc != 0)
+      {
+         // If directory already exists, _mkdir fails. We accept that.
+         // There's no reliable portable "exists" check in pre-C++17 without more code.
+      }
+#else
+      const int rc = mkdir(dir.c_str(), 0755);
+      if (rc != 0 && errno != EEXIST)
+      {
+         MFEM_ABORT("EnsureDirectory: failed to create directory: " + dir);
+      }
+#endif
+#endif
    }
 };
 

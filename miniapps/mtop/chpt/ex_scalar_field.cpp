@@ -28,13 +28,18 @@ int main(int argc, char *argv[])
    double eps = 1e-7;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&s,      "-s",   "--checkpoints", "Checkpoint budget s (real checkpoints).");
+   args.AddOption(&s,      "-s",   "--checkpoints",
+                  "Checkpoint budget s (real checkpoints).");
    args.AddOption(&alpha,  "-a",   "--alpha",       "Logistic growth alpha.");
-   args.AddOption(&dt0,    "-dt0", "--dt0",         "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&omega,  "-om",  "--omega",       "Omega in dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&Tfinal, "-T",   "--tfinal",      "Terminate when accumulated time reaches Tfinal.");
+   args.AddOption(&dt0,    "-dt0", "--dt0",
+                  "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&omega,  "-om",  "--omega",
+                  "Omega in dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&Tfinal, "-T",   "--tfinal",
+                  "Terminate when accumulated time reaches Tfinal.");
    args.AddOption(&u0,     "-u0",  "--u0",          "Initial scalar state u0.");
-   args.AddOption(&target, "-ut",  "--target",      "Target value in J=0.5*(u_m-target)^2.");
+   args.AddOption(&target, "-ut",  "--target",
+                  "Target value in J=0.5*(u_m-target)^2.");
    args.AddOption(&eps,    "-eps", "--fd-eps",      "Finite-difference epsilon.");
    args.Parse();
    if (!args.Good())
@@ -101,7 +106,8 @@ int main(int argc, char *argv[])
    mfem::out << "  u_m       = " << u_m << "\n";
    mfem::out << "  J         = " << J << "\n\n";
 
-   mfem::out << "[Scalar] Checkpoint set after forward sweep (step, level, stored):\n";
+   mfem::out <<
+             "[Scalar] Checkpoint set after forward sweep (step, level, stored):\n";
    for (const auto &cp : ckpt.GetCheckpointInfo())
    {
       mfem::out << "  step=" << cp.step

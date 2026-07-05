@@ -92,10 +92,12 @@ public:
    FixedSlotMemoryCheckpointStorage(int max_slots, const Packer &packer = Packer())
       : max_slots_(max_slots), packer_(packer)
    {
-      MFEM_VERIFY(max_slots_ > 0, "FixedSlotMemoryCheckpointStorage: max_slots must be > 0.");
+      MFEM_VERIFY(max_slots_ > 0,
+                  "FixedSlotMemoryCheckpointStorage: max_slots must be > 0.");
 
       slot_bytes_ = packer_.SlotBytes();
-      MFEM_VERIFY(slot_bytes_ > 0, "FixedSlotMemoryCheckpointStorage: SlotBytes must be > 0.");
+      MFEM_VERIFY(slot_bytes_ > 0,
+                  "FixedSlotMemoryCheckpointStorage: SlotBytes must be > 0.");
 
       // Single contiguous block
       bytes_.resize((std::size_t)max_slots_ * slot_bytes_);
@@ -129,9 +131,12 @@ public:
    template <typename Func>
    void Read(const Handle &h, Func &&f) const
    {
-      MFEM_VERIFY(IsValid(h), "FixedSlotMemoryCheckpointStorage: Read invalid handle.");
-      MFEM_VERIFY(h < max_slots_, "FixedSlotMemoryCheckpointStorage: Read handle out of range.");
-      MFEM_VERIFY(in_use_[h] == 1, "FixedSlotMemoryCheckpointStorage: Read from free slot.");
+      MFEM_VERIFY(IsValid(h),
+                  "FixedSlotMemoryCheckpointStorage: Read invalid handle.");
+      MFEM_VERIFY(h < max_slots_,
+                  "FixedSlotMemoryCheckpointStorage: Read handle out of range.");
+      MFEM_VERIFY(in_use_[h] == 1,
+                  "FixedSlotMemoryCheckpointStorage: Read from free slot.");
 
       Snapshot tmp;
       const void *src = SlotPtrConst_(h);
@@ -144,8 +149,10 @@ public:
    {
       if (!IsValid(h)) { h = InvalidHandle(); return; }
 
-      MFEM_VERIFY(h < max_slots_, "FixedSlotMemoryCheckpointStorage: Erase handle out of range.");
-      MFEM_VERIFY(in_use_[h] == 1, "FixedSlotMemoryCheckpointStorage: double-free / invalid erase.");
+      MFEM_VERIFY(h < max_slots_,
+                  "FixedSlotMemoryCheckpointStorage: Erase handle out of range.");
+      MFEM_VERIFY(in_use_[h] == 1,
+                  "FixedSlotMemoryCheckpointStorage: double-free / invalid erase.");
 
       in_use_[h] = 0;
       free_.push_back(h);
@@ -199,20 +206,22 @@ public:
    };
 
    FixedSlotFileCheckpointStorage(const std::string &path,
-                                 int max_slots,
-                                 const Packer &packer = Packer(),
-                                 bool truncate = true,
-                                 bool flush_on_store = false)
+                                  int max_slots,
+                                  const Packer &packer = Packer(),
+                                  bool truncate = true,
+                                  bool flush_on_store = false)
       : path_(path),
         max_slots_(max_slots),
         packer_(packer),
         flush_on_store_(flush_on_store)
    {
       MFEM_VERIFY(!path_.empty(), "FixedSlotFileCheckpointStorage: empty file path.");
-      MFEM_VERIFY(max_slots_ > 0, "FixedSlotFileCheckpointStorage: max_slots must be > 0.");
+      MFEM_VERIFY(max_slots_ > 0,
+                  "FixedSlotFileCheckpointStorage: max_slots must be > 0.");
 
       slot_bytes_ = packer_.SlotBytes();
-      MFEM_VERIFY(slot_bytes_ > 0, "FixedSlotFileCheckpointStorage: SlotBytes must be > 0.");
+      MFEM_VERIFY(slot_bytes_ > 0,
+                  "FixedSlotFileCheckpointStorage: SlotBytes must be > 0.");
 
       Open_(truncate);
 
@@ -264,8 +273,10 @@ public:
    void Read(const Handle &h, Func &&f) const
    {
       MFEM_VERIFY(IsValid(h), "FixedSlotFileCheckpointStorage: Read invalid handle.");
-      MFEM_VERIFY(h < max_slots_, "FixedSlotFileCheckpointStorage: Read handle out of range.");
-      MFEM_VERIFY(in_use_[h] == 1, "FixedSlotFileCheckpointStorage: Read from free slot.");
+      MFEM_VERIFY(h < max_slots_,
+                  "FixedSlotFileCheckpointStorage: Read handle out of range.");
+      MFEM_VERIFY(in_use_[h] == 1,
+                  "FixedSlotFileCheckpointStorage: Read from free slot.");
 
       const std::uint64_t off = SlotOffset_(h);
       file_.seekg((std::streamoff)off, std::ios::beg);
@@ -284,8 +295,10 @@ public:
    {
       if (!IsValid(h)) { h = InvalidHandle(); return; }
 
-      MFEM_VERIFY(h < max_slots_, "FixedSlotFileCheckpointStorage: Erase handle out of range.");
-      MFEM_VERIFY(in_use_[h] == 1, "FixedSlotFileCheckpointStorage: double-free / invalid erase.");
+      MFEM_VERIFY(h < max_slots_,
+                  "FixedSlotFileCheckpointStorage: Erase handle out of range.");
+      MFEM_VERIFY(in_use_[h] == 1,
+                  "FixedSlotFileCheckpointStorage: double-free / invalid erase.");
 
       // No file deletion; just return slot to free list.
       in_use_[h] = 0;
@@ -329,31 +342,38 @@ private:
    void Open_(bool truncate)
    {
       const std::ios::openmode mode =
-         std::ios::binary | std::ios::in | std::ios::out | (truncate ? std::ios::trunc : (std::ios::openmode)0);
+         std::ios::binary | std::ios::in | std::ios::out | (truncate ?
+                                                            std::ios::trunc : (std::ios::openmode)0);
 
       file_.open(path_.c_str(), mode);
-      MFEM_VERIFY(file_.is_open(), "FixedSlotFileCheckpointStorage: failed to open file.");
+      MFEM_VERIFY(file_.is_open(),
+                  "FixedSlotFileCheckpointStorage: failed to open file.");
 
-      const Header expected = MakeHeader_((std::uint64_t)slot_bytes_, (std::uint64_t)max_slots_);
+      const Header expected = MakeHeader_((std::uint64_t)slot_bytes_,
+                                          (std::uint64_t)max_slots_);
 
       if (truncate)
       {
          // Write header
          file_.seekp(0, std::ios::beg);
          file_.write(reinterpret_cast<const char*>(&expected), sizeof(expected));
-         MFEM_VERIFY(file_.good(), "FixedSlotFileCheckpointStorage: header write failed.");
+         MFEM_VERIFY(file_.good(),
+                     "FixedSlotFileCheckpointStorage: header write failed.");
 
          // Pre-size file to: header + max_slots*slot_bytes
          const std::uint64_t total = (std::uint64_t)sizeof(Header)
-                                   + (std::uint64_t)max_slots_ * (std::uint64_t)slot_bytes_;
+                                     + (std::uint64_t)max_slots_ * (std::uint64_t)slot_bytes_;
 
-         MFEM_VERIFY(total > 0, "FixedSlotFileCheckpointStorage: invalid total file size.");
+         MFEM_VERIFY(total > 0,
+                     "FixedSlotFileCheckpointStorage: invalid total file size.");
          file_.seekp((std::streamoff)(total - 1), std::ios::beg);
-         MFEM_VERIFY(file_.good(), "FixedSlotFileCheckpointStorage: seekp for resize failed.");
+         MFEM_VERIFY(file_.good(),
+                     "FixedSlotFileCheckpointStorage: seekp for resize failed.");
 
          const char zero = 0;
          file_.write(&zero, 1);
-         MFEM_VERIFY(file_.good(), "FixedSlotFileCheckpointStorage: resize write failed.");
+         MFEM_VERIFY(file_.good(),
+                     "FixedSlotFileCheckpointStorage: resize write failed.");
          file_.flush();
       }
       else
@@ -362,7 +382,8 @@ private:
          Header got;
          file_.seekg(0, std::ios::beg);
          file_.read(reinterpret_cast<char*>(&got), sizeof(got));
-         MFEM_VERIFY(file_.good(), "FixedSlotFileCheckpointStorage: header read failed.");
+         MFEM_VERIFY(file_.good(),
+                     "FixedSlotFileCheckpointStorage: header read failed.");
 
          MFEM_VERIFY(std::memcmp(got.magic, expected.magic, 8) == 0,
                      "FixedSlotFileCheckpointStorage: magic mismatch.");
@@ -377,7 +398,8 @@ private:
 
    std::uint64_t SlotOffset_(int slot) const
    {
-      return (std::uint64_t)sizeof(Header) + (std::uint64_t)slot * (std::uint64_t)slot_bytes_;
+      return (std::uint64_t)sizeof(Header) + (std::uint64_t)slot *
+             (std::uint64_t)slot_bytes_;
    }
 };
 

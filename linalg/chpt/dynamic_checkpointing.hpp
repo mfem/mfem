@@ -48,15 +48,18 @@ public:
    void Read(const Handle &h, Func &&f) const
    {
       MFEM_VERIFY(IsValid(h), "InMemoryCheckpointStorage: invalid handle.");
-      MFEM_VERIFY(h < (Handle) slots_.size(), "InMemoryCheckpointStorage: handle out of range.");
-      MFEM_VERIFY(slots_[h].get() != nullptr, "InMemoryCheckpointStorage: empty slot.");
+      MFEM_VERIFY(h < (Handle) slots_.size(),
+                  "InMemoryCheckpointStorage: handle out of range.");
+      MFEM_VERIFY(slots_[h].get() != nullptr,
+                  "InMemoryCheckpointStorage: empty slot.");
       f(*slots_[h]);
    }
 
    void Erase(Handle &h)
    {
       if (!IsValid(h)) { h = InvalidHandle(); return; }
-      MFEM_VERIFY(h < (Handle) slots_.size(), "InMemoryCheckpointStorage: handle out of range.");
+      MFEM_VERIFY(h < (Handle) slots_.size(),
+                  "InMemoryCheckpointStorage: handle out of range.");
       slots_[h].reset();
       free_.push_back(h);
       h = InvalidHandle();
@@ -267,7 +270,8 @@ private:
       if (FindDispensableLargestStep(disp))
       {
          auto it = cps_.find(disp);
-         MFEM_ASSERT(it != cps_.end(), "Internal error: dispensable checkpoint not found.");
+         MFEM_ASSERT(it != cps_.end(),
+                     "Internal error: dispensable checkpoint not found.");
          storage_->Erase(it->second.h);
          cps_.erase(it);
          cps_.emplace(new_step, Checkpoint(0, inv));
@@ -277,7 +281,8 @@ private:
       auto it_i = cps_.find(i);
       MFEM_VERIFY(it_i != cps_.end(),
                   "DynamicCheckpointing: promotion expected checkpoint at step i but none found.");
-      MFEM_VERIFY(i != 0, "DynamicCheckpointing: attempted to remove step 0 checkpoint.");
+      MFEM_VERIFY(i != 0,
+                  "DynamicCheckpointing: attempted to remove step 0 checkpoint.");
 
       const int l = it_i->second.level;
       storage_->Erase(it_i->second.h);
