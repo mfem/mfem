@@ -10,7 +10,7 @@
 #include <vector>
 #include <algorithm>
 
-using mfem::out;
+namespace mfem {
 
 // -------------------------------
 // Fixed-slot storage: Memory
@@ -529,6 +529,7 @@ private:
 };
 
 
+}
 
 
 

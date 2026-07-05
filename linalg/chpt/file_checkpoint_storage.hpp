@@ -91,7 +91,7 @@ struct DefaultCheckpointBinaryIO<mfem::Vector, void>
 
       if (n > 0)
       {
-         const mfem::real_t *data = v.GetData();
+         const mfem::real_t *data = v.HostRead();
          os.write(reinterpret_cast<const char*>(data),
                   (std::streamsize)(n * (std::int64_t)sizeof(mfem::real_t)));
          MFEM_VERIFY(os.good(), "VectorBinaryIO: failed to write vector data.");
@@ -108,9 +108,10 @@ struct DefaultCheckpointBinaryIO<mfem::Vector, void>
       mfem::Vector v((int)n);
       if (n > 0)
       {
-         mfem::real_t *data = v.GetData();
+         mfem::real_t *data = v.HostWrite();
          is.read(reinterpret_cast<char*>(data),
                  (std::streamsize)(n * (std::int64_t)sizeof(mfem::real_t)));
+         v.Read();         
          MFEM_VERIFY(is.good(), "VectorBinaryIO: failed to read vector data.");
       }
       return v;
