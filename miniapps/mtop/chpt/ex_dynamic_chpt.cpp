@@ -70,15 +70,15 @@ public:
    // IMPORTANT:
    // Unpack produces a view into the provided src buffer.
    // The resulting pointer is only valid as long as src remains unchanged.
-   void Unpack(const void *src, StateSnapshotView &out) const
+   void Unpack(const void *src, StateSnapshotView &snap) const
    {
       MFEM_VERIFY(src != nullptr, "Unpack: src is null.");
 
       const unsigned char *b = static_cast<const unsigned char*>(src);
 
-      std::memcpy(&out.time, b + 0*sizeof(mfem::real_t), sizeof(mfem::real_t));
-      std::memcpy(&out.obj,  b + 1*sizeof(mfem::real_t), sizeof(mfem::real_t));
-      out.v_bytes = b + 2*sizeof(mfem::real_t);
+      std::memcpy(&snap.time, b + 0*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&snap.obj,  b + 1*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      snap.v_bytes = b + 2*sizeof(mfem::real_t);
    }
 
    int N() const { return n_; }
@@ -145,7 +145,7 @@ void run_fixed_slot_memory_storage( mfem::real_t Tfinal /*Final time*/,
       // advance u_inout.v, u_inout.time, u_inout.obj
       if (print)
       {
-         std::cout<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
+         mfem::out<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
       }
 
       u_inout.time=i*0.1;
@@ -160,7 +160,7 @@ void run_fixed_slot_memory_storage( mfem::real_t Tfinal /*Final time*/,
       // use u_i.time/u_i.obj/u_i.v to update adjoint
       if (print)
       {
-         std::cout<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
+         mfem::out<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
       }
 
    };
@@ -291,7 +291,7 @@ void run_fixed_slot_file_storage(mfem::real_t Tfinal /*Final time*/,
    {
       if (print)
       {
-         std::cout<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
+         mfem::out<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
       }
 
       u_inout.time=i*0.1;
@@ -309,7 +309,7 @@ void run_fixed_slot_file_storage(mfem::real_t Tfinal /*Final time*/,
       // update adjoint using u_i
       if (print)
       {
-         std::cout<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
+         mfem::out<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
       }
    };
 
@@ -493,7 +493,7 @@ void run_file_storage(mfem::real_t Tfinal /*Final time*/,
       // advance u_inout.time, u_inout.obj, u_inout.v
       if (print)
       {
-         std::cout<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
+         mfem::out<<"Forward step: "<<i<<" time="<<u_inout.time<<" obj="<<u_inout.obj<<std::endl;
       }
 
       u_inout.time=i*0.1;
@@ -511,7 +511,7 @@ void run_file_storage(mfem::real_t Tfinal /*Final time*/,
       // update adjoint using u_i
       if (print)
       {
-         std::cout<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
+         mfem::out<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
       }
    };
 
@@ -596,7 +596,7 @@ void run_in_memory_storage(mfem::real_t Tfinal /*Final time*/,
       // ... update u.time, u.obj, u.v ...
       if (print)
       {
-         std::cout<<"Forward step: "<<i<<" time="<<u.time<<" obj="<<u.obj<<std::endl;
+         mfem::out<<"Forward step: "<<i<<" time="<<u.time<<" obj="<<u.obj<<std::endl;
       }
 
       u.time=i*0.1;
@@ -614,7 +614,7 @@ void run_in_memory_storage(mfem::real_t Tfinal /*Final time*/,
       // ... update q using u_i ...
       if (print)
       {
-         std::cout<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
+         mfem::out<<"Adjoint step: "<<i<<" time="<<u_i.time<<" obj="<<u_i.obj<<std::endl;
       }
    };
 

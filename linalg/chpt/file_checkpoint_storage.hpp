@@ -4,6 +4,7 @@
 #pragma once
 #include "../vector.hpp"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>    // std::remove, std::rename
 #include <cstring>
@@ -251,7 +252,8 @@ public:
       {
          const std::string path = Path_(h);
          const int rc = std::remove(path.c_str());
-         MFEM_VERIFY(rc == 0, "FileCheckpointStorage: failed to remove file: " << path);
+         MFEM_VERIFY(rc == 0 || errno == ENOENT,
+                     "FileCheckpointStorage: failed to remove file: " << path);
 
          free_.push_back(h);
       }
@@ -300,4 +302,3 @@ private:
 } // namespace mfem
 
 #endif // MFEM_FILE_CHECKPOINT_STORAGE_HPP
-

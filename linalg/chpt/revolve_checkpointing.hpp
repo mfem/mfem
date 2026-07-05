@@ -16,7 +16,7 @@ namespace mfem
 // -------------------------------
 // Fixed-slot storage: Memory
 // -------------------------------
-class FixedSlotMemoryStorage
+class RevolveFixedSlotMemoryStorage
 {
 private:
    int max_slots_ = 0;
@@ -24,7 +24,7 @@ private:
    std::vector<uint8_t> data_;
 
 public:
-   FixedSlotMemoryStorage(int max_slots, size_t slot_bytes)
+   RevolveFixedSlotMemoryStorage(int max_slots, size_t slot_bytes)
       : max_slots_(max_slots), slot_bytes_(slot_bytes),
         data_(size_t(max_slots)*slot_bytes, 0)
    {
@@ -55,7 +55,7 @@ public:
 // -------------------------------
 // Fixed-slot storage: Single file
 // -------------------------------
-class FixedSlotFileStorage
+class RevolveFixedSlotFileStorage
 {
 private:
    int max_slots_ = 0;
@@ -69,9 +69,9 @@ private:
    }
 
 public:
-   FixedSlotFileStorage(const std::string &filename,
-                        int max_slots,
-                        size_t slot_bytes)
+   RevolveFixedSlotFileStorage(const std::string &filename,
+                               int max_slots,
+                               size_t slot_bytes)
       : max_slots_(max_slots), slot_bytes_(slot_bytes), filename_(filename)
    {
       MFEM_VERIFY(max_slots_ > 0, "max_slots must be > 0");
@@ -95,7 +95,7 @@ public:
       MFEM_VERIFY(file_.good(), "Failed to open checkpoint file");
    }
 
-   ~FixedSlotFileStorage()
+   ~RevolveFixedSlotFileStorage()
    {
       if (file_.is_open()) { file_.close(); }
    }

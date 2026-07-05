@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
                                                                                    storage);
 
       auto make_snapshot = [](const double &u) { return u; };
-      auto restore_snapshot = [](const double &snap, double &out) { out = snap; };
+      auto restore_snapshot = [](const double &snap, double &state) { state = snap; };
 
       auto primal_step = [&](double &u, StepS i)
       {
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       };
 
       auto make_snapshot = [](const mfem::Vector &u) { return u; };
-      auto restore_snapshot = [](const mfem::Vector &snap, mfem::Vector &out) { out = snap; };
+      auto restore_snapshot = [](const mfem::Vector &snap, mfem::Vector &state) { state = snap; };
 
       auto primal_step = [&](mfem::Vector &u, StepV i)
       {

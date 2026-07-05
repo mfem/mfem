@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    mfem::DynamicCheckpointing<mfem::Vector> ckpt(s);
 
    auto make_snapshot = [](const mfem::Vector &u) -> mfem::Vector { return u; };
-   auto restore_snapshot = [](const mfem::Vector &snap, mfem::Vector &out) { out = snap; };
+   auto restore_snapshot = [](const mfem::Vector &snap, mfem::Vector &state) { state = snap; };
 
    auto primal_step = [&](mfem::Vector &u, Step i)
    {

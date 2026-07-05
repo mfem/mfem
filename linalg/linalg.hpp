@@ -40,11 +40,7 @@
 #include "filteredsolver.hpp"
 #include "ordering.hpp"
 #include "particlevector.hpp"
-#include "chpt/dynamic_checkpointing.hpp"
-#include "chpt/file_checkpoint_storage.hpp"
-#include "chpt/fixed_slot_checkpoint_storage.hpp"
-#include "chpt/revolve_checkpointing.hpp"
-#include "chpt/revolve_file_storage.hpp"
+#include "chpt/chpt.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

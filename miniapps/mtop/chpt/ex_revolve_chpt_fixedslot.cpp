@@ -53,16 +53,16 @@ public:
    }
 
    // Unpack bytes -> State (host write)
-   void Unpack(const unsigned char *src, int bytes, State &out) const
+   void Unpack(const unsigned char *src, int bytes, State &state) const
    {
       MFEM_VERIFY(src != nullptr, "Unpack: src is null.");
       MFEM_VERIFY(bytes == Bytes(), "Unpack: snapshot byte size mismatch.");
 
-      if (out.v.Size() != n_) { out.v.SetSize(n_); }
-      mfem::real_t *vh = out.v.HostWrite();
+      if (state.v.Size() != n_) { state.v.SetSize(n_); }
+      mfem::real_t *vh = state.v.HostWrite();
 
-      std::memcpy(&out.time, src + 0*sizeof(mfem::real_t), sizeof(mfem::real_t));
-      std::memcpy(&out.obj,  src + 1*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&state.time, src + 0*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&state.obj,  src + 1*sizeof(mfem::real_t), sizeof(mfem::real_t));
       std::memcpy(vh,
                   src + 2*sizeof(mfem::real_t),
                   (std::size_t)n_ * sizeof(mfem::real_t));
@@ -108,13 +108,14 @@ int main(int argc, char *argv[])
    const int Ncheck = 5 /* number of checkpoints (snaps) */;
 
    // Fixed-slot file backend (single file)
-   FixedSlotFileStorage storage("revolve_ckpts.bin", Ncheck, snapshot_bytes);
-   FixedStepRevolveCheckpointing<FixedSlotFileStorage>
+   RevolveFixedSlotFileStorage storage("revolve_ckpts.bin", Ncheck,
+                                       snapshot_bytes);
+   FixedStepRevolveCheckpointing<RevolveFixedSlotFileStorage>
    cktp(Nsteps, Ncheck, snapshot_bytes, storage);
 
    // Memory backend (single block) alternative:
-   // FixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
-   // FixedStepRevolveCheckpointing<FixedSlotMemoryStorage>
+   // RevolveFixedSlotMemoryStorage storage(Ncheck, snapshot_bytes);
+   // FixedStepRevolveCheckpointing<RevolveFixedSlotMemoryStorage>
    //                        cktp(Nsteps, Ncheck, snapshot_bytes, storage);
 
 

@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
    mfem::DynamicCheckpointing<my_state> ckpt(s);
 
    auto make_snapshot = [](const my_state &u) -> my_state { return u; };
-   auto restore_snapshot = [](const my_state &snap, my_state &out) { out = snap; };
+   auto restore_snapshot = [](const my_state &snap, my_state &state) { state = snap; };
 
    double tmax=Tfinal;
 
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
          ee = std::abs(uh-ue);
       }
 
-      //std::cout<<" t="<<t+dt<<" dt="<<dt<<" err="<<ee<<std::endl;
+      //mfem::out<<" t="<<t+dt<<" dt="<<dt<<" err="<<ee<<std::endl;
 
       su.t = t+dt;
       su.dt = dt;

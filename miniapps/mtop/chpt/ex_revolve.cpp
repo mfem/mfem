@@ -10,14 +10,16 @@ using namespace mfem;
 // ============================================================
 static void RunScalarExample(int Nsteps, int Ncheck, double factor)
 {
-   out << "\n--- Scalar REVOLVE example ---\n";
-   out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck << ", factor=" <<
-       factor << "\n";
+   mfem::out << "\n--- Scalar REVOLVE example ---\n";
+   mfem::out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck << ", factor="
+             <<
+             factor << "\n";
 
    const size_t snap_bytes = sizeof(double);
-   FixedSlotMemoryStorage storage(Ncheck, snap_bytes);
-   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck,
-                                                              snap_bytes, storage);
+   RevolveFixedSlotMemoryStorage storage(Ncheck, snap_bytes);
+   FixedStepRevolveCheckpointing<RevolveFixedSlotMemoryStorage> ckpt(Nsteps,
+                                                                     Ncheck,
+                                                                     snap_bytes, storage);
 
    auto make_snapshot = [](const double &u, uint8_t *outb, size_t bytes)
    {
@@ -67,9 +69,9 @@ static void RunScalarExample(int Nsteps, int Ncheck, double factor)
    for (int k = 0; k < Nsteps; ++k) { factorN *= factor; }
    const double lambda0_exact = factorN * (uN - target);
 
-   out << "uN = " << uN << "\n";
-   out << "lambda0 (computed) = " << lambda << "\n";
-   out << "lambda0 (exact)    = " << lambda0_exact << "\n";
+   mfem::out << "uN = " << uN << "\n";
+   mfem::out << "lambda0 (computed) = " << lambda << "\n";
+   mfem::out << "lambda0 (exact)    = " << lambda0_exact << "\n";
 }
 
 // ============================================================
@@ -80,16 +82,17 @@ static void RunScalarExample(int Nsteps, int Ncheck, double factor)
 // ============================================================
 static void RunVectorExample(int Nsteps, int Ncheck, int dim, double factor)
 {
-   out << "\n--- mfem::Vector REVOLVE example ---\n";
-   out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck
-       << ", dim=" << dim << ", factor=" << factor << "\n";
+   mfem::out << "\n--- mfem::Vector REVOLVE example ---\n";
+   mfem::out << "Nsteps=" << Nsteps << ", Ncheckpoints=" << Ncheck
+             << ", dim=" << dim << ", factor=" << factor << "\n";
 
    MFEM_VERIFY(dim > 0, "dim must be > 0");
 
    const size_t snap_bytes = sizeof(double) * size_t(dim);
-   FixedSlotMemoryStorage storage(Ncheck, snap_bytes);
-   FixedStepRevolveCheckpointing<FixedSlotMemoryStorage> ckpt(Nsteps, Ncheck,
-                                                              snap_bytes, storage);
+   RevolveFixedSlotMemoryStorage storage(Ncheck, snap_bytes);
+   FixedStepRevolveCheckpointing<RevolveFixedSlotMemoryStorage> ckpt(Nsteps,
+                                                                     Ncheck,
+                                                                     snap_bytes, storage);
 
    auto make_snapshot = [](const mfem::Vector &u, uint8_t *outb, size_t bytes)
    {
@@ -142,8 +145,8 @@ static void RunVectorExample(int Nsteps, int Ncheck, int dim, double factor)
                         make_snapshot, restore_snapshot);
    }
 
-   out << "||uN||_2      = " << uN.Norml2() << "\n";
-   out << "||lambda0||_2 = " << lambda.Norml2() << "\n";
+   mfem::out << "||uN||_2      = " << uN.Norml2() << "\n";
+   mfem::out << "||lambda0||_2 = " << lambda.Norml2() << "\n";
 }
 
 int main(int argc, char *argv[])
@@ -168,10 +171,10 @@ int main(int argc, char *argv[])
 
    if (!args.Good())
    {
-      args.PrintUsage(out);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(out);
+   args.PrintOptions(mfem::out);
 
    RunScalarExample(Nsteps, Ncheck, factor);
    RunVectorExample(Nsteps, Ncheck, dim, factor);

@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
    mfem::DynamicCheckpointing<double> ckpt(s);
 
    auto make_snapshot = [](const double &u) -> double { return u; };
-   auto restore_snapshot = [](const double &snap, double &out) { out = snap; };
+   auto restore_snapshot = [](const double &snap, double &state) { state = snap; };
 
    auto primal_step = [&](double &u, Step i)
    {
