@@ -21,7 +21,6 @@ int main(int argc, char *argv[])
    int s = 3;
    double alpha = 2.0;
    double dt0 = 0.001;
-   double omega = 0.2;
    double Tfinal = 1.0;
    double u0 = 0.2;
    double target = 0.7;
@@ -211,4 +210,3 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
