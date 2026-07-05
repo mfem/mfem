@@ -19,53 +19,51 @@ set(CHPT_COMMON_FILES
 	EXTRA_SOURCES ${CHPT_SOURCES}
 	EXTRA_HEADERS ${CHPT_HEADERS})
 
-add_mfem_miniapp(mtop_test_scalar_chpt
-                      MAIN tst_scalar_field.cpp
+add_mfem_miniapp(mtop_ex_scalar_chpt
+	                      MAIN ex_scalar_field.cpp
 		      ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_adapt_chpt
-                      MAIN tst_scalar_adaptive.cpp
+add_mfem_miniapp(mtop_ex_adapt_chpt
+	                      MAIN ex_scalar_adaptive.cpp
                       ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 
 
-add_mfem_miniapp(mtop_test_vector_chpt
-                      MAIN tst_vector_field.cpp
+add_mfem_miniapp(mtop_ex_vector_chpt
+	                      MAIN ex_vector_field.cpp
                       ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 	      
-add_mfem_miniapp(mtop_test_fixedslot
-		 MAIN tst_fixedslot_scalar_vector.cpp
+add_mfem_miniapp(mtop_ex_fixedslot
+			 MAIN ex_fixedslot_scalar_vector.cpp
 		 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
-	 # add_mfem_miniapp(mtop_test_segmentio
-	 #        MAIN tst_segmentio_scalar_vector_mfem.cpp
+	 # add_mfem_miniapp(mtop_ex_segmentio
+	 #        MAIN ex_segmentio_scalar_vector_mfem.cpp
 	 #	 ${CHPT_COMMON_FILES}
 	 #        LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_file
-		 MAIN tst_fileio_scalar_vector_mfem.cpp
+add_mfem_miniapp(mtop_ex_file
+			 MAIN ex_fileio_scalar_vector_mfem.cpp
 		 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
 
-add_mfem_miniapp(mtop_test_revolve
-                 MAIN tst_revolve.cpp
+add_mfem_miniapp(mtop_ex_revolve
+	                 MAIN ex_revolve.cpp
                  ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_dyn
-                 MAIN tst_dynamic_chpt.cpp
+add_mfem_miniapp(mtop_ex_dyn
+	                 MAIN ex_dynamic_chpt.cpp
                  ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_rev_fixedslot
-                 MAIN tst_revolve_chpt_fixedslot.cpp
+add_mfem_miniapp(mtop_ex_rev_fixedslot
+	                 MAIN ex_revolve_chpt_fixedslot.cpp
                  ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
-
-
 
 
