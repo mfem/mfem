@@ -10,6 +10,7 @@ ElastTopOpt_static
 ForwardElastodynamics
 elasticity_topopt_par
 test_adjoint_verification
+TopOptTransient
 
 # Outputs
 ParaView/

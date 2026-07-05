@@ -30,7 +30,7 @@
 
 #include "mfem.hpp"
 #include "ElastodynamicsSolver.hpp"
-#include "ObjectiveFunctional.hpp"
+#include "ProblemSpecification.hpp"
 #include "../../pde_filter.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include <algorithm>
@@ -40,6 +40,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 using namespace std;
@@ -71,6 +72,23 @@ unique_ptr<HypreParVector> AssembleVolumeWeights(ParFiniteElementSpace &fes,
                  MPITypeMap<real_t>::mpi_type, MPI_SUM, fes.GetComm());
 
    return weights;
+}
+
+Array<int> MakeBoundaryMarker(const ParMesh &pmesh, const Array<int> &attrs)
+{
+   Array<int> marker(pmesh.bdr_attributes.Max());
+   marker = 0;
+
+   for (int i = 0; i < attrs.Size(); i++)
+   {
+      const int attr = attrs[i];
+      if (attr >= 1 && attr <= marker.Size())
+      {
+         marker[attr - 1] = 1;
+      }
+   }
+
+   return marker;
 }
 
 bool InitializeDesign(ParGridFunction &rho, const char *design_init,
@@ -120,31 +138,28 @@ int main(int argc, char *argv[])
 
    Device device("cpu");
 
-   int ref_levels = 0;
-   int order = 1;
-   real_t t_final = 0.006;
-   real_t dt = 5e-5;
-   real_t vol_frac = 0.5;
-   real_t filter_radius = 0.05;
-   int max_it = 20;
-   real_t move = 0.2;
-   real_t change_tol = 1e-3;
+   TransientTopOptConfig cfg;
    bool paraview = false;
-   bool use_iterative_mass = false;
-   const char *mesh_file = "lamb-problem-damping-mesh-triangs.msh";
+   // Mass discretization for the forward/adjoint sweeps. Both give a
+   // gradient-consistent dJ/drho (the design sensitivity differentiates whichever
+   // mass matrix is used - see StageMassDesignLFIntegrator - and both are verified
+   // by test_adjoint_verification). Consistent (CG+AMG) is the default reference;
+   // lumped (diagonal, row-sum) is faster for explicit RK4. User's choice via flag.
+   bool use_iterative_mass = true;
+   const char *mesh_file = cfg.mesh_file.c_str();
    const char *design_init = "uniform";
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ref_levels, "-r", "--refine", "Refinement level");
-   args.AddOption(&order, "-o", "--order", "H1 finite element order");
-   args.AddOption(&t_final, "-tf", "--t-final", "Final time");
-   args.AddOption(&dt, "-dt", "--time-step", "Time step");
-   args.AddOption(&vol_frac, "-vf", "--vol-frac", "Target volume fraction");
-   args.AddOption(&filter_radius, "-fr", "--filter-radius",
+   args.AddOption(&cfg.ref_levels, "-r", "--refine", "Refinement level");
+   args.AddOption(&cfg.order, "-o", "--order", "H1 finite element order");
+   args.AddOption(&cfg.t_final, "-tf", "--t-final", "Final time");
+   args.AddOption(&cfg.dt, "-dt", "--time-step", "Time step");
+   args.AddOption(&cfg.vol_frac, "-vf", "--vol-frac", "Target volume fraction");
+   args.AddOption(&cfg.filter_radius, "-fr", "--filter-radius",
                   "Helmholtz filter radius");
-   args.AddOption(&max_it, "-mi", "--max-it", "Max MMA iterations");
-   args.AddOption(&move, "-mv", "--move", "MMA move limit");
-   args.AddOption(&change_tol, "-tol", "--tol",
+   args.AddOption(&cfg.max_it, "-mi", "--max-it", "Max MMA iterations");
+   args.AddOption(&cfg.move, "-mv", "--move", "MMA move limit");
+   args.AddOption(&cfg.change_tol, "-tol", "--tol",
                   "Stop early when the L1 design change drops below this");
    args.AddOption(&design_init, "-init", "--design-init",
                   "Initial design: uniform, solid, void, gaussian");
@@ -153,7 +168,8 @@ int main(int argc, char *argv[])
                   "--no-paraview", "Write ParaView output");
    args.AddOption(&use_iterative_mass, "-iterative-mass", "--iterative-mass",
                   "-lumped-mass", "--lumped-mass",
-                  "Use iterative (CG+AMG) mass solver instead of lumped (default: lumped)");
+                  "Mass solver: consistent CG+AMG (default) or faster lumped. "
+                  "Both are gradient-consistent (verified).");
    args.Parse();
 
    if (!args.Good())
@@ -161,13 +177,14 @@ int main(int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return 1;
    }
+   cfg.mesh_file = mesh_file;
 
-   if (order < 1)
+   if (cfg.order < 1)
    {
       if (myid == 0) { cerr << "Error: -o/--order must be at least 1.\n"; }
       return 1;
    }
-   if (dt <= 0.0 || t_final <= 0.0)
+   if (cfg.dt <= 0.0 || cfg.t_final <= 0.0)
    {
       if (myid == 0)
       {
@@ -175,7 +192,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (vol_frac <= 0.0 || vol_frac > 1.0)
+   if (cfg.vol_frac <= 0.0 || cfg.vol_frac > 1.0)
    {
       if (myid == 0)
       {
@@ -183,23 +200,28 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (max_it < 1)
+   if (cfg.max_it < 1)
    {
       if (myid == 0) { cerr << "Error: -mi/--max-it must be >= 1.\n"; }
       return 1;
    }
 
+   WaveShieldingProblem problem(cfg);
+   ostringstream problem_errors;
+   if (!problem.Validate(problem_errors))
+   {
+      if (myid == 0) { cerr << problem_errors.str(); }
+      return 1;
+   }
+
    if (myid == 0) { args.PrintOptions(cout); }
 
-   const real_t x_max = 1.5;
-   const real_t y_max = 0.75;
-
-   ifstream imesh(mesh_file);
+   ifstream imesh(problem.GetMeshFile().c_str());
    if (!imesh)
    {
       if (myid == 0)
       {
-         cerr << "Error: Cannot open mesh file '" << mesh_file << "'.\n";
+         cerr << "Error: Cannot open mesh file '" << problem.GetMeshFile() << "'.\n";
       }
       return 1;
    }
@@ -208,7 +230,7 @@ int main(int argc, char *argv[])
    imesh.close();
    const int dim = mesh.Dimension();
 
-   for (int l = 0; l < ref_levels; l++)
+   for (int l = 0; l < problem.GetRefinementLevel(); l++)
    {
       mesh.UniformRefinement();
    }
@@ -216,9 +238,21 @@ int main(int argc, char *argv[])
    ParMesh pmesh(comm, mesh);
    mesh.Clear();
 
-   H1_FECollection state_fec(order, dim);
-   H1_FECollection filter_fec(order, dim);
-   const int control_order = max(0, order - 1);
+   const BoundaryLoadSpec &load_spec = problem.GetBoundaryLoad();
+   if (load_spec.direction.Size() != dim)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: boundary load direction dimension ("
+              << load_spec.direction.Size()
+              << ") does not match mesh dimension (" << dim << ").\n";
+      }
+      return 1;
+   }
+
+   H1_FECollection state_fec(problem.GetOrder(), dim);
+   H1_FECollection filter_fec(problem.GetOrder(), dim);
+   const int control_order = max(0, problem.GetOrder() - 1);
    L2_FECollection control_fec(control_order, dim, BasisType::GaussLobatto);
 
    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
@@ -232,7 +266,11 @@ int main(int argc, char *argv[])
    ParGridFunction rho(&control_fes);
    ParGridFunction rho_tilde(&filter_fes);
 
-   if (!InitializeDesign(rho, design_init, vol_frac, x_max, y_max))
+   real_t ref_x_max = 0.0, ref_y_max = 0.0;
+   problem.GetReferenceDomainExtents(ref_x_max, ref_y_max);
+
+   if (!InitializeDesign(rho, design_init, problem.GetVolumeFraction(),
+                         ref_x_max, ref_y_max))
    {
       if (myid == 0)
       {
@@ -244,7 +282,7 @@ int main(int argc, char *argv[])
    rho_tilde = 0.0;
 
    toopt::PDEFilterOptions filter_opts;
-   filter_opts.filter_radius = filter_radius;
+   filter_opts.filter_radius = problem.GetFilterRadius();
    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
    filter.Assemble();
    filter.Mult(rho, rho_tilde);
@@ -252,37 +290,39 @@ int main(int argc, char *argv[])
    real_t domain_volume = 0.0;
    unique_ptr<HypreParVector> volume_weights =
       AssembleVolumeWeights(control_fes, domain_volume);
-   const real_t target_volume = vol_frac * domain_volume;
+   const real_t target_volume = problem.GetVolumeFraction() * domain_volume;
 
    // Material and problem constants (match test_adjoint_verification).
-   MaterialParams mat;
+   const MaterialParams &mat = problem.GetMaterialParams();
 
+   const DampingParameters damping = problem.GetDampingParameters();
    const real_t c_p = sqrt((mat.lambda0 + 2.0*mat.mu0) / mat.rho0);
-   const real_t damping_thickness = 0.25;
-   DampingProfile phi_profile(damping_thickness, x_max, y_max);
-   const real_t gamma_max = (2.0 * c_p / 0.2136) * log(1.0 / 1e-4);
+   DampingProfile phi_profile(damping.thickness, damping.x_max, damping.y_max);
+   const real_t gamma_max = (2.0 * c_p / damping.scale_length)
+                            * log(1.0 / damping.reflection);
    SpatialDampingCoefficient gamma_coef(&phi_profile, gamma_max,
-                                        mat.rho0, 2.0, 2);
-
-   const real_t pulse_duration = 0.005;
-   const real_t pulse_amplitude = 30.0;
+                                        mat.rho0, damping.beta,
+                                        damping.exponent);
    const real_t impedance = mat.rho0 * c_p;
 
-   Array<int> exterior_bdr_attr(pmesh.bdr_attributes.Max());
-   exterior_bdr_attr = 0;
-   if (pmesh.bdr_attributes.Max() >= 10) { exterior_bdr_attr[9] = 1; }
-   if (pmesh.bdr_attributes.Max() >= 11) { exterior_bdr_attr[10] = 1; }
-   if (pmesh.bdr_attributes.Max() >= 12) { exterior_bdr_attr[11] = 1; }
+   Array<int> absorbing_bdr_attributes;
+   problem.GetAbsorbingBoundaryAttributes(absorbing_bdr_attributes);
+   Array<int> exterior_bdr_attr =
+      MakeBoundaryMarker(pmesh, absorbing_bdr_attributes);
 
-   Array<int> empty_bdr_attr(pmesh.bdr_attributes.Max());
-   empty_bdr_attr = 0;
+   Array<int> essential_bdr_attributes;
+   problem.GetEssentialBoundaryAttributes(essential_bdr_attributes);
+   Array<int> essential_bdr_attr =
+      MakeBoundaryMarker(pmesh, essential_bdr_attributes);
 
-   const real_t protected_radius = 0.2;
-   SubdomainIndicator subdomain_indicator(x_max/2.0, y_max/2.0,
-                                          protected_radius);
+   unique_ptr<TimeIntegratedObjective> objective =
+      problem.CreateObjective(&state_fes, comm);
+   unique_ptr<VectorCoefficient> load_coef =
+      problem.CreateBoundaryLoadCoefficient();
 
-   const int num_steps = max(1, static_cast<int>(ceil(t_final / dt)));
-   const real_t dt_eff = t_final / num_steps;
+   const int num_steps =
+      max(1, static_cast<int>(ceil(problem.GetFinalTime() / problem.GetTimeStep())));
+   const real_t dt_eff = problem.GetFinalTime() / num_steps;
 
    // Rest initial state z0 = [u0, v0] = 0; the pulse load drives the dynamics.
    Vector x0(2 * state_fes.GetTrueVSize());
@@ -291,17 +331,18 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "\n=== Transient TopOpt (MMA) ===\n";
-      cout << "Mesh: " << mesh_file << "\n";
-      cout << "Refinement levels: " << ref_levels << "\n";
+      cout << "Mesh: " << problem.GetMeshFile() << "\n";
+      cout << "Refinement levels: " << problem.GetRefinementLevel() << "\n";
       cout << "State DOFs:   " << state_dofs << "\n";
       cout << "Filter DOFs:  " << filter_dofs << " (H1 rho_tilde)\n";
       cout << "Control DOFs: " << control_dofs << " (L2 rho)\n";
-      cout << "Target volume fraction: " << vol_frac << "\n";
-      cout << "Filter radius: " << filter_radius << "\n";
-      cout << "Time interval: [0, " << t_final << "],  steps: " << num_steps
+      cout << "Target volume fraction: " << problem.GetVolumeFraction() << "\n";
+      cout << "Filter radius: " << problem.GetFilterRadius() << "\n";
+      cout << "Time interval: [0, " << problem.GetFinalTime() << "],  steps: " << num_steps
            << ",  dt_eff: " << dt_eff << "\n";
-      cout << "Max MMA iterations: " << max_it << ",  move limit: " << move
-           << ",  stop tol (L1 dRho): " << change_tol << "\n";
+      cout << "Max MMA iterations: " << problem.GetMaxIterations()
+           << ",  move limit: " << problem.GetMoveLimit()
+           << ",  stop tol (L1 dRho): " << problem.GetChangeTolerance() << "\n";
    }
 
    // --- MMA setup -----------------------------------------------------------
@@ -330,7 +371,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetLevelsOfDetail(problem.GetOrder());
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.RegisterField("rho", &rho);
@@ -351,15 +392,16 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient rho_cf(&rho);
    int k = 0;
    real_t iterationError = 1.0;
-   for (; k < max_it && iterationError > change_tol; k++)
+   for (; k < problem.GetMaxIterations() &&
+          iterationError > problem.GetChangeTolerance(); k++)
    {
       // Objective + design gradient (forward sweep + discrete adjoint).
       // On entry this sets rho, rho_tilde from rho_tv.
       const real_t J = DesignObjectiveAdjointGradient(
          rho_tv, x0, state_fes, filter_fes, control_fes, mass_solver,
          rho, rho_tilde,
-         filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
-         subdomain_indicator, mat, pulse_amplitude, pulse_duration,
+         filter, gamma_coef, exterior_bdr_attr, essential_bdr_attr,
+         *objective, mat, load_spec, *load_coef,
          impedance, num_steps, dt_eff, dJ_drho, k);
 
       // Volume constraint and current fraction.
@@ -371,8 +413,8 @@ int main(int argc, char *argv[])
       rho_old = rho_tv;
       for (int i = 0; i < n; i++)
       {
-         rho_min[i] = max(real_t(0.0), rho_tv[i] - move);
-         rho_max[i] = min(real_t(1.0), rho_tv[i] + move);
+         rho_min[i] = max(real_t(0.0), rho_tv[i] - problem.GetMoveLimit());
+         rho_max[i] = min(real_t(1.0), rho_tv[i] + problem.GetMoveLimit());
       }
 
       // MMA outer iteration (minimizes J subject to fival <= 0).
@@ -410,8 +452,9 @@ int main(int argc, char *argv[])
    {
       history.close();
       cout << "\nOptimization stopped after " << k << " iterations"
-           << " (final L1 design change = " << scientific << setprecision(3)
-           << iterationError << ", tol = " << change_tol << ").\n";
+            << " (final L1 design change = " << scientific << setprecision(3)
+            << iterationError << ", tol = "
+            << problem.GetChangeTolerance() << ").\n";
       if (paraview)
       {
          cout << "ParaView output: ParaView/TopOptTransient.pvd\n";

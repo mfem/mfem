@@ -14,6 +14,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 MTOP_OBJ = mtop_solvers.o pde_filter.o
 MMA_OBJ = MMA_MFEM.o
 MMA_LIBS ?= -llapack -lblas
+TRANSIENT_HEADERS = ElastodynamicsSolver.hpp ObjectiveFunctional.hpp \
+                    BoundaryLoadSpec.hpp MaterialParams.hpp \
+                    TransientTopOptConfig.hpp ProblemSpecification.hpp
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static test_adjoint_verification
@@ -46,7 +49,7 @@ test_adjoint_verification: test_adjoint_verification.o pde_filter.o
 ElastTopOpt_static: ElastTopOpt_static.o $(MMA_OBJ) $(MTOP_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(MMA_LIBS)
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(TRANSIENT_HEADERS) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)

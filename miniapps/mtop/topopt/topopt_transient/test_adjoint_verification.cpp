@@ -56,6 +56,9 @@ void Normalize(MPI_Comm comm, Vector &x)
    x /= norm;
 }
 
+// DirectionalBoundaryLoadCoefficient: shared from BoundaryLoadSpec.hpp
+// (pulled in via ElastodynamicsSolver.hpp).
+
 // EvalRHS / EvalJacobianTranspose: promoted to ElastodynamicsSolver.hpp
 
 void RK4OneStep(ElastodynamicsOperator &oper,
@@ -403,10 +406,10 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
                          SpatialDampingCoefficient &gamma_coef,
                          Array<int> &exterior_bdr_attr,
                          Array<int> &empty_bdr_attr,
-                         Coefficient &subdomain_indicator,
+                         TimeIntegratedObjective &objective,
                          const MaterialParams &mat,
-                         real_t pulse_amplitude,
-                         real_t pulse_duration,
+                         const BoundaryLoadSpec &load_spec,
+                         VectorCoefficient &load_coef,
                          real_t impedance,
                          int nsteps,
                          real_t h,
@@ -414,10 +417,19 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
                          int nscales,
                          real_t initial_scale,
                          real_t state_scale,
-                         real_t tolerance)
+                         real_t tolerance,
+                         MassSolverType mass_type)
 {
    MPI_Comm comm = state_fes.GetComm();
    double worst_best_fd_rel = 0.0;
+
+   const char *mass_label =
+      (mass_type == MassSolverType::LUMPED) ? "LUMPED" : "CONSISTENT";
+   if (Mpi::Root())
+   {
+      mfem::out << "\n--- Design Taylor check (" << mass_label
+                << " mass) ---\n";
+   }
 
    Vector rho0;
    rho.GetTrueDofs(rho0);
@@ -435,10 +447,14 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
       RandomState(direction, 501 + 2*trial);
       Normalize(comm, direction);
 
+      // The design sensitivity integrators differentiate whichever mass matrix
+      // (consistent or row-lumped) drives the forward solve, so J and dJ/drho are
+      // self-consistent for both mass_type choices (see StageMassDesignLFIntegrator).
       const real_t J0 = DesignObjectiveAdjointGradient(
-         rho0, x0, state_fes, filter_fes, control_fes, rho, rho_tilde, filter,
-         gamma_coef, exterior_bdr_attr, empty_bdr_attr, subdomain_indicator,
-         mat, pulse_amplitude, pulse_duration, impedance, nsteps, h, grad);
+         rho0, x0, state_fes, filter_fes, control_fes, mass_type,
+         rho, rho_tilde, filter,
+         gamma_coef, exterior_bdr_attr, empty_bdr_attr, objective,
+         mat, load_spec, load_coef, impedance, nsteps, h, grad);
 
       const real_t projected_grad = GlobalDot(comm, grad, direction);
 
@@ -463,14 +479,14 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
          const real_t Jp = EvaluateDesignObjective(
             rho_plus, x0, state_fes, control_fes, rho, rho_tilde, filter,
             gamma_coef, exterior_bdr_attr, empty_bdr_attr,
-            subdomain_indicator, mat, pulse_amplitude, pulse_duration,
-            impedance, nsteps, h);
+            objective, mat, load_spec, load_coef,
+            impedance, nsteps, h, mass_type);
 
          const real_t Jm = EvaluateDesignObjective(
             rho_minus, x0, state_fes, control_fes, rho, rho_tilde, filter,
             gamma_coef, exterior_bdr_attr, empty_bdr_attr,
-            subdomain_indicator, mat, pulse_amplitude, pulse_duration,
-            impedance, nsteps, h);
+            objective, mat, load_spec, load_coef,
+            impedance, nsteps, h, mass_type);
 
          const real_t fd = (Jp - Jm) / (2.0 * scale);
          const double derivative_scale =
@@ -642,8 +658,8 @@ int main(int argc, char *argv[])
    SpatialDampingCoefficient gamma_coef(&phi_profile, gamma_max,
                                         mat.rho0, 2.0, 2);
 
-   const real_t pulse_duration = 0.005;
-   const real_t pulse_amplitude = 30.0;
+   BoundaryLoadSpec load_spec;
+   DirectionalBoundaryLoadCoefficient load_coef(load_spec.direction);
    const real_t impedance = mat.rho0 * c_p;
 
    Array<int> exterior_bdr_attr(pmesh.bdr_attributes.Max());
@@ -657,12 +673,13 @@ int main(int argc, char *argv[])
 
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
-      pulse_amplitude, pulse_duration,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
 
    SubdomainIndicator subdomain_indicator(x_max/2.0, y_max/2.0,
                                           protected_radius);
-   TimeIntegratedObjective objective(&state_fes, &subdomain_indicator, comm);
+   DisplacementL2Objective objective(&state_fes, subdomain_indicator, comm);
 
    const int state_size = oper.Height();
 
@@ -692,13 +709,24 @@ int main(int argc, char *argv[])
                            comm, state_size, nsteps, ntrials, dt,
                            taylor_scales, taylor_initial_scale,
                            taylor_tolerance);
-   const double design_taylor_err =
+   // Verify the design gradient for BOTH mass discretizations: the sensitivity
+   // must be self-consistent with whichever mass solver drives the forward solve.
+   const double design_taylor_err_cg =
       CheckDesignTaylor(state_fes, filter_fes, control_fes, rho, rho_tilde,
                         filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
-                        subdomain_indicator, mat, pulse_amplitude,
-                        pulse_duration, impedance, nsteps, dt, ntrials,
+                        objective, mat, load_spec, load_coef,
+                        impedance, nsteps, dt, ntrials,
                         taylor_scales, design_initial_scale,
-                        design_state_scale, design_tolerance);
+                        design_state_scale, design_tolerance,
+                        MassSolverType::ITERATIVE);
+   const double design_taylor_err_lumped =
+      CheckDesignTaylor(state_fes, filter_fes, control_fes, rho, rho_tilde,
+                        filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
+                        objective, mat, load_spec, load_coef,
+                        impedance, nsteps, dt, ntrials,
+                        taylor_scales, design_initial_scale,
+                        design_state_scale, design_tolerance,
+                        MassSolverType::LUMPED);
 
    if (myid == 0)
    {
@@ -711,8 +739,10 @@ int main(int argc, char *argv[])
                 << n_step_err << '\n'
                 << "Worst objective Taylor FD error: "
                 << taylor_err << '\n'
-                << "Worst raw-design Taylor FD error: "
-                << design_taylor_err << '\n';
+                << "Worst raw-design Taylor FD error (consistent mass): "
+                << design_taylor_err_cg << '\n'
+                << "Worst raw-design Taylor FD error (lumped mass): "
+                << design_taylor_err_lumped << '\n';
    }
 
    return 0;

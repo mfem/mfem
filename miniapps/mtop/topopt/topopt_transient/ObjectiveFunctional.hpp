@@ -23,6 +23,8 @@
 
 #include "mfem.hpp"
 #include <cmath>
+#include <memory>
+#include <utility>
 
 namespace mfem
 {
@@ -101,15 +103,35 @@ public:
 class DisplacementL2Objective : public TimeIntegratedObjective
 {
 private:
-   Coefficient *subdomain_indicator;
+   Coefficient *subdomain_indicator; // non-owning view used in hot paths
+   std::unique_ptr<Coefficient> owned_indicator;
 
 public:
+   /// Borrow an externally-owned indicator coefficient.
+   DisplacementL2Objective(ParFiniteElementSpace *fes,
+                           Coefficient &indicator,
+                           MPI_Comm comm_)
+      : TimeIntegratedObjective(fes, comm_),
+        subdomain_indicator(&indicator) {}
+
+   /// Take ownership of an indicator coefficient.
+   DisplacementL2Objective(ParFiniteElementSpace *fes,
+                           std::unique_ptr<Coefficient> indicator,
+                           MPI_Comm comm_)
+      : TimeIntegratedObjective(fes, comm_),
+        subdomain_indicator(indicator.get()),
+        owned_indicator(std::move(indicator)) {}
+
+   /// Backward-compatible constructor for legacy call sites.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
                            Coefficient *indicator,
-                           MPI_Comm comm_)
-      : TimeIntegratedObjective(fes, comm_), subdomain_indicator(indicator) {}
+                           MPI_Comm comm_,
+                           bool own_indicator = true)
+      : TimeIntegratedObjective(fes, comm_),
+        subdomain_indicator(indicator),
+        owned_indicator(own_indicator ? indicator : nullptr) {}
 
-   virtual ~DisplacementL2Objective() { delete subdomain_indicator; }
+   virtual ~DisplacementL2Objective() = default;
 
    real_t AccumulateTimestep(const ParGridFunction &u, real_t dt,
                              int timestep, int total_steps) override
@@ -245,15 +267,34 @@ public:
 class ComplianceObjective : public TimeIntegratedObjective
 {
 private:
-   VectorCoefficient *applied_load;
+   VectorCoefficient *applied_load; // non-owning view used in hot paths
+   std::unique_ptr<VectorCoefficient> owned_load;
 
 public:
+   /// Borrow an externally-owned load coefficient.
+   ComplianceObjective(ParFiniteElementSpace *fes,
+                       VectorCoefficient &load,
+                       MPI_Comm comm_)
+      : TimeIntegratedObjective(fes, comm_), applied_load(&load) {}
+
+   /// Take ownership of a load coefficient.
+   ComplianceObjective(ParFiniteElementSpace *fes,
+                       std::unique_ptr<VectorCoefficient> load,
+                       MPI_Comm comm_)
+      : TimeIntegratedObjective(fes, comm_),
+        applied_load(load.get()),
+        owned_load(std::move(load)) {}
+
+   /// Backward-compatible constructor for legacy call sites.
    ComplianceObjective(ParFiniteElementSpace *fes,
                        VectorCoefficient *load,
-                       MPI_Comm comm_)
-      : TimeIntegratedObjective(fes, comm_), applied_load(load) {}
+                       MPI_Comm comm_,
+                       bool own_load = true)
+      : TimeIntegratedObjective(fes, comm_),
+        applied_load(load),
+        owned_load(own_load ? load : nullptr) {}
 
-   virtual ~ComplianceObjective() { delete applied_load; }
+   virtual ~ComplianceObjective() = default;
 
    real_t AccumulateTimestep(const ParGridFunction &u, real_t dt,
                              int timestep, int total_steps) override

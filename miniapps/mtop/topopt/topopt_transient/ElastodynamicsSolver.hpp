@@ -23,6 +23,8 @@
 #define ELASTODYNAMICS_SOLVER_HPP
 
 #include "mfem.hpp"
+#include "BoundaryLoadSpec.hpp"
+#include "MaterialParams.hpp"
 #include "ObjectiveFunctional.hpp"
 #include "../../pde_filter.hpp"
 #include <memory>
@@ -306,7 +308,8 @@ private:
 
    // Precomputed load vector (optimization B)
    Vector load_base_vector;
-   real_t load_duration, load_amplitude;
+   real_t load_duration, load_amplitude, load_phase, load_frequency;
+   LoadTimeProfile load_time_profile;
    Array<int> load_bdr_markers;
 
    // Trajectory storage for adjoint
@@ -323,6 +326,11 @@ public:
       Coefficient &lambda_coef,
       Coefficient &mu_coef,
       real_t amplitude, real_t duration,
+      LoadTimeProfile load_profile,
+      real_t load_phase,
+      real_t load_frequency,
+      const Array<int> &load_bdr_attrs,
+      VectorCoefficient &load_coef,
       SpatialDampingCoefficient *gamma_coef,
       real_t impedance,
       Array<int> &exterior_bdr_attr,
@@ -349,6 +357,8 @@ public:
    ParGridFunction& GetVelocity() { return v_gf; }
 
    Array<int>& GetBlockOffsets() { return block_true_offsets; }
+
+   MassSolverType GetMassSolverType() const { return mass_solver_type; }
 
    HypreParMatrix* GetMassMatrix() const { return Mmat; }
    HypreParMatrix* GetStiffnessMatrix() const { return Kmat; }
@@ -450,6 +460,11 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    Coefficient &lambda_coef,
    Coefficient &mu_coef,
    real_t amplitude, real_t duration,
+   LoadTimeProfile load_profile,
+   real_t phase,
+   real_t frequency,
+   const Array<int> &load_bdr_attrs,
+   VectorCoefficient &load_coef,
    SpatialDampingCoefficient *gamma_coef,
    real_t impedance,
    Array<int> &exterior_bdr_attr,
@@ -470,6 +485,9 @@ ElastodynamicsOperator::ElastodynamicsOperator(
      load_base_vector(true_size),
      load_duration(duration),
      load_amplitude(amplitude),
+     load_phase(phase),
+     load_frequency(frequency),
+     load_time_profile(load_profile),
      trajectory(traj),
      objective(obj),
      current_adjoint_step(-1)
@@ -599,10 +617,11 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    load_bdr_markers.SetSize(max_bdr_attr);
    load_bdr_markers = 0;
 
-   // Mark load boundaries (attributes 21-26 for Gmsh mesh)
-   for (int attr = 21; attr <= 26; attr++)
+   // Mark load boundaries supplied by the problem/configuration layer.
+   for (int i = 0; i < load_bdr_attrs.Size(); i++)
    {
-      if (attr <= max_bdr_attr)
+      const int attr = load_bdr_attrs[i];
+      if (attr >= 1 && attr <= max_bdr_attr)
       {
          load_bdr_markers[attr - 1] = 1;
       }
@@ -611,29 +630,16 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    // Precompute base load vector (optimization B)
    // The time-varying load is: load(t) = load_base_vector * gauss(t)
    // This eliminates boundary assembly from the inner loop
-   class UnitLoad : public VectorCoefficient
-   {
-   public:
-      UnitLoad(int dim) : VectorCoefficient(dim) {}
-      void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
-      {
-         V.SetSize(vdim);
-         V = 0.0;
-         V(1) = -1.0;  // Unit downward traction
-      }
-   };
-
-   UnitLoad unit_load_coef(pmesh->SpaceDimension());
    ParLinearForm load_form(&fespace);
    load_form.AddBoundaryIntegrator(
-      new VectorBoundaryLFIntegrator(unit_load_coef), load_bdr_markers);
+      new VectorBoundaryLFIntegrator(load_coef), load_bdr_markers);
    load_form.Assemble();
    load_form.ParallelAssemble(load_base_vector);
 
    if (myid == 0)
    {
       std::cout << "\nTime-dependent loading:" << std::endl;
-      std::cout << "  Type: Smooth Gaussian pulse" << std::endl;
+      std::cout << "  Type: " << LoadTimeProfileName(load_time_profile) << std::endl;
       std::cout << "  Peak amplitude: " << amplitude << std::endl;
       std::cout << "  Duration: " << duration << " s" << std::endl;
       std::cout << "  Base load norm: " << load_base_vector.Norml2() << std::endl;
@@ -673,11 +679,19 @@ void ElastodynamicsOperator::Mult(const Vector &x, Vector &y) const
    res.Add(-1.0, tmp);
 
    // Time-dependent applied load (optimization B: precomputed base vector)
-   real_t t_center = load_duration / 2.0;
-   real_t sigma = load_duration / 4.0;
-   real_t t_diff = time - t_center;
-   real_t gauss_factor = exp(-t_diff * t_diff / (2.0 * sigma * sigma));
-   real_t current_amplitude = load_amplitude * gauss_factor;
+   real_t time_factor = 1.0;
+   if (load_time_profile == LoadTimeProfile::GAUSSIAN)
+   {
+      const real_t t_center = load_duration / 2.0;
+      const real_t sigma = load_duration / 4.0;
+      const real_t t_diff = time - t_center;
+      time_factor = exp(-t_diff * t_diff / (2.0 * sigma * sigma));
+   }
+   else if (load_time_profile == LoadTimeProfile::HARMONIC)
+   {
+      time_factor = sin(load_frequency * time + load_phase);
+   }
+   const real_t current_amplitude = load_amplitude * time_factor;
 
    // Scale precomputed load: res += current_amplitude * load_base_vector
    res.Add(current_amplitude, load_base_vector);
@@ -707,7 +721,7 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
 
    Vector m_inv_lambda(true_size);
    m_inv_lambda = 0.0;
-   M_solver->Mult(lambda_new, m_inv_lambda);
+   MultInvMass(lambda_new, m_inv_lambda);
 
    Kmat->MultTranspose(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(0).Add(-1.0, tmp);
@@ -808,16 +822,6 @@ ElastodynamicsOperator::~ElastodynamicsOperator()
 // from full storage; adding checkpointing later only changes how they are
 // supplied, not the math here.
 
-struct MaterialParams
-{
-   real_t rho0 = 1.0;
-   real_t lambda0 = 2.0;
-   real_t mu0 = 1.0;
-   real_t r_min = 1e-6;
-   real_t r_max = 1.0;
-   real_t simp_p = 3.0;
-};
-
 inline real_t SimpDerivative(const ParGridFunction &rho_tilde,
                              ElementTransformation &T,
                              const IntegrationPoint &ip,
@@ -830,6 +834,21 @@ inline real_t SimpDerivative(const ParGridFunction &rho_tilde,
           * (mat.r_max - mat.r_min);
 }
 
+// Mass-matrix design sensitivity: assembles the filter-space linear form
+//   elvect(k) += integral[ -rho0 * SIMP'(rho_tilde) * (a . z) * phi_k ] dx,
+// which is d/d(rho_tilde) of -z^T M(rho_tilde) a, i.e. the mass contribution to
+// dJ/d(rho_tilde) in the discrete adjoint (a = stage acceleration, z = M^{-1} of
+// the adjoint velocity seed).
+//
+// The forward solve can use either the *consistent* mass M or the row-lumped
+// mass M_lumped = diag(integral SIMP*rho0*phi_i) (partition of unity). The design
+// sensitivity MUST differentiate whichever mass drives the forward solve:
+//   - CONSISTENT: (a . z) is the L2 product of the interpolated fields at the
+//     quadrature point, (sum_i a_i phi_i) . (sum_j z_j phi_j).
+//   - LUMPED: the diagonal lump collapses the product to the nodal contraction
+//     g(x) = sum_i (a_i . z_i) phi_i(x), the interpolant of the per-node dot
+//     products. Using the consistent product with a lumped forward solve yields
+//     an inconsistent (wrong) gradient.
 class StageMassDesignLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -837,14 +856,17 @@ private:
    ParGridFunction &accel;
    ParGridFunction &z;
    MaterialParams mat;
+   bool lumped;
    Vector shape, accel_val, z_val;
 
 public:
    StageMassDesignLFIntegrator(ParGridFunction &rho_tilde_,
                                ParGridFunction &accel_,
                                ParGridFunction &z_,
-                               const MaterialParams &mat_)
-      : rho_tilde(rho_tilde_), accel(accel_), z(z_), mat(mat_) {}
+                               const MaterialParams &mat_,
+                               bool lumped_ = false)
+      : rho_tilde(rho_tilde_), accel(accel_), z(z_), mat(mat_),
+        lumped(lumped_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &T,
@@ -855,6 +877,34 @@ public:
       elvect.SetSize(dof);
       elvect = 0.0;
 
+      // For the lumped mass, precompute the per-node dot products
+      // g_i = a_i . z_i from the element-local nodal (vector) dofs.
+      Vector g_nodal;
+      if (lumped)
+      {
+         const FiniteElementSpace *afes = accel.FESpace();
+         const int vdim = afes->GetVDim();
+         const int ordering = afes->GetOrdering();
+         Array<int> vdofs;
+         afes->GetElementVDofs(T.ElementNo, vdofs);
+         Vector a_edof, z_edof;
+         accel.GetSubVector(vdofs, a_edof);
+         z.GetSubVector(vdofs, z_edof);
+
+         g_nodal.SetSize(dof);
+         for (int i = 0; i < dof; i++)
+         {
+            real_t s = 0.0;
+            for (int c = 0; c < vdim; c++)
+            {
+               const int idx = (ordering == Ordering::byNODES)
+                               ? (c * dof + i) : (i * vdim + c);
+               s += a_edof(idx) * z_edof(idx);
+            }
+            g_nodal(i) = s;
+         }
+      }
+
       const int int_order = 2 * el.GetOrder() + T.OrderW();
       const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), int_order);
 
@@ -864,11 +914,20 @@ public:
          T.SetIntPoint(&ip);
          el.CalcPhysShape(T, shape);
 
-         accel.GetVectorValue(T, ip, accel_val);
-         z.GetVectorValue(T, ip, z_val);
+         real_t az;
+         if (lumped)
+         {
+            az = g_nodal * shape;   // g(x) = sum_i (a_i . z_i) phi_i(x)
+         }
+         else
+         {
+            accel.GetVectorValue(T, ip, accel_val);
+            z.GetVectorValue(T, ip, z_val);
+            az = accel_val * z_val;
+         }
 
          const real_t rp = SimpDerivative(rho_tilde, T, ip, mat);
-         const real_t density = -mat.rho0 * rp * (accel_val * z_val);
+         const real_t density = -mat.rho0 * rp * az;
          const real_t weight = ip.weight * T.Weight() * density;
 
          for (int i = 0; i < dof; i++)
@@ -1047,9 +1106,10 @@ inline void AddStageDesignGradientTilde(ElastodynamicsOperator &oper,
    accel_gf.SetFromTrueDofs(rhs_blocks.GetBlock(1));
    z_gf.SetFromTrueDofs(z_true);
 
+   const bool lumped = (oper.GetMassSolverType() == MassSolverType::LUMPED);
    ParLinearForm mass_lf(&filter_fes);
    mass_lf.AddDomainIntegrator(
-      new StageMassDesignLFIntegrator(rho_tilde, accel_gf, z_gf, mat));
+      new StageMassDesignLFIntegrator(rho_tilde, accel_gf, z_gf, mat, lumped));
    mass_lf.Assemble();
    std::unique_ptr<HypreParVector> mass_vec(mass_lf.ParallelAssemble());
 
@@ -1223,10 +1283,10 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
                                       SpatialDampingCoefficient &gamma_coef,
                                       Array<int> &exterior_bdr_attr,
                                       Array<int> &empty_bdr_attr,
-                                      Coefficient &subdomain_indicator,
+                                      TimeIntegratedObjective &objective,
                                       const MaterialParams &mat,
-                                      real_t pulse_amplitude,
-                                      real_t pulse_duration,
+                                      const BoundaryLoadSpec &load_spec,
+                                      VectorCoefficient &load_coef,
                                       real_t impedance,
                                       int nsteps,
                                       real_t h,
@@ -1248,12 +1308,10 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
 
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
-      pulse_amplitude, pulse_duration,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
       mass_type);
-
-   TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
-                                     state_fes.GetComm());
 
    (void)control_fes;
    return RolloutObjective(oper, state_fes, oper.GetBlockOffsets(), objective,
@@ -1272,10 +1330,10 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
                                              SpatialDampingCoefficient &gamma_coef,
                                              Array<int> &exterior_bdr_attr,
                                              Array<int> &empty_bdr_attr,
-                                             Coefficient &subdomain_indicator,
+                                             TimeIntegratedObjective &objective,
                                              const MaterialParams &mat,
-                                             real_t pulse_amplitude,
-                                             real_t pulse_duration,
+                                             const BoundaryLoadSpec &load_spec,
+                                             VectorCoefficient &load_coef,
                                              real_t impedance,
                                              int nsteps,
                                              real_t h,
@@ -1300,12 +1358,10 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
 
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
-      pulse_amplitude, pulse_duration,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
       mass_type);
-
-   TimeIntegratedObjective objective(&state_fes, &subdomain_indicator,
-                                     state_fes.GetComm());
 
    if (myid == 0)
    {
