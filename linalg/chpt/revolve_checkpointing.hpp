@@ -153,7 +153,6 @@ private:
 
    int turn_ = 0;
    int oldfine_ = 0;
-   int oldsnaps_ = 0;
 
    // Stack of checkpoint times, indexed by 'check_'.
    std::vector<int> ch_;
@@ -163,7 +162,7 @@ public:
 
    RevolveController(int snaps, int capo0, int fine0)
       : snaps_(snaps), check_(-1), capo_(capo0), fine_(fine0),
-        turn_(0), oldfine_(fine0), oldsnaps_(snaps), ch_(snaps, 0)
+        turn_(0), oldfine_(fine0), ch_(snaps, 0)
    {
       MFEM_VERIFY(snaps_ > 0, "REVOLVE snaps must be > 0");
       MFEM_VERIFY(capo_ <= fine_, "REVOLVE: capo must be <= fine");
