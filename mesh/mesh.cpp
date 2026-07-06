@@ -3262,11 +3262,17 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
       // loop over all elements
       for (int i = 0; i < GetNE(); i++)
       {
+         fes->GetElementInteriorDofs(i, old_dofs);
+         // No need to permute the dofs if there are fewer than two
+         if (old_dofs.Size() < 2) { continue; }
+
          const int *old_v = old_elem_vert->GetRow(i);
          const int *new_v = elements[i]->GetVertices();
          const int *dof_ord;
          int new_or;
          const Geometry::Type geom = elements[i]->GetGeometryType();
+         if (geom == Geometry::CUBE || geom == Geometry::PRISM ||
+             geom == Geometry::PYRAMID) { continue; }
          switch (geom)
          {
             case Geometry::SEGMENT:
@@ -3290,9 +3296,8 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          MFEM_VERIFY(dof_ord != NULL,
                      "FE collection '" << fec->Name()
-                     << "' does not define reordering for "
+                     << "' does not define reordering (" << new_or << ") for "
                      << Geometry::Name[geom] << " elements!");
-         fes->GetElementInteriorDofs(i, old_dofs);
          new_dofs.SetSize(old_dofs.Size());
          for (int j = 0; j < new_dofs.Size(); j++)
          {
