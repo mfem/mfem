@@ -17,7 +17,8 @@ namespace mfem
 
 TEST_CASE("MFEM High-Order Read/Write", "[Mesh]")
 {
-   std::string mesh_fname = GENERATE("../../data/ref-triangle.mesh",
+   std::string mesh_fname = GENERATE("../../data/ref-segment.mesh",
+                                     "../../data/ref-triangle.mesh",
                                      "../../data/ref-square.mesh",
                                      "../../data/ref-tetrahedron.mesh",
                                      "../../data/ref-cube.mesh",
