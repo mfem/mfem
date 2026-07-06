@@ -449,10 +449,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    MFEM_ASSERT(rank_list.Size() == GetNParticles(),
                "rank_list must be of size GetNParticles().");
 
-   // The router rewrites ranks in place (compact/append) and rank_list is const,
-   // so route through a mutable copy. Stays unsigned -- no narrowing cast.
-
-   crystal_router->Route(ranks, ids, coords(dim), fields(), tags());
+   crystal_router->Route(rank_list, ids, {tags}, {coords, fields});
 }
 #endif // MFEM_USE_MPI
 

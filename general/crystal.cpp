@@ -4,7 +4,6 @@
 #include <cstring>
 #include <climits>
 #include <cstdint>
-#include <memory>
 #include <cstdio>
 
 namespace mfem
@@ -20,10 +19,28 @@ CrystalRouter::~CrystalRouter() {
    MPI_Comm_free(&comm);
 }
 
-void CrystalRouter::Route(Array<unsigned int> &ranks,
+void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                           Array<unsigned long long> &ids,
-                          const std::vector<Array<int>*> &tags,
-                          const std::vector<ParticleVector*> &data)
+                          std::initializer_list<Group<Array<int>>> tag_groups,
+                          std::initializer_list<Group<ParticleVector>> data_groups)
+{
+    // Internally convert group braced init lists to std vectors
+   std::vector<Array<int>*> tags;
+   for (const auto &g : tag_groups){ tags.insert(tags.end(), g.cols.begin(), g.cols.end()); }
+
+   std::vector<ParticleVector*> data;
+   for (const auto &g : data_groups){ data.insert(data.end(), g.cols.begin(), g.cols.end()); }
+
+   // copy to preserve rank list
+   Array<unsigned int> ranks(rank_list);
+   RouteInternal(ranks, ids, tags, data);
+}
+
+// PRIVATE METHODS
+void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
+                              Array<unsigned long long> &ids,
+                              const std::vector<Array<int>*> &tags,
+                              const std::vector<ParticleVector*> &data)
 {
 
    uint32_t bl = 0, bh, nl;
@@ -59,8 +76,6 @@ void CrystalRouter::Route(Array<unsigned int> &ranks,
       msg_tag += 2;
    }
 }
-
-// PRIVATE METHODS
 
 void CrystalRouter::Move(Array<unsigned int> &ranks,
                          Array<unsigned long long> &ids,
@@ -130,7 +145,7 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
       if (k != idx) {
          ranks[k] = ranks[idx];
          ids[k] = ids[idx];
-         for (auto *tag : tags) { 
+         for (auto *tag : tags) {
             (*tag)[k] = (*tag)[idx];
          }
          for (auto *pv : data) {
