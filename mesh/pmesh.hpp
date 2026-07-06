@@ -557,7 +557,7 @@ public:
    void ExchangeFaceNbrNodes();
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1) override;
+                     int ordering = 1, int pyrtype = 1) override;
 
    /** Replace the internal node GridFunction with a new GridFunction defined on
        the given FiniteElementSpace. The new node coordinates are projected

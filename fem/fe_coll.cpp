@@ -228,7 +228,19 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1_", 3))
    {
-      fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
+      // Parse pyramid basis type if included in the name
+      const char *pyr = strstr(name, "Pyr");
+      if (pyr == NULL)
+      {
+         // Use default pyramid type elements
+         fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
+      }
+      else
+      {
+         // Use specific pyramid type elements
+         fec = new H1_FECollection(atoi(name + 7), atoi(name + 3),
+                                   BasisType::GaussLobatto, atoi(pyr + 3));
+      }
    }
    else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
@@ -245,26 +257,44 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1@", 3))
    {
-      fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
-                                BasisType::GetType(name[3]));
+      // Parse pyramid basis type if included in the name
+      const char *pyr = strstr(name, "Pyr");
+      if (pyr == NULL)
+      {
+         // Use default pyramid type elements
+         fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                   BasisType::GetType(name[3]));
+      }
+      else
+      {
+         // Use specific pyramid type elements
+         fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                   BasisType::GetType(name[3]),
+                                   atoi(pyr + 3));
+      }
    }
-   else if (!strncmp(name, "L2_T", 4))
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
-                                atoi(name + 4));
-   else if (!strncmp(name, "L2_", 3))
+   else if (!strncmp(name, "L2", 2))
    {
-      fec = new L2_FECollection(atoi(name + 7), atoi(name + 3));
-   }
-   else if (!strncmp(name, "L2Int_T", 7))
-   {
-      fec = new L2_FECollection(atoi(name + 13), atoi(name + 9),
-                                atoi(name + 7), FiniteElement::INTEGRAL);
-   }
-   else if (!strncmp(name, "L2Int_", 6))
-   {
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
-                                BasisType::GaussLegendre,
-                                FiniteElement::INTEGRAL);
+      // Parse Map Type
+      const int mtype = strstr(name, "Int") == NULL ?
+                        FiniteElement::VALUE : FiniteElement::INTEGRAL;
+
+      // Parse the base order
+      const int p = atoi(strstr(name, "_P") + 2);
+
+      // Parse the mesh dimension
+      const int dim = atoi(strstr(name, "D") - 1);
+
+      // Parse basis type if specified
+      const char *t = strstr(name, "_T");
+      const int btype = t == NULL ? BasisType::GaussLegendre : atoi(t + 2);
+
+      // Parse the pyramid type if specified
+      const char *pyr = strstr(name, "Pyr");
+      const int ptype = pyr == NULL ? 1 : atoi(pyr + 3);
+
+      // Create collection
+      fec = new L2_FECollection(p, dim, btype, mtype, ptype);
    }
    else if (!strncmp(name, "RT_Trace_", 9))
    {
@@ -1724,7 +1754,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
    {
       case BasisType::GaussLobatto:
       {
-         snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+         snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyrtype);
          break;
       }
       case BasisType::Positive:
@@ -2163,10 +2193,11 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    switch (btype)
    {
       case BasisType::GaussLegendre:
-         snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
+         snprintf(d_name, 32, "%s_%dD_P%d_Pyr%d", prefix, dim, p, pyr_type);
          break;
       default:
-         snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
+         snprintf(d_name, 32, "%s_T%d_%dD_P%d_Pyr%d",
+                  prefix, btype, dim, p, pyr_type);
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)

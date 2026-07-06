@@ -2414,8 +2414,9 @@ public:
        @param[in]  space_dim   The space dimension (optional).
        @param[in]  ordering    The Ordering of the finite element space
                                (Ordering::byVDIM is the default). */
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+   virtual void SetCurvature(int order, bool discont = false,
+                             int space_dim = -1, int ordering = 1,
+                             int pyr_type = 1);
 
    /// @}
 
