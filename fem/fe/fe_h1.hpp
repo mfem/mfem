@@ -208,6 +208,8 @@ private:
 #endif
    DenseMatrixInverse Ti;
 
+   static constexpr real_t apex_tol = 1e-8;
+
 public:
    H1_BergotPyramidElement(const int p,
                            const int btype = BasisType::GaussLobatto);
