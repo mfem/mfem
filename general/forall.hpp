@@ -808,6 +808,11 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
+#ifdef MFEM_USE_ENZYME
+template <const int BLCK, typename DBODY>
+void CuWrap1DWithEnzyme(const int N, DBODY &&d_body);
+#endif
+
 template <int Dim, int MAX_THREADS_PER_BLOCK> struct CuWrap;
 
 template <int MAX_THREADS_PER_BLOCK>
@@ -866,12 +871,14 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
    }
 };
 
+#ifdef MFEM_USE_ENZYME
 template <typename BODY> struct DerivativeKernelWrapperStruct
 {
-   MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY &body, const int k)
+   MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY *body, const int k)
    {
-      body(k);
+      (*body)(k);
    }
+
    __global__ static void FwdLaunch(const int N, BODY body, BODY d_body)
    {
       const int k = blockDim.x * blockIdx.x + threadIdx.x;
@@ -881,9 +888,10 @@ template <typename BODY> struct DerivativeKernelWrapperStruct
       }
 
       __enzyme_fwddiff<void>(
-         (void (*)(const void *, const int))CuWrap1DEnzymeBody, enzyme_dup,
+         (void*)CuWrap1DEnzymeBody, enzyme_dup,
          (void*)&body, (void*)&d_body, enzyme_const, k, enzyme_runtime_activity);
    }
+
    __global__ static void Launch(const int N, BODY body)
    {
       const int k = blockDim.x * blockIdx.x + threadIdx.x;
@@ -912,6 +920,7 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 
    static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body)
    {
+      MFEM_CONTRACT_VAR(dN);
       if (N == 0)
       {
          return;
@@ -932,12 +941,16 @@ template <const int BLCK, typename DBODY>
 void CuWrap1DWithEnzyme(const int N, DBODY &&d_body)
 {
    using DBODY_BASE = std::remove_reference_t<DBODY>;
-   if (false)
-   {
-      (void)CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
-   }
+   // Taking the address forces instantiation/emission of the registration
+   // global for this lambda type so Enzyme can find the custom derivative for
+   // CuWrap1DStruct<..., DBODY_BASE>::Call before trying to differentiate the
+   // CUDA runtime launch inside it.
+   [[maybe_unused]] auto *enzyme_registration =
+      &CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
+   MFEM_CONTRACT_VAR(enzyme_registration);
    CuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
 }
+#endif
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
@@ -1147,7 +1160,8 @@ inline void ForallWrap(const bool use_dev, const int N,
                      "Enzyme CUDA Wrappers are only implemented "
                      "for one dimensional thread blocks");
 
-         return CuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
+         constexpr int BLCK = MAX_THREADS_PER_BLOCK == 0 ? MFEM_CUDA_BLOCKS : MAX_THREADS_PER_BLOCK;
+         return CuWrap1DWithEnzyme<BLCK>(N, d_body);
 #else
          MFEM_ABORT("Enzyme not available");
 #endif
