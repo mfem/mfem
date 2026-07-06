@@ -360,74 +360,71 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    {
       // Assume all HO elements are LOR in the same way
       const int iho = 0;
+      Array<int> lor_els;
+      ho2lor.GetRow(iho, lor_els);
+      int nref = ho2lor.RowSize(iho);
+
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+      const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
+      const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
+
+      // Allocate space for DenseTensors
+      ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
+      int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+      const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
+      int qPts = ir_ea->GetNPoints();
+
+      // Containers for the basis functions sampled at quadrature points
+      B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt);
+      B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
+      D.SetSize(qPts, nref, nel_ho, d_mt);
+
+      const GeometricFactors *geo_facts =
+         mesh_lor->GetGeometricFactors(*ir_ea, GeometricFactors::DETERMINANTS);
+
+      MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
+
+      // Setup data at quadrature points
+      // TODO add support for user coefficient
+      const auto W = Reshape(ir_ea->GetWeights().Read(), qPts);
+      const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
+      const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+
+      mfem::forall(qPts * nref * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
       {
-         Array<int> lor_els;
-         ho2lor.GetRow(iho, lor_els);
-         int nref = ho2lor.RowSize(iho);
+         const int q    = tid % qPts;
+         const int iref = (tid / qPts) % nref;
+         const int iho  = (tid / (qPts * nref)) % nel_ho;
 
-         Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-         const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
-         const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
+         const int lo_el_id = iref + nref*iho;
+         const real_t detJ = J(q, lo_el_id);
 
-         // Allocate space for DenseTensors
-         ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
-         int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
-         int qPts = ir_ea->GetNPoints();
+         d_D(q, iref, iho) = W(q) * detJ;
 
-         // Containers for the basis functions sampled at quadrature points
-         B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt);
-         B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
-         D.SetSize(qPts, nref, nel_ho, d_mt);
+      });
 
-         const GeometricFactors *geo_facts =
-            mesh_lor->GetGeometricFactors(*ir_ea, GeometricFactors::DETERMINANTS);
+      emb_tr.SetIdentityTransformation(geom);
+      const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
-         MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
+      // Collect the basis functions
+      for (int iref = 0; iref < nref; ++iref)
+      {
+         int ilor = lor_els[iref];
+         // Now assemble the block-row of the mixed mass matrix associated
+         // with integrating HO functions against LOR functions on the LOR
+         // sub-element.
 
-         // Setup data at quadrature points
-         // TODO add support for user coefficient
-         const auto W = Reshape(ir_ea->GetWeights().Read(), qPts);
-         const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
-         const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+         // Create the transformation that embeds the fine low-order element
+         // within the coarse high-order element in reference space
+         emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         mfem::forall(qPts * nref * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
-         {
-            const int q    = tid % qPts;
-            const int iref = (tid / qPts) % nref;
-            const int iho  = (tid / (qPts * nref)) % nel_ho;
+         DenseMatrix &b_lo = B_L(ilor);
+         DenseMatrix &b_ho = B_H(ilor);
 
-            const int lo_el_id = iref + nref*iho;
-            const real_t detJ = J(q, lo_el_id);
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, b_lo, b_ho);
 
-            d_D(q, iref, iho) = W(q) * detJ;
-
-         });
-
-         emb_tr.SetIdentityTransformation(geom);
-         const DenseTensor &pmats = cf_tr.point_matrices[geom];
-
-         // Collect the basis functions
-         for (int iref = 0; iref < nref; ++iref)
-         {
-            int ilor = lor_els[iref];
-            // Now assemble the block-row of the mixed mass matrix associated
-            // with integrating HO functions against LOR functions on the LOR
-            // sub-element.
-
-            // Create the transformation that embeds the fine low-order element
-            // within the coarse high-order element in reference space
-            emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
-
-            DenseMatrix &b_lo = B_L(ilor);
-            DenseMatrix &b_ho = B_H(ilor);
-
-            ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, b_lo, b_ho);
-
-         } // loop over subcells of ho element
-         // end of quadrature point setup
-      }
-
+      } // loop over subcells of ho element
+      // end of quadrature point setup
    } // completed setup of basis function and quadrature point
 
    // Assemble mixed mass matrix
