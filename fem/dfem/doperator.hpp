@@ -1017,7 +1017,7 @@ void DifferentiableOperator::AddIntegrator(
                                   auto &assemble_diagonal_cbs,
                                   auto &action_cbs,
                                   const IntegratorContext &callback_ctx,
-                                  auto qf, auto outputs)
+                                  auto &qf, auto outputs)
       {
          // Setup the qp cache for the derivative
          setup_callbacks[i].push_back(

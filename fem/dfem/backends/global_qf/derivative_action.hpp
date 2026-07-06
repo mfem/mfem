@@ -28,10 +28,10 @@ struct DerivativeAction
 {
    DerivativeAction(
       IntegratorContext ctx,
-      qfunc_t qfunc,
+      const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs):
-      ctx(ctx), qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs)
+      ctx(ctx), qfunc(qfunc), inputs(inputs), outputs(outputs)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
