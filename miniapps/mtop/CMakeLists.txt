@@ -61,6 +61,11 @@ add_mfem_miniapp(test_grad
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(test_cvar_canti_opt_stochastic_grad
+     MAIN test_cvar_canti_opt_stochastic_grad.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 
 
 endif ()

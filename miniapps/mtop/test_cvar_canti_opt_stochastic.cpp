@@ -510,9 +510,9 @@ int main(int argc, char *argv[])
     ParBilinearForm mass(filt->GetDesignFES());
     mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
     mass.Assemble();
-    HypreParMatrix M;
+    HypreParMatrix Minv;
     Array<int> empty;
-    mass.FormSystemMatrix(empty, M);
+    mass.FormSystemMatrix(empty, Minv);
     Vector tmp_grad;
     tmp_grad.SetSize(filt->GetDesignFES()->GetTrueVSize());
 
@@ -1153,27 +1153,24 @@ int main(int argc, char *argv[])
                 // }
                 icc.SetGridFunctions(&fdens, &sol);
 
-                // Apply the adjoint filter operation
-                filt->AFilter(icc.GetGradIsoComp(), odens_gradient_single); // adjoint operation to projection to find differential in design space. Chain rule.
-                real_t grad_norm_after_afilter = odens_gradient_single.ComputeL2Error(zero);
+                real_t grad_norm_after_afilter = 0.0;
+                real_t grad_norm_after_smooth = 0.0;
+                const bool gradient_ok = compute_smoothed_design_gradient(
+                    *filt, icc, Minv, odens_gradient_single, tmp_grad,
+                    grad_norm_after_afilter, grad_norm_after_smooth);
+
                 if (myid == 0) {
                     std::cout << inner_iter_tag << " After AFilter, norm odens_gradient_single: " << grad_norm_after_afilter << std::endl;
                 }
-                if (std::isnan(grad_norm_after_afilter)) {
+                if (!std::isfinite(grad_norm_after_afilter)) {
                     if (myid == 0) std::cout << inner_iter_tag << " NaN detected after AFilter for scenario " << bits.to_string() << std::endl;
                     odens_gradient_single = 0.0; // skip this gradient
                     continue;
                 }
-                // get the true vector of the gradient
-                odens_gradient_single.SetTrueVector();
-                M.Mult(odens_gradient_single.GetTrueVector(), tmp_grad);
-                odens_gradient_single.SetFromTrueDofs(tmp_grad);
-
-                real_t grad_norm_after_smooth = odens_gradient_single.ComputeL2Error(zero);
                 if (myid == 0) {
                     std::cout << inner_iter_tag << " After smoothing, norm odens_gradient_single: " << grad_norm_after_smooth << std::endl;
                 }
-                if (std::isnan(grad_norm_after_smooth)) {
+                if (!gradient_ok || !std::isfinite(grad_norm_after_smooth)) {
                     if (myid == 0) std::cout << inner_iter_tag << " NaN detected after smoothing for scenario " << bits.to_string() << std::endl;
                     odens_gradient_single = 0.0; // skip this gradient
                     continue;
@@ -1190,17 +1187,8 @@ int main(int argc, char *argv[])
 
                 if (is_deterministic_step(outer, RUN_DETERMINISTIC_UNTIL, RUN_DETERMINISTIC_AFTER) || block_membership_mask[key] || xi_in_empty)
                 {
-                    real_t gradient_magnitude;
-                    {
-                        // Compute a consistent global L2 norm: sqrt(sum_ranks ||g_r||_2^2).
-                        real_t local_l2 = odens_gradient_single.Norml2();
-                        real_t local_l2_sq = local_l2 * local_l2;
-                        real_t global_l2_sq;
-                        MPI_Allreduce(&local_l2_sq, &global_l2_sq, 1, MPI_DOUBLE, MPI_SUM,
-                                      odens_gradient_single.ParFESpace()->GetComm());
-                        gradient_magnitude = std::sqrt(global_l2_sq);
-                    }
-                    
+                    real_t gradient_magnitude = compute_global_l2_norm(odens_gradient_single);
+
                     x_j_iteration_max_gradient = std::max(x_j_iteration_max_gradient, gradient_magnitude);
                 }
 

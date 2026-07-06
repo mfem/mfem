@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mfem.hpp"
+#include "mtop_solvers.hpp"
 #include <fstream>
 #include <iostream>
 #include <functional>
@@ -353,7 +354,51 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
     return x_vol;
 }
 
-        class PostHeavisideCoefficient : public Coefficient
+/// @brief Compute design-space compliance gradient and apply inverse mass smoothing.
+/// @return false when non-finite values are detected in intermediate norms.
+inline bool compute_smoothed_design_gradient(
+    FilterOperator &filt,
+    IsoComplCoef &icc,
+    HypreParMatrix &inv_mass,
+    ParGridFunction &design_gradient,
+    Vector &scratch_true_dofs,
+    real_t &norm_after_afilter,
+    real_t &norm_after_smoothing)
+{
+    ConstantCoefficient zero(0.0);
+
+    // Chain rule: move compliance gradient from filtered to design space.
+    filt.AFilter(icc.GetGradIsoComp(), design_gradient);
+    norm_after_afilter = design_gradient.ComputeL2Error(zero);
+    if (!std::isfinite(norm_after_afilter))
+    {
+        design_gradient = 0.0;
+        norm_after_smoothing = norm_after_afilter;
+        return false;
+    }
+
+    // Smooth gradient in true-dof space using inverse mass operator.
+    design_gradient.SetTrueVector();
+    inv_mass.Mult(design_gradient.GetTrueVector(), scratch_true_dofs);
+    design_gradient.SetFromTrueDofs(scratch_true_dofs);
+
+    norm_after_smoothing = design_gradient.ComputeL2Error(zero);
+    if (!std::isfinite(norm_after_smoothing))
+    {
+        design_gradient = 0.0;
+        return false;
+    }
+
+    return true;
+}
+
+/// @brief Parallel-consistent L2 norm using sum over rank-local squared norms.
+inline real_t compute_global_l2_norm(const ParGridFunction &gf)
+{
+    return ParNormlp(gf, 2.0, gf.ParFESpace()->GetComm());
+}
+
+class PostHeavisideCoefficient : public Coefficient
     {
     public:
         PostHeavisideCoefficient(ParGridFunction *dens_, bool *use_hproj_,
