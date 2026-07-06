@@ -41,7 +41,7 @@ class DerivativeSetup
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
-   const qfunc_t qfunc;
+   qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
@@ -113,7 +113,7 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   void operator()(const std::vector<Vector *> &xe) const
+   void operator()(const std::vector<Vector *> &xe)
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -137,7 +137,7 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
-                    DeviceTensor<3, real_t> &cache_tensor) const
+                    DeviceTensor<3, real_t> &cache_tensor)
    {
       Backend::Run(dim,
                    q1d,
@@ -171,7 +171,7 @@ public:
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
    derivative_setup_callback(const IntegratorContext &ctx,
-                             const qfunc_t &qfunc,
+                             qfunc_t &qfunc,
                              // inputs: idx, B, G, vdim, d1d, q1d
                              const std::array<size_t, n_inputs> &in_idx,
                              const std::array<const real_t *, n_inputs> in_B,

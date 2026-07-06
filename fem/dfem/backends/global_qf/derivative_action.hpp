@@ -91,7 +91,7 @@ struct DerivativeAction
    void operator()(
       const std::vector<Vector *> &xe,
       const Vector *de,
-      std::vector<Vector *> &ye) const
+      std::vector<Vector *> &ye)
    {
       if (ctx.attr.Size() == 0) { return; }
 

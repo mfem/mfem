@@ -107,7 +107,7 @@ struct DerivativeSetup
       qp_cache.UseDevice(true);
    }
 
-   void operator()(const std::vector<Vector *> &xe) const
+   void operator()(const std::vector<Vector *> &xe)
    {
       if (ctx.attr.Size() == 0) { return; }
 
