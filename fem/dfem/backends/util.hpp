@@ -726,7 +726,7 @@ struct has_make_enzyme_shadow<T,
        std::true_type { };
 
 template <typename qfunc_t>
-inline qfunc_t MakeQFunctionShadow(const qfunc_t &qfunc)
+inline MFEM_HOST_DEVICE qfunc_t MakeQFunctionShadow(const qfunc_t &qfunc)
 {
    if constexpr (has_make_enzyme_shadow<qfunc_t>::value)
    {
@@ -1104,6 +1104,7 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
 }
 
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
+__attribute__((always_inline))
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,
@@ -1116,11 +1117,11 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    {
       (*qf)(args...);
    };
+
    __enzyme_fwddiff<void>(
       (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
-      enzyme_dup, &qfunc, &qfunc_shadow,
-      enzyme_dup, &get<Is>(primal_args)..., enzyme_interleave,
-      &get<Is>(shadow_args)..., enzyme_runtime_activity);
+      enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
+      &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
 #else
    MFEM_CONTRACT_VAR(qfunc);
    MFEM_CONTRACT_VAR(qfunc_shadow);
