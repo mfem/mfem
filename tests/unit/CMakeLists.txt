@@ -66,6 +66,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_rectangular.cpp
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
+  linalg/test_matrix_band.cpp
   linalg/test_mma.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp

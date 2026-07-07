@@ -23,6 +23,7 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
+  bandmatrix.cpp
   filteredsolver.cpp
   handle.cpp
   matrix.cpp
@@ -52,6 +53,7 @@ list(APPEND HDRS
   complex_operator.hpp
   constraints.hpp
   densemat.hpp
+  bandmatrix.hpp
   dinvariants.hpp
   dtensor.hpp
   dual.hpp
