@@ -892,12 +892,12 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    HYPRE_BigInt loc_start_stop[2];
    offd_col_start_stop = new HYPRE_BigInt[2 * num_recv_procs];
 
-   const HYPRE_BigInt * row_part = (A_r) ? A_r->RowPart() :
-                                   ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * col_part = (A_r) ? A_r->ColPart() :
+                                   ((A_i) ? A_i->ColPart() : NULL);
 
-   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
-   loc_start_stop[0] = row_part[row_part_ind];
-   loc_start_stop[1] = row_part[row_part_ind+1];
+   int col_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = col_part[col_part_ind];
+   loc_start_stop[1] = col_part[col_part_ind+1];
 
    MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
    MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
