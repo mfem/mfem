@@ -148,8 +148,16 @@ int main(int argc, char *argv[])
    bool use_iterative_mass = true;
    const char *mesh_file = cfg.mesh_file.c_str();
    const char *design_init = "uniform";
+   const char *problem_name = "wave";
+   bool damping = true;   // -damp / -no-damp: apply the problem's damping
 
    OptionsParser args(argc, argv);
+   args.AddOption(&problem_name, "-problem", "--problem",
+                  "Forward problem: wave, cantilever-compliance, or "
+                  "band-waveguide");
+   args.AddOption(&damping, "-damp", "--damp", "-no-damp", "--no-damp",
+                  "Apply the problem's damping (bulk + absorbing). -no-damp zeroes "
+                  "all dissipation: free (Neumann) boundaries, conservative system.");
    args.AddOption(&cfg.ref_levels, "-r", "--refine", "Refinement level");
    args.AddOption(&cfg.order, "-o", "--order", "H1 finite element order");
    args.AddOption(&cfg.t_final, "-tf", "--t-final", "Final time");
@@ -206,7 +214,31 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   WaveShieldingProblem problem(cfg);
+   unique_ptr<TransientTopOptProblem> problem_owner;
+   const string problem_sel = ToLower(problem_name);
+   if (problem_sel == "cantilever-compliance")
+   {
+      problem_owner = make_unique<CantileverComplianceProblem>(cfg);
+   }
+   else if (problem_sel == "band-waveguide")
+   {
+      problem_owner = make_unique<BandWaveguideProblem>(cfg);
+   }
+   else if (problem_sel == "wave")
+   {
+      problem_owner = make_unique<WaveShieldingProblem>(cfg);
+   }
+   else
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: unknown -problem '" << problem_name
+              << "'. Use wave, cantilever-compliance, or band-waveguide.\n";
+      }
+      return 1;
+   }
+   TransientTopOptProblem &problem = *problem_owner;
+
    ostringstream problem_errors;
    if (!problem.Validate(problem_errors))
    {
@@ -216,18 +248,9 @@ int main(int argc, char *argv[])
 
    if (myid == 0) { args.PrintOptions(cout); }
 
-   ifstream imesh(problem.GetMeshFile().c_str());
-   if (!imesh)
-   {
-      if (myid == 0)
-      {
-         cerr << "Error: Cannot open mesh file '" << problem.GetMeshFile() << "'.\n";
-      }
-      return 1;
-   }
-
-   Mesh mesh(imesh, 1, 1);
-   imesh.close();
+   // The problem builds its own coarse mesh (file-based by default; generated
+   // geometry for e.g. the cantilever).
+   Mesh mesh = problem.CreateMesh();
    const int dim = mesh.Dimension();
 
    for (int l = 0; l < problem.GetRefinementLevel(); l++)
@@ -295,15 +318,11 @@ int main(int argc, char *argv[])
    // Material and problem constants (match test_adjoint_verification).
    const MaterialParams &mat = problem.GetMaterialParams();
 
-   const DampingParameters damping = problem.GetDampingParameters();
-   const real_t c_p = sqrt((mat.lambda0 + 2.0*mat.mu0) / mat.rho0);
-   DampingProfile phi_profile(damping.thickness, damping.x_max, damping.y_max);
-   const real_t gamma_max = (2.0 * c_p / damping.scale_length)
-                            * log(1.0 / damping.reflection);
-   SpatialDampingCoefficient gamma_coef(&phi_profile, gamma_max,
-                                        mat.rho0, damping.beta,
-                                        damping.exponent);
-   const real_t impedance = mat.rho0 * c_p;
+   // Sponge-layer damping coefficient + absorbing-boundary impedance, assembled
+   // by the problem from the material and damping parameters.
+   unique_ptr<DampingField> damping_field = problem.CreateDampingField(damping);
+   Coefficient &gamma_coef = damping_field->GetCoefficient();
+   const real_t impedance = damping_field->GetImpedance();
 
    Array<int> absorbing_bdr_attributes;
    problem.GetAbsorbingBoundaryAttributes(absorbing_bdr_attributes);
@@ -323,10 +342,6 @@ int main(int argc, char *argv[])
    const int num_steps =
       max(1, static_cast<int>(ceil(problem.GetFinalTime() / problem.GetTimeStep())));
    const real_t dt_eff = problem.GetFinalTime() / num_steps;
-
-   // Rest initial state z0 = [u0, v0] = 0; the pulse load drives the dynamics.
-   Vector x0(2 * state_fes.GetTrueVSize());
-   x0 = 0.0;
 
    if (myid == 0)
    {
@@ -389,20 +404,22 @@ int main(int argc, char *argv[])
    MassSolverType mass_solver = use_iterative_mass ?
                                 MassSolverType::ITERATIVE : MassSolverType::LUMPED;
 
+   // Bundle the invariant setup once; the loop evaluates a design in one call.
+   TransientDesignSolver design_solver(
+      state_fes, filter_fes, control_fes, filter, gamma_coef,
+      exterior_bdr_attr, essential_bdr_attr, *objective, mat, load_spec,
+      *load_coef, impedance, num_steps, dt_eff, mass_solver, rho, rho_tilde);
+
    GridFunctionCoefficient rho_cf(&rho);
    int k = 0;
    real_t iterationError = 1.0;
    for (; k < problem.GetMaxIterations() &&
           iterationError > problem.GetChangeTolerance(); k++)
    {
-      // Objective + design gradient (forward sweep + discrete adjoint).
-      // On entry this sets rho, rho_tilde from rho_tv.
-      const real_t J = DesignObjectiveAdjointGradient(
-         rho_tv, x0, state_fes, filter_fes, control_fes, mass_solver,
-         rho, rho_tilde,
-         filter, gamma_coef, exterior_bdr_attr, essential_bdr_attr,
-         *objective, mat, load_spec, *load_coef,
-         impedance, num_steps, dt_eff, dJ_drho, k);
+      design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
+      const real_t J = design_solver.PhysicsFSolve(k); // forward physics: -> J
+      design_solver.PhysicsASolve();                   // adjoint physics: -> dJ/drho_tilde
+      design_solver.FilterASolve(dJ_drho);             // adjoint filter:  -> dJ/drho
 
       // Volume constraint and current fraction.
       const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv);

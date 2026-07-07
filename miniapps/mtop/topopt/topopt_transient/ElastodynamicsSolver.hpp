@@ -23,9 +23,8 @@
 #define ELASTODYNAMICS_SOLVER_HPP
 
 #include "mfem.hpp"
-#include "BoundaryLoadSpec.hpp"
-#include "MaterialParams.hpp"
-#include "ObjectiveFunctional.hpp"
+#include "ObjectiveFunctional.hpp"     // TimeIntegratedObjective (J, dJ/du)
+#include "ProblemSpecification.hpp"    // MaterialParams, BoundaryLoadSpec, damping
 #include "../../pde_filter.hpp"
 #include <memory>
 #include <vector>
@@ -114,97 +113,8 @@ public:
    }
 };
 
-// =============================================================================
-// DAMPING PROFILE FOR SPONGE LAYERS
-// =============================================================================
-class DampingProfile : public Coefficient
-{
-private:
-   real_t thickness;
-   real_t x_max, y_max;
-   real_t phi_max;
-
-public:
-   DampingProfile(real_t thick, real_t xmax, real_t ymax)
-      : thickness(thick), x_max(xmax), y_max(ymax)
-   {
-      phi_max = thickness * thickness / 2.0;
-   }
-
-   real_t GetPhiMax() const { return phi_max; }
-
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      Vector x(2);
-      T.Transform(ip, x);
-
-      real_t phi = 0.0;
-      real_t s = 0.0;
-
-      // Left boundary layer
-      if (x(0) < thickness)
-      {
-         s = thickness - x(0);
-         real_t phi_local = thickness * s - 0.5 * s * s;
-         phi = std::max(phi, phi_local);
-      }
-
-      // Right boundary layer
-      if (x(0) > x_max - thickness)
-      {
-         s = x(0) - (x_max - thickness);
-         real_t phi_local = thickness * s - 0.5 * s * s;
-         phi = std::max(phi, phi_local);
-      }
-
-      // Bottom boundary layer
-      if (x(1) < thickness)
-      {
-         s = thickness - x(1);
-         real_t phi_local = thickness * s - 0.5 * s * s;
-         phi = std::max(phi, phi_local);
-      }
-
-      return phi;
-   }
-};
-
-// =============================================================================
-// SPATIALLY-VARYING DAMPING COEFFICIENT
-// =============================================================================
-class SpatialDampingCoefficient : public Coefficient
-{
-private:
-   DampingProfile *phi_coef;
-   real_t phi_max;
-   real_t gamma_max;
-   real_t rho;
-   real_t beta;
-   int m;
-
-public:
-   SpatialDampingCoefficient(DampingProfile *phi, real_t gmax,
-                              real_t density, real_t b = 2.0, int mp = 2)
-      : phi_coef(phi), gamma_max(gmax), rho(density), beta(b), m(mp)
-   {
-      phi_max = phi_coef->GetPhiMax();
-   }
-
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      real_t phi_val = phi_coef->Eval(T, ip);
-
-      if (phi_max < 1e-12) return 0.0;
-
-      real_t eta = phi_val / phi_max;
-      eta = std::min(std::max(eta, 0.0), 1.0);
-
-      real_t eta_pow = std::pow(eta, m);
-      real_t F_eta = (std::exp(beta * eta_pow) - 1.0) / (std::exp(beta) - 1.0);
-
-      return rho * gamma_max * F_eta;
-   }
-};
+// DampingProfile / SpatialDampingCoefficient: promoted to DampingSpec.hpp
+// (shared with the problem layer, which assembles them via DampingField).
 
 // =============================================================================
 // FORWARD TRAJECTORY STORAGE
@@ -310,6 +220,7 @@ private:
    Vector load_base_vector;
    real_t load_duration, load_amplitude, load_phase, load_frequency;
    LoadTimeProfile load_time_profile;
+   bool load_on_domain;   // true: body force over Omega; false: boundary traction
    Array<int> load_bdr_markers;
 
    // Trajectory storage for adjoint
@@ -331,11 +242,13 @@ public:
       real_t load_frequency,
       const Array<int> &load_bdr_attrs,
       VectorCoefficient &load_coef,
-      SpatialDampingCoefficient *gamma_coef,
+      bool domain_load,
+      Coefficient *gamma_coef,   // any damping field gamma(x): sponge, uniform, ...
       real_t impedance,
       Array<int> &exterior_bdr_attr,
       Array<int> &ess_bdr_attr,
       MassSolverType mass_type = MassSolverType::LUMPED,
+      bool print_banner = true,
       ForwardTrajectoryStorage *traj = nullptr,
       TimeIntegratedObjective *obj = nullptr);
 
@@ -380,6 +293,28 @@ public:
       {
          sol = 0.0;
          M_solver->Mult(rhs, sol);
+      }
+   }
+
+   // Homogeneous Dirichlet (clamped) enforcement. u = v = 0 (hence u_dot = v_dot
+   // = 0) on the essential dofs for all time, so we zero the essential entries of
+   // both blocks of a full state / state-derivative vector z = [u, v]. Applied to
+   // the forward RHS (Mult) and, symmetrically, to the adjoint input
+   // (JacobianMultTranspose); the projection is symmetric, keeping the discrete
+   // adjoint an exact transpose. Exact for lumped mass (diagonal, no reaction
+   // coupling); the consistent-mass clamped solve would additionally need the
+   // essential rows/cols eliminated from M.
+   void ProjectEssentialBC(Vector &z) const
+   {
+      if (ess_tdof_list.Size() == 0) { return; }
+      BlockVector bz(z, block_true_offsets);
+      Vector &u = bz.GetBlock(0);
+      Vector &v = bz.GetBlock(1);
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         const int d = ess_tdof_list[i];
+         u(d) = 0.0;
+         v(d) = 0.0;
       }
    }
 
@@ -465,11 +400,13 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    real_t frequency,
    const Array<int> &load_bdr_attrs,
    VectorCoefficient &load_coef,
-   SpatialDampingCoefficient *gamma_coef,
+   bool domain_load,
+   Coefficient *gamma_coef,
    real_t impedance,
    Array<int> &exterior_bdr_attr,
    Array<int> &ess_bdr_attr,
    MassSolverType mass_type,
+   bool print_banner,
    ForwardTrajectoryStorage *traj,
    TimeIntegratedObjective *obj)
    : TimeDependentOperator(2 * f.GetTrueVSize(), 0.0),
@@ -488,6 +425,7 @@ ElastodynamicsOperator::ElastodynamicsOperator(
      load_phase(phase),
      load_frequency(frequency),
      load_time_profile(load_profile),
+     load_on_domain(domain_load),
      trajectory(traj),
      objective(obj),
      current_adjoint_step(-1)
@@ -508,11 +446,18 @@ ElastodynamicsOperator::ElastodynamicsOperator(
 
    fespace.GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);
 
-   if (myid == 0)
+   // Report the GLOBAL essential-dof count (the local count on rank 0 is
+   // partition-dependent and misleading - it can read 0 while the constraint is
+   // active on other ranks).
+   long long local_ess = ess_tdof_list.Size(), global_ess = 0;
+   MPI_Allreduce(&local_ess, &global_ess, 1, MPI_LONG_LONG, MPI_SUM,
+                 fespace.GetComm());
+
+   if (myid == 0 && print_banner)
    {
       std::cout << "\n=== Elastodynamics Operator ===" << std::endl;
       std::cout << "DOFs per field: " << true_size << std::endl;
-      std::cout << "Essential DOFs: " << ess_tdof_list.Size() << std::endl;
+      std::cout << "Essential DOFs: " << global_ess << std::endl;
       std::cout << "Mass solver: "
                 << (mass_solver_type == MassSolverType::LUMPED ? "LUMPED" : "ITERATIVE")
                 << std::endl;
@@ -593,8 +538,9 @@ ElastodynamicsOperator::ElastodynamicsOperator(
 
       if (myid == 0)
       {
-         std::cout << "Lumped mass range: [" << M_lumped_inv.Max()
-                   << ", " << M_lumped_inv.Min() << "]^{-1}" << std::endl;
+         std::cout << "Inverse lumped mass range: ["
+                   << M_lumped_inv.Min() << ", "
+                   << M_lumped_inv.Max() << "]" << std::endl;
       }
    }
    else // ITERATIVE
@@ -627,21 +573,47 @@ ElastodynamicsOperator::ElastodynamicsOperator(
       }
    }
 
-   // Precompute base load vector (optimization B)
-   // The time-varying load is: load(t) = load_base_vector * gauss(t)
-   // This eliminates boundary assembly from the inner loop
+   // Precompute base load vector (optimization B): load(t) = load_base_vector
+   // * time_factor(t), assembled once so the inner loop never re-assembles. The
+   // load is either a boundary traction on load_bdr_markers or a body force over
+   // the whole domain (e.g. a concentrated tip load), per the problem.
    ParLinearForm load_form(&fespace);
-   load_form.AddBoundaryIntegrator(
-      new VectorBoundaryLFIntegrator(load_coef), load_bdr_markers);
+   if (load_on_domain)
+   {
+      load_form.AddDomainIntegrator(new VectorDomainLFIntegrator(load_coef));
+   }
+   else
+   {
+      load_form.AddBoundaryIntegrator(
+         new VectorBoundaryLFIntegrator(load_coef), load_bdr_markers);
+   }
    load_form.Assemble();
    load_form.ParallelAssemble(load_base_vector);
 
-   if (myid == 0)
+   if (myid == 0 && print_banner)
    {
       std::cout << "\nTime-dependent loading:" << std::endl;
-      std::cout << "  Type: " << LoadTimeProfileName(load_time_profile) << std::endl;
-      std::cout << "  Peak amplitude: " << amplitude << std::endl;
-      std::cout << "  Duration: " << duration << " s" << std::endl;
+      std::cout << "  Support: "
+                << (load_on_domain ? "body force (domain)" : "traction (boundary)")
+                << std::endl;
+      std::cout << "  Time profile: " << LoadTimeProfileName(load_time_profile)
+                << std::endl;
+      std::cout << "  Amplitude: " << amplitude << std::endl;
+      if (load_time_profile == LoadTimeProfile::GAUSSIAN ||
+          load_time_profile == LoadTimeProfile::MODULATED_GAUSSIAN)
+      {
+         std::cout << "  Pulse duration: " << duration << " s" << std::endl;
+         if (load_time_profile == LoadTimeProfile::MODULATED_GAUSSIAN)
+         {
+            std::cout << "  Carrier frequency: " << load_frequency
+                      << ",  phase: " << load_phase << std::endl;
+         }
+      }
+      else if (load_time_profile == LoadTimeProfile::HARMONIC)
+      {
+         std::cout << "  Frequency: " << load_frequency
+                   << ",  phase: " << load_phase << std::endl;
+      }
       std::cout << "  Base load norm: " << load_base_vector.Norml2() << std::endl;
       std::cout << "====================================\n" << std::endl;
    }
@@ -687,6 +659,17 @@ void ElastodynamicsOperator::Mult(const Vector &x, Vector &y) const
       const real_t t_diff = time - t_center;
       time_factor = exp(-t_diff * t_diff / (2.0 * sigma * sigma));
    }
+   else if (load_time_profile == LoadTimeProfile::MODULATED_GAUSSIAN)
+   {
+      const real_t pi = 3.1415926535897932384626433832795;
+      const real_t t_center = load_duration / 2.0;
+      const real_t sigma = load_duration / 4.0;
+      const real_t t_diff = time - t_center;
+      const real_t envelope = exp(-t_diff * t_diff / (2.0 * sigma * sigma));
+      const real_t carrier = cos(2.0 * pi * load_frequency * t_diff
+                                 + load_phase);
+      time_factor = envelope * carrier;
+   }
    else if (load_time_profile == LoadTimeProfile::HARMONIC)
    {
       time_factor = sin(load_frequency * time + load_phase);
@@ -698,6 +681,9 @@ void ElastodynamicsOperator::Mult(const Vector &x, Vector &y) const
 
    // Solve M v̇ = res (optimization C: removed allreduce guard)
    MultInvMass(res, by.GetBlock(1));
+
+   // Clamped dofs stay at rest: u_dot = v_dot = 0 there.
+   ProjectEssentialBC(y);
 }
 
 void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
@@ -713,7 +699,14 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
 
    eta_rhs = 0.0;
 
-   BlockVector b_eta_new(const_cast<Vector&>(eta), block_true_offsets);
+   // Transpose of the essential-BC projection applied in Mult (P F): since P is
+   // symmetric, the transpose applies P to the incoming adjoint before the
+   // unconstrained transpose. Project a local copy so the caller's vector is
+   // untouched.
+   Vector eta_p(eta);
+   ProjectEssentialBC(eta_p);
+
+   BlockVector b_eta_new(eta_p, block_true_offsets);
    BlockVector b_eta_rhs_new(eta_rhs, block_true_offsets);
 
    Vector mu_new(b_eta_new.GetBlock(0).GetData(), true_size);
@@ -1280,7 +1273,7 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
                                       ParGridFunction &rho,
                                       ParGridFunction &rho_tilde,
                                       toopt::PDEFilter &filter,
-                                      SpatialDampingCoefficient &gamma_coef,
+                                      Coefficient &gamma_coef,
                                       Array<int> &exterior_bdr_attr,
                                       Array<int> &empty_bdr_attr,
                                       TimeIntegratedObjective &objective,
@@ -1310,6 +1303,7 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
       state_fes, mass_coef, lambda_coef, mu_coef,
       load_spec.amplitude, load_spec.duration, load_spec.time_profile,
       load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
+      load_spec.domain_load,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
       mass_type);
 
@@ -1318,67 +1312,29 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
                            x0, nsteps, 0.0, h, nullptr, nullptr);
 }
 
-inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
-                                             const Vector &x0,
-                                             ParFiniteElementSpace &state_fes,
-                                             ParFiniteElementSpace &filter_fes,
-                                             ParFiniteElementSpace &control_fes,
-                                             MassSolverType mass_type,
-                                             ParGridFunction &rho,
-                                             ParGridFunction &rho_tilde,
-                                             toopt::PDEFilter &filter,
-                                             SpatialDampingCoefficient &gamma_coef,
-                                             Array<int> &exterior_bdr_attr,
-                                             Array<int> &empty_bdr_attr,
-                                             TimeIntegratedObjective &objective,
-                                             const MaterialParams &mat,
-                                             const BoundaryLoadSpec &load_spec,
-                                             VectorCoefficient &load_coef,
-                                             real_t impedance,
-                                             int nsteps,
-                                             real_t h,
-                                             Vector &dJ_drho,
-                                             int outer_it = -1)
+// Backward discrete-adjoint sweep (the "adjoint physics solve"). Given the stored
+// forward trajectory, marches the RK4 adjoint from step nsteps down to 0,
+// accumulating the design gradient dJ/d(rho_tilde) in filter space (via
+// RK4AdjointOneStepWithDesign) plus the per-step objective seed. Companion to the
+// forward RolloutObjective; both are the building blocks of the gradient below and
+// of TransientDesignSolver's PhysicsFSolve / PhysicsASolve.
+inline void AdjointDesignSweep(ElastodynamicsOperator &oper,
+                               ParFiniteElementSpace &state_fes,
+                               ParFiniteElementSpace &filter_fes,
+                               ParGridFunction &rho_tilde,
+                               const MaterialParams &mat,
+                               TimeIntegratedObjective &objective,
+                               const std::vector<Vector> &states,
+                               const std::vector<real_t> &times,
+                               int nsteps, real_t h,
+                               Vector &dJ_drho_tilde,
+                               int outer_it = -1)
 {
    const int myid = Mpi::WorldRank();
-
-   rho.SetFromTrueDofs(rho_tv);
-   filter.Mult(rho, rho_tilde);
-
-   ConstantCoefficient rho_0_coef(mat.rho0);
-   ConstantCoefficient lambda_0_coef(mat.lambda0);
-   ConstantCoefficient mu_0_coef(mat.mu0);
-
-   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
-   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
-
-   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
-   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
-   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
-
-   ElastodynamicsOperator oper(
-      state_fes, mass_coef, lambda_coef, mu_coef,
-      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
-      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
-      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
-      mass_type);
-
-   if (myid == 0)
-   {
-      std::cout << "    [it " << outer_it + 1 << "] forward sweep ("
-                << nsteps << " steps)\n";
-   }
-
-   std::vector<Vector> states;
-   std::vector<real_t> times;
-   const real_t J = RolloutObjective(oper, state_fes, oper.GetBlockOffsets(),
-                                     objective, x0, nsteps, 0.0, h,
-                                     &states, &times, "forward");
-
-   const int n = x0.Size();
+   const int n = states[0].Size();
    const int total_steps = nsteps + 1;
 
-   Vector dJ_drho_tilde(filter_fes.GetTrueVSize());
+   dJ_drho_tilde.SetSize(filter_fes.GetTrueVSize());
    dJ_drho_tilde = 0.0;
 
    Vector q(n), lambda(n), lambda_prev(n);
@@ -1414,6 +1370,69 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
                    << (MPI_Wtime() - adj_t0) << " s\n";
       }
    }
+}
+
+inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
+                                             const Vector &x0,
+                                             ParFiniteElementSpace &state_fes,
+                                             ParFiniteElementSpace &filter_fes,
+                                             ParFiniteElementSpace &control_fes,
+                                             MassSolverType mass_type,
+                                             ParGridFunction &rho,
+                                             ParGridFunction &rho_tilde,
+                                             toopt::PDEFilter &filter,
+                                             Coefficient &gamma_coef,
+                                             Array<int> &exterior_bdr_attr,
+                                             Array<int> &empty_bdr_attr,
+                                             TimeIntegratedObjective &objective,
+                                             const MaterialParams &mat,
+                                             const BoundaryLoadSpec &load_spec,
+                                             VectorCoefficient &load_coef,
+                                             real_t impedance,
+                                             int nsteps,
+                                             real_t h,
+                                             Vector &dJ_drho,
+                                             int outer_it = -1)
+{
+   const int myid = Mpi::WorldRank();
+
+   rho.SetFromTrueDofs(rho_tv);
+   filter.Mult(rho, rho_tilde);
+
+   ConstantCoefficient rho_0_coef(mat.rho0);
+   ConstantCoefficient lambda_0_coef(mat.lambda0);
+   ConstantCoefficient mu_0_coef(mat.mu0);
+
+   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+
+   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
+
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
+      load_spec.domain_load,
+      &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
+      mass_type);
+
+   if (myid == 0)
+   {
+      std::cout << "    [it " << outer_it + 1 << "] forward sweep ("
+                << nsteps << " steps)\n";
+   }
+
+   std::vector<Vector> states;
+   std::vector<real_t> times;
+   const real_t J = RolloutObjective(oper, state_fes, oper.GetBlockOffsets(),
+                                     objective, x0, nsteps, 0.0, h,
+                                     &states, &times, "forward");
+
+   Vector dJ_drho_tilde;
+   AdjointDesignSweep(oper, state_fes, filter_fes, rho_tilde, mat, objective,
+                      states, times, nsteps, h, dJ_drho_tilde, outer_it);
 
    filter.MultTranspose(dJ_drho_tilde, dJ_drho);
    MFEM_VERIFY(dJ_drho.Size() == control_fes.GetTrueVSize(),
@@ -1421,6 +1440,169 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
 
    return J;
 }
+
+// =============================================================================
+// TRANSIENT DESIGN SOLVER
+// =============================================================================
+// Bundles the invariant per-run setup (spaces, filter, damping, BC markers,
+// load, objective, material, mass solver, rest initial state) and exposes the
+// four canonical topology-optimization steps as arg-free calls, so the optimizer
+// loop reads like the textbook template regardless of physics/filter:
+//
+//   FilterFSolve  : forward filter,  rho -> rho_tilde        (Helmholtz solve)
+//   PhysicsFSolve : forward physics, RK4 sweep -> J          (stores trajectory)
+//   PhysicsASolve : adjoint physics, backward sweep -> dJ/d(rho_tilde)
+//   FilterASolve  : adjoint filter,  dJ/d(rho_tilde) -> dJ/d(rho)  (filter^T)
+//
+// Stateful by design: PhysicsFSolve builds the operator and stores the forward
+// trajectory that PhysicsASolve consumes (call order Filter/PhysicsFSolve before
+// Physics/FilterASolve). The per-step logic delegates to the verified
+// RolloutObjective / AdjointDesignSweep primitives that the Taylor tests exercise.
+class TransientDesignSolver
+{
+private:
+   ParFiniteElementSpace &state_fes_;
+   ParFiniteElementSpace &filter_fes_;
+   ParFiniteElementSpace &control_fes_;
+   toopt::PDEFilter &filter_;
+   Coefficient &gamma_coef_;
+   Array<int> &exterior_bdr_attr_;
+   Array<int> &ess_bdr_attr_;
+   TimeIntegratedObjective &objective_;
+   const MaterialParams &mat_;
+   const BoundaryLoadSpec &load_spec_;
+   VectorCoefficient &load_coef_;
+   real_t impedance_;
+   int nsteps_;
+   real_t h_;
+   MassSolverType mass_type_;
+   ParGridFunction &rho_;         // working density (also the driver's ParaView field)
+   ParGridFunction &rho_tilde_;   // filtered density
+   Vector x0_;                    // rest initial state [u, v] = 0
+
+   // Design-dependent SIMP material coefficients; built once, they evaluate the
+   // live rho_tilde_, so the operator re-assembled each PhysicsFSolve picks up the
+   // current design. (Declared after rho_tilde_ / mat_ that they reference.)
+   ConstantCoefficient rho0_coef_, lambda0_coef_, mu0_coef_;
+   SIMPCoefficient simp_mass_, simp_stiff_;
+   ProductCoefficient mass_coef_, lambda_coef_, mu_coef_;
+
+   // Per-iteration forward state produced by PhysicsFSolve, consumed by the
+   // adjoint steps. (Declared after the coefficients it references.)
+   std::unique_ptr<ElastodynamicsOperator> oper_;
+   std::vector<Vector> states_;
+   std::vector<real_t> times_;
+   Vector dJ_drho_tilde_;
+   int outer_it_ = -1;
+   bool banner_printed_ = false;   // operator banner prints once, not every iter
+
+public:
+   TransientDesignSolver(ParFiniteElementSpace &state_fes,
+                         ParFiniteElementSpace &filter_fes,
+                         ParFiniteElementSpace &control_fes,
+                         toopt::PDEFilter &filter,
+                         Coefficient &gamma_coef,
+                         Array<int> &exterior_bdr_attr,
+                         Array<int> &ess_bdr_attr,
+                         TimeIntegratedObjective &objective,
+                         const MaterialParams &mat,
+                         const BoundaryLoadSpec &load_spec,
+                         VectorCoefficient &load_coef,
+                         real_t impedance,
+                         int nsteps, real_t h,
+                         MassSolverType mass_type,
+                         ParGridFunction &rho,
+                         ParGridFunction &rho_tilde)
+      : state_fes_(state_fes), filter_fes_(filter_fes), control_fes_(control_fes),
+        filter_(filter), gamma_coef_(gamma_coef),
+        exterior_bdr_attr_(exterior_bdr_attr), ess_bdr_attr_(ess_bdr_attr),
+        objective_(objective), mat_(mat), load_spec_(load_spec),
+        load_coef_(load_coef), impedance_(impedance),
+        nsteps_(nsteps), h_(h), mass_type_(mass_type),
+        rho_(rho), rho_tilde_(rho_tilde),
+        x0_(2 * state_fes.GetTrueVSize()),
+        rho0_coef_(mat.rho0), lambda0_coef_(mat.lambda0), mu0_coef_(mat.mu0),
+        simp_mass_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
+        simp_stiff_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
+        mass_coef_(simp_mass_, rho0_coef_),
+        lambda_coef_(simp_stiff_, lambda0_coef_),
+        mu_coef_(simp_stiff_, mu0_coef_)
+   {
+      x0_ = 0.0;
+   }
+
+   int NumSteps() const { return nsteps_; }
+   real_t TimeStep() const { return h_; }
+
+   // 1. Forward filter: raw control density -> filtered density (Helmholtz solve).
+   void FilterFSolve(const Vector &rho_tv)
+   {
+      rho_.SetFromTrueDofs(rho_tv);
+      filter_.Mult(rho_, rho_tilde_);
+   }
+
+   // 2. Forward physics: (re)assemble the operator for the current rho_tilde_, run
+   //    the RK4 forward sweep, store the trajectory, return J.
+   real_t PhysicsFSolve(int outer_it = -1)
+   {
+      outer_it_ = outer_it;
+      oper_ = std::make_unique<ElastodynamicsOperator>(
+                 state_fes_, mass_coef_, lambda_coef_, mu_coef_,
+                 load_spec_.amplitude, load_spec_.duration, load_spec_.time_profile,
+                 load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
+                 load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
+                 exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
+                 /*print_banner=*/!banner_printed_);
+      banner_printed_ = true;
+
+      if (Mpi::Root())
+      {
+         std::cout << "    [it " << outer_it_ + 1 << "] forward sweep ("
+                   << nsteps_ << " steps)\n";
+      }
+      return RolloutObjective(*oper_, state_fes_, oper_->GetBlockOffsets(),
+                              objective_, x0_, nsteps_, 0.0, h_,
+                              &states_, &times_, "forward");
+   }
+
+   // 3. Adjoint physics: backward discrete-adjoint sweep -> dJ/d(rho_tilde).
+   void PhysicsASolve()
+   {
+      MFEM_VERIFY(oper_, "PhysicsASolve() requires a preceding PhysicsFSolve().");
+      AdjointDesignSweep(*oper_, state_fes_, filter_fes_, rho_tilde_, mat_,
+                         objective_, states_, times_, nsteps_, h_,
+                         dJ_drho_tilde_, outer_it_);
+   }
+
+   // 4. Adjoint filter: transpose the filter, dJ/d(rho_tilde) -> dJ/d(rho).
+   void FilterASolve(Vector &dJ_drho)
+   {
+      filter_.MultTranspose(dJ_drho_tilde_, dJ_drho);
+      MFEM_VERIFY(dJ_drho.Size() == control_fes_.GetTrueVSize(),
+                  "Raw design gradient has unexpected size.");
+   }
+
+   // Convenience: the four steps in sequence (forward filter + physics, adjoint
+   // physics + filter). Returns J and fills dJ_drho.
+   real_t ObjectiveAndGradient(const Vector &rho_tv, Vector &dJ_drho,
+                               int outer_it = -1)
+   {
+      FilterFSolve(rho_tv);
+      const real_t J = PhysicsFSolve(outer_it);
+      PhysicsASolve();
+      FilterASolve(dJ_drho);
+      return J;
+   }
+
+   // Forward-only objective J(rho) (no gradient / no stored trajectory).
+   real_t Objective(const Vector &rho_tv)
+   {
+      return EvaluateDesignObjective(
+                rho_tv, x0_, state_fes_, control_fes_, rho_, rho_tilde_, filter_,
+                gamma_coef_, exterior_bdr_attr_, ess_bdr_attr_, objective_, mat_,
+                load_spec_, load_coef_, impedance_, nsteps_, h_, mass_type_);
+   }
+};
 
 } // namespace mfem
 

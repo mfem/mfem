@@ -1,393 +1,361 @@
-# Transient Topology Optimization for Elastodynamics
+# Transient Topology Optimization
 
-**Complete framework for time-dependent topology optimization with wave propagation.**
+This directory contains a transient elastodynamics topology-optimization driver
+for MFEM. The current code supports multiple forward problems and objective
+functionals through a small problem interface, while keeping the RK4
+forward/adjoint machinery in the solver layer.
 
----
+The active executable is `TopOptTransient`.
 
-## Quick Start
+## What This Code Solves
+
+The optimizer updates a material density field `rho` subject to a volume
+constraint:
+
+```text
+minimize    J(rho)
+subject to  M(rho) u_tt + C u_t + K(rho) u = f(t)
+            int_Omega rho dx / target_volume - 1 <= 0
+            0 <= rho <= 1
+```
+
+The density workflow is:
+
+```text
+raw control rho (L2)
+   -> Helmholtz filter
+filtered rho_tilde (H1)
+   -> SIMP mass/stiffness interpolation
+transient elastodynamics
+   -> time-integrated objective J
+discrete RK4 adjoint
+   -> dJ / d rho_tilde
+filter transpose
+   -> dJ / d rho
+MMA
+   -> next design
+```
+
+## Current Problems
+
+Select the forward problem with `-problem`.
+
+### `wave`
+
+Wave-shielding reference problem.
+
+- Mesh: `lamb-problem-damping-mesh-triangs.msh` by default.
+- Load: Gaussian downward boundary traction on load-strip boundary attributes.
+- Damping: boundary sponge plus absorbing boundaries.
+- Objective: `DisplacementL2Objective`, minimizing time-integrated displacement
+  energy in a protected circular region.
+
+Example:
 
 ```bash
-# Compile
-make TopOptTransient -j8
-
-# Run optimization (50 iterations)
-srun -n 8 ./TopOptTransient -r 2 -mi 50 -vf 0.5
-
-# Visualize
-paraview ParaView/TopOptTransient.pvd
+mpirun -np 8 ./TopOptTransient -problem wave -r 0 -o 1 -tf 0.3 -dt 1e-4 -vf 0.5 -fr 0.03 -mi 150 -mv 0.2 -pv
 ```
 
----
+### `band-waveguide`
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Problem Formulation](#problem-formulation)
-3. [Files & Structure](#files--structure)
-4. [Implementation Status](#implementation-status)
-5. [Usage Examples](#usage-examples)
-6. [Testing & Verification](#testing--verification)
-7. [Theory](#theory)
-8. [Troubleshooting](#troubleshooting)
+Generated 2D lift of a 1D transient waveguide/band-gap reference problem.
 
----
+- Mesh: generated long, thin `8 x 0.5` rectangular band.
+- Load: Gaussian-modulated carrier pulse on a narrow vertical strip at the
+  center.
+- Load direction: axial `[1, 0]`; the localized source launches waves both
+  left and right.
+- Carrier: frequency `5.0`, pulse duration `0.80`.
+- Damping: sponge and absorbing-boundary impedance on the left/right ends only.
+- Objective: `DisplacementL2Objective`, minimizing time-integrated displacement
+  energy in symmetric rectangular receiver regions on both sides of the source.
+- Material: same SIMP law, but with a raised material floor to discourage one
+  near-disconnecting slit and favor multiple impedance interfaces.
 
-## Overview
-
-Minimizes wave amplitude in a protected zone by optimizing material distribution. Uses discrete adjoint method with RK4 time integration.
-
-**Features:**
-- ✅ Design-dependent M(ρ), K(ρ) via SIMP
-- ✅ RK4 forward + discrete adjoint
-- ✅ Design sensitivity with Helmholtz filter
-- ✅ MMA optimizer
-- ✅ Comprehensive verification
-
-**Pattern:** Unified solver (forward + adjoint) following `mtop-chkpt/mtop_solvers.hpp`
-
----
-
-## Problem Formulation
-
-```
-minimize     J(ρ) = ∫₀ᵀ ∫_Ω̃ |u(t)|² dx dt
-
-subject to   M(ρ) ü + C u̇ + K(ρ) u = f(t)
-             ∫_Ω ρ dx / V* ≤ 1
-             0 ≤ ρ ≤ 1
-```
-
-**Minimize:** Wave amplitude in protected zone Ω̃  
-**Design:** Material density ρ(x) ∈ [0,1]  
-**Physics:** Elastodynamics with absorbing BCs
-
-**SIMP:**
-```
-r(ρ̃) = r_min + ρ̃^p (r_max - r_min)
-M(ρ) = M_base × r_m(ρ̃)
-K(ρ) = K_base × r_k(ρ̃)
-```
-
----
-
-## Files & Structure
-
-### Main Files
-
-| File | Purpose | Lines |
-|------|---------|-------|
-| `TopOptTransient.cpp` | Main optimizer | 660 |
-| `ElastodynamicsSolver.hpp` | Unified solver (forward+adjoint) | 850 |
-| `ObjectiveFunctional.hpp` | Time-integrated J | 190 |
-| `ForwardElastodynamics.cpp` | Production code (untouched) | 870 |
-
-### Tests
-
-| File | Tests |
-|------|-------|
-| `test_unified_solver.cpp` | Phases 3-4 (adjoint + sensitivity) |
-| `test_gradient_taylor.cpp` | Gradient Taylor test |
-| `test_convergence_study.cpp` | h and dt convergence |
-| `test_physical_validation.cpp` | Physical behavior |
-
-### Key Classes
-
-**ElastodynamicsOperator:**
-- `Mult()` - Forward: [u̇,v̇] = f(u,v,t)
-- `JacobianMultTranspose()` - Adjoint: (∂f/∂z)ᵀη
-- `StoreTrajectoryStep()` - Save for adjoint
-- `AccumulateObjective()` - Integrate J
-
-**DesignSensitivityAccumulator:**
-- `AddTimestepContribution()` - Accumulate dJ/dρ̃
-- `ApplyFilterAdjoint()` - Helmholtz filter
-
-**VolumeConstraint:**
-- `Evaluate()` - g(ρ)
-- `Gradient()` - dg/dρ
-
----
-
-## Implementation Status
-
-### ✅ All Phases Complete
-
-| Phase | What | Status |
-|-------|------|--------|
-| 1 | Forward solver (RK4) | 100% ✅ |
-| 2 | Objective & storage | 100% ✅ |
-| 3 | Adjoint infrastructure | 100% ✅ |
-| 4 | Design sensitivity | 100% ✅ |
-| 5 | Optimization loop | 100% ✅ |
-| 6 | Verification (except DO=OD) | 95% ✅ |
-
-### Integration Notes
-
-Two straightforward pieces in `TopOptTransient.cpp` (infrastructure 100% ready):
-
-**Line 464** - Full adjoint backward march  
-**Line 482** - Full sensitivity accumulation
-
-Integration: ~20 lines using Phases 3-4 infrastructure.
-
----
-
-## Usage Examples
-
-### Command-Line Options
-
-```
-TopOptTransient [options]
-
--r <int>     Refinement (default: 2)
--o <int>     FE order (default: 2)
--tf <real>   Final time (default: 0.1)
--dt <real>   Timestep (default: 0.0005)
--mi <int>    Max iterations (default: 50)
--vf <real>   Volume fraction (default: 0.5)
--fr <real>   Filter radius (default: 0.05)
--pv/-no-pv   ParaView output
-```
-
-### Examples
-
-**Quick test** (5 min):
-```bash
-srun -n 4 ./TopOptTransient -r 1 -mi 10 -tf 0.05
-```
-
-**Standard** (1-2 hr):
-```bash
-srun -n 8 ./TopOptTransient -r 2 -mi 50 -vf 0.5
-```
-
-**Production** (few hr):
-```bash
-srun -n 16 ./TopOptTransient -r 3 -mi 100 -tf 0.2
-```
-
-### Output
-
-- `optimization_history.txt` - Convergence data
-- `ParaView/TopOptTransient_*.vtu` - Design snapshots
-- `ParaView/TopOptTransient.pvd` - Animation master
-
----
-
-## Testing & Verification
-
-### Test Suite
+Example:
 
 ```bash
-# Build all tests
-make test_unified_solver test_convergence_study \
-     test_physical_validation test_gradient_taylor -j8
-
-# Run tests
-srun -n 4 ./test_unified_solver -adj
-srun -n 4 ./test_convergence_study -tf 0.1
-srun -n 4 ./test_physical_validation -r 2
-srun -n 4 ./test_gradient_taylor -tf 0.05
+mpirun -np 8 ./TopOptTransient -problem band-waveguide -lumped-mass -damp -r 0 -o 1 -tf 3.5 -dt 5e-4 -vf 0.5 -fr 0.05 -mi 100 -mv 0.2 -pv
 ```
 
-### Convergence Study
+### `cantilever-compliance`
 
-Tests h and dt refinement:
+Generated 2D cantilever beam, modeled after the static topology-optimization
+miniapp but driven by the transient solver.
+
+- Mesh: generated Cartesian `3 x 1` beam.
+- Boundary condition: left edge clamped.
+- Load: constant concentrated downward body force near the free tip.
+- Damping: optional uniform mass-proportional damping for dynamic relaxation.
+- Objective: `ComplianceObjective`, minimizing time-integrated `int f . u`.
+
+Recommended current command:
 
 ```bash
-srun -n 4 ./test_convergence_study > conv_results.txt
+mpirun -np 8 ./TopOptTransient -problem cantilever-compliance -lumped-mass -damp -tf 10 -dt 1e-3 -vf 0.5 -fr 0.05 -mi 100 -mv 0.2 -tol 1e-4 -pv
 ```
 
-**Expected:**
-- Spatial: rate ≈ p+1 (FE order)
-- Temporal: rate ≈ 4 (RK4)
-- Richardson extrapolation stable
+For this problem, `-lumped-mass` is the preferred path right now because the
+current essential-boundary projection is exact for the diagonal row-lumped mass.
 
-### Physical Validation
+## Build
 
-Compares designs: void, uniform, solid, optimized
+From this directory in WSL:
 
 ```bash
-srun -n 4 ./test_physical_validation -tf 0.15
+make TopOptTransient test_adjoint_verification -j8
 ```
 
-**Expected:**
-- J_void > J_uniform > J_optimized ✓
-- Energy dissipates ✓
-- Material ordering correct ✓
+From Windows PowerShell, using the repository path:
 
-### Taylor Test
+```powershell
+wsl make -C /mnt/c/Users/cortescastil1/Desktop/mfem/miniapps/mtop/topopt/topopt_transient TopOptTransient test_adjoint_verification -j8
+```
 
-Gradient verification: |J(ρ+εδρ) - J(ρ) - ε⟨dJ/dρ, δρ⟩| = O(ε²)
+## Command-Line Options
+
+Common options:
+
+```text
+-problem <name>              wave, band-waveguide, or cantilever-compliance
+-r,  --refine <int>          uniform refinement levels
+-o,  --order <int>           H1 finite element order
+-tf, --t-final <real>        final simulation time
+-dt, --time-step <real>      time step
+-vf, --vol-frac <real>       target material volume fraction
+-fr, --filter-radius <real>  Helmholtz filter radius
+-mi, --max-it <int>          maximum MMA iterations
+-mv, --move <real>           MMA move limit
+-tol, --tol <real>           L1 design-change stopping tolerance
+-init <mode>                 uniform, solid, void, or gaussian
+-mesh <file>                 mesh file for file-based problems
+-pv / -no-pv                 enable or disable ParaView output
+-damp / -no-damp             enable or disable problem damping
+-iterative-mass              consistent mass solve with CG+AMG
+-lumped-mass                 row-sum diagonal mass solve
+```
+
+The default mass path is `-iterative-mass`. For larger explicit runs,
+`-lumped-mass` is usually much faster.
+
+## Output
+
+The driver writes:
+
+```text
+optimization_history.txt
+ParaView/TopOptTransient.pvd
+ParaView/TopOptTransient_*.pvtu
+```
+
+Only ParaView output is written when `-pv` is enabled.
+
+Useful iteration prints:
+
+- `J`: current objective value.
+- `vol`: current material volume fraction.
+- `g`: MMA volume constraint value, `current_volume / target_volume - 1`.
+  Positive means too much material; zero or negative is feasible.
+- `dRho(L1)`: L1 design change used for the stopping test.
+
+Useful solver prints:
+
+- `Mass NNZ`, `Stiffness NNZ`, `Damping NNZ`, `ABC NNZ`: global sparse
+  nonzero counts for the assembled Hypre matrices.
+- `Inverse lumped mass range: [min, max]`: range of the diagonal inverse used
+  by the row-lumped mass solve.
+
+## Source Layout
+
+The current structure intentionally keeps all problem-definition pieces in
+`ProblemSpecification.hpp`.
+
+```text
+TopOptTransient.cpp
+   Driver: parse CLI, select problem, build FE spaces, run MMA loop.
+
+ProblemSpecification.hpp
+   MaterialParams
+   BoundaryLoadSpec
+   load coefficients
+   DampingParameters / DampingField
+   TransientTopOptConfig
+   TransientTopOptProblem interface
+   WaveShieldingProblem
+   CantileverComplianceProblem
+
+ObjectiveFunctional.hpp
+   TimeIntegratedObjective interface
+   RectangularIndicator / SubdomainIndicator
+   DisplacementL2Objective
+   ComplianceObjective
+
+ElastodynamicsSolver.hpp
+   SIMP coefficients
+   ElastodynamicsOperator
+   RK4 rollout helpers
+   discrete adjoint helpers
+   design-gradient integrators
+   TransientDesignSolver
+
+test_adjoint_verification.cpp
+   Jacobian transpose checks
+   RK4 transpose checks
+   objective Taylor checks
+   raw-design Taylor checks for consistent/lumped mass
+   clamped-BC and compliance-objective checks
+```
+
+Reference and experimental files:
+
+```text
+ForwardElastodynamics.cpp       older forward-only reference miniapp
+ElastTopOpt_static.cpp          static topopt comparison/reference
+mtop-chkpt/                     checkpointing and adjoint reference code
+DG-exp/                         directional-mass experiments
+figures/                        existing documentation figures
+```
+
+## Architecture
+
+The runtime flow is:
+
+```text
+TopOptTransient.cpp
+   -> TransientTopOptProblem
+      -> mesh, BC attributes, material, damping, load, objective
+   -> TransientDesignSolver
+      -> FilterFSolve
+      -> PhysicsFSolve
+      -> PhysicsASolve
+      -> FilterASolve
+   -> MMA update
+```
+
+`TransientDesignSolver` is the main optimization abstraction. The driver owns
+the optimizer loop, while `TransientDesignSolver` bundles the invariant solver
+setup and exposes the four canonical operations:
+
+```cpp
+design_solver.FilterFSolve(rho_tv);
+const real_t J = design_solver.PhysicsFSolve(k);
+design_solver.PhysicsASolve();
+design_solver.FilterASolve(dJ_drho);
+```
+
+This keeps the driver independent of the details of RK4, adjoint stages, and
+SIMP design sensitivities.
+
+## Adding a Problem
+
+Add a new subclass of `TransientTopOptProblem` in `ProblemSpecification.hpp`.
+
+At minimum, provide:
+
+```cpp
+const TransientTopOptConfig &GetConfig() const override;
+void GetEssentialBoundaryAttributes(Array<int> &attrs) const override;
+void GetAbsorbingBoundaryAttributes(Array<int> &attrs) const override;
+std::unique_ptr<VectorCoefficient> CreateBoundaryLoadCoefficient() const override;
+std::unique_ptr<TimeIntegratedObjective>
+CreateObjective(ParFiniteElementSpace *state_fes, MPI_Comm comm) const override;
+```
+
+Override `CreateMesh()` for generated geometry. Otherwise the base class reads
+`cfg.mesh_file`.
+
+Then register the problem in `TopOptTransient.cpp` where `-problem` is parsed.
+
+## Adding an Objective
+
+Implement the `TimeIntegratedObjective` interface in
+`ObjectiveFunctional.hpp`:
+
+```cpp
+class MyObjective : public TimeIntegratedObjective
+{
+public:
+   real_t AccumulateTimestep(const ParGridFunction &u,
+                             real_t dt, int step, int total_steps) override;
+
+   void ComputeObjectiveGradient(const ParGridFunction &u,
+                                 real_t dt, int step, int total_steps,
+                                 ParLinearForm &grad_form) override;
+};
+```
+
+Then return it from the chosen problem's `CreateObjective()`.
+
+## Damping and Boundary Conditions
+
+`DampingField` owns the spatial damping coefficient supplied to the operator.
+When damping is enabled, it can combine:
+
+- sponge-layer damping from `DampingProfile` / `SpatialDampingCoefficient`
+- uniform mass-proportional damping
+- absorbing-boundary impedance
+
+When `-no-damp` is used, `DampingField` supplies zero damping and zero
+absorbing-boundary impedance. Absorbing boundary attributes may still be present,
+but impedance zero makes them free boundaries.
+
+Essential boundary attributes are projected in the operator. This is exact for
+the row-lumped mass path. The consistent-mass path is useful for verification
+and unconstrained cases, but fully eliminated consistent-mass Dirichlet handling
+is still a future cleanup.
+
+## Verification
+
+Build:
 
 ```bash
-srun -n 4 ./test_gradient_taylor
+make test_adjoint_verification -j8
 ```
 
-**Expected:** Order ≈ 2.0
+Run a short check:
 
----
-
-## Theory
-
-### Forward System
-```
-u̇ = v
-M(ρ) v̇ = -K(ρ) u - C v + f(t)
-
-State: z = [u, v]
-```
-
-### Adjoint System  
-```
-μ̇ = -λ + q_u
-M λ̇ = K^T μ + C^T λ
-
-Adjoint: η = [μ, λ]
-Objective gradient: q = [∂J/∂u, ∂J/∂v]
-```
-
-### Design Sensitivity
-```
-dJ/dρ̃ = Σₙ [(∂M/∂ρ̃) v̇·λ + (∂K/∂ρ̃) u·λ]
-
-Filter: (r²∇² + I) w̃ = -dJ/dρ̃
-Gradient: dJ/dρ = w̃
-```
-
-### Discrete Adjoint
-
-Forward Jacobian:
-```
-∂F/∂z = [ 0      I    ]
-        [-M⁻¹K  -M⁻¹C ]
-```
-
-Transpose:
-```
-(∂F/∂z)ᵀ = [ 0       -K^T M⁻ᵀ ]
-           [ I       -C^T M⁻ᵀ ]
-```
-
-Via `JacobianMultTranspose()` for RK4.
-
-### References
-
-- `topopt.tex` (Section 5) - Full derivation
-- `IMPLEMENTATION_PLAN.txt` - Phase breakdown
-- `mtop-chkpt/` - Framework pattern
-  - `mtop_solvers.hpp` - Unified solver
-  - `tst_rk4_adj.cpp` - RK4 adjoint
-
----
-
-## Troubleshooting
-
-### Convergence Issues
-
-**Poor h-convergence:**
-- Check element quality
-- Verify boundary conditions
-- Material discontinuities
-
-**Poor dt-convergence:**
-- Reduce timestep (CFL)
-- Check mass matrix conditioning
-- Tighten solver tolerances
-
-**Energy increases:**
-- Check damping coefficients
-- Reduce dt (stability)
-- Verify no instability
-
-### Optimization Issues
-
-**J_opt > J_uniform:**
-- Run `test_gradient_taylor`
-- Increase max iterations
-- Different initialization
-
-**No design change:**
-- Relax volume constraint
-- Reduce filter radius
-- Adjust MMA asymptotes
-
-### Compilation
-
-**MMA linking:**
 ```bash
-# Makefile should have:
-TopOptTransient: TopOptTransient.o MMA_MFEM.o
+mpirun -np 4 ./test_adjoint_verification -r 0 -o 1 -ns 4 -nt 1
 ```
 
-**Missing headers:**
+The verification executable checks:
+
+- Jacobian transpose action
+- one-step RK4 transpose
+- multi-step RK4 transpose
+- objective Taylor finite-difference behavior
+- raw-design Taylor finite-difference behavior
+- consistent and lumped mass design-gradient paths
+- clamped-BC projection consistency for lumped mass
+- compliance-objective gradient path
+
+## Known Limitations
+
+- 2D workflows are the current focus.
+- Full forward trajectory storage is used; checkpointing is not integrated yet.
+- Damping sponge geometry is still rectangular/profile based, not a general
+  signed-distance field from arbitrary mesh attributes.
+- Consistent-mass Dirichlet enforcement is not fully eliminated.
+- New problems are currently registered manually in `TopOptTransient.cpp`.
+
+## Good Smoke Runs
+
+Wave:
+
 ```bash
-# Check paths:
-MFEM_DIR = ../../../..
+mpirun -np 4 ./TopOptTransient -problem wave -r 0 -o 1 -tf 0.0001 -dt 0.0001 -mi 1 -no-pv
 ```
 
----
+Cantilever:
 
-## Development Notes
-
-### Design Decisions
-
-1. **Unified Solver** - Forward + adjoint in one class (mtop-chkpt pattern)
-2. **Block Vectors** - State [u,v], adjoint [μ,λ] with offsets [0,N,2N]
-3. **Full Storage** - All timesteps (checkpointing deferred)
-4. **Helmholtz Filter** - Same operator for filter and adjoint
-
-### Production Safety
-
-**ForwardElastodynamics.cpp** - NEVER MODIFIED ✅  
-All new code in separate files.
-
-### Performance
-
-**Per iteration:**
-```
-Forward:     O(N_steps × N_dof)
-Adjoint:     O(N_steps × N_dof)  (same)
-Sensitivity: O(N_steps × N_design)
-Total ≈ 2 × Forward_cost
+```bash
+mpirun -np 4 ./TopOptTransient -problem cantilever-compliance -lumped-mass -damp -tf 0.01 -dt 1e-3 -mi 1 -no-pv
 ```
 
-**Scaling:**
-| Size | r | Procs | Time/Iter | Mem |
-|------|---|-------|-----------|-----|
-| Small | 1 | 4 | ~1 min | 1 GB |
-| Medium | 2 | 8 | ~5 min | 4 GB |
-| Large | 3 | 16 | ~20 min | 16 GB |
+Band waveguide:
 
-### Known Limitations
+```bash
+mpirun -np 4 ./TopOptTransient -problem band-waveguide -lumped-mass -damp -tf 0.01 -dt 1e-4 -mi 1 -no-pv
+```
 
-- 2D only
-- Single material
-- Fixed loading pattern
-- Full trajectory storage (memory)
-
-### Future Work
-
-- [ ] Checkpointing (revolve ready in mtop-chkpt/chpt/)
-- [ ] 3D support
-- [ ] Multi-material
-- [ ] DO = OD agreement test
-- [ ] Adaptive time stepping
-
----
-
-## Summary
-
-**Status:** ✅ Complete framework (all 6 phases)
-
-**Ready for:**
-- Production optimization
-- Testing and verification  
-- Research applications
-
-**Integration:** Two pieces (~20 lines) in main loop
-
-**Pattern:** Follows advisor's mtop-chkpt exactly
-
----
-
-*Framework complete with Phases 1-6 implemented*
+These are wiring checks, not production-quality optimization runs.

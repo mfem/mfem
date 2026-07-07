@@ -15,8 +15,7 @@ MTOP_OBJ = mtop_solvers.o pde_filter.o
 MMA_OBJ = MMA_MFEM.o
 MMA_LIBS ?= -llapack -lblas
 TRANSIENT_HEADERS = ElastodynamicsSolver.hpp ObjectiveFunctional.hpp \
-                    BoundaryLoadSpec.hpp MaterialParams.hpp \
-                    TransientTopOptConfig.hpp ProblemSpecification.hpp
+                    ProblemSpecification.hpp
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static test_adjoint_verification

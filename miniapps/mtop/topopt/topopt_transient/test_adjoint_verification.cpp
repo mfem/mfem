@@ -425,10 +425,11 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
 
    const char *mass_label =
       (mass_type == MassSolverType::LUMPED) ? "LUMPED" : "CONSISTENT";
+   const bool clamped = (empty_bdr_attr.Size() > 0 && empty_bdr_attr.Max() > 0);
    if (Mpi::Root())
    {
-      mfem::out << "\n--- Design Taylor check (" << mass_label
-                << " mass) ---\n";
+      mfem::out << "\n--- Design Taylor check (" << mass_label << " mass"
+                << (clamped ? ", clamped Dirichlet BC" : "") << ") ---\n";
    }
 
    Vector rho0;
@@ -671,10 +672,18 @@ int main(int argc, char *argv[])
    Array<int> empty_bdr_attr(pmesh.bdr_attributes.Max());
    empty_bdr_attr = 0;
 
+   // A non-empty essential marker to exercise clamped Dirichlet BC enforcement in
+   // the design-gradient check (physical meaning irrelevant here; we only need
+   // some essential dofs present to verify the adjoint stays transpose-consistent).
+   Array<int> clamped_bdr_attr(pmesh.bdr_attributes.Max());
+   clamped_bdr_attr = 0;
+   if (pmesh.bdr_attributes.Max() >= 21) { clamped_bdr_attr[20] = 1; }
+
    ElastodynamicsOperator oper(
       state_fes, mass_coef, lambda_coef, mu_coef,
       load_spec.amplitude, load_spec.duration, load_spec.time_profile,
       load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
+      load_spec.domain_load,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr);
 
    SubdomainIndicator subdomain_indicator(x_max/2.0, y_max/2.0,
@@ -727,6 +736,28 @@ int main(int argc, char *argv[])
                         taylor_scales, design_initial_scale,
                         design_state_scale, design_tolerance,
                         MassSolverType::LUMPED);
+   // Same gradient check but with a clamped Dirichlet BC active, to verify the
+   // essential-dof projection is applied consistently in forward + adjoint.
+   const double design_taylor_err_clamped =
+      CheckDesignTaylor(state_fes, filter_fes, control_fes, rho, rho_tilde,
+                        filter, gamma_coef, exterior_bdr_attr, clamped_bdr_attr,
+                        objective, mat, load_spec, load_coef,
+                        impedance, nsteps, dt, ntrials,
+                        taylor_scales, design_initial_scale,
+                        design_state_scale, design_tolerance,
+                        MassSolverType::LUMPED);
+
+   // Verify the ComplianceObjective (J = int f.u) gradient path, used by the
+   // cantilever-compliance problem. (load_coef acts as a domain coefficient here.)
+   ComplianceObjective compliance_obj(&state_fes, load_coef, comm);
+   const double design_taylor_err_compliance =
+      CheckDesignTaylor(state_fes, filter_fes, control_fes, rho, rho_tilde,
+                        filter, gamma_coef, exterior_bdr_attr, empty_bdr_attr,
+                        compliance_obj, mat, load_spec, load_coef,
+                        impedance, nsteps, dt, ntrials,
+                        taylor_scales, design_initial_scale,
+                        design_state_scale, design_tolerance,
+                        MassSolverType::LUMPED);
 
    if (myid == 0)
    {
@@ -742,7 +773,11 @@ int main(int argc, char *argv[])
                 << "Worst raw-design Taylor FD error (consistent mass): "
                 << design_taylor_err_cg << '\n'
                 << "Worst raw-design Taylor FD error (lumped mass): "
-                << design_taylor_err_lumped << '\n';
+                << design_taylor_err_lumped << '\n'
+                << "Worst raw-design Taylor FD error (lumped, clamped BC): "
+                << design_taylor_err_clamped << '\n'
+                << "Worst raw-design Taylor FD error (compliance objective): "
+                << design_taylor_err_compliance << '\n';
    }
 
    return 0;

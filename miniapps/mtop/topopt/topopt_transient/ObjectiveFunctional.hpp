@@ -51,6 +51,45 @@ public:
    }
 };
 
+class RectangularIndicator : public Coefficient
+{
+private:
+   real_t x_min, x_max, y_min, y_max;
+
+public:
+   RectangularIndicator(real_t xmin, real_t xmax, real_t ymin, real_t ymax)
+      : x_min(xmin), x_max(xmax), y_min(ymin), y_max(ymax) {}
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(2);
+      T.Transform(ip, x);
+
+      return (x(0) >= x_min && x(0) <= x_max &&
+              x(1) >= y_min && x(1) <= y_max) ? 1.0 : 0.0;
+   }
+};
+
+class DoubleRectangularIndicator : public Coefficient
+{
+private:
+   RectangularIndicator first;
+   RectangularIndicator second;
+
+public:
+   DoubleRectangularIndicator(real_t x1_min, real_t x1_max,
+                              real_t y1_min, real_t y1_max,
+                              real_t x2_min, real_t x2_max,
+                              real_t y2_min, real_t y2_max)
+      : first(x1_min, x1_max, y1_min, y1_max),
+        second(x2_min, x2_max, y2_min, y2_max) {}
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      return std::max(first.Eval(T, ip), second.Eval(T, ip));
+   }
+};
+
 // =============================================================================
 // ABSTRACT BASE CLASS: TimeIntegratedObjective
 // =============================================================================
