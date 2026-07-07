@@ -728,8 +728,8 @@ real_t GridFunction::GetValue(ElementTransformation &T,
          }
          break;
       case ElementTransformation::FACE:
-         if (fes->FEColl()->GetContType() ==
-             FiniteElementCollection::CONTINUOUS)
+         if (fes->FEColl()->GetContType() !=
+             FiniteElementCollection::DISCONTINUOUS)
          {
             fe = fes->GetFaceElement(T.ElementNo);
             fes->GetFaceDofs(T.ElementNo, dofs);
