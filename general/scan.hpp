@@ -61,6 +61,8 @@ template <class Op> void DoDeviceScan(Op &&op)
    // determine buffer size
    MFEM_GPU_CHECK(op(nullptr, bytes));
 #ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+   // Workspace buffers queues all memory operations on queue 0, op must only queue work in queue 0.
+   // This is generally assumed/required by MFEM.
    Array<std::byte> workspace(
       bytes, MemoryManager::Instance().GetDeviceMemoryType(), true);
 #else

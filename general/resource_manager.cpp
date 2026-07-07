@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "resource_manager.hpp"
 
 #include "globals.hpp"
@@ -118,6 +129,10 @@ struct StdAlignedAllocator : public Allocator
 #else
       *ptr = aligned_alloc(alignment, nbytes);
 #endif
+      if (*ptr == nullptr)
+      {
+         throw std::bad_alloc();
+      }
    }
 
    void Dealloc(void *ptr, size_t) override
@@ -327,7 +342,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Coalesce()
    }
    else if (blocks.end() - mid == 1)
    {
-      // last block completely free'd
+      // last block completely freed
       curr_end = std::get<0>(*mid);
       if constexpr (NeedsWait)
       {
@@ -396,7 +411,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr, size_t)
             --total_allocs;
             if (std::get<2>(blocks[i]) == 0 && i + 1 == blocks.size())
             {
-               // last block completely free'd
+               // last block completely freed
                curr_end = std::get<0>(blocks[i]);
                if constexpr (NeedsWait)
                {
@@ -837,8 +852,8 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
    return static_cast<char *>(res);
 }
 
-size_t MemoryManager::RBase::Insert(size_t segment, ptrdiff_t offset,
-                                    bool on_device, bool valid)
+size_t MemoryManager::RBase::InsertMarker(size_t segment, ptrdiff_t offset,
+                                          bool on_device, bool valid)
 {
    size_t idx = nodes.CreateNext();
    auto &n = nodes.Get(idx);
@@ -847,11 +862,12 @@ size_t MemoryManager::RBase::Insert(size_t segment, ptrdiff_t offset,
    {
       n.SetValid();
    }
+
    return Insert(GetSegment(segment).roots[on_device], idx);
 }
-size_t MemoryManager::RBase::Insert(size_t segment, size_t node,
-                                    ptrdiff_t offset, bool on_device,
-                                    bool valid)
+size_t MemoryManager::RBase::InsertMarker(size_t segment, size_t node,
+                                          ptrdiff_t offset, bool on_device,
+                                          bool valid)
 {
    size_t idx = nodes.CreateNext();
    auto &n = nodes.Get(idx);
@@ -890,7 +906,7 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
    while (pos < stop)
    {
       auto &n = storage.GetNode(curr);
-      size_t next = storage.Successor(curr);
+      size_t next = storage.Next(curr);
       // n.offset <= pos < next point
       if (!n.IsValid())
       {
@@ -905,7 +921,7 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
                {
                   // entire span is validated
                   EraseNode(seg.roots[on_device], curr);
-                  curr = storage.Successor(next);
+                  curr = storage.Next(next);
                   EraseNode(seg.roots[on_device], next);
                   if (curr)
                   {
@@ -931,10 +947,10 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
                }
                else
                {
-                  storage.Insert(segment,
-                                 storage.Insert(segment, curr, pos, on_device,
-                                                true),
-                                 stop, on_device, false);
+                  storage.InsertMarker(
+                     segment,
+                     storage.InsertMarker(segment, curr, pos, on_device, true),
+                     stop, on_device, false);
                }
                break;
             }
@@ -955,10 +971,10 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
             }
             else
             {
-               auto tmp = storage.Insert(segment, curr, pos, on_device, true);
+               auto tmp = storage.InsertMarker(segment, curr, pos, on_device, true);
                if (stop < seg.nbytes)
                {
-                  storage.Insert(segment, tmp, stop, on_device, false);
+                  storage.InsertMarker(segment, tmp, stop, on_device, false);
                }
             }
             break;
@@ -986,10 +1002,10 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
    if (!curr)
    {
       func(start, stop);
-      storage.Insert(segment, start, on_device, false);
+      storage.InsertMarker(segment, start, on_device, false);
       if (stop < seg.nbytes)
       {
-         storage.Insert(segment, stop, on_device, true);
+         storage.InsertMarker(segment, stop, on_device, true);
       }
       return;
    }
@@ -1005,7 +1021,7 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
             // can just move curr
             func(start, n.offset);
             n.offset = pos;
-            curr = storage.Successor(curr);
+            curr = storage.Next(curr);
             if (curr)
             {
                pos = storage.GetNode(curr).offset;
@@ -1019,10 +1035,10 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
          {
             func(start, stop);
             // need new start and stop markers
-            storage.Insert(segment,
-                           storage.Insert(segment, curr, start, on_device,
-                                          false),
-                           stop, on_device, true);
+            storage.InsertMarker(
+               segment,
+               storage.InsertMarker(segment, curr, start, on_device, false),
+               stop, on_device, true);
             return;
          }
       }
@@ -1030,7 +1046,7 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
    while (pos < stop)
    {
       auto &n = storage.GetNode(curr);
-      size_t next = storage.Successor(curr);
+      size_t next = storage.Next(curr);
       // n.offset <= pos < next point
       if (n.IsValid())
       {
@@ -1045,7 +1061,7 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
                {
                   // entire span is invalidated
                   EraseNode(seg.roots[on_device], curr);
-                  curr = storage.Successor(next);
+                  curr = storage.Next(next);
                   EraseNode(seg.roots[on_device], next);
 
                   if (curr)
@@ -1072,10 +1088,10 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.Insert(segment,
-                                 storage.Insert(segment, curr, pos, on_device,
-                                                false),
-                                 stop, on_device, true);
+                  storage.InsertMarker(
+                     segment,
+                     storage.InsertMarker(segment, curr, pos, on_device, false),
+                     stop, on_device, true);
                }
                break;
             }
@@ -1096,10 +1112,11 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
             }
             else
             {
-               auto tmp = storage.Insert(segment, curr, pos, on_device, false);
+               auto tmp =
+                  storage.InsertMarker(segment, curr, pos, on_device, false);
                if (stop < seg.nbytes)
                {
-                  storage.Insert(segment, tmp, stop, on_device, true);
+                  storage.InsertMarker(segment, tmp, stop, on_device, true);
                }
             }
             break;
@@ -1326,7 +1343,7 @@ void MemoryManager::PrintSegment(size_t segment)
          {
             mfem::out << "(i), ";
          }
-         curr = storage.Successor(curr);
+         curr = storage.Next(curr);
       }
       mfem::out << std::endl;
    }
@@ -1362,7 +1379,7 @@ void MemoryManager::CheckValid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
    while (pos < stop)
    {
       auto &n = storage.GetNode(curr);
-      size_t next = storage.Successor(curr);
+      size_t next = storage.Next(curr);
       // n.offset <= pos < next point
       if (!n.IsValid())
       {
@@ -2035,7 +2052,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                   MFEM_ASSERT(marker, "marker should always be valid");
                   if (next_marker == marker)
                   {
-                     next_marker = storage.Successor(marker);
+                     next_marker = storage.Next(marker);
                   }
                   while (true)
                   {
@@ -2053,7 +2070,7 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                         return;
                      }
                      marker = next_marker;
-                     next_marker = storage.Successor(marker);
+                     next_marker = storage.Next(marker);
                   }
                }
             };
@@ -2449,7 +2466,7 @@ void MemoryManager::SetUmpireHostAllocatorName_(const char *h_name)
 {
    MFEM_ASSERT(
       !allocs_storage[10],
-      "Umpire Host Allocator has already been created and cannot be change");
+      "Umpire Host Allocator has already been created and cannot be changed");
    h_umpire_name = h_name;
 }
 
@@ -2457,14 +2474,14 @@ void MemoryManager::SetUmpireDeviceAllocatorName_(const char *d_name)
 {
    MFEM_ASSERT(
       !allocs_storage[11],
-      "Umpire Device Allocator has already been created and cannot be change");
+      "Umpire Device Allocator has already been created and cannot be changed");
    d_umpire_name = d_name;
 }
 
 void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
 {
    MFEM_ASSERT(!allocs_storage[12], "Umpire Device 2 Allocator has already "
-               "been created and cannot be change");
+               "been created and cannot be changed");
    d_umpire_2_name = d_name;
 }
 #endif

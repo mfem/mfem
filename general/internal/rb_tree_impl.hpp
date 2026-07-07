@@ -1,174 +1,74 @@
-#ifndef RB_TREE_IMPL_HPP
-#define RB_TREE_IMPL_HPP
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_RB_TREE_IMPL_HPP
+#define MFEM_RB_TREE_IMPL_HPP
 
 namespace mfem
 {
 
-template <class ChildType> size_t RBTree<ChildType>::Successor(size_t idx)
+template <class ChildType> size_t RBTree<ChildType>::Next(size_t idx)
 {
-   if (static_cast<ChildType &>(*this).GetNode(idx).child[1])
+   ChildType &self = static_cast<ChildType &>(*this);
+   if (self.GetNode(idx).child[1])
    {
       // left-most child of right child
-      idx = static_cast<ChildType &>(*this).GetNode(idx).child[1];
-      while (static_cast<ChildType &>(*this).GetNode(idx).child[0])
+      idx = self.GetNode(idx).child[1];
+      while (self.GetNode(idx).child[0])
       {
-         idx = static_cast<ChildType &>(*this).GetNode(idx).child[0];
+         idx = self.GetNode(idx).child[0];
       }
       return idx;
    }
    else
    {
       // need to search from parent
-      size_t y = static_cast<ChildType &>(*this).GetNode(idx).parent;
-      while (y && idx == static_cast<ChildType &>(*this).GetNode(y).child[1])
+      size_t y = self.GetNode(idx).parent;
+      while (y && idx == self.GetNode(y).child[1])
       {
          idx = y;
-         y = static_cast<ChildType &>(*this).GetNode(y).parent;
+         y = self.GetNode(y).parent;
       }
       return y;
    }
 }
 
 template <class ChildType>
-void RBTree<ChildType>::EraseFixup(size_t &root, size_t x, size_t x_parent,
-                                   bool y_is_left)
-{
-   while (x != root && !static_cast<ChildType &>(*this).GetNode(x).IsRed())
-   {
-      size_t w;
-      if (y_is_left)
-      {
-         w = static_cast<ChildType &>(*this).GetNode(x).child[1];
-         if (static_cast<ChildType &>(*this).GetNode(w).IsRed())
-         {
-            static_cast<ChildType &>(*this).GetNode(w).SetBlack();
-            static_cast<ChildType &>(*this).GetNode(x_parent).SetRed();
-            LeftRotate(root, x_parent);
-            w = static_cast<ChildType &>(*this).GetNode(x_parent).child[1];
-         }
-         if (!static_cast<ChildType &>(*this).GetNode(w).IsRed() &&
-             !static_cast<ChildType &>(*this)
-             .GetNode(static_cast<ChildType &>(*this).GetNode(w).child[1])
-             .IsRed())
-         {
-            static_cast<ChildType &>(*this).GetNode(w).SetRed();
-            x = x_parent;
-            x_parent = static_cast<ChildType &>(*this).GetNode(x).parent;
-            y_is_left =
-               (x ==
-                static_cast<ChildType &>(*this).GetNode(x_parent).child[0]);
-         }
-         else
-         {
-            if (!static_cast<ChildType &>(*this)
-                .GetNode(
-                   static_cast<ChildType &>(*this).GetNode(w).child[1])
-                .IsRed())
-            {
-               static_cast<ChildType &>(*this)
-               .GetNode(
-                  static_cast<ChildType &>(*this).GetNode(w).child[0])
-               .SetBlack();
-               static_cast<ChildType &>(*this).GetNode(w).SetRed();
-               RightRotate(root, w);
-               w = static_cast<ChildType &>(*this).GetNode(x_parent).child[1];
-            }
-            static_cast<ChildType &>(*this).GetNode(w).CopyColor(
-               static_cast<ChildType &>(*this).GetNode(x_parent));
-            static_cast<ChildType &>(*this).GetNode(x_parent).SetBlack();
-            if (static_cast<ChildType &>(*this).GetNode(w).child[1])
-            {
-               static_cast<ChildType &>(*this)
-               .GetNode(
-                  static_cast<ChildType &>(*this).GetNode(w).child[1])
-               .SetBlack();
-            }
-            LeftRotate(root, x_parent);
-            x = root;
-            x_parent = 0;
-         }
-      }
-      else
-      {
-         w = static_cast<ChildType &>(*this).GetNode(x_parent).child[0];
-         if (static_cast<ChildType &>(*this).GetNode(w).IsRed())
-         {
-            static_cast<ChildType &>(*this).GetNode(w).SetBlack();
-            static_cast<ChildType &>(*this).GetNode(x_parent).SetRed();
-            RightRotate(root, x_parent);
-            w = static_cast<ChildType &>(*this).GetNode(x_parent).child[0];
-         }
-         if (!static_cast<ChildType &>(*this)
-             .GetNode(static_cast<ChildType &>(*this).GetNode(w).child[1])
-             .IsRed() &&
-             !static_cast<ChildType &>(*this)
-             .GetNode(static_cast<ChildType &>(*this).GetNode(w).child[0])
-             .IsRed())
-         {
-            static_cast<ChildType &>(*this).GetNode(w).SetRed();
-            x = x_parent;
-            x_parent = static_cast<ChildType &>(*this).GetNode(x).parent;
-            y_is_left =
-               (x ==
-                static_cast<ChildType &>(*this).GetNode(x_parent).child[0]);
-         }
-         else
-         {
-            if (!static_cast<ChildType &>(*this)
-                .GetNode(
-                   static_cast<ChildType &>(*this).GetNode(w).child[0])
-                .IsRed())
-            {
-               static_cast<ChildType &>(*this)
-               .GetNode(
-                  static_cast<ChildType &>(*this).GetNode(w).child[1])
-               .SetBlack();
-               static_cast<ChildType &>(*this).GetNode(w).SetRed();
-               LeftRotate(root, w);
-               w = static_cast<ChildType &>(*this).GetNode(x_parent).child[0];
-            }
-            static_cast<ChildType &>(*this).GetNode(w).CopyColor(
-               static_cast<ChildType &>(*this).GetNode(x_parent));
-            static_cast<ChildType &>(*this).GetNode(x_parent).SetBlack();
-            if (static_cast<ChildType &>(*this).GetNode(w).child[0])
-            {
-               static_cast<ChildType &>(*this)
-               .GetNode(
-                  static_cast<ChildType &>(*this).GetNode(w).child[0])
-               .SetBlack();
-            }
-            RightRotate(root, x_parent);
-            x = root;
-            x_parent = 0;
-         }
-      }
-   }
-   static_cast<ChildType &>(*this).GetNode(x).SetBlack();
-}
-
-template <class ChildType>
 void RBTree<ChildType>::InsertFixup(size_t &root, size_t curr)
 {
-   auto z = &static_cast<ChildType &>(*this).GetNode(curr);
+   ChildType &self = static_cast<ChildType &>(*this);
+   auto z = &self.GetNode(curr);
    while (z->parent)
    {
-      auto p = &static_cast<ChildType &>(*this).GetNode(z->parent);
+      auto p = &self.GetNode(z->parent);
       if (!p->IsRed())
       {
+         // case 1
          break;
       }
       if (!p->parent)
       {
+         // case 4
          break;
       }
-      auto gp = &static_cast<ChildType &>(*this).GetNode(p->parent);
+      auto gp = &self.GetNode(p->parent);
       if (z->parent == gp->child[0])
       {
+         // y is our uncle
          size_t y = gp->child[1];
-         if (y && static_cast<ChildType &>(*this).GetNode(y).IsRed())
+         if (y && self.GetNode(y).IsRed())
          {
+            // case 2
             p->SetBlack();
-            static_cast<ChildType &>(*this).GetNode(y).SetBlack();
+            self.GetNode(y).SetBlack();
             gp->SetRed();
             curr = p->parent;
             z = gp;
@@ -177,12 +77,14 @@ void RBTree<ChildType>::InsertFixup(size_t &root, size_t curr)
          {
             if (curr == p->child[1])
             {
+               // case 5
                curr = z->parent;
                z = p;
                LeftRotate(root, curr);
             }
-            p = &static_cast<ChildType &>(*this).GetNode(z->parent);
-            gp = &static_cast<ChildType &>(*this).GetNode(p->parent);
+            // case 6
+            p = &self.GetNode(z->parent);
+            gp = &self.GetNode(p->parent);
             p->SetBlack();
             gp->SetRed();
             RightRotate(root, p->parent);
@@ -190,11 +92,13 @@ void RBTree<ChildType>::InsertFixup(size_t &root, size_t curr)
       }
       else
       {
+         // y is our uncle
          size_t y = gp->child[0];
-         if (y && static_cast<ChildType &>(*this).GetNode(y).IsRed())
+         if (y && self.GetNode(y).IsRed())
          {
+            // case 2
             p->SetBlack();
-            static_cast<ChildType &>(*this).GetNode(y).SetBlack();
+            self.GetNode(y).SetBlack();
             gp->SetRed();
             curr = p->parent;
             z = gp;
@@ -203,104 +107,167 @@ void RBTree<ChildType>::InsertFixup(size_t &root, size_t curr)
          {
             if (p->child[0] == curr)
             {
+               // case 5
                curr = z->parent;
                z = p;
                RightRotate(root, curr);
             }
-            p = &static_cast<ChildType &>(*this).GetNode(z->parent);
-            gp = &static_cast<ChildType &>(*this).GetNode(p->parent);
+            // case 6
+            p = &self.GetNode(z->parent);
+            gp = &self.GetNode(p->parent);
             p->SetBlack();
             gp->SetRed();
             LeftRotate(root, p->parent);
          }
       }
    }
-   static_cast<ChildType &>(*this).GetNode(root).SetBlack();
+   self.GetNode(root).SetBlack();
 }
 
 template <class ChildType>
 void RBTree<ChildType>::LeftRotate(size_t &root, size_t curr)
 {
-   auto x = &static_cast<ChildType &>(*this).GetNode(curr);
+   ChildType &self = static_cast<ChildType &>(*this);
+   auto x = &self.GetNode(curr);
    size_t y = x->child[1];
-   auto yn = &static_cast<ChildType &>(*this).GetNode(y);
+   auto yn = &self.GetNode(y);
    x->child[1] = yn->child[0];
    if (yn->child[0])
    {
-      static_cast<ChildType &>(*this).GetNode(yn->child[0]).parent = curr;
+      self.GetNode(yn->child[0]).parent = curr;
    }
    yn->parent = x->parent;
    if (!x->parent)
    {
       root = y;
    }
-   else if (static_cast<ChildType &>(*this).GetNode(x->parent).child[0] ==
-            curr)
+   else if (self.GetNode(x->parent).child[0] == curr)
    {
-      static_cast<ChildType &>(*this).GetNode(x->parent).child[0] = y;
+      self.GetNode(x->parent).child[0] = y;
    }
    else
    {
-      static_cast<ChildType &>(*this).GetNode(x->parent).child[1] = y;
+      self.GetNode(x->parent).child[1] = y;
    }
    yn->child[0] = curr;
    x->parent = y;
-   static_cast<ChildType &>(*this).PostLeftRotate(curr);
 }
 
 template <class ChildType>
 void RBTree<ChildType>::RightRotate(size_t &root, size_t curr)
 {
-   auto y = &static_cast<ChildType &>(*this).GetNode(curr);
+   ChildType &self = static_cast<ChildType &>(*this);
+   auto y = &self.GetNode(curr);
    size_t x = y->child[0];
-   auto xn = &static_cast<ChildType &>(*this).GetNode(x);
+   auto xn = &self.GetNode(x);
    y->child[0] = xn->child[1];
    if (xn->child[1])
    {
-      static_cast<ChildType &>(*this).GetNode(xn->child[1]).parent = curr;
+      self.GetNode(xn->child[1]).parent = curr;
    }
    xn->parent = y->parent;
    if (!y->parent)
    {
       root = x;
    }
-   else if (static_cast<ChildType &>(*this).GetNode(y->parent).child[0] ==
-            curr)
+   else if (self.GetNode(y->parent).child[0] == curr)
    {
-      static_cast<ChildType &>(*this).GetNode(y->parent).child[0] = x;
+      self.GetNode(y->parent).child[0] = x;
    }
    else
    {
-      static_cast<ChildType &>(*this).GetNode(y->parent).child[1] = x;
+      self.GetNode(y->parent).child[1] = x;
    }
    xn->child[1] = curr;
    y->parent = x;
-   static_cast<ChildType &>(*this).PostRightRotate(curr);
 }
 
 template <class ChildType>
-size_t RBTree<ChildType>::Insert(size_t &root, size_t pos, size_t curr)
+size_t RBTree<ChildType>::InsertImpl(size_t &root, size_t pos, size_t curr,
+                                     bool check_hint)
 {
+   ChildType &self = static_cast<ChildType &>(*this);
+   auto &z = self.GetNode(curr);
    size_t y = 0;
    size_t x = pos;
-   auto &z = static_cast<ChildType &>(*this).GetNode(curr);
+   // insert into the binary tree (unbalanced)
    while (x)
    {
       y = x;
-      auto &nx = static_cast<ChildType &>(*this).GetNode(x);
-      auto cmp = static_cast<ChildType &>(*this).CompareNodes(x, curr);
+      auto &nx = self.GetNode(x);
+      auto cmp = self.CompareNodes(x, curr);
       if (cmp < 0)
       {
+         if (check_hint)
+         {
+            if (nx.parent)
+            {
+               auto &np = self.GetNode(nx.parent);
+               if (np.child[1] == x)
+               {
+                  // x is a right child, ensure c is between p and x
+                  // p
+                  //     x
+                  //  c?
+                  auto cmp2 = self.CompareNodes(nx.parent, curr);
+                  if (cmp2 < 0)
+                  {
+                     // curr is to the left of parent, bad hint. Try parent.
+                     x = nx.parent;
+                     continue;
+                  }
+                  else if (cmp2 == 0)
+                  {
+                     // duplicate with parent
+                     self.InsertDuplicate(nx.parent, curr);
+                     return nx.parent;
+                  }
+               }
+            }
+            // don't need to check for a valid hint anymore
+            check_hint = false;
+            continue;
+         }
          x = nx.child[0];
       }
       else if (cmp > 0)
       {
+         if (check_hint)
+         {
+            if (nx.parent)
+            {
+               auto &np = self.GetNode(nx.parent);
+               if (np.child[0] == x)
+               {
+                  // x is a left child, ensure c is between x and p
+                  //     p
+                  // x
+                  //   c?
+                  auto cmp2 = self.CompareNodes(nx.parent, curr);
+                  if (cmp2 > 0)
+                  {
+                     // curr is to the left of parent, bad hint. Try parent.
+                     x = nx.parent;
+                     continue;
+                  }
+                  else if (cmp2 == 0)
+                  {
+                     // duplicate with parent
+                     self.InsertDuplicate(nx.parent, curr);
+                     return nx.parent;
+                  }
+               }
+            }
+            // don't need to check for a valid hint anymore
+            check_hint = false;
+            continue;
+         }
          x = nx.child[1];
       }
       else
       {
          // duplicate range, ignore
-         static_cast<ChildType &>(*this).InsertDuplicate(x, curr);
+         self.InsertDuplicate(x, curr);
          return x;
       }
    }
@@ -309,63 +276,54 @@ size_t RBTree<ChildType>::Insert(size_t &root, size_t pos, size_t curr)
    {
       root = curr;
    }
-   else if (static_cast<ChildType &>(*this).CompareNodes(y, curr) < 0)
+   else if (self.CompareNodes(y, curr) < 0)
    {
-      static_cast<ChildType &>(*this).GetNode(y).child[0] = curr;
+      self.GetNode(y).child[0] = curr;
    }
    else
    {
-      static_cast<ChildType &>(*this).GetNode(y).child[1] = curr;
+      self.GetNode(y).child[1] = curr;
    }
    z.SetRed();
+   // fix red-black invariance
    InsertFixup(root, curr);
 
    return curr;
 }
 
 template <class ChildType>
-size_t RBTree<ChildType>::Insert(size_t &root, size_t curr)
+void RBTree<ChildType>::EraseSimpleOne(size_t &root, size_t idx, int child)
 {
-   size_t y = 0;
-   size_t x = root;
-   auto &z = static_cast<ChildType &>(*this).GetNode(curr);
-   while (x)
+   // simple case: only 1 child
+   ChildType &self = static_cast<ChildType &>(*this);
+   auto& a = self.GetNode(idx);
+   auto cidx = a.child[child];
+   auto& b = self.GetNode(cidx);
+   // color b black, move b into a's spot
+   MFEM_ASSERT(b.IsRed(), "");
+   MFEM_ASSERT(!a.IsRed(), "");
+   b.SetBlack();
+
+   // internal connections
+   b.parent = a.parent;
+
+   // external connections
+   if (a.parent)
    {
-      y = x;
-      auto &nx = static_cast<ChildType &>(*this).GetNode(x);
-      auto cmp = static_cast<ChildType &>(*this).CompareNodes(x, curr);
-      if (cmp < 0)
+      auto &p = self.GetNode(a.parent);
+      if (p.child[0] == idx)
       {
-         x = nx.child[0];
-      }
-      else if (cmp > 0)
-      {
-         x = nx.child[1];
+         p.child[0] = cidx;
       }
       else
       {
-         // duplicate range, ignore
-         static_cast<ChildType &>(*this).InsertDuplicate(x, curr);
-         return x;
+         p.child[1] = cidx;
       }
-   }
-   z.parent = y;
-   if (!y)
-   {
-      root = curr;
-   }
-   else if (static_cast<ChildType &>(*this).CompareNodes(y, curr) < 0)
-   {
-      static_cast<ChildType &>(*this).GetNode(y).child[0] = curr;
    }
    else
    {
-      static_cast<ChildType &>(*this).GetNode(y).child[1] = curr;
+      root = cidx;
    }
-   z.SetRed();
-   InsertFixup(root, curr);
-
-   return curr;
 }
 
 template <class ChildType>
@@ -375,287 +333,262 @@ void RBTree<ChildType>::Erase(size_t &root, size_t idx)
    {
       return;
    }
+   ChildType &self = static_cast<ChildType &>(*this);
 
-   auto curr = &static_cast<ChildType &>(*this).GetNode(idx);
+   auto curr = &self.GetNode(idx);
 
-   size_t y;
    if (!curr->child[0])
    {
-      y = idx;
+      if (curr->child[1])
+      {
+         return EraseSimpleOne(root, idx, 1);
+      }
    }
    else if (!curr->child[1])
    {
-      y = idx;
+      return EraseSimpleOne(root, idx, 0);
    }
    else
    {
-      y = Successor(idx);
-   }
-   {
-      if (y != idx)
-      {
-         // actually swap the nodes so all indices are valid except for idx
-         // after erase
-         auto &n = static_cast<ChildType &>(*this).GetNode(y);
-         // fixup connections
-         if (curr->parent == y)
-         {
-            curr->parent = n.parent;
-            if (n.parent)
-            {
-               if (static_cast<ChildType &>(*this)
-                   .GetNode(n.parent)
-                   .child[0] == y)
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.parent).child[0] =
-                     idx;
-               }
-               else
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.parent).child[1] =
-                     idx;
-               }
-            }
-            n.parent = idx;
-            if (n.child[0] == idx)
-            {
-               n.child[0] = curr->child[0];
-               curr->child[0] = y;
-               std::swap(n.child[1], curr->child[1]);
-               if (n.child[0])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[0]).parent =
-                     y;
-               }
-               if (n.child[1])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[1]).parent =
-                     y;
-               }
-               if (curr->child[1])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[1])
-                  .parent = idx;
-               }
-            }
-            else
-            {
-               n.child[1] = curr->child[1];
-               curr->child[1] = y;
-               std::swap(n.child[0], curr->child[0]);
-               if (n.child[1])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[1]).parent =
-                     y;
-               }
-               if (n.child[0])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[0]).parent =
-                     y;
-               }
-               if (curr->child[0])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[0])
-                  .parent = idx;
-               }
-            }
-         }
-         else if (n.parent == idx)
-         {
-            n.parent = curr->parent;
-            if (curr->parent)
-            {
-               if (static_cast<ChildType &>(*this)
-                   .GetNode(curr->parent)
-                   .child[0] == idx)
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->parent)
-                  .child[0] = y;
-               }
-               else
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->parent)
-                  .child[1] = y;
-               }
-            }
-            curr->parent = y;
-            if (curr->child[0] == y)
-            {
-               curr->child[0] = n.child[0];
-               n.child[0] = idx;
-               std::swap(n.child[1], curr->child[1]);
-               if (curr->child[0])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[0])
-                  .parent = idx;
-               }
-               if (curr->child[1])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[1])
-                  .parent = idx;
-               }
-               if (n.child[1])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[1]).parent =
-                     y;
-               }
-            }
-            else
-            {
-               curr->child[1] = n.child[1];
-               n.child[1] = idx;
-               std::swap(n.child[0], curr->child[0]);
-               if (curr->child[1])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[1])
-                  .parent = idx;
-               }
-               if (curr->child[0])
-               {
-                  static_cast<ChildType &>(*this)
-                  .GetNode(curr->child[0])
-                  .parent = idx;
-               }
-               if (n.child[0])
-               {
-                  static_cast<ChildType &>(*this).GetNode(n.child[0]).parent =
-                     y;
-               }
-            }
-         }
-         else
-         {
-            // no direct connection between y and idx
-            if (n.parent)
-            {
-               auto &pn = static_cast<ChildType &>(*this).GetNode(n.parent);
-               if (pn.child[0] == y)
-               {
-                  pn.child[0] = idx;
-               }
-               else
-               {
-                  pn.child[1] = idx;
-               }
-            }
-            if (curr->parent)
-            {
-               auto &pn =
-                  static_cast<ChildType &>(*this).GetNode(curr->parent);
-               if (pn.child[0] == idx)
-               {
-                  pn.child[0] = y;
-               }
-               else
-               {
-                  pn.child[1] = y;
-               }
-            }
-            if (n.child[0])
-            {
-               static_cast<ChildType &>(*this).GetNode(n.child[0]).parent =
-                  idx;
-            }
-            if (n.child[1])
-            {
-               static_cast<ChildType &>(*this).GetNode(n.child[1]).parent =
-                  idx;
-            }
-            if (curr->child[0])
-            {
-               static_cast<ChildType &>(*this).GetNode(curr->child[0]).parent =
-                  y;
-            }
-            if (curr->child[1])
-            {
-               static_cast<ChildType &>(*this).GetNode(curr->child[1]).parent =
-                  y;
-            }
-            std::swap(n.parent, curr->parent);
-            std::swap(n.child[0], curr->child[0]);
-            std::swap(n.child[1], curr->child[1]);
-         }
+      // idx has two children
+      // y is the left-most child of the right subtree of idx
+      auto y = Next(idx);
+      MFEM_ASSERT(y != idx, "");
+      // swap nodes (idx, y)
+      auto &n = self.GetNode(y);
 
-         if (root == idx)
-         {
-            root = y;
-         }
-         else if (root == y)
-         {
-            root = idx;
-         }
-         std::swap(idx, y);
-         bool tflag = n.IsRed();
-         if (curr->IsRed())
-         {
-            n.SetRed();
-         }
-         else
-         {
-            n.SetBlack();
-         }
-         if (tflag)
-         {
-            curr->SetRed();
-         }
-         else
-         {
-            curr->SetBlack();
-         }
-         curr = &n;
-      }
-      size_t x = static_cast<ChildType &>(*this).GetNode(y).child[0];
-      if (!x)
+      // change connections
+      std::swap(n.child[0], curr->child[0]);
+      if (y == curr->child[1])
       {
-         x = static_cast<ChildType &>(*this).GetNode(y).child[1];
-      }
-      size_t x_parent = static_cast<ChildType &>(*this).GetNode(y).parent;
-      if (x)
-      {
-         static_cast<ChildType &>(*this).GetNode(x).parent = x_parent;
-      }
-      if (!x_parent)
-      {
-         root = x;
-      }
-      else if (static_cast<ChildType &>(*this).GetNode(x_parent).child[0] == y)
-      {
-         static_cast<ChildType &>(*this).GetNode(x_parent).child[0] = x;
+         // parent
+         n.parent = curr->parent;
+         curr->parent = y;
+         // right child
+         curr->child[1] = n.child[1];
+         n.child[1] = idx;
       }
       else
       {
-         static_cast<ChildType &>(*this).GetNode(x_parent).child[1] = x;
-      }
+         std::swap(n.parent, curr->parent);
+         std::swap(n.child[1], curr->child[1]);
 
-      if (y != idx)
-      {
-         static_cast<ChildType &>(*this).EraseSwapHook(idx);
-      }
-      if (x)
-      {
-         auto &xn = static_cast<ChildType &>(*this).GetNode(x);
-         if (xn.IsRed())
+         // fix y's old parent
+         auto &p = self.GetNode(curr->parent);
+         if (p.child[0] == y)
          {
-            if (x_parent)
-            {
-               auto &yn = static_cast<ChildType &>(*this).GetNode(y);
-               auto &yp = static_cast<ChildType &>(*this).GetNode(yn.parent);
-               EraseFixup(root, x, x_parent, yp.child[0] == y);
-            }
-            else
-            {
-               xn.SetBlack();
-            }
+            p.child[0] = idx;
+         }
+         else
+         {
+            p.child[1] = idx;
+         }
+
+         // fix idx's old right child
+         if (n.child[1])
+         {
+            MFEM_ASSERT(self.GetNode(n.child[1]).parent == idx, "");
+            self.GetNode(n.child[1]).parent = y;
          }
       }
+
+      // fix idx's old parent
+      if (n.parent)
+      {
+         auto &p = self.GetNode(n.parent);
+         if (p.child[0] == idx)
+         {
+            p.child[0] = y;
+         }
+         else
+         {
+            p.child[1] = y;
+         }
+      }
+      else
+      {
+         root = y;
+      }
+      // fix y's old children
+      MFEM_ASSERT(!curr->child[0], "");
+      if (curr->child[1])
+      {
+         MFEM_ASSERT(self.GetNode(curr->child[1]).parent == y, "");
+         self.GetNode(curr->child[1]).parent = idx;
+      }
+      // fix idx's old left child
+      if (n.child[0])
+      {
+         MFEM_ASSERT(self.GetNode(n.child[0]).parent == idx, "");
+         self.GetNode(n.child[0]).parent = y;
+      }
+
+      // swap colors
+      bool tflag = n.IsRed();
+      n.CopyColor(*curr);
+      if (tflag)
+      {
+         curr->SetRed();
+      }
+      else
+      {
+         curr->SetBlack();
+      }
+      return Erase(root, idx);
    }
+   // idx has no children
+   if (idx == root)
+   {
+      // idx was the last node
+      root = 0;
+      return;
+   }
+   auto p = &self.GetNode(curr->parent);
+   int dir;
+   if (p->child[0] == idx)
+   {
+      p->child[0] = 0;
+      dir = 0;
+   }
+   else
+   {
+      p->child[1] = 0;
+      dir = 1;
+   }
+   if (curr->IsRed())
+   {
+      // no rebalancing needed
+      return;
+   }
+   // difficult case: delete black idx with no children and rebalance
+   auto pidx = curr->parent;
+   size_t nidx1, nidx2;
+   size_t sidx;
+   while (true)
+   {
+      sidx = p->child[1 - dir];
+      MFEM_ASSERT(sidx != 0, "");
+      auto sibling = &self.GetNode(sidx);
+      nidx1 = sibling->child[1 - dir];
+      nidx2 = sibling->child[dir];
+      if (sibling->IsRed())
+      {
+         // case 3
+         if (dir)
+         {
+            RightRotate(root, pidx);
+         }
+         else
+         {
+            LeftRotate(root, pidx);
+         }
+         p->SetRed();
+         sibling->SetBlack();
+         sidx = nidx2;
+         MFEM_ASSERT(sidx, "");
+         sibling = &self.GetNode(sidx);
+         nidx1 = sibling->child[1 - dir];
+         if (nidx1)
+         {
+            auto &nephew = self.GetNode(nidx1);
+            if (nephew.IsRed())
+            {
+               goto case_6;
+            }
+         }
+         nidx2 = sibling->child[dir];
+         if (nidx2)
+         {
+            auto &nephew = self.GetNode(nidx2);
+            if (nephew.IsRed())
+            {
+               goto case_5;
+            }
+         }
+
+         // case 4
+         self.GetNode(sidx).SetRed();
+         p->SetBlack();
+         return;
+      }
+      if (nidx1)
+      {
+         auto &nephew = self.GetNode(nidx1);
+         if (nephew.IsRed())
+         {
+            goto case_6;
+         }
+      }
+      if (nidx2)
+      {
+         auto &nephew = self.GetNode(nidx2);
+         if (nephew.IsRed())
+         {
+            goto case_5;
+         }
+      }
+
+      sibling->SetRed();
+      if (p->IsRed())
+      {
+         // case 4
+         p->SetBlack();
+         return;
+      }
+
+      // case 2
+      idx = pidx;
+      curr = p;
+
+      if (!curr->parent)
+      {
+         break;
+      }
+      pidx = curr->parent;
+      MFEM_ASSERT(pidx, "");
+      p = &self.GetNode(pidx);
+      if (p->child[0] == idx)
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = 1;
+      }
+   }
+   // case 1
+   return;
+
+case_5:
+   if (dir)
+   {
+      LeftRotate(root, sidx);
+   }
+   else
+   {
+      RightRotate(root, sidx);
+   }
+   MFEM_ASSERT(sidx, "");
+   MFEM_ASSERT(nidx2, "");
+   self.GetNode(sidx).SetRed();
+   self.GetNode(nidx2).SetBlack();
+   nidx1 = sidx;
+   sidx = nidx2;
+
+case_6:
+   if (dir)
+   {
+      RightRotate(root, pidx);
+   }
+   else
+   {
+      LeftRotate(root, pidx);
+   }
+   MFEM_ASSERT(sidx, "");
+   self.GetNode(sidx).CopyColor(*p);
+   p->SetBlack();
+   MFEM_ASSERT(nidx1, "");
+   self.GetNode(nidx1).SetBlack();
 }
 
 template <class ChildType>
@@ -665,7 +598,8 @@ bool RBTree<ChildType>::Visit(size_t curr, L &&visit_left, R &&visit_right,
 {
    if (curr)
    {
-      auto &c = static_cast<const ChildType &>(*this).GetNode(curr);
+      const ChildType &self = static_cast<const ChildType &>(*this);
+      auto &c = self.GetNode(curr);
       if (func(curr))
       {
          return true;
@@ -691,11 +625,12 @@ template <class ChildType> size_t RBTree<ChildType>::First(size_t root) const
 {
    if (root)
    {
-      auto n = &static_cast<const ChildType &>(*this).GetNode(root);
+      const ChildType &self = static_cast<const ChildType &>(*this);
+      auto n = &self.GetNode(root);
       while (n->child[0])
       {
          root = n->child[0];
-         n = &static_cast<const ChildType &>(*this).GetNode(root);
+         n = &self.GetNode(root);
       }
       return root;
    }

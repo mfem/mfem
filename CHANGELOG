@@ -73,7 +73,7 @@ GPU computing
 - Rework of the memory manager so that all calls to Sync and SyncAlias are now
   no-op and can be removed from user code. Note that the copy sometimes performed
   by SyncAlias is deferred to the next call to Read/ReadWrite.
-  
+
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
 
 New and updated examples and miniapps

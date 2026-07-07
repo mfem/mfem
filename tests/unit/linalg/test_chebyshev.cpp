@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <memory>
+
 using namespace mfem;
 
 TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")

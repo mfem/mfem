@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "../forall.hpp"
 #include "../mem_manager.hpp"
 
@@ -161,7 +172,7 @@ size_t mem_op_debug(size_t idx)
 std::ostream &mem_op_debug(size_t idx, int)
 {
    auto pidx = mem_op_debug(idx);
-   // cannot use mfem::out because of potential static variiable initialization
+   // cannot use mfem::out because of potential static variable initialization
    // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
    return std::cout << "[DEBUG] " << pidx << ": ";
 }
@@ -174,7 +185,7 @@ std::ostream &mem_op_debug_add(size_t idx, const void *start,
    {
       auto v = tracker.add_allocation(start, stop);
       auto pidx = mem_op_debug(idx);
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "[DEBUG] " << pidx << ", add "
              << reinterpret_cast<const char *>(stop) -
@@ -196,7 +207,7 @@ std::ostream &mem_op_debug_remove(size_t idx, const void *start,
    {
       auto v = tracker.remove_allocation(start, stop);
       auto pidx = mem_op_debug(idx);
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "[DEBUG] " << pidx << ", remove "
              << reinterpret_cast<const char *>(stop) -
@@ -219,7 +230,7 @@ std::ostream &mem_op_debug_remove(size_t idx, const void *start)
                     reinterpret_cast<const char *>(iter->first.first);
       auto v = tracker.remove_allocation(start);
       auto pidx = mem_op_debug(idx);
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "[DEBUG] " << pidx << ", remove " << nbytes << " Bytes "
              << v.first << ": ";
@@ -240,7 +251,7 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start,
       auto pidx = mem_op_debug(idx);
       if (iter != tracker.allocations.end())
       {
-         // cannot use mfem::out because of potential static variiable
+         // cannot use mfem::out because of potential static variable
          // initialization order errors:
          // https://isocpp.org/wiki/faq/ctors#static-init-order
          return std::cout << "[DEBUG] " << pidx << ", " << iter->second.first
@@ -254,7 +265,7 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start,
       }
       else
       {
-         // cannot use mfem::out because of potential static variiable
+         // cannot use mfem::out because of potential static variable
          // initialization order errors:
          // https://isocpp.org/wiki/faq/ctors#static-init-order
          return std::cout << "[DEBUG] " << pidx << ", external[" << start << ":"
@@ -264,7 +275,7 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start,
    else
    {
       auto pidx = mem_op_debug(idx);
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "[DEBUG] " << pidx << ", use nullptr "
              << ": ";
@@ -298,7 +309,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
                      reinterpret_cast<const char *>(bstart) <=
                      seg_len,
                      "astart not inside of base segment");
-         // cannot use mfem::out because of potential static variiable
+         // cannot use mfem::out because of potential static variable
          // initialization order errors:
          // https://isocpp.org/wiki/faq/ctors#static-init-order
          return std::cout << "[DEBUG] " << pidx << ", SYNC_ALIAS "
@@ -312,7 +323,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
       }
       else
       {
-         // cannot use mfem::out because of potential static variiable
+         // cannot use mfem::out because of potential static variable
          // initialization order errors:
          // https://isocpp.org/wiki/faq/ctors#static-init-order
          return std::cout << "[DEBUG] " << pidx << ", sync alias external "
@@ -328,7 +339,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
    else
    {
       auto pidx = mem_op_debug(idx);
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "[DEBUG] " << pidx << ", sync alias nullptr"
              << std::endl;
@@ -346,14 +357,14 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    auto dst_iter = tracker.find_containing(
                       dst_start, reinterpret_cast<const char *>(dst_start) + nbytes);
    auto pidx = mem_op_debug(idx);
-   // cannot use mfem::out because of potential static variiable initialization
+   // cannot use mfem::out because of potential static variable initialization
    // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
    std::cout << "[DEBUG] " << pidx << ": BATCH_MEM_COPY "
              << mem_op_debug_copy_type(src_loc, dst_loc) << " " << nbytes
              << " Bytes, ";
    if (src_iter != tracker.allocations.end())
    {
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       std::cout << src_iter->second.first << "["
                 << reinterpret_cast<const char *>(src_start) -
@@ -362,13 +373,13 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    }
    else
    {
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       std::cout << "external src " << src_start << " -> ";
    }
    if (dst_iter != tracker.allocations.end())
    {
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << dst_iter->second.first << "["
              << reinterpret_cast<const char *>(dst_start) -
@@ -378,7 +389,7 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    }
    else
    {
-      // cannot use mfem::out because of potential static variiable initialization
+      // cannot use mfem::out because of potential static variable initialization
       // order errors: https://isocpp.org/wiki/faq/ctors#static-init-order
       return std::cout << "external dst " << dst_start;
    }

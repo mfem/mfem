@@ -84,7 +84,7 @@ PAR_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu.o))
 PAR_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests) $(if $(USE_UMPIRE),umpire_unit_tests)
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests $(if $(USE_UMPIRE),umpire_unit_tests))
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
 PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)

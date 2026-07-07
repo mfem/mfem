@@ -1,5 +1,16 @@
-#ifndef RESOURCE_MANAGER_HPP
-#define RESOURCE_MANAGER_HPP
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_RESOURCE_MANAGER_HPP
+#define MFEM_RESOURCE_MANAGER_HPP
 
 #include "mem_manager.hpp"
 
@@ -7,13 +18,12 @@
 
 #include "internal/reusable_storage.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
-#include <stdexcept>
-#include <tuple>
-#include <type_traits>
 #include <vector>
 
 #ifdef MFEM_USE_NEW_MEM_MANAGER
@@ -93,7 +103,7 @@ private:
       using RBTree<RBase>::Erase;
       using RBTree<RBase>::First;
       using RBTree<RBase>::Visit;
-      using RBTree<RBase>::Successor;
+      using RBTree<RBase>::Next;
 
       Node &GetNode(size_t curr) { return nodes.Get(curr); }
       const Node &GetNode(size_t curr) const { return nodes.Get(curr); }
@@ -103,10 +113,6 @@ private:
       {
          return segments.Get(curr);
       }
-
-      void PostLeftRotate(size_t) {}
-      void PostRightRotate(size_t) {}
-      void EraseSwapHook(size_t) {}
 
       auto CompareNodes(size_t a, size_t b) const
       {
@@ -118,11 +124,14 @@ private:
       void InsertDuplicate(size_t a, size_t b);
 
       /// Insert a validity transition marker for a given @a segment
-      size_t Insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid);
+      size_t InsertMarker(size_t segment, ptrdiff_t offset, bool on_device,
+                          bool valid);
 
-      /// Insert a validity transition marker for a given @a segment
-      size_t Insert(size_t segment, size_t node, ptrdiff_t offset,
-                    bool on_device, bool valid);
+      /// Insert a validity transition marker for a given @a segment, using
+      /// @node as a hint for where to start the BSP insertion. @sa Insert for
+      /// how the hint works.
+      size_t InsertMarker(size_t segment, size_t node, ptrdiff_t offset,
+                          bool on_device, bool valid);
    };
 
    void PrintSegment(size_t segment);
@@ -409,7 +418,7 @@ public:
    void deallocate(T *ptr, size_t n)
    {
       auto &inst = MemoryManager::Instance();
-      inst.allocs[idx]->Dealloc(ptr, n);
+      inst.allocs[idx]->Dealloc(ptr, n * sizeof(T));
    }
 };
 
@@ -922,7 +931,7 @@ template <class T> void Memory<T>::Delete()
          auto &seg = inst.storage.GetSegment(segment);
          MFEM_ASSERT(offset_ == 0, "should not have any offset");
          MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
-                     "should hot refer to a subsection");
+                     "should not refer to a subsection");
          if (seg.lowers[0] != seg.lowers[1])
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(
@@ -951,7 +960,7 @@ template <class T> void Memory<T>::Delete()
          // MFEM_ASSERT(flags & OWNS_DEVICE, "expected to also own device");
          MFEM_ASSERT(offset_ == 0, "should not have any offset");
          MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
-                     "should hot refer to a subsection");
+                     "should not refer to a subsection");
          inst.segment_maps[0].erase(seg.lowers[0]);
          seg.lowers[0] = nullptr;
          if (!temporary && h_mt == MemoryType::HOST)
