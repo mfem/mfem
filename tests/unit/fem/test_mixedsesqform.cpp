@@ -29,6 +29,11 @@ real_t V_exact_fn(const Vector &x)
 
 TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 {
+   const bool cross = GENERATE(false, true);
+   const auto conv = GENERATE(ComplexOperator::HERMITIAN,
+                              ComplexOperator::BLOCK_SYMMETRIC);
+   CAPTURE(cross, int(conv));
+
    Mesh mesh = Mesh::MakeCartesian3D(10, 10, 1, Element::HEXAHEDRON);
    H1_FECollection fec_h1(1, mesh.Dimension());
    FiniteElementSpace fespace_h1(&mesh, &fec_h1);
@@ -44,9 +49,13 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 
    ConstantCoefficient omega(omega_val);
    ConstantCoefficient neg_omega(-omega_val);
+   ConstantCoefficient half(0.5);
    FunctionCoefficient V_exact_real(V_exact_fn);
-   Vector A_imag_vec({a_coef/omega_val, b_coef/omega_val, c_coef/omega_val});
-   VectorConstantCoefficient A_exact_imag(A_imag_vec);
+   const real_t den = cross ? 2.0*omega_val : omega_val;
+   Vector A_vec({a_coef/den, b_coef/den, c_coef/den});
+   VectorConstantCoefficient A_exact_imag(A_vec);
+   A_vec *= (cross ? -1.0 : 0.0);
+   VectorConstantCoefficient A_exact_real(A_vec);
 
    ComplexGridFunction V(&fespace_h1);
    ComplexGridFunction A(&fespace_nd);
@@ -54,6 +63,7 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    V = 0.0;
    A = 0.0;
    V.real().ProjectBdrCoefficient(V_exact_real, dbc_bdr);
+   A.real().ProjectBdrCoefficientTangent(A_exact_real, dbc_bdr);
    A.imag().ProjectBdrCoefficientTangent(A_exact_imag, dbc_bdr);
 
    ComplexLinearForm b_h1(&fespace_h1);
@@ -64,20 +74,24 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
    b_nd.Assemble();
 
    // Add integrators to the blocks
-   MixedSesquilinearForm a_h1_nd(&fespace_h1, &fespace_nd);
-   a_h1_nd.AddDomainIntegrator(new MixedVectorGradientIntegrator, nullptr);
+   MixedSesquilinearForm a_h1_nd(&fespace_h1, &fespace_nd, conv);
+   a_h1_nd.AddDomainIntegrator(cross ? new MixedVectorGradientIntegrator(half)
+                               : new MixedVectorGradientIntegrator,
+                               cross ? new MixedVectorGradientIntegrator(half)
+                               : nullptr);
    a_h1_nd.Assemble();
 
-   MixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1);
-   a_nd_h1.AddDomainIntegrator(nullptr,
-                               new MixedVectorWeakDivergenceIntegrator(neg_omega));
+   MixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1, conv);
+   a_nd_h1.AddDomainIntegrator(
+      cross ? new MixedVectorWeakDivergenceIntegrator(neg_omega) : nullptr,
+      new MixedVectorWeakDivergenceIntegrator(neg_omega));
    a_nd_h1.Assemble();
 
-   SesquilinearForm a_h1(&fespace_h1);
+   SesquilinearForm a_h1(&fespace_h1, conv);
    a_h1.AddDomainIntegrator(new DiffusionIntegrator, nullptr);
    a_h1.Assemble();
 
-   SesquilinearForm a_nd(&fespace_nd);
+   SesquilinearForm a_nd(&fespace_nd, conv);
    a_nd.AddDomainIntegrator(new CurlCurlIntegrator, nullptr);
    a_nd.AddDomainIntegrator(nullptr, new VectorFEMassIntegrator(omega));
    a_nd.Assemble();
@@ -150,10 +164,9 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 
    // Check solution
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
    real_t err_V = V.ComputeL2Error(V_exact_real, zero);
-   real_t err_A = A.ComputeL2Error(zero_vec, A_exact_imag);
+   real_t err_A = A.ComputeL2Error(A_exact_real, A_exact_imag);
 
    REQUIRE(err_V == MFEM_Approx(0.0, 1e-5));
    REQUIRE(err_A == MFEM_Approx(0.0, 1e-5));
@@ -165,6 +178,12 @@ TEST_CASE("Mixed Sesquilinear Form", "[MixedSesquilinearForm]")
 TEST_CASE("Parallel Mixed Sesquilinear Form",
           "[MixedSesquilinearForm][Parallel]")
 {
+   // See the serial test above for the manufactured solution
+   const bool cross = GENERATE(false, true);
+   const auto conv = GENERATE(ComplexOperator::HERMITIAN,
+                              ComplexOperator::BLOCK_SYMMETRIC);
+   CAPTURE(cross, int(conv));
+
    Mesh mesh = Mesh::MakeCartesian3D(10, 10, 1, Element::HEXAHEDRON);
    ParMesh par_mesh(MPI_COMM_WORLD, mesh);
    H1_FECollection fec_h1(1, mesh.Dimension());
@@ -181,9 +200,13 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
 
    ConstantCoefficient omega(omega_val);
    ConstantCoefficient neg_omega(-omega_val);
+   ConstantCoefficient half(0.5);
    FunctionCoefficient V_exact_real(V_exact_fn);
-   Vector A_imag_vec({a_coef/omega_val, b_coef/omega_val, c_coef/omega_val});
-   VectorConstantCoefficient A_exact_imag(A_imag_vec);
+   const real_t den = cross ? 2.0*omega_val : omega_val;
+   Vector A_vec({a_coef/den, b_coef/den, c_coef/den});
+   VectorConstantCoefficient A_exact_imag(A_vec);
+   A_vec *= (cross ? -1.0 : 0.0);
+   VectorConstantCoefficient A_exact_real(A_vec);
 
    ParComplexGridFunction V(&fespace_h1);
    ParComplexGridFunction A(&fespace_nd);
@@ -191,6 +214,7 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    V = 0.0;
    A = 0.0;
    V.real().ProjectBdrCoefficient(V_exact_real, dbc_bdr);
+   A.real().ProjectBdrCoefficientTangent(A_exact_real, dbc_bdr);
    A.imag().ProjectBdrCoefficientTangent(A_exact_imag, dbc_bdr);
 
    ParComplexLinearForm b_h1(&fespace_h1);
@@ -201,20 +225,24 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    b_nd.Assemble();
 
    // Add integrators to the blocks
-   ParMixedSesquilinearForm a_h1_nd(&fespace_h1, &fespace_nd);
-   a_h1_nd.AddDomainIntegrator(new MixedVectorGradientIntegrator, nullptr);
+   ParMixedSesquilinearForm a_h1_nd(&fespace_h1, &fespace_nd, conv);
+   a_h1_nd.AddDomainIntegrator(cross ? new MixedVectorGradientIntegrator(half)
+                               : new MixedVectorGradientIntegrator,
+                               cross ? new MixedVectorGradientIntegrator(half)
+                               : nullptr);
    a_h1_nd.Assemble();
 
-   ParMixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1);
-   a_nd_h1.AddDomainIntegrator(nullptr,
-                               new MixedVectorWeakDivergenceIntegrator(neg_omega));
+   ParMixedSesquilinearForm a_nd_h1(&fespace_nd, &fespace_h1, conv);
+   a_nd_h1.AddDomainIntegrator(
+      cross ? new MixedVectorWeakDivergenceIntegrator(neg_omega) : nullptr,
+      new MixedVectorWeakDivergenceIntegrator(neg_omega));
    a_nd_h1.Assemble();
 
-   ParSesquilinearForm a_h1(&fespace_h1);
+   ParSesquilinearForm a_h1(&fespace_h1, conv);
    a_h1.AddDomainIntegrator(new DiffusionIntegrator, nullptr);
    a_h1.Assemble();
 
-   ParSesquilinearForm a_nd(&fespace_nd);
+   ParSesquilinearForm a_nd(&fespace_nd, conv);
    a_nd.AddDomainIntegrator(new CurlCurlIntegrator, nullptr);
    a_nd.AddDomainIntegrator(nullptr, new VectorFEMassIntegrator(omega));
    a_nd.Assemble();
@@ -277,11 +305,10 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
 
    // Check solution
    ConstantCoefficient zero(0.0);
-   VectorConstantCoefficient zero_vec(Vector({0.0, 0.0, 0.0}));
 
    real_t err_Vr = V.real().ComputeL2Error(V_exact_real);
    real_t err_Vi = V.imag().ComputeL2Error(zero);
-   real_t err_Ar = A.real().ComputeL2Error(zero_vec);
+   real_t err_Ar = A.real().ComputeL2Error(A_exact_real);
    real_t err_Ai = A.imag().ComputeL2Error(A_exact_imag);
 
    REQUIRE(err_Vr == MFEM_Approx(0.0, 1e-5));
