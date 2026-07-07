@@ -2330,7 +2330,7 @@ public:
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : TMOP_Integrator(m, tc, m) { }
 
-   ~TMOP_Integrator();
+   virtual ~TMOP_Integrator();
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
