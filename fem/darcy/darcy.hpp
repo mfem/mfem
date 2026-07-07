@@ -19,6 +19,7 @@
 #include "darcyreduction.hpp"
 #include "bilininteg_hdg.hpp"
 #include "estimators_hdg.hpp"
+#include "tmop_hdg.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pdarcyform.hpp"

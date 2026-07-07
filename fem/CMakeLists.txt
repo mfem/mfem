@@ -188,6 +188,7 @@ set(SRCS
   darcy/darcyreduction.cpp
   darcy/estimators_hdg.cpp
   darcy/pdarcyform.cpp
+  darcy/tmop_hdg.cpp
   integrator.cpp
   bounds.cpp
   particleset.cpp
@@ -328,6 +329,7 @@ set(HDRS
   darcy/darcyreduction.hpp
   darcy/estimators_hdg.hpp
   darcy/pdarcyform.hpp
+  darcy/tmop_hdg.hpp
   integrator.hpp
   bounds.hpp
   particleset.hpp
