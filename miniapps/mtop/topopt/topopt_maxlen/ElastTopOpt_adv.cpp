@@ -12,6 +12,7 @@
 #include "../../mtop_solvers.hpp"
 #include <memory>
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -35,7 +36,8 @@ int main(int argc, char *argv[])
     int    max_it       = 300;
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
-    real_t epsilon      = 1e-4;       // thickness residual tolerance
+    real_t epsilon      = 1e-2;       // thickness residual tolerance
+    real_t domain_init  = 0.1;
 
     // Thickness constraint parameters
     real_t alpha_min    = 1e-6;        // minimum thickness bound
@@ -47,6 +49,10 @@ int main(int argc, char *argv[])
     const real_t E_min    = 1e-6;     // SIMP void stiffness
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
+    
+    real_t decay = 0.7;
+    real_t eps_floor = 1e-10;
+    int decay_int = 20;
 
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
@@ -57,6 +63,8 @@ int main(int argc, char *argv[])
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
+    args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
+    args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -110,6 +118,7 @@ int main(int argc, char *argv[])
             trans->Transform(ip, phys_pt);
             real_t x = phys_pt(0);
 
+            // bool in_x_range = true;
             bool in_x_range = (x >= 1.5 && x <= 2.5);
             bool is_outflow = dot > 0;
 
@@ -143,8 +152,8 @@ int main(int argc, char *argv[])
     // 5. Initialize all the grid functions and coefficients
     ParGridFunction rho(&L2_fes);
     ParGridFunction rho_filter(&H1_fes);
-    rho = vol_fraction;
-    rho_filter = vol_fraction;
+    rho = domain_init;
+    rho_filter = domain_init;
 
     GridFunctionCoefficient rho_cf(&rho);
 
@@ -160,8 +169,8 @@ int main(int argc, char *argv[])
     ParGridFunction rho_a(&dgfes);
     ParGridFunction alpha(&sub_dg_fes);
 
-    rho_a = vol_fraction;
-    alpha = 0.5 * (alpha_min + alpha_max);  // initialize to mid-range
+    rho_a = domain_init;
+    alpha = domain_init;  // initialize to mid-range
 
     // 6. Advection thickness-constraint and its solver
     PseudoTransientSolver advect(rho_a, rho_filter, ray_cf);
@@ -250,7 +259,9 @@ int main(int argc, char *argv[])
     ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
 
     if (paraview) {
-        paraview_dc.SetPrefixPath("ParaView");
+        std::ostringstream run_tag;
+        run_tag << "ParaView/adv_amax_" << alpha_max;
+        paraview_dc.SetPrefixPath(run_tag.str());
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
@@ -269,9 +280,13 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-    real_t eps_floor    = 1e-10;
     for (; k < max_it && iterationError > tol; k++)
     {
+        if (k % decay_int == 0 && k > 0)
+        {
+            epsilon = std::max(epsilon * decay, eps_floor);
+        }
+
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
         filter.Mult(rho, rho_filter);
 
@@ -417,6 +432,6 @@ void rayfield(const Vector &x, Vector &v)
 {
     const int dim = x.Size();
     v.SetSize(dim);
-    v = 1.0;
+    v = 1.0 / sqrt(dim);
     // v = 0.0; v[dim-1] = 1.0;
 }

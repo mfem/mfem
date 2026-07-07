@@ -1,7 +1,7 @@
 // Parallel compliance-minimization topology optimization for linear elasticity.
 //
 // Sample run:  mpirun -np 4 ./ElastTopOpt_maxlen
-//              mpirun -np 4 ./ElastTopOpt_maxlen -gv 0.2 -gs 0.8 -mi 300
+//              mpirun -np 4 ./ElastTopOpt_maxlen -r 6 -rf 0.03 -rs 0.3 -gs 0.7 -mi 300 -no-vis -pv
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -11,6 +11,7 @@
 #include "../../mtop_solvers.hpp"
 #include <memory>
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -217,7 +218,10 @@ int main(int argc, char *argv[])
     ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
 
     if (paraview) {
-        paraview_dc.SetPrefixPath("ParaView");
+        std::ostringstream run_tag;
+        run_tag << "ParaView/maxlen"
+                << "_rs" << r_s << "_gs" << gamma_s;
+        paraview_dc.SetPrefixPath(run_tag.str());
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
@@ -392,7 +396,7 @@ void bodyload(const Vector &x, Vector &f)
     const real_t xcenter = 2.85;
     const real_t ycenter = 0.5;
     const real_t zcenter = 0.5;
-    const real_t radius = 0.1;
+    const real_t radius = 0.05;
 
     f = 0.0;
 

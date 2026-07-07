@@ -13,6 +13,7 @@
 #include "../../mtop_solvers.hpp"
 #include <memory>
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
+    real_t domain_init  = 0.1;       // initial design value
 
     // Thickness constraint parameters
     int    nrays        = 5;          // number of thickness measurement rays
@@ -51,6 +53,10 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
 
+    real_t decay = 0.7;
+    real_t eps_floor = 1e-10;
+    int decay_int = 20;
+
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
@@ -62,6 +68,8 @@ int main(int argc, char *argv[])
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
+    args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
+    args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -116,8 +124,8 @@ int main(int argc, char *argv[])
     // 5. Initialize all the grid functions and coefficients
     ParGridFunction rho(&control_fes);
     ParGridFunction rho_filter(&filter_fes);
-    rho = vol_fraction;
-    rho_filter = vol_fraction;
+    rho = domain_init;
+    rho_filter = domain_init;
 
     GridFunctionCoefficient rho_cf(&rho);
 
@@ -128,7 +136,7 @@ int main(int argc, char *argv[])
 
     // Thickness design variables (one per ray)
     Vector alpha(nrays);
-    alpha = 0.5 * (alpha_min + alpha_max);  // initialize to mid-range
+    alpha = domain_init;  // initialize to mid-range
 
     // 6. Thickness constraint residual (ray-sampled):  ∑_i 1/2 (A_i - α_i)²
     ThicknessResidual thickness_residual(pmesh, rho_filter, ray_starts, ray_ends, nrays, alpha, nsamples);
@@ -212,7 +220,9 @@ int main(int argc, char *argv[])
     ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
 
     if (paraview) {
-        paraview_dc.SetPrefixPath("ParaView");
+        std::ostringstream run_tag;
+        run_tag << "ParaView/maxthick_amax_" << alpha_max;
+        paraview_dc.SetPrefixPath(run_tag.str());
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
@@ -231,10 +241,13 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-    real_t eps_floor    = 1e-10;
-
     for (; k < max_it && iterationError > tol; k++)
     {
+        if (k % decay_int == 0 && k > 0)
+        {
+            epsilon = std::max(epsilon * decay, eps_floor);
+        }
+
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
         filter.Mult(rho, rho_filter);
 
@@ -380,10 +393,12 @@ void initialize_rays(int dim, int nrays, Vector *ray_starts, Vector *ray_ends)
         ray_ends[r].SetSize(dim);
 
         // x_0 ∈ [0.5, 1.5]
-        real_t x_pos = 0.5 + 1.0 * r / (nrays - 1);
+        real_t x_pos = 3.0 * r / (nrays - 1);
+        // real_t x_pos = 0.5 + 1.0 * r / (nrays - 1);
 
         ray_starts[r](0) = x_pos;
-        ray_ends[r](0)   = x_pos + 1.0;  
+        ray_ends[r](0)   = x_pos;  
+        // ray_ends[r](0)   = x_pos + 1.0;  
         
         ray_starts[r](1) = 0.0;
         ray_ends[r](1)   = 1.0;
