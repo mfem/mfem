@@ -37,6 +37,7 @@
 #include <tuple>
 
 #ifdef MFEM_USE_NEW_MEM_MANAGER
+#define MFEM_MMU_CPP
 #include "internal/mmu.cpp"
 
 namespace mfem
