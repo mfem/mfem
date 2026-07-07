@@ -694,12 +694,15 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    // Pass down the initial position to the integrators.
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   for (int i = 0; i < integs.Size(); i++)
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
+
+   for (auto integ : integs)
    {
-      auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      auto ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti) { ti->SetInitialMeshPos(&x_0); }
-      auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      auto co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co) { co->SetInitialMeshPos(&x_0); }
    }
 
@@ -734,23 +737,25 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti)
       {
          ti->UpdateSurfaceFittingWeight(factor);
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            ati[j]->UpdateSurfaceFittingWeight(factor);
+            ati->UpdateSurfaceFittingWeight(factor);
          }
       }
    }
@@ -759,29 +764,31 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
 void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<real_t> &weights) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    weights.SetSize(0);
    real_t weight;
 
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti && ti->IsSurfaceFittingEnabled())
       {
          weight = ti->GetSurfaceFittingWeight();
          weights.Append(weight);
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            if (ati[j]->IsSurfaceFittingEnabled())
+            if (ati->IsSurfaceFittingEnabled())
             {
-               weight = ati[j]->GetSurfaceFittingWeight();
+               weight = ati->GetSurfaceFittingWeight();
                weights.Append(weight);
             }
          }
@@ -794,16 +801,18 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &d_loc,
                                               real_t &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
 
    err_avg = 0.0;
    err_max = 0.0;
    real_t err_avg_loc, err_max_loc;
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti)
       {
          if (ti->IsSurfaceFittingEnabled())
@@ -813,15 +822,15 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &d_loc,
             err_max = std::max(err_max_loc, err_max);
          }
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            if (ati[j]->IsSurfaceFittingEnabled())
+            if (ati->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
+               ati->GetSurfaceFittingErrors(d_loc, err_avg_loc, err_max_loc);
                err_avg = std::max(err_avg_loc, err_avg);
                err_max = std::max(err_max_loc, err_max);
             }
@@ -833,13 +842,15 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &d_loc,
 bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
 
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti)
       {
          if (ti->IsSurfaceFittingEnabled())
@@ -847,13 +858,13 @@ bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
             return true;
          }
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            if (ati[j]->IsSurfaceFittingEnabled())
+            if (ati->IsSurfaceFittingEnabled())
             {
                return true;
             }
@@ -866,28 +877,30 @@ bool TMOPNewtonSolver::IsSurfaceFittingEnabled() const
 void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   Array<NonlinearFormIntegrator*> integs;
+   integs.Append(*nlf->GetDNFI());
+   integs.Append(nlf->GetInteriorFaceIntegrators());
 
    // Reset the update flags of all TargetConstructors. This is done to avoid
    // repeated updates of shared TargetConstructors.
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    DiscreteAdaptTC *dtc = NULL;
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti)
       {
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->ResetUpdateFlags(); }
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            dtc = ati[j]->GetDiscreteAdaptTC();
+            dtc = ati->GetDiscreteAdaptTC();
             if (dtc) { dtc->ResetUpdateFlags(); }
          }
       }
@@ -903,9 +916,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    else { dx_loc = dx; }
 
    const FiniteElementSpace *dx_fes = nlf->FESpace();
-   for (int i = 0; i < integs.Size(); i++)
+   for (auto integ : integs)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      ti = dynamic_cast<TMOP_Integrator *>(integ);
       if (ti)
       {
          ti->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
@@ -914,16 +927,16 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
             ti->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
          }
       }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      co = dynamic_cast<TMOPComboIntegrator *>(integ);
       if (co)
       {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
+         Array<TMOP_Integrator *> atis = co->GetTMOPIntegrators();
+         for (auto ati : atis)
          {
-            ati[j]->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
+            ati->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
+               ati->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
             }
          }
       }
