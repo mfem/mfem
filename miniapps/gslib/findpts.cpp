@@ -49,6 +49,9 @@
 //    findpts -m ../../data/ref-square.mesh -o 2 -mo 1 -random 1 -surf
 //    findpts -m ../../data/ref-cube.mesh -o 2 -mo 1 -random 1 -surf
 //    findpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -random 1 -surf
+// Surface meshes + bounding box size increase:
+//    findpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -random 1 -surf -sabs 0.1
+//    findpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -109,6 +112,7 @@ int main (int argc, char *argv[])
    int randomization     = 0;
    int npt               = 100;
    bool surface          = false;
+   double surf_aabb_sz_inc = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -150,6 +154,9 @@ int main (int argc, char *argv[])
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
+   args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
+                  "Absolute AABB expansion applied to surface-search "
+                  "axis-aligned bounding boxes in FindPointsGSLIB surface meshes.");
 
    args.Parse();
    if (!args.Good())
@@ -384,8 +391,17 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(*mesh);
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   FindPointsGSLIB finder;
+   if (surface && surf_aabb_sz_inc > 0.0)
+   {
+      Vector bb_size({surf_aabb_sz_inc});
+      finder.SetupSurfWithAABBExpansion(*mesh, bb_size);
+   }
+   else
+   {
+      finder.Setup(*mesh);
+      // finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   }
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
    finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
@@ -424,7 +440,7 @@ int main (int argc, char *argv[])
         << "Searched points:     "   << pts_cnt
         << "\nFound points:        " << found
         << "\nMax interp error:    " << max_err
-        << "\nMax dist (of found): " << max_dist
+        << "\nMax dist^2 (of found): " << max_dist
         << "\nPoints not found:    " << not_found;
    if (randomization == 1)
    {
