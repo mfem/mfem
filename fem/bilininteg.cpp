@@ -4273,11 +4273,6 @@ void SlidingElasticityIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
-   Vector n(dim);
-   Trans.SetIntPoint(&Geometries.GetCenter(Trans.GetGeometryType()));
-   CalcOrtho(Trans.Jacobian(), n);
-   n /= n.Norml2();
-
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
       const IntegrationPoint &ip = ir->IntPoint(pind);
