@@ -157,10 +157,11 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl << "Assembling: " << flush;
 
-   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking only
-   //    boundary attribute 1 from the mesh as essential and converting it to a
-   //    list of true dofs.
+   // 7. Mark the boundary attributes where the sliding (Nitsche) boundary
+   //    conditions are to be applied. These b.c. are imposed weakly, by adding
+   //    the appropriate boundary integrators over the marked 'ess_bdr' to the
+   //    bilinear and linear forms. Thus, no dofs are eliminated; there are no
+   //    essential boundary conditions.
    Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
