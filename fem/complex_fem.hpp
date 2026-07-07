@@ -470,11 +470,12 @@ public:
       FiniteElementSpace * test_fes,
       ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a MixedSesquilinearForm on the mfem::FiniteElementSpace @a fes,
+   /** @brief Create a MixedSesquilinearForm on the given trial and test
+       FiniteElementSpaces, using the same integrators as the
+       MixedBilinearForms @a bfr and @a bfi.
 
-       using the same integrators as the mfem::MixedBilinearForms @a pbfr and @a pbfi .
-
-       The pointer @a pf is not owned by the newly constructed object.
+       The FiniteElementSpace pointers are not owned by the newly constructed
+       object.
 
        The integrators are copied as pointers and they are not owned by the
        newly constructed MixedSesquilinearForm. */
@@ -578,8 +579,12 @@ public:
    /// Updates the internal mixed forms with the new finite element space.
    virtual void Update();
 
-   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
+   /** @brief Return a ComplexSparseMatrix wrapping the local (L-dof) real
+       and imaginary matrices of the form.
+
+       The returned wrapper has to be deleted by the caller, but it does not
+       own the wrapped real and imaginary matrices, which remain owned by
+       this form. */
    ComplexSparseMatrix *AssembleComplexSparseMatrix();
 
    /// Return the trial FE space associated with the MixedSesquilinearForm.
@@ -1060,10 +1065,12 @@ public:
       ParFiniteElementSpace * test_fes,
       ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ParMixedSesquilinearForm on the mfem::ParFiniteElementSpace @a pf,
-       using the same integrators as the mfem::ParMixedBilinearForms @a pbfr and @a pbfi .
+   /** @brief Create a ParMixedSesquilinearForm on the given trial and test
+       ParFiniteElementSpaces, using the same integrators as the
+       ParMixedBilinearForms @a pbfr and @a pbfi.
 
-       The pointer @a pf is not owned by the newly constructed object.
+       The ParFiniteElementSpace pointers are not owned by the newly
+       constructed object.
 
        The integrators are copied as pointers and they are not owned by the
        newly constructed ParMixedSesquilinearForm. */

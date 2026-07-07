@@ -773,7 +773,9 @@ MixedSesquilinearForm::RealInteg()
 {
    int nint = mblfr->GetFBFI()->Size() + mblfr->GetDBFI()->Size() +
               mblfr->GetBBFI()->Size() +
-              mblfr->GetBFBFI()->Size();
+              mblfr->GetBFBFI()->Size() +
+              mblfr->GetTFBFI()->Size() +
+              mblfr->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
@@ -782,7 +784,9 @@ MixedSesquilinearForm::ImagInteg()
 {
    int nint = mblfi->GetFBFI()->Size() + mblfi->GetDBFI()->Size() +
               mblfi->GetBBFI()->Size() +
-              mblfi->GetBFBFI()->Size();
+              mblfi->GetBFBFI()->Size() +
+              mblfi->GetTFBFI()->Size() +
+              mblfi->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
@@ -2091,7 +2095,9 @@ ParMixedSesquilinearForm::RealInteg()
 {
    int nint = pmblfr->GetFBFI()->Size() + pmblfr->GetDBFI()->Size() +
               pmblfr->GetBBFI()->Size() +
-              pmblfr->GetBFBFI()->Size();
+              pmblfr->GetBFBFI()->Size() +
+              pmblfr->GetTFBFI()->Size() +
+              pmblfr->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
@@ -2100,7 +2106,9 @@ ParMixedSesquilinearForm::ImagInteg()
 {
    int nint = pmblfi->GetFBFI()->Size() + pmblfi->GetDBFI()->Size() +
               pmblfi->GetBBFI()->Size() +
-              pmblfi->GetBFBFI()->Size();
+              pmblfi->GetBFBFI()->Size() +
+              pmblfi->GetTFBFI()->Size() +
+              pmblfi->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
