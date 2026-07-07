@@ -30,9 +30,12 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
-   if (debug_device) {
+   if (debug_device)
+   {
       mfem::Device device("debug");
-   } else {
+   }
+   else
+   {
       mfem::Device device("gpu");
    }
 

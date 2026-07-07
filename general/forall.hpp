@@ -1160,7 +1160,8 @@ inline void ForallWrap(const bool use_dev, const int N,
                      "Enzyme CUDA Wrappers are only implemented "
                      "for one dimensional thread blocks");
 
-         constexpr int BLCK = MAX_THREADS_PER_BLOCK == 0 ? MFEM_CUDA_BLOCKS : MAX_THREADS_PER_BLOCK;
+         constexpr int BLCK = MAX_THREADS_PER_BLOCK == 0 ? MFEM_CUDA_BLOCKS :
+                              MAX_THREADS_PER_BLOCK;
          return CuWrap1DWithEnzyme<BLCK>(N, d_body);
 #else
          MFEM_ABORT("Enzyme not available");

@@ -722,8 +722,8 @@ struct has_make_enzyme_shadow : std::false_type { };
 
 template <typename T>
 struct has_make_enzyme_shadow<T,
-   std::void_t<decltype(std::declval<const T &>().CreateShadow())>> :
-   std::true_type { };
+       std::void_t<decltype(std::declval<const T &>().CreateShadow())>> :
+       std::true_type { };
 
 template <typename qfunc_t>
 inline qfunc_t MakeQFunctionShadow(const qfunc_t &qfunc)
@@ -1148,8 +1148,15 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
    args_t &primal_args,
    args_t &shadow_args)
 {
+#ifdef MFEM_USE_ENZYME
    auto qfunc_shadow = detail::enzyme_detail::MakeQFunctionShadow(qfunc);
    call_enzyme_fwddiff(qfunc, qfunc_shadow, primal_args, shadow_args);
+#else
+   MFEM_CONTRACT_VAR(qfunc);
+   MFEM_CONTRACT_VAR(primal_args);
+   MFEM_CONTRACT_VAR(shadow_args);
+   MFEM_ABORT("Enzyme not available");
+#endif
 }
 
 } // namespace mfem::future
