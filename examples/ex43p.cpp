@@ -194,8 +194,12 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking only
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.
-   Array<int> ess_tdof_list, ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   Array<int> ess_tdof_list, ess_bdr;
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+   }
 
    // 10. Define the solution vector x as a finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
