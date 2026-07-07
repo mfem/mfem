@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    // 12. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
    GSSmoother M(A);
-   PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
+   PCG(A, M, B, X, 1, 500, 1e-12, 0.0);
 #else
    // 12. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
