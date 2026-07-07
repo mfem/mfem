@@ -646,17 +646,21 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/* Boundary linear form integrator for imposing non-zero Dirichlet boundary
- * conditions, in a Nitsche elasticity formulation. Specifically, the linear
- * form is given by
- *
- * b(v) := α ∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ ñ g dS
- *       + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS
- *
- * where g is the given Dirichlet data, n is the unit normal, ñ is a unit vector
- * field, and α = ±1, κ > 0 are the Nitsche parameters. The parameters λ and μ should
- * match the parameters with the same names used in the bilinear form
- * integrator, SlidingElasticityIntegrator.
+/** Boundary linear form integrator for imposing non-zero Dirichlet boundary
+    conditions, in a Nitsche elasticity formulation. Specifically, the linear
+    form is given by
+    $$
+    \begin{split}
+    b(v) &:= \alpha \int_\Gamma (\lambda\, \mathrm{div}(v)\, I + \mu (\nabla v
+    + \nabla v^{\mathrm{T}}))\, n \cdot \tilde{n}\, g\, dS + \kappa \int_\Gamma
+    h^{-1} (\lambda + 2\mu) (v \cdot \tilde{n})\, g\, dS
+    \end{split}
+    $$
+    where $g$ is the given Dirichlet data, $n$ is the unit normal, $\tilde{n}$ is
+    a unit vector field, and $\alpha = \pm 1$, $\kappa > 0$ are the Nitsche
+    parameters. The parameters $\lambda$ and $\mu$ should match the parameters
+    with the same names used in the bilinear form integrator,
+    SlidingElasticityIntegrator.
  */
 class SlidingElasticityLFIntegrator : public LinearFormIntegrator
 {

@@ -3738,27 +3738,37 @@ protected:
       DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
-/* Integrator for the Nitsche elasticity form,
- *
- * a(u,v) := - <σ(u) n⃗ ⋅ ñ, v ⋅ ñ>
- *           + α <σ(v) n⃗ ⋅ ñ, u ⋅ ñ>
- *           + κ <h⁻¹ (λ + 2μ) u ⋅ ñ, v ⋅ ñ>
- *         = - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
- *           + α ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
- *           + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS.
- *
- * For isotropic media,
- *
- * σ(u) = λ (∇ ⋅ u) I + 2μ ε(u)
- *      = λ (∇ ⋅ u) I + 2μ (∇u + ∇uᵀ)/2
- *      = λ (∇ ⋅ u) I + μ (∇u + ∇uᵀ),
- *
- * where I is identity matrix, λ and μ are Lame coefficients (see
- * ElasticityIntegrator), ñ is a unit vector field, α = ±1, κ > 0 are the
- * Nitsche parameters, and u, v are the trial and test functions, respectively.
- *
- * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
- * copies of a scalar FE space.
+/** Integrator for the Nitsche elasticity form:
+    $$
+    \begin{split}
+    a(u,v)
+    &:= -\langle \sigma(u)\, \vec{n} \cdot \tilde{n},\ v \cdot \tilde{n}
+    \rangle + \alpha \langle \sigma(v)\, \vec{n} \cdot \tilde{n},\ u \cdot
+    \tilde{n} \rangle + \kappa \langle h^{-1} (\lambda + 2\mu)\, u \cdot
+    \tilde{n},\ v \cdot \tilde{n} \rangle \\
+    &= -\int_\Gamma (\sigma(u)\, n \cdot \tilde{n})(v \cdot \tilde{n})\, dS +
+    \alpha \int_\Gamma (\sigma(v)\, n \cdot \tilde{n})(u \cdot \tilde{n})\,
+    dS + \kappa \int_\Gamma h^{-1} (\lambda + 2\mu)(u \cdot \tilde{n})(v
+    \cdot \tilde{n})\, dS.
+    \end{split}
+    $$
+
+    For isotropic media,
+    $$
+    \begin{split}
+    \sigma(u) &= \lambda \nabla \cdot u I + 2 \mu \varepsilon(u) \\
+              &= \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla
+                 u^{\mathrm{T}}) \\
+              &= \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^{\mathrm{T}})
+    \end{split}
+    $$
+    where $I$ is the identity matrix, $\lambda$ and $\mu$ are the Lamé
+    coefficients (see ElasticityIntegrator), $\tilde{n}$ is a unit vector
+    field, $\alpha = \pm 1$ and $\kappa > 0$ are the Nitsche parameters, and
+    $u$, $v$ are the trial and test functions, respectively.
+
+    This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
+    copies of a scalar FE space.
  */
 class SlidingElasticityIntegrator : public BilinearFormIntegrator
 {
