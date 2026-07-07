@@ -114,6 +114,12 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
+   /// Compute the local face energy
+   virtual real_t GetFaceEnergy(const FiniteElement &el1,
+                                const FiniteElement &el2,
+                                FaceElementTransformations &Tr,
+                                const Vector &elfun);
+
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA(). */

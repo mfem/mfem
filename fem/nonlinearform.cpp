@@ -190,7 +190,25 @@ real_t NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    if (fnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+      const int nfaces = mesh->GetNumFaces();
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs2;
+      FaceElementTransformations *FTr;
+      for (int f = 0; f < nfaces; f++)
+      {
+         if (!mesh->FaceIsInterior(f)) { continue; }
+         FTr = mesh->GetFaceElementTransformations(f);
+         fe1 = fes->GetFE(FTr->Elem1No);
+         fe2 = fes->GetFE(FTr->Elem2No);
+         fes->GetElementVDofs(FTr->Elem1No, vdofs);
+         fes->GetElementVDofs(FTr->Elem2No, vdofs2);
+         vdofs.Append(vdofs2);
+         x.GetSubVector(vdofs, el_x);
+         for (int k = 0; k < fnfi.Size(); k++)
+         {
+            energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *FTr, el_x);
+         }
+      }
    }
 
    if (bfnfi.Size())
