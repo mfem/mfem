@@ -1091,23 +1091,6 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
    }
 
-   if (RealInteg() && ImagInteg())
-   {
-      // Modify RHS to conform with standard essential BC treatment
-      mfem::Vector xe_r(tvsize_trial);
-      mfem::Vector xe_i(tvsize_trial);
-      xe_r = 0.0;
-      xe_i = 0.0;
-      const int ntrial = ess_trial_tdof_list.Size();
-
-      for (int i = 0; i < ntrial; ++i)
-      {
-         const int j = ess_trial_tdof_list[i];
-         xe_r[j] = x_r[j];
-         xe_i[j] = x_i[j];
-      }
-   }
-
    if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       B_i *= -1.0;
@@ -1170,19 +1153,6 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
    if (!RealInteg() && !ImagInteg())
    {
       MFEM_ABORT("Both Real and Imaginary part of the Mixed Sesquilinear form are empty");
-   }
-
-   if (RealInteg() && ImagInteg())
-   {
-      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
-      // with standard essential BC treatment. Set columns corresponding to
-      // essential dofs to zero.
-      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
-      // method
-      if (A_i.Type() == Operator::MFEM_SPARSEMAT)
-      {
-         A_i.As<SparseMatrix>()->EliminateCols(ess_trial_tdof_list);
-      }
    }
 
    // A = A_r + i A_i
@@ -2445,23 +2415,6 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
    }
 
-   if (RealInteg() && ImagInteg())
-   {
-      // Modify RHS to conform with standard essential BC treatment
-      Vector xe_r(tvsize_trial);
-      Vector xe_i(tvsize_trial);
-      xe_r = 0.0;
-      xe_i = 0.0;
-      const int ntrial = ess_trial_tdof_list.Size();
-
-      for (int i = 0; i < ntrial; ++i)
-      {
-         const int j = ess_trial_tdof_list[i];
-         xe_r[j] = x_r[j];
-         xe_i[j] = x_i[j];
-      }
-   }
-
    if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       B_i *= -1.0;
@@ -2524,19 +2477,6 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
    if (!RealInteg() && !ImagInteg())
    {
       MFEM_ABORT("Both Real and Imaginary part of the Mixed Sesquilinear form are empty");
-   }
-
-   if (RealInteg() && ImagInteg())
-   {
-      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
-      // with standard essential BC treatment. Set columns corresponding to
-      // essential dofs to zero.
-      // If A_i is a RectangularConstrainedOperator, this is handled automatically in the Mult()
-      // method
-      if (A_i.Type() == Operator::Hypre_ParCSR)
-      {
-         A_i.As<HypreParMatrix>()->EliminateCols(ess_trial_tdof_list);
-      }
    }
 
    // A = A_r + i A_i
