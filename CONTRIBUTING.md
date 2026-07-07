@@ -6,7 +6,6 @@
 <a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-blue.svg"></a>
 <a href="https://github.com/mfem/mfem/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/mfem/mfem"></a>
 <a href="https://github.com/mfem/mfem/actions/workflows/repo-check.yml?query=branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml?query=branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
 <a href="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml?query=branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="https://docs.mfem.org/html/index.html"><img alt="Documentation" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
