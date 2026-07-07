@@ -54,7 +54,6 @@
 #include <sstream>
 
 #ifndef MFEM_USE_NEW_MEM_MANAGER
-#define MFEM_MMU_CPP
 #include "internal/mmu.cpp"
 #endif
 

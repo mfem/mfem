@@ -39,7 +39,7 @@ template <class ChildType> struct RBTree
       return InsertImpl(root, pos, curr, true);
    }
 
-   /// insert node @a curr into tree, modifying @root as needed
+   /// insert node @a curr into tree, modifying @a root as needed
    size_t Insert(size_t &root, size_t curr) { return InsertImpl(root, root, curr, false); }
 
    /// erases node @a idx into tree, modifying @a root as needed.

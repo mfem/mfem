@@ -9,10 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// this file should only be included in mem_manager.cpp or resource_manager.cpp!
-// MFEM_MMU_CPP is defined in the associated cpp files
-#ifdef MFEM_MMU_CPP
-
 #ifndef _WIN32
 #include <unistd.h>
 #include <signal.h>
@@ -200,4 +196,3 @@ static uintptr_t MmuLengthP(const void *, const size_t) { return 0; }
 #endif
 
 } // namespace mfem
-#endif
