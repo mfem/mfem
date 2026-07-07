@@ -4228,7 +4228,7 @@ void SlidingElasticityIntegrator::AssembleFaceMatrix(
    Vector nM1;
    Vector nt1;
    Vector dshape1_dnM;
-   Vector dshape1_nt1;
+   Vector dshape1_dnt;
    DenseMatrix jmat;
 #endif
 
