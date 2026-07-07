@@ -4217,6 +4217,9 @@ void SlidingElasticityIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+   MFEM_ASSERT(Trans.Elem2No < 0,
+               "support for interior faces is not implemented");
+
 #ifdef MFEM_THREAD_SAFE
    // For descriptions of these variables, see the class declaration.
    Vector shape1;
