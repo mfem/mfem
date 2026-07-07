@@ -439,6 +439,7 @@ miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
 miniapps/hdg/anisodiff
+miniapps/hdg/anisodiff-hr
 miniapps/hdg/anisodiff*.mesh
 miniapps/hdg/sol_t*.gf
 miniapps/hdg/sol_q*.gf

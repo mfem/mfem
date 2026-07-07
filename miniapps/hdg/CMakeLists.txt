@@ -27,6 +27,11 @@ add_mfem_miniapp(anisodiff
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
 
+add_mfem_miniapp(anisodiff-hr
+    MAIN anisodiff-hr.cpp
+    ${HDG_COMMON_FILES}
+    LIBRARIES mfem)
+
 add_mfem_miniapp(convdiff
     MAIN convdiff.cpp
     ${HDG_COMMON_FILES}
