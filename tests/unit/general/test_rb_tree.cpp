@@ -97,9 +97,10 @@ struct RBTreeFixture : RBTree<RBTreeFixture>
       nodes.Erase(idx);
    }
 
-   void PrintTree(std::ostream& out = std::cout) const
+   // for debugging, prints out a graphviz dot file
+   void PrintTree(std::ostream& os = std::cout) const
    {
-      out << "strict digraph {" << std::endl;
+      os << "strict digraph {" << std::endl;
       Visit(root, [](size_t) { return true; }, [](size_t) { return true; },
       [&](size_t idx)
       {
@@ -107,33 +108,33 @@ struct RBTreeFixture : RBTree<RBTreeFixture>
          auto &node = GetNode(idx);
          if (node.IsRed())
          {
-            out << node.offset << " [color=\"red\"];" << std::endl;
+            os << node.offset << " [color=\"red\"];" << std::endl;
          }
          else
          {
-            out << node.offset << " [color=\"black\"];" << std::endl;
+            os << node.offset << " [color=\"black\"];" << std::endl;
          }
          for (int i = 0; i < 2; ++i)
          {
             if (node.child[i])
             {
                auto &child = GetNode(node.child[i]);
-               out << node.offset << " -> ";
-               out << child.offset << ";" << std::endl;
-               out << child.offset << " -> " << node.offset << " [color=\"blue\"];" <<
-                   std::endl;
+               os << node.offset << " -> ";
+               os << child.offset << ";" << std::endl;
+               os << child.offset << " -> " << node.offset << " [color=\"blue\"];" <<
+                  std::endl;
             }
             else
             {
-               out << "NULL_" << node.offset << "_" << i << " [shape=point];"
-                   << std::endl;
-               out << node.offset << " -> ";
-               out << "NULL_" << node.offset << "_" << i << ";" << std::endl;
+               os << "NULL_" << node.offset << "_" << i << " [shape=point];"
+                  << std::endl;
+               os << node.offset << " -> ";
+               os << "NULL_" << node.offset << "_" << i << ";" << std::endl;
             }
          }
          return false;
       });
-      out << "}" << std::endl;
+      os << "}" << std::endl;
    }
 
    void ValidateSubtree(
@@ -411,7 +412,6 @@ TEST_CASE("RB Tree", "[RB Tree]")
       {
          // random insert, possibly a duplicate value
          ptrdiff_t v = value_distr(engine);
-         // std::cout << "insert " << v << std::endl;
          tree.AddNode(v);
          values.emplace(v);
          tree.ValidateTree();
@@ -432,7 +432,6 @@ TEST_CASE("RB Tree", "[RB Tree]")
          values.erase(iter);
          auto node = tree.Find(v);
          REQUIRE(node != 0);
-         // std::cout << "erase " << v << std::endl;
          tree.EraseNode(node);
          tree.ValidateTree();
          // ensure v is not in tree
@@ -450,7 +449,6 @@ TEST_CASE("RB Tree", "[RB Tree]")
       {
          // random insert, possibly a duplicate value
          ptrdiff_t v = value_distr(engine);
-         // std::cout << "insert " << v << std::endl;
          tree.AddNode(v);
          values.emplace(v);
          tree.ValidateTree();
@@ -471,7 +469,6 @@ TEST_CASE("RB Tree", "[RB Tree]")
          values.erase(iter);
          auto node = tree.Find(v);
          REQUIRE(node != 0);
-         // std::cout << "erase " << v << std::endl;
          tree.EraseNode(node);
          tree.ValidateTree();
          // ensure v is not in tree
