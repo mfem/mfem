@@ -11,7 +11,7 @@
 
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
-#include "./bilininteg_vecdiv_pa.hpp" // IWYU pragma: keep // IWYU pragma: keep
+#include "./bilininteg_vecdiv_pa.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -113,11 +113,11 @@ static void PADivergenceSetup(const int dim,
                               Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADivergenceSetup"); }
-   if (dim == 2)
+   else if (dim == 2)
    {
       PADivergenceSetup2D(Q1D, NE, W, J, COEFF, op);
    }
-   if (dim == 3)
+   else if (dim == 3)
    {
       PADivergenceSetup3D(Q1D, NE, W, J, COEFF, op);
    }
@@ -170,12 +170,18 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
          Kernels::Specialization<2, 2, 2, 2>::Add(),
          Kernels::Specialization<2, 2, 2, 3>::Add(),
          Kernels::Specialization<2, 2, 2, 4>::Add(),
+         Kernels::Specialization<2, 3, 2, 3>::Add(),
+         Kernels::Specialization<2, 3, 2, 4>::Add(),
          Kernels::Specialization<2, 3, 3, 3>::Add(),
          Kernels::Specialization<2, 3, 3, 4>::Add(),
          Kernels::Specialization<2, 3, 3, 5>::Add(),
+         Kernels::Specialization<2, 4, 3, 4>::Add(),
+         Kernels::Specialization<2, 4, 3, 5>::Add(),
          Kernels::Specialization<2, 4, 4, 4>::Add(),
          Kernels::Specialization<2, 4, 4, 5>::Add(),
          Kernels::Specialization<2, 4, 4, 6>::Add(),
+         Kernels::Specialization<2, 5, 4, 5>::Add(),
+         Kernels::Specialization<2, 5, 4, 6>::Add(),
          Kernels::Specialization<2, 5, 5, 5>::Add(),
          Kernels::Specialization<2, 5, 5, 6>::Add(),
          Kernels::Specialization<2, 5, 5, 7>::Add(),
@@ -213,12 +219,18 @@ void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
          Kernels::Specialization<2, 2, 2, 2>::Add(),
          Kernels::Specialization<2, 2, 2, 3>::Add(),
          Kernels::Specialization<2, 2, 2, 4>::Add(),
+         Kernels::Specialization<2, 3, 2, 3>::Add(),
+         Kernels::Specialization<2, 3, 2, 4>::Add(),
          Kernels::Specialization<2, 3, 3, 3>::Add(),
          Kernels::Specialization<2, 3, 3, 4>::Add(),
          Kernels::Specialization<2, 3, 3, 5>::Add(),
+         Kernels::Specialization<2, 4, 3, 4>::Add(),
+         Kernels::Specialization<2, 4, 3, 5>::Add(),
          Kernels::Specialization<2, 4, 4, 4>::Add(),
          Kernels::Specialization<2, 4, 4, 5>::Add(),
          Kernels::Specialization<2, 4, 4, 6>::Add(),
+         Kernels::Specialization<2, 5, 4, 5>::Add(),
+         Kernels::Specialization<2, 5, 4, 6>::Add(),
          Kernels::Specialization<2, 5, 5, 5>::Add(),
          Kernels::Specialization<2, 5, 5, 6>::Add(),
          Kernels::Specialization<2, 5, 5, 7>::Add(),

@@ -54,7 +54,7 @@ inline void SmemPADivergenceApply2D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -87,7 +87,7 @@ inline void SmemPADivergenceApply2D(const int NE,
    });
 }
 
-// PA Divergence Apply 2D kernel transpose
+// Shared memory PA Divergence Apply 2D kernel transpose
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 inline void SmemPADivergenceApplyTranspose2D(const int NE,
                                              const Array<real_t> &bt,
@@ -115,7 +115,7 @@ inline void SmemPADivergenceApplyTranspose2D(const int NE,
 
    mfem::forall_2D<T_Q1D * T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_T1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -146,6 +146,7 @@ inline void SmemPADivergenceApplyTranspose2D(const int NE,
    });
 }
 
+// Shared memory PA Divergence Apply 3D kernel transpose
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 inline void SmemPADivergenceApplyTranspose3D(const int NE,
                                              const Array<real_t> &bt,
@@ -161,6 +162,10 @@ inline void SmemPADivergenceApplyTranspose3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto Bt = bt.Read(), Gt = gt.Read(), B = b.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
@@ -211,7 +216,7 @@ inline void SmemPADivergenceApplyTranspose3D(const int NE,
    });
 }
 
-// Shared memory PA Vector Divergence Apply 3D kernel
+// Shared memory PA Divergence Apply 3D kernel
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 inline void SmemPADivergenceApply3D(const int NE,
                                     const Array<real_t> &b_,
@@ -227,6 +232,10 @@ inline void SmemPADivergenceApply3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = b_.Read(), G = g_.Read(), Bt = bt_.Read();
    const auto Q = Reshape(q_.Read(), Q1D, Q1D, Q1D, 3,3, NE);
