@@ -9,26 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//                   -----------------------------------------
-//                   Minimal dFEM Global QFunction Split Demo
-//                   -----------------------------------------
-//
-// Compile with: make dfem-global-split-scratch
-//
-// Sample runs:  mpirun -np 1 dfem-global-split-scratch
-//               mpirun -np 1 dfem-global-split-scratch -d cuda
-//
-// Description:  This miniapp mirrors the dop cubic qfunction from the
-//               small Enzyme tests through dFEM instead of calling Enzyme
-//               directly. It applies y = coef * x^3 with a global qfunction.
+// Test for the dFEM global qfunction with split computation and scratch space. 
 
+#include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "../../fem/dfem/doperator.hpp"
-#include "../../linalg/tensor_arrays.hpp"
 
-#include <initializer_list>
-#include <memory>
-#include <vector>
+#ifdef MFEM_USE_MPI
+
+#include "../../../fem/dfem/doperator.hpp"
+#include "../../../fem/dfem/backends/global_qf/prelude.hpp"      
+
+#include "../../../linalg/tensor_arrays.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -45,14 +36,12 @@ constexpr int COORDINATES = 4;
 
 // Simple container for scratch vectors that can be used in a global qfunction. 
 // The user can add scratch vectors to the bank, and the qfunction can access them by index.
-
 struct ScratchBank
 {
     int nq = 0;
     std::vector<int> components;
     std::vector<int> sizes;
     std::vector<std::shared_ptr<Vector>> owned;
-    std::vector<Vector *> vectors;
     std::vector<real_t *> ptrs;
 
     // Setter methods
@@ -67,7 +56,6 @@ struct ScratchBank
         components.clear();
         sizes.clear();
         owned.clear();
-        vectors.clear();
         ptrs.clear();
         for (int component_count : components_per_qp)
         {
@@ -76,8 +64,7 @@ struct ScratchBank
     }
 
     // Optional add for additional scratch vectors after the initial SetScratch call
-    // NOTE: is it actually useful or can we remove?
-    int AddScratch(const int components_per_qp = 1)
+    void AddScratch(const int components_per_qp = 1)
     {
         MFEM_VERIFY(nq > 0, "SetScratch must be called before AddScratch");
         MFEM_VERIFY(components_per_qp > 0,
@@ -85,25 +72,10 @@ struct ScratchBank
         owned.push_back(std::make_shared<Vector>());
         Vector &scratch = *owned.back();
         const int size = components_per_qp * nq;
-        scratch.SetSize(size);
-        scratch.UseDevice(true);
-        scratch = 0.0;
-        return AddScratch(scratch, components_per_qp);
-    }
-
-    int AddScratch(Vector &scratch, const int components_per_qp = 1)
-    {
-        MFEM_VERIFY(nq > 0, "SetScratch must be called before AddScratch");
-        MFEM_VERIFY(components_per_qp > 0,
-                    "scratch components per quadrature point must be positive");
-        MFEM_VERIFY(scratch.Size() == components_per_qp * nq,
-                    "scratch vector size must be components_per_qp * nq");
-        scratch.UseDevice(true);
+        scratch.SetSize(size); scratch.UseDevice(true); scratch = 0.0;
         components.push_back(components_per_qp);
         sizes.push_back(scratch.Size());
-        vectors.push_back(&scratch);
         ptrs.push_back(scratch.ReadWrite());
-        return static_cast<int>(ptrs.size()) - 1;
     }
 
     real_t *operator[](const int i) const { return ptrs[i]; }
@@ -129,21 +101,6 @@ struct CubicQFWithScratch
     {
         nq = nq_;
         scratch.SetScratch(nq, components_per_qp);
-    }
-
-    int AddScratch(const int components_per_qp = 1)
-    {
-        return scratch.AddScratch(components_per_qp);
-    }
-
-    int AddScratch(Vector &scratch_vec)
-    {
-        return scratch.AddScratch(scratch_vec);
-    }
-
-    int AddScratch(Vector &scratch_vec, const int components_per_qp)
-    {
-        return scratch.AddScratch(scratch_vec, components_per_qp);
     }
 
     CubicQFWithScratch CreateShadow() const
@@ -271,43 +228,16 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
         cout << "Derivative output max error: "
              << global_deriv_err << endl;
     }
+
+    REQUIRE(global_err == MFEM_Approx(0.0));
+    REQUIRE(global_deriv_err == MFEM_Approx(0.0));
 }
 
-///<--- Main
-int main(int argc, char *argv[])
+///<--- Test
+TEST_CASE("dFEM Global Scratch", "[Parallel][dFEM]")
 {
-    Mpi::Init(argc, argv);
-    Hypre::Init();
-
-    const char *device_config = "cpu";
     int order = 2;
     int ref_levels = 1;
-
-    OptionsParser args(argc, argv);
-    args.AddOption(&device_config, "-d", "--device",
-                   "Device configuration string, see Device::Configure().");
-    args.AddOption(&order, "-o", "--order", "Finite element order.");
-    args.AddOption(&ref_levels, "-r", "--refine", "Serial refinement levels.");
-    args.Parse();
-    if (!args.Good())
-    {
-        if (Mpi::Root())
-        {
-            args.PrintUsage(cout);
-        }
-        return 1;
-    }
-    if (Mpi::Root())
-    {
-        args.PrintOptions(cout);
-    }
-
-    ///<--- Device configuration
-    Device device(device_config);
-    if (Mpi::Root())
-    {
-        device.Print();
-    }
 
     ///<--- Mesh and finite element space setup
     Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true, 1.0,
@@ -331,13 +261,10 @@ int main(int argc, char *argv[])
     QuadratureSpace qspace(pmesh, ir);
     VectorQuadratureSpace coef_qspace(qspace, 1);
     QuadratureFunction coef(coef_qspace);
-    Vector scratch_ext(qspace.GetSize());
     coef.UseDevice(true);
-    scratch_ext.UseDevice(true);
     FunctionCoefficient coeff_fc([](const Vector &p)
                                    { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
     FillQData(fes, ir, coeff_fc, coef);
-    //scratch = -1.0;
 
     Array<int> all_domain_attr(pmesh.attributes.Max());
     all_domain_attr = 1;
@@ -387,6 +314,6 @@ int main(int argc, char *argv[])
 
     ///<--- Check the result against the expected output
     CheckResults(fes, ir, y, dy);
-
-    return 0;
 }
+
+#endif // MFEM_USE_MPI
