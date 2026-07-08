@@ -78,6 +78,8 @@ public:
    // 3D curve: Exception
    // 3D surf:  (x, y, z) -> (n_x, n_y, n_z).
    virtual void NormalVector(const double *param, double *normal) const = 0;
+
+   virtual double DistanceToSurface(const Vector &pos) const = 0;
 };
 
 class AnalyticCompositeSurface : public AnalyticSurface
@@ -117,6 +119,9 @@ public:
 
    void NormalVector(const double *param, double *normal) const override
    { MFEM_ABORT("Use GetSurfaceID(surface_id)->NormalVector(...);") }
+
+   double DistanceToSurface(const Vector &pos) const override
+   { MFEM_ABORT("Use GetSurfaceID(surface_id)->DistanceToSurface(...);") }
    
    int NumParams() const override
    { return 0; }
@@ -156,6 +161,8 @@ public:
    void Deriv_2(const double *param, DenseTensor &deriv) const override;
 
    void NormalVector(const double *param, double *normal) const override;
+
+   double DistanceToSurface(const Vector &pos) const override;
 
    virtual void t_of_xy(double x, double y,
                         double &dist, double &t) const = 0;
@@ -200,6 +207,8 @@ public:
    {
       MFEM_ABORT("A 3D curve does not have a single normal component.");   
    }
+
+   double DistanceToSurface(const Vector &pos) const override;
 
    virtual void t_of_xyz(double x, double y, double z,
                          double &dist1, double &dist2, double &t) const = 0;
@@ -247,6 +256,8 @@ public:
    void Deriv_2(const double *param, DenseTensor &deriv) const override;
 
    void NormalVector(const double *param, double *normal) const override;
+
+   double DistanceToSurface(const Vector &pos) const override;
 
    virtual void uv_of_xyz(double x, double y, double z,
                           double &dist, double &u, double &v) const = 0;

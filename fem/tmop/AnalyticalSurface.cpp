@@ -175,6 +175,15 @@ void Analytic2DCurve::NormalVector(const double *param, double *normal) const
    normal[1] /= mag;
 }
 
+double Analytic2DCurve::DistanceToSurface(const Vector &pos) const
+{
+   double dist, t, x, y;
+   t_of_xy(pos(0), pos(1), dist, t);
+   xy_of_t(t, 0.0, x, y);
+   return sqrt((pos(0) - x) * (pos(0) - x) +
+               (pos(1) - y) * (pos(1) - y));
+}
+
 void Analytic3DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
                                               Vector &coord_t)
 {
@@ -246,6 +255,16 @@ void Analytic3DCurve::Deriv_2(const double *param, DenseTensor &deriv) const
    deriv(0, 0, 0) = dx_dtdt(param[0]);
    deriv(1, 0, 0) = dy_dtdt(param[0]);
    deriv(2, 0, 0) = dz_dtdt(param[0]);
+}
+
+double Analytic3DCurve::DistanceToSurface(const Vector &pos) const
+{
+   double dist1, dist2, t, x, y, z;
+   t_of_xyz(pos(0), pos(1), pos(2), dist1, dist2, t);
+   xyz_of_t(t, 0.0, 0.0, x, y, z);
+   return sqrt((pos(0) - x) * (pos(0) - x) +
+               (pos(1) - y) * (pos(1) - y) +
+               (pos(2) - z) * (pos(2) - z));   
 }
 
 void Analytic3DSurface::ConvertPhysCoordToParam(const Vector &coord_x,
@@ -356,6 +375,16 @@ void Analytic3DSurface::NormalVector(const double *param, double *normal) const
    normal[0] /= mag;
    normal[1] /= mag;
    normal[2] /= mag;
+}
+
+double Analytic3DSurface::DistanceToSurface(const Vector &pos) const
+{
+   double dist, u, v, x, y, z;
+   uv_of_xyz(pos(0), pos(1), pos(2), dist, u, v);
+   xyz_of_uv(u, v, 0.0, x, y, z);
+   return sqrt((pos(0) - x) * (pos(0) - x) +
+               (pos(1) - y) * (pos(1) - y) +
+               (pos(2) - z) * (pos(2) - z));
 }
 
 } // namespace mfem
