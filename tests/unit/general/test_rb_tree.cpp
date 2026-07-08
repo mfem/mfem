@@ -278,8 +278,8 @@ TEST_CASE("RB Tree Insert", "[RB Tree]")
 
 TEST_CASE("RB Tree Next", "[RB Tree]")
 {
-   constexpr int num = 100;
-   std::vector<int> vals(num);
+   constexpr size_t num = 100;
+   std::vector<size_t> vals(num);
    for (int i = 0; i < num; ++i)
    {
       vals[i] = i;
@@ -288,7 +288,7 @@ TEST_CASE("RB Tree Next", "[RB Tree]")
    std::shuffle(vals.begin(), vals.end(), engine);
 
    RBTreeFixture tree;
-   for (int i = 0; i < num; ++i)
+   for (size_t i = 0; i < num; ++i)
    {
       REQUIRE(tree.AddNode(vals[i]) == i + 1);
    }
