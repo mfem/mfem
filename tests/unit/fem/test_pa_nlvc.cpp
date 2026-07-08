@@ -17,6 +17,9 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#include "fem/integ/nonlininteg_vecconvection_pa.hpp" // IWYU pragma: keep
+#include "fem/integ/nonlininteg_vecconvection_pa_diag.hpp" // IWYU pragma: keep
+#include "fem/integ/nonlininteg_vecconvection_pa_grad.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 
 using namespace mfem;
@@ -97,7 +100,14 @@ TEST_CASE("NL Convection PA Gradient",
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 3, 7>::Add();
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 3, 8>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add();
       Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 9>::Add();
+
+      // User specialization example for p=4 (D1D=5, Q1D=9) in 3D
+      using NLVC = VectorConvectionNLFIntegrator;
+      NLVC::VectorConvectionNLFAddMultPA::Specialization<3, 5, 9>::Add();
+      NLVC::VectorConvectionNLFAddMultGradPA3D::Specialization<5, 9>::Add();
+      NLVC::VectorConvectionNLFGradDiagPA3D::Specialization<5, 9>::Add();
    }
 
    SECTION("2D")
