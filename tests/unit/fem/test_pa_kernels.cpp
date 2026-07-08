@@ -17,6 +17,8 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#include "fem/integ/bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
+
 using namespace mfem;
 
 namespace pa_kernels
@@ -443,13 +445,74 @@ real_t test_pa_vector_integrator(int dim, int sdim)
    return y_fa.Norml2();
 }
 
+void test_pa_vector_mass_kernels(int dim, int p, int q_order)
+{
+   CAPTURE(dim, p, q_order);
+
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   mesh.SetCurvature(p, false, dim);
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), q_order);
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   auto *integ_fa = new VectorMassIntegrator;
+   integ_fa->SetIntRule(&ir);
+   blf_fa.AddDomainIntegrator(integ_fa);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   Vector diag_fa(fes.GetVSize());
+   blf_fa.SpMat().GetDiag(diag_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   auto *integ_pa = new VectorMassIntegrator;
+   integ_pa->SetIntRule(&ir);
+   blf_pa.AddDomainIntegrator(integ_pa);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   Vector diag_pa(fes.GetVSize());
+   blf_pa.AssembleDiagonal(diag_pa);
+
+   y_fa -= y_pa;
+   diag_fa -= diag_pa;
+
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   REQUIRE(diag_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("PA Vector Mass",
           "[PartialAssembly][VectorPA][VectorMassPA][GPU]")
 {
-   const auto DIM = GENERATE(2, 3);
-   CAPTURE(DIM);
-   REQUIRE(test_pa_vector_integrator<VectorMassIntegrator>(DIM, DIM)
-           == MFEM_Approx(0.0));
+   using Mass = VectorMassIntegrator;
+
+   SECTION("built-in specializations")
+   {
+      const auto DIM = GENERATE(2, 3);
+      CAPTURE(DIM);
+      REQUIRE(test_pa_vector_integrator<Mass>(DIM, DIM) == MFEM_Approx(0.0));
+   }
+
+   SECTION("user specializations")
+   {
+      constexpr int user_dim = 2, user_d1d = 2, user_q1d = 9;
+      using AddMult = VectorMassIntegrator::VectorMassAddMultPA;
+      using Diag = VectorMassIntegrator::VectorMassAssembleDiagonalPA;
+      AddMult::Specialization<user_dim, user_d1d, user_q1d>::Add();
+      Diag::Specialization<user_dim, user_q1d>::Add();
+
+      constexpr int p = 1, q_order = 2*user_q1d - 1;
+      test_pa_vector_mass_kernels(user_dim, p, q_order);
+   }
 }
 
 TEST_CASE("PA Vector Diffusion",
