@@ -41,17 +41,27 @@ constexpr int COORDINATES = 4;
 // Global qf with splitting and scratch space
 struct CubicQFWithScratch
 {
-
     int nq = 0;
-    dscalar_t *scratch = nullptr;
+    Vector scratch;
+    real_t* scratch_d = nullptr;
 
-    MFEM_HOST_DEVICE
-    void SetScratch(const int nq_, dscalar_t *scratch_)
+    void SetScratch(const int nq_)
     {
         nq = nq_;
-        scratch = scratch_;
+        scratch.SetSize(nq);
+        scratch.UseDevice(true);
+        scratch = 0.0;
+        scratch_d = scratch.ReadWrite();
     }
 
+    CubicQFWithScratch CreateShadow() const
+    {
+        CubicQFWithScratch shadow;
+        shadow.SetScratch(nq);
+        return shadow;
+    }
+
+    inline MFEM_HOST_DEVICE
     void operator()(tensor_array<const dscalar_t> &x,
                     tensor_array<const dscalar_t> &coef,
                     tensor_array<const real_t, 2, 2> &J,
@@ -61,16 +71,32 @@ struct CubicQFWithScratch
         const int NQ = nq;
         MFEM_ASSERT(NQ == static_cast<int>(x.size()),
                     "unexpected number of quadrature points");
-        dscalar_t *qf_scratch = scratch;
 
-        mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
+        auto scratch_q = make_tensor_array<>(scratch_d, NQ);
+
+        for (size_t q = 0; q < x.size(); q++)
+        {
+            scratch_q(q) = x(q);
+        }
+
+        for (size_t q = 0; q < x.size(); q++)
+        {
+            scratch_q(q) = scratch_q(q) * x(q);
+        }
+
+        for (size_t q = 0; q < x.size(); q++)
+        {
+            y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+        }
+        
+        /*mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
                                 { qf_scratch[q] = x(q); });
 
         mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
                                 { qf_scratch[q] = qf_scratch[q] * x(q); });
 
         mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { y(q) = coef(q) * qf_scratch[q] * x(q) * det(J(q)) * w(q); });
+                                { y(q) = coef(q) * qf_scratch[q] * x(q) * det(J(q)) * w(q); });*/
     }
 };
 
@@ -140,7 +166,7 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
     if (Mpi::Root())
     {
         cout << "Primal output max error: " << global_err << endl;
-        cout << "Derivative output max error (qfunction held const): "
+        cout << "Derivative output max error: "
              << global_deriv_err << endl;
     }
 }
@@ -203,13 +229,13 @@ int main(int argc, char *argv[])
     QuadratureSpace qspace(pmesh, ir);
     VectorQuadratureSpace coef_qspace(qspace, 1);
     QuadratureFunction coef(coef_qspace);
-    Vector scratch(qspace.GetSize());
+    //Vector scratch(qspace.GetSize());
     coef.UseDevice(true);
-    scratch.UseDevice(true);
+    //scratch.UseDevice(true);
     FunctionCoefficient coeff_fc([](const Vector &p)
                                    { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
     FillQData(fes, ir, coeff_fc, coef);
-    scratch = -1.0;
+    //scratch = -1.0;
 
     Array<int> all_domain_attr(pmesh.attributes.Max());
     all_domain_attr = 1;
@@ -223,7 +249,7 @@ int main(int argc, char *argv[])
     DifferentiableOperator dop(inputs, outputs, pmesh);
     dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {{Value<Y>{}, {1, 0}}});
     CubicQFWithScratch cubic_qf;
-    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), scratch.ReadWrite());
+    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints());
     dop.AddDomainIntegrator<GlobalQFBackend>(
         cubic_qf,
         Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
