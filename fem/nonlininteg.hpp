@@ -470,7 +470,8 @@ protected:
 
 
 /** This class is used to assemble the convective form of the nonlinear term
-    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$ */
+    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class ConvectiveVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -488,12 +489,20 @@ public:
                             ElementTransformation &trans,
                             const Vector &elfun,
                             DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
-    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$ */
+    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class SkewSymmetricVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -511,6 +520,13 @@ public:
                             ElementTransformation &trans,
                             const Vector &elfun,
                             DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 }
