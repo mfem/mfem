@@ -90,13 +90,13 @@ struct CubicQFWithScratch
         }
         
         /*mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { qf_scratch[q] = x(q); });
+                                { scratch_q(q) = x(q); });
 
         mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { qf_scratch[q] = qf_scratch[q] * x(q); });
+                                { scratch_q(q) = scratch_q(q) * x(q); });
 
         mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { y(q) = coef(q) * qf_scratch[q] * x(q) * det(J(q)) * w(q); });*/
+                                { y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q); });*/
     }
 };
 
