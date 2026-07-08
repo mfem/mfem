@@ -790,7 +790,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} u, v)$ in either 2D, or
-    3D and where $\vec{V}$ is a vector coefficient, $u$ is in $H^1$ or $L_2$ and $v$ is in $H(curl$
+    3D and where $\vec{V}$ is a vector coefficient, $u$ is in $H^1$ or $L_2$ and $v$ is in $H(curl)$
     or $H(div)$. */
 class MixedVectorProductIntegrator : public MixedScalarVectorIntegrator
 {
@@ -986,7 +986,7 @@ protected:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ in 2D where
-    $Q$ is an optional scalar coefficient, $u$ is in $H(curl$, and $v$ is in $L_2$ or
+    $Q$ is an optional scalar coefficient, $u$ is in $H(curl)$, and $v$ is in $L_2$ or
     $H^1$. */
 class MixedScalarCurlIntegrator : public MixedScalarIntegrator
 {
@@ -1041,7 +1041,7 @@ protected:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q u, \mathrm{curl}(v))$ in 2D where
     $Q$ is an optional scalar coefficient, $u$ is in $L_2$ or $H^1$, and $v$ is in
-    $H(curl$. Partial assembly (PA) is supported but could be further optimized
+    $H(curl)$. Partial assembly (PA) is supported but could be further optimized
     by using more efficient threading and shared memory.
 */
 class MixedScalarWeakCurlIntegrator : public MixedScalarIntegrator
@@ -1079,7 +1079,7 @@ protected:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q u, v)$ in either 2D or
     3D and where $Q$ is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) $u$ and $v$ are each in $H(curl$ or $H(div)$. */
+    diagonal matrix) $u$ and $v$ are each in $H(curl)$ or $H(div)$. */
 class MixedVectorMassIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1093,7 +1093,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u, v)$ in 3D and where
-    $\vec{V}$ is a vector coefficient $u$ and $v$ are each in $H(curl$ or $H(div)$. */
+    $\vec{V}$ is a vector coefficient $u$ and $v$ are each in $H(curl)$ or $H(div)$. */
 class MixedCrossProductIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1102,7 +1102,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \cdot u, v)$ in 2D or 3D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in $H^1$ or
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in $H^1$ or
     $L_2$. */
 class MixedDotProductIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1143,7 +1143,7 @@ private:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (-\vec{V} \cdot u, \nabla \cdot v)$ in 2D or
-    3D and where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in
+    3D and where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in
     $H(div)$. */
 class MixedWeakGradDotIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1181,7 +1181,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (v \vec{V} \times u, \nabla v)$ in 3D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in $H^1$. */
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in $H^1$. */
 class MixedWeakDivCrossIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1316,7 +1316,7 @@ public:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), \mathrm{curl}(v))$ in 3D
     and where $Q$ is a scalar or matrix coefficient $u$ and $v$ are both in
-    $H(curl$. */
+    $H(curl)$. */
 class MixedCurlCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1364,7 +1364,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times \mathrm{curl}(u), \mathrm{curl}(v))$ in 3D
-    and where $\vec{V}$ is a vector coefficient $u$ and $v$ are both in $H(curl$. */
+    and where $\vec{V}$ is a vector coefficient $u$ and $v$ are both in $H(curl)$. */
 class MixedCrossCurlCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1408,7 +1408,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times \mathrm{curl}(u), \nabla \cdot v)$ in 3D
-    and where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ and $v$ is in $H^1$. */
+    and where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ and $v$ is in $H^1$. */
 class MixedCrossCurlGradIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1451,7 +1451,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (v \times \nabla \cdot u, \mathrm{curl}(v))$ in 3D
-    and where $v$ is a scalar coefficient $u$ is in $H^1$ and $v$ is in $H(curl$. */
+    and where $v$ is a scalar coefficient $u$ is in $H^1$ and $v$ is in $H(curl)$. */
 class MixedCrossGradCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1494,8 +1494,8 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u, \mathrm{curl}(v))$ in 3D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in
-    $H(curl$. */
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in
+    $H(curl)$. */
 class MixedWeakCurlCrossIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1529,8 +1529,8 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u, \mathrm{curl}(v))$ in 2D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in
-    $H(curl$. */
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in
+    $H(curl)$. */
 class MixedScalarWeakCurlCrossIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1564,7 +1564,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times \nabla \cdot u, v)$ in 3D or
-    in 2D and where $\vec{V}$ is a vector coefficient $u$ is in $H^1$ and $v$ is in $H(curl$ or
+    in 2D and where $\vec{V}$ is a vector coefficient $u$ is in $H^1$ and $v$ is in $H(curl)$ or
     $H(div)$. */
 class MixedCrossGradIntegrator : public MixedVectorIntegrator
 {
@@ -1604,7 +1604,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times \mathrm{curl}(u), v)$ in 3D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ and $v$ is in $H(curl$ or
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ and $v$ is in $H(curl)$ or
     $H(div)$. */
 class MixedCrossCurlIntegrator : public MixedVectorIntegrator
 {
@@ -1639,7 +1639,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times \mathrm{curl}(u), v)$ in 2D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ and $v$ is in $H(curl$ or
+    where $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ and $v$ is in $H(curl)$ or
     $H(div)$. */
 class MixedScalarCrossCurlIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1708,7 +1708,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u, v)$ in 2D and where
-    $\vec{V}$ is a vector coefficient $u$ is in $H(curl$ or $H(div)$ and $v$ is in $H^1$ or $L_2$. */
+    $\vec{V}$ is a vector coefficient $u$ is in $H(curl)$ or $H(div)$ and $v$ is in $H^1$ or $L_2$. */
 class MixedScalarCrossProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1733,7 +1733,7 @@ public:
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u \hat{z}, v)$ in 2D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H^1$ or $L_2$ and $v$ is in $H(curl$ or $H(div)$.
+    where $\vec{V}$ is a vector coefficient $u$ is in $H^1$ or $L_2$ and $v$ is in $H(curl)$ or $H(div)$.
 
     \todo Documentation what $\hat{z}$ is (also missing in https://mfem.org/bilininteg/).
    */
@@ -1912,7 +1912,7 @@ public:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, v)$ in either 2D
     or 3D and where $Q$ is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) $u$ is in $H^1$ and $v$ is in $H(curl$ or $H(div)$. Partial assembly
+    diagonal matrix) $u$ is in $H^1$ and $v$ is in $H(curl)$ or $H(div)$. Partial assembly
     (PA) is supported but could be further optimized by using more efficient
     threading and shared memory.
 */
@@ -1973,7 +1973,7 @@ private:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ in 3D and
     where $Q$ is an optional coefficient (of type scalar, matrix, or diagonal
-    matrix) $u$ is in $H(curl$ and $v$ is in $H(div)$ or $H(curl$. */
+    matrix) $u$ is in $H(curl)$ and $v$ is in $H(div)$ or $H(curl)$. */
 class MixedVectorCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -2032,7 +2032,7 @@ private:
 
 /** Class for integrating the bilinear form $a(u,v) := (Q u, \mathrm{curl}(v))$ in 3D and
     where $Q$ is an optional coefficient (of type scalar, matrix, or diagonal
-    matrix) $u$ is in $H(div)$ or $H(curl$ and $v$ is in $H(curl$. */
+    matrix) $u$ is in $H(div)$ or $H(curl)$ and $v$ is in $H(curl)$. */
 class MixedVectorWeakCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -2089,7 +2089,7 @@ private:
 
 /** Class for integrating the bilinear form $a(u,v) := - (Q u, \nabla v)$ in either
     2D or 3D and where $Q$ is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) $u$ is in $H(div)$ or $H(curl$ and $v$ is in $H^1$. */
+    diagonal matrix) $u$ is in $H(div)$ or $H(curl)$ and $v$ is in $H^1$. */
 class MixedVectorWeakDivergenceIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -2133,7 +2133,7 @@ protected:
     scalar coefficient, $u$ is in ($H^1$), and $v$ is a vector with components
     $v_i$ in ($H^1$) or ($L^2$).
 
-    See also MixedVectorGradientIntegrator when $v$ is in $H(curl$. */
+    See also MixedVectorGradientIntegrator when $v$ is in $H(curl)$. */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2980,8 +2980,8 @@ public:
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ where $Q$ is
     an optional scalar coefficient, and $v$ is a vector with components $v_i$ in
     the $L_2$ or $H^1$ space. This integrator handles 3 cases:
-    1. u ∈ $H(curl$ in 3D, $v$ is a 3D vector with components $v_i$ in $L^2$ or $H^1$
-    2. u ∈ $H(curl$ in 2D, $v$ is a scalar field in $L^2$ or $H^1$
+    1. u ∈ $H(curl)$ in 3D, $v$ is a 3D vector with components $v_i$ in $L^2$ or $H^1$
+    2. u ∈ $H(curl)$ in 2D, $v$ is a scalar field in $L^2$ or $H^1$
     3. u is a scalar field in $H^1$, i.e, $\mathrm{curl}(u) := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$, $\nabla u$ and $v$ is a
         2D vector field with components $v_i$ in $L^2$ or $H^1$ space.
 
@@ -3008,8 +3008,8 @@ public:
 };
 
 /** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
-    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
-    $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
+    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl)$ or
+    $H(div)$, and test function $v$ is in $H(curl)$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
     $v_i$ are in $H^1$. */
 class VectorFEMassIntegrator : public BilinearFormIntegrator
 {
@@ -3895,9 +3895,9 @@ public:
 
 
 /** Integrator for the form: $\langle v, w \times n \rangle$ over a face (the interface)
- *  In 3D the trial variable $v$ is defined on the interface ($H^{-1/2}$(curl), trace of $H(curl$)
+ *  In 3D the trial variable $v$ is defined on the interface ($H^{-1/2}$(curl), trace of $H(curl)$)
  *  In 2D it's defined on the interface ($H^{1/2}$, trace of $H^1$)
- *  The test variable $w$ is in an $H(curl$-conforming space. */
+ *  The test variable $w$ is in an $H(curl)$-conforming space. */
 class TangentTraceIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -3964,7 +3964,7 @@ public:
    /** @brief Setup method for PA data.
 
        @param[in] trial_fes   $H^1$ Lagrange space
-       @param[in] test_fes    $H(curl$ Nedelec space
+       @param[in] test_fes    $H(curl)$ Nedelec space
     */
    void AssemblePA(const FiniteElementSpace &trial_fes,
                    const FiniteElementSpace &test_fes) override;
@@ -4182,7 +4182,7 @@ protected:
 };
 
 /** Interpolator of the 2D cross product between a vector coefficient and an
-    $H(curl$-conforming field onto an $L_2$-conforming field. */
+    $H(curl)$-conforming field onto an $L_2$-conforming field. */
 class ScalarCrossProductInterpolator : public DiscreteInterpolator
 {
 public:
@@ -4198,7 +4198,7 @@ protected:
 };
 
 /** Interpolator of the cross product between a vector coefficient and an
-    $H(curl$-conforming field onto an $H(div)$-conforming field. The range space
+    $H(curl)$-conforming field onto an $H(div)$-conforming field. The range space
     can also be vector $L_2$. */
 class VectorCrossProductInterpolator : public DiscreteInterpolator
 {

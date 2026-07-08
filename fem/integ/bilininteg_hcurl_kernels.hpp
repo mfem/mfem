@@ -1886,12 +1886,16 @@ inline void SmemPACurlCurlApply3D(const int d1d,
    ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
-// PA H(curl)-L2 Assemble 2D kernel
+// PA H(curl)-L2 value Assemble 2D kernel
 void PAHcurlL2Setup2D(const int Q1D,
                       const int NE,
                       const Array<real_t> &w,
                       Vector &coeff,
                       Vector &op);
+
+// PA H(curl)-L2 integral Assemble 2D kernel
+void PAHcurlL2Setup2DInt(const int Q1D, const int NE, const Array<real_t> &w,
+                         Vector &coeff, const Vector &detJ, Vector &op);
 
 // PA H(curl)-L2 Assemble 3D kernel
 void PAHcurlL2Setup3D(const int NQ,

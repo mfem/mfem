@@ -3451,4 +3451,79 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
    }
 }
 
+TEST_CASE("2D Bilinear Scalar Curl Integrator PartialAssembly",
+          "[MixedScalarCurlIntegrator]"
+          "[GPU]")
+{
+   int order = 2, n = 1, dim = 2;
+   double tol = 1e-9;
+
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+
+   VectorFunctionCoefficient   F2_coef(dim, F2);
+   FunctionCoefficient         q2_coef(q2);
+
+   SECTION("Operators on ND")
+   {
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F2_coef);
+
+      for (int map_type = (int)FiniteElement::VALUE;
+           map_type <= (int)FiniteElement::INTEGRAL; map_type++)
+      {
+         SECTION("Mapping ND to L2 (" +
+                 MapTypeName((FiniteElement::MapType)map_type) + ")")
+         {
+            L2_FECollection    fec_l2(order - 1, dim,
+                                      BasisType::GaussLegendre,
+                                      (FiniteElement::MapType)map_type);
+            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+            Vector tmp_l2(fespace_l2.GetNDofs());
+            Vector tmp_l2_pa(fespace_l2.GetNDofs());
+
+            SECTION("Without Coefficient")
+            {
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(new MixedScalarCurlIntegrator());
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               blf_fa.Mult(f_nd, tmp_l2);
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(new MixedScalarCurlIntegrator());
+               blf_pa.Assemble();
+
+               blf_pa.Mult(f_nd, tmp_l2_pa);
+               tmp_l2_pa -= tmp_l2;
+               REQUIRE(tmp_l2_pa.Normlinf() < tol);
+            }
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(
+                  new MixedScalarCurlIntegrator(q2_coef));
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               blf_fa.Mult(f_nd, tmp_l2);
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(new MixedScalarCurlIntegrator(q2_coef));
+               blf_pa.Assemble();
+
+               blf_pa.Mult(f_nd, tmp_l2_pa);
+               tmp_l2_pa -= tmp_l2;
+               REQUIRE(tmp_l2_pa.Normlinf() < tol);
+            }
+         }
+      }
+   }
+}
+
 } // namespace bilininteg_2d
