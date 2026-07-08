@@ -280,7 +280,7 @@ TEST_CASE("RB Tree Next", "[RB Tree]")
 {
    constexpr size_t num = 100;
    std::vector<size_t> vals(num);
-   for (int i = 0; i < num; ++i)
+   for (size_t i = 0; i < num; ++i)
    {
       vals[i] = i;
    }
@@ -293,7 +293,7 @@ TEST_CASE("RB Tree Next", "[RB Tree]")
       REQUIRE(tree.AddNode(vals[i]) == i + 1);
    }
    tree.ValidateTree();
-   for (int i = 0; i < num; ++i)
+   for (size_t i = 0; i < num; ++i)
    {
       auto next = tree.Next(i + 1);
       if (vals[i] + 1 == num)
@@ -303,7 +303,7 @@ TEST_CASE("RB Tree Next", "[RB Tree]")
       }
       else
       {
-         REQUIRE(tree.GetNode(next).offset == vals[i] + 1);
+         REQUIRE(tree.GetNode(next).offset == static_cast<ptrdiff_t>(vals[i] + 1));
       }
    }
 }
