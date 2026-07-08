@@ -26,6 +26,10 @@
 #include "../../fem/dfem/doperator.hpp"
 #include "../../linalg/tensor_arrays.hpp"
 
+#include <initializer_list>
+#include <memory>
+#include <vector>
+
 using namespace std;
 using namespace mfem;
 using namespace mfem::future;
@@ -38,30 +42,117 @@ constexpr int Y = 2;
 constexpr int COEF = 3;
 constexpr int COORDINATES = 4;
 
+
+// Simple container for scratch vectors that can be used in a global qfunction. 
+// The user can add scratch vectors to the bank, and the qfunction can access them by index.
+
+struct ScratchBank
+{
+    int nq = 0;
+    std::vector<int> components;
+    std::vector<int> sizes;
+    std::vector<std::shared_ptr<Vector>> owned;
+    std::vector<Vector *> vectors;
+    std::vector<real_t *> ptrs;
+
+    // Setter methods
+    void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
+    {
+        SetScratch(nq_, std::vector<int>(components_per_qp));
+    }
+
+    void SetScratch(const int nq_, const std::vector<int> &components_per_qp)
+    {
+        nq = nq_;
+        components.clear();
+        sizes.clear();
+        owned.clear();
+        vectors.clear();
+        ptrs.clear();
+        for (int component_count : components_per_qp)
+        {
+            AddScratch(component_count);
+        }
+    }
+
+    // Optional add for additional scratch vectors after the initial SetScratch call
+    // NOTE: is it actually useful or can we remove?
+    int AddScratch(const int components_per_qp = 1)
+    {
+        MFEM_VERIFY(nq > 0, "SetScratch must be called before AddScratch");
+        MFEM_VERIFY(components_per_qp > 0,
+                    "scratch components per quadrature point must be positive");
+        owned.push_back(std::make_shared<Vector>());
+        Vector &scratch = *owned.back();
+        const int size = components_per_qp * nq;
+        scratch.SetSize(size);
+        scratch.UseDevice(true);
+        scratch = 0.0;
+        return AddScratch(scratch, components_per_qp);
+    }
+
+    int AddScratch(Vector &scratch, const int components_per_qp = 1)
+    {
+        MFEM_VERIFY(nq > 0, "SetScratch must be called before AddScratch");
+        MFEM_VERIFY(components_per_qp > 0,
+                    "scratch components per quadrature point must be positive");
+        MFEM_VERIFY(scratch.Size() == components_per_qp * nq,
+                    "scratch vector size must be components_per_qp * nq");
+        scratch.UseDevice(true);
+        components.push_back(components_per_qp);
+        sizes.push_back(scratch.Size());
+        vectors.push_back(&scratch);
+        ptrs.push_back(scratch.ReadWrite());
+        return static_cast<int>(ptrs.size()) - 1;
+    }
+
+    real_t *operator[](const int i) const { return ptrs[i]; }
+    int Size() const { return static_cast<int>(ptrs.size()); }
+};
+
 // Global qf with splitting and scratch space
+// @note: We might create a class for this,  and the user only takes care about the operator() method.
+// @note: Otherwise the user might instantiate a ScratchBank object directly and pass it to the qfunction
 struct CubicQFWithScratch
 {
     int nq = 0;
-    Vector scratch;
-    real_t* scratch_d = nullptr;
+    ScratchBank scratch;
 
-    void SetScratch(const int nq_)
+    // Exposes to the user the internal scratchbank methods
+    void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
     {
         nq = nq_;
-        scratch.SetSize(nq);
-        scratch.UseDevice(true);
-        scratch = 0.0;
-        scratch_d = scratch.ReadWrite();
+        scratch.SetScratch(nq, components_per_qp);
+    }
+
+    void SetScratch(const int nq_, const std::vector<int> &components_per_qp)
+    {
+        nq = nq_;
+        scratch.SetScratch(nq, components_per_qp);
+    }
+
+    int AddScratch(const int components_per_qp = 1)
+    {
+        return scratch.AddScratch(components_per_qp);
+    }
+
+    int AddScratch(Vector &scratch_vec)
+    {
+        return scratch.AddScratch(scratch_vec);
+    }
+
+    int AddScratch(Vector &scratch_vec, const int components_per_qp)
+    {
+        return scratch.AddScratch(scratch_vec, components_per_qp);
     }
 
     CubicQFWithScratch CreateShadow() const
     {
         CubicQFWithScratch shadow;
-        shadow.SetScratch(nq);
+        shadow.SetScratch(nq, scratch.components);
         return shadow;
     }
 
-    inline MFEM_HOST_DEVICE
     void operator()(tensor_array<const dscalar_t> &x,
                     tensor_array<const dscalar_t> &coef,
                     tensor_array<const real_t, 2, 2> &J,
@@ -72,31 +163,42 @@ struct CubicQFWithScratch
         MFEM_ASSERT(NQ == static_cast<int>(x.size()),
                     "unexpected number of quadrature points");
 
-        auto scratch_q = make_tensor_array<>(scratch_d, NQ);
+        // Unpack the scratch vectors from the scratch bank
+        // In this case it is only one
+        auto scratch_q = make_tensor_array<>(scratch[0], NQ);
 
-        for (size_t q = 0; q < x.size(); q++)
+        // Actual computation, using the scratch vector for intermediate steps
+        for (int q = 0; q < NQ; ++q)
         {
             scratch_q(q) = x(q);
         }
 
-        for (size_t q = 0; q < x.size(); q++)
+        for (int q = 0; q < NQ; ++q)
         {
             scratch_q(q) = scratch_q(q) * x(q);
         }
 
-        for (size_t q = 0; q < x.size(); q++)
+        for (int q = 0; q < NQ; ++q)
         {
             y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
         }
+
+        /*
+        // enzyme-aware forall for Cuda run
+        mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
+        {
+            scratch_q(q) = x(q);
+        });
         
-        /*mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { scratch_q(q) = x(q); });
+        mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
+        {
+            scratch_q(q) = scratch_q(q) * x(q);
+        });
 
         mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { scratch_q(q) = scratch_q(q) * x(q); });
-
-        mfem::forall<UseEnzyme>(NQ, [=] MFEM_HOST_DEVICE(int q)
-                                { y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q); });*/
+        {
+            y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+        });*/
     }
 };
 
@@ -229,9 +331,9 @@ int main(int argc, char *argv[])
     QuadratureSpace qspace(pmesh, ir);
     VectorQuadratureSpace coef_qspace(qspace, 1);
     QuadratureFunction coef(coef_qspace);
-    //Vector scratch(qspace.GetSize());
+    Vector scratch_ext(qspace.GetSize());
     coef.UseDevice(true);
-    //scratch.UseDevice(true);
+    scratch_ext.UseDevice(true);
     FunctionCoefficient coeff_fc([](const Vector &p)
                                    { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
     FillQData(fes, ir, coeff_fc, coef);
@@ -247,9 +349,11 @@ int main(int argc, char *argv[])
     const std::vector<FieldDescriptor> outputs{
         {Y, &fes}};
     DifferentiableOperator dop(inputs, outputs, pmesh);
-    dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {{Value<Y>{}, {1, 0}}});
+
+    // Define the cubic qfunction with scratch space
+    // Requesting one scalar scratch vector
     CubicQFWithScratch cubic_qf;
-    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints());
+    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
     dop.AddDomainIntegrator<GlobalQFBackend>(
         cubic_qf,
         Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
