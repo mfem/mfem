@@ -48,9 +48,9 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(
       VectorConvectionNLFAddMultGradPA3D::Specialization<3, 6>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<4, 5>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<4, 6>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 6>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<4, 7>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<4, 8>::Add();
+      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 6>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<5, 7>::Add();
       VectorConvectionNLFAddMultGradPA3D::Specialization<5, 8>::Add();
    }

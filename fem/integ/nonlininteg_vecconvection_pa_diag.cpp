@@ -35,6 +35,7 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
          VectorConvectionNLFGradDiagPA2D::Specialization<4, 6>::Add();
          VectorConvectionNLFGradDiagPA2D::Specialization<5, 7>::Add();
          VectorConvectionNLFGradDiagPA2D::Specialization<5, 8>::Add();
+         VectorConvectionNLFGradDiagPA2D::Specialization<6, 8>::Add();
       }
       VectorConvectionNLFGradDiagPA2D::Run(d1d, q1d, ne,
                                            maps->B.Read(),
@@ -54,9 +55,11 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
          VectorConvectionNLFGradDiagPA3D::Specialization<3, 4>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<3, 5>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<3, 6>::Add();
+         VectorConvectionNLFGradDiagPA3D::Specialization<4, 5>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<4, 6>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<4, 7>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<4, 8>::Add();
+         VectorConvectionNLFGradDiagPA3D::Specialization<5, 6>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<5, 7>::Add();
          VectorConvectionNLFGradDiagPA3D::Specialization<5, 8>::Add();
       }
