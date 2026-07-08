@@ -82,10 +82,9 @@ struct ScratchBank
     int Size() const { return static_cast<int>(ptrs.size()); }
 };
 
-// Global qf with splitting and scratch space
-// @note: We might create a class for this,  and the user only takes care about the operator() method.
-// @note: Otherwise the user might instantiate a ScratchBank object directly and pass it to the qfunction
-struct CubicQFWithScratch
+// Shared QF scratch base.
+// This owns the scratch bank and the shadow cloning behavior.
+struct QFWithScratch
 {
     int nq = 0;
     ScratchBank scratch;
@@ -102,7 +101,12 @@ struct CubicQFWithScratch
         nq = nq_;
         scratch.SetScratch(nq, components_per_qp);
     }
+};
 
+// Global qf with splitting and scratch space.
+// The user only writes operator(); the shared base handles scratch setup.
+struct CubicQFWithScratch : QFWithScratch
+{
     CubicQFWithScratch CreateShadow() const
     {
         CubicQFWithScratch shadow;
@@ -160,24 +164,8 @@ struct CubicQFWithScratch
 };
 
 template <int DIM>
-struct CubicQFWithScratchMultipleSizes
+struct CubicQFWithScratchMultipleSizes : QFWithScratch
 {
-    int nq = 0;
-    ScratchBank scratch;
-
-    // Exposes to the user the internal scratchbank methods
-    void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
-    {
-        nq = nq_;
-        scratch.SetScratch(nq, components_per_qp);
-    }
-
-    void SetScratch(const int nq_, const std::vector<int> &components_per_qp)
-    {
-        nq = nq_;
-        scratch.SetScratch(nq, components_per_qp);
-    }
-
     CubicQFWithScratchMultipleSizes CreateShadow() const
     {
         CubicQFWithScratchMultipleSizes shadow;
