@@ -77,6 +77,7 @@ LORBase::FESpaceType LORBase::GetFESpaceType() const
    else if (dynamic_cast<const ND_FECollection*>(fec_ho)) { return ND; }
    else if (dynamic_cast<const RT_FECollection*>(fec_ho)) { return RT; }
    else if (dynamic_cast<const L2_FECollection*>(fec_ho)) { return L2; }
+   else if (dynamic_cast<const NURBSFECollection*>(fec_ho)) { return NURBS; }
    else { MFEM_ABORT("Bad LOR space type."); }
    return INVALID;
 }
@@ -210,7 +211,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 void LORBase::ConstructDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
-   if (type == H1 || type == L2)
+   if (type == H1 || type == L2 || type == NURBS)
    {
       // H1 and L2: no permutation necessary, return identity
       perm.SetSize(fes_ho.GetTrueVSize());
@@ -259,7 +260,7 @@ const Array<int> &LORBase::GetDofPermutation() const
 bool LORBase::HasSameDofNumbering() const
 {
    FESpaceType type = GetFESpaceType();
-   return type == H1 || type == L2;
+   return type == H1 || type == L2 || type == NURBS;
 }
 
 OperatorHandle &LORBase::GetAssembledSystem()
@@ -272,6 +273,16 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
 {
    MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
    return A;
+}
+
+const GridTransfer *LORBase::GetGridTransfer() const
+{
+   return gt;
+}
+
+GridTransfer *LORBase::GetGridTransfer()
+{
+   return gt;
 }
 
 void LORBase::SetupProlongationAndRestriction()
@@ -457,20 +468,49 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 void LORDiscretization::FormLORSpace()
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
-   // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
-   // use refinement = element order + 1 (since LOR is p = 0 in this case).
-   int increment = (GetFESpaceType() == L2) ? 1 : 0;
-   Array<int> refinements(mesh_ho.GetNE());
-   for (int i=0; i<refinements.Size(); ++i)
-   {
-      refinements[i] = fes_ho.GetOrder(i) + increment;
-   }
-   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, refinements, ref_type));
-
-   fec = fes_ho.FEColl()->Clone(GetLOROrder());
    const int vdim = fes_ho.GetVDim();
    const Ordering::Type ordering = fes_ho.GetOrdering();
-   fes = new FiniteElementSpace(mesh, fec, vdim, ordering);
+   if (!mesh_ho.NURBSext)
+   {
+      // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
+      // use refinement = element order + 1 (since LOR is p = 0 in this case).
+      int increment = (GetFESpaceType() == L2) ? 1 : 0;
+      Array<int> refinements(mesh_ho.GetNE());
+      for (int i=0; i<refinements.Size(); ++i)
+      {
+         refinements[i] = fes_ho.GetOrder(i) + increment;
+      }
+      mesh = new Mesh(Mesh::MakeRefined(mesh_ho, refinements, ref_type));
+
+      fec = fes_ho.FEColl()->Clone(GetLOROrder());
+      fes = new FiniteElementSpace(mesh, fec, vdim, ordering);
+   }
+   else
+   {
+      Array<Vector *> points;
+      fes_ho.GetNURBSext()->GetPointsCompr(points,
+                                           NURBSPointSet::DEMKO); // use ref_type instead hardwire demko?
+      mesh = new Mesh(mesh_ho.GetLinearNURBSMesh(points));
+      for (int i=0; i<points.Size(); ++i)
+      {
+         delete points[i];
+      }
+
+      fec = new NURBSFECollection(1);
+      NURBSExtension *ext = new NURBSExtension(mesh->NURBSext, 1);
+      ext->ConnectBoundaries(fes_ho.GetNURBSext()->GetMaster(),
+                             fes_ho.GetNURBSext()->GetSlave());
+
+      fes = new FiniteElementSpace(mesh, ext, fec);//, vdim, ordering);
+
+      fes_ho.GetNURBSext()->CreatePatches();
+      fes->GetNURBSext()->CreatePatches();
+
+      gt = new InterpolationGridTransfer(fes_ho, *fes);
+
+      fes_ho.GetNURBSext()->DeletePatches();
+      fes->GetNURBSext()->DeletePatches();
+   }
    SetupProlongationAndRestriction();
 }
 

@@ -532,6 +532,30 @@ protected:
       virtual ~DerefinementOperator();
    };
 
+   /// Derefinement operator, used by the friend class InterpolationGridTransfer.
+   class GlobalDerefinementOperator : public Operator
+   {
+      // Not owned.
+      FiniteElementSpace *fine_fes;
+      // FiniteElementSpace *coarse_fes;
+      // const BilinearFormIntegrator *mass_integ;
+      const Operator *F;
+
+      // Owned
+      BilinearForm *a_f;
+      Operator *FTM, *FTMF;
+
+      // Temp
+      mutable Vector b;
+   public:
+      GlobalDerefinementOperator(FiniteElementSpace *f_fes,
+                                 FiniteElementSpace *c_fes,
+                                 BilinearFormIntegrator *mass_integ,
+                                 const Operator *ForwardOperator);
+      void Mult(const Vector &x, Vector &y) const override;
+      virtual ~GlobalDerefinementOperator();
+   };
+
    /** This method makes the same assumptions as the method:
        void GetLocalRefinementMatrices(
            const FiniteElementSpace &coarse_fes, Geometry::Type geom,
@@ -562,6 +586,9 @@ protected:
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof,
                                     const Table* old_elem_fos);
+
+   virtual SparseMatrix* NURBSInterpolationMatrix(FiniteElementSpace *lo,
+                                                  NURBSPointSet pSet);
 
    /** @brief Return in @a localP the local refinement matrices that map
        between fespaces after mesh refinement. */

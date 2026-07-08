@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 3;
+   int ref = 0;
    int lref = order+1;
    int lorder = 0;
    bool vis = true;
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.AddOption(&lorder, "-lo", "--lor-order",
                   "LOR space order (polynomial degree, zero by default).");
@@ -110,33 +113,99 @@ int main(int argc, char *argv[])
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   for (int l = 0; l < ref; l++)
+   {
+      mesh.UniformRefinement();
+   }
+   cout << "------------------------------------\n";
+   cout << " Original HO mesh                   \n";
+   cout << "------------------------------------\n";
+   mesh.PrintInfo();
 
-   // Create the low-order refined mesh
-   int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
-
-   // Create spaces
-   FiniteElementCollection *fec, *fec_lor;
+   // Create HO spaces
+   FiniteElementCollection *fec;
+   NURBSExtension *ext = nullptr;
    if (useH1)
    {
       space = "H1";
+      if (mesh.NURBSext)
+      {
+         fec = new NURBSFECollection(order);
+         ext = new NURBSExtension(mesh.NURBSext, order);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
+   }
+   else
+   {
+      if (mesh.NURBSext)
+      {
+         cerr << "NURBS mesh but making standard L2 FE space\n";
+      }
+      space = "L2";
+      fec = new L2_FECollection(order, dim);
+   }
+   FiniteElementSpace fespace(&mesh, ext, fec);
+   cout<<"degrees of freedom : "<<fespace.GetNDofs() <<std::endl<<std::endl;
+
+
+   // Create the low-order refined mesh
+   Mesh mesh_lor;
+   if (fespace.GetNURBSext())
+   {
+      Array<Vector *> points;
+      NURBSPointSet points_lor = NURBSPointSet::DEMKO;
+      fespace.GetNURBSext()->GetPointsCompr(points, points_lor);
+
+      mesh_lor = mesh.GetLinearNURBSMesh(points);
+      for (int l = 0; l < lref; l++)
+      {
+         mesh_lor.UniformRefinement();
+      }
+      for (int i=0; i<points.Size(); ++i)
+      {
+         delete points[i];
+      }
+   }
+   else
+   {
+      int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
+      mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
+   }
+   cout << "------------------------------------\n";
+   cout << " Refined LOR mesh                   \n";
+   cout << "------------------------------------\n";
+   mesh_lor.PrintInfo();
+
+   // Create LOR spaces
+   FiniteElementCollection *fec_lor;
+   NURBSExtension *ext_lor = nullptr;
+   if (useH1)
+   {
       if (lorder == 0)
       {
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order, dim);
-      fec_lor = new H1_FECollection(lorder, dim);
+
+      if (mesh_lor.NURBSext)
+      {
+         fec_lor = new NURBSFECollection(lorder);
+         ext_lor = new NURBSExtension(mesh_lor.NURBSext, lorder);
+      }
+      else
+      {
+         fec_lor = new H1_FECollection(lorder, dim);
+      }
    }
    else
    {
-      space = "L2";
-      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
-
-   FiniteElementSpace fespace(&mesh, fec);
-   FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
+   FiniteElementSpace fespace_lor(&mesh_lor, ext_lor, fec_lor);
+   cout<<"degrees of freedom : "<<fespace_lor.GetNDofs() <<std::endl<<std::endl;
 
    GridFunction rho(&fespace);
    GridFunction rho_lor(&fespace_lor);
@@ -175,6 +244,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      MFEM_VERIFY(!ext_lor, "L2 GridTransfer not implemented for NURBS.");
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
 
