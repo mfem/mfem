@@ -159,6 +159,68 @@ struct CubicQFWithScratch
     }
 };
 
+template <int DIM>
+struct CubicQFWithScratchMultipleSizes
+{
+    int nq = 0;
+    ScratchBank scratch;
+
+    // Exposes to the user the internal scratchbank methods
+    void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
+    {
+        nq = nq_;
+        scratch.SetScratch(nq, components_per_qp);
+    }
+
+    void SetScratch(const int nq_, const std::vector<int> &components_per_qp)
+    {
+        nq = nq_;
+        scratch.SetScratch(nq, components_per_qp);
+    }
+
+    CubicQFWithScratchMultipleSizes CreateShadow() const
+    {
+        CubicQFWithScratchMultipleSizes shadow;
+        shadow.SetScratch(nq, scratch.components);
+        return shadow;
+    }
+
+   void operator()(tensor_array<const dscalar_t> &x,
+                    tensor_array<const dscalar_t> &coef,
+                    tensor_array<const real_t, 2, 2> &J,
+                    tensor_array<const real_t> &w,
+                    tensor_array<dscalar_t> &y) const
+    {
+        const int NQ = nq;
+        MFEM_ASSERT(NQ == static_cast<int>(x.size()),
+                    "unexpected number of quadrature points");
+ 
+        // scratch[0]: scalar scratch (1 component per qp) -> will hold x^3
+        auto scratch_scalar = make_tensor_array<>(scratch[0], NQ);
+        auto scratch_vector = make_tensor_array<DIM>(scratch[1], NQ);
+ 
+        // Step 1: fill the vector scratch with {x, x^2}
+        for (int q = 0; q < NQ; ++q)
+        {
+            scratch_vector(q)(0) = x(q);
+            scratch_vector(q)(1) = x(q) * x(q);
+        }
+ 
+        // Step 2: combine the two vector components into the scalar scratch -> x^3
+        for (int q = 0; q < NQ; ++q)
+        {
+            scratch_scalar(q) = scratch_vector(q)(0) * scratch_vector(q)(1);
+        }
+ 
+        // Step 3: final output, same analytic form as CubicQFWithScratch
+        for (int q = 0; q < NQ; ++q)
+        {
+            y(q) = coef(q) * scratch_scalar(q) * det(J(q)) * w(q);
+        }
+    }
+
+};
+
 ///<--- Utils
 
 /// @param fes
@@ -281,6 +343,90 @@ TEST_CASE("dFEM Global Scratch", "[Parallel][dFEM]")
     // Requesting one scalar scratch vector
     CubicQFWithScratch cubic_qf;
     cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
+    dop.AddDomainIntegrator<GlobalQFBackend>(
+        cubic_qf,
+        Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
+        Outputs<Value<Y>>{},
+        ir, all_domain_attr,
+        Derivatives<U>{});
+        
+
+    Vector x(fes.GetTrueVSize()), y(fes.GetTrueVSize()), dx(fes.GetTrueVSize()), dy(fes.GetTrueVSize());
+    x.UseDevice(true);
+    y.UseDevice(true);
+    dx.UseDevice(true);
+    dy.UseDevice(true);
+    FunctionCoefficient input_coeff([](const Vector &p)
+                                    { return 1.0 + p(0) + 0.25 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillInput(fes, input_coeff, x);
+    ConstantCoefficient direction_coeff(1.0);
+    FillInput(fes, direction_coeff, dx);
+    y = 0.0;
+    dy = 0.0;
+
+    ///<--- Apply the operator
+    MultiVector X{x, coef, nodes_tvec};
+    MultiVector Y{y};
+    dop.Mult(X, Y);
+
+    //<--- Apply derivative operator
+    auto dop_deriv = dop.GetDerivative(U, X);
+    MultiVector dY{dy};
+    dop_deriv->Mult(dx, dY);
+
+    ///<--- Check the result against the expected output
+    CheckResults(fes, ir, y, dy);
+}
+
+
+TEST_CASE("dFEM Global Scratch multiple sizes", "[Parallel][dFEM]")
+{
+    int order = 2;
+    int ref_levels = 1;
+    int DIM = 2;
+
+    ///<--- Mesh and finite element space setup
+    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true, 1.0,
+                                      1.0);
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh.UniformRefinement();
+    }
+
+    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+    pmesh.EnsureNodes();
+    H1_FECollection fec(order, pmesh.Dimension());
+    ParFiniteElementSpace fes(&pmesh, &fec);
+    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+    ParFiniteElementSpace *nodes_fes = nodes->ParFESpace();
+    Vector nodes_tvec;
+    nodes->GetTrueDofs(nodes_tvec);
+
+    ///<--- dFEM setup
+    const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 2 * order + 1);
+    QuadratureSpace qspace(pmesh, ir);
+    VectorQuadratureSpace coef_qspace(qspace, 1);
+    QuadratureFunction coef(coef_qspace);
+    coef.UseDevice(true);
+    FunctionCoefficient coeff_fc([](const Vector &p)
+                                   { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillQData(fes, ir, coeff_fc, coef);
+
+    Array<int> all_domain_attr(pmesh.attributes.Max());
+    all_domain_attr = 1;
+
+    const std::vector<FieldDescriptor> inputs{
+        {U, &fes},
+        {COEF, &coef_qspace},
+        {COORDINATES, nodes_fes}};
+    const std::vector<FieldDescriptor> outputs{
+        {Y, &fes}};
+    DifferentiableOperator dop(inputs, outputs, pmesh);
+
+    // Define the cubic qfunction with scratch space
+    // Requesting one scalar scratch vector per dimension
+    CubicQFWithScratch cubic_qf;
+    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1, DIM});
     dop.AddDomainIntegrator<GlobalQFBackend>(
         cubic_qf,
         Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
