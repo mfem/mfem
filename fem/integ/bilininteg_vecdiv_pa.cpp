@@ -126,6 +126,10 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    Mesh *mesh = trial_fes.GetMesh();
    const FiniteElement &trial_fe = *trial_fes.GetTypicalFE();
    const FiniteElement &test_fe = *test_fes.GetTypicalFE();
+   MFEM_VERIFY(trial_fe.GetMapType() == FiniteElement::VALUE,
+               "Only value map type supported");
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::VALUE,
+               "Only value map type supported");
    ElementTransformation *trans = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                             *trans);

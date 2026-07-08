@@ -3453,6 +3453,8 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
 
 TEST_CASE("2D Bilinear Scalar Curl Integrator PartialAssembly",
           "[MixedScalarCurlIntegrator]"
+          "[BilinearFormIntegrator]"
+          "[NonlinearFormIntegrator]"
           "[GPU]")
 {
    int order = 2, n = 1, dim = 2;
