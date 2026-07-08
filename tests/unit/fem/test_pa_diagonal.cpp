@@ -328,6 +328,44 @@ TEST_CASE("Vector Mass Diagonal PA",
    REQUIRE(test_vdiag_pa<VectorMassIntegrator>(DIM,P) == MFEM_Approx(0.0));
 }
 
+TEST_CASE("Vector Mass Diagonal PA accumulate",
+          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA][GPU]")
+{
+   const auto dim = GENERATE(2, 3);
+   const auto order = GENERATE(1, 2, 3);
+   CAPTURE(dim, order);
+
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   VectorMassIntegrator integ;
+   integ.AssemblePA(fes);
+
+   const int n = fes.GetVSize();
+   Vector base(n), from_zero(n), from_nonzero(n);
+   base.Randomize(1);
+
+   from_zero = 0.0;
+   integ.AssembleDiagonalPA(from_zero);
+
+   from_nonzero = base;
+   integ.AssembleDiagonalPA(from_nonzero);
+
+   from_nonzero -= base;
+   from_nonzero -= from_zero;
+   REQUIRE(from_nonzero.Normlinf() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("Vector Diffusion Diagonal PA",
           "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA][CUDA]")
 {
@@ -335,6 +373,46 @@ TEST_CASE("Vector Diffusion Diagonal PA",
    const auto P = GENERATE(1, 2, 3);
    CAPTURE(DIM, P);
    REQUIRE(test_vdiag_pa<VectorDiffusionIntegrator>(DIM,P) == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Elasticity Diagonal PA",
+          "[AssembleDiagonal][PartialAssembly][ElasticityPA][GPU]")
+{
+   const auto dim = GENERATE(2, 3);
+   const auto order = GENERATE(1, 2);
+   CAPTURE(dim, order);
+
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim, Ordering::byNODES);
+
+   ConstantCoefficient lambda(1.0), mu(1.0);
+
+   BilinearForm form_pa(&fes);
+   form_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form_pa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_pa.Assemble();
+
+   BilinearForm form_fa(&fes);
+   form_fa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_fa.Assemble();
+   form_fa.Finalize();
+
+   Vector diag_pa(fes.GetVSize()), diag_fa(fes.GetVSize());
+   form_pa.AssembleDiagonal(diag_pa);
+   form_fa.SpMat().GetDiag(diag_fa);
+
+   diag_fa -= diag_pa;
+   REQUIRE(diag_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
