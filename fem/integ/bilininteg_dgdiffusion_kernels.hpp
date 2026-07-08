@@ -242,7 +242,7 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
       // some buffers are reused multiple times, but for clarity have new names:
       real_t(*const du)[max_Q1D][max_Q1D] = u;
-      
+
       real_t(*const Gu)[max_Q1D][max_Q1D] = Bu;
       real_t(*const Bdu)[max_Q1D][max_Q1D] = Bu;
 
@@ -255,18 +255,18 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
       real_t(*const nJj)[max_Q1D][max_Q1D] = u;
 
-      #ifdef __CUDA_ARCH__
+#ifdef __CUDA_ARCH__
       real_t _pa[4];
       {
          int p1 = MFEM_THREAD_ID(x);
          int p2 = MFEM_THREAD_ID(y);
          int side = MFEM_THREAD_ID(z);
 
-         #ifdef MFEM_USE_SINGLE
+#ifdef MFEM_USE_SINGLE
          using vec_t = float4;
-         #else // MFEM_USE_DOUBLE
+#else // MFEM_USE_DOUBLE
          using vec_t = double4; // use double4_16a for cuda >= 13
-         #endif
+#endif
 
          // coallesced read
          reinterpret_cast<vec_t&>(_pa) = *reinterpret_cast<const vec_t*>(&pa(0, p1, p2, side, f));
@@ -277,19 +277,19 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       auto nJ = [&_pa](int l, int p1, int p2, int side) -> real_t
       {
          MFEM_ASSERT_KERNEL(p1 == MFEM_THREAD_ID(x)
-                           && p2 == MFEM_THREAD_ID(y)
-                           && side == MFEM_THREAD_ID(z),
-                           "nJ accessed incorrectly by threads.");
+                            && p2 == MFEM_THREAD_ID(y)
+                            && side == MFEM_THREAD_ID(z),
+                            "nJ accessed incorrectly by threads.");
          return _pa[l];
       };
 
       auto kappa_Qh = [&_pa](int p1, int p2) -> real_t
       {
          MFEM_ASSERT_KERNEL(p1 == MFEM_THREAD_ID(x) && p2 == MFEM_THREAD_ID(y),
-                           "kappa_Qh accessed incorrectly by threads.");
+                            "kappa_Qh accessed incorrectly by threads.");
          return _pa[3];
       };
-      #else
+#else
       auto nJ = [&](int l, int p1, int p2, int side) -> real_t
       {
          return pa(l, p1, p2, side, f);
@@ -299,7 +299,7 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       {
          return pa(3, p1, p2, 0, f);
       };
-      #endif
+#endif
 
       MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
@@ -308,9 +308,13 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
             MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
             {
                if (side == 0)
+               {
                   avg[p1][p2] = 0.0;
+               }
                else
+               {
                   jmp[p1][p2] = 0.0;
+               }
             }
          }
 
@@ -319,9 +323,13 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
             MFEM_FOREACH_THREAD_DIRECT(d, y, D1D)
             {
                if (side == 0)
+               {
                   B[d][p] = B_(p, d);
+               }
                else
+               {
                   G[d][p] = G_(p, d);
+               }
             }
          }
 
@@ -437,7 +445,7 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
          }
       }
       MFEM_SYNC_THREAD;
-      
+
       MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
          MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)

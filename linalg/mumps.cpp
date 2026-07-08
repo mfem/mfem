@@ -306,7 +306,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
 #endif
       const auto analysis_t1 = std::chrono::high_resolution_clock::now();
       summary.analysis_time_seconds = ParallelMaxSeconds(
-          comm, std::chrono::duration<double>(analysis_t1 - analysis_t0).count());
+                                         comm, std::chrono::duration<double>(analysis_t1 - analysis_t0).count());
       summary.estimated_factor_workspace = id->MUMPS_INFOG(3);
       summary.estimated_integer_workspace = id->MUMPS_INFOG(4);
       summary.largest_front_size = id->MUMPS_INFOG(11);
@@ -321,7 +321,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
    summary.input_nnz = ParallelSumBigInt(comm, static_cast<HYPRE_BigInt>(nnz));
 
    // MUMPS factorization
-      const auto factorization_t0 = std::chrono::high_resolution_clock::now();
+   const auto factorization_t0 = std::chrono::high_resolution_clock::now();
    id->job = 2;
    {
       const int mem_relax_lim = 200;
@@ -355,7 +355,8 @@ void MUMPSSolver::SetOperator(const Operator &op)
    }
    const auto factorization_t1 = std::chrono::high_resolution_clock::now();
    summary.factorization_time_seconds = ParallelMaxSeconds(
-       comm, std::chrono::duration<double>(factorization_t1 - factorization_t0).count());
+                                           comm, std::chrono::duration<double>(factorization_t1 -
+                                                                               factorization_t0).count());
    summary.factor_workspace = id->MUMPS_INFOG(9);
    summary.factor_integer_workspace = id->MUMPS_INFOG(10);
    summary.lu_nnz = id->MUMPS_INFOG(35);
@@ -511,7 +512,7 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
 #endif
    const auto solve_t1 = std::chrono::high_resolution_clock::now();
    summary.solve_time_seconds = ParallelMaxSeconds(
-       comm, std::chrono::duration<double>(solve_t1 - solve_t0).count());
+                                   comm, std::chrono::duration<double>(solve_t1 - solve_t0).count());
 }
 
 void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const

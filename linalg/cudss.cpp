@@ -73,10 +73,10 @@ static void UpdateMemoryEstimates(cudssHandle_t handle,
 
 static bool HasMemoryEstimates(const CuDSSSolver::CuDSSSummary &summary)
 {
-      return summary.est_device_mem_permanent_bytes ||
-         summary.est_device_mem_peak_bytes ||
-         summary.est_host_mem_permanent_bytes ||
-         summary.est_host_mem_peak_bytes;
+   return summary.est_device_mem_permanent_bytes ||
+          summary.est_device_mem_peak_bytes ||
+          summary.est_host_mem_permanent_bytes ||
+          summary.est_host_mem_peak_bytes;
 }
 
 #ifdef MFEM_USE_MPI
@@ -353,7 +353,8 @@ void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
    }
    else // cuDSSObjectInitialized && reorder_reuse
    {
-      summary.analysis_time_seconds = 0.0; // analysis skipped (reusing symbolic factorization)
+      summary.analysis_time_seconds =
+         0.0; // analysis skipped (reusing symbolic factorization)
       // NOTE: When reusing analysis result, we only update the Data array,
       // without changing the I and J arrays.
       MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_op->data));
@@ -365,7 +366,8 @@ void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
       MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
                                     solverConfig, solverData, *Ac, yc, xc));
       auto t1 = std::chrono::steady_clock::now();
-      summary.factorization_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+      summary.factorization_time_seconds = std::chrono::duration<double>
+                                           (t1 - t0).count();
    }
 
    // Query solver statistics
@@ -468,7 +470,8 @@ void CuDSSSolver::SetMatrix(const SparseMatrix &op)
    }
    else    // cuDSSObjectInitialized && reorder_reuse
    {
-      summary.analysis_time_seconds = 0.0; // analysis skipped (reusing symbolic factorization)
+      summary.analysis_time_seconds =
+         0.0; // analysis skipped (reusing symbolic factorization)
       // NOTE: When reusing analysis result, we only update the Data array,
       // without changing the I and J arrays.
       MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_data));
@@ -480,7 +483,8 @@ void CuDSSSolver::SetMatrix(const SparseMatrix &op)
       MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
                                     solverData, *Ac, yc, xc));
       auto t1 = std::chrono::steady_clock::now();
-      summary.factorization_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+      summary.factorization_time_seconds = std::chrono::duration<double>
+                                           (t1 - t0).count();
    }
 
    // Query solver statistics
@@ -631,7 +635,10 @@ void CuDSSSolver::CuDSSSummary::PrintSummary() const
 {
    mfem::out << "\nCuDSSSolver statistics:\n";
    if (analysis_time_seconds == 0.0)
-      mfem::out << "  Analysis time:       (skipped — reusing symbolic factorization)\n";
+   {
+      mfem::out <<
+                "  Analysis time:       (skipped — reusing symbolic factorization)\n";
+   }
    else if (analysis_time_seconds > 0.0)
       mfem::out << "  Analysis time:       "
                 << std::fixed << std::setprecision(4) << analysis_time_seconds << " s\n";

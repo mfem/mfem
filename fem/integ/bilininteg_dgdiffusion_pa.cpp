@@ -89,8 +89,10 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
             real_t nqn = 0.0;
             if (coeff_dim > 1)
             {
-               Qtn[0] = get_coeff(0, p, side, f) * nvec[0] + get_coeff(1, p, side, f) * nvec[1];
-               Qtn[1] = get_coeff(2, p, side, f) * nvec[0] + get_coeff(3, p, side, f) * nvec[1];
+               Qtn[0] = get_coeff(0, p, side, f) * nvec[0] + get_coeff(1, p, side,
+                                                                       f) * nvec[1];
+               Qtn[1] = get_coeff(2, p, side, f) * nvec[0] + get_coeff(3, p, side,
+                                                                       f) * nvec[1];
                nqn = Qtn[0] * nvec[0] + Qtn[1] * nvec[1];
             }
             else
@@ -242,7 +244,9 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                {
                   nqn = get_coeff(0, p1, p2, side, f);
                   for (int d = 0; d < 3; ++d)
+                  {
                      Qtn[d] = nqn * nvec[d];
+                  }
                }
 
 
@@ -294,7 +298,9 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
             if (nsides == 1)
             {
                for (int d = 0; d < 3; ++d)
+               {
                   pa(d, p1, p2, 1, f) = 0.0;
+               }
             }
 
             pa(3, p1, p2, 0, f) = qhi; // {Q/h}
@@ -578,7 +584,9 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
          FaceElementTransformations &T = [&] () -> FaceElementTransformations&
          {
             if (face.IsShared() && pmesh)
+            {
                return *pmesh->GetSharedFaceTransformationsByLocalIndex(f, true);
+            }
             return *mesh.GetFaceElementTransformations(f);
          }();
 
@@ -605,9 +613,13 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
                DenseMatrix mq_val_2(dim, dim);
                if (face.IsInterior())
+               {
                   MQ->Eval(mq_val_2, *T.Elem2, eip2);
+               }
                else
+               {
                   mq_val_2 = mq_val;
+               }
 
                for (int j = 0; j < dim; ++j)
                {

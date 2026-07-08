@@ -69,14 +69,14 @@ public:
       size_t est_host_mem_permanent_bytes = 0;
       size_t est_host_mem_peak_bytes = 0;
 
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
       /// Return the summary reduced across all ranks in @a comm.
       /// Timing fields use MPI_MAX; count/memory fields use MPI_SUM.
       CuDSSSummary GetGlobalSummary(MPI_Comm comm) const;
-   #else
+#else
       /// Serial fallback: return this summary unchanged.
       CuDSSSummary GetGlobalSummary() const { return *this; }
-   #endif
+#endif
 
       /// Print this summary to mfem::out.
       void PrintSummary() const;
