@@ -19,6 +19,213 @@
 namespace mfem
 {
 
+namespace
+{
+
+void PAHcurlApplyCurl2D(const int c_dofs1D,
+                        const int o_dofs1D,
+                        const int NE,
+                        const Array<real_t> &Bo_,
+                        const Array<real_t> &Gc_,
+                        const Vector &x_,
+                        Vector &y_)
+{
+   auto Bo = Reshape(Bo_.Read(), o_dofs1D, o_dofs1D);
+   auto Gc = Reshape(Gc_.Read(), o_dofs1D, c_dofs1D);
+   auto X = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), o_dofs1D, o_dofs1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int iy = 0; iy < c_dofs1D; ++iy)
+      {
+         for (int ix = 0; ix < o_dofs1D; ++ix)
+         {
+            const real_t xv = X(ix + iy * o_dofs1D, e);
+            for (int oy = 0; oy < o_dofs1D; ++oy)
+            {
+               const real_t gy = Gc(oy, iy);
+               for (int ox = 0; ox < o_dofs1D; ++ox)
+               {
+                  Y(ox, oy, e) -= Bo(ox, ix) * gy * xv;
+               }
+            }
+         }
+      }
+
+      const int y_nd = c_dofs1D * o_dofs1D;
+      for (int iy = 0; iy < o_dofs1D; ++iy)
+      {
+         for (int ix = 0; ix < c_dofs1D; ++ix)
+         {
+            const real_t xv = X(y_nd + ix + iy * c_dofs1D, e);
+            for (int oy = 0; oy < o_dofs1D; ++oy)
+            {
+               const real_t by = Bo(oy, iy);
+               for (int ox = 0; ox < o_dofs1D; ++ox)
+               {
+                  Y(ox, oy, e) += Gc(ox, ix) * by * xv;
+               }
+            }
+         }
+      }
+   });
+}
+
+void PAHcurlApplyCurlTranspose2D(const int c_dofs1D,
+                                 const int o_dofs1D,
+                                 const int NE,
+                                 const Array<real_t> &Bo_,
+                                 const Array<real_t> &Gc_,
+                                 const Vector &x_,
+                                 Vector &y_)
+{
+   auto Bo = Reshape(Bo_.Read(), o_dofs1D, o_dofs1D);
+   auto Gc = Reshape(Gc_.Read(), o_dofs1D, c_dofs1D);
+   auto X = Reshape(x_.Read(), o_dofs1D, o_dofs1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < o_dofs1D; ++dx)
+         {
+            real_t sum = 0.0;
+            for (int oy = 0; oy < o_dofs1D; ++oy)
+            {
+               const real_t gy = Gc(oy, dy);
+               for (int ox = 0; ox < o_dofs1D; ++ox)
+               {
+                  sum -= Bo(ox, dx) * gy * X(ox, oy, e);
+               }
+            }
+            Y(dx + dy * o_dofs1D, e) += sum;
+         }
+      }
+
+      const int y_nd = c_dofs1D * o_dofs1D;
+      for (int dy = 0; dy < o_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            real_t sum = 0.0;
+            for (int oy = 0; oy < o_dofs1D; ++oy)
+            {
+               const real_t by = Bo(oy, dy);
+               for (int ox = 0; ox < o_dofs1D; ++ox)
+               {
+                  sum += Gc(ox, dx) * by * X(ox, oy, e);
+               }
+            }
+            Y(y_nd + dx + dy * c_dofs1D, e) += sum;
+         }
+      }
+   });
+}
+
+void PAHdivApplyCurl2D(const int c_dofs1D,
+                       const int o_dofs1D,
+                       const int NE,
+                       const Array<real_t> &Bc_,
+                       const Array<real_t> &Gc_,
+                       const Vector &x_,
+                       Vector &y_)
+{
+   auto Bc = Reshape(Bc_.Read(), c_dofs1D, c_dofs1D);
+   auto Gc = Reshape(Gc_.Read(), o_dofs1D, c_dofs1D);
+   auto X = Reshape(x_.Read(), c_dofs1D, c_dofs1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int iy = 0; iy < c_dofs1D; ++iy)
+      {
+         for (int ix = 0; ix < c_dofs1D; ++ix)
+         {
+            const real_t xv = X(ix, iy, e);
+            for (int oy = 0; oy < o_dofs1D; ++oy)
+            {
+               const real_t gy = Gc(oy, iy);
+               for (int ox = 0; ox < c_dofs1D; ++ox)
+               {
+                  Y(ox + oy * c_dofs1D, e) += Bc(ox, ix) * gy * xv;
+               }
+            }
+         }
+      }
+
+      const int y_nd = c_dofs1D * o_dofs1D;
+      for (int iy = 0; iy < c_dofs1D; ++iy)
+      {
+         for (int ix = 0; ix < c_dofs1D; ++ix)
+         {
+            const real_t xv = X(ix, iy, e);
+            for (int oy = 0; oy < c_dofs1D; ++oy)
+            {
+               const real_t by = Bc(oy, iy);
+               for (int ox = 0; ox < o_dofs1D; ++ox)
+               {
+                  Y(y_nd + ox + oy * o_dofs1D, e) -= Gc(ox, ix) * by * xv;
+               }
+            }
+         }
+      }
+   });
+}
+
+void PAHdivApplyCurlTranspose2D(const int c_dofs1D,
+                                const int o_dofs1D,
+                                const int NE,
+                                const Array<real_t> &Bc_,
+                                const Array<real_t> &Gc_,
+                                const Vector &x_,
+                                Vector &y_)
+{
+   auto Bc = Reshape(Bc_.Read(), c_dofs1D, c_dofs1D);
+   auto Gc = Reshape(Gc_.Read(), o_dofs1D, c_dofs1D);
+   auto X = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int dy = 0; dy < o_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            const real_t xv = X(dx + dy * c_dofs1D, e);
+            for (int iy = 0; iy < c_dofs1D; ++iy)
+            {
+               const real_t gy = Gc(dy, iy);
+               for (int ix = 0; ix < c_dofs1D; ++ix)
+               {
+                  Y(ix, iy, e) += Bc(dx, ix) * gy * xv;
+               }
+            }
+         }
+      }
+
+      const int y_nd = c_dofs1D * o_dofs1D;
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < o_dofs1D; ++dx)
+         {
+            const real_t xv = X(y_nd + dx + dy * o_dofs1D, e);
+            for (int iy = 0; iy < c_dofs1D; ++iy)
+            {
+               const real_t by = Bc(dy, iy);
+               for (int ix = 0; ix < c_dofs1D; ++ix)
+               {
+                  Y(ix, iy, e) -= Gc(dx, ix) * by * xv;
+               }
+            }
+         }
+      }
+   });
+}
+
+}
+
 // Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
 // to get a dof in H(curl) (range). You can think of the range as the "test" space
 // and the domain as the "trial" space, but there's no integration.
@@ -1955,15 +2162,101 @@ void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
                                   const FiniteElementSpace &ran_fes)
 {
-   // TODO: 1D and 2D meshes
    Mesh *mesh = dom_fes.GetMesh();
+   dim = mesh->Dimension();
+   ne = dom_fes.GetNE();
+   pa_mode_2d = 0;
+   MFEM_VERIFY(ne == ran_fes.GetNE(),
+               "Different meshes for domain and range spaces");
+
+   if (dim == 2)
+   {
+      pa_data.SetSize(0);
+      const FiniteElement *dom_fel = dom_fes.GetTypicalFE();
+      const FiniteElement *ran_fel = ran_fes.GetTypicalFE();
+      const bool hcurl_to_scalar =
+         dynamic_cast<const VectorTensorFiniteElement*>(dom_fel) != NULL &&
+         dom_fel->GetDerivType() == FiniteElement::CURL &&
+         dynamic_cast<const TensorBasisElement*>(ran_fel) != NULL &&
+         ran_fel->GetRangeType() == FiniteElement::SCALAR;
+      const bool scalar_to_hdiv =
+         dynamic_cast<const TensorBasisElement*>(dom_fel) != NULL &&
+         dom_fel->GetRangeType() == FiniteElement::SCALAR &&
+         dynamic_cast<const VectorTensorFiniteElement*>(ran_fel) != NULL &&
+         ran_fel->GetDerivType() == FiniteElement::DIV;
+
+      MFEM_VERIFY(hcurl_to_scalar || scalar_to_hdiv,
+                  "2D CurlInterpolator PA supports H(curl)->scalar and scalar->H(div) only.");
+
+      int closed_basis_type = -1;
+      int open_basis_type = -1;
+      if (hcurl_to_scalar)
+      {
+         const auto *trial_fec = dynamic_cast<const ND_FECollection*>(dom_fes.FEColl());
+         const auto *range_fec = dynamic_cast<const L2_FECollection*>(ran_fes.FEColl());
+         MFEM_VERIFY(trial_fec != NULL, "H(curl) domain must use ND_FECollection.");
+         MFEM_VERIFY(range_fec != NULL, "Scalar range must use L2_FECollection.");
+         MFEM_VERIFY(ran_fel->GetMapType() == FiniteElement::INTEGRAL,
+                     "2D H(curl)->scalar CurlInterpolator PA supports integral-map scalar range spaces only.");
+         closed_basis_type = trial_fec->GetClosedBasisType();
+         open_basis_type = trial_fec->GetOpenBasisType();
+         MFEM_VERIFY(range_fec->GetBasisType() == open_basis_type,
+                     "Domain/range open basis types do not match.");
+         pa_mode_2d = 1;
+      }
+      else
+      {
+         const auto *trial_fec = dynamic_cast<const H1_FECollection*>(dom_fes.FEColl());
+         const auto *range_fec = dynamic_cast<const RT_FECollection*>(ran_fes.FEColl());
+         MFEM_VERIFY(trial_fec != NULL, "Scalar domain must use H1_FECollection.");
+         MFEM_VERIFY(range_fec != NULL, "H(div) range must use RT_FECollection.");
+         closed_basis_type = trial_fec->GetBasisType();
+         open_basis_type = range_fec->GetOpenBasisType();
+         MFEM_VERIFY(range_fec->GetClosedBasisType() == closed_basis_type,
+                     "Domain/range closed basis types do not match.");
+         pa_mode_2d = 2;
+      }
+
+      const int order = hcurl_to_scalar
+                        ? dynamic_cast<const VectorTensorFiniteElement*>(dom_fel)->GetOrder()
+                        : dynamic_cast<const NodalTensorFiniteElement*>(dom_fel)->GetOrder();
+      c_dofs1D = order + 1;
+      o_dofs1D = order;
+
+      closed_dofquad_fe.reset(new H1_SegmentElement(order, closed_basis_type));
+      open_dofquad_fe.reset(new L2_SegmentElement(order - 1, open_basis_type));
+
+      mfem::QuadratureFunctions1D qf1d;
+      mfem::IntegrationRule closed_ir;
+      closed_ir.SetSize(c_dofs1D);
+      qf1d.GaussLobatto(c_dofs1D, &closed_ir);
+
+      mfem::IntegrationRule open_ir;
+      open_ir.SetSize(o_dofs1D);
+      qf1d.GaussLegendre(o_dofs1D, &open_ir);
+
+      maps_C_C = &closed_dofquad_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+      maps_O_C = &closed_dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+      maps_O_O = &open_dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+
+      MFEM_VERIFY(maps_C_C->ndof == c_dofs1D && maps_C_C->nqpt == c_dofs1D, "");
+      MFEM_VERIFY(maps_O_C->ndof == c_dofs1D && maps_O_C->nqpt == o_dofs1D, "");
+      MFEM_VERIFY(maps_O_O->ndof == o_dofs1D && maps_O_O->nqpt == o_dofs1D, "");
+      return;
+   }
+
+   closed_dofquad_fe.reset();
+   open_dofquad_fe.reset();
+   maps_C_C = nullptr;
+   maps_O_C = nullptr;
+   maps_O_O = nullptr;
+
    const VectorTensorFiniteElement *dom_el =
       dynamic_cast<const VectorTensorFiniteElement *>(dom_fes.GetTypicalFE());
    const VectorTensorFiniteElement *ran_el =
       dynamic_cast<const VectorTensorFiniteElement *>(ran_fes.GetTypicalFE());
    MFEM_VERIFY(dom_el != NULL, "Only VectorTensorFiniteElement is supported!");
    MFEM_VERIFY(ran_el != NULL, "Only VectorTensorFiniteElement is supported!");
-   // only supports H(curl) -> H(div) because of discontinuity requirements
    MFEM_VERIFY(dom_el->GetDerivType() == FiniteElement::CURL,
                "Domain space must be H(curl)");
    MFEM_VERIFY(ran_el->GetDerivType() == FiniteElement::DIV,
@@ -1971,9 +2264,7 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
 
    const int dims = dom_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
-   dim = mesh->Dimension();
 
-   ne = dom_fes.GetNE();
    ndof_o = dom_el->GetOrder();
    int ndof_c = ndof_o + 1;
    nquad_o = ran_el->GetOrder();
@@ -2052,14 +2343,58 @@ CurlInterpolator::CurlInterpolator() { static Kernels kernels{}; }
 
 void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
-   ApplyPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
-                       y);
+   if (dim == 2)
+   {
+      MFEM_VERIFY(maps_C_C != nullptr && maps_O_C != nullptr,
+                  "2D CurlInterpolator PA data is not assembled.");
+      if (pa_mode_2d == 1)
+      {
+         MFEM_VERIFY(maps_O_O != nullptr,
+                     "2D CurlInterpolator scalar curl map is not assembled.");
+         PAHcurlApplyCurl2D(c_dofs1D, o_dofs1D, ne, maps_O_O->B, maps_O_C->G,
+                            x, y);
+      }
+      else if (pa_mode_2d == 2)
+      {
+         PAHdivApplyCurl2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
+                           x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported 2D CurlInterpolator mode.");
+      }
+      return;
+   }
+
+   ApplyPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x, y);
 }
 
 void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   ApplyTPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
-                        y);
+   if (dim == 2)
+   {
+      MFEM_VERIFY(maps_C_C != nullptr && maps_O_C != nullptr,
+                  "2D CurlInterpolator PA data is not assembled.");
+      if (pa_mode_2d == 1)
+      {
+         MFEM_VERIFY(maps_O_O != nullptr,
+                     "2D CurlInterpolator scalar curl map is not assembled.");
+         PAHcurlApplyCurlTranspose2D(c_dofs1D, o_dofs1D, ne, maps_O_O->B,
+                                     maps_O_C->G, x, y);
+      }
+      else if (pa_mode_2d == 2)
+      {
+         PAHdivApplyCurlTranspose2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                    maps_O_C->G, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported 2D CurlInterpolator mode.");
+      }
+      return;
+   }
+
+   ApplyTPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x, y);
 }
 
 /// \cond DO_NOT_DOCUMENT
