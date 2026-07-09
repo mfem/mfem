@@ -303,7 +303,7 @@ protected:
    int dof,      ///< Number of degrees of freedom
        order;    ///< Order/degree of the shape functions
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
-   IntegrationRule Nodes;
+   mutable IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
 #endif

@@ -3589,7 +3589,8 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 
 
 NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
-   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
+   : NURBSFECollection((Order == VariableOrder) ? 1 : Order),
+     sFE(nullptr), qFE(nullptr), hFE(nullptr)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
 
@@ -3681,7 +3682,8 @@ FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
 }
 
 NURBS_HCurlFECollection::NURBS_HCurlFECollection(int Order, const int dim)
-   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
+   : NURBSFECollection((Order == VariableOrder) ? 1 : Order),
+     sFE(nullptr), qFE(nullptr), hFE(nullptr)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
 

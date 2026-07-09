@@ -22,9 +22,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex10 \
    nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh \
-   nurbs_mesh_info
-PAR_MINIAPPS = nurbs_ex1p nurbs_ex10p nurbs_ex11p
-
+   nurbs_surface nurbs_mesh_info
+PAR_MINIAPPS = nurbs_ex1p nurbs_ex10p nurbs_ex11p nurbs_ex25p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -202,6 +201,7 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_*
 	@rm -f naca-cmesh.mesh sol_?.gf k?_*.dat *-Surface.mesh
+	@rm -f refined.mesh.* sol_r.gf.* sol_i.gf.* sol_p.gf sol_u.gf
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
 	@rm -rf velocity.* elastic_energy.* deformed.*
