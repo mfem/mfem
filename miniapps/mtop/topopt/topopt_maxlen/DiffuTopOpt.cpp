@@ -1,15 +1,17 @@
-// Parallel heat dissipation minimization topology optimization with thickness constraint.
+// Heat dissipation minimization topology optimization with thickness constraint
 //
-// Sample run:  mpirun -np 4 ./HeatTopOpt_maxlen
-//              mpirun -np 4 ./HeatTopOpt_maxlen -vf 0.3 -mi 200
+// Sample run:  mpirun -np 4 ./DiffuTopOpt
+//              mpirun -np 4 ./DiffuTopOpt -vf 0.3 -mi 200
 
 #include "mfem.hpp"
 #include "DiffuTopOpt.hpp"
 #include "qoi.hpp"
 #include "../../mma/MMA_MFEM.hpp"
-#include "../../pde_filter.hpp"
+#include "../../mtop_solvers.hpp"
+#include "../../diffusion_mass_solver.hpp"
 #include <memory>
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -25,7 +27,7 @@ int main(int argc, char *argv[])
 
     // 1. Options.
     int    ref_levels   = 3;
-    int    order        = 1;
+    int    order        = 2;
     real_t r_f          = 0.03;       // min filter length
     real_t vol_fraction = 0.3;
     int    max_it       = 200;
@@ -34,7 +36,7 @@ int main(int argc, char *argv[])
     real_t epsilon      = 1e-2;       // thickness residual tolerance
 
     // Thickness constraint parameters
-    int    nrays        = 10;         // number of thickness measurement rays
+    int    nrays        = 50;         // number of thickness measurement rays
     int    nsamples     = 100;        // samples per ray for integration
     real_t alpha_min    = 0.05;       // minimum thickness bound
     real_t alpha_max    = 0.3;        // maximum thickness bound
@@ -42,9 +44,13 @@ int main(int argc, char *argv[])
     bool visualization = true;
     bool paraview      = false;
 
-    const real_t k_min    = 1e-3;     // SIMP void conductivity (floors AMG conditioning)
+    const real_t k_min    = 1e-3;     // SIMP void conductivity
     const real_t k_max    = 1.0;      // SIMP max conductivity
     const real_t exponent = 3.0;      // SIMP exponent
+
+    real_t decay = 0.7;
+    real_t eps_floor = 1e-10;
+    int decay_int = 20;
 
     OptionsParser args(argc, argv);
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
@@ -55,7 +61,9 @@ int main(int argc, char *argv[])
     args.AddOption(&nsamples, "-ns", "--nsamples", "samples per ray");
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
-    args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance");
+    args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
+    args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
+    args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -73,13 +81,8 @@ int main(int argc, char *argv[])
 
     // 2. Build the mesh: heatsink domain (2D rectangular domain)
     //    2D: 2 x 2 rectangle
-    //    Boundary attributes: central bottom region (0.5, 0) to (1.5, 0) = 1 (essential BC)
-    //                         all other boundaries = 2
     Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true, 2.0, 2.0);
     const int dim = mesh.Dimension();
-
-    const int ess_bc_attr = 1;
-    const int other_bc_attr = 2;
 
     // 3. Refine the mesh
     for (int l = 0; l < ref_levels; l++)
@@ -87,7 +90,8 @@ int main(int argc, char *argv[])
         mesh.UniformRefinement();
     }
 
-    // Mark boundaries: essential BC = 1, others = 2
+    // Mark boundaries: heat sink BC gets a new attribute (max+1), others keep default
+    const int heat_sink_attr = mesh.bdr_attributes.Max() + 1;
     for (int i = 0; i < mesh.GetNBE(); i++)
     {
         Element *be = mesh.GetBdrElement(i);
@@ -98,23 +102,17 @@ int main(int argc, char *argv[])
         real_t *v0 = mesh.GetVertex(vertices[0]);
         real_t *v1 = mesh.GetVertex(vertices[1]);
 
-        // Check if this boundary element is on bottom (y ≈ 0) and within [0.5, 1.5] in x
+        // Check if this boundary element is on bottom (y ≈ 0) and within [0.95, 1.05] in x
         real_t y_avg = 0.5 * (v0[1] + v1[1]);
         real_t x_min = std::min(v0[0], v1[0]);
         real_t x_max = std::max(v0[0], v1[0]);
 
         if (std::abs(y_avg) < 1e-8 && x_min >= 0.95 - 1e-8 && x_max <= 1.05 + 1e-8)
         {
-            be->SetAttribute(ess_bc_attr);  // Central bottom: attribute 1
-        }
-        else
-        {
-            be->SetAttribute(other_bc_attr);  // All others: attribute 2
+            be->SetAttribute(heat_sink_attr);  // Central bottom heat sink
         }
     }
     mesh.SetAttributes();
-
-    const int bottom_attr = ess_bc_attr;  // Essential BC attribute
 
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
@@ -124,7 +122,8 @@ int main(int argc, char *argv[])
 
     // 4. Define finite element collections and spaces
     H1_FECollection filter_fec(order, dim);
-    L2_FECollection control_fec(order - 1, dim, BasisType::GaussLobatto);
+    H1_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
+
     ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
     ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
@@ -137,8 +136,7 @@ int main(int argc, char *argv[])
             << ",  design dofs = " << design_size << endl;
     }
 
-    // 5. Initialized all the grid funcitons and coefficients
-    // min filter varaibles
+    // 5. Initialize all the grid functions and coefficients
     ParGridFunction rho(&control_fes);
     ParGridFunction rho_filter(&filter_fes);
     rho = vol_fraction;
@@ -146,7 +144,7 @@ int main(int argc, char *argv[])
 
     GridFunctionCoefficient rho_cf(&rho);
 
-    // 5b. Setup thickness measurement rays (vertical rays across the domain)
+    // 5b. Setup thickness measurement rays
     Vector *ray_starts = new Vector[nrays];
     Vector *ray_ends = new Vector[nrays];
     initialize_rays(dim, nrays, ray_starts, ray_ends);
@@ -168,7 +166,7 @@ int main(int argc, char *argv[])
     ConstantCoefficient heat_source_cf(1.0);
 
     DiffusionSolver *heat_solver = new DiffusionSolver(&pmesh, order, simp_cf);
-    heat_solver->SetEssentialBC(bottom_attr, 0.0);  // T = 0 on bottom boundary (heat sink)
+    heat_solver->SetEssentialBC(heat_sink_attr, 0.0);  // T = 0 on heat sink boundary
     heat_solver->SetHeatSource(heat_source_cf);
 
     // |grad T|^2 coefficient; multiply by k or k' as needed.
@@ -184,9 +182,12 @@ int main(int argc, char *argv[])
     HeatObjective objective(MPI_COMM_WORLD, &filter_fes, dissipation_cf);
 
     // 7b. Min length scale filter solver
-    toopt::PDEFilterOptions filter_opts;
-    filter_opts.filter_radius = r_f;
-    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+    PDEFilter filter(control_fes, filter_fes);
+    filter.SetFilterRadius(r_f);
+    DiffusionMassSolver &filter_solver = filter.GetSolver();
+    for(int a = 1; a <= pmesh.bdr_attributes.Max(); a++){
+        if (a != heat_sink_attr) filter_solver.AddBoundaryID(a);
+    }
     filter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -221,7 +222,8 @@ int main(int argc, char *argv[])
     BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]
     BlockVector dthick(toffsets);                   // thickness constraint gradient  [ dR/drho ; dR/dalpha ]
     BlockVector dvol(toffsets);                     // volume constraint gradient is constant:  [ vol_w/Vstar ; 0 ]
-    dvol.GetBlock(0) = *vol_w;  dvol.GetBlock(0) /= Vstar;
+    dvol.GetBlock(0) = *vol_w;
+    dvol.GetBlock(0) /= Vstar;
     dvol.GetBlock(1) = 0.0;
 
     Vector dfidx[num_con];  dfidx[0] = dvol;        // dfidx[1] set each iteration
@@ -234,7 +236,9 @@ int main(int argc, char *argv[])
 
     // 10b. Paraview
     ParGridFunction phys_density(&filter_fes);
-    ParaViewDataCollection paraview_dc("HeatTopOpt", &pmesh);
+    std::ostringstream run_tag;
+    run_tag << "diffutop_amax" << alpha_max << "_vf" << vol_fraction;
+    ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
         paraview_dc.SetPrefixPath("ParaView");
@@ -257,11 +261,18 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-
     for (; k < max_it && iterationError > tol; k++)
     {
+        if (k % decay_int == 0 && k > 0)
+        {
+            epsilon = std::max(epsilon * decay, eps_floor);
+        }
+
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
-        filter.Mult(rho, rho_filter);
+        rho.GetTrueDofs(rho_tv);
+        Vector rho_filter_tv(filter_fes.GetTrueVSize());
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
 
         // (2) state solve:  -div(k(ρ~) grad T) = q
         heat_solver->Solve();
@@ -380,17 +391,17 @@ int main(int argc, char *argv[])
 
 void initialize_rays(int dim, int nrays, Vector *ray_starts, Vector *ray_ends)
 {
-    // Vertical rays for measuring thickness in 2D heatsink
-    // Domain is [0, 2] x [0, 1]
+    // Horizontal rays for measuring thickness in 2D heatsink
+    // Domain is [0, 2] x [0, 2]
     for (int r = 0; r < nrays; r++)
     {
         ray_starts[r].SetSize(dim);
         ray_ends[r].SetSize(dim);
 
-        // Distribute rays horizontally across the domain
-        real_t y_pos = 0.5 + 0.5 * r / (nrays - 1);
+        // Distribute rays vertically across the domain
+        real_t y_pos = 0.5 + 1.0 * r / (nrays - 1);
 
-        // Vertical rays from bottom to top
+        // Horizontal rays from left to right
         ray_starts[r](0) = 0.0;
         ray_ends[r](0)   = 2.0;
 

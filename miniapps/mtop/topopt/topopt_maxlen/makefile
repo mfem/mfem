@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Shared source lives in the parent topopt/ dir; compiled into a LOCAL object
 # (MMA_MFEM.o) so the link rule below doesn't reference a ../ object, which make
 # cannot build with a pattern rule.
-COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o
+COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o diffusion_mass_solver.o
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv DiffuTopOpt
@@ -59,6 +59,9 @@ mtop_solvers.o: $(SRC)../../mtop_solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 pde_filter.o: $(SRC)../../pde_filter.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+diffusion_mass_solver.o: $(SRC)../../diffusion_mass_solver.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 MFEM_TESTS = MINIAPPS

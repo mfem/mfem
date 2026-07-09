@@ -2,7 +2,7 @@
 // Thickness measure is calculated by solving an advection pde
 //
 // Sample run:  mpirun -np 4 ./ElastTopOpt_adv
-//              mpirun -np 4 ./ElastTopOpt_adv -r 5 -amax 0.4 -tol 1e-4 -mi 500
+//              mpirun -np 4 ./ElastTopOpt_adv -r 6 -amax 0.3 -rt 2 -mi 500
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     real_t move         = 0.2;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
     real_t domain_init  = 0.1;
-    int    ray_config   = 1;
+    int    ray_type     = 1;          // 1: vertical, 2: diagonal
 
     // Thickness constraint parameters
     real_t alpha_min    = 1e-6;        // minimum thickness bound
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
-    args.AddOption(&ray_config, "-rc", "--rayconfig", "configuration of the ray field, 1 for vertical, 2 for diagonal");
+    args.AddOption(&ray_type, "-rt", "--raytype", "ray field type: 1=vertical, 2=diagonal");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
@@ -79,6 +79,15 @@ int main(int argc, char *argv[])
     if (!args.Good())
     {
         if (myid == 0) { args.PrintUsage(cout); }
+        return 1;
+    }
+    // Validate ray type
+    if (ray_type != 1 && ray_type != 2)
+    {
+        if (myid == 0) {
+            cerr << "Invalid ray type: " << ray_type
+                 << ". Must be 1 (vertical) or 2 (diagonal)." << endl;
+        }
         return 1;
     }
     if (myid == 0) { args.PrintOptions(cout); }
@@ -98,9 +107,9 @@ int main(int argc, char *argv[])
 
     // 3b. Construct ray field and mark the outflow boundaries
     std::unique_ptr<VectorFunctionCoefficient> ray_cf;
-    if (ray_config == 1)
+    if (ray_type == 1)
         ray_cf = std::make_unique<VectorFunctionCoefficient>(dim, verticalray);
-    else
+    else if (ray_type == 2)
         ray_cf = std::make_unique<VectorFunctionCoefficient>(dim, diagonalray);
 
     int outflow_attr = mesh.bdr_attributes.Max() + 1;
@@ -126,9 +135,9 @@ int main(int argc, char *argv[])
             Vector phys_pt(dim);
             trans->Transform(ip, phys_pt);
             real_t x = phys_pt(0);
-            
+
             bool in_x_range = true;
-            if (ray_config == 2) in_x_range = (x >= 1.5 && x <= 2.5);
+            if (ray_type == 2) in_x_range = (x >= 1.5 && x <= 2.5);
             bool is_outflow = dot > 0;
 
             if (in_x_range && is_outflow)
@@ -280,7 +289,7 @@ int main(int argc, char *argv[])
     // 10b. Paraview
     ParGridFunction phys_density(&filter_fes);
     std::ostringstream run_tag;
-    run_tag << "adv_amax" << alpha_max << "_rc" << ray_config << "_vf" << vol_fraction;
+    run_tag << "adv_amax" << alpha_max << "_rt" << ray_type << "_vf" << vol_fraction;
     ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {

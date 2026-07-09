@@ -1,4 +1,4 @@
-// Parallel compliance-minimization topology optimization for linear elasticity.
+// Linear elasticity topology optimization with min/max length scale constraints
 //
 // Sample run:  mpirun -np 4 ./ElastTopOpt_maxlen
 //              mpirun -np 4 ./ElastTopOpt_maxlen -r 6 -rf 0.03 -rs 0.3 -gs 0.7 -mi 300 -no-vis -pv
@@ -7,8 +7,8 @@
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
 #include "../../mma/MMA_MFEM.hpp"
-#include "../../pde_filter.hpp"
 #include "../../mtop_solvers.hpp"
+#include "../../diffusion_mass_solver.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -34,11 +34,11 @@ int main(int argc, char *argv[])
     real_t gamma_v      = 1e-6;       // max filter lower bound
     real_t gamma_s      = 0.7;        // max filter upper bound
     real_t vol_fraction = 0.5;
-    int    max_it       = 100;
+    int    max_it       = 300;
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
     real_t epsilon      = 1e-2;       // gamma - alpha tolerance
-    
+
     bool visualization = true;
     bool paraview      = false;
 
@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
     const real_t exponent = 3.0;      // SIMP exponent
 
     real_t decay = 0.5;
+    real_t eps_floor = 1e-10;
     int decay_int = 50;
 
     OptionsParser args(argc, argv);
@@ -77,59 +78,52 @@ int main(int argc, char *argv[])
     if (myid == 0) { args.PrintOptions(cout); }
 
     // 2. Build the mesh (3 x 1 box in 2D, 3 x 1 x 1 prism in 3D).
-    //    The Cartesian generators auto-assign per-face boundary attributes, so no
-    //    manual marking is needed: the elasticity solver clamps by attribute id.
-    //    Native attribute of the x = 0 face:  4 in 2D, 5 in 3D.
+    //    Clamp the x = 0 edge or face in 3D
     Mesh mesh = (dim == 2)
         ? Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL, true, 3.0, 1.0)
         : Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON, 3.0, 1.0, 1.0);
     const int clamp_attr = (dim == 2) ? 4 : 5;       // x = 0 face
 
     // 3. Refined the mesh and construct pmesh
-    for (int l = 0; l < ref_levels; l++) 
-    { 
-        mesh.UniformRefinement(); 
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh.UniformRefinement();
     }
 
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
 
     // 4. Define finite element collections and spaces
-    H1_FECollection state_fec(order, dim);
     H1_FECollection filter_fec(order, dim);
-    L2_FECollection control_fec(order - 1, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
+    H1_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
+
     ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
     ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
     // Printing all true dofs.
-    HYPRE_BigInt state_size  = state_fes.GlobalTrueVSize();
     HYPRE_BigInt filter_size = filter_fes.GlobalTrueVSize();
     HYPRE_BigInt design_size = control_fes.GlobalTrueVSize();
     if (myid == 0)
     {
-        cout << "\nstate dofs = "  << state_size
-            << ",  filter dofs = " << filter_size
+        cout << "\nfilter dofs = " << filter_size
             << ",  design dofs = " << design_size << endl;
     }
 
-    // 5. Initialized all the grid funcitons and coefficients
-    // min filter varaibles
-    ParGridFunction rho(&control_fes);          
-    ParGridFunction rho_filter(&filter_fes); 
+    // 5. Initialize all the grid functions and coefficients
+    ParGridFunction rho(&control_fes);
+    ParGridFunction rho_filter(&filter_fes);
     rho = vol_fraction;
     rho_filter = vol_fraction;
 
-    // max filter variables
     ParGridFunction alpha(&control_fes);
     ParGridFunction gamma(&filter_fes);
-    alpha = vol_fraction;                           // initialize ⍺ design variable
-    gamma = vol_fraction;                           // initialize ɣ filtered maxlen
+    alpha = vol_fraction;
+    gamma = vol_fraction;
 
     GridFunctionCoefficient rho_cf(&rho);
     GridFunctionCoefficient alpha_cf(&alpha);
 
-    // Max-length constraint residual:  1/2 ∫(γ−α)²
+    // 6. Max-length constraint residual:  1/2 ∫(γ−α)²
     MaxFilterResidual max_residual(MPI_COMM_WORLD, gamma, alpha);
 
     // Lame constants and SIMP material coefficients
@@ -158,15 +152,21 @@ int main(int argc, char *argv[])
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
 
     // 7b. Min length scale filter solver
-    toopt::PDEFilterOptions filter_opts;
-    filter_opts.filter_radius = r_f;
-    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+    PDEFilter filter(control_fes, filter_fes);
+    filter.SetFilterRadius(r_f);
+    DiffusionMassSolver &filter_solver = filter.GetSolver();
+    for(int a = 1; a <= pmesh.bdr_attributes.Max(); a++){
+        if (a != clamp_attr) filter_solver.AddBoundaryID(a);
+    }
     filter.Assemble();
 
     // 7c. Max length scale filter solver
-    toopt::PDEFilterOptions maxfilter_opts;
-    maxfilter_opts.filter_radius = r_s;
-    toopt::PDEFilter maxfilter(filter_fes, control_fes, maxfilter_opts);
+    PDEFilter maxfilter(control_fes, filter_fes);
+    maxfilter.SetFilterRadius(r_s);
+    DiffusionMassSolver &maxfilter_solver = maxfilter.GetSolver();
+    for(int a = 1; a <= pmesh.bdr_attributes.Max(); a++){
+        if (a != clamp_attr) maxfilter_solver.AddBoundaryID(a);
+    }
     maxfilter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -183,26 +183,28 @@ int main(int argc, char *argv[])
     // 9. MMA optimizer and its per-iteration work vectors.
     const int n = control_fes.GetTrueVSize();
     const int m = control_fes.GetTrueVSize();
-    // Array<int>  offsets(3);  offsets[0] = 0;  offsets[1] = n;  offsets[2] = m;  offsets.PartialSum();
     Array<int> toffsets(3); toffsets[0] = 0; toffsets[1] = n; toffsets[2] = m; toffsets.PartialSum();
 
-    const int num_con = 2;                       // constraints: volume + max-length
+    const int num_con = 2;                          // constraints: volume + max-length
     Vector dcdrho(n), fival(num_con);
-    Vector rho_tv(n), rho_old(n);    
-    Vector alpha_tv(m);  
+    Vector rho_tv(n), rho_old(n);
+    Vector alpha_tv(m);
 
     rho.GetTrueDofs(rho_tv);
     alpha.GetTrueDofs(alpha_tv);
 
     // stacked design  x = [ rho ; alpha ]
-    BlockVector tx_local(toffsets); tx_local.GetBlock(0) = rho_tv; tx_local.GetBlock(1) = alpha_tv;
+    BlockVector tx_local(toffsets);
+    tx_local.GetBlock(0) = rho_tv;
+    tx_local.GetBlock(1) = alpha_tv;
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n+m, 2, tx_local);
 
     BlockVector tx_min(toffsets), tx_max(toffsets);
-    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]   
+    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]
     BlockVector dgmax(toffsets);                    // max-length constraint gradient  [ dG/drho ; dG/dalpha ]
     BlockVector dvol(toffsets);                     // volume constraint gradient is constant:  [ vol_w/Vstar ; 0 ]
-    dvol.GetBlock(0) = *vol_w;  dvol.GetBlock(0) /= Vstar;  
+    dvol.GetBlock(0) = *vol_w;
+    dvol.GetBlock(0) /= Vstar;
     dvol.GetBlock(1) = 0.0;
 
     Vector dfidx[num_con];  dfidx[0] = dvol;        // dfidx[1] set each iteration
@@ -215,13 +217,12 @@ int main(int argc, char *argv[])
 
     // 10b. Paraview
     ParGridFunction phys_density(&filter_fes);
-    ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
+    std::ostringstream run_tag;
+    run_tag << "maxlen_rs" << r_s << "_gs" << gamma_s << "_vf" << vol_fraction;
+    ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
-        std::ostringstream run_tag;
-        run_tag << "ParaView/maxlen"
-                << "_rs" << r_s << "_gs" << gamma_s;
-        paraview_dc.SetPrefixPath(run_tag.str());
+        paraview_dc.SetPrefixPath("ParaView");
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
@@ -240,14 +241,18 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-    real_t eps_ceiling  = epsilon;
-    real_t eps_floor    = 1e-10;
-    int    infeas_count = 0;         // consecutive iterations with maxres > ε
-
     for (; k < max_it && iterationError > tol; k++)
     {
+        if (k % decay_int == 0 && k > 0)
+        {
+            epsilon = std::max(epsilon * decay, eps_floor);
+        }
+
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
-        filter.Mult(rho, rho_filter);
+        rho.GetTrueDofs(rho_tv);
+        Vector rho_filter_tv(filter_fes.GetTrueVSize());
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
         elast.Assemble();
@@ -256,7 +261,7 @@ int main(int argc, char *argv[])
 
         // (3) adjoint filter + objective gradient:
         //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) psi_0) φ_i
-        //     dc/drho = M_fc^T w~ 
+        //     dc/drho = M_fc^T w~
         ParLinearForm adj_rhs(&filter_fes);
         adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
         adj_rhs.Assemble();
@@ -264,7 +269,9 @@ int main(int argc, char *argv[])
         filter.MultTranspose(*adj_rhs_tv, dcdrho);
 
         // (4) max filter: (r_s^2 K + M) γ = M_fc ρ
-        maxfilter.Mult(rho, gamma);
+        Vector gamma_tv(filter_fes.GetTrueVSize());
+        maxfilter.Mult(rho_tv, gamma_tv);
+        gamma.SetFromTrueDofs(gamma_tv);
 
         // (5) max adjoint filter:
         //     s~ = (r_s^2 K + M)^{-1} ∫ (γ-α) φ_i
@@ -291,31 +298,6 @@ int main(int argc, char *argv[])
         // max-length residual at the current design
         real_t maxres = max_residual.Eval();
 
-        // ========================================================================
-        // Adaptively adjust ε every 10 iterations.
-        // If constraint is enforce in 10 iterations, then relax the eps tolerance.
-        // Otherwise decay it by 0.8. We also set a hard decaying rate of 0.95.
-        // =====================================================================
-        // infeas_count = (maxres > epsilon) ? infeas_count + 1 : 0;
-
-        // if (k % 10 == 0 && k > 0)
-        // {
-        //     eps_ceiling *= 0.95;                                        // hard decaying
-        //     if (infeas_count >= 10)                                     // relaxation
-        //         epsilon = std::min(eps_ceiling, 1.05 * epsilon);
-        //     else                                                        // tighten
-        //         epsilon *= 0.8;
-        //     epsilon = std::min(epsilon, eps_ceiling);                   // cap the ceiling
-        //     epsilon = std::max(epsilon, eps_floor);                     // numerical floor
-        //     infeas_count = 0;
-        // }
-
-        // fixed step restriction for eps
-        if (k % decay_int == 0 && k > 0)
-        {
-            epsilon = std::max(epsilon * decay, eps_floor);
-        }
-
         // constraints:  volume constraint  and  1/2 ∫(γ−α)² − ε ≤ 0
         real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
         fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 1.0;
@@ -333,8 +315,9 @@ int main(int argc, char *argv[])
             tx_max[n+i] = std::min(real_t(gamma_s), alpha_tv[i] + move);
         }
 
-        // stacked update  x = [ ρ ; ɑ ]
-        tx_local.GetBlock(0) = rho_tv;  tx_local.GetBlock(1) = alpha_tv;
+        // stacked update  x = [ ρ ; α ]
+        tx_local.GetBlock(0) = rho_tv;
+        tx_local.GetBlock(1) = alpha_tv;
         rho_old = rho_tv;
         real_t compliance = comp.Eval();
         mma.Update(tx_local, df0dx, compliance, fival, dfidx, tx_min, tx_max);
@@ -387,6 +370,7 @@ int main(int argc, char *argv[])
         csv.close();
         mfem::out << "\nfinished after " << k << " iterations\n";
     }
+
     return 0;
 }
 

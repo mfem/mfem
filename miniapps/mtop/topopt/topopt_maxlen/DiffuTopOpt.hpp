@@ -62,7 +62,7 @@ public:
 
 // Heat diffusion solver: -div(k(rho~) grad T) = q  with homogeneous essential BC.
 // The conductivity k(rho~) changes every design iteration, so the system is
-// re-assembled from scratch in each Solve() (cf. toopt::PDEFilter).
+// re-assembled from scratch in each Solve().
 class DiffusionSolver
 {
 protected:
@@ -114,7 +114,7 @@ public:
       b.AddDomainIntegrator(new DomainLFIntegrator(*q));
       b.Assemble();
 
-      T = ess_value;            // impose the Dirichlet value
+      T = ess_value;
 
       OperatorPtr A;
       Vector B, X;

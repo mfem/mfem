@@ -3,14 +3,14 @@
 // with FindPointsGSLIB.
 //
 // Sample run:  mpirun -np 4 ./ElastTopOpt_maxthick
-//              mpirun -np 4 ./ElastTopOpt_maxthick -r 5 -nr 8 -amax 0.4 -mi 300
+//              mpirun -np 4 ./ElastTopOpt_maxthick -r 6 -nr 8 -amax 0.3 -rt 2 -mi 500
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
 #include "../../mma/MMA_MFEM.hpp"
-#include "../../pde_filter.hpp"
 #include "../../mtop_solvers.hpp"
+#include "../../diffusion_mass_solver.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -19,7 +19,7 @@ using namespace std;
 using namespace mfem;
 
 void bodyload(const Vector &x, Vector &f);
-void initialize_rays(int dim, int nrays, Vector *ray_starts, Vector *ray_ends);
+void initialize_rays(int dim, int nrays, int ray_type, Vector *ray_starts, Vector *ray_ends);
 
 int main(int argc, char *argv[])
 {
@@ -30,22 +30,23 @@ int main(int argc, char *argv[])
 
     // 1. Options.
     int    dim          = 2;          // problem dimension (2 or 3)
-    int    ref_levels   = 1;
-    int    order        = 1;
+    int    ref_levels   = 5;
+    int    order        = 2;
     real_t r_f          = 0.03;       // min filter length
     real_t vol_fraction = 0.5;
-    int    max_it       = 100;
+    int    max_it       = 300;
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
-    real_t domain_init  = 0.1;       // initial design value
+    real_t domain_init  = 0.1;
+    int    ray_type     = 1;          // 1: vertical, 2: diagonal
 
     // Thickness constraint parameters
-    int    nrays        = 5;          // number of thickness measurement rays
+    int    nrays        = 50;          // number of thickness measurement rays
     int    nsamples     = 100;        // samples per ray for integration
     real_t alpha_min    = 1e-6;        // minimum thickness bound
-    real_t alpha_max    = 0.6;        // maximum thickness bound
-    
+    real_t alpha_max    = 0.5;        // maximum thickness bound
+
     bool visualization = true;
     bool paraview      = false;
 
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "minimum thickness bound");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "maximum thickness bound");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
+    args.AddOption(&ray_type, "-rt", "--raytype", "ray field type: 1=vertical, 2=diagonal");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
@@ -83,21 +85,28 @@ int main(int argc, char *argv[])
         if (myid == 0) { args.PrintUsage(cout); }
         return 1;
     }
+    // Validate ray type
+    if (ray_type != 1 && ray_type != 2)
+    {
+        if (myid == 0) {
+            cerr << "Invalid ray type: " << ray_type
+                 << ". Must be 1 (vertical) or 2 (diagonal)." << endl;
+        }
+        return 1;
+    }
     if (myid == 0) { args.PrintOptions(cout); }
 
     // 2. Build the mesh (3 x 1 box in 2D, 3 x 1 x 1 prism in 3D).
-    //    The Cartesian generators auto-assign per-face boundary attributes, so no
-    //    manual marking is needed: the elasticity solver clamps by attribute id.
-    //    Native attribute of the x = 0 face:  4 in 2D, 5 in 3D.
+    //    Clamp the x = 0 edge or face in 3D
     Mesh mesh = (dim == 2)
         ? Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL, true, 3.0, 1.0)
         : Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON, 3.0, 1.0, 1.0);
     const int clamp_attr = (dim == 2) ? 4 : 5;       // x = 0 face
 
     // 3. Refined the mesh and construct pmesh
-    for (int l = 0; l < ref_levels; l++) 
-    { 
-        mesh.UniformRefinement(); 
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh.UniformRefinement();
     }
 
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -108,7 +117,8 @@ int main(int argc, char *argv[])
 
     // 4. Define finite element collections and spaces
     H1_FECollection filter_fec(order, dim);
-    L2_FECollection control_fec(order - 1, dim, BasisType::GaussLobatto);
+    H1_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
+
     ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
     ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
@@ -129,10 +139,10 @@ int main(int argc, char *argv[])
 
     GridFunctionCoefficient rho_cf(&rho);
 
-    // 5b. Setup thickness measurement rays (vertical rays across the domain)
+    // 5b. Setup thickness measurement rays
     Vector *ray_starts = new Vector[nrays];
     Vector *ray_ends = new Vector[nrays];
-    initialize_rays(dim, nrays, ray_starts, ray_ends);
+    initialize_rays(dim, nrays, ray_type, ray_starts, ray_ends);
 
     // Thickness design variables (one per ray)
     Vector alpha(nrays);
@@ -167,9 +177,12 @@ int main(int argc, char *argv[])
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
 
     // 7b. Min length scale filter solver
-    toopt::PDEFilterOptions filter_opts;
-    filter_opts.filter_radius = r_f;
-    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
+    PDEFilter filter(control_fes, filter_fes);
+    filter.SetFilterRadius(r_f);
+    DiffusionMassSolver &filter_solver = filter.GetSolver();
+    for(int a = 1; a <= pmesh.bdr_attributes.Max(); a++){
+        if (a != clamp_attr) filter_solver.AddBoundaryID(a);
+    }
     filter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -217,12 +230,12 @@ int main(int argc, char *argv[])
 
     // 10b. Paraview
     ParGridFunction phys_density(&filter_fes);
-    ParaViewDataCollection paraview_dc("ElasticityTopOpt", &pmesh);
+    std::ostringstream run_tag;
+    run_tag << "maxthick_amax" << alpha_max << "_rt" << ray_type << "_vf" << vol_fraction;
+    ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
-        std::ostringstream run_tag;
-        run_tag << "ParaView/maxthick_amax_" << alpha_max;
-        paraview_dc.SetPrefixPath(run_tag.str());
+        paraview_dc.SetPrefixPath("ParaView");
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
@@ -249,7 +262,10 @@ int main(int argc, char *argv[])
         }
 
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
-        filter.Mult(rho, rho_filter);
+        rho.GetTrueDofs(rho_tv);
+        Vector rho_filter_tv(filter_fes.GetTrueVSize());
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
         elast.Assemble();
@@ -385,27 +401,41 @@ void bodyload(const Vector &x, Vector &f)
     if (sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff) < radius) { f[dim-1] = -1.0; }
 }
 
-void initialize_rays(int dim, int nrays, Vector *ray_starts, Vector *ray_ends)
+void initialize_rays(int dim, int nrays, int ray_type, Vector *ray_starts, Vector *ray_ends)
 {
     for (int r = 0; r < nrays; r++)
     {
         ray_starts[r].SetSize(dim);
         ray_ends[r].SetSize(dim);
 
-        // x_0 ∈ [0.5, 1.5]
         real_t x_pos = 3.0 * r / (nrays - 1);
-        // real_t x_pos = 0.5 + 1.0 * r / (nrays - 1);
 
-        ray_starts[r](0) = x_pos;
-        ray_ends[r](0)   = x_pos;  
-        // ray_ends[r](0)   = x_pos + 1.0;  
-        
-        ray_starts[r](1) = 0.0;
-        ray_ends[r](1)   = 1.0;
-        
-        if (dim == 3) { 
-            ray_starts[r](2) = 0.0;  
-            ray_ends[r](2)   = 1.0; 
+        if (ray_type == 1)  // vertical rays
+        {
+            ray_starts[r](0) = x_pos;
+            ray_ends[r](0)   = x_pos;
+
+            ray_starts[r](1) = 0.0;
+            ray_ends[r](1)   = 1.0;
+
+            if (dim == 3) {
+                ray_starts[r](2) = 0.0;
+                ray_ends[r](2)   = 1.0;
+            }
+        }
+        else if (ray_type == 2)  // diagonal rays
+        {
+            // Diagonal rays from bottom to top-right
+            ray_starts[r](0) = x_pos;
+            ray_ends[r](0)   = x_pos + 1.0;
+
+            ray_starts[r](1) = 0.0;
+            ray_ends[r](1)   = 1.0;
+
+            if (dim == 3) {
+                ray_starts[r](2) = 0.0;
+                ray_ends[r](2)   = 1.0;
+            }
         }
     }
 }
