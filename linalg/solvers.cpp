@@ -68,7 +68,14 @@ real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
    }
    else
    {
-      return InnerProduct(comm, x, y);
+     if(track_allreduce)
+     {
+        return InnerProduct(comm, x, y, timer, time_points);
+     }
+     else
+     {
+        return InnerProduct(comm, x, y);
+     }
    }
 #endif
 }

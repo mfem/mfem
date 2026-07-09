@@ -27,6 +27,8 @@
 #include <klu.h>
 #endif
 
+#include <chrono>
+
 namespace mfem
 {
 
@@ -90,6 +92,9 @@ using IterativeSolverMonitor = IterativeSolverController;
 class IterativeSolver : public Solver
 {
 public:
+  mutable std::chrono::high_resolution_clock timer;
+  mutable std::vector<std::chrono::high_resolution_clock::time_point> time_points;
+  bool track_allreduce = false;
    /** @brief Settings for the output behavior of the IterativeSolver.
 
        By default, all output is suppressed. The construction of the desired

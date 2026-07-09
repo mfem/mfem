@@ -26,6 +26,7 @@
 #include <limits>
 #include <type_traits>
 #include <initializer_list>
+#include <vector>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -34,6 +35,7 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
+#include <chrono>
 
 namespace mfem
 {
@@ -775,6 +777,20 @@ inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    real_t loc_prod = x * y;
    real_t glb_prod;
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
+   return glb_prod;
+}
+inline real_t
+InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y,
+             std::chrono::high_resolution_clock &timer,
+             std::vector<std::chrono::high_resolution_clock::time_point> &time_points)
+{
+   real_t loc_prod = x * y;
+   real_t glb_prod;
+   auto start = timer.now();
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
+   auto stop = timer.now();
+   time_points.emplace_back(start);
+   time_points.emplace_back(stop);
    return glb_prod;
 }
 #endif
