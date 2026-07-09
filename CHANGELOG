@@ -15,6 +15,10 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Improved FindPointsGSLIB surface mesh capability with support for simplices
+  and an option to specify axis-aligned bounding box padding for near-surface
+  point queries.
+
 - Added GPU-enabled partial assembly for simplicial Bernstein H1 basis based on
   ragged tensor algorithms (see DOI: 10.1137/11082539X) for mass and diffusion
   integrators.
