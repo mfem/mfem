@@ -22,6 +22,102 @@ if (MFEM_USE_MPI)
      LIBRARIES mfem
    )
 
+   add_mfem_miniapp(tst_rnd_periodic
+     MAIN tst_rnd_periodic.cpp
+     EXTRA_SOURCES frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_periodic_fraclap_mms
+     MAIN tst_periodic_fraclap_mms.cpp
+     EXTRA_SOURCES frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_additive_gll_single_cell
+     MAIN tst_additive_gll_single_cell.cpp
+     EXTRA_SOURCES frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_diffusion_mass_gmg_mms
+     MAIN tst_diffusion_mass_gmg_mms.cpp
+     EXTRA_SOURCES diffusion_mass_gmg.cpp frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_diffusion_mass_gmg_lor_mms
+     MAIN tst_diffusion_mass_gmg_lor_mms.cpp
+     EXTRA_SOURCES diffusion_mass_gmg.cpp frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_diffusion_mass_solver_mms
+     MAIN tst_diffusion_mass_solver_mms.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_diffusion_solver_mms
+     MAIN tst_diffusion_solver_mms.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_diffusion_solver_compliance_gradient
+     MAIN tst_diffusion_solver_compliance_gradient.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_stokes_solver_mms
+     MAIN tst_stokes_solver_mms.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_brinkman_stokes_solver_mms
+     MAIN tst_brinkman_stokes_solver_mms.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_pde_filter
+     MAIN tst_pde_filter.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_quadrature_pde_filter
+     MAIN tst_quadrature_pde_filter.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_balakrishnan_fractional_solver
+     MAIN tst_balakrishnan_fractional_solver.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_fractional_diffusion_solver
+     MAIN tst_fractional_diffusion_solver.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_fractional_diffusion_mass_compare
+     MAIN tst_fractional_diffusion_mass_compare.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_riesz_map
+     MAIN tst_riesz_map.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp
+     LIBRARIES mfem
+   )
+
    add_mfem_miniapp(tst_frac_inv
      MAIN tst_frac_inv.cpp
      EXTRA_SOURCES polylib.cpp
