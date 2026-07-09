@@ -30,6 +30,7 @@ public:
 
    void SetTime(real_t t) override { coeff_->SetTime(t); }
 
+   using VectorCoefficient::Eval;
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
