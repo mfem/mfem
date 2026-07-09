@@ -53,6 +53,7 @@
 #include "particleset.hpp"
 
 #include "dfem/doperator.hpp"
+#include "dfem/univarsolvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
