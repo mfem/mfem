@@ -844,6 +844,22 @@ public:
 };
 
 
+/// Zero Operator N: x -> 0.
+class ZeroOperator : public Operator
+{
+public:
+   /// Create an zero operator of size @a n.
+   explicit ZeroOperator(int n) : Operator(n) { }
+
+   /// Operator application
+   void Mult(const Vector &x, Vector &y) const override
+   { y.SetSize(width); y = 0_r; }
+
+   /// Application of the transpose
+   void MultTranspose(const Vector &x, Vector &y) const override
+   { y.SetSize(width); y = 0_r; }
+};
+
 /// Identity Operator I: x -> x.
 class IdentityOperator : public Operator
 {
