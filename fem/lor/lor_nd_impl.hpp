@@ -32,10 +32,11 @@ void BatchedLOR_ND::Assemble2D()
    static constexpr int nnz_per_row = 7;
    static constexpr int sz_local_mat = ne*ne;
 
-   const bool const_mq = c1.Size() == 1;
+   const int mq_vdim = c1.GetVDim();
+   const bool const_mq = c1.Size() == mq_vdim;
    const auto MQ = const_mq
-                   ? Reshape(c1.Read(), 1, 1, 1)
-                   : Reshape(c1.Read(), op1, op1, nel_ho);
+                   ? Reshape(c1.Read(), mq_vdim, 1, 1, 1)
+                   : Reshape(c1.Read(), mq_vdim, op1, op1, nel_ho);
    const bool const_dq = c2.Size() == 1;
    const auto DQ = const_dq
                    ? Reshape(c2.Read(), 1, 1, 1)
@@ -82,15 +83,13 @@ void BatchedLOR_ND::Assemble2D()
             // local_mat is the local (dense) stiffness matrix
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            SetupLORQuadData2D<ORDER,SDIM,false,true>(X, iel_ho, kx, ky, Q, true);
+            SetupLORQuadData2D<ORDER,SDIM,false,true>(
+               X, const_mq, MQ, const_dq, DQ, iel_ho, kx, ky, Q);
 
             for (int iqx=0; iqx<2; ++iqx)
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
-                  const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
-                  const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
-
                   // Loop over x,y components. c=0 => x, c=1 => y
                   for (int cj=0; cj<dim; ++cj)
                   {
@@ -121,8 +120,7 @@ void BatchedLOR_ND::Assemble2D()
                               val += byi*bxj*Q(1,iqy,iqx);
                               val += bxi*byj*Q(1,iqy,iqx);
                               val += byi*byj*Q(2,iqy,iqx);
-                              val *= mq;
-                              val += dq*curl_i*curl_j*Q(3,iqy,iqx);
+                              val += curl_i*curl_j*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -209,14 +207,16 @@ void BatchedLOR_ND::Assemble3D()
    static constexpr int nnz_per_row = 33;
    static constexpr int sz_local_mat = ne*ne;
 
-   const bool const_mq = c1.Size() == 1;
+   const int mq_vdim = c1.GetVDim();
+   const bool const_mq = c1.Size() == mq_vdim;
    const auto MQ = const_mq
-                   ? Reshape(c1.Read(), 1, 1, 1, 1)
-                   : Reshape(c1.Read(), op1, op1, op1, nel_ho);
-   const bool const_dq = c2.Size() == 1;
+                   ? Reshape(c1.Read(), mq_vdim, 1, 1, 1, 1)
+                   : Reshape(c1.Read(), mq_vdim, op1, op1, op1, nel_ho);
+   const int dq_vdim = c2.GetVDim();
+   const bool const_dq = c2.Size() == dq_vdim;
    const auto DQ = const_dq
-                   ? Reshape(c2.Read(), 1, 1, 1, 1)
-                   : Reshape(c2.Read(), op1, op1, op1, nel_ho);
+                   ? Reshape(c2.Read(), dq_vdim, 1, 1, 1, 1)
+                   : Reshape(c2.Read(), dq_vdim, op1, op1, op1, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, o*op1*op1, dim, nel_ho);
@@ -286,21 +286,20 @@ void BatchedLOR_ND::Assemble3D()
                         real_t A_[3*3];
                         DeviceTensor<2> A(A_, 3, 3);
                         Adjugate3D(J, A);
+                        Transpose3D(J);
 
-                        Q(0,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(0,0)+A(0,1)*A(0,1)+A(0,2)*A(0,2)); // 1,1
-                        Q(1,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(1,0)+A(0,1)*A(1,1)+A(0,2)*A(1,2)); // 2,1
-                        Q(2,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(2,0)+A(0,1)*A(2,1)+A(0,2)*A(2,2)); // 3,1
-                        Q(3,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(1,0)+A(1,1)*A(1,1)+A(1,2)*A(1,2)); // 2,2
-                        Q(4,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(2,0)+A(1,1)*A(2,1)+A(1,2)*A(2,2)); // 3,2
-                        Q(5,iqz,iqy,iqx) = w_detJ*(A(2,0)*A(2,0)+A(2,1)*A(2,1)+A(2,2)*A(2,2)); // 3,3
+                        // Coefficient values
+                        real_t mq_vals[9];
+                        Get3DMatrixCoeff(MQ, const_mq, kx+iqx, ky+iqy, kz+iqz, iel_ho, mq_vals);
+                        DeviceTensor<2> mq_mat(mq_vals, 3, 3);
+                        real_t dq_vals[9];
+                        Get3DMatrixCoeff(DQ, const_dq, kx+iqx, ky+iqy, kz+iqz, iel_ho, dq_vals);
+                        DeviceTensor<2> dq_mat(dq_vals, 3, 3);
 
-                        // w J^T J / det(J)
-                        Q(6,iqz,iqy,iqx)  = w_detJ*(J(0,0)*J(0,0)+J(1,0)*J(1,0)+J(2,0)*J(2,0)); // 1,1
-                        Q(7,iqz,iqy,iqx)  = w_detJ*(J(0,0)*J(0,1)+J(1,0)*J(1,1)+J(2,0)*J(2,1)); // 2,1
-                        Q(8,iqz,iqy,iqx)  = w_detJ*(J(0,0)*J(0,2)+J(1,0)*J(1,2)+J(2,0)*J(2,2)); // 3,1
-                        Q(9,iqz,iqy,iqx)  = w_detJ*(J(0,1)*J(0,1)+J(1,1)*J(1,1)+J(2,1)*J(2,1)); // 2,2
-                        Q(10,iqz,iqy,iqx) = w_detJ*(J(0,1)*J(0,2)+J(1,1)*J(1,2)+J(2,1)*J(2,2)); // 3,2
-                        Q(11,iqz,iqy,iqx) = w_detJ*(J(0,2)*J(0,2)+J(1,2)*J(1,2)+J(2,2)*J(2,2)); // 3,3
+                        // w A e A^T / det(J)
+                        FillAtBA(A, mq_mat, &Q(0,iqz,iqy,iqx), w_detJ);
+                        // w J^T e J / det(J)
+                        FillAtBA(J, dq_mat, &Q(6,iqz,iqy,iqx), w_detJ);
                      }
                   }
                }
@@ -310,8 +309,6 @@ void BatchedLOR_ND::Assemble3D()
                   {
                      for (int iqx=0; iqx<2; ++iqx)
                      {
-                        const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
-                        const real_t dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
                         // Loop over x,y,z components. 0 => x, 1 => y, 2 => z
                         for (int cj=0; cj<dim; ++cj)
                         {
@@ -385,7 +382,7 @@ void BatchedLOR_ND::Assemble3D()
                                     basis_basis += Q(4,iqz,iqy,iqx)*(basis_i[1]*basis_j[2] + basis_i[2]*basis_j[1]);
                                     basis_basis += Q(5,iqz,iqy,iqx)*basis_i[2]*basis_j[2];
 
-                                    const real_t val = dq*curl_curl + mq*basis_basis;
+                                    const real_t val = curl_curl + basis_basis;
 
                                     local_mat(ii_loc, jj_loc) += val;
                                  }
