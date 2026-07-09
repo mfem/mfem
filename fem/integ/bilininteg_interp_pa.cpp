@@ -2166,7 +2166,8 @@ void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
    dim = mesh->Dimension();
    ne = dom_fes.GetNE();
    pa_mode_2d = 0;
-   MFEM_VERIFY(ne == ran_fes.GetNE(), "Different meshes for domain and range spaces");
+   MFEM_VERIFY(ne == ran_fes.GetNE(),
+               "Different meshes for domain and range spaces");
 
    if (dim == 2)
    {
@@ -2348,7 +2349,8 @@ void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
                   "2D CurlInterpolator PA data is not assembled.");
       if (pa_mode_2d == 1)
       {
-         MFEM_VERIFY(maps_O_O != nullptr, "2D CurlInterpolator scalar curl map is not assembled.");
+         MFEM_VERIFY(maps_O_O != nullptr,
+                     "2D CurlInterpolator scalar curl map is not assembled.");
          PAHcurlApplyCurl2D(c_dofs1D, o_dofs1D, ne, maps_O_O->B, maps_O_C->G,
                             x, y);
       }
@@ -2375,7 +2377,8 @@ void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
                   "2D CurlInterpolator PA data is not assembled.");
       if (pa_mode_2d == 1)
       {
-         MFEM_VERIFY(maps_O_O != nullptr, "2D CurlInterpolator scalar curl map is not assembled.");
+         MFEM_VERIFY(maps_O_O != nullptr,
+                     "2D CurlInterpolator scalar curl map is not assembled.");
          PAHcurlApplyCurlTranspose2D(c_dofs1D, o_dofs1D, ne, maps_O_O->B,
                                      maps_O_C->G, x, y);
       }

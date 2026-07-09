@@ -30,7 +30,8 @@ public:
 
    void SetTime(real_t t) override { coeff_->SetTime(t); }
 
-   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       coeff_->Eval(value_, T, ip);
       V.SetSize(2);
@@ -1460,7 +1461,8 @@ void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
    }
 }
 
-void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
+                                                   &trial_fes,
                                                    const FiniteElementSpace &test_fes)
 {
    Mesh *mesh = trial_fes.GetMesh();
@@ -1527,7 +1529,8 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace &tri
    }
 }
 
-void MixedScalarWeakGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void MixedScalarWeakGradientIntegrator::AddMultPA(const Vector &x,
+                                                  Vector &y) const
 {
    if (dim == 2)
    {
@@ -1564,7 +1567,8 @@ void MixedScalarWeakGradientIntegrator::AddMultTransposePA(const Vector &x,
    }
 }
 
-void MixedScalarCrossProductIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+void MixedScalarCrossProductIntegrator::AssemblePA(const FiniteElementSpace
+                                                   &trial_fes,
                                                    const FiniteElementSpace &test_fes)
 {
    Mesh *mesh = trial_fes.GetMesh();
@@ -1627,7 +1631,8 @@ void MixedScalarCrossProductIntegrator::AssemblePA(const FiniteElementSpace &tri
                     geom->J, coeff, pa_data);
 }
 
-void MixedScalarCrossProductIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void MixedScalarCrossProductIntegrator::AddMultPA(const Vector &x,
+                                                  Vector &y) const
 {
    PAHdivDotApply2D(dofs1D, dofs1Dtest, quad1D, ne,
                     mapsO->B, mapsC->B, mapsTest->Bt,

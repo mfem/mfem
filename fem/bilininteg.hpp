@@ -4102,9 +4102,12 @@ class CurlInterpolator : public DiscreteInterpolator
    /// 1D finite elements that generate and own the 1D DofToQuad maps below
    std::unique_ptr<FiniteElement> closed_dofquad_fe;
    std::unique_ptr<FiniteElement> open_dofquad_fe;
-   const DofToQuad *maps_C_C = nullptr; // one-d map with Lobatto rows, Lobatto columns
-   const DofToQuad *maps_O_C = nullptr; // one-d map with Legendre rows, Lobatto columns
-   const DofToQuad *maps_O_O = nullptr; // one-d map with Legendre rows, Legendre columns
+   const DofToQuad *maps_C_C =
+      nullptr; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C =
+      nullptr; // one-d map with Legendre rows, Lobatto columns
+   const DofToQuad *maps_O_O =
+      nullptr; // one-d map with Legendre rows, Legendre columns
 
    int dim, ne;
    // "dof" are the domain fespace dof counts
