@@ -542,7 +542,9 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          return;
    }
 
-#ifndef MFEM_USE_MPFR
+#ifdef MFEM_USE_MPFR
+   MFEM_WARNING("MPFR implementation of Gauss-Jacobi quadrature not implemented yet. Falling back to double precision implementation...");
+#endif
 
    const int n = np;
    // common constants for Jacobi polynomials
@@ -611,13 +613,6 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
                                                 ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
       // map nodes and weights to the interval [0,1]
    }
-
-#else // MFEM_USE_MPFR is defined
-
-   MFEM_ABORT("MPFR implementation of Gauss-Jacobi quadrature not defined yet");
-
-#endif // MFEM_USE_MPFR
-
 }
 
 
