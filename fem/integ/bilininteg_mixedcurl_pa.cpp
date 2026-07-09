@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "bilininteg_hdiv_kernels.hpp"
 #include "bilininteg_hcurl_kernels.hpp"
 #include "bilininteg_hcurlhdiv_kernels.hpp"
 
@@ -20,6 +21,27 @@ namespace mfem
 
 namespace
 {
+
+class Rotated2DVectorCoefficient : public VectorCoefficient
+{
+public:
+   explicit Rotated2DVectorCoefficient(VectorCoefficient &coeff)
+      : VectorCoefficient(2), coeff_(&coeff), value_(2) { }
+
+   void SetTime(real_t t) override { coeff_->SetTime(t); }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      coeff_->Eval(value_, T, ip);
+      V.SetSize(2);
+      V(0) = -value_(1);
+      V(1) = value_(0);
+   }
+
+private:
+   VectorCoefficient *coeff_;
+   mutable Vector value_;
+};
 
 void PAHcurlDotSetup2D(const int q1d,
                        const int ne,
@@ -300,6 +322,232 @@ void PAHcurlDotApplyTranspose2D(const int d1d,
             {
                Y(dx + (dy * d1d) + osc, e) += mass_x[dx] * wy;
             }
+         }
+      }
+   });
+}
+
+void PAHdivDotSetup2D(const int q1d,
+                      const int ne,
+                      const bool test_map_integral,
+                      const Array<real_t> &w,
+                      const Vector &jacobians,
+                      const Vector &coeff,
+                      Vector &op)
+{
+   auto W = Reshape(w.Read(), q1d, q1d);
+   auto J = Reshape(jacobians.Read(), q1d, q1d, 2, 2, ne);
+   auto C = Reshape(coeff.Read(), 2, q1d, q1d, ne);
+   auto O = Reshape(op.Write(), 2, q1d, q1d, ne);
+
+   mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            const real_t J11 = J(qx, qy, 0, 0, e);
+            const real_t J12 = J(qx, qy, 1, 0, e);
+            const real_t J21 = J(qx, qy, 0, 1, e);
+            const real_t J22 = J(qx, qy, 1, 1, e);
+            const real_t detJ = (J11 * J22) - (J21 * J12);
+            const real_t scale = W(qx, qy) * (test_map_integral ? 1.0 / detJ : 1.0);
+            const real_t Vx = C(0, qx, qy, e);
+            const real_t Vy = C(1, qx, qy, e);
+
+            O(0, qx, qy, e) = scale * (J11 * Vx + J21 * Vy);
+            O(1, qx, qy, e) = scale * (J12 * Vx + J22 * Vy);
+         }
+      }
+   });
+}
+
+void PAHdivDotApply2D(const int d1d,
+                      const int d1d_test,
+                      const int q1d,
+                      const int ne,
+                      const Array<real_t> &bo,
+                      const Array<real_t> &bc,
+                      const Array<real_t> &bt,
+                      const Vector &pa_data,
+                      const Vector &x,
+                      Vector &y)
+{
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D, "");
+   MFEM_VERIFY(d1d_test <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D, "");
+
+   auto Bo = Reshape(bo.Read(), q1d, d1d - 1);
+   auto Bc = Reshape(bc.Read(), q1d, d1d);
+   auto Bt = Reshape(bt.Read(), d1d_test, q1d);
+   auto O = Reshape(pa_data.Read(), 2, q1d, q1d, ne);
+   auto X = Reshape(x.Read(), 2 * (d1d - 1) * d1d, ne);
+   auto Y = Reshape(y.ReadWrite(), d1d_test, d1d_test, ne);
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int MAX_D1D = DofQuadLimits::MAX_D1D;
+      constexpr int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
+      real_t mass[MAX_Q1D][MAX_Q1D][2];
+      for (int qy = 0; qy < q1d; ++qy)
+      {
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            mass[qy][qx][0] = 0.0;
+            mass[qy][qx][1] = 0.0;
+         }
+      }
+
+      int osc = 0;
+      for (int dy = 0; dy < d1d - 1; ++dy)
+      {
+         real_t mass_x[MAX_Q1D];
+         for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] = 0.0; }
+         for (int dx = 0; dx < d1d; ++dx)
+         {
+            const real_t t = X(dx + (dy * d1d) + osc, e);
+            for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] += t * Bc(qx, dx); }
+         }
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            const real_t wy = Bo(qy, dy);
+            for (int qx = 0; qx < q1d; ++qx) { mass[qy][qx][0] += mass_x[qx] * wy; }
+         }
+      }
+
+      osc += d1d * (d1d - 1);
+      for (int dy = 0; dy < d1d; ++dy)
+      {
+         real_t mass_x[MAX_Q1D];
+         for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] = 0.0; }
+         for (int dx = 0; dx < d1d - 1; ++dx)
+         {
+            const real_t t = X(dx + (dy * (d1d - 1)) + osc, e);
+            for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] += t * Bo(qx, dx); }
+         }
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            const real_t wy = Bc(qy, dy);
+            for (int qx = 0; qx < q1d; ++qx) { mass[qy][qx][1] += mass_x[qx] * wy; }
+         }
+      }
+
+      for (int qy = 0; qy < q1d; ++qy)
+      {
+         real_t sol_x[MAX_D1D];
+         for (int dx = 0; dx < d1d_test; ++dx) { sol_x[dx] = 0.0; }
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            const real_t s = O(0, qx, qy, e) * mass[qy][qx][0]
+                             + O(1, qx, qy, e) * mass[qy][qx][1];
+            for (int dx = 0; dx < d1d_test; ++dx)
+            {
+               sol_x[dx] += s * Bt(dx, qx);
+            }
+         }
+         for (int dy = 0; dy < d1d_test; ++dy)
+         {
+            const real_t wy = Bt(dy, qy);
+            for (int dx = 0; dx < d1d_test; ++dx)
+            {
+               Y(dx, dy, e) += sol_x[dx] * wy;
+            }
+         }
+      }
+   });
+}
+
+void PAHdivDotApplyTranspose2D(const int d1d,
+                               const int d1d_test,
+                               const int q1d,
+                               const int ne,
+                               const Array<real_t> &bo,
+                               const Array<real_t> &bc,
+                               const Array<real_t> &b,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
+{
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D, "");
+   MFEM_VERIFY(d1d_test <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D, "");
+
+   auto Bo = Reshape(bo.Read(), q1d, d1d - 1);
+   auto Bc = Reshape(bc.Read(), q1d, d1d);
+   auto B = Reshape(b.Read(), q1d, d1d_test);
+   auto O = Reshape(pa_data.Read(), 2, q1d, q1d, ne);
+   auto X = Reshape(x.Read(), d1d_test, d1d_test, ne);
+   auto Y = Reshape(y.ReadWrite(), 2 * (d1d - 1) * d1d, ne);
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
+      real_t mass[MAX_Q1D][MAX_Q1D];
+      for (int qy = 0; qy < q1d; ++qy)
+      {
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            mass[qy][qx] = 0.0;
+         }
+      }
+
+      for (int dy = 0; dy < d1d_test; ++dy)
+      {
+         real_t sol_x[MAX_Q1D];
+         for (int qx = 0; qx < q1d; ++qx) { sol_x[qx] = 0.0; }
+         for (int dx = 0; dx < d1d_test; ++dx)
+         {
+            const real_t t = X(dx, dy, e);
+            for (int qx = 0; qx < q1d; ++qx) { sol_x[qx] += t * B(qx, dx); }
+         }
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            const real_t wy = B(qy, dy);
+            for (int qx = 0; qx < q1d; ++qx) { mass[qy][qx] += sol_x[qx] * wy; }
+         }
+      }
+
+      int osc = 0;
+      for (int dy = 0; dy < d1d - 1; ++dy)
+      {
+         real_t mass_x[MAX_Q1D];
+         for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] = 0.0; }
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            const real_t wy = Bo(qy, dy);
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               mass_x[qx] += (O(0, qx, qy, e) * mass[qy][qx]) * wy;
+            }
+         }
+         for (int dx = 0; dx < d1d; ++dx)
+         {
+            real_t sum = 0.0;
+            for (int qx = 0; qx < q1d; ++qx) { sum += mass_x[qx] * Bc(qx, dx); }
+            Y(dx + (dy * d1d) + osc, e) += sum;
+         }
+      }
+
+      osc += d1d * (d1d - 1);
+      for (int dy = 0; dy < d1d; ++dy)
+      {
+         real_t mass_x[MAX_Q1D];
+         for (int qx = 0; qx < q1d; ++qx) { mass_x[qx] = 0.0; }
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            const real_t wy = Bc(qy, dy);
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               mass_x[qx] += (O(1, qx, qy, e) * mass[qy][qx]) * wy;
+            }
+         }
+         for (int dx = 0; dx < d1d - 1; ++dx)
+         {
+            real_t sum = 0.0;
+            for (int qx = 0; qx < q1d; ++qx) { sum += mass_x[qx] * Bo(qx, dx); }
+            Y(dx + (dy * (d1d - 1)) + osc, e) += sum;
          }
       }
    });
@@ -1210,6 +1458,268 @@ void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
    {
       MFEM_ABORT("Unsupported dimension or space!");
    }
+}
+
+void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                                   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
+
+   const TensorBasisElement *trial_tensor_el =
+      dynamic_cast<const TensorBasisElement*>(trial_fel);
+   MFEM_VERIFY(trial_tensor_el != NULL,
+               "Only tensor-product scalar trial elements are supported!");
+
+   const VectorTensorFiniteElement *test_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   MFEM_VERIFY(test_el->GetDerivType() == mfem::FiniteElement::DIV,
+               "Only H(div) test spaces are supported!");
+
+   const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
+                                  *test_el, *test_el,
+                                  *mesh->GetTypicalElementTransformation());
+
+   const int dims = test_el->GetDim();
+   MFEM_VERIFY(dims == 2 || dims == 3, "");
+
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+
+   ne = trial_fes.GetNE();
+   MFEM_VERIFY(ne == test_fes.GetNE(),
+               "Different meshes for test and trial spaces");
+
+   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   dofs1D = mapsC->ndof;
+   quad1D = mapsC->nqpt;
+
+   L2mapsO = &trial_fel->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   L2dofs1D = L2mapsO->ndof;
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   if (dim == 2) { MFEM_VERIFY(nq == quad1D * quad1D, ""); }
+   else { MFEM_VERIFY(nq == quad1D * quad1D * quad1D, ""); }
+
+   pa_data.SetSize(nq * ne, Device::GetMemoryType());
+
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
+
+   if (trial_fel->GetMapType() == FiniteElement::INTEGRAL)
+   {
+      const GeometricFactors *geom =
+         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+      coeff /= geom->detJ;
+   }
+
+   if (dim == 2)
+   {
+      internal::PAHdivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+   }
+   else
+   {
+      internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+   }
+}
+
+void MixedScalarWeakGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 2)
+   {
+      internal::PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                                         mapsC->Gt, mapsO->Bt, pa_data, x, y);
+   }
+   else if (dim == 3)
+   {
+      internal::PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                                         mapsC->Gt, mapsO->Bt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarWeakGradientIntegrator::AddMultTransposePA(const Vector &x,
+                                                           Vector &y) const
+{
+   if (dim == 2)
+   {
+      internal::PAHdivL2Apply2D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
+                                L2mapsO->Bt, pa_data, x, y);
+   }
+   else if (dim == 3)
+   {
+      internal::PAHdivL2Apply3D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
+                                L2mapsO->Bt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCrossProductIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                                   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
+
+   const VectorTensorFiniteElement *trial_el =
+      dynamic_cast<const VectorTensorFiniteElement *>(trial_fel);
+   MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   MFEM_VERIFY(trial_el->GetDerivType() == mfem::FiniteElement::DIV,
+               "Only H(div) trial spaces are supported!");
+
+   const TensorBasisElement *test_tensor_el =
+      dynamic_cast<const TensorBasisElement*>(test_fel);
+   MFEM_VERIFY(test_tensor_el != NULL,
+               "Only tensor-product scalar test elements are supported!");
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      const int order = trial_fel->GetOrder() + test_fel->GetOrder()
+                        + mesh->GetTypicalElementTransformation()->OrderW();
+      ir = &IntRules.Get(trial_fel->GetGeomType(), order);
+   }
+
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "Only 2D is supported.");
+   MFEM_VERIFY(trial_el->GetDim() == dim && test_fel->GetDim() == dim,
+               "Trial/test dimension mismatch.");
+
+   ne = trial_fes.GetNE();
+   MFEM_VERIFY(ne == test_fes.GetNE(),
+               "Different meshes for test and trial spaces");
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   mapsTest = &test_fel->GetDofToQuad(*ir, DofToQuad::TENSOR);
+
+   dofs1D = mapsC->ndof;
+   dofs1Dtest = mapsTest->ndof;
+   quad1D = mapsC->nqpt;
+   test_map_integral = (test_fel->GetMapType() == FiniteElement::INTEGRAL);
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   MFEM_VERIFY(quad1D == mapsTest->nqpt, "Trial/test quadrature mismatch");
+   MFEM_VERIFY(dofs1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D, "");
+   MFEM_VERIFY(dofs1Dtest <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(quad1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D, "");
+
+   const int nq = ir->GetNPoints();
+   MFEM_VERIFY(nq == quad1D * quad1D, "");
+
+   Rotated2DVectorCoefficient rotated(*VQ);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(rotated, qs, CoefficientStorage::FULL);
+
+   pa_data.SetSize(dim * nq * ne, Device::GetMemoryType());
+   PAHdivDotSetup2D(quad1D, ne, test_map_integral, ir->GetWeights(),
+                    geom->J, coeff, pa_data);
+}
+
+void MixedScalarCrossProductIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   PAHdivDotApply2D(dofs1D, dofs1Dtest, quad1D, ne,
+                    mapsO->B, mapsC->B, mapsTest->Bt,
+                    pa_data, x, y);
+}
+
+void MixedScalarCrossProductIntegrator::AddMultTransposePA(const Vector &x,
+                                                           Vector &y) const
+{
+   PAHdivDotApplyTranspose2D(dofs1D, dofs1Dtest, quad1D, ne,
+                             mapsO->B, mapsC->B, mapsTest->B,
+                             pa_data, x, y);
+}
+
+void MixedScalarWeakCrossProductIntegrator::AssemblePA(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
+
+   const TensorBasisElement *trial_tensor_el =
+      dynamic_cast<const TensorBasisElement*>(trial_fel);
+   MFEM_VERIFY(trial_tensor_el != NULL,
+               "Only tensor-product scalar trial elements are supported!");
+
+   const VectorTensorFiniteElement *test_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   MFEM_VERIFY(test_el->GetDerivType() == mfem::FiniteElement::CURL,
+               "Only H(curl) test spaces are supported!");
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      const int order = trial_fel->GetOrder() + test_fel->GetOrder()
+                        + mesh->GetTypicalElementTransformation()->OrderW();
+      ir = &IntRules.Get(trial_fel->GetGeomType(), order);
+   }
+
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "Only 2D is supported.");
+   MFEM_VERIFY(test_el->GetDim() == dim && trial_fel->GetDim() == dim,
+               "Trial/test dimension mismatch.");
+
+   ne = trial_fes.GetNE();
+   MFEM_VERIFY(ne == test_fes.GetNE(),
+               "Different meshes for test and trial spaces");
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   mapsTrial = &trial_fel->GetDofToQuad(*ir, DofToQuad::TENSOR);
+
+   dofs1D = mapsC->ndof;
+   dofs1Dtrial = mapsTrial->ndof;
+   quad1D = mapsC->nqpt;
+   trial_map_integral = (trial_fel->GetMapType() == FiniteElement::INTEGRAL);
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   MFEM_VERIFY(quad1D == mapsTrial->nqpt, "Trial/test quadrature mismatch");
+   MFEM_VERIFY(dofs1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "");
+   MFEM_VERIFY(dofs1Dtrial <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(quad1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "");
+
+   const int nq = ir->GetNPoints();
+   MFEM_VERIFY(nq == quad1D * quad1D, "");
+
+   Rotated2DVectorCoefficient rotated(*VQ);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(rotated, qs, CoefficientStorage::FULL);
+
+   pa_data.SetSize(dim * nq * ne, Device::GetMemoryType());
+   PAHcurlDotSetup2D(quad1D, ne, trial_map_integral, ir->GetWeights(),
+                     geom->J, coeff, pa_data);
+}
+
+void MixedScalarWeakCrossProductIntegrator::AddMultPA(const Vector &x,
+                                                      Vector &y) const
+{
+   PAHcurlDotApplyTranspose2D(dofs1D, dofs1Dtrial, quad1D, ne,
+                              mapsO->B, mapsC->B, mapsTrial->B,
+                              pa_data, x, y);
+}
+
+void MixedScalarWeakCrossProductIntegrator::AddMultTransposePA(const Vector &x,
+                                                               Vector &y) const
+{
+   PAHcurlDotApply2D(dofs1D, dofs1Dtrial, quad1D, ne,
+                     mapsO->B, mapsC->B, mapsTrial->Bt,
+                     pa_data, x, y);
 }
 
 } // namespace mfem

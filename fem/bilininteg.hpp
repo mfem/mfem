@@ -955,6 +955,13 @@ public:
    MixedScalarWeakGradientIntegrator(Coefficient &q)
       : MixedScalarIntegrator(q) {}
 
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
 protected:
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
@@ -983,6 +990,12 @@ protected:
       test_fe.CalcPhysDivShape(Trans, shape);
       shape *= -1.0;
    }
+
+   Vector pa_data;
+   const DofToQuad *mapsO = nullptr;   ///< Not owned. HDiv open map.
+   const DofToQuad *L2mapsO = nullptr; ///< Not owned. Scalar open/closed map.
+   const DofToQuad *mapsC = nullptr;   ///< Not owned. HDiv closed map.
+   int dim = 0, ne = 0, dofs1D = 0, L2dofs1D = 0, quad1D = 0;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ in 2D where
@@ -1715,6 +1728,13 @@ public:
    MixedScalarCrossProductIntegrator(VectorCoefficient &vq)
       : MixedScalarVectorIntegrator(vq, true, true) {}
 
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
@@ -1730,6 +1750,15 @@ public:
              "Trial space must be a vector field in 2D "
              "and the test space must be a scalar field";
    }
+
+private:
+   Vector pa_data;
+   const DofToQuad *mapsO = nullptr;      ///< Not owned. H(div) open map.
+   const DofToQuad *mapsC = nullptr;      ///< Not owned. H(div) closed map.
+   const DofToQuad *mapsTest = nullptr;   ///< Not owned. Scalar test map.
+   const GeometricFactors *geom = nullptr;///< Not owned.
+   int dim = 0, ne = 0, dofs1D = 0, dofs1Dtest = 0, quad1D = 0;
+   bool test_map_integral = false;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u \hat{z}, v)$ in 2D and
@@ -1742,6 +1771,13 @@ class MixedScalarWeakCrossProductIntegrator : public MixedScalarVectorIntegrator
 public:
    MixedScalarWeakCrossProductIntegrator(VectorCoefficient &vq)
       : MixedScalarVectorIntegrator(vq, false, true) {}
+
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
@@ -1763,6 +1799,15 @@ public:
                                  ElementTransformation &Trans,
                                  Vector & shape)
    { scalar_fe.CalcPhysShape(Trans, shape); shape *= -1.0; }
+
+private:
+   Vector pa_data;
+   const DofToQuad *mapsO = nullptr;      ///< Not owned. H(curl) open map.
+   const DofToQuad *mapsC = nullptr;      ///< Not owned. H(curl) closed map.
+   const DofToQuad *mapsTrial = nullptr;  ///< Not owned. Scalar trial map.
+   const GeometricFactors *geom = nullptr;///< Not owned.
+   int dim = 0, ne = 0, dofs1D = 0, dofs1Dtrial = 0, quad1D = 0;
+   bool trial_map_integral = false;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (\vec{V} \cdot \nabla u, v)$ in 2D or
@@ -4054,11 +4099,21 @@ public:
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
+   /// 1D finite elements that generate and own the 1D DofToQuad maps below
+   std::unique_ptr<FiniteElement> closed_dofquad_fe;
+   std::unique_ptr<FiniteElement> open_dofquad_fe;
+   const DofToQuad *maps_C_C = nullptr; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C = nullptr; // one-d map with Legendre rows, Lobatto columns
+   const DofToQuad *maps_O_O = nullptr; // one-d map with Legendre rows, Legendre columns
+
    int dim, ne;
    // "dof" are the domain fespace dof counts
    int ndof_o;
    // "quads" are the range fespace dof counts
    int nquad_o;
+   int c_dofs1D = 0;
+   int o_dofs1D = 0;
+   int pa_mode_2d = 0;
 
    Vector pa_data;
 
