@@ -784,7 +784,8 @@ void PAHcurlL2Setup2D(const int Q1D,
 }
 
 void PAHcurlL2Setup2DInt(const int Q1D, const int NE, const Array<real_t> &w,
-                         Vector &coeff, const Vector &detJ, Vector &op) {
+                         Vector &coeff, const Vector &detJ, Vector &op)
+{
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto C = Reshape(coeff.Read(), NQ, NE);

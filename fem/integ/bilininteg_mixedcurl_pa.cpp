@@ -813,7 +813,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                                      *mesh->GetTypicalElementTransformation());
 
    auto map_type = eltest->GetMapType();
-   
+
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2, "");
 
@@ -845,20 +845,22 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    if (dim == 2)
    {
-      switch (map_type) {
-      case FiniteElement::VALUE:
-        internal::PAHcurlL2Setup2D(quad1D, ne, ir->GetWeights(), coeff,
-                                   pa_data);
-        break;
-      case FiniteElement::INTEGRAL: {
-        const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
-        auto geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-        internal::PAHcurlL2Setup2DInt(quad1D, ne, ir->GetWeights(), coeff,
-                                      geom->detJ, pa_data);
-      } break;
-      default:
-        MFEM_ABORT("Unsupported map type");
+      switch (map_type)
+      {
+         case FiniteElement::VALUE:
+            internal::PAHcurlL2Setup2D(quad1D, ne, ir->GetWeights(), coeff,
+                                       pa_data);
+            break;
+         case FiniteElement::INTEGRAL:
+         {
+            const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                                  Device::GetDeviceMemoryType() : pa_mt;
+            auto geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
+            internal::PAHcurlL2Setup2DInt(quad1D, ne, ir->GetWeights(), coeff,
+                                          geom->detJ, pa_data);
+         } break;
+         default:
+            MFEM_ABORT("Unsupported map type");
       }
    }
    else
