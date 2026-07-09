@@ -101,6 +101,13 @@ struct QFWithScratch
         nq = nq_;
         scratch.SetScratch(nq, components_per_qp);
     }
+
+    void SetScratch(const int nq_, const int num_scratch_elem, const int components_per_qp = 1)
+    {
+        // This is a convenience method for the common case of multiple scratch vectors of the same size (at qp)
+        nq = nq_;
+        scratch.SetScratch(nq, std::vector<int>(num_scratch_elem, components_per_qp));
+    }
 };
 
 // Global qf with splitting and scratch space.
@@ -184,6 +191,8 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratch
                     "unexpected number of quadrature points");
  
         // scratch[0]: scalar scratch (1 component per qp) -> will hold x^3
+        // @note: need to add a check on the vector/tensor size as it is templated on DIM,
+        // but size of scratch[1] is specified in SetScratch
         auto scratch_scalar = make_tensor_array<>(scratch[0], NQ);
         auto scratch_vector = make_tensor_array<DIM>(scratch[1], NQ);
  
@@ -329,6 +338,9 @@ TEST_CASE("dFEM Global Scratch", "[Parallel][dFEM]")
 
     // Define the cubic qfunction with scratch space
     // Requesting one scalar scratch vector
+    // Equivalent to 
+    // cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), 1, 1);
+
     CubicQFWithScratch cubic_qf;
     cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
     dop.AddDomainIntegrator<GlobalQFBackend>(
