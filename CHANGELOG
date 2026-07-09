@@ -72,6 +72,8 @@ GPU computing
 -------------
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
+- Added support for device "partial assembly" CurlInterpolator.
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
