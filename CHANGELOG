@@ -72,6 +72,14 @@ GPU computing
 -------------
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
+- Added partial assembly support for MixedScalarWeakGradientIntegrator.
+
+- Added partial assembly support for MixedDotProductIntegrator.
+
+- Added partial assembly support for MixedScalarCrossProductIntegrator.
+
+- Added partial assembly support for MixedScalarWeakCrossProductIntegrator.
+
 - Added support for device "partial assembly" CurlInterpolator.
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
