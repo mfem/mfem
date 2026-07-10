@@ -671,6 +671,20 @@ public:
                     MPI_COMM_WORLD);
    }
 
+   Operator& GetGradient(const Vector &x0) const override
+   {
+      x = x0;
+      f.UseDevice(x.UseDevice());
+      xpev.UseDevice(x.UseDevice());
+
+      op.Mult(x, f);
+      const real_t xnorm_local = x.Norml2();
+      MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
+
+      return const_cast<FDJacobian&>(*this);
+   }
+
    void Mult(const Vector &v, Vector &y) const override
    {
       // See [1] for choice of eps.
@@ -725,11 +739,11 @@ public:
 
 private:
    const Operator &op;
-   Vector x, f;
+   mutable Vector x, f;
    mutable Vector xpev;
    real_t lambda = 1.0e-6;
    real_t fixed_eps;
-   real_t xnorm;
+   mutable real_t xnorm;
 };
 
 /// @brief Find the index of a field descriptor in a vector of field descriptors.

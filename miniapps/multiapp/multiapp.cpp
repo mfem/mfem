@@ -74,8 +74,7 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         }
         else
         {
-            auto *fdj = dynamic_cast<future::FDJacobian*>(grad);
-            fdj->Update(x);
+            grad->GetGradient(x); // Update the FDJacobian with new point x
         }
         return *grad;
     }
