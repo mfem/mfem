@@ -19,11 +19,8 @@ namespace mfem
 {
 
 /// Red-black tree
-template <class ChildType> struct RBTree
+template <class ChildType> class RBTree
 {
-   // @return the node which has value immediately after node @a idx, or 0 if
-   // idx has the largest value.
-   size_t Next(size_t idx);
    /// internal use only
    void InsertFixup(size_t &root, size_t curr);
    void LeftRotate(size_t &root, size_t curr);
@@ -31,6 +28,11 @@ template <class ChildType> struct RBTree
    size_t InsertImpl(size_t &root, size_t pos, size_t curr,
                      bool check_hint = false);
    void EraseSimpleOne(size_t &root, size_t idx, int child);
+
+public:
+   // @return the node which has value immediately after node @a idx, or 0 if
+   // idx has the largest value.
+   size_t Next(size_t idx);
 
    /// insert node @a curr into tree, modifying @a root as needed. Uses @a pos
    /// as a hint for a node in the tree to start the BSP search from.

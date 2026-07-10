@@ -1192,10 +1192,12 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    {
       inst.Erase(segment);
       segment = 0;
+      offset_ = 0;
    }
    h_ptr = h_ptr_;
    h_mt = hloc;
    size_ = size;
+   flags = 0;
    if (hloc == dloc ||
        (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
    {
