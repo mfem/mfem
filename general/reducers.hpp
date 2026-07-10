@@ -527,6 +527,9 @@ template<class B, class R> struct reduction_kernel
  MemoryType::HOST_PINNED. TODO: replace with internal temporary workspace
  vectors once that's added to the memory manager.
  @tparam T value_type to operate on
+
+ This version of reduce is @deprecated, use the version without an external
+ workspace parameter instead.
  */
 template <class T, class B, class R>
 void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
