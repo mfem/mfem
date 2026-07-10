@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    // real_t lambda = 0.5769230769;
    // real_t mu = 1.0/2.6;
-   const int ref_levels = 6;
+   const int ref_levels = 5;
 
    int neumannBCIndex = 2;  // 1 based
    double neumannLoad = -5.0e-3;
@@ -689,42 +689,47 @@ int main(int argc, char *argv[])
          elsolver.FSolve();
 
          // extract the solution
-        elsolver.GetSol(u);
+         elsolver.GetSol(u);
 
          // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
 
-         StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter,
-                                           rho_min);
-
-         Array<int> all_domain_attr;
-         if (pmesh.attributes.Size() > 0)
+         mfem::Coefficient *rhs_cf = nullptr;
+         
+         if(true)
          {
-            all_domain_attr.SetSize(pmesh.attributes.Max());
-            all_domain_attr = 1;
+            rhs_cf = new StrainEnergyDensityCoefficient(&lambda_cf,&mu_cf,&u, &rho_filter, rho_min);
          }
+         else
+         {
+            Array<int> all_domain_attr;
+            if (pmesh.attributes.Size() > 0)
+            {
+               all_domain_attr.SetSize(pmesh.attributes.Max());
+               all_domain_attr = 1;
+            }
 
-         IsoLinElasticSolver::NqptUniformParameterSpace Lambda_ps(pmesh, ir, 1);
-         IsoLinElasticSolver::NqptUniformParameterSpace Mu_ps(pmesh, ir, 1);
-         mfem::QuadratureSpace qs(pmesh, ir);
+            IsoLinElasticSolver::NqptUniformParameterSpace Lambda_ps(pmesh, ir, 1);
+            IsoLinElasticSolver::NqptUniformParameterSpace Mu_ps(pmesh, ir, 1);
+            mfem::QuadratureSpace qs(pmesh, ir);
 
-         // sample lambda on the integration points
-         CoefficientVector Lambda_cv(lambda_cf, qs);
-         CoefficientVector Mu_cv(mu_cf, qs);
+            // sample lambda on the integration points
+            CoefficientVector Lambda_cv(lambda_cf, qs);
+            CoefficientVector Mu_cv(mu_cf, qs);
 
-         static constexpr int uN = 0, adjN = 2, rhoN = 3, coordsN = 1, lambdaN = 4, muN = 5;
-         std::unique_ptr<mfem::future::DifferentiableOperator> dopdRds = std::make_unique<mfem::future::DifferentiableOperator>(
-         std::vector<mfem::future::FieldDescriptor> {{ uN, &state_fes }},
-         std::vector<mfem::future::FieldDescriptor> {{adjN, &state_fes}, { rhoN, &filter_fes}, { lambdaN, &Lambda_ps}, { muN, &Mu_ps}, { coordsN, &coord_fes } },
-         pmesh);
+            static constexpr int uN = 0, adjN = 2, rhoN = 3, coordsN = 1, lambdaN = 4, muN = 5;
+            std::unique_ptr<mfem::future::DifferentiableOperator> dopdRds = std::make_unique<mfem::future::DifferentiableOperator>(
+            std::vector<mfem::future::FieldDescriptor> {{ uN, &state_fes }},
+            std::vector<mfem::future::FieldDescriptor> {{adjN, &state_fes}, { rhoN, &filter_fes}, { lambdaN, &Lambda_ps}, { muN, &Mu_ps}, { coordsN, &coord_fes } },
+            pmesh);
 
-         const auto inputs = mfem::future::tuple{ mfem::future::Gradient<uN>{},
+            const auto inputs = mfem::future::tuple{ mfem::future::Gradient<uN>{},
                                                   mfem::future::Gradient<adjN>{},
                                                   mfem::future::Value<rhoN>{},
                                                   mfem::future::Identity<lambdaN>{},
                                                   mfem::future::Identity<muN>{},
                                                   mfem::future::Gradient<coordsN>{},
                                                   mfem::future::Weight{} };
-         const auto output = mfem::future::tuple{ mfem::future::Value<rhoN>{} };
+            const auto output = mfem::future::tuple{ mfem::future::Value<rhoN>{} };
 
          std::cout<<"running qFunc"<<std::endl;
 
@@ -746,6 +751,7 @@ int main(int argc, char *argv[])
                  // u.Print();
 
          mfem::GridFunctionCoefficient rhs_cf1(&adjTimesdRdrho);
+      }
 
 
         // std::cout<<"========================================================================"<<std::endl;
@@ -756,7 +762,7 @@ int main(int argc, char *argv[])
 
 
 
-         FilterSolver->SetRHSCoefficient(&rhs_cf);
+         FilterSolver->SetRHSCoefficient(rhs_cf);
          FilterSolver->Solve();
          w_filter = *FilterSolver->GetFEMSolution();
 
@@ -1499,7 +1505,7 @@ int main(int argc, char *argv[])
       std::cout<<"grad norm = "<<globGradNorm<<" obj val: "<<ObjVal <<" | meshQualityVal: "<<meshQualityVal<<" | totalObj: "<<val<<std::endl;
 
 
-      mfem:Vector conDummy(1);  conDummy= -0.1;
+      mfem::Vector conDummy(1);  conDummy= -0.1;
       mma->Update( objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
 
       //trueOptvar.Print();
