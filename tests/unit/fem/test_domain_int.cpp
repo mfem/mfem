@@ -549,16 +549,19 @@ bool ElementContainsByHand(Mesh &mesh, int e, const Vector &pt,
     @param center Physical delta center.
     @param dir Vector delta direction.
     @param expected Output vector, resized and overwritten with the reference
-    load vector. */
+    load vector.
+    @param attr Optional element attribute restriction; zero means all
+    attributes are active. */
 void AssembleDeltaReferenceBruteForce(FiniteElementSpace &fes,
                                       const Vector &center, const Vector &dir,
-                                      Vector &expected)
+                                      Vector &expected, int attr = 0)
 {
    Mesh &mesh = *fes.GetMesh();
    std::vector<int> containing;
    std::vector<IntegrationPoint> ips;
    for (int e = 0; e < mesh.GetNE(); e++)
    {
+      if (attr != 0 && mesh.GetAttribute(e) != attr) { continue; }
       IntegrationPoint ip;
       if (ElementContainsByHand(mesh, e, center, ip))
       {
@@ -627,6 +630,83 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Shared Face)",
    const real_t ref = expected.Norml2();
    INFO("entity_type = " << entity_type << ", rhs.Norml2 = " << rhs.Norml2()
         << ", ref.Norml2 = " << ref << ", err = " << err);
+   REQUIRE(ref > 0.0);
+   REQUIRE(err / ref < 1e-12);
+}
+
+TEST_CASE("Domain Integration (Vector Delta near Shared Face)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   // The center is close to the shared face but is still in only one element.
+   Mesh mesh = DividingPlaneMesh(false, false, true);
+
+#ifdef MFEM_USE_SINGLE
+   constexpr real_t offset = 1e-3;
+#else
+   constexpr real_t offset = 1e-7;
+#endif
+   Vector x0(3);
+   x0(0) = 0.5 + offset; x0(1) = 0.5; x0(2) = 0.5;
+   Vector dir(3);
+   dir = 0.0; dir(0) = 1.0;
+
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
+   rhs.Assemble();
+
+   Vector expected;
+   AssembleDeltaReferenceBruteForce(fes, x0, dir, expected);
+
+   Vector diff(rhs);
+   diff -= expected;
+   const real_t err = diff.Norml2();
+   const real_t ref = expected.Norml2();
+   INFO("rhs.Norml2 = " << rhs.Norml2() << ", ref.Norml2 = " << ref
+        << ", err = " << err);
+   REQUIRE(ref > 0.0);
+   REQUIRE(err / ref < 1e-12);
+}
+
+TEST_CASE("Domain Integration (Vector Delta Respects Element Marker)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   Mesh mesh = DividingPlaneMesh(false, true, true);
+   REQUIRE(mesh.attributes.Max() == 2);
+
+   Vector x0(3);
+   x0(0) = 0.5; x0(1) = 0.5; x0(2) = 0.5;
+   Vector dir(3);
+   dir = 0.0; dir(0) = 1.0;
+
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   Array<int> attr_marker(mesh.attributes.Max());
+   attr_marker = 0;
+   attr_marker[0] = 1;
+
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc), attr_marker);
+   rhs.Assemble();
+
+   Vector expected;
+   AssembleDeltaReferenceBruteForce(fes, x0, dir, expected, 1);
+
+   Vector diff(rhs);
+   diff -= expected;
+   const real_t err = diff.Norml2();
+   const real_t ref = expected.Norml2();
+   INFO("rhs.Norml2 = " << rhs.Norml2() << ", ref.Norml2 = " << ref
+        << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
 }
@@ -753,7 +833,8 @@ TEST_CASE("Domain Integration (Vector Delta on Nonconforming Interface)",
    diff -= expected;
    const real_t err = diff.Norml2();
    const real_t ref = expected.Norml2();
-   INFO("entity_type = " << entity_type << ", levels = " << levels << ", rhs.Norml2 = "
+   INFO("entity_type = " << entity_type << ", levels = " << levels <<
+        ", rhs.Norml2 = "
         << rhs.Norml2() << ", ref.Norml2 = " << ref << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
@@ -835,7 +916,8 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Nonconforming Interface)",
    diff -= expected;
    const real_t err = diff.Norml2();
    const real_t ref = expected.Norml2();
-   INFO("entity_type = " << entity_type << ", levels = " << levels << ", rhs.Norml2 = "
+   INFO("entity_type = " << entity_type << ", levels = " << levels <<
+        ", rhs.Norml2 = "
         << rhs.Norml2() << ", ref.Norml2 = " << ref << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
@@ -1047,9 +1129,16 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Vertex)",
    const real_t ref_norm = ref.Norml2();
    REQUIRE(ref_norm > 0.0);
 
+   VectorFunctionCoefficient field(3, GenericField);
+   GridFunction g_serial(&fes_serial);
+   g_serial.ProjectCoefficient(field);
+   const real_t ref_action = ref * g_serial;
+
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ND_FECollection fec(1, 3);
    ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction g(&pfes);
+   g.ProjectCoefficient(field);
 
    VectorDeltaCoefficient vdc(dir, 0.0, 0.0, 0.0, 1.0);
 
@@ -1060,10 +1149,13 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Vertex)",
    Vector tv(pfes.GetTrueVSize());
    rhs.ParallelAssemble(tv);
    const real_t par_norm = GlobalLpNorm(2.0, tv.Norml2(), MPI_COMM_WORLD);
+   const real_t par_action = rhs(g);
 
    INFO("nranks = " << Mpi::WorldSize() << ", ref = " << ref_norm
-        << ", par = " << par_norm);
+        << ", par = " << par_norm << ", ref_action = " << ref_action
+        << ", par_action = " << par_action);
    REQUIRE(par_norm == MFEM_Approx(ref_norm));
+   REQUIRE(par_action == MFEM_Approx(ref_action));
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
@@ -1085,6 +1177,11 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
    const real_t ref_norm = ref.Norml2();
    REQUIRE(ref_norm > 0.0);
 
+   VectorFunctionCoefficient field(3, GenericField);
+   GridFunction g_serial(&fes_serial);
+   g_serial.ProjectCoefficient(field);
+   const real_t ref_action = ref * g_serial;
+
    const int nranks = Mpi::WorldSize();
    Array<int> part(mesh.GetNE());
    for (int e = 0; e < mesh.GetNE(); e++) { part[e] = e % nranks; }
@@ -1092,6 +1189,8 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
 
    ND_FECollection fec(1, 3);
    ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction g(&pfes);
+   g.ProjectCoefficient(field);
 
    VectorDeltaCoefficient vdc(dir, 0.0, 0.0, 0.0, 1.0);
    ParLinearForm rhs(&pfes);
@@ -1101,10 +1200,13 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
    Vector tv(pfes.GetTrueVSize());
    rhs.ParallelAssemble(tv);
    const real_t par_norm = GlobalLpNorm(2.0, tv.Norml2(), MPI_COMM_WORLD);
+   const real_t par_action = rhs(g);
 
    INFO("nranks = " << nranks << ", ref = " << ref_norm
-        << ", par = " << par_norm);
+        << ", par = " << par_norm << ", ref_action = " << ref_action
+        << ", par_action = " << par_action);
    REQUIRE(par_norm == MFEM_Approx(ref_norm));
+   REQUIRE(par_action == MFEM_Approx(ref_action));
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Face)",

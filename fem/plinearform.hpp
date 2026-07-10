@@ -119,11 +119,10 @@ public:
        the assembly will be executed on the device. */
    void Assemble();
 
-   /// Assemble delta functions, first summing containing-element counts across
-   /// ranks.
-   void AssembleDelta() override;
-
 protected:
+   /** @brief Sum marked containing-element counts across ranks. */
+   void SyncDeltaCounts(Array<int> &counts) override;
+
    /** @brief Locate delta centers in this rank's local mesh.
 
        See `LinearForm::FindDeltaCenters` for the argument contract. This

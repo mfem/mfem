@@ -19,8 +19,6 @@ Discretization improvements
   distributed uniformly by element count across all containing elements, making
   assembly independent of mesh ordering and parallel partitioning.
 
-- Extend FindPointsGSLIB to support surface meshes.
-
 - Improved FindPointsGSLIB surface mesh capability with support for simplices
   and an option to specify axis-aligned bounding box padding for near-surface
   point queries.

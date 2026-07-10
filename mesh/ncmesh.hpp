@@ -574,8 +574,9 @@ public:
        @param local_entity_vertices Element-local vertices of a vertex, edge,
        face, or the whole element.
        @param closure Output array, overwritten with a topological closure
-       neighborhood. Callers that need the exact containing set should still
-       apply a geometric containment filter. */
+       neighborhood found by an on-demand scan over leaf-element closure nodes.
+       Callers that need the exact containing set should still apply a
+       geometric containment filter. */
    void FindClosureElements(int elem, const Array<int> &local_entity_vertices,
                             Array<int> &closure);
 
@@ -807,7 +808,6 @@ protected:
    Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
-   Table node_element; ///< node-to-leaf-element closure table
 
    /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
@@ -1141,15 +1141,6 @@ protected:
                                   const Array<int> &local_entity_vertices,
                                   Array<int> &indices) const;
    void BuildElementToVertexTable();
-
-   /** @brief Build the lazy node-to-leaf-element closure table. */
-   void BuildNodeToElementTable();
-
-   /** @brief Ensure that #node_element has been built. */
-   void UpdateNodeToElementTable()
-   {
-      if (node_element.Size() < 0) { BuildNodeToElementTable(); }
-   }
 
    void UpdateElementToVertexTable()
    {

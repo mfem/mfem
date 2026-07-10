@@ -251,7 +251,6 @@ NCMesh::NCMesh(const NCMesh &other)
    , boundary_faces(other.boundary_faces)
    , face_geom(other.face_geom)
    , element_vertex(other.element_vertex)
-   , node_element(other.node_element)
    , shadow(1024, 2048)
 {
    Update();
@@ -276,7 +275,6 @@ void NCMesh::Update()
    edge_list.Clear();
 
    element_vertex.Clear();
-   node_element.Clear();
 }
 
 NCMesh::~NCMesh()
@@ -4235,23 +4233,6 @@ void NCMesh::CollectEntityClosureNodes(int elem,
    indices.Unique();
 }
 
-void NCMesh::BuildNodeToElementTable()
-{
-   Array<Connection> conn;
-   Array<int> elem_nodes;
-   for (int i = 0; i < leaf_elements.Size(); i++)
-   {
-      CollectElementClosureNodes(i, elem_nodes);
-      for (int j = 0; j < elem_nodes.Size(); j++)
-      {
-         conn.Append(Connection(elem_nodes[j], i));
-      }
-   }
-   conn.Sort();
-   conn.Unique();
-   node_element.MakeFromList(nodes.NumIds(), conn);
-}
-
 void NCMesh::FindClosureElements(int elem,
                                  const Array<int> &local_entity_vertices,
                                  Array<int> &closure)
@@ -4261,6 +4242,17 @@ void NCMesh::FindClosureElements(int elem,
 
    const Element &el = elements[leaf_elements[elem]];
    const GeomInfo &gi = GI[el.Geom()];
+   for (int j = 0; j < local_entity_vertices.Size(); j++)
+   {
+      MFEM_VERIFY(local_entity_vertices[j] >= 0 &&
+                  local_entity_vertices[j] < gi.nv,
+                  "invalid local entity vertex");
+      for (int k = j + 1; k < local_entity_vertices.Size(); k++)
+      {
+         MFEM_VERIFY(local_entity_vertices[j] != local_entity_vertices[k],
+                     "duplicate local entity vertex");
+      }
+   }
    if (local_entity_vertices.Size() == 0 ||
        local_entity_vertices.Size() >= gi.nv)
    {
@@ -4268,27 +4260,28 @@ void NCMesh::FindClosureElements(int elem,
       return;
    }
 
-   UpdateNodeToElementTable();
-
-   Array<int> entity_nodes;
+   Array<int> entity_nodes, elem_nodes;
    CollectEntityClosureNodes(elem, local_entity_vertices, entity_nodes);
-   if (entity_nodes.Size() == 0)
-   {
-      closure.Append(elem);
-      return;
-   }
+   MFEM_VERIFY(entity_nodes.Size() > 0,
+               "local_entity_vertices do not identify a mesh entity");
 
-   for (int j = 0; j < entity_nodes.Size(); j++)
+   // The number of queried delta centers is expected to be small. Scan the
+   // leaf-element closure nodes on demand instead of keeping a mesh-wide
+   // node-to-element cache with additional invalidation state.
+   for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      const int entity_node = entity_nodes[j];
-      const int *row = node_element.GetRow(entity_node);
-      for (int k = 0; k < node_element.RowSize(entity_node); k++)
+      CollectElementClosureNodes(i, elem_nodes);
+      bool intersects = false;
+      for (int j = 0; j < entity_nodes.Size(); j++)
       {
-         closure.Append(row[k]);
+         if (elem_nodes.Find(entity_nodes[j]) >= 0)
+         {
+            intersects = true;
+            break;
+         }
       }
+      if (intersects) { closure.Append(i); }
    }
-   closure.Sort();
-   closure.Unique();
 }
 
 void NCMesh::BuildElementToVertexTable()
@@ -7132,7 +7125,6 @@ void NCMesh::Trim()
 
    boundary_faces.DeleteAll();
    element_vertex.Clear();
-   node_element.Clear();
 
    ClearTransforms();
 
@@ -7184,7 +7176,6 @@ long NCMesh::MemoryUsage() const
           vertex_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
-          node_element.MemoryUsage() +
           ref_stack.MemoryUsage() +
           derefinements.MemoryUsage() +
           transforms.MemoryUsage() +
@@ -7209,7 +7200,6 @@ int NCMesh::PrintMemoryDetail() const
              << vertex_list.MemoryUsage() << " vertex_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
-             << node_element.MemoryUsage() << " node_element\n"
              << ref_stack.MemoryUsage() << " ref_stack\n"
              << derefinements.MemoryUsage() << " derefinements\n"
              << transforms.MemoryUsage() << " transforms\n"
