@@ -9,6 +9,11 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+
+# We define the following GitLab pipeline variables:
 variables:
 # Set the build-and-test command.
 # Nested variables are allowed and useful to customize the job command. We
