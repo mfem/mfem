@@ -31,9 +31,9 @@ namespace quadrature_interpolator
 {
 
 template <QVectorLayout Q_LAYOUT, bool Integral>
-static void IntValues1D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim,
-                        const int d1d, const int q1d)
+static void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim,
+                         const int d1d, const int q1d)
 {
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -72,15 +72,15 @@ template <QVectorLayout Q_LAYOUT>
 static void Values1D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim, const int d1d, const int q1d)
 {
-   IntValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
+   ImplValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 // Template compute kernel for Values in 2D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0, int T_NBZ = 1>
-static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim = 0,
-                        const int d1d = 0, const int q1d = 0)
+static void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim = 0,
+                         const int d1d = 0, const int q1d = 0)
 {
    static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
@@ -159,16 +159,16 @@ static void Values2D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim = 0, const int d1d = 0,
                      const int q1d = 0)
 {
-   return IntValues2D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
+   return ImplValues2D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
              NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 // Template compute kernel for Values in 3D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0>
-static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim = 0,
-                        const int d1d = 0, const int q1d = 0)
+static void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim = 0,
+                         const int d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -251,23 +251,23 @@ static void Values3D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim = 0, const int d1d = 0,
                      const int q1d = 0)
 {
-   return IntValues3D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D>(
+   return ImplValues3D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D>(
              NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 template <bool Integral>
-void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const real_t *detJ, const GeometricFactors *geom,
-               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-               Vector &q_der, Vector &q_det, const int eval_flags);
+void ImplEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
+                const real_t *detJ, const GeometricFactors *geom,
+                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+                Vector &q_der, Vector &q_det, const int eval_flags);
 
 inline void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const GeometricFactors *geom, const DofToQuad &maps,
                    const Vector &e_vec, Vector &q_val, Vector &q_der, Vector &q_det,
                    const int eval_flags)
 {
-   IntEval1D<false>(NE, vdim, q_layout, nullptr, geom, maps, e_vec, q_val,
-                    q_der, q_det, eval_flags);
+   ImplEval1D<false>(NE, vdim, q_layout, nullptr, geom, maps, e_vec, q_val,
+                     q_der, q_det, eval_flags);
 }
 
 // Template compute kernel for 2D quadrature interpolation:
@@ -275,11 +275,11 @@ inline void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <bool Integral, const int T_VDIM, const int T_ND, const int T_NQ>
-static void
-IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
-          const real_t *detJ_, const GeometricFactors *geom,
-          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-          Vector &q_der, Vector &q_det, const int eval_flags)
+static void ImplEval2D(const int NE, const int vdim,
+                       const QVectorLayout q_layout, const real_t *detJ_,
+                       const GeometricFactors *geom, const DofToQuad &maps,
+                       const Vector &e_vec, Vector &q_val, Vector &q_der,
+                       Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -293,6 +293,12 @@ IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 2, "");
    MFEM_VERIFY(ND <= QI::MAX_ND2D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ2D, "");
+   if constexpr(Integral)
+   {
+      MFEM_VERIFY(!(eval_flags & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES |
+                                  QI::DETERMINANTS)),
+                  "Integral FE does not support computing derivatives");
+   }
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 2, 2, NE);
@@ -449,8 +455,9 @@ static void Eval2D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const Vector &e_vec, Vector &q_val, Vector &q_der,
                    Vector &q_det, const int eval_flags)
 {
-   IntEval2D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom, maps,
-                                        e_vec, q_val, q_der, q_det, eval_flags);
+   ImplEval2D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom,
+                                         maps, e_vec, q_val, q_der, q_det,
+                                         eval_flags);
 }
 
 // Template compute kernel for 3D quadrature interpolation:
@@ -458,11 +465,11 @@ static void Eval2D(const int NE, const int vdim, const QVectorLayout q_layout,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <bool Integral, const int T_VDIM, const int T_ND, const int T_NQ>
-static void
-IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
-          const real_t *detJ_, const GeometricFactors *geom,
-          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-          Vector &q_der, Vector &q_det, const int eval_flags)
+static void ImplEval3D(const int NE, const int vdim,
+                       const QVectorLayout q_layout, const real_t *detJ_,
+                       const GeometricFactors *geom, const DofToQuad &maps,
+                       const Vector &e_vec, Vector &q_val, Vector &q_der,
+                       Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -477,6 +484,12 @@ IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_VERIFY(ND <= QI::MAX_ND3D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ3D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & QI::DETERMINANTS), "");
+   if constexpr(Integral)
+   {
+      MFEM_VERIFY(!(eval_flags & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES |
+                                  QI::DETERMINANTS)),
+                  "Integral FE does not support computing derivatives");
+   }
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 3, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 3, 3, NE);
@@ -635,8 +648,9 @@ static void Eval3D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const Vector &e_vec, Vector &q_val, Vector &q_der,
                    Vector &q_det, const int eval_flags)
 {
-   IntEval3D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom, maps,
-                                        e_vec, q_val, q_der, q_det, eval_flags);
+   ImplEval3D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom,
+                                         maps, e_vec, q_val, q_der, q_det,
+                                         eval_flags);
 }
 
 } // namespace quadrature_interpolator
@@ -649,9 +663,9 @@ template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D, int NBZ>
 QuadratureInterpolator::IntTensorEvalKernelType
 QuadratureInterpolator::IntTensorEvalKernels::Kernel()
 {
-   if constexpr (DIM == 1) { return internal::quadrature_interpolator::IntValues1D<Q_LAYOUT, true>; }
-   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::IntValues2D<Q_LAYOUT, true, VDIM, D1D, Q1D, NBZ>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::IntValues3D<Q_LAYOUT, true, VDIM, D1D, Q1D>; }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::ImplValues1D<Q_LAYOUT, true>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::ImplValues2D<Q_LAYOUT, true, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::ImplValues3D<Q_LAYOUT, true, VDIM, D1D, Q1D>; }
    MFEM_ABORT("");
 }
 
@@ -670,9 +684,9 @@ QuadratureInterpolator::IntEvalKernelType
 QuadratureInterpolator::IntEvalKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
-   if constexpr (DIM == 1) { return IntEval1D<true>; }
-   else if constexpr (DIM == 2) { return IntEval2D<true,VDIM,ND,NQ>; }
-   else if constexpr (DIM == 3) { return IntEval3D<true,VDIM,ND,NQ>; }
+   if constexpr (DIM == 1) { return ImplEval1D<true>; }
+   else if constexpr (DIM == 2) { return ImplEval2D<true,VDIM,ND,NQ>; }
+   else if constexpr (DIM == 3) { return ImplEval3D<true,VDIM,ND,NQ>; }
    MFEM_ABORT("");
 }
 
