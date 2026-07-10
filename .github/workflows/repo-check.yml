@@ -13,6 +13,7 @@ name: "Checks"
 
 permissions:
   actions: write
+  pull-requests: read
 
 on:
   push:
@@ -139,7 +140,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: check branch-history override
+        id: branch_history_override
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            labels=$(jq -r '.pull_request.labels[]?.name' "$GITHUB_EVENT_PATH")
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            labels=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$GITHUB_REF_NAME" \
+              --state open \
+              --json labels \
+              --jq '.[] | .labels[].name')
+          else
+            labels=""
+          fi
+          if grep -Fxq "skip-branch-history" <<< "$labels"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: branch-history
+        if: steps.branch_history_override.outputs.skip != 'true'
         run: |
           # We override origin to make sure we point to the main repo.
           # This is to have consistent test results on PRs from forks.
