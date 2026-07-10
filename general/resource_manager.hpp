@@ -682,7 +682,7 @@ public:
                MFEM_MEM_OP_DEBUG_REMOVE2(
                   1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                   "dealloc " << (int)seg.mtypes[1] << ", "
-                  << seg.ITemporary());
+                  << seg.IsTemporary());
                inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
                             seg.IsTemporary());
                inst.segment_maps[1].erase(seg.lowers[1]);
