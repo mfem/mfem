@@ -53,6 +53,9 @@
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
+// Surface meshes + bounding box size increase:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+//    mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -102,6 +105,7 @@ int main (int argc, char *argv[])
    int randomization     = 0;
    int npt               = 100; //points per proc
    bool surface          = false;
+   double surf_aabb_sz_inc = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -145,7 +149,9 @@ int main (int argc, char *argv[])
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
-
+   args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
+                  "Absolute AABB expansion applied to surface-search "
+                  "axis-aligned bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -343,7 +349,7 @@ int main (int argc, char *argv[])
             Geometry::GetRandomPoint(geom, ip);
             if (j < npt_face_per_elem)
             {
-               ip.x = 0.0; // force point to be on the face
+               ip.x = 0.0; // force point to be on a face
                npt_total_face++;
             }
             Vector pos_i(sdim);
@@ -373,8 +379,17 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(pmesh);
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   FindPointsGSLIB finder;
+   if (surface && surf_aabb_sz_inc > 0.0)
+   {
+      Vector bb_size({surf_aabb_sz_inc});
+      finder.SetupSurfWithAABBExpansion(pmesh, bb_size);
+   }
+   else
+   {
+      finder.Setup(pmesh);
+   }
+   // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
@@ -456,9 +471,10 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts << " out of "
            << npt_total_face
            << "\nMax interp error:     " << max_error
-           << "\nMax dist (of found):  " << max_dist
+           << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
+
 
    delete fec;
 
