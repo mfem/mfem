@@ -63,6 +63,7 @@ dane-build-and-test:
     # interface (project variables).
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [dane-up-check, generate-job-lists]
   extends: [.dane, .build-and-test]
   trigger:
@@ -98,6 +99,7 @@ dane-baseline:
     # .gitlab-ci.yml.
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   trigger:
     include: .gitlab/dane-baseline.yml
     strategy: depend
@@ -119,6 +121,7 @@ tioga-build-and-test:
     # interface (project variables).
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [tioga-up-check, generate-job-lists]
   extends: [.tioga, .build-and-test]
   trigger:
@@ -153,6 +156,7 @@ matrix-build-and-test:
     # interface (project variables).
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [matrix-up-check, generate-job-lists]
   extends: [.matrix, .build-and-test]
   trigger:
