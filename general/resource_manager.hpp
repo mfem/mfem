@@ -1197,7 +1197,7 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    h_ptr = h_ptr_;
    h_mt = hloc;
    size_ = size;
-   flags = 0;
+   flags = NONE;
    if (hloc == dloc ||
        (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
    {
