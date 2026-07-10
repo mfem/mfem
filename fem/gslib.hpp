@@ -325,22 +325,22 @@ protected:
    void findptsedge_setup_2(DEV_STRUCT &devs,
                             const double *const elx[2],
                             const unsigned n,
-                            const uint nel,
+                            const unsigned int nel,
                             const unsigned m,
                             const double bbox_rel_size_inc,
-                            const uint local_hash_size,
-                            const uint global_hash_size,
+                            const unsigned int local_hash_size,
+                            const unsigned int global_hash_size,
                             const Vector *aabb_sz_inc);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
    void findptssurf_setup_3(DEV_STRUCT &devs,
                             const double *const elx[3],
                             const unsigned n,
-                            const uint nel,
+                            const unsigned int nel,
                             const unsigned m,
                             const double bbox_rel_size_inc,
-                            const uint local_hash_size,
-                            const uint global_hash_size,
+                            const unsigned int local_hash_size,
+                            const unsigned int global_hash_size,
                             const int rD,
                             const Vector *aabb_sz_inc);
 
