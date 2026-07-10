@@ -58,7 +58,7 @@ constexpr bool mfem_use_gpu = true;
 #define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
                                              OY, OZ)                           \
    if (int ix = threadIdx.k % (OX), iy = threadIdx.k / (OX), iz = iy / (OY);   \
-       (ix < (SX)) && ((iy %= (OY)) < SY) && (iz < (SZ)))
+       (ix < (SX)) && ((iy %= (OY)) < (SY)) && (iz < (SZ)))
 #endif // defined(__CUDA_ARCH__)
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
