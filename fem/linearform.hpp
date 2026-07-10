@@ -90,11 +90,22 @@ protected:
       domain_delta_integs_count.SetSize(0);
    }
 
-   /// Locate an element containing each delta center, returning the element
-   /// ids and reference points (-1 where a center is not found). The base
-   /// performs a geometric point search over the form's mesh.
+   /** @brief Locate an anchor element containing each delta center.
+
+       @param centers Matrix of delta centers with `SpaceDimension()` rows and
+       one column per domain delta integrator.
+       @param elem_ids Output element id for each center, or -1 when a center is
+       not found in the mesh.
+       @param ips Output reference point for each center in the corresponding
+       entry of @a elem_ids.
+       @param warn If true, pass warning requests through to `Mesh::FindPoints`.
+
+       The base implementation performs a geometric point search over this
+       form's mesh. It inherits the limitations of `Mesh::FindPoints`, which is
+       not guaranteed to find every point that lies in an element. */
    virtual void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
-                                 Array<IntegrationPoint> &ips);
+                                 Array<IntegrationPoint> &ips,
+                                 bool warn = false);
 
    /// Compute containing elements, reference points, and split counts for all
    /// domain delta integrators.

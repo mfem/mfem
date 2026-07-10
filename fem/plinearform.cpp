@@ -68,9 +68,9 @@ void ParLinearForm::AssembleDelta()
 }
 
 void ParLinearForm::FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
-                                     Array<IntegrationPoint> &ips)
+                                     Array<IntegrationPoint> &ips, bool warn)
 {
-   pfes->GetParMesh()->Mesh::FindPoints(centers, elem_ids, ips, false);
+   pfes->GetParMesh()->Mesh::FindPoints(centers, elem_ids, ips, warn);
 }
 
 

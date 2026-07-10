@@ -124,9 +124,15 @@ public:
    void AssembleDelta() override;
 
 protected:
-   /// Locate delta centers in this rank's local mesh.
+   /** @brief Locate delta centers in this rank's local mesh.
+
+       See `LinearForm::FindDeltaCenters` for the argument contract. This
+       override intentionally calls the serial `Mesh::FindPoints` on the local
+       `ParMesh` partition so that each rank can assemble its local containing
+       elements before the split counts are summed across ranks. */
    void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
-                         Array<IntegrationPoint> &ips) override;
+                         Array<IntegrationPoint> &ips,
+                         bool warn = false) override;
 
 public:
 

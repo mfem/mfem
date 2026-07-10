@@ -21,16 +21,19 @@ namespace mfem
 namespace
 {
 
-// Local vertices with nonzero linear shape values identify the mesh entity
-// containing the point.
-constexpr real_t kEntityTol = 1e-6;
+/** @brief Return local vertices of the mesh entity containing @a ip.
 
-// Physical-space tolerance for the nonconforming containment filter.
-constexpr real_t kContainTol = 1e-9;
-
+    @param geom Element geometry used to select the linear nodal element.
+    @param ip Reference-space point in the element.
+    @param active Output array, overwritten with the local vertex numbers whose
+    linear shape values are nonzero above a small reference-space tolerance. */
 void ActiveEntityVertices(Geometry::Type geom, const IntegrationPoint &ip,
                           Array<int> &active)
 {
+   // Local vertices with nonzero linear shape values identify the mesh entity
+   // containing the point.
+   constexpr real_t entity_tol = 1e-6;
+
    static const LinearFECollection nodal_fec;
    const FiniteElement &fe = *nodal_fec.FiniteElementForGeometry(geom);
    Vector shape(fe.GetDof());
@@ -38,7 +41,7 @@ void ActiveEntityVertices(Geometry::Type geom, const IntegrationPoint &ip,
    active.SetSize(0);
    for (int i = 0; i < shape.Size(); i++)
    {
-      if (shape(i) > kEntityTol) { active.Append(i); }
+      if (shape(i) > entity_tol) { active.Append(i); }
    }
 }
 
@@ -392,9 +395,9 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 }
 
 void LinearForm::FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
-                                  Array<IntegrationPoint> &ips)
+                                  Array<IntegrationPoint> &ips, bool warn)
 {
-   fes->GetMesh()->FindPoints(centers, elem_ids, ips, false);
+   fes->GetMesh()->FindPoints(centers, elem_ids, ips, warn);
 }
 
 void LinearForm::ComputeDeltaLocations()
@@ -419,14 +422,15 @@ void LinearForm::ComputeDeltaLocations()
    // Find an element containing each center (see FindDeltaCenters).
    Array<int> anchor_elem_id;
    Array<IntegrationPoint> anchor_ip;
-   FindDeltaCenters(centers, anchor_elem_id, anchor_ip);
+   FindDeltaCenters(centers, anchor_elem_id, anchor_ip, false);
 
    domain_delta_integs_elems.assign(ndi, std::set<int> {});
    domain_delta_integs_ips.assign(ndi, std::map<int, IntegrationPoint> {});
    domain_delta_integs_count.SetSize(ndi);
 
    // On conforming meshes, containing elements share all vertices of the
-   // active entity. This avoids relying on Inside() for boundary points.
+   // active entity. This avoids relying on TransformResult::Inside for
+   // boundary points.
    if (mesh->Conforming())
    {
       std::unique_ptr<Table> vte(mesh->GetVertexToElementTable());
@@ -496,6 +500,7 @@ void LinearForm::ComputeDeltaLocations()
    {
       // Use NCMesh closure nodes to bridge master/slave interfaces where a
       // hanging vertex is not a coarse element corner.
+      constexpr real_t contain_tol = 1e-9;
       const int ne = mesh->GetNE();
       InverseElementTransformation inv_tr;
       Vector pt(sdim), mapped(sdim);
@@ -526,7 +531,7 @@ void LinearForm::ComputeDeltaLocations()
             inv_tr.Transform(pt, ip_e);
             Trans.Transform(ip_e, mapped);
             mapped -= pt;
-            if (mapped.Norml2() > kContainTol) { continue; }
+            if (mapped.Norml2() > contain_tol) { continue; }
             elems.insert(e);
             ips[e] = ip_e;
          }

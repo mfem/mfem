@@ -15,9 +15,9 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
-- DeltaCoefficient sources whose center lies on a shared mesh entity are
+- DeltaCoefficient sources with center lying on a shared mesh entity are
   distributed uniformly by element count across all containing elements, making
-  assembly independent of mesh ordering and partitioning.
+  assembly independent of mesh ordering and parallel partitioning.
 
 - Extend FindPointsGSLIB to support surface meshes.
 

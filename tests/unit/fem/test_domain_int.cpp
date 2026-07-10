@@ -246,8 +246,10 @@ TEST_CASE("Domain Integration (Vector Field)",
 // Delta-coefficient domain integrators. A delta on a shared mesh entity is
 // split uniformly over the elements containing its center.
 
-// Single hex split into 24 tets, translated so the hex center -- a vertex
-// shared by all 24 tets -- sits at the origin.
+/** @brief Return a 3D mesh of one hex split into 24 tetrahedra.
+
+    The mesh is translated so that the hex center, a vertex shared by all 24
+    tetrahedra, is located at the origin. */
 Mesh MakeCenteredHex24Tets()
 {
    Mesh mesh = Mesh::MakeCartesian3DWith24TetsPerHex(1, 1, 1, 2.0, 2.0, 2.0);
@@ -261,8 +263,10 @@ Mesh MakeCenteredHex24Tets()
    return mesh;
 }
 
-// A linear vector field not in the lowest-order Nedelec space, so its ND
-// projection has a discontinuous normal trace across element faces.
+/** @brief Evaluate a 3D linear vector field used by the delta tests.
+
+    The field is not in the lowest-order Nedelec space, so its ND projection has
+    a discontinuous normal trace across element faces. */
 void GenericField(const Vector &x, Vector &v)
 {
    v.SetSize(3);
@@ -271,11 +275,13 @@ void GenericField(const Vector &x, Vector &v)
    v(2) = 0.3 + 0.5 * x(2) + 0.2 * x(0) - 0.35 * x(1);
 }
 
+/** @brief Evaluate the 3D scalar linear field used by scalar delta tests. */
 real_t ScalarLinearField(const Vector &x)
 {
    return 0.25 + 0.5 * x(0) - 0.125 * x(1) + 0.75 * x(2);
 }
 
+/** @brief Return the index of the vertex located at the origin, or -1. */
 int FindOriginVertex(const Mesh &mesh)
 {
    for (int v = 0; v < mesh.GetNV(); v++)
@@ -290,9 +296,16 @@ int FindOriginVertex(const Mesh &mesh)
    return -1;
 }
 
-// Reference load vector from uniformly distributing a vector delta at the
-// origin across every element that contains it (weight 1/N per element).
-void AssembleUniformReference(FiniteElementSpace &fes, const Vector &dir,
+/** @brief Assemble a reference vector delta at the origin.
+
+    The reference uniformly distributes the vector delta over every element
+    sharing the origin vertex, using weight 1/N per element.
+
+    @param fes Finite element space on the 3D test mesh. Not modified.
+    @param dir Vector delta direction.
+    @param expected Output vector, resized and overwritten with the reference
+    load vector. */
+void AssembleUniformReference(const FiniteElementSpace &fes, const Vector &dir,
                               Vector &expected)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -349,11 +362,10 @@ TEST_CASE("Domain Integration (Vector Delta on Shared Vertex)",
    Vector dir(3);
    dir = 0.0;
    dir[2] = 1.0;
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+   VectorDeltaCoefficient vdc(dir, 0.0, 0.0, 0.0, 1.0);
 
    LinearForm rhs(&fes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector expected;
@@ -367,8 +379,6 @@ TEST_CASE("Domain Integration (Vector Delta on Shared Vertex)",
         << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
-
-   delete vdc;
 }
 
 // A vector delta on a face shared by two elements, oriented along the face
@@ -391,10 +401,9 @@ TEST_CASE("Domain Integration (Vector Delta on Shared Face)",
    Vector dir(3);
    dir = 0.0; dir(0) = 1.0;                             // normal to the face
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
    LinearForm rhs(&fes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    VectorFunctionCoefficient Fc(3, GenericField);
@@ -424,24 +433,21 @@ TEST_CASE("Domain Integration (Vector Delta on Shared Face)",
    REQUIRE(Lg == MFEM_Approx(sym));
    REQUIRE(std::abs(Lg - side0) > 1e-4);
    REQUIRE(std::abs(Lg - side1) > 1e-4);
-
-   delete vdc;
 }
 
-// Independent oracle: distribute a vector delta uniformly over all elements
-// that geometrically contain `center`.
-// Representative delta locations on the (x=0) shared triangular face
-// {(0,0,0),(0,1,0),(0,0,1)}. After refinement makes it a master/slave
-// interface these hit the distinct entity classes: 0 a master (conforming)
-// vertex, 1 a hanging vertex (edge midpoint), 2 a hanging sub-edge on a coarse
-// edge, 3 an interior hanging edge between two slave sub-faces, 4 a corner
-// slave sub-face interior (shares one master vertex), 5 the center slave
-// sub-face interior (corners all hanging, no shared master vertex).
-Vector SharedFacePoint(int which)
+/** @brief Return representative points on the triangular shared face.
+
+    The shared face is `(x=0)` with vertices `{(0,0,0),(0,1,0),(0,0,1)}`.
+    After refinement makes it a master/slave interface, the selected points
+    exercise distinct entity classes: 0 a master/conforming vertex, 1 a hanging
+    vertex (edge midpoint), 2 a hanging sub-edge on a coarse edge, 3 an interior
+    hanging edge between two slave sub-faces, 4 a corner slave sub-face interior,
+    and 5 the center slave sub-face interior. */
+Vector SharedFacePoint(int entity_type)
 {
    Vector p(3);
    p = 0.0;
-   switch (which)
+   switch (entity_type)
    {
       case 0:  p(1) = 0.0;       p(2) = 0.0;       break;
       case 1:  p(1) = 0.5;       p(2) = 0.0;       break;
@@ -453,8 +459,15 @@ Vector SharedFacePoint(int which)
    return p;
 }
 
-// Independent containment check from element vertices: barycentric coordinates
-// for tetrahedra and bounding boxes for the test hexes.
+/** @brief Check whether a point is contained in a 3D test element.
+
+    The independent check uses barycentric coordinates for tetrahedra and
+    bounding boxes for the axis-aligned test hexahedra.
+
+    @param mesh Mesh containing element @a e. Not modified.
+    @param e Element index.
+    @param pt Physical point to test.
+    @param ip Output reference point when the element geometry is supported. */
 bool ElementContainsByHand(Mesh &mesh, int e, const Vector &pt,
                            IntegrationPoint &ip)
 {
@@ -464,8 +477,8 @@ bool ElementContainsByHand(Mesh &mesh, int e, const Vector &pt,
    const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
    if (geom == Geometry::TETRAHEDRON)
    {
-      // Barycentric coordinates by Cramer's rule: solve [c0 c1 c2] lam = pt-v0
-      // with columns ck = v_{k+1} - v0. lam are the reference coordinates.
+      // Barycentric coordinates by Cramer's rule: solve [c0 c1 c2] l = pt-v0
+      // with columns ck = v_{k+1} - v0. l are the reference coordinates.
       const real_t *v0 = mesh.GetVertex(v[0]);
       real_t c[3][3], b[3];
       for (int d = 0; d < 3; d++)
@@ -527,6 +540,16 @@ bool ElementContainsByHand(Mesh &mesh, int e, const Vector &pt,
    return false;
 }
 
+/** @brief Assemble an independent vector-delta reference by brute force.
+
+    Every element is checked geometrically with `ElementContainsByHand`; the
+    vector delta is then distributed uniformly over the containing elements.
+
+    @param fes Finite element space on the 3D test mesh.
+    @param center Physical delta center.
+    @param dir Vector delta direction.
+    @param expected Output vector, resized and overwritten with the reference
+    load vector. */
 void AssembleDeltaReferenceBruteForce(FiniteElementSpace &fes,
                                       const Vector &center, const Vector &dir,
                                       Vector &expected)
@@ -571,10 +594,10 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Shared Face)",
           "[DeltaCoefficient]")
 {
    // Two hexahedra sharing a face (a unit cube split in X at x=0.5).
-   const int which = GENERATE(0, 1, 2);
+   const int entity_type = GENERATE(0, 1, 2);
    Vector x0(3);
    x0(0) = 0.5;
-   switch (which)
+   switch (entity_type)
    {
       case 0:  x0(1) = 0.5;  x0(2) = 0.5;  break;  // face centroid
       case 1:  x0(1) = 0.5;  x0(2) = 0.0;  break;  // shared-face edge midpoint
@@ -590,10 +613,9 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Shared Face)",
    ND_FECollection fec(1, 3);
    FiniteElementSpace fes(&mesh, &fec);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
    LinearForm rhs(&fes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector expected;
@@ -603,12 +625,10 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Shared Face)",
    diff -= expected;
    const real_t err = diff.Norml2();
    const real_t ref = expected.Norml2();
-   INFO("which = " << which << ", rhs.Norml2 = " << rhs.Norml2()
+   INFO("entity_type = " << entity_type << ", rhs.Norml2 = " << rhs.Norml2()
         << ", ref.Norml2 = " << ref << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
-
-   delete vdc;
 }
 
 TEST_CASE("Domain Integration (RT Vector Delta on Shared Face)",
@@ -649,10 +669,10 @@ TEST_CASE("Domain Integration (Scalar Delta on Shared Entity)",
           "[LinearForm]"
           "[DeltaCoefficient]")
 {
-   const int which = GENERATE(0, 1, 2);
+   const int entity_type = GENERATE(0, 1, 2);
    Vector x0(3);
    x0(0) = 0.5;
-   switch (which)
+   switch (entity_type)
    {
       case 0:  x0(1) = 0.5;  x0(2) = 0.5;  break;  // face centroid
       case 1:  x0(1) = 0.5;  x0(2) = 0.0;  break;  // edge midpoint
@@ -675,7 +695,7 @@ TEST_CASE("Domain Integration (Scalar Delta on Shared Entity)",
    GridFunction g(&fes);
    g.ProjectCoefficient(q);
 
-   INFO("which = " << which << ", rhs(g) = " << rhs(g)
+   INFO("entity_type = " << entity_type << ", rhs(g) = " << rhs(g)
         << ", exact = " << ScalarLinearField(x0));
    REQUIRE(rhs(g) == MFEM_Approx(ScalarLinearField(x0)));
 }
@@ -687,10 +707,10 @@ TEST_CASE("Domain Integration (Vector Delta on Nonconforming Interface)",
 {
    // Refine the shared face at representative vertex, edge, and sub-face
    // locations, then compare with the brute-force reference.
-   const int which = GENERATE(0, 1, 2, 3, 4, 5);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4, 5);
    const int levels = GENERATE(1, 2);
 
-   const Vector x0 = SharedFacePoint(which);
+   const Vector x0 = SharedFacePoint(entity_type);
    Vector dir(3);
    dir = 0.0; dir(0) = 1.0;
 
@@ -721,10 +741,9 @@ TEST_CASE("Domain Integration (Vector Delta on Nonconforming Interface)",
    ND_FECollection fec(1, 3);
    FiniteElementSpace fes(&mesh, &fec);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
    LinearForm rhs(&fes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector expected;
@@ -734,25 +753,24 @@ TEST_CASE("Domain Integration (Vector Delta on Nonconforming Interface)",
    diff -= expected;
    const real_t err = diff.Norml2();
    const real_t ref = expected.Norml2();
-   INFO("which = " << which << ", levels = " << levels << ", rhs.Norml2 = "
+   INFO("entity_type = " << entity_type << ", levels = " << levels << ", rhs.Norml2 = "
         << rhs.Norml2() << ", ref.Norml2 = " << ref << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
-
-   delete vdc;
 }
 
-// Representative delta locations on the (x=0.5) shared quadrilateral face of
-// the two-hex mesh. After refinement makes it a master/slave interface these
-// hit the distinct entity classes: 0 a master (conforming) vertex, 1 a hanging
-// vertex (edge midpoint), 2 a hanging vertex at the face center (shared by all
-// four slave sub-faces), 3 a hanging sub-edge on a coarse edge, 4 an interior
-// hanging edge, 5 a slave sub-face interior.
-Vector HexSharedFacePoint(int which)
+/** @brief Return representative points on the hexahedral shared face.
+
+    The shared face is `(x=0.5)` in the two-hex mesh. After refinement makes it
+    a master/slave interface, the selected points exercise distinct entity
+    classes: 0 a master/conforming vertex, 1 a hanging vertex on a coarse edge,
+    2 the hanging face-center vertex, 3 a hanging sub-edge on a coarse edge, 4
+    an interior hanging edge, and 5 a slave sub-face interior. */
+Vector HexSharedFacePoint(int entity_type)
 {
    Vector p(3);
    p(0) = 0.5;
-   switch (which)
+   switch (entity_type)
    {
       case 0:  p(1) = 0.0;  p(2) = 0.0;  break;
       case 1:  p(1) = 0.5;  p(2) = 0.0;  break;
@@ -771,10 +789,10 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Nonconforming Interface)",
 {
    // Refine the shared quad face at representative vertex, edge, and sub-face
    // locations, then compare with the brute-force reference.
-   const int which = GENERATE(0, 1, 2, 3, 4, 5);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4, 5);
    const int levels = GENERATE(1, 2);
 
-   const Vector x0 = HexSharedFacePoint(which);
+   const Vector x0 = HexSharedFacePoint(entity_type);
    Vector dir(3);
    dir = 0.0; dir(0) = 1.0;
 
@@ -805,10 +823,9 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Nonconforming Interface)",
    ND_FECollection fec(1, 3);
    FiniteElementSpace fes(&mesh, &fec);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
    LinearForm rhs(&fes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector expected;
@@ -818,12 +835,10 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Nonconforming Interface)",
    diff -= expected;
    const real_t err = diff.Norml2();
    const real_t ref = expected.Norml2();
-   INFO("which = " << which << ", levels = " << levels << ", rhs.Norml2 = "
+   INFO("entity_type = " << entity_type << ", levels = " << levels << ", rhs.Norml2 = "
         << rhs.Norml2() << ", ref.Norml2 = " << ref << ", err = " << err);
    REQUIRE(ref > 0.0);
    REQUIRE(err / ref < 1e-12);
-
-   delete vdc;
 }
 
 #ifdef MFEM_USE_MPI
@@ -1036,11 +1051,10 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Vertex)",
    ND_FECollection fec(1, 3);
    ParFiniteElementSpace pfes(&pmesh, &fec);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+   VectorDeltaCoefficient vdc(dir, 0.0, 0.0, 0.0, 1.0);
 
    ParLinearForm rhs(&pfes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector tv(pfes.GetTrueVSize());
@@ -1050,8 +1064,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Vertex)",
    INFO("nranks = " << Mpi::WorldSize() << ", ref = " << ref_norm
         << ", par = " << par_norm);
    REQUIRE(par_norm == MFEM_Approx(ref_norm));
-
-   delete vdc;
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
@@ -1081,10 +1093,9 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
    ND_FECollection fec(1, 3);
    ParFiniteElementSpace pfes(&pmesh, &fec);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, 0.0, 0.0, 0.0, 1.0);
+   VectorDeltaCoefficient vdc(dir, 0.0, 0.0, 0.0, 1.0);
    ParLinearForm rhs(&pfes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    Vector tv(pfes.GetTrueVSize());
@@ -1094,8 +1105,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
    INFO("nranks = " << nranks << ", ref = " << ref_norm
         << ", par = " << par_norm);
    REQUIRE(par_norm == MFEM_Approx(ref_norm));
-
-   delete vdc;
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Face)",
@@ -1145,17 +1154,14 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Face)",
    ParGridFunction g(&pfes);
    g.ProjectCoefficient(Fc);
 
-   VectorDeltaCoefficient *vdc =
-      new VectorDeltaCoefficient(dir, x0(0), x0(1), x0(2), 1.0);
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
    ParLinearForm rhs(&pfes);
-   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vdc));
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
    rhs.Assemble();
 
    const real_t Lg = rhs(g);
    INFO("nranks = " << nranks << ", Lg = " << Lg << ", sym_ref = " << sym_ref);
    REQUIRE(Lg == MFEM_Approx(sym_ref));
-
-   delete vdc;
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
@@ -1164,8 +1170,8 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
           "[Parallel]")
 {
    // Partition the coarse master and fine slaves onto different ranks.
-   const int which = GENERATE(0, 1, 2, 3, 4, 5);
-   const Vector x0 = SharedFacePoint(which);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4, 5);
+   const Vector x0 = SharedFacePoint(entity_type);
    Vector dir(3);
    dir = 0.0; dir(0) = 1.0;
 
@@ -1200,7 +1206,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(std::abs(serial_action) > 0.0);
+   REQUIRE(std::abs(serial_action) > 0.01);
 
    // Keep the coarse master and fine slaves on different ranks.
    const int nranks = Mpi::WorldSize();
@@ -1214,7 +1220,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("which = " << which << ", nranks = " << nranks << ", serial = "
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
         << serial_action << ", parallel = " << par_action);
    REQUIRE(par_action == MFEM_Approx(serial_action));
 }
@@ -1225,8 +1231,8 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
           "[Parallel]")
 {
    // Partition the coarse master and fine slaves onto different ranks.
-   const int which = GENERATE(0, 1, 2, 3, 4, 5);
-   const Vector x0 = HexSharedFacePoint(which);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4, 5);
+   const Vector x0 = HexSharedFacePoint(entity_type);
    Vector dir(3);
    dir = 0.0; dir(0) = 1.0;
 
@@ -1260,7 +1266,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(std::abs(serial_action) > 0.0);
+   REQUIRE(std::abs(serial_action) > 0.01);
 
    const int nranks = Mpi::WorldSize();
    real_t vmax = 0.0;
@@ -1273,7 +1279,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("which = " << which << ", nranks = " << nranks << ", serial = "
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
         << serial_action << ", parallel = " << par_action);
    REQUIRE(par_action == MFEM_Approx(serial_action));
 }
