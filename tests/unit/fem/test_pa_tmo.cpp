@@ -32,6 +32,7 @@ void ClearTmoEnv()
 {
    SetEnv("MFEM_USE_TMO_DUFFY", "0");
    SetEnv("MFEM_USE_TMO_TENSOR", "0");
+   SetEnv("MFEM_USE_TMO_BERNSTEIN", "0");
    SetEnv("MFEM_USE_TMO", "0");
 }
 
@@ -216,6 +217,68 @@ TEST_CASE("PA TMO Tensor Mass", "[PartialAssembly][TMO][Tensor][GPU]")
       test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
                        BasisType::GaussLobatto, "MFEM_USE_TMO_TENSOR");
    }
+}
+
+TEST_CASE("PA TMO Bernstein Mass", "[PartialAssembly][TMO][Bernstein][GPU]")
+{
+   // Parallelogram + tensor Bernstein B/Bt (no Duffy/Stroud). FA match is
+   // limited by Bernstein interpolation of the even extension; keep p=1.
+   const int p = 1;
+   ClearTmoEnv();
+   SetEnv("MFEM_USE_TMO_BERNSTEIN", "1");
+   CAPTURE(p);
+
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(p, 2, BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x100001b3);
+   y_fa.Randomize(0x9e3779b9);
+   y_pa = y_fa;
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW() + 6;
+   const auto *ir = &IntRules.Get(fe.GetGeomType(), order);
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   BilinearForm fa(&fes), pa(&fes);
+   fa.AddDomainIntegrator(new MassIntegrator(ir));
+   fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.AddDomainIntegrator(new MassIntegrator(ir));
+   pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+
+   fa.Mult(x, y_fa);
+   pa.Mult(x, y_pa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+
+   ClearTmoEnv();
+}
+
+TEST_CASE("PA TMO Bernstein smoke", "[PartialAssembly][TMO][Bernstein]")
+{
+   ClearTmoEnv();
+   SetEnv("MFEM_USE_TMO_BERNSTEIN", "1");
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(2, 2, BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+   BilinearForm pa(&fes);
+   pa.AddDomainIntegrator(new MassIntegrator);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   GridFunction x(&fes), y(&fes);
+   x = 1.0;
+   y = 0.0;
+   pa.Mult(x, y);
+   REQUIRE(y.Norml2() > 0.0);
+   ClearTmoEnv();
 }
 
 } // namespace pa_tmo

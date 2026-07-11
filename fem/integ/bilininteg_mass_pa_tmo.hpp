@@ -393,6 +393,195 @@ inline void SmemPAMassApplyTriangleTmoTensor(const int NE,
    });
 }
 
+// ---------------------------------------------------------------------------
+// Bernstein parallelogram TMO: even-prolong to tensor Bernstein coeffs, then
+// stock-like B/Bt sum-fac (no Duffy / Stroud).
+// ---------------------------------------------------------------------------
+
+template<int T_D1D, int T_Q1D>
+MFEM_HOST_DEVICE inline
+void SmemPAMassApplyTriangleTmoBernstein_Element(const int e,
+                                                 const int NE,
+                                                 const real_t *b_,
+                                                 const real_t *p_,
+                                                 const real_t *d_,
+                                                 const real_t *x_,
+                                                 real_t *y_,
+                                                 const int d1d,
+                                                 const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int ndof = D1D * (D1D + 1) / 2;
+   const int nqdof = D1D * D1D;
+
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+   constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
+
+   const auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto P = DeviceTensor<3, const real_t>(p_, nqdof, ndof, tmo::NMIRRORS);
+   const auto D = DeviceTensor<4, const real_t>(d_, Q1D, Q1D, tmo::NMIRRORS, NE);
+   const auto x = ConstDeviceMatrix(x_, ndof, NE);
+   auto Y = DeviceMatrix(y_, ndof, NE);
+
+   MFEM_SHARED real_t BBt[MQ1 * MD1];
+   real_t (*B)[MD1] = (real_t (*)[MD1]) BBt;
+   real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) BBt;
+   MFEM_SHARED real_t Xtri[BASIS_DIM];
+   MFEM_SHARED real_t sm0[MDQ * MDQ], sm1[MDQ * MDQ];
+   real_t (*Xq)[MD1] = (real_t (*)[MD1]) sm0;
+   real_t (*DQ)[MQ1] = (real_t (*)[MQ1]) sm1;
+   real_t (*QQ)[MQ1] = (real_t (*)[MQ1]) sm0;
+   real_t (*QD)[MD1] = (real_t (*)[MD1]) sm1;
+
+   MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
+   {
+      Xtri[i] = x(i, e);
+   }
+   MFEM_SYNC_THREAD;
+
+   for (int k = 0; k < tmo::NMIRRORS; ++k)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            const int iq = dx + D1D * dy;
+            real_t u = 0.0;
+            for (int i = 0; i < ndof; ++i)
+            {
+               u += P(iq, i, k) * Xtri[i];
+            }
+            Xq[dy][dx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, Q1D)
+         {
+            B[q][dy] = b(q, dy);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            real_t dq = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               dq += Xq[dy][dx] * B[qx][dx];
+            }
+            DQ[dy][qx] = dq;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            real_t qq = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               qq += DQ[dy][qx] * B[qy][dy];
+            }
+            QQ[qy][qx] = qq * D(qx, qy, k, e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            Bt[dx][qy] = b(qy, dx);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            real_t qd = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               qd += QQ[qy][qx] * Bt[dx][qx];
+            }
+            QD[qy][dx] = qd;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+         {
+            real_t u = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += QD[qy][dx] * Bt[dy][qy];
+            }
+            Xq[dy][dx] = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
+      {
+         real_t yi = 0.0;
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               yi += P(dx + D1D * dy, i, k) * Xq[dy][dx];
+            }
+         }
+         Y(i, e) += yi;
+      }
+      MFEM_SYNC_THREAD;
+   }
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPAMassApplyTriangleTmoBernstein(const int NE,
+                                                const Array<real_t> &b_,
+                                                const Array<real_t> &p_,
+                                                const Vector &d_,
+                                                const Vector &x_,
+                                                Vector &y_,
+                                                const int d1d = 0,
+                                                const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
+
+   const auto B = b_.Read();
+   const auto P = p_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   const int T1D = (Q1D > D1D) ? Q1D : D1D;
+   constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
+
+   mfem::forall_2D<T_T1D * T_T1D>(NE, T1D, T1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      SmemPAMassApplyTriangleTmoBernstein_Element<T_D1D, T_Q1D>(
+         e, NE, B, P, D, X, Y, d1d, q1d);
+   });
+}
+
 } // namespace internal
 
 template<int DIM, int T_D1D, int T_Q1D>
@@ -423,6 +612,22 @@ MassIntegrator::ApplyTmoTensorPAKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2, "TMO Tensor mass PA is only implemented for triangles");
    return internal::SmemPAMassApplyTriangleTmoTensor;
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+MassIntegrator::ApplyTmoBernsteinKernelType
+MassIntegrator::ApplyTmoBernsteinPAKernels::Kernel()
+{
+   MFEM_CONTRACT_VAR(DIM);
+   return internal::SmemPAMassApplyTriangleTmoBernstein<T_D1D, T_Q1D>;
+}
+
+inline MassIntegrator::ApplyTmoBernsteinKernelType
+MassIntegrator::ApplyTmoBernsteinPAKernels::Fallback(int dim, int, int)
+{
+   MFEM_VERIFY(dim == 2,
+               "TMO Bernstein mass PA is only implemented for triangles");
+   return internal::SmemPAMassApplyTriangleTmoBernstein;
 }
 
 /// \endcond DO_NOT_DOCUMENT

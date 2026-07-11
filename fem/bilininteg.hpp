@@ -2398,14 +2398,15 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   /// TMO PA mode: 0 = off, 1 = Duffy/Bernstein, 2 = Tensor/GLL even-extend
+   /// TMO PA mode: 0=off, 1=Duffy, 2=Tensor/GLL, 3=Bernstein parallelogram
    int pa_tmo = 0;
-   /// TENSOR path: even-eval map P at tensor quad pts (nq x ndof x 3)
-   Array<real_t> tmo_P;
+   /// TENSOR: even-eval P at triangle quad pts. BERNSTEIN: prolong P + 1D B
+   Array<real_t> tmo_P, tmo_B;
 
    void AssembleEA_(Vector &ea, const bool add);
    void AssemblePA_TMO_Duffy(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes);
+   void AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes);
 
 public:
 
@@ -2425,10 +2426,16 @@ public:
    /// Duffy TMO apply: same signature as simplex PA; D has 3 mirrors
    using ApplyTmoKernelType = ApplySimplexKernelType;
 
-   /// Tensor TMO apply: (NE, P, D, x, y, d1d, q1d) — P = even-eval at quad pts
+   /// Tensor TMO apply: (NE, P, D, x, y, d1d, q1d)
    using ApplyTmoTensorKernelType = void(*)(const int, const Array<real_t>&,
                                             const Vector&, const Vector&, Vector&,
                                             const int, const int);
+
+   /// Bernstein parallelogram TMO: (NE, B, P, D, x, y, d1d, q1d)
+   using ApplyTmoBernsteinKernelType = void(*)(const int, const Array<real_t>&,
+                                               const Array<real_t>&, const Vector&,
+                                               const Vector&, Vector&,
+                                               const int, const int);
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
@@ -2439,6 +2446,8 @@ public:
                                                                          int));
    MFEM_REGISTER_KERNELS(ApplyTmoPAKernels, ApplyTmoKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(ApplyTmoTensorPAKernels, ApplyTmoTensorKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTmoBernsteinPAKernels, ApplyTmoBernsteinKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2503,6 +2512,7 @@ public:
       AddSimplexSpecialization<DIM,D1D,Q1D>();
       AddTmoSpecialization<DIM,D1D,Q1D>();
       AddTmoTensorSpecialization<DIM,D1D,Q1D>();
+      AddTmoBernsteinSpecialization<DIM,D1D,Q1D>();
    }
 
    template <int DIM, int D1D, int Q1D>
@@ -2526,6 +2536,15 @@ public:
       if constexpr (DIM == 2)
       {
          ApplyTmoTensorPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTmoBernsteinSpecialization()
+   {
+      if constexpr (DIM == 2)
+      {
+         ApplyTmoBernsteinPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
