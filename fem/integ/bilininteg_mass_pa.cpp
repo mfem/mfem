@@ -33,20 +33,34 @@ bool EnvFlag(const char *name)
    return e && e[0] && e[0] != '0';
 }
 
-enum { TMO_OFF = 0, TMO_DUFFY = 1, TMO_TENSOR = 2, TMO_BERNSTEIN = 3 };
+enum
+{
+   TMO_OFF = 0,
+   TMO_DUFFY = 1,
+   TMO_TENSOR = 2,
+   TMO_BERNSTEIN = 3,
+   TMO_BERNSTEIN_DENSE = 4,
+   TMO_COMPOSITE = 5
+};
 
 int SelectTmoMode()
 {
    const bool duffy = EnvFlag("MFEM_USE_TMO_DUFFY");
    const bool tensor = EnvFlag("MFEM_USE_TMO_TENSOR");
    const bool bern = EnvFlag("MFEM_USE_TMO_BERNSTEIN");
-   const int nset = int(duffy) + int(tensor) + int(bern);
+   const bool dense = EnvFlag("MFEM_USE_TMO_BERNSTEIN_DENSE");
+   const bool composite = EnvFlag("MFEM_USE_TMO_COMPOSITE");
+   const int nset = int(duffy) + int(tensor) + int(bern) + int(dense) +
+                    int(composite);
    MFEM_VERIFY(nset <= 1,
                "Set only one of MFEM_USE_TMO_DUFFY, MFEM_USE_TMO_TENSOR, "
-               "MFEM_USE_TMO_BERNSTEIN");
+               "MFEM_USE_TMO_BERNSTEIN, MFEM_USE_TMO_BERNSTEIN_DENSE, "
+               "MFEM_USE_TMO_COMPOSITE");
    if (duffy) { return TMO_DUFFY; }
    if (tensor) { return TMO_TENSOR; }
    if (bern) { return TMO_BERNSTEIN; }
+   if (dense) { return TMO_BERNSTEIN_DENSE; }
+   if (composite) { return TMO_COMPOSITE; }
    return TMO_OFF;
 }
 
@@ -404,6 +418,219 @@ void MassIntegrator::AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes)
    }
 }
 
+void MassIntegrator::AssemblePA_TMO_BernsteinDense(const FiniteElementSpace &fes)
+{
+   dbg();
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2,
+               "MFEM_USE_TMO_BERNSTEIN_DENSE currently supports 2D triangles only");
+   MFEM_VERIFY(fes.UsesRaggedTensorBasis(),
+               "MFEM_USE_TMO_BERNSTEIN_DENSE requires Positive (Bernstein) H1");
+   MFEM_VERIFY(mesh->SpaceDimension() == 2,
+               "MFEM_USE_TMO_BERNSTEIN_DENSE requires a 2D mesh");
+
+   if (mesh->GetNodes())
+   {
+      MFEM_VERIFY(mesh->GetNodalFESpace()->GetMaxElementOrder() <= 1,
+                  "MFEM_USE_TMO_BERNSTEIN_DENSE v1 requires affine (linear) meshes");
+   }
+
+   const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetGeomType() == Geometry::TRIANGLE,
+               "MFEM_USE_TMO_BERNSTEIN_DENSE currently supports triangles only");
+   const H1Pos_TriangleElement *tel =
+      dynamic_cast<const H1Pos_TriangleElement *>(&el);
+   MFEM_VERIFY(tel, "MFEM_USE_TMO_BERNSTEIN_DENSE requires H1Pos_TriangleElement");
+
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
+   const int map_type = el.GetMapType();
+   const int p = el.GetOrder();
+   dofs1D = p + 1;
+   const int ndof = el.GetDof();
+
+   // Same as TENSOR: integrate on T via three charts φ_k (weight 1/m).
+   // Use a standard triangle rule in T — not Stroud/Duffy parameter coords
+   // (Positive FE tests often pass Stroud via IntRule).
+   const int q_order = 2 * p + T0->OrderW() + 4;
+   const IntegrationRule &ir_T = IntRules.Get(Geometry::TRIANGLE, q_order);
+   const int nq1 = ir_T.GetNPoints();
+   quad1D = nq1;
+   this->nq = internal::tmo::NMIRRORS * nq1;
+   const int nq_tmo = this->nq;
+   ne = mesh->GetNE();
+   pa_tmo = TMO_BERNSTEIN_DENSE;
+   maps = nullptr;
+   tmo_B.DeleteAll();
+
+   const real_t inv_m = real_t(1) / real_t(internal::tmo::NMIRRORS);
+   const Array<int> &dof_map = tel->GetDofMap();
+   MFEM_VERIFY(dof_map.Size() == ndof, "H1Pos dof_map size mismatch");
+   IntegrationRule ir_tmo(nq_tmo);
+   tmo_P.SetSize(nq1 * ndof * internal::tmo::NMIRRORS, mt);
+   {
+      real_t *Ph = tmo_P.HostWrite();
+      Vector shape_nat(ndof);
+      IntegrationPoint ip;
+      for (int k = 0; k < internal::tmo::NMIRRORS; k++)
+      {
+         for (int q1 = 0; q1 < nq1; q1++)
+         {
+            const IntegrationPoint &ip0 = ir_T.IntPoint(q1);
+            real_t xf, yf;
+            internal::tmo::MapSquareToParallelogram(k, ip0.x, ip0.y, xf, yf);
+            ip.Set2(xf, yf);
+            tel->CalcShape(ip, shape_nat);
+            // E-vectors for Positive/ragged PA are lexicographic; CalcShape is
+            // native. Store P columns in lex order: P(q,lex)=shape(dof_map[lex]).
+            for (int lex = 0; lex < ndof; lex++)
+            {
+               Ph[q1 + nq1 * (lex + ndof * k)] = shape_nat(dof_map[lex]);
+            }
+            const int q = q1 + nq1 * k;
+            IntegrationPoint &ipt = ir_tmo.IntPoint(q);
+            ipt.Set2(xf, yf);
+            ipt.weight = inv_m * ip0.weight;
+         }
+      }
+   }
+
+   geom = mesh->GetGeometricFactors(ir_T, GeometricFactors::DETERMINANTS, mt);
+
+   pa_data.SetSize(nq_tmo * ne, mt);
+   QuadratureSpace qs(*mesh, ir_tmo);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int NQ = nq_tmo;
+   const int NQ1 = nq1;
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   {
+      const auto W = Reshape(ir_tmo.GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ1, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
+                     : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE (int q, int e)
+      {
+         const real_t detJ = J(0, e);
+         const real_t c = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * c * (by_val ? detJ : real_t(1) / detJ);
+      });
+   }
+}
+
+void MassIntegrator::AssemblePA_TMO_Composite(const FiniteElementSpace &fes)
+{
+   dbg();
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2,
+               "MFEM_USE_TMO_COMPOSITE currently supports 2D triangles only");
+   MFEM_VERIFY(fes.UsesRaggedTensorBasis(),
+               "MFEM_USE_TMO_COMPOSITE requires Positive (Bernstein) H1");
+   MFEM_VERIFY(mesh->SpaceDimension() == 2,
+               "MFEM_USE_TMO_COMPOSITE requires a 2D mesh");
+
+   if (mesh->GetNodes())
+   {
+      MFEM_VERIFY(mesh->GetNodalFESpace()->GetMaxElementOrder() <= 1,
+                  "MFEM_USE_TMO_COMPOSITE v1 requires affine (linear) meshes");
+   }
+
+   const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetGeomType() == Geometry::TRIANGLE,
+               "MFEM_USE_TMO_COMPOSITE currently supports triangles only");
+   MFEM_VERIFY(dynamic_cast<const H1Pos_TriangleElement *>(&el),
+               "MFEM_USE_TMO_COMPOSITE requires H1Pos_TriangleElement");
+
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
+   const int map_type = el.GetMapType();
+
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : GetRule(el, el, *T0, true);
+   maps = &el.GetDofToQuad(ir, DofToQuad::RAGGED_TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   const int Q1D = quad1D;
+   const int nq1 = Q1D * Q1D;
+   MFEM_VERIFY(ir.GetNPoints() == nq1, "TMO Composite expects a tensor Stroud rule");
+   this->nq = internal::tmo::NHALVES * internal::tmo::NMIRRORS * nq1;
+   const int nq_tmo = this->nq;
+   ne = mesh->GetNE();
+   pa_tmo = TMO_COMPOSITE;
+   tmo_B.DeleteAll();
+   tmo_P.DeleteAll();
+
+   const real_t wfac = real_t(1) /
+                       real_t(internal::tmo::NHALVES * internal::tmo::NMIRRORS);
+   IntegrationRule ir_tmo(nq_tmo);
+   for (int k = 0; k < internal::tmo::NMIRRORS; k++)
+   {
+      for (int h = 0; h < internal::tmo::NHALVES; h++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            for (int i1 = 0; i1 < Q1D; i1++)
+            {
+               const int q0 = i1 + Q1D * i2;
+               const int q = i1 + Q1D * (i2 + Q1D * (h + internal::tmo::NHALVES * k));
+               const IntegrationPoint &ip0 = ir.IntPoint(q0);
+               real_t xi, eta;
+               if (h == 0)
+               {
+                  internal::tmo::MapSquareToTriangle(k, ip0.x, ip0.y, xi, eta);
+               }
+               else
+               {
+                  // Upper-half square point, folded back into T for geometry /
+                  // coefficients. Sum-fac still evaluates at Duffy (s,t).
+                  internal::tmo::EvenEvalPoint(k, real_t(1) - ip0.y,
+                                               real_t(1) - ip0.x, xi, eta);
+               }
+               IntegrationPoint &ip = ir_tmo.IntPoint(q);
+               ip.Set2(xi, eta);
+               ip.weight = wfac * ip0.weight;
+            }
+         }
+      }
+   }
+
+   geom = mesh->GetGeometricFactors(ir, GeometricFactors::DETERMINANTS, mt);
+
+   pa_data.SetSize(nq_tmo * ne, mt);
+   QuadratureSpace qs(*mesh, ir_tmo);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int NQ = nq_tmo;
+   const int NQ1 = nq1;
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   {
+      const auto W = Reshape(ir_tmo.GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ1, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
+                     : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE (int q, int e)
+      {
+         const real_t detJ = J(0, e);
+         const real_t c = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * c * (by_val ? detJ : real_t(1) / detJ);
+      });
+   }
+}
+
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    pa_tmo = TMO_OFF;
@@ -433,6 +660,22 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
                   "MFEM_USE_TMO_BERNSTEIN is only implemented for 2D triangles");
       AssemblePA_TMO_Bernstein(fes);
+      return;
+   }
+   if (mode == TMO_BERNSTEIN_DENSE)
+   {
+      dbg("[TMO BernsteinDense] AssemblePA");
+      MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
+                  "MFEM_USE_TMO_BERNSTEIN_DENSE is only implemented for 2D triangles");
+      AssemblePA_TMO_BernsteinDense(fes);
+      return;
+   }
+   if (mode == TMO_COMPOSITE)
+   {
+      dbg("[TMO Composite] AssemblePA");
+      MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
+                  "MFEM_USE_TMO_COMPOSITE is only implemented for 2D triangles");
+      AssemblePA_TMO_Composite(fes);
       return;
    }
 
@@ -582,11 +825,30 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
                              rmaps->Ba1t, rmaps->Ba2t, rmaps->Ba3t,
                              pa_data, x, y, D1D, Q1D);
    }
-   else if (pa_tmo == TMO_TENSOR)
+   else if (pa_tmo == TMO_COMPOSITE)
    {
-      dbg("[TMO Tensor] AddMultPA");
-      ApplyTmoTensorPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P,
-                                   pa_data, x, y, dofs1D, quad1D);
+      dbg("[TMO Composite] AddMultPA");
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+      ApplyTmoCompositePAKernels::Run(dim, D1D, Q1D, ne,
+                                      rmaps->lex_map,
+                                      rmaps->forward_map2d_mass,
+                                      rmaps->inverse_map2d_mass,
+                                      rmaps->forward_map3d_mass,
+                                      rmaps->inverse_map3d_mass,
+                                      rmaps->Ba1, rmaps->Ba2, rmaps->Ba3,
+                                      rmaps->Ba1t, rmaps->Ba2t, rmaps->Ba3t,
+                                      pa_data, x, y, D1D, Q1D);
+   }
+   else if (pa_tmo == TMO_TENSOR || pa_tmo == TMO_BERNSTEIN_DENSE)
+   {
+      if (pa_tmo == TMO_TENSOR) { dbg("[TMO Tensor] AddMultPA"); }
+      else { dbg("[TMO BernsteinDense] AddMultPA"); }
+      // Always use the runtime-(d1d,nq1) fallback: specialized kernels are
+      // keyed by 1D Q1D counts and can collide with triangle nq1 values.
+      internal::SmemPAMassApplyTriangleTmoTensor(ne, tmo_P, pa_data, x, y,
+                                                 dofs1D, quad1D);
    }
    else if (pa_tmo == TMO_BERNSTEIN)
    {

@@ -2398,15 +2398,18 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   /// TMO PA mode: 0=off, 1=Duffy, 2=Tensor/GLL, 3=Bernstein parallelogram
+   /// TMO PA mode: 0=off, 1=Duffy, 2=Tensor/GLL, 3=Bernstein parallelogram,
+   /// 4=Bernstein dense P, 5=Composite sum-fac halves
    int pa_tmo = 0;
-   /// TENSOR: even-eval P at triangle quad pts. BERNSTEIN: prolong P + 1D B
+   /// TENSOR / BERNSTEIN_DENSE: P at chart pts. BERNSTEIN: prolong P + 1D B
    Array<real_t> tmo_P, tmo_B;
 
    void AssembleEA_(Vector &ea, const bool add);
    void AssemblePA_TMO_Duffy(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes);
+   void AssemblePA_TMO_BernsteinDense(const FiniteElementSpace &fes);
+   void AssemblePA_TMO_Composite(const FiniteElementSpace &fes);
 
 public:
 
@@ -2445,6 +2448,8 @@ public:
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
                                                                          int));
    MFEM_REGISTER_KERNELS(ApplyTmoPAKernels, ApplyTmoKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTmoCompositePAKernels, ApplyTmoKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(ApplyTmoTensorPAKernels, ApplyTmoTensorKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplyTmoBernsteinPAKernels, ApplyTmoBernsteinKernelType,
@@ -2511,6 +2516,7 @@ public:
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       AddSimplexSpecialization<DIM,D1D,Q1D>();
       AddTmoSpecialization<DIM,D1D,Q1D>();
+      AddTmoCompositeSpecialization<DIM,D1D,Q1D>();
       AddTmoTensorSpecialization<DIM,D1D,Q1D>();
       AddTmoBernsteinSpecialization<DIM,D1D,Q1D>();
    }
@@ -2527,6 +2533,15 @@ public:
       if constexpr (DIM == 2)
       {
          ApplyTmoPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTmoCompositeSpecialization()
+   {
+      if constexpr (DIM == 2)
+      {
+         ApplyTmoCompositePAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 

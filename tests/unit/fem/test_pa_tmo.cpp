@@ -13,6 +13,7 @@
 #include "mfem.hpp"
 
 #include <cstdlib>
+#include <cstring>
 
 using namespace mfem;
 
@@ -33,6 +34,8 @@ void ClearTmoEnv()
    SetEnv("MFEM_USE_TMO_DUFFY", "0");
    SetEnv("MFEM_USE_TMO_TENSOR", "0");
    SetEnv("MFEM_USE_TMO_BERNSTEIN", "0");
+   SetEnv("MFEM_USE_TMO_BERNSTEIN_DENSE", "0");
+   SetEnv("MFEM_USE_TMO_COMPOSITE", "0");
    SetEnv("MFEM_USE_TMO", "0");
 }
 
@@ -154,7 +157,11 @@ void test_pa_tmo_mass(Mesh mesh, int p, int btype, const char *env_name)
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const auto order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
-   const IntegrationRule *ir = (btype == BasisType::Positive)
+   // Duffy/Composite/Bernstein interpolant use Stroud; Tensor & BernsteinDense
+   // need a standard triangle rule in T (not Duffy parameter coords).
+   const bool stroud = (btype == BasisType::Positive) &&
+                       (std::strcmp(env_name, "MFEM_USE_TMO_BERNSTEIN_DENSE") != 0);
+   const IntegrationRule *ir = stroud
                                ? &StroudIntRules.Get(fe.GetGeomType(), order)
                                : &IntRules.Get(fe.GetGeomType(), order);
 
@@ -279,6 +286,42 @@ TEST_CASE("PA TMO Bernstein smoke", "[PartialAssembly][TMO][Bernstein]")
    pa.Mult(x, y);
    REQUIRE(y.Norml2() > 0.0);
    ClearTmoEnv();
+}
+
+TEST_CASE("PA TMO BernsteinDense Mass", "[PartialAssembly][TMO][BernsteinDense][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+
+   SECTION("single triangle")
+   {
+      test_pa_tmo_mass(Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE), p,
+                       BasisType::Positive, "MFEM_USE_TMO_BERNSTEIN_DENSE");
+   }
+
+   SECTION("beam-tri")
+   {
+      test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
+                       BasisType::Positive, "MFEM_USE_TMO_BERNSTEIN_DENSE");
+   }
+}
+
+TEST_CASE("PA TMO Composite Mass", "[PartialAssembly][TMO][Composite][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+
+   SECTION("single triangle")
+   {
+      test_pa_tmo_mass(Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE), p,
+                       BasisType::Positive, "MFEM_USE_TMO_COMPOSITE");
+   }
+
+   SECTION("beam-tri")
+   {
+      test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
+                       BasisType::Positive, "MFEM_USE_TMO_COMPOSITE");
+   }
 }
 
 } // namespace pa_tmo
