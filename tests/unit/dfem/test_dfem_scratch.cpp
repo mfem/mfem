@@ -21,6 +21,8 @@
 
 #include "../../../linalg/tensor_arrays.hpp"
 
+#include <type_traits>
+
 using namespace std;
 using namespace mfem;
 using namespace mfem::future;
@@ -33,18 +35,68 @@ constexpr int Y = 2;
 constexpr int COEF = 3;
 constexpr int COORDINATES = 4;
 
-
-// Simple container for scratch vectors that can be used in a global qfunction. 
-// The user can add scratch vectors to the bank, and the qfunction can access them by index.
+// Scratch storage for global qfunctions. The bank supports two scratch kinds:
+// - quadrature-point scratch: real_t buffers sized as NQ * components_per_qp,
+// - global scratch: one tuple of qfunction-local temporaries, independent of
+//   NQ, used for values such as flags, scalars, or small Vector workspaces.
+template <typename... GlobalScratchTypes>
 struct ScratchBank
 {
+    //=================================
+    ///<--- Global scratch utilities.
+    //=================================
+
+    using GlobalScratchTuple = mfem::future::tuple<GlobalScratchTypes...>;
+
+    template <typename T>
+    static T MakeGlobalScratchShadow(const T &)
+    {
+        return T {};
+    }
+
+    static Vector MakeGlobalScratchShadow(const Vector &primal)
+    {
+        Vector shadow(primal.Size());
+        shadow.UseDevice(true);
+        shadow = 0.0;
+        return shadow;
+    }
+
+    template <typename Tuple, size_t... Is>
+    static auto MakeGlobalScratchShadowTuple(const Tuple &primal,
+                                             std::index_sequence<Is...>)
+    {
+        return mfem::future::make_tuple(
+            MakeGlobalScratchShadow(mfem::future::get<Is>(primal))...);
+    }
+
+    template <typename Tuple>
+    static auto MakeGlobalScratchShadowTuple(const Tuple &primal)
+    {
+        return MakeGlobalScratchShadowTuple(
+            primal, std::make_index_sequence<mfem::future::tuple_size<Tuple>::value>{});
+    }
+    
+    
+    //===========================
+    ///<--- Scratch objects
+    //===========================
+
+    // Global scratch layout (not NQ sized, used for flags, scalars, or small Vector workspaces)
+    mutable GlobalScratchTuple global;
+
+    // Quadrature-point scratch layout (NQ x components_per_qp sized)
     int nq = 0;
     std::vector<int> components;
     std::vector<int> sizes;
     std::vector<std::shared_ptr<Vector>> owned;
     std::vector<real_t *> ptrs;
 
-    // Setter methods
+
+    //===========================
+    ///<--- Setter methods
+    //===========================
+
     void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
     {
         SetScratch(nq_, std::vector<int>(components_per_qp));
@@ -78,16 +130,36 @@ struct ScratchBank
         ptrs.push_back(scratch.ReadWrite());
     }
 
+    void SetGlobalScratch(const GlobalScratchTuple &global_)
+    {
+        global = global_;
+    }
+
+    template <int I>
+    auto &Global() const
+    {
+        return mfem::future::get<I>(global);
+    }
+
+    void CloneScratchLayoutTo(ScratchBank &shadow) const
+    {
+        shadow.SetScratch(nq, components);
+        shadow.SetGlobalScratch(MakeGlobalScratchShadowTuple(global));
+    }
+
     real_t *operator[](const int i) const { return ptrs[i]; }
     int Size() const { return static_cast<int>(ptrs.size()); }
 };
 
 // Shared QF scratch base.
 // This owns the scratch bank and the shadow cloning behavior.
+template <typename... GlobalScratchTypes>
 struct QFWithScratch
 {
+    using GlobalScratchTuple = mfem::future::tuple<GlobalScratchTypes...>;
+
     int nq = 0;
-    ScratchBank scratch;
+    ScratchBank<GlobalScratchTypes...> scratch;
 
     // Exposes to the user the internal scratchbank methods
     void SetScratch(const int nq_, std::initializer_list<int> components_per_qp = {1})
@@ -108,16 +180,36 @@ struct QFWithScratch
         nq = nq_;
         scratch.SetScratch(nq, std::vector<int>(num_scratch_elem, components_per_qp));
     }
+
+    void SetGlobalScratch(const GlobalScratchTuple &global_scratch_)
+    {
+        scratch.SetGlobalScratch(global_scratch_);
+    }
+
+    template <int I>
+    auto &GlobalScratch() const
+    {
+        return scratch.template Global<I>();
+    }
+
+    void CloneScratchLayoutTo(QFWithScratch &shadow) const
+    {
+        shadow.nq = nq;
+        scratch.CloneScratchLayoutTo(shadow.scratch);
+    }
 };
+
+
+
 
 // Global qf with splitting and scratch space.
 // The user only writes operator(); the shared base handles scratch setup.
-struct CubicQFWithScratch : QFWithScratch
+struct CubicQFWithScratch : QFWithScratch<>
 {
     CubicQFWithScratch CreateShadow() const
     {
         CubicQFWithScratch shadow;
-        shadow.SetScratch(nq, scratch.components);
+        CloneScratchLayoutTo(shadow);
         return shadow;
     }
 
@@ -171,12 +263,12 @@ struct CubicQFWithScratch : QFWithScratch
 };
 
 template <int DIM>
-struct CubicQFWithScratchMultipleSizes : QFWithScratch
+struct CubicQFWithScratchMultipleSizes : QFWithScratch<>
 {
     CubicQFWithScratchMultipleSizes CreateShadow() const
     {
         CubicQFWithScratchMultipleSizes shadow;
-        shadow.SetScratch(nq, scratch.components);
+        this->CloneScratchLayoutTo(shadow);
         return shadow;
     }
 
@@ -216,6 +308,52 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratch
         }
     }
 
+};
+
+struct CubicQFWithGlobalScratch : QFWithScratch<bool, real_t, Vector>
+{
+    CubicQFWithGlobalScratch CreateShadow() const
+    {
+        CubicQFWithGlobalScratch shadow;
+        CloneScratchLayoutTo(shadow);
+        return shadow;
+    }
+
+    void operator()(tensor_array<const dscalar_t> &x,
+                    tensor_array<const dscalar_t> &coef,
+                    tensor_array<const real_t, 2, 2> &J,
+                    tensor_array<const real_t> &w,
+                    tensor_array<dscalar_t> &y) const
+    {
+        const int NQ = nq;
+        MFEM_ASSERT(NQ == static_cast<int>(x.size()),
+                    "unexpected number of quadrature points");
+
+        // Unpack the scratch vectors from the scratch bank
+        auto scratch_q = make_tensor_array<>(scratch[0], NQ);
+
+        // Unpack global scratch
+        auto &has_scale = mfem::future::get<0>(scratch.global);  // Or with the convenience scratch.template Global<0>();
+        const auto scale = mfem::future::get<1>(scratch.global);
+        auto &global_vector = mfem::future::get<2>(scratch.global);
+
+        has_scale = global_vector.Size() > 0;  // If the global vector is non-empty, we will use it to scale the output
+        if (has_scale)
+        {
+            global_vector(0) = 1.0;
+        }
+
+        for (int q = 0; q < NQ; ++q)
+        {
+            scratch_q(q) = x(q) * x(q);
+        }
+
+        for (int q = 0; q < NQ; ++q)
+        {
+            const real_t global_scale = has_scale ? scale * global_vector(0) : 0.0;
+            y(q) = global_scale * coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+        }
+    }
 };
 
 ///<--- Utils
@@ -293,7 +431,7 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
 }
 
 ///<--- Test
-TEST_CASE("dFEM Global Scratch", "[Parallel][dFEM]")
+TEST_CASE("dFEM Scratch scalar", "[Parallel][dFEM][Scratch-Scalar]")
 {
     int order = 2;
     int ref_levels = 1;
@@ -379,7 +517,7 @@ TEST_CASE("dFEM Global Scratch", "[Parallel][dFEM]")
 }
 
 
-TEST_CASE("dFEM Global Scratch multiple sizes", "[Parallel][dFEM]")
+TEST_CASE("dFEM Scratch multiple sizes", "[Parallel][dFEM][Scratch-Multiple-Sizes]")
 {
     int order = 2;
     int ref_levels = 1;
@@ -434,6 +572,93 @@ TEST_CASE("dFEM Global Scratch multiple sizes", "[Parallel][dFEM]")
         ir, all_domain_attr,
         Derivatives<U>{});
         
+
+    Vector x(fes.GetTrueVSize()), y(fes.GetTrueVSize()), dx(fes.GetTrueVSize()), dy(fes.GetTrueVSize());
+    x.UseDevice(true);
+    y.UseDevice(true);
+    dx.UseDevice(true);
+    dy.UseDevice(true);
+    FunctionCoefficient input_coeff([](const Vector &p)
+                                    { return 1.0 + p(0) + 0.25 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillInput(fes, input_coeff, x);
+    ConstantCoefficient direction_coeff(1.0);
+    FillInput(fes, direction_coeff, dx);
+    y = 0.0;
+    dy = 0.0;
+
+    ///<--- Apply the operator
+    MultiVector X{x, coef, nodes_tvec};
+    MultiVector Y{y};
+    dop.Mult(X, Y);
+
+    //<--- Apply derivative operator
+    auto dop_deriv = dop.GetDerivative(U, X);
+    MultiVector dY{dy};
+    dop_deriv->Mult(dx, dY);
+
+    ///<--- Check the result against the expected output
+    CheckResults(fes, ir, y, dy);
+}
+
+TEST_CASE("dFEM Global Scratch with tuple objects", "[Parallel][dFEM][GlobalScratch]")
+{
+    int order = 2;
+    int ref_levels = 1;
+
+    ///<--- Mesh and finite element space setup
+    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true, 1.0,
+                                      1.0);
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh.UniformRefinement();
+    }
+
+    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+    pmesh.EnsureNodes();
+    H1_FECollection fec(order, pmesh.Dimension());
+    ParFiniteElementSpace fes(&pmesh, &fec);
+    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+    ParFiniteElementSpace *nodes_fes = nodes->ParFESpace();
+    Vector nodes_tvec;
+    nodes->GetTrueDofs(nodes_tvec);
+
+    ///<--- dFEM setup
+    const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 2 * order + 1);
+    QuadratureSpace qspace(pmesh, ir);
+    VectorQuadratureSpace coef_qspace(qspace, 1);
+    QuadratureFunction coef(coef_qspace);
+    coef.UseDevice(true);
+    FunctionCoefficient coeff_fc([](const Vector &p)
+                                   { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillQData(fes, ir, coeff_fc, coef);
+
+    Array<int> all_domain_attr(pmesh.attributes.Max());
+    all_domain_attr = 1;
+
+    const std::vector<FieldDescriptor> inputs{
+        {U, &fes},
+        {COEF, &coef_qspace},
+        {COORDINATES, nodes_fes}};
+    const std::vector<FieldDescriptor> outputs{
+        {Y, &fes}};
+    DifferentiableOperator dop(inputs, outputs, pmesh);
+
+    Vector global_vec(1);
+    global_vec.UseDevice(true);
+    global_vec = 0.0;
+    real_t global_scalar = 1.0;
+    bool global_flag;
+
+    CubicQFWithGlobalScratch cubic_qf;
+    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
+    cubic_qf.SetGlobalScratch(
+        mfem::future::make_tuple(global_flag, global_scalar, global_vec));
+    dop.AddDomainIntegrator<GlobalQFBackend>(
+        cubic_qf,
+        Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
+        Outputs<Value<Y>>{},
+        ir, all_domain_attr,
+        Derivatives<U>{});
 
     Vector x(fes.GetTrueVSize()), y(fes.GetTrueVSize()), dx(fes.GetTrueVSize()), dy(fes.GetTrueVSize());
     x.UseDevice(true);
