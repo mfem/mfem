@@ -78,6 +78,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   dbg();
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -145,9 +146,13 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order.
    //    - If order < 1, we instead use an isoparametric/isogeometric space.
    //    - If the mesh is simplicial and partial assembly is requested,
-   //      we use the positive basis, which supports device execution.
+   //      we use the positive basis (Bernstein), which supports device
+   //      Duffy/simplex PA — unless MFEM_USE_TMO_TENSOR is set, which needs
+   //      standard H1 (Gauss-Lobatto).
    FiniteElementCollection *fec;
-   auto basis_type = (pa && mesh.IsSimplexMesh()) ?
+   const char *tmo_tensor = GetEnv("MFEM_USE_TMO_TENSOR");
+   const bool use_tmo_tensor = tmo_tensor && tmo_tensor[0] && tmo_tensor[0] != '0';
+   auto basis_type = (pa && mesh.IsSimplexMesh() && !use_tmo_tensor) ?
                      BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {
@@ -210,7 +215,8 @@ int main(int argc, char *argv[])
       // bit-for-bit deterministic at the cost of somewhat longer run time.
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
+   // a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary

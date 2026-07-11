@@ -11,6 +11,7 @@
 
 #include "bilininteg_mass_kernels.hpp"
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_tmo.hpp" // IWYU pragma: keep
 
 namespace mfem
 {

@@ -10,24 +10,262 @@
 // CONTRIBUTING.md for details.
 
 #include "../../general/forall.hpp"
+#include "../../general/globals.hpp"
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
+#include "../fe/fe_pos.hpp"
+#include "../fe/fe_h1.hpp"
 #include "bilininteg_mass_kernels.hpp"
 #include "bilininteg_mass_pa_simplices.hpp"
+#include "bilininteg_mass_pa_tmo.hpp"
 
 namespace mfem
 {
 
+namespace
+{
+
+bool EnvFlag(const char *name)
+{
+   const char *e = GetEnv(name);
+   return e && e[0] && e[0] != '0';
+}
+
+enum { TMO_OFF = 0, TMO_DUFFY = 1, TMO_TENSOR = 2 };
+
+int SelectTmoMode()
+{
+   const bool duffy = EnvFlag("MFEM_USE_TMO_DUFFY");
+   const bool tensor = EnvFlag("MFEM_USE_TMO_TENSOR");
+   MFEM_VERIFY(!(duffy && tensor),
+               "Set only one of MFEM_USE_TMO_DUFFY and MFEM_USE_TMO_TENSOR");
+   if (duffy) { return TMO_DUFFY; }
+   if (tensor) { return TMO_TENSOR; }
+   return TMO_OFF;
+}
+
+} // namespace
+
 // PA Mass Integrator
 
-void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void MassIntegrator::AssemblePA_TMO_Duffy(const FiniteElementSpace &fes)
 {
+   dbg();
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   // Assuming the same element type
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "MFEM_USE_TMO_DUFFY currently supports 2D triangles only");
+   MFEM_VERIFY(fes.UsesRaggedTensorBasis(),
+               "MFEM_USE_TMO_DUFFY requires Positive (Bernstein) H1 on simplices");
+   MFEM_VERIFY(mesh->SpaceDimension() == 2, "MFEM_USE_TMO_DUFFY requires a 2D mesh");
+
+   if (mesh->GetNodes())
+   {
+      MFEM_VERIFY(mesh->GetNodalFESpace()->GetMaxElementOrder() <= 1,
+                  "MFEM_USE_TMO_DUFFY v1 requires affine (linear) meshes");
+   }
+
+   const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetGeomType() == Geometry::TRIANGLE,
+               "MFEM_USE_TMO_DUFFY currently supports triangles only");
+   MFEM_VERIFY(dynamic_cast<const H1Pos_TriangleElement *>(&el),
+               "MFEM_USE_TMO_DUFFY requires H1Pos_TriangleElement");
+
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
+   const int map_type = el.GetMapType();
+
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : GetRule(el, el, *T0, true);
+   maps = &el.GetDofToQuad(ir, DofToQuad::RAGGED_TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   const int Q1D = quad1D;
+   const int nq1 = Q1D * Q1D;
+   MFEM_VERIFY(ir.GetNPoints() == nq1, "TMO Duffy expects a tensor Stroud rule");
+   this->nq = internal::tmo::NMIRRORS * nq1;
+   const int nq_tmo = this->nq;
+   ne = mesh->GetNE();
+   pa_tmo = TMO_DUFFY;
+   tmo_P.DeleteAll();
+
+   const real_t inv_m = real_t(1) / real_t(internal::tmo::NMIRRORS);
+   IntegrationRule ir_tmo(nq_tmo);
+   for (int k = 0; k < internal::tmo::NMIRRORS; k++)
+   {
+      for (int i2 = 0; i2 < Q1D; i2++)
+      {
+         for (int i1 = 0; i1 < Q1D; i1++)
+         {
+            const int q0 = i1 + Q1D * i2;
+            const int q = i1 + Q1D * (i2 + Q1D * k);
+            const IntegrationPoint &ip0 = ir.IntPoint(q0);
+            real_t xi, eta;
+            internal::tmo::MapSquareToTriangle(k, ip0.x, ip0.y, xi, eta);
+            IntegrationPoint &ip = ir_tmo.IntPoint(q);
+            ip.Set2(xi, eta);
+            ip.weight = inv_m * ip0.weight;
+         }
+      }
+   }
+
+   geom = mesh->GetGeometricFactors(ir, GeometricFactors::DETERMINANTS, mt);
+
+   pa_data.SetSize(nq_tmo * ne, mt);
+   QuadratureSpace qs(*mesh, ir_tmo);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int NQ = nq_tmo;
+   const int NQ1 = nq1;
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   {
+      const auto W = Reshape(ir_tmo.GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ1, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
+                     : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE (int q, int e)
+      {
+         const real_t detJ = J(0, e);
+         const real_t c = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * c * (by_val ? detJ : real_t(1) / detJ);
+      });
+   }
+}
+
+void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes)
+{
+   dbg();
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "MFEM_USE_TMO_TENSOR currently supports 2D triangles only");
+   MFEM_VERIFY(!fes.UsesRaggedTensorBasis(),
+               "MFEM_USE_TMO_TENSOR requires standard H1 (Gauss-Lobatto), not Positive");
+   MFEM_VERIFY(mesh->SpaceDimension() == 2, "MFEM_USE_TMO_TENSOR requires a 2D mesh");
+
+   if (mesh->GetNodes())
+   {
+      MFEM_VERIFY(mesh->GetNodalFESpace()->GetMaxElementOrder() <= 1,
+                  "MFEM_USE_TMO_TENSOR v1 requires affine (linear) meshes");
+   }
+
+   const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetGeomType() == Geometry::TRIANGLE,
+               "MFEM_USE_TMO_TENSOR currently supports triangles only");
+   const H1_TriangleElement *tel = dynamic_cast<const H1_TriangleElement *>(&el);
+   MFEM_VERIFY(tel, "MFEM_USE_TMO_TENSOR requires H1_TriangleElement");
+
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
+   const int map_type = el.GetMapType();
+   const int p = el.GetOrder();
+   dofs1D = p + 1;
+   const int ndof = el.GetDof();
+
+   // Integrate on T via three parallelogram charts φ_k, using a triangle
+   // rule as (s,t)∈T (weight 1/m). Full-square tensor Gauss is inexact for
+   // the C0 even extension across s+t=1, so we stay on the T half.
+   const int q_order = IntRule ? IntRule->GetOrder()
+                       : 2 * p + T0->OrderW() + 4;
+   const IntegrationRule &ir_T =
+      IntRule ? *IntRule : IntRules.Get(Geometry::TRIANGLE, q_order);
+   const int nq1 = ir_T.GetNPoints();
+   quad1D = nq1; // for TENSOR: points per mirror (not a 1D count)
+   this->nq = internal::tmo::NMIRRORS * nq1;
+   const int nq_tmo = this->nq;
+   ne = mesh->GetNE();
+   pa_tmo = TMO_TENSOR;
+   maps = nullptr;
+
+   const real_t inv_m = real_t(1) / real_t(internal::tmo::NMIRRORS);
+   IntegrationRule ir_tmo(nq_tmo);
+   tmo_P.SetSize(nq1 * ndof * internal::tmo::NMIRRORS, mt);
+   {
+      real_t *Ph = tmo_P.HostWrite();
+      Vector shape_ref(ndof);
+      IntegrationPoint ip;
+      for (int k = 0; k < internal::tmo::NMIRRORS; k++)
+      {
+         for (int q1 = 0; q1 < nq1; q1++)
+         {
+            const IntegrationPoint &ip0 = ir_T.IntPoint(q1);
+            real_t xf, yf;
+            internal::tmo::MapSquareToParallelogram(k, ip0.x, ip0.y, xf, yf);
+            ip.Set2(xf, yf);
+            tel->CalcShape(ip, shape_ref);
+            for (int i = 0; i < ndof; i++)
+            {
+               Ph[q1 + nq1 * (i + ndof * k)] = shape_ref(i);
+            }
+            const int q = q1 + nq1 * k;
+            IntegrationPoint &ipt = ir_tmo.IntPoint(q);
+            ipt.Set2(xf, yf);
+            ipt.weight = inv_m * ip0.weight;
+         }
+      }
+   }
+
+   geom = mesh->GetGeometricFactors(ir_T, GeometricFactors::DETERMINANTS, mt);
+
+   pa_data.SetSize(nq_tmo * ne, mt);
+   QuadratureSpace qs(*mesh, ir_tmo);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int NQ = nq_tmo;
+   const int NQ1 = nq1;
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   {
+      const auto W = Reshape(ir_tmo.GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ1, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
+                     : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE (int q, int e)
+      {
+         const real_t detJ = J(0, e);
+         const real_t c = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * c * (by_val ? detJ : real_t(1) / detJ);
+      });
+   }
+}
+
+void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   pa_tmo = TMO_OFF;
+   tmo_P.DeleteAll();
+
+   const int mode = SelectTmoMode();
+   if (mode == TMO_DUFFY)
+   {
+      dbg("[TMO Duffy] AssemblePA");
+      MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
+                  "MFEM_USE_TMO_DUFFY is only implemented for 2D triangles");
+      AssemblePA_TMO_Duffy(fes);
+      return;
+   }
+   if (mode == TMO_TENSOR)
+   {
+      dbg("[TMO Tensor] AssemblePA");
+      MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
+                  "MFEM_USE_TMO_TENSOR is only implemented for 2D triangles");
+      AssemblePA_TMO_Tensor(fes);
+      return;
+   }
+
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
@@ -68,8 +306,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   // QuadratureSpace expects ir defined in reference simplex for Bernstein
-   // elements with partial assembly
    {
       const int NE = ne;
       const int NQ = nq;
@@ -94,7 +330,6 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    ne = mesh->GetNFbyType(FaceType::Boundary);
@@ -104,7 +339,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
 
    int map_type = el.GetMapType();
-   dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
+   dim = el.GetDim();
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);
@@ -141,6 +376,10 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       ceedOp->GetDiagonal(diag);
    }
+   else if (pa_tmo)
+   {
+      MFEM_ABORT("AssembleDiagonalPA not implemented for TMO PA");
+   }
    else
    {
       DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
@@ -153,6 +392,28 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
+   }
+   else if (pa_tmo == TMO_DUFFY)
+   {
+      dbg("[TMO Duffy] AddMultPA");
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+      ApplyTmoPAKernels::Run(dim, D1D, Q1D, ne,
+                             rmaps->lex_map,
+                             rmaps->forward_map2d_mass,
+                             rmaps->inverse_map2d_mass,
+                             rmaps->forward_map3d_mass,
+                             rmaps->inverse_map3d_mass,
+                             rmaps->Ba1, rmaps->Ba2, rmaps->Ba3,
+                             rmaps->Ba1t, rmaps->Ba2t, rmaps->Ba3t,
+                             pa_data, x, y, D1D, Q1D);
+   }
+   else if (pa_tmo == TMO_TENSOR)
+   {
+      dbg("[TMO Tensor] AddMultPA");
+      ApplyTmoTensorPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P,
+                                   pa_data, x, y, dofs1D, quad1D);
    }
    else
    {
@@ -215,6 +476,7 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
+      MFEM_VERIFY(!pa_tmo, "AbsMultPA not implemented for TMO PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();
       Array<real_t> absB(maps->B);
@@ -229,13 +491,11 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   // Mass integrator is symmetric
    AddMultPA(x, y);
 }
 
 void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
 {
-   // Mass integrator is symmetric
    AddAbsMultPA(x, y);
 }
 
