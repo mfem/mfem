@@ -37,6 +37,15 @@
 static_assert(MFEM_BENCH_CEED_DIM == 2 || MFEM_BENCH_CEED_DIM == 3,
               "MFEM_BENCH_CEED_DIM must be 2 or 3");
 
+// Simplex FE basis: 1 = Positive (Bernstein, default), 0 = Gauss-Lobatto (H1).
+// GLL enables MFEM_USE_TMO_TENSOR / MFEM_USE_TMO_MMA / MFEM_USE_TMO_MMA_1 on triangles.
+#ifndef MFEM_BENCH_CEED_SIMPLEX_POSITIVE
+#define MFEM_BENCH_CEED_SIMPLEX_POSITIVE 1
+#endif
+static_assert(MFEM_BENCH_CEED_SIMPLEX_POSITIVE == 0 ||
+              MFEM_BENCH_CEED_SIMPLEX_POSITIVE == 1,
+              "MFEM_BENCH_CEED_SIMPLEX_POSITIVE must be 0 or 1");
+
 // Custom benchmark arguments generator
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
@@ -207,11 +216,17 @@ struct BakeOff
                                       : Element::HEXAHEDRON);
       }
    }()),
-      fec(p, DIM, SIMPLICES ? BasisType::Positive : BasisType::GaussLobatto),
+      fec(p, DIM,
+          SIMPLICES
+          ? (MFEM_BENCH_CEED_SIMPLEX_POSITIVE ? BasisType::Positive
+                                             : BasisType::GaussLobatto)
+          : BasisType::GaussLobatto),
       fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      ir(SIMPLICES
+      // Positive simplices use Stroud; GLL simplices use a standard triangle/tet rule
+      // (needed for Tensor/MMA TMO and consistent with non-ragged PA).
+      ir((SIMPLICES && MFEM_BENCH_CEED_SIMPLEX_POSITIVE)
          ? &StroudIntRules.Get(geom_type, q)
          : &irs.Get(geom_type, q)),
       ir_rhs(&IntRules.Get(geom_type, 2*p)),
@@ -453,7 +468,10 @@ REGISTER(BK, 6, CEED_VDIM, true, false);
  *
  * Compile-time spatial dimension (default 3):
  *    cmake -DMFEM_BENCH_CEED_DIM=2 ...
- *    or compile with -DMFEM_BENCH_CEED_DIM=2
+ *
+ * Simplex basis on tri/tet (default Positive/Bernstein = 1):
+ *    cmake -DMFEM_BENCH_CEED_SIMPLEX_POSITIVE=0 ...   # Gauss-Lobatto H1
+ *    Enables MFEM_USE_TMO_TENSOR / MFEM_USE_TMO_MMA / MFEM_USE_TMO_MMA_1 on BP1tri.
  */
 int main(int argc, char *argv[])
 {

@@ -2409,7 +2409,8 @@ protected:
 
 public:
    void AssemblePA_TMO_Duffy(const FiniteElementSpace &fes);
-   void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes);
+   /// @param nmirrors Number of parallelogram charts (3 = full TMO, 1 = k=0 only).
+   void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes, int nmirrors = 3);
    void AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes);
    void AssemblePA_TMO_BernsteinDense(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Composite(const FiniteElementSpace &fes);

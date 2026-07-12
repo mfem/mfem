@@ -42,7 +42,8 @@ enum
    TMO_BERNSTEIN_DENSE = 4,
    TMO_COMPOSITE = 5,
    TMO_MMA = 6,
-   TMO_BERNSTEIN_MMA = 7
+   TMO_BERNSTEIN_MMA = 7,
+   TMO_MMA_1 = 8  // single chart k=0 (no mirror average)
 };
 
 int SelectTmoMode()
@@ -54,13 +55,14 @@ int SelectTmoMode()
    const bool composite = EnvFlag("MFEM_USE_TMO_COMPOSITE");
    const bool mma = EnvFlag("MFEM_USE_TMO_MMA");
    const bool bern_mma = EnvFlag("MFEM_USE_TMO_BERNSTEIN_MMA");
+   const bool mma1 = EnvFlag("MFEM_USE_TMO_MMA_1");
    const int nset = int(duffy) + int(tensor) + int(bern) + int(dense) +
-                    int(composite) + int(mma) + int(bern_mma);
+                    int(composite) + int(mma) + int(bern_mma) + int(mma1);
    MFEM_VERIFY(nset <= 1,
                "Set only one of MFEM_USE_TMO_DUFFY, MFEM_USE_TMO_TENSOR, "
                "MFEM_USE_TMO_BERNSTEIN, MFEM_USE_TMO_BERNSTEIN_DENSE, "
                "MFEM_USE_TMO_COMPOSITE, MFEM_USE_TMO_MMA, "
-               "MFEM_USE_TMO_BERNSTEIN_MMA");
+               "MFEM_USE_TMO_BERNSTEIN_MMA, MFEM_USE_TMO_MMA_1");
    if (duffy) { return TMO_DUFFY; }
    if (tensor) { return TMO_TENSOR; }
    if (bern) { return TMO_BERNSTEIN; }
@@ -68,6 +70,7 @@ int SelectTmoMode()
    if (composite) { return TMO_COMPOSITE; }
    if (mma) { return TMO_MMA; }
    if (bern_mma) { return TMO_BERNSTEIN_MMA; }
+   if (mma1) { return TMO_MMA_1; }
    return TMO_OFF;
 }
 
@@ -165,9 +168,12 @@ void MassIntegrator::AssemblePA_TMO_Duffy(const FiniteElementSpace &fes)
    }
 }
 
-void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes)
+void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes,
+                                           int nmirrors)
 {
    dbg();
+   MFEM_VERIFY(nmirrors >= 1 && nmirrors <= internal::tmo::NMIRRORS,
+               "TMO Tensor nmirrors must be in [1,3]");
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
@@ -197,30 +203,30 @@ void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes)
    dofs1D = p + 1;
    const int ndof = el.GetDof();
 
-   // Integrate on T via three parallelogram charts φ_k, using a triangle
-   // rule as (s,t)∈T (weight 1/m). Full-square tensor Gauss is inexact for
-   // the C0 even extension across s+t=1, so we stay on the T half.
+   // Integrate on T via nmirrors parallelogram charts φ_k (k=0..nmirrors-1),
+   // using a triangle rule as (s,t)∈T (weight 1/nmirrors). nmirrors=1 is the
+   // single-chart path (MFEM_USE_TMO_MMA_1): k=0 only, weight 1.
    const int q_order = IntRule ? IntRule->GetOrder()
                        : 2 * p + T0->OrderW() + 4;
    const IntegrationRule &ir_T =
       IntRule ? *IntRule : IntRules.Get(Geometry::TRIANGLE, q_order);
    const int nq1 = ir_T.GetNPoints();
    quad1D = nq1; // for TENSOR: points per mirror (not a 1D count)
-   this->nq = internal::tmo::NMIRRORS * nq1;
+   this->nq = nmirrors * nq1;
    const int nq_tmo = this->nq;
    ne = mesh->GetNE();
    pa_tmo = TMO_TENSOR;
    maps = nullptr;
    tmo_B.DeleteAll();
 
-   const real_t inv_m = real_t(1) / real_t(internal::tmo::NMIRRORS);
+   const real_t inv_m = real_t(1) / real_t(nmirrors);
    IntegrationRule ir_tmo(nq_tmo);
-   tmo_P.SetSize(nq1 * ndof * internal::tmo::NMIRRORS, mt);
+   tmo_P.SetSize(nq1 * ndof * nmirrors, mt);
    {
       real_t *Ph = tmo_P.HostWrite();
       Vector shape_ref(ndof);
       IntegrationPoint ip;
-      for (int k = 0; k < internal::tmo::NMIRRORS; k++)
+      for (int k = 0; k < nmirrors; k++)
       {
          for (int q1 = 0; q1 < nq1; q1++)
          {
@@ -653,14 +659,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       AssemblePA_TMO_Duffy(fes);
       return;
    }
-   if (mode == TMO_TENSOR || mode == TMO_MMA)
+   if (mode == TMO_TENSOR || mode == TMO_MMA || mode == TMO_MMA_1)
    {
       if (mode == TMO_TENSOR) { dbg("[TMO Tensor] AssemblePA"); }
-      else { dbg("[TMO MMA] AssemblePA"); }
+      else if (mode == TMO_MMA) { dbg("[TMO MMA] AssemblePA"); }
+      else { dbg("[TMO MMA_1] AssemblePA"); }
       MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
                   "TMO Tensor/MMA is only implemented for 2D triangles");
-      AssemblePA_TMO_Tensor(fes);
+      const int nm = (mode == TMO_MMA_1) ? 1 : internal::tmo::NMIRRORS;
+      AssemblePA_TMO_Tensor(fes, nm);
       if (mode == TMO_MMA) { pa_tmo = TMO_MMA; }
+      if (mode == TMO_MMA_1) { pa_tmo = TMO_MMA_1; }
       return;
    }
    if (mode == TMO_BERNSTEIN)
@@ -861,9 +870,11 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       ApplyTmoTensorPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P, pa_data, x, y,
                                    dofs1D, quad1D);
    }
-   else if (pa_tmo == TMO_MMA || pa_tmo == TMO_BERNSTEIN_MMA)
+   else if (pa_tmo == TMO_MMA || pa_tmo == TMO_BERNSTEIN_MMA ||
+            pa_tmo == TMO_MMA_1)
    {
       if (pa_tmo == TMO_MMA) { dbg("[TMO MMA] AddMultPA"); }
+      else if (pa_tmo == TMO_MMA_1) { dbg("[TMO MMA_1] AddMultPA"); }
       else { dbg("[TMO BernsteinMMA] AddMultPA"); }
       ApplyTmoMmaPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P, pa_data, x, y,
                                 dofs1D, quad1D);

@@ -623,8 +623,10 @@ inline void SmemPAMassApplyTriangleTmoTensor(const int NE,
 }
 
 // ---------------------------------------------------------------------------
-// MMA Tensor TMO apply: batched (NB=mmaN) shared-memory DMMA GEMM
-// Same P/D as Tensor / BernsteinDense; used by TMO_MMA and TMO_BERNSTEIN_MMA.
+// MMA Tensor TMO apply: batched (NBATCH=mmaN) shared-memory DMMA GEMM
+// Same P/D as Tensor / BernsteinDense; used by TMO_MMA, TMO_MMA_1, BernsteinMMA.
+// nmirrors inferred from pa_data size (1 for MMA_1, 3 for full TMO).
+// Smem: Xs/Us/Ys with odd leading dims (bank-conflict padding); no Ps staging.
 // ---------------------------------------------------------------------------
 
 namespace tmo
@@ -654,21 +656,31 @@ constexpr int mmaM16 = 16;
 constexpr int mmaN16 = 8;
 constexpr int mmaK16 = 16;
 // Column remap for m8n8k4.row.col fragments: [0,5,1,6,2,7,3,4]
+// Same packing as dfem bench_dfem_mma.hpp.
 constexpr int magicNumber = 0b100011111010110001101000;
 
 /** Prefer m16n8k16 when dimensions are large enough that K-padding is
-    tolerable and the MMA tile count drops vs m8n8k4 (typically p >= 5). */
+    tolerable and the MMA tile count drops vs m8n8k4 (typically p >= 5).
+    Also require padded work not much worse than m8n8k4 — otherwise the
+    larger fragment’s register pressure can lose to m8n8k4 (seen on
+    BP1tri p=5, M=37,K=21). */
 MFEM_HOST_DEVICE inline bool PreferMma16(const int M, const int K)
 {
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 900)
    MFEM_CONTRACT_VAR(M); MFEM_CONTRACT_VAR(K);
    return false;
 #else
-   // Host path: same size heuristic (device also needs sm_90 at runtime).
+   if (M < mmaM16 || K < mmaK16) { return false; }
    const int t84 = ((M + mmaM - 1) / mmaM) * ((K + mmaK - 1) / mmaK);
    const int t1616 = ((M + mmaM16 - 1) / mmaM16) *
                      ((K + mmaK16 - 1) / mmaK16);
-   return (M >= mmaM16) && (K >= mmaK16) && (t1616 <= t84);
+   if (t1616 > t84) { return false; }
+   const int pad84 = ((M + mmaM - 1) / mmaM) * mmaM *
+                     ((K + mmaK - 1) / mmaK) * mmaK;
+   const int pad1616 = ((M + mmaM16 - 1) / mmaM16) * mmaM16 *
+                       ((K + mmaK16 - 1) / mmaK16) * mmaK16;
+   // Allow at most ~40% extra padded multiply work vs m8n8k4.
+   return pad1616 * 5 <= pad84 * 7;
 #endif
 }
 
@@ -701,26 +713,47 @@ MFEM_HOST_DEVICE inline void dmmaSync16([[maybe_unused]] double aReg[8],
 #endif
 }
 
-/** Row-major smem matrix accessor: a(r,c) = p[r + rows*c]. */
+/** Column-major smem matrix accessor: a(r,c) = p[r + ld*c].
+    Use an odd `ld` for real_t=double so consecutive-column accesses
+    (stride ld) hit distinct shared-memory banks (32 banks × 8 B). */
 struct MatAcc
 {
    real_t *p;
-   int rows;
+   int ld;
    MFEM_HOST_DEVICE inline real_t &operator()(int r, int c) const
    {
-      return p[r + rows * c];
+      return p[r + ld * c];
    }
 };
 
 struct ConstMatAcc
 {
    const real_t *p;
-   int rows;
+   int ld;
    MFEM_HOST_DEVICE inline real_t operator()(int r, int c) const
    {
-      return p[r + rows * c];
+      return p[r + ld * c];
    }
 };
+
+/** View of MatAcc columns [col0, col0+N). */
+struct ColOffsetAcc
+{
+   MatAcc base;
+   int col0;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int c) const
+   {
+      return base(r, c + col0);
+   }
+};
+
+/** Pad leading dimension to odd (bank-conflict friendly for doubles). */
+constexpr int PadLdOdd(int n) { return n + ((n & 1) == 0 ? 1 : 0); }
+
+/** Elements per batch: one mmaN tile (N=8). Larger batches (2×mmaN) were
+    tried but regressed BP1tri p=6 (~3.2k vs ~4.0k MDof/s) despite better
+    P amortization — extra N-pass overhead dominated. */
+constexpr int NBATCH = mmaN;
 
 /** C = A * B; A is M×K, B is K×N, C is M×N (m8n8k4). */
 template <typename AAcc, typename BAcc, typename CAcc>
@@ -962,27 +995,33 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
                                          const real_t *x_,
                                          real_t *y_,
                                          const int d1d,
-                                         const int nq1)
+                                         const int nq1,
+                                         const int nmirrors)
 {
-   constexpr int NB = tmo::mma::mmaN;
+   constexpr int MQ = T_Q1D ? T_Q1D : (DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D);
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+   constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
+   // Odd leading dims: consecutive-column (stride-ld) double accesses avoid
+   // 32-bank conflicts. P stays in global/L2 — staging it to smem was slower.
+   constexpr int X_LD = tmo::mma::PadLdOdd(BASIS_DIM);
+   constexpr int U_LD = tmo::mma::PadLdOdd(MQ);
+   constexpr int NB = tmo::mma::NBATCH;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = D1D * (D1D + 1) / 2;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
 
-   constexpr int MQ = T_Q1D ? T_Q1D : (DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D);
-   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-   constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
-   // Specialized kernels can stage one mirror of P in smem; fallback keeps P in global.
-   constexpr bool STAGE_P = (T_D1D != 0 && T_Q1D != 0);
-
-   const auto D = DeviceTensor<3, const real_t>(d_, NQ1, tmo::NMIRRORS, NE);
+   const auto D = DeviceTensor<3, const real_t>(d_, NQ1, nmirrors, NE);
    const auto x = ConstDeviceMatrix(x_, ndof, NE);
    auto Y = DeviceMatrix(y_, ndof, NE);
 
-   MFEM_SHARED real_t Xs[BASIS_DIM * NB];
-   MFEM_SHARED real_t Us[MQ * NB];
-   MFEM_SHARED real_t Ys[BASIS_DIM * NB];
-   MFEM_SHARED real_t Ps[STAGE_P ? (MQ * BASIS_DIM) : 1];
+   // Single aligned smem blob; Xs/Us/Ys pack tightly (no unused Ps).
+   struct alignas(16) Smem
+   {
+      real_t Xs[X_LD * NB];
+      real_t Us[U_LD * NB];
+      real_t Ys[X_LD * NB];
+   };
+   MFEM_SHARED Smem sm;
 
    struct PSlice
    {
@@ -994,16 +1033,6 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
       }
    };
 
-   struct PSmem
-   {
-      const real_t *p;
-      int nq1_;
-      MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-      {
-         return p[row + nq1_ * col];
-      }
-   };
-
    const int tid = tmo::mma::getThreadIdx();
 #ifdef __CUDA_ARCH__
    const int nthreads = blockDim.x * blockDim.y * blockDim.z;
@@ -1011,11 +1040,11 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
    const int nthreads = 1;
 #endif
 
-   // Zero Yacc and load X batch (pad inactive elements with zeros).
-   for (int i = tid; i < BASIS_DIM * NB; i += nthreads)
+   // Zero Yacc; zero-pad Xs then load active dofs (one sync).
+   for (int i = tid; i < X_LD * NB; i += nthreads)
    {
-      Ys[i] = 0.0;
-      Xs[i] = 0.0;
+      sm.Ys[i] = 0.0;
+      sm.Xs[i] = 0.0;
    }
    MFEM_SYNC_THREAD;
    for (int b = 0; b < NB; ++b)
@@ -1025,36 +1054,21 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
       {
          for (int i = tid; i < ndof; i += nthreads)
          {
-            Xs[i + BASIS_DIM * b] = x(i, e);
+            sm.Xs[i + X_LD * b] = x(i, e);
          }
       }
    }
    MFEM_SYNC_THREAD;
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   tmo::mma::MatAcc Xacc{Xs, BASIS_DIM};
-   tmo::mma::MatAcc Uacc{Us, MQ};
-   tmo::mma::MatAcc Yacc{Ys, BASIS_DIM};
+   tmo::mma::MatAcc Xacc{sm.Xs, X_LD};
+   tmo::mma::MatAcc Uacc{sm.Us, U_LD};
+   tmo::mma::MatAcc Yacc{sm.Ys, X_LD};
 
-   for (int k = 0; k < tmo::NMIRRORS; ++k)
+   for (int k = 0; k < nmirrors; ++k)
    {
-      if constexpr (STAGE_P)
-      {
-         for (int j = tid; j < NQ1 * ndof; j += nthreads)
-         {
-            const int q = j % NQ1;
-            const int i = j / NQ1;
-            Ps[q + NQ1 * i] = p_[q + NQ1 * (i + ndof * k)];
-         }
-         MFEM_SYNC_THREAD;
-         PSmem A{Ps, NQ1};
-         tmo::mma::dmma_Gemm(NQ1, ndof, NB, A, Xacc, Uacc);
-      }
-      else
-      {
-         PSlice A{p_, NQ1, ndof, k};
-         tmo::mma::dmma_Gemm(NQ1, ndof, NB, A, Xacc, Uacc);
-      }
+      PSlice A{p_, NQ1, ndof, k};
+      tmo::mma::dmma_Gemm(NQ1, ndof, NB, A, Xacc, Uacc);
       MFEM_SYNC_THREAD;
       for (int b = 0; b < NB; ++b)
       {
@@ -1062,20 +1076,11 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
          if (e >= NE) { continue; }
          for (int q = tid; q < NQ1; q += nthreads)
          {
-            Us[q + MQ * b] *= D(q, k, e);
+            sm.Us[q + U_LD * b] *= D(q, k, e);
          }
       }
       MFEM_SYNC_THREAD;
-      if constexpr (STAGE_P)
-      {
-         PSmem A{Ps, NQ1};
-         tmo::mma::dmma_GemmT(NQ1, ndof, NB, A, Uacc, Yacc);
-      }
-      else
-      {
-         PSlice A{p_, NQ1, ndof, k};
-         tmo::mma::dmma_GemmT(NQ1, ndof, NB, A, Uacc, Yacc);
-      }
+      tmo::mma::dmma_GemmT(NQ1, ndof, NB, A, Uacc, Yacc);
       MFEM_SYNC_THREAD;
    }
 
@@ -1085,7 +1090,7 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
       if (e >= NE) { continue; }
       for (int i = tid; i < ndof; i += nthreads)
       {
-         Y(i, e) += Ys[i + BASIS_DIM * b];
+         Y(i, e) += sm.Ys[i + X_LD * b];
       }
    }
    MFEM_SYNC_THREAD;
@@ -1093,7 +1098,7 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
    // Host / non-f64: scalar dense batch (same math).
    if (tid == 0)
    {
-      for (int k = 0; k < tmo::NMIRRORS; ++k)
+      for (int k = 0; k < nmirrors; ++k)
       {
          for (int b = 0; b < NB; ++b)
          {
@@ -1104,16 +1109,16 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
                real_t u = 0.0;
                for (int i = 0; i < ndof; ++i)
                {
-                  u += p_[q + NQ1 * (i + ndof * k)] * Xs[i + BASIS_DIM * b];
+                  u += p_[q + NQ1 * (i + ndof * k)] * sm.Xs[i + X_LD * b];
                }
-               Us[q + MQ * b] = u * D(q, k, e);
+               sm.Us[q + U_LD * b] = u * D(q, k, e);
             }
             for (int i = 0; i < ndof; ++i)
             {
                real_t yi = 0.0;
                for (int q = 0; q < NQ1; ++q)
                {
-                  yi += p_[q + NQ1 * (i + ndof * k)] * Us[q + MQ * b];
+                  yi += p_[q + NQ1 * (i + ndof * k)] * sm.Us[q + U_LD * b];
                }
                Y(i, e) += yi;
             }
@@ -1133,13 +1138,17 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
                                           const int d1d = 0,
                                           const int nq1 = 0)
 {
-   constexpr int NB = tmo::mma::mmaN;
+   constexpr int NB = tmo::mma::NBATCH;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = D1D * (D1D + 1) / 2;
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(NQ1 <= DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D, "");
+   MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() % (NQ1 * NE) == 0, "");
+   const int nmirrors = d_.Size() / (NQ1 * NE);
+   MFEM_VERIFY(nmirrors >= 1 && nmirrors <= tmo::NMIRRORS, "");
+   MFEM_VERIFY(p_.Size() == NQ1 * ndof * nmirrors, "");
 
    const auto P = p_.Read();
    const auto D = d_.Read();
@@ -1158,7 +1167,7 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPAMassApplyTriangleTmoMma_Batch<T_D1D, T_Q1D>(
-         batch * NB, NE, P, D, X, Y, d1d, nq1);
+         batch * NB, NE, P, D, X, Y, d1d, nq1, nmirrors);
    });
 }
 

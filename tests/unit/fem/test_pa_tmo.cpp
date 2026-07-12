@@ -38,6 +38,7 @@ void ClearTmoEnv()
    SetEnv("MFEM_USE_TMO_COMPOSITE", "0");
    SetEnv("MFEM_USE_TMO_MMA", "0");
    SetEnv("MFEM_USE_TMO_BERNSTEIN_MMA", "0");
+   SetEnv("MFEM_USE_TMO_MMA_1", "0");
    SetEnv("MFEM_USE_TMO", "0");
 }
 
@@ -245,6 +246,26 @@ TEST_CASE("PA TMO MMA Mass", "[PartialAssembly][TMO][MMA][GPU]")
    {
       test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
                        BasisType::GaussLobatto, "MFEM_USE_TMO_MMA");
+   }
+}
+
+TEST_CASE("PA TMO MMA_1 Mass", "[PartialAssembly][TMO][MMA1][GPU]")
+{
+   // Single chart k=0 (no mirror average). Same FA match as Tensor/MMA on
+   // symmetric triangle rules; apply does 1× the chart GEMMs of full MMA.
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+
+   SECTION("single triangle")
+   {
+      test_pa_tmo_mass(Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE), p,
+                       BasisType::GaussLobatto, "MFEM_USE_TMO_MMA_1");
+   }
+
+   SECTION("beam-tri")
+   {
+      test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
+                       BasisType::GaussLobatto, "MFEM_USE_TMO_MMA_1");
    }
 }
 
