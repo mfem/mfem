@@ -623,6 +623,254 @@ inline void SmemPAMassApplyTriangleTmoTensor(const int NE,
 }
 
 // ---------------------------------------------------------------------------
+// MMA Tensor TMO apply: same P/D as Tensor, DMMA m8n8k4 for P*x and P^T*u
+// ---------------------------------------------------------------------------
+
+namespace tmo
+{
+namespace mma
+{
+
+MFEM_HOST_DEVICE inline int getThreadIdx()
+{
+#ifdef __CUDA_ARCH__
+   return threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * threadIdx.z);
+#else
+   return 0;
+#endif
+}
+
+MFEM_HOST_DEVICE inline int getWarpId(int thread) { return thread / 32; }
+MFEM_HOST_DEVICE inline int getLaneId(int thread) { return thread % 32; }
+MFEM_HOST_DEVICE inline int getGroupId(int laneId) { return laneId / 4; }
+MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId) { return laneId % 4; }
+
+constexpr int mmaM = 8;
+[[maybe_unused]] constexpr int mmaN = 8;
+constexpr int mmaK = 4;
+// Column remap for m8n8k4.row.col fragments: [0,5,1,6,2,7,3,4]
+constexpr int magicNumber = 0b100011111010110001101000;
+
+MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
+                                      [[maybe_unused]] double bReg[1],
+                                      [[maybe_unused]] double cReg[2])
+{
+#ifdef __CUDA_ARCH__
+   asm volatile(
+      "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+      : "+d"(cReg[0]), "+d"(cReg[1]) : "d"(aReg[0]), "d"(bReg[0]));
+#endif
+}
+
+/** y = A * x with A(row,col) = Aacc(row,col), A is M×K, x length K. */
+template <typename AAcc>
+MFEM_HOST_DEVICE inline void dmma_Gemv(const int M, const int K,
+                                       AAcc A, const real_t *x, real_t *y)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int mPass = (M + mmaM - 1) / mmaM;
+   if (warpId >= mPass) { return; }
+
+   const int aRowInWarp = groupId;
+   const int aColumnInWarp = threadIdInGroup;
+   const int bRowInWarp = threadIdInGroup;
+   const int bColumnInWarp = groupId;
+   const int mM = warpId;
+   double cReg[2] = {};
+
+   for (int mK = 0; mK < (K + mmaK - 1) / mmaK; mK++)
+   {
+      double bReg[1];
+      const int bRow = bRowInWarp + mK * mmaK;
+      const int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
+      bReg[0] = (bColumn == 0 && bRow < K) ? static_cast<double>(x[bRow]) : 0.0;
+
+      double aReg[1];
+      const int aRow = aRowInWarp * mPass + mM;
+      const int aColumn = aColumnInWarp + mK * mmaK;
+      aReg[0] = (aRow < M && aColumn < K) ? static_cast<double>(A(aRow, aColumn))
+                : 0.0;
+      dmmaSync(aReg, bReg, cReg);
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      const int cRow = groupId * mPass + mM;
+      const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
+      if (cRow < M && cColumn == 0)
+      {
+         y[cRow] = static_cast<real_t>(cReg[i]);
+      }
+   }
+}
+
+/** y += A^T * u with A(row,col) = Aacc(row,col), A is M×K, u length M, y length K. */
+template <typename AAcc>
+MFEM_HOST_DEVICE inline void dmma_GemvT(const int M, const int K,
+                                        AAcc A, const real_t *u, real_t *y)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   // Output dimension is K for A^T * u
+   const int mPass = (K + mmaM - 1) / mmaM;
+   if (warpId >= mPass) { return; }
+
+   const int aRowInWarp = groupId;
+   const int aColumnInWarp = threadIdInGroup;
+   const int bRowInWarp = threadIdInGroup;
+   const int bColumnInWarp = groupId;
+   const int mM = warpId;
+   double cReg[2] = {};
+
+   for (int mK = 0; mK < (M + mmaK - 1) / mmaK; mK++)
+   {
+      double bReg[1];
+      const int bRow = bRowInWarp + mK * mmaK;
+      const int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
+      bReg[0] = (bColumn == 0 && bRow < M) ? static_cast<double>(u[bRow]) : 0.0;
+
+      double aReg[1];
+      // A^T(aRow, aColumn) = A(aColumn, aRow); aRow in K, aColumn in M
+      const int aRow = aRowInWarp * mPass + mM;
+      const int aColumn = aColumnInWarp + mK * mmaK;
+      aReg[0] = (aRow < K && aColumn < M) ? static_cast<double>(A(aColumn, aRow))
+                : 0.0;
+      dmmaSync(aReg, bReg, cReg);
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      const int cRow = groupId * mPass + mM;
+      const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
+      if (cRow < K && cColumn == 0)
+      {
+         y[cRow] += static_cast<real_t>(cReg[i]);
+      }
+   }
+}
+
+} // namespace mma
+} // namespace tmo
+
+template<int T_D1D, int T_Q1D>
+MFEM_HOST_DEVICE inline
+void SmemPAMassApplyTriangleTmoMma_Element(const int e,
+                                           const int NE,
+                                           const real_t *p_,
+                                           const real_t *d_,
+                                           const real_t *x_,
+                                           real_t *y_,
+                                           const int d1d,
+                                           const int nq1)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int ndof = D1D * (D1D + 1) / 2;
+   const int NQ1 = T_Q1D ? T_Q1D : nq1;
+
+   constexpr int MQ = T_Q1D ? T_Q1D : (DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D);
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+   constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
+
+   const auto P = DeviceTensor<3, const real_t>(p_, NQ1, ndof, tmo::NMIRRORS);
+   const auto D = DeviceTensor<3, const real_t>(d_, NQ1, tmo::NMIRRORS, NE);
+   const auto x = ConstDeviceMatrix(x_, ndof, NE);
+   auto Y = DeviceMatrix(y_, ndof, NE);
+
+   MFEM_SHARED real_t Xtri[BASIS_DIM];
+   MFEM_SHARED real_t Uq[MQ];
+
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   MFEM_CONTRACT_VAR(P);
+   struct PSlice
+   {
+      const real_t *p;
+      int nq1_, ndof_, k_;
+      MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+      {
+         return p[row + nq1_ * (col + ndof_ * k_)];
+      }
+   };
+
+   const int tid = tmo::mma::getThreadIdx();
+   if (tid < ndof) { Xtri[tid] = x(tid, e); }
+   MFEM_SYNC_THREAD;
+
+   for (int k = 0; k < tmo::NMIRRORS; ++k)
+   {
+      PSlice A{p_, NQ1, ndof, k};
+      tmo::mma::dmma_Gemv(NQ1, ndof, A, Xtri, Uq);
+      MFEM_SYNC_THREAD;
+      if (tid < NQ1) { Uq[tid] *= D(tid, k, e); }
+      MFEM_SYNC_THREAD;
+      tmo::mma::dmma_GemvT(NQ1, ndof, A, Uq, &Y(0, e));
+      MFEM_SYNC_THREAD;
+   }
+#else
+   // Host / non-f64: same math as Tensor (scalar).
+   const int tid = tmo::mma::getThreadIdx();
+   if (tid == 0)
+   {
+      for (int i = 0; i < ndof; ++i) { Xtri[i] = x(i, e); }
+      for (int k = 0; k < tmo::NMIRRORS; ++k)
+      {
+         for (int q = 0; q < NQ1; ++q)
+         {
+            real_t u = 0.0;
+            for (int i = 0; i < ndof; ++i) { u += P(q, i, k) * Xtri[i]; }
+            Uq[q] = u * D(q, k, e);
+         }
+         for (int i = 0; i < ndof; ++i)
+         {
+            real_t yi = 0.0;
+            for (int q = 0; q < NQ1; ++q) { yi += P(q, i, k) * Uq[q]; }
+            Y(i, e) += yi;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+#endif
+   MFEM_CONTRACT_VAR(NE);
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPAMassApplyTriangleTmoMma(const int NE,
+                                          const Array<real_t> &p_,
+                                          const Vector &d_,
+                                          const Vector &x_,
+                                          Vector &y_,
+                                          const int d1d = 0,
+                                          const int nq1 = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int NQ1 = T_Q1D ? T_Q1D : nq1;
+   const int ndof = D1D * (D1D + 1) / 2;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(NQ1 <= DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D, "");
+
+   const auto P = p_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   // Warps cover 8-row tiles of the larger Gemv dimension (NQ1 or ndof).
+   const int mdim = (NQ1 > ndof) ? NQ1 : ndof;
+   const int mPass = (mdim + tmo::mma::mmaM - 1) / tmo::mma::mmaM;
+   const int nthreads = ((mPass > 1) ? mPass : 1) * 32;
+
+   mfem::forall_3D(NE, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int e)
+   {
+      SmemPAMassApplyTriangleTmoMma_Element<T_D1D, T_Q1D>(
+         e, NE, P, D, X, Y, d1d, nq1);
+   });
+}
+
+// ---------------------------------------------------------------------------
 // Bernstein parallelogram TMO: even-prolong to tensor Bernstein coeffs, then
 // stock-like B/Bt sum-fac (no Duffy / Stroud).
 // ---------------------------------------------------------------------------
@@ -857,6 +1105,21 @@ MassIntegrator::ApplyTmoTensorPAKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2, "TMO Tensor mass PA is only implemented for triangles");
    return internal::SmemPAMassApplyTriangleTmoTensor;
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+MassIntegrator::ApplyTmoTensorKernelType
+MassIntegrator::ApplyTmoMmaPAKernels::Kernel()
+{
+   MFEM_CONTRACT_VAR(DIM);
+   return internal::SmemPAMassApplyTriangleTmoMma<T_D1D, T_Q1D>;
+}
+
+inline MassIntegrator::ApplyTmoTensorKernelType
+MassIntegrator::ApplyTmoMmaPAKernels::Fallback(int dim, int, int)
+{
+   MFEM_VERIFY(dim == 2, "TMO MMA mass PA is only implemented for triangles");
+   return internal::SmemPAMassApplyTriangleTmoMma;
 }
 
 template<int DIM, int T_D1D, int T_Q1D>

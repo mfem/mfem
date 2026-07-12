@@ -68,6 +68,19 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddTmoTensorSpecialization<2,6,42>();
    MassIntegrator::AddTmoTensorSpecialization<2,7,33>();
    MassIntegrator::AddTmoTensorSpecialization<2,7,55>();
+   // TMO MMA: same (D1D, nq1) keys as Tensor
+   MassIntegrator::AddTmoMmaSpecialization<2,2,3>();
+   MassIntegrator::AddTmoMmaSpecialization<2,2,12>();
+   MassIntegrator::AddTmoMmaSpecialization<2,3,6>();
+   MassIntegrator::AddTmoMmaSpecialization<2,3,16>();
+   MassIntegrator::AddTmoMmaSpecialization<2,4,12>();
+   MassIntegrator::AddTmoMmaSpecialization<2,4,25>();
+   MassIntegrator::AddTmoMmaSpecialization<2,5,16>();
+   MassIntegrator::AddTmoMmaSpecialization<2,5,33>();
+   MassIntegrator::AddTmoMmaSpecialization<2,6,25>();
+   MassIntegrator::AddTmoMmaSpecialization<2,6,42>();
+   MassIntegrator::AddTmoMmaSpecialization<2,7,33>();
+   MassIntegrator::AddTmoMmaSpecialization<2,7,55>();
 
    // 3D
    // Q=P+1

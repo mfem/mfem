@@ -2399,7 +2399,8 @@ protected:
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    /// TMO PA mode: 0=off, 1=Duffy, 2=Tensor/GLL, 3=Bernstein parallelogram,
-   /// 4=Bernstein dense P, 5=Composite sum-fac halves
+   /// 4=Bernstein dense P, 5=Composite sum-fac halves, 6=MMA (Tensor assemble +
+   /// DMMA apply)
    int pa_tmo = 0;
    /// TENSOR / BERNSTEIN_DENSE: P at chart pts. BERNSTEIN: prolong P + 1D B
    Array<real_t> tmo_P, tmo_B;
@@ -2453,6 +2454,8 @@ public:
    MFEM_REGISTER_KERNELS(ApplyTmoCompositePAKernels, ApplyTmoKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplyTmoTensorPAKernels, ApplyTmoTensorKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTmoMmaPAKernels, ApplyTmoTensorKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplyTmoBernsteinPAKernels, ApplyTmoBernsteinKernelType,
                          (int, int, int));
@@ -2520,6 +2523,7 @@ public:
       AddTmoSpecialization<DIM,D1D,Q1D>();
       AddTmoCompositeSpecialization<DIM,D1D,Q1D>();
       AddTmoTensorSpecialization<DIM,D1D,Q1D>();
+      AddTmoMmaSpecialization<DIM,D1D,Q1D>();
       AddTmoBernsteinSpecialization<DIM,D1D,Q1D>();
    }
 
@@ -2553,6 +2557,15 @@ public:
       if constexpr (DIM == 2)
       {
          ApplyTmoTensorPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTmoMmaSpecialization()
+   {
+      if constexpr (DIM == 2)
+      {
+         ApplyTmoMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 

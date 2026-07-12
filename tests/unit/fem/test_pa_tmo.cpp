@@ -36,6 +36,7 @@ void ClearTmoEnv()
    SetEnv("MFEM_USE_TMO_BERNSTEIN", "0");
    SetEnv("MFEM_USE_TMO_BERNSTEIN_DENSE", "0");
    SetEnv("MFEM_USE_TMO_COMPOSITE", "0");
+   SetEnv("MFEM_USE_TMO_MMA", "0");
    SetEnv("MFEM_USE_TMO", "0");
 }
 
@@ -223,6 +224,24 @@ TEST_CASE("PA TMO Tensor Mass", "[PartialAssembly][TMO][Tensor][GPU]")
    {
       test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
                        BasisType::GaussLobatto, "MFEM_USE_TMO_TENSOR");
+   }
+}
+
+TEST_CASE("PA TMO MMA Mass", "[PartialAssembly][TMO][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+
+   SECTION("single triangle")
+   {
+      test_pa_tmo_mass(Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE), p,
+                       BasisType::GaussLobatto, "MFEM_USE_TMO_MMA");
+   }
+
+   SECTION("beam-tri")
+   {
+      test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
+                       BasisType::GaussLobatto, "MFEM_USE_TMO_MMA");
    }
 }
 
