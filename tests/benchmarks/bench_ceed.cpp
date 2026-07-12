@@ -29,21 +29,46 @@
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
+// Spatial dimension for bake-off problems (2 or 3). Override at compile time:
+//   -DMFEM_BENCH_CEED_DIM=2   or CMake: -DMFEM_BENCH_CEED_DIM=2
+#ifndef MFEM_BENCH_CEED_DIM
+#define MFEM_BENCH_CEED_DIM 3
+#endif
+static_assert(MFEM_BENCH_CEED_DIM == 2 || MFEM_BENCH_CEED_DIM == 3,
+              "MFEM_BENCH_CEED_DIM must be 2 or 3");
+
 // Custom benchmark arguments generator
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
+   constexpr int DIM = MFEM_BENCH_CEED_DIM;
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
-      return (n + 1) * (n + 1) * (n + 1);
+      if constexpr (DIM == 2)
+      {
+         return (n + 1) * (n + 1);
+      }
+      else
+      {
+         return (n + 1) * (n + 1) * (n + 1);
+      }
    };
 
+   // 2D reaches the same MAX_NDOFS at much larger n; use coarser steps so the
+   // argument count stays comparable to the 3D bake-off sweep.
    constexpr auto inc = [](int n) constexpr noexcept -> int
    {
-      return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
+      if constexpr (DIM == 2)
+      {
+         return n < 160 ? 16 : n < 640 ? 32 : n < 1280 ? 64 : 128;
+      }
+      else
+      {
+         return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
+      }
    };
 
    for (auto p : orders)
@@ -58,6 +83,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 // Register kernel specializations used in the benchmarks
 static void AddKernelSpecializations()
 {
+#if MFEM_BENCH_CEED_DIM == 3
    using DET = QuadratureInterpolator::DetKernels;
    DET::Specialization<3, 3, 2, 2>::Add();
    DET::Specialization<3, 3, 2, 3>::Add();
@@ -84,13 +110,40 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<3, 3, 6, 6>::Add();
    VDIFF::Specialization<3, 3, 7, 7>::Add();
    VDIFF::Specialization<3, 3, 8, 8>::Add();
+#else
+   using DET = QuadratureInterpolator::DetKernels;
+   DET::Specialization<2, 2, 2, 2>::Add();
+   DET::Specialization<2, 2, 2, 3>::Add();
+   DET::Specialization<2, 2, 2, 5>::Add();
+   DET::Specialization<2, 2, 2, 6>::Add();
+   DET::Specialization<2, 2, 5, 5>::Add();
+
+   using GRAD = QuadratureInterpolator::GradKernels;
+   GRAD::Specialization<2, QVectorLayout::byNODES, false, 2, 2, 2>::Add();
+   GRAD::Specialization<2, QVectorLayout::byNODES, false, 2, 2, 7>::Add();
+   GRAD::Specialization<2, QVectorLayout::byNODES, false, 2, 2, 8>::Add();
+   GRAD::Specialization<2, QVectorLayout::byNODES, false, 2, 2, 9>::Add();
+
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<2, 7, 7>::Add();
+   LIN::Specialization<2, 6, 6>::Add();
+   LIN::Specialization<2, 8, 8>::Add();
+
+   using VDIFF = VectorDiffusionIntegrator::ApplyPAKernels;
+   VDIFF::Specialization<2, 2, 3, 3>::Add();
+   VDIFF::Specialization<2, 2, 4, 4>::Add();
+   VDIFF::Specialization<2, 2, 5, 5>::Add();
+   VDIFF::Specialization<2, 2, 6, 6>::Add();
+   VDIFF::Specialization<2, 2, 7, 7>::Add();
+   VDIFF::Specialization<2, 2, 8, 8>::Add();
+#endif
 }
 
 // Bake-off base class
 template <int BFI, int VDIM, bool GLL, bool SIMPLICES>
 struct BakeOff
 {
-   static constexpr int DIM = 3;
+   static constexpr int DIM = MFEM_BENCH_CEED_DIM;
    static constexpr bool visualization = false;
 
    static constexpr bool Simplices = SIMPLICES;
@@ -116,15 +169,46 @@ struct BakeOff
       p(p), c(side),
       q(2 * p + (GLL ? (SIMPLICES && BFI != 7) ? 0 : -1 : 3)),
       n((assert(c >= p), c / p)),
-      nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
-      ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
-      nz(n),
-      mesh(Mesh::MakeCartesian3D(nx, ny, nz,
-                                 SIMPLICES
-                                 ? Element::TETRAHEDRON
-                                 : Element::HEXAHEDRON)),
+      nx(n + ([&]()
+   {
+      if constexpr (DIM == 2)
+      {
+         return p * (n + 1) * p * n < c * c ? 1 : 0;
+      }
+      else
+      {
+         return p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0;
+      }
+   })()),
+      ny(n + ([&]()
+   {
+      if constexpr (DIM == 2)
+      {
+         return p * (n + 1) * p * (n + 1) < c * c ? 1 : 0;
+      }
+      else
+      {
+         return p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0;
+      }
+   })()),
+      nz(DIM == 2 ? 1 : n),
+      mesh([&]()
+   {
+      if constexpr (DIM == 2)
+      {
+         return Mesh::MakeCartesian2D(nx, ny,
+                                      SIMPLICES ? Element::TRIANGLE
+                                      : Element::QUADRILATERAL);
+      }
+      else
+      {
+         return Mesh::MakeCartesian3D(nx, ny, nz,
+                                      SIMPLICES ? Element::TETRAHEDRON
+                                      : Element::HEXAHEDRON);
+      }
+   }()),
       fec(p, DIM, SIMPLICES ? BasisType::Positive : BasisType::GaussLobatto),
-      fes(&mesh, &fec, VDIM, VDIM == 3 ? Ordering::byVDIM : Ordering::byNODES),
+      fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(SIMPLICES
@@ -158,7 +242,7 @@ struct BakeOff
       }
       else
       {
-         static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
+         static_assert(BFI >= 1 && BFI <= 7, "Invalid BilinearFormIntegrator");
       }
       a.AddDomainIntegrator(bfi);
    }
@@ -305,52 +389,59 @@ static void Benchmark(bm::State& state) noexcept
 }
 
 #define MAKE_NAME_false(PK, BFI) #PK #BFI
+#if MFEM_BENCH_CEED_DIM == 2
+#define MAKE_NAME_true(PK, BFI)  #PK #BFI "tri"
+#else
 #define MAKE_NAME_true(PK, BFI)  #PK #BFI "tet"
+#endif
 #define MAKE_NAME(PK, BFI, SIMPLICES) MAKE_NAME_ ## SIMPLICES (PK, BFI)
 
 #define REGISTER(PK, BFI, VDIM, GLL, SIMPLICES) \
    BENCHMARK_TEMPLATE(Benchmark, PK<BFI, VDIM, GLL, SIMPLICES>) \
    ->Name(MAKE_NAME(PK, BFI, SIMPLICES))->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
+// Vector bake-offs use VDIM == spatial dimension
+constexpr int CEED_VDIM = MFEM_BENCH_CEED_DIM;
+
 // BP1: scalar PCG with mass matrix, q=p+2
-REGISTER(BP, 1, 1, false, false);   // hex
-REGISTER(BP, 1, 1, false, true);    // tet
+REGISTER(BP, 1, 1, false, false);   // hex / quad
+REGISTER(BP, 1, 1, false, true);    // tet / tri
 
 // BP2: vector PCG with mass matrix, q=p+2
-REGISTER(BP, 2, 3, false, false);
+REGISTER(BP, 2, CEED_VDIM, false, false);
 
 // BP3: scalar PCG with stiffness matrix, q=p+2
-REGISTER(BP, 3, 1, false, false);   // hex
-REGISTER(BP, 3, 1, false, true);    // tet
+REGISTER(BP, 3, 1, false, false);   // hex / quad
+REGISTER(BP, 3, 1, false, true);    // tet / tri
 
 // BP4: vector PCG with stiffness matrix, q=p+2
-REGISTER(BP, 4, 3, false, false);
+REGISTER(BP, 4, CEED_VDIM, false, false);
 
 // BP5: scalar PCG with stiffness matrix, q=p+1
-REGISTER(BP, 5, 1, true, false);   // hex
-REGISTER(BP, 5, 1, true, true);    // tet
-REGISTER(BP, 7, 1, true, true);    // tet
+REGISTER(BP, 5, 1, true, false);   // hex / quad
+REGISTER(BP, 5, 1, true, true);    // tet / tri
+REGISTER(BP, 7, 1, true, true);    // tet / tri
 
 // BP6: vector PCG with stiffness matrix, q=p+1
-REGISTER(BP, 6, 3, true, false);
+REGISTER(BP, 6, CEED_VDIM, true, false);
 
 // BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 REGISTER(BK, 1, 1, false, false);
 
 // BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-REGISTER(BK, 2, 3, false, false);
+REGISTER(BK, 2, CEED_VDIM, false, false);
 
 // BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 REGISTER(BK, 3, 1, false, false);
 
 // BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-REGISTER(BK, 4, 3, false, false);
+REGISTER(BK, 4, CEED_VDIM, false, false);
 
 // BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 REGISTER(BK, 5, 1, true, false);
 
 // BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-REGISTER(BK, 6, 3, true, false);
+REGISTER(BK, 6, CEED_VDIM, true, false);
 
 /**
  * @brief CEED Bake-off Problems main entry point
@@ -359,6 +450,10 @@ REGISTER(BK, 6, 3, true, false);
  *    --benchmark_filter=BP1
  *    --benchmark_out_format=csv
  *    --benchmark_out=bp1.csv
+ *
+ * Compile-time spatial dimension (default 3):
+ *    cmake -DMFEM_BENCH_CEED_DIM=2 ...
+ *    or compile with -DMFEM_BENCH_CEED_DIM=2
  */
 int main(int argc, char *argv[])
 {

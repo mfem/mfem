@@ -56,3 +56,12 @@ add_benchmark(elasticity)
 add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
+
+# Spatial dimension for CEED bake-off benchmarks (2 or 3; default 3)
+set(MFEM_BENCH_CEED_DIM "3" CACHE STRING "Spatial dimension for bench_ceed (2 or 3)")
+set_property(CACHE MFEM_BENCH_CEED_DIM PROPERTY STRINGS 2 3)
+if (TARGET bench_ceed)
+   target_compile_definitions(bench_ceed PRIVATE
+      MFEM_BENCH_CEED_DIM=${MFEM_BENCH_CEED_DIM})
+   message(STATUS "bench_ceed: MFEM_BENCH_CEED_DIM=${MFEM_BENCH_CEED_DIM}")
+endif()

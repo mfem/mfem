@@ -41,7 +41,8 @@ enum
    TMO_BERNSTEIN = 3,
    TMO_BERNSTEIN_DENSE = 4,
    TMO_COMPOSITE = 5,
-   TMO_MMA = 6
+   TMO_MMA = 6,
+   TMO_BERNSTEIN_MMA = 7
 };
 
 int SelectTmoMode()
@@ -52,18 +53,21 @@ int SelectTmoMode()
    const bool dense = EnvFlag("MFEM_USE_TMO_BERNSTEIN_DENSE");
    const bool composite = EnvFlag("MFEM_USE_TMO_COMPOSITE");
    const bool mma = EnvFlag("MFEM_USE_TMO_MMA");
+   const bool bern_mma = EnvFlag("MFEM_USE_TMO_BERNSTEIN_MMA");
    const int nset = int(duffy) + int(tensor) + int(bern) + int(dense) +
-                    int(composite) + int(mma);
+                    int(composite) + int(mma) + int(bern_mma);
    MFEM_VERIFY(nset <= 1,
                "Set only one of MFEM_USE_TMO_DUFFY, MFEM_USE_TMO_TENSOR, "
                "MFEM_USE_TMO_BERNSTEIN, MFEM_USE_TMO_BERNSTEIN_DENSE, "
-               "MFEM_USE_TMO_COMPOSITE, MFEM_USE_TMO_MMA");
+               "MFEM_USE_TMO_COMPOSITE, MFEM_USE_TMO_MMA, "
+               "MFEM_USE_TMO_BERNSTEIN_MMA");
    if (duffy) { return TMO_DUFFY; }
    if (tensor) { return TMO_TENSOR; }
    if (bern) { return TMO_BERNSTEIN; }
    if (dense) { return TMO_BERNSTEIN_DENSE; }
    if (composite) { return TMO_COMPOSITE; }
    if (mma) { return TMO_MMA; }
+   if (bern_mma) { return TMO_BERNSTEIN_MMA; }
    return TMO_OFF;
 }
 
@@ -667,12 +671,14 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       AssemblePA_TMO_Bernstein(fes);
       return;
    }
-   if (mode == TMO_BERNSTEIN_DENSE)
+   if (mode == TMO_BERNSTEIN_DENSE || mode == TMO_BERNSTEIN_MMA)
    {
-      dbg("[TMO BernsteinDense] AssemblePA");
+      if (mode == TMO_BERNSTEIN_DENSE) { dbg("[TMO BernsteinDense] AssemblePA"); }
+      else { dbg("[TMO BernsteinMMA] AssemblePA"); }
       MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
-                  "MFEM_USE_TMO_BERNSTEIN_DENSE is only implemented for 2D triangles");
+                  "TMO BernsteinDense/BernsteinMMA is only implemented for 2D triangles");
       AssemblePA_TMO_BernsteinDense(fes);
+      if (mode == TMO_BERNSTEIN_MMA) { pa_tmo = TMO_BERNSTEIN_MMA; }
       return;
    }
    if (mode == TMO_COMPOSITE)
@@ -855,9 +861,10 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       ApplyTmoTensorPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P, pa_data, x, y,
                                    dofs1D, quad1D);
    }
-   else if (pa_tmo == TMO_MMA)
+   else if (pa_tmo == TMO_MMA || pa_tmo == TMO_BERNSTEIN_MMA)
    {
-      dbg("[TMO MMA] AddMultPA");
+      if (pa_tmo == TMO_MMA) { dbg("[TMO MMA] AddMultPA"); }
+      else { dbg("[TMO BernsteinMMA] AddMultPA"); }
       ApplyTmoMmaPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P, pa_data, x, y,
                                 dofs1D, quad1D);
    }
