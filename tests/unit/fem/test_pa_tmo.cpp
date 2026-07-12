@@ -233,7 +233,7 @@ TEST_CASE("PA TMO Tensor Mass", "[PartialAssembly][TMO][Tensor][GPU]")
 TEST_CASE("PA TMO MMA Mass", "[PartialAssembly][TMO][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   // Include p=5,6 so PreferMma16 (m16n8k16) is exercised on Hopper.
+   // Include p=5,6 so the larger m8 tile grids are exercised.
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
 
    SECTION("single triangle")
@@ -353,7 +353,7 @@ TEST_CASE("PA TMO BernsteinMMA Mass", "[PartialAssembly][TMO][BernsteinMMA][GPU]
 {
    // Positive/BernsteinDense assemble + DMMA apply (same P layout as Dense).
    const auto all_tests = launch_all_non_regression_tests;
-   // Include p=5,6 so PreferMma16 (m16n8k16) is exercised on Hopper.
+   // Include p=5,6 so the larger m8 tile grids are exercised.
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
 
    SECTION("single triangle")
