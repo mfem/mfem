@@ -2405,6 +2405,8 @@ protected:
    Array<real_t> tmo_P, tmo_B;
 
    void AssembleEA_(Vector &ea, const bool add);
+
+public:
    void AssemblePA_TMO_Duffy(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes);
    void AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes);
