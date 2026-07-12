@@ -845,10 +845,10 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (pa_tmo == TMO_TENSOR) { dbg("[TMO Tensor] AddMultPA"); }
       else { dbg("[TMO BernsteinDense] AddMultPA"); }
-      // Always use the runtime-(d1d,nq1) fallback: specialized kernels are
-      // keyed by 1D Q1D counts and can collide with triangle nq1 values.
-      internal::SmemPAMassApplyTriangleTmoTensor(ne, tmo_P, pa_data, x, y,
-                                                 dofs1D, quad1D);
+      // Dispatch key is (D1D, nq1) with nq1 = triangle points per mirror
+      // (see AddTmoTensorSpecialization). Falls back if unmatched.
+      ApplyTmoTensorPAKernels::Run(dim, dofs1D, quad1D, ne, tmo_P, pa_data, x, y,
+                                   dofs1D, quad1D);
    }
    else if (pa_tmo == TMO_BERNSTEIN)
    {

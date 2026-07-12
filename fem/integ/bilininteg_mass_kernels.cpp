@@ -44,6 +44,30 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,2,5>();
    MassIntegrator::AddSpecialization<2,3,6>();
    MassIntegrator::AddSpecialization<2,4,6>();
+   // TMO Duffy / Composite / Bernstein (Stroud 1D Q1D), p ≤ 6: pairs not
+   // already covered above. Order 2p+4 ⇒ Q1D = D1D+2; also D1D+1 / D1D+3.
+   MassIntegrator::AddSpecialization<2,3,5>();
+   MassIntegrator::AddSpecialization<2,4,7>();
+   MassIntegrator::AddSpecialization<2,5,7>();
+   MassIntegrator::AddSpecialization<2,5,8>();
+   MassIntegrator::AddSpecialization<2,6,8>();
+   MassIntegrator::AddSpecialization<2,6,9>();
+   MassIntegrator::AddSpecialization<2,7,9>();
+   MassIntegrator::AddSpecialization<2,7,10>();
+   // TMO Tensor / BernsteinDense: key is (D1D, triangle nq1), not 1D Q1D.
+   // IntRules TRIANGLE counts for order 2p and 2p+4, p = 1..6.
+   MassIntegrator::AddTmoTensorSpecialization<2,2,3>();
+   MassIntegrator::AddTmoTensorSpecialization<2,2,12>();
+   MassIntegrator::AddTmoTensorSpecialization<2,3,6>();
+   MassIntegrator::AddTmoTensorSpecialization<2,3,16>();
+   MassIntegrator::AddTmoTensorSpecialization<2,4,12>();
+   MassIntegrator::AddTmoTensorSpecialization<2,4,25>();
+   MassIntegrator::AddTmoTensorSpecialization<2,5,16>();
+   MassIntegrator::AddTmoTensorSpecialization<2,5,33>();
+   MassIntegrator::AddTmoTensorSpecialization<2,6,25>();
+   MassIntegrator::AddTmoTensorSpecialization<2,6,42>();
+   MassIntegrator::AddTmoTensorSpecialization<2,7,33>();
+   MassIntegrator::AddTmoTensorSpecialization<2,7,55>();
 
    // 3D
    // Q=P+1

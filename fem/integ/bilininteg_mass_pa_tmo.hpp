@@ -550,33 +550,43 @@ void SmemPAMassApplyTriangleTmoTensor_Element(const int e,
    MFEM_SHARED real_t Xtri[BASIS_DIM];
    MFEM_SHARED real_t Uq[MQ];
 
-   MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
+   // y-thread 0 owns dof loads/stores; x-thread 0 owns Uq writes
+   if (MFEM_THREAD_ID(y) == 0)
    {
-      Xtri[i] = x(i, e);
+      MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
+      {
+         Xtri[i] = x(i, e);
+      }
    }
    MFEM_SYNC_THREAD;
 
    for (int k = 0; k < tmo::NMIRRORS; ++k)
    {
-      MFEM_FOREACH_THREAD_DIRECT(q, y, NQ1)
+      if (MFEM_THREAD_ID(x) == 0)
       {
-         real_t u = 0.0;
-         for (int i = 0; i < ndof; ++i)
+         MFEM_FOREACH_THREAD_DIRECT(q, y, NQ1)
          {
-            u += P(q, i, k) * Xtri[i];
+            real_t u = 0.0;
+            for (int i = 0; i < ndof; ++i)
+            {
+               u += P(q, i, k) * Xtri[i];
+            }
+            Uq[q] = u * D(q, k, e);
          }
-         Uq[q] = u * D(q, k, e);
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
+      if (MFEM_THREAD_ID(y) == 0)
       {
-         real_t yi = 0.0;
-         for (int q = 0; q < NQ1; ++q)
+         MFEM_FOREACH_THREAD_DIRECT(i, x, ndof)
          {
-            yi += P(q, i, k) * Uq[q];
+            real_t yi = 0.0;
+            for (int q = 0; q < NQ1; ++q)
+            {
+               yi += P(q, i, k) * Uq[q];
+            }
+            Y(i, e) += yi;
          }
-         Y(i, e) += yi;
       }
       MFEM_SYNC_THREAD;
    }

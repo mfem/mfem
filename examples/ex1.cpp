@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(5000000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -275,7 +275,16 @@ int main(int argc, char *argv[])
       }
       else
       {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         CG(*A, B, X, 3, 10, 0.0, 0.0);
+         StopWatch timer;
+         timer.Clear();
+         MFEM_DEVICE_SYNC;
+         timer.Start();
+         CG(*A, B, X, 3, 200, 0.0, 0.0);
+         // CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         MFEM_DEVICE_SYNC;
+         timer.Stop();
+         cout << "\x1b[32mCG time: " << timer.RealTime() << " s\x1b[m\n";
       }
    }
 
@@ -284,12 +293,12 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   // ofstream mesh_ofs("refined.mesh");
+   // mesh_ofs.precision(8);
+   // mesh.Print(mesh_ofs);
+   // ofstream sol_ofs("sol.gf");
+   // sol_ofs.precision(8);
+   // x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
