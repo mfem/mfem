@@ -623,7 +623,8 @@ inline void SmemPAMassApplyTriangleTmoTensor(const int NE,
 }
 
 // ---------------------------------------------------------------------------
-// MMA Tensor TMO apply: same P/D as Tensor, DMMA m8n8k4 for P*x and P^T*u
+// MMA Tensor TMO apply: batched (NB=mmaN) shared-memory DMMA GEMM
+// Same P/D as Tensor / BernsteinDense; used by TMO_MMA and TMO_BERNSTEIN_MMA.
 // ---------------------------------------------------------------------------
 
 namespace tmo
@@ -646,10 +647,30 @@ MFEM_HOST_DEVICE inline int getGroupId(int laneId) { return laneId / 4; }
 MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId) { return laneId % 4; }
 
 constexpr int mmaM = 8;
-[[maybe_unused]] constexpr int mmaN = 8;
+constexpr int mmaN = 8;
 constexpr int mmaK = 4;
+// Hopper SM90+ FP64: m16n8k16
+constexpr int mmaM16 = 16;
+constexpr int mmaN16 = 8;
+constexpr int mmaK16 = 16;
 // Column remap for m8n8k4.row.col fragments: [0,5,1,6,2,7,3,4]
 constexpr int magicNumber = 0b100011111010110001101000;
+
+/** Prefer m16n8k16 when dimensions are large enough that K-padding is
+    tolerable and the MMA tile count drops vs m8n8k4 (typically p >= 5). */
+MFEM_HOST_DEVICE inline bool PreferMma16(const int M, const int K)
+{
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 900)
+   MFEM_CONTRACT_VAR(M); MFEM_CONTRACT_VAR(K);
+   return false;
+#else
+   // Host path: same size heuristic (device also needs sm_90 at runtime).
+   const int t84 = ((M + mmaM - 1) / mmaM) * ((K + mmaK - 1) / mmaK);
+   const int t1616 = ((M + mmaM16 - 1) / mmaM16) *
+                     ((K + mmaK16 - 1) / mmaK16);
+   return (M >= mmaM16) && (K >= mmaK16) && (t1616 <= t84);
+#endif
+}
 
 MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
                                       [[maybe_unused]] double bReg[1],
@@ -662,10 +683,49 @@ MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
 #endif
 }
 
-/** y = A * x with A(row,col) = Aacc(row,col), A is M×K, x length K. */
-template <typename AAcc>
-MFEM_HOST_DEVICE inline void dmma_Gemv(const int M, const int K,
-                                       AAcc A, const real_t *x, real_t *y)
+MFEM_HOST_DEVICE inline void dmmaSync16([[maybe_unused]] double aReg[8],
+                                        [[maybe_unused]] double bReg[4],
+                                        [[maybe_unused]] double cReg[4])
+{
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900)
+   asm volatile(
+      "mma.sync.aligned.m16n8k16.row.col.f64.f64.f64.f64 "
+      "{%0,%1,%2,%3}, "
+      "{%4,%5,%6,%7,%8,%9,%10,%11}, "
+      "{%12,%13,%14,%15}, "
+      "{%0,%1,%2,%3};"
+      : "+d"(cReg[0]), "+d"(cReg[1]), "+d"(cReg[2]), "+d"(cReg[3])
+      : "d"(aReg[0]), "d"(aReg[1]), "d"(aReg[2]), "d"(aReg[3]),
+        "d"(aReg[4]), "d"(aReg[5]), "d"(aReg[6]), "d"(aReg[7]),
+        "d"(bReg[0]), "d"(bReg[1]), "d"(bReg[2]), "d"(bReg[3]));
+#endif
+}
+
+/** Row-major smem matrix accessor: a(r,c) = p[r + rows*c]. */
+struct MatAcc
+{
+   real_t *p;
+   int rows;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int c) const
+   {
+      return p[r + rows * c];
+   }
+};
+
+struct ConstMatAcc
+{
+   const real_t *p;
+   int rows;
+   MFEM_HOST_DEVICE inline real_t operator()(int r, int c) const
+   {
+      return p[r + rows * c];
+   }
+};
+
+/** C = A * B; A is M×K, B is K×N, C is M×N (m8n8k4). */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
+                                        AAcc A, BAcc B, CAcc C)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -687,37 +747,88 @@ MFEM_HOST_DEVICE inline void dmma_Gemv(const int M, const int K,
       double bReg[1];
       const int bRow = bRowInWarp + mK * mmaK;
       const int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-      bReg[0] = (bColumn == 0 && bRow < K) ? static_cast<double>(x[bRow]) : 0.0;
+      bReg[0] = (bRow < K && bColumn < N)
+                ? static_cast<double>(B(bRow, bColumn)) : 0.0;
 
       double aReg[1];
       const int aRow = aRowInWarp * mPass + mM;
       const int aColumn = aColumnInWarp + mK * mmaK;
-      aReg[0] = (aRow < M && aColumn < K) ? static_cast<double>(A(aRow, aColumn))
-                : 0.0;
+      aReg[0] = (aRow < M && aColumn < K)
+                ? static_cast<double>(A(aRow, aColumn)) : 0.0;
       dmmaSync(aReg, bReg, cReg);
    }
    for (int i = 0; i < 2; i++)
    {
       const int cRow = groupId * mPass + mM;
       const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-      if (cRow < M && cColumn == 0)
+      if (cRow < M && cColumn < N)
       {
-         y[cRow] = static_cast<real_t>(cReg[i]);
+         C(cRow, cColumn) = static_cast<real_t>(cReg[i]);
       }
    }
 }
 
-/** y += A^T * u with A(row,col) = Aacc(row,col), A is M×K, u length M, y length K. */
-template <typename AAcc>
-MFEM_HOST_DEVICE inline void dmma_GemvT(const int M, const int K,
-                                        AAcc A, const real_t *u, real_t *y)
+/** C = A * B using Hopper m16n8k16 (one warp → 16×8 tile of C). */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_Gemm16(const int M, const int K, const int N,
+                                         AAcc A, BAcc B, CAcc C)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
-   // Output dimension is K for A^T * u
+   const int mPass = (M + mmaM16 - 1) / mmaM16;
+   if (warpId >= mPass) { return; }
+
+   const int row0 = warpId * mmaM16;
+   double cReg[4] = {};
+
+   for (int mK = 0; mK < (K + mmaK16 - 1) / mmaK16; mK++)
+   {
+      const int col0 = mK * mmaK16;
+      double aReg[8];
+      for (int i = 0; i < 8; ++i)
+      {
+         const int row = row0 + groupId + ((i % 2) ? 8 : 0);
+         const int col = (i % 2 == 0)
+                         ? (i * 2) + threadIdInGroup
+                         : (i * 2) - 2 + threadIdInGroup;
+         const int aCol = col0 + col;
+         aReg[i] = (row < M && aCol < K)
+                   ? static_cast<double>(A(row, aCol)) : 0.0;
+      }
+      double bReg[4];
+      for (int i = 0; i < 4; ++i)
+      {
+         const int bRow = col0 + threadIdInGroup + i * 4;
+         const int bCol = groupId; // N fragment column
+         bReg[i] = (bRow < K && bCol < N)
+                   ? static_cast<double>(B(bRow, bCol)) : 0.0;
+      }
+      dmmaSync16(aReg, bReg, cReg);
+   }
+   for (int i = 0; i < 4; ++i)
+   {
+      const int cRow = row0 + groupId + ((i >= 2) ? 8 : 0);
+      const int cCol = (threadIdInGroup * 2) + (i & 1);
+      if (cRow < M && cCol < N)
+      {
+         C(cRow, cCol) = static_cast<real_t>(cReg[i]);
+      }
+   }
+}
+
+/** C += A^T * B; A is M×K, B is M×N, C is K×N (m8n8k4). */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
+                                         AAcc A, BAcc B, CAcc C)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (K + mmaM - 1) / mmaM;
    if (warpId >= mPass) { return; }
 
@@ -733,24 +844,109 @@ MFEM_HOST_DEVICE inline void dmma_GemvT(const int M, const int K,
       double bReg[1];
       const int bRow = bRowInWarp + mK * mmaK;
       const int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-      bReg[0] = (bColumn == 0 && bRow < M) ? static_cast<double>(u[bRow]) : 0.0;
+      bReg[0] = (bRow < M && bColumn < N)
+                ? static_cast<double>(B(bRow, bColumn)) : 0.0;
 
       double aReg[1];
-      // A^T(aRow, aColumn) = A(aColumn, aRow); aRow in K, aColumn in M
       const int aRow = aRowInWarp * mPass + mM;
       const int aColumn = aColumnInWarp + mK * mmaK;
-      aReg[0] = (aRow < K && aColumn < M) ? static_cast<double>(A(aColumn, aRow))
-                : 0.0;
+      aReg[0] = (aRow < K && aColumn < M)
+                ? static_cast<double>(A(aColumn, aRow)) : 0.0;
       dmmaSync(aReg, bReg, cReg);
    }
    for (int i = 0; i < 2; i++)
    {
       const int cRow = groupId * mPass + mM;
       const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-      if (cRow < K && cColumn == 0)
+      if (cRow < K && cColumn < N)
       {
-         y[cRow] += static_cast<real_t>(cReg[i]);
+         C(cRow, cColumn) += static_cast<real_t>(cReg[i]);
       }
+   }
+}
+
+/** C += A^T * B using Hopper m16n8k16. */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_GemmT16(const int M, const int K, const int N,
+                                          AAcc A, BAcc B, CAcc C)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   // Output rows are in K for A^T * B
+   const int mPass = (K + mmaM16 - 1) / mmaM16;
+   if (warpId >= mPass) { return; }
+
+   const int row0 = warpId * mmaM16; // rows of A^T (= cols of A)
+   double cReg[4] = {};
+
+   for (int mK = 0; mK < (M + mmaK16 - 1) / mmaK16; mK++)
+   {
+      const int col0 = mK * mmaK16; // cols of A^T (= rows of A)
+      double aReg[8];
+      for (int i = 0; i < 8; ++i)
+      {
+         const int aT_row = row0 + groupId + ((i % 2) ? 8 : 0);
+         const int aT_col = (i % 2 == 0)
+                            ? (i * 2) + threadIdInGroup
+                            : (i * 2) - 2 + threadIdInGroup;
+         const int aRow = col0 + aT_col; // row of A
+         const int aCol = aT_row;        // col of A
+         aReg[i] = (aCol < K && aRow < M)
+                   ? static_cast<double>(A(aRow, aCol)) : 0.0;
+      }
+      double bReg[4];
+      for (int i = 0; i < 4; ++i)
+      {
+         const int bRow = col0 + threadIdInGroup + i * 4; // row of B (= row of A)
+         const int bCol = groupId;
+         bReg[i] = (bRow < M && bCol < N)
+                   ? static_cast<double>(B(bRow, bCol)) : 0.0;
+      }
+      dmmaSync16(aReg, bReg, cReg);
+   }
+   for (int i = 0; i < 4; ++i)
+   {
+      const int cRow = row0 + groupId + ((i >= 2) ? 8 : 0);
+      const int cCol = (threadIdInGroup * 2) + (i & 1);
+      if (cRow < K && cCol < N)
+      {
+         C(cRow, cCol) += static_cast<real_t>(cReg[i]);
+      }
+   }
+}
+
+/** C = A * B; dispatches m16n8k16 when PreferMma16(M,K). */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_Gemm(const int M, const int K, const int N,
+                                       AAcc A, BAcc B, CAcc C)
+{
+   if (PreferMma16(M, K))
+   {
+      dmma_Gemm16(M, K, N, A, B, C);
+   }
+   else
+   {
+      dmma_Gemm8(M, K, N, A, B, C);
+   }
+}
+
+/** C += A^T * B; dispatches m16n8k16 when PreferMma16(K,M) for A^T sizing.
+    For A^T the effective GEMM is (K × M) * (M × N), so prefer based on
+    output-rows K and reduction M → PreferMma16(K, M). */
+template <typename AAcc, typename BAcc, typename CAcc>
+MFEM_HOST_DEVICE inline void dmma_GemmT(const int M, const int K, const int N,
+                                        AAcc A, BAcc B, CAcc C)
+{
+   if (PreferMma16(K, M))
+   {
+      dmma_GemmT16(M, K, N, A, B, C);
+   }
+   else
+   {
+      dmma_GemmT8(M, K, N, A, B, C);
    }
 }
 
@@ -759,15 +955,16 @@ MFEM_HOST_DEVICE inline void dmma_GemvT(const int M, const int K,
 
 template<int T_D1D, int T_Q1D>
 MFEM_HOST_DEVICE inline
-void SmemPAMassApplyTriangleTmoMma_Element(const int e,
-                                           const int NE,
-                                           const real_t *p_,
-                                           const real_t *d_,
-                                           const real_t *x_,
-                                           real_t *y_,
-                                           const int d1d,
-                                           const int nq1)
+void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
+                                         const int NE,
+                                         const real_t *p_,
+                                         const real_t *d_,
+                                         const real_t *x_,
+                                         real_t *y_,
+                                         const int d1d,
+                                         const int nq1)
 {
+   constexpr int NB = tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = D1D * (D1D + 1) / 2;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
@@ -775,17 +972,18 @@ void SmemPAMassApplyTriangleTmoMma_Element(const int e,
    constexpr int MQ = T_Q1D ? T_Q1D : (DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D);
    constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
+   // Specialized kernels can stage one mirror of P in smem; fallback keeps P in global.
+   constexpr bool STAGE_P = (T_D1D != 0 && T_Q1D != 0);
 
-   const auto P = DeviceTensor<3, const real_t>(p_, NQ1, ndof, tmo::NMIRRORS);
    const auto D = DeviceTensor<3, const real_t>(d_, NQ1, tmo::NMIRRORS, NE);
    const auto x = ConstDeviceMatrix(x_, ndof, NE);
    auto Y = DeviceMatrix(y_, ndof, NE);
 
-   MFEM_SHARED real_t Xtri[BASIS_DIM];
-   MFEM_SHARED real_t Uq[MQ];
+   MFEM_SHARED real_t Xs[BASIS_DIM * NB];
+   MFEM_SHARED real_t Us[MQ * NB];
+   MFEM_SHARED real_t Ys[BASIS_DIM * NB];
+   MFEM_SHARED real_t Ps[STAGE_P ? (MQ * BASIS_DIM) : 1];
 
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   MFEM_CONTRACT_VAR(P);
    struct PSlice
    {
       const real_t *p;
@@ -796,45 +994,134 @@ void SmemPAMassApplyTriangleTmoMma_Element(const int e,
       }
    };
 
+   struct PSmem
+   {
+      const real_t *p;
+      int nq1_;
+      MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+      {
+         return p[row + nq1_ * col];
+      }
+   };
+
    const int tid = tmo::mma::getThreadIdx();
-   if (tid < ndof) { Xtri[tid] = x(tid, e); }
+#ifdef __CUDA_ARCH__
+   const int nthreads = blockDim.x * blockDim.y * blockDim.z;
+#else
+   const int nthreads = 1;
+#endif
+
+   // Zero Yacc and load X batch (pad inactive elements with zeros).
+   for (int i = tid; i < BASIS_DIM * NB; i += nthreads)
+   {
+      Ys[i] = 0.0;
+      Xs[i] = 0.0;
+   }
    MFEM_SYNC_THREAD;
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e < NE)
+      {
+         for (int i = tid; i < ndof; i += nthreads)
+         {
+            Xs[i + BASIS_DIM * b] = x(i, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   tmo::mma::MatAcc Xacc{Xs, BASIS_DIM};
+   tmo::mma::MatAcc Uacc{Us, MQ};
+   tmo::mma::MatAcc Yacc{Ys, BASIS_DIM};
 
    for (int k = 0; k < tmo::NMIRRORS; ++k)
    {
-      PSlice A{p_, NQ1, ndof, k};
-      tmo::mma::dmma_Gemv(NQ1, ndof, A, Xtri, Uq);
+      if constexpr (STAGE_P)
+      {
+         for (int j = tid; j < NQ1 * ndof; j += nthreads)
+         {
+            const int q = j % NQ1;
+            const int i = j / NQ1;
+            Ps[q + NQ1 * i] = p_[q + NQ1 * (i + ndof * k)];
+         }
+         MFEM_SYNC_THREAD;
+         PSmem A{Ps, NQ1};
+         tmo::mma::dmma_Gemm(NQ1, ndof, NB, A, Xacc, Uacc);
+      }
+      else
+      {
+         PSlice A{p_, NQ1, ndof, k};
+         tmo::mma::dmma_Gemm(NQ1, ndof, NB, A, Xacc, Uacc);
+      }
       MFEM_SYNC_THREAD;
-      if (tid < NQ1) { Uq[tid] *= D(tid, k, e); }
+      for (int b = 0; b < NB; ++b)
+      {
+         const int e = e0 + b;
+         if (e >= NE) { continue; }
+         for (int q = tid; q < NQ1; q += nthreads)
+         {
+            Us[q + MQ * b] *= D(q, k, e);
+         }
+      }
       MFEM_SYNC_THREAD;
-      tmo::mma::dmma_GemvT(NQ1, ndof, A, Uq, &Y(0, e));
+      if constexpr (STAGE_P)
+      {
+         PSmem A{Ps, NQ1};
+         tmo::mma::dmma_GemmT(NQ1, ndof, NB, A, Uacc, Yacc);
+      }
+      else
+      {
+         PSlice A{p_, NQ1, ndof, k};
+         tmo::mma::dmma_GemmT(NQ1, ndof, NB, A, Uacc, Yacc);
+      }
       MFEM_SYNC_THREAD;
    }
+
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e >= NE) { continue; }
+      for (int i = tid; i < ndof; i += nthreads)
+      {
+         Y(i, e) += Ys[i + BASIS_DIM * b];
+      }
+   }
+   MFEM_SYNC_THREAD;
 #else
-   // Host / non-f64: same math as Tensor (scalar).
-   const int tid = tmo::mma::getThreadIdx();
+   // Host / non-f64: scalar dense batch (same math).
    if (tid == 0)
    {
-      for (int i = 0; i < ndof; ++i) { Xtri[i] = x(i, e); }
       for (int k = 0; k < tmo::NMIRRORS; ++k)
       {
-         for (int q = 0; q < NQ1; ++q)
+         for (int b = 0; b < NB; ++b)
          {
-            real_t u = 0.0;
-            for (int i = 0; i < ndof; ++i) { u += P(q, i, k) * Xtri[i]; }
-            Uq[q] = u * D(q, k, e);
-         }
-         for (int i = 0; i < ndof; ++i)
-         {
-            real_t yi = 0.0;
-            for (int q = 0; q < NQ1; ++q) { yi += P(q, i, k) * Uq[q]; }
-            Y(i, e) += yi;
+            const int e = e0 + b;
+            if (e >= NE) { continue; }
+            for (int q = 0; q < NQ1; ++q)
+            {
+               real_t u = 0.0;
+               for (int i = 0; i < ndof; ++i)
+               {
+                  u += p_[q + NQ1 * (i + ndof * k)] * Xs[i + BASIS_DIM * b];
+               }
+               Us[q + MQ * b] = u * D(q, k, e);
+            }
+            for (int i = 0; i < ndof; ++i)
+            {
+               real_t yi = 0.0;
+               for (int q = 0; q < NQ1; ++q)
+               {
+                  yi += p_[q + NQ1 * (i + ndof * k)] * Us[q + MQ * b];
+               }
+               Y(i, e) += yi;
+            }
          }
       }
    }
    MFEM_SYNC_THREAD;
 #endif
-   MFEM_CONTRACT_VAR(NE);
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -846,6 +1133,7 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
                                           const int d1d = 0,
                                           const int nq1 = 0)
 {
+   constexpr int NB = tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = D1D * (D1D + 1) / 2;
@@ -858,15 +1146,19 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   // Warps cover 8-row tiles of the larger Gemv dimension (NQ1 or ndof).
+   // Warps cover tiles of the larger GEMM dimension (NQ1 or ndof).
+   // PreferMma16 uses 16-row tiles; otherwise m8n8k4 uses 8-row tiles.
    const int mdim = (NQ1 > ndof) ? NQ1 : ndof;
-   const int mPass = (mdim + tmo::mma::mmaM - 1) / tmo::mma::mmaM;
+   const bool use16 = tmo::mma::PreferMma16(NQ1, ndof);
+   const int tileM = use16 ? tmo::mma::mmaM16 : tmo::mma::mmaM;
+   const int mPass = (mdim + tileM - 1) / tileM;
    const int nthreads = ((mPass > 1) ? mPass : 1) * 32;
+   const int nbatches = (NE + NB - 1) / NB;
 
-   mfem::forall_3D(NE, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
-      SmemPAMassApplyTriangleTmoMma_Element<T_D1D, T_Q1D>(
-         e, NE, P, D, X, Y, d1d, nq1);
+      SmemPAMassApplyTriangleTmoMma_Batch<T_D1D, T_Q1D>(
+         batch * NB, NE, P, D, X, Y, d1d, nq1);
    });
 }
 
