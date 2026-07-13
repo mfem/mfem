@@ -5786,6 +5786,7 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
+// TODO: if this is the same as NCNURBSExtension::PrintCoarsePatches, then eliminate the duplication.
 void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 {
    const int patchCP_size1 = patchCP.GetSize1();
@@ -5794,7 +5795,34 @@ void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 
    if (patchCP_size1 == 0) { return; }
 
-   MFEM_ABORT("PrintCoarsePatches is supported only in NCNURBSExtension");
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
+   // and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
+
+   MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
+
+   if (patchCP.GetSize2() < ncp)
+   {
+      return;
+   }
+
+   os << "\npatch_cp\n" << num_structured_patches << "\n";
+   for (int p=0; p<num_structured_patches; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         os << patchCP(p, i, 0);
+         for (int j = 1; j < Dimension() + 1; ++j)
+         {
+            os << ' ' << patchCP(p, i, j);
+         }
+         os << '\n';
+      }
+   }
 }
 
 int NURBSExtension::VertexPairToEdge(const std::pair<int, int> &vertices) const
@@ -5821,26 +5849,31 @@ void NURBSExtension::RefineWithKVFactors(int rf,
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
 }
 
-// Assumes 1 patch.
-void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
+// Assumes 1 patch. Note that SolvePhysicalGridInteriorSweep is more efficient,
+// using a banded linear solver for 1D sweeping solves. This function uses a
+// dense matrix inversion on the entire patch, which is not scalable.
+void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
                                const Array3D<real_t> &grid)
 {
    constexpr int patch = 0; // Assuming one patch
 
+   const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
+
    const int ncp0 = (nel[0] * ned) + 1;
    const int ncp1 = (nel[1] * ned) + 1;
-   const int ncps[2] = {ncp0, ncp1};
-
-   constexpr int dim = 2; // TODO: hard-coded
+   const int ncp2 = dim == 2 ? 1 : (nel[2] * ned) + 1;
+   const int ncps[3] = {ncp0, ncp1, ncp2};
 
    FiniteElementCollection* fec = mesh.GetNodes()->OwnFEC();
    FiniteElementSpace fespace(&mesh, fec);
    GridFunction x(&fespace);
 
-   MFEM_VERIFY(ncp0 * ncp1 == x.Size(), "");
+   MFEM_VERIFY(ncp0 * ncp1 * ncp2 == x.Size(), "");
 
-   std::vector<Vector> ugrid(
-      dim); // Parameter space [0,1]^2 grid point coordinates
+   // Parameter space [0,1]^dim grid point coordinates
+   std::vector<Vector> ugrid(dim);
+
    std::vector<Vector> xi_args(dim);
    std::vector<Array<int>> i_args(dim);
 
@@ -5877,122 +5910,180 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 2> nel,
       }
    }
 
-   const int ncp2 = (ncps[0] - 2) * (ncps[1] - 2);
+   const int niz = dim == 2 ? 1 : ncps[2] - 2;
+   const int ncp = (ncps[0] - 2) * (ncps[1] - 2) * niz;
 
-   // TODO: use BandedSolve? Solve on 1D curves?
-   std::vector<DenseMatrix> A(2);
+   std::vector<DenseMatrix> A(sdim);
    GridFunction x0(&fespace);
-   Vector sol(ncp2);
-   std::vector<Vector> b(2);
+   Vector sol(ncp);
+   std::vector<Vector> b(sdim);
 
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < sdim; ++i)
    {
-      b[i].SetSize(ncp2);
-      A[i].SetSize(ncp2);
+      b[i].SetSize(ncp);
+      A[i].SetSize(ncp);
       A[i] = 0.0;
    }
 
    IntegrationPoint ip;
-   for (int dir=0; dir<2; ++dir)
+   for (int dir=0; dir<sdim; ++dir)
    {
+      // Set b[dir]
       int dofprev = -1;
       x = 0.0;
 
-      for (int side=0; side<2; ++side)
+      for (int l_k=0; l_k<ncps[2]; ++l_k)
       {
-         // Left and right
-         const int l_i = side * (ncps[0] - 1);
-         for (int l_j=0; l_j<ncps[1]; ++l_j)
+         for (int side=0; side<2; ++side)
          {
-            const int l_full = l_i + (ncps[0] * l_j);
-            const int dof = pdofs[l_full];
-            x[dof] = (*mesh.GetNodes())[(dim * dof) + dir];
+            // Left and right (2D)
+            const int l_i = side * (ncps[0] - 1);
+            for (int l_j=0; l_j<ncps[1]; ++l_j)
+            {
+               const int l_full = l_i + (ncps[0] * l_j) + (ncps[0] * ncps[1] * l_k);
+               const int dof = pdofs[l_full];
+               x[dof] = (*mesh.GetNodes())[(sdim * dof) + dir];
+            }
+         }
+
+         for (int side=0; side<2; ++side)
+         {
+            // Bottom and top (2D)
+            const int l_j = side * (ncps[1] - 1);
+            for (int l_i=0; l_i<ncps[0]; ++l_i)
+            {
+               const int l_full = l_i + (ncps[0] * l_j) + (ncps[0] * ncps[1] * l_k);
+               const int dof = pdofs[l_full];
+               x[dof] = (*mesh.GetNodes())[(sdim * dof) + dir];
+            }
          }
       }
 
-      for (int side=0; side<2; ++side)
+      if (dim == 3)
       {
-         // Bottom and top
-         const int l_j = side * (ncps[1] - 1);
-         for (int l_i=0; l_i<ncps[0]; ++l_i)
+         // Set the interiors of the 3D bottom and top faces.
+         for (int side=0; side<2; ++side)
          {
-            const int l_full = l_i + (ncps[0] * l_j);
-            const int dof = pdofs[l_full];
-            x[dof] = (*mesh.GetNodes())[(dim * dof) + dir];
+            const int l_k = side * (ncps[2] - 1);
+            for (int l_j=1; l_j<ncps[1]-1; ++l_j)
+            {
+               for (int l_i=1; l_i<ncps[0]-1; ++l_i)
+               {
+                  const int l_full = l_i + (ncps[0] * l_j) + (ncps[0] * ncps[1] * l_k);
+                  const int dof = pdofs[l_full];
+                  x[dof] = (*mesh.GetNodes())[(sdim * dof) + dir];
+               }
+            }
          }
       }
 
       x0 = x;
       x = 0.0;
 
-      for (int dof_i=1; dof_i < ncp0 - 1; ++dof_i)
-         for (int dof_j=1; dof_j < ncp1 - 1; ++dof_j)
-         {
-            const int el_i = i_args[0][dof_i];
-            const int el_j = i_args[1][dof_j];
-            const int elem = el_i + (nel[0] *
-                                     el_j); // Element index, assuming a single patch in the mesh.
+      // Set the interior DOFs
+      for (int dof_k=1; dof_k <= niz; ++dof_k)
+      {
+         // TODO: remove ? : as you get the same result either way.
+         const int osi_k = dim == 2 ? 0 : ((ncps[0] - 2) * (ncps[1] - 2) * (dof_k - 1));
 
-            ip.Set2(xi_args[0][dof_i], xi_args[1][dof_j]);
+         for (int dof_i=1; dof_i < ncp0 - 1; ++dof_i)
+            for (int dof_j=1; dof_j < ncp1 - 1; ++dof_j)
+            {
+               const int el_i = i_args[0][dof_i];
+               const int el_j = i_args[1][dof_j];
+               const int el_k = dim == 2 ? 0 : i_args[2][dof_k];
 
-            for (int l_i=1; l_i<ncps[0] - 1; ++l_i)
-               for (int l_j=1; l_j<ncps[1] - 1; ++l_j)
+               // Element index, assuming a single patch in the mesh.
+               const int elem = el_i + (nel[0] * el_j) + (nel[0] * nel[1] * el_k);
+
+               if (dim == 2)
                {
-                  const int l = l_i - 1 + ((ncps[0] - 2) * (l_j - 1));
-                  const int l_full = l_i + (ncps[0] * l_j);
-
-                  if (dofprev >= 0)
-                  {
-                     x[dofprev] = 0.0;
-                  }
-
-                  x[pdofs[l_i + (ncps[0] * l_j)]] = 1.0; // TODO: this is just [l]?
-                  dofprev = pdofs[l_i + (ncps[0] * l_j)];
-                  const real_t v = x.GetValue(elem, ip);
-                  A[dir](dof_i - 1 + ((ncp0 - 2) * (dof_j - 1)), l) = v;
+                  ip.Set2(xi_args[0][dof_i], xi_args[1][dof_j]);
+               }
+               else
+               {
+                  ip.Set3(xi_args[0][dof_i], xi_args[1][dof_j], xi_args[2][dof_k]);
                }
 
-            const real_t v0 = x0.GetValue(elem, ip);
+               for (int l_i=1; l_i<ncps[0] - 1; ++l_i)
+                  for (int l_j=1; l_j<ncps[1] - 1; ++l_j)
+                     for (int l_k=1; l_k<=niz; ++l_k)
+                     {
+                        const int l = l_i - 1 + ((ncps[0] - 2) * (l_j - 1)) + ((ncps[0] - 2) *
+                                                                               (ncps[1] - 2) * (l_k - 1));
+                        const int os_k = dim == 2 ? 0 : (ncps[0] * ncps[1] * l_k);
+                        const int l_full = l_i + (ncps[0] * l_j) + os_k;
 
-            b[dir][dof_i - 1 + ((ncp0 - 2) * (dof_j - 1))] = grid(dof_i, dof_j,
-                                                                  dir) - v0;  // Physical point
-         }
-   }
+                        if (dofprev >= 0)
+                        {
+                           x[dofprev] = 0.0;
+                        }
 
-   for (int i = 0; i < 2; ++i)
+                        const int dof = pdofs[l_full];
+                        x[dof] = 1.0; // TODO: this is just [l]?
+
+                        dofprev = dof;
+                        const real_t v = x.GetValue(elem, ip);
+                        // TODO: are the matrices in A the same for all dir?
+                        A[dir](dof_i - 1 + ((ncp0 - 2) * (dof_j - 1)) + osi_k, l) = v;
+                     }
+
+               const real_t v0 = x0.GetValue(elem, ip);
+
+               // Set the physical point
+               real_t g = 0.0;
+               if (dim == 2)
+               {
+                  g = grid(dof_i, dof_j, dir) - v0;
+               }
+               else
+               {
+                  g = grid(dof_i, dof_j, dir + (dof_k * dim)) - v0;
+               }
+
+               b[dir][dof_i - 1 + ((ncp0 - 2) * (dof_j - 1)) + osi_k] = g;
+            }
+      }
+   } // dir loop
+
+   for (int i = 0; i < sdim; ++i)
    {
       A[i].Invert();
       A[i].Mult(b[i], sol);
 
       for (int j=1; j<ncp0 - 1; ++j)
          for (int k=1; k<ncp1 - 1; ++k)
-         {
-            const int dof = pdofs[j + (ncp0 * k)];
-            const int sdof = j - 1 + ((ncp0 - 2) * (k - 1));
-            (*mesh.GetNodes())[(dim * dof) + i] = sol[sdof];
-         }
+            for (int l=0; l<niz; ++l)
+            {
+               const int os_l = dim == 2 ? 0 : ncp0 * ncp1 * (l + 1);
+               const int dof = pdofs[j + (ncp0 * k) + os_l];
+               const int sdof = j - 1 + ((ncp0 - 2) * (k - 1)) + ((ncp0 - 2) * (ncp1 - 2) * l);
+               (*mesh.GetNodes())[(sdim * dof) + i] = sol[sdof];
+            }
    }
 }
 
 // Assumes 1 2D patch.
-void SolvePhysicalGridInteriorSweep(Mesh &mesh, int ned, std::array<int, 2> nel,
+void SolvePhysicalGridInteriorSweep(Mesh &mesh, int ned, std::array<int, 3> nel,
                                     const Array3D<real_t> &grid)
 {
    constexpr int patch = 0; // Assuming one patch
 
+   const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
+
    const int ncp0 = (nel[0] * ned) + 1;
    const int ncp1 = (nel[1] * ned) + 1;
-   const int ncps[2] = {ncp0, ncp1};
-
-   constexpr int dim = 2; // TODO: hard-coded
+   const int ncp2 = dim == 2 ? 1 : (nel[2] * ned) + 1;
+   const int ncps[3] = {ncp0, ncp1, ncp2};
 
    MFEM_VERIFY(grid.GetSize1() == ncp0 && grid.GetSize2() == ncp1 &&
-               grid.GetSize3() == 2, "");
+               grid.GetSize3() == sdim * ncp2, "");
 
    Array<Vector*> x;
-   for (int i = 0; i < dim; ++i) { x.Append(new Vector(ncps[0])); }
+   for (int i = 0; i < sdim; ++i) { x.Append(new Vector(ncps[0])); }
 
-   // Parameter space [0,1]^2 grid point coordinates
+   // Parameter space [0,1]^dim grid point coordinates
    std::vector<Vector> ugrid(dim);
 
    for (int i = 0; i < dim; ++i)
@@ -6008,55 +6099,104 @@ void SolvePhysicalGridInteriorSweep(Mesh &mesh, int ned, std::array<int, 2> nel,
    // "The NURBS Book" - 2nd ed - Piegl and Tiller.
 
    // Sweep in the first direction
-   for (int j = 0; j < ncps[1]; ++j)
+   for (int k = 0; k < ncps[2]; ++k)
    {
-      for (int i = 0; i < ncps[0]; i++)
+      for (int j = 0; j < ncps[1]; ++j)
       {
-         for (int c=0; c<dim; ++c)
+         for (int i = 0; i < ncps[0]; i++)
          {
-            (*x[c])[i] = grid(i, j, c);
+            for (int c=0; c<sdim; ++c)
+            {
+               if (dim == 2)
+               {
+                  (*x[c])[i] = grid(i, j, c);
+               }
+               else
+               {
+                  (*x[c])[i] = grid(i, j, c + (k * sdim));
+               }
+            }
          }
-      }
 
-      const bool reuse_factorization = j > 0;
-      mesh.NURBSext->GetKnotVector(0)->GetInterpolant(x, ugrid[0],
-                                                      reuse_factorization);
+         const bool reuse_factorization = j > 0 || k > 0;
+         mesh.NURBSext->GetKnotVector(0)->GetInterpolant(x, ugrid[0],
+                                                         reuse_factorization);
 
-      for (int i = 0; i < ncps[0]; i++)
-      {
-         const int dof = pdofs[i + (ncp0 * j)];
-         for (int c=0; c<dim; ++c)
+         for (int i = 0; i < ncps[0]; i++)
          {
-            (*mesh.GetNodes())[(dim * dof) + c] = (*x[c])[i];
+            const int dof = pdofs[i + (ncp0 * j) + (ncp0 * ncp1 * k)];
+            for (int c=0; c<sdim; ++c)
+            {
+               (*mesh.GetNodes())[(sdim * dof) + c] = (*x[c])[i];
+            }
          }
       }
    }
 
    // Resize for sweep in second direction
-   for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncps[1]); }
+   for (int i = 0; i < sdim; ++i) { x[i]->SetSize(ncps[1]); }
 
    // Do another sweep in the second direction
-   for (int i = 0; i < ncps[0]; i++)
+   for (int k = 0; k < ncps[2]; ++k)
    {
-      for (int j = 0; j < ncps[1]; ++j)
+      for (int i = 0; i < ncps[0]; i++)
       {
-         const int dof = pdofs[i + (ncp0 * j)];
-         for (int c=0; c<dim; ++c)
+         for (int j = 0; j < ncps[1]; ++j)
          {
-            (*x[c])[j] = (*mesh.GetNodes())[(dim * dof) + c];
+            const int dof = pdofs[i + (ncp0 * j) + (ncp0 * ncp1 * k)];
+            for (int c=0; c<sdim; ++c)
+            {
+               (*x[c])[j] = (*mesh.GetNodes())[(sdim * dof) + c];
+            }
+         }
+
+         const bool reuse_factorization = i > 0 || k > 0;
+         mesh.NURBSext->GetKnotVector(1)->GetInterpolant(x, ugrid[1],
+                                                         reuse_factorization);
+
+         for (int j = 0; j < ncps[1]; ++j)
+         {
+            const int dof = pdofs[i + (ncp0 * j) + (ncp0 * ncp1 * k)];
+            for (int c=0; c<sdim; ++c)
+            {
+               (*mesh.GetNodes())[(sdim * dof) + c] = (*x[c])[j];
+            }
          }
       }
+   }
 
-      const bool reuse_factorization = i > 0;
-      mesh.NURBSext->GetKnotVector(1)->GetInterpolant(x, ugrid[1],
-                                                      reuse_factorization);
+   // Sweep in third direction
+   if (dim == 3)
+   {
+      // Resize for sweep in third direction
+      for (int i = 0; i < sdim; ++i) { x[i]->SetSize(ncps[2]); }
 
+      // Do another sweep in the third direction
       for (int j = 0; j < ncps[1]; ++j)
       {
-         const int dof = pdofs[i + (ncp0 * j)];
-         for (int c=0; c<dim; ++c)
+         for (int i = 0; i < ncps[0]; i++)
          {
-            (*mesh.GetNodes())[(dim * dof) + c] = (*x[c])[j];
+            for (int k = 0; k < ncps[2]; ++k)
+            {
+               const int dof = pdofs[i + (ncp0 * j) + (ncp0 * ncp1 * k)];
+               for (int c=0; c<sdim; ++c)
+               {
+                  (*x[c])[k] = (*mesh.GetNodes())[(sdim * dof) + c];
+               }
+            }
+
+            const bool reuse_factorization = i > 0 || j > 0;
+            mesh.NURBSext->GetKnotVector(2)->GetInterpolant(x, ugrid[2],
+                                                            reuse_factorization);
+
+            for (int k = 0; k < ncps[2]; ++k)
+            {
+               const int dof = pdofs[i + (ncp0 * j) + (ncp0 * ncp1 * k)];
+               for (int c=0; c<sdim; ++c)
+               {
+                  (*mesh.GetNodes())[(sdim * dof) + c] = (*x[c])[k];
+               }
+            }
          }
       }
    }
@@ -6067,13 +6207,14 @@ void SolvePhysicalGridInteriorSweep(Mesh &mesh, int ned, std::array<int, 2> nel,
 // mesh0 is a modifiable, temporary copy of a single-element, single-patch mesh,
 // to be refined to match the number of elements in mesh.
 void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
-                          std::array<int, 2> nel, const Array3D<real_t> &grid,
+                          std::array<int, 3> nel, const Array3D<real_t> &grid,
                           int dir, int side)
 {
    Mesh mesh0(mesh0_);
    MFEM_VERIFY(mesh0.GetNE() == 1, "");
 
-   constexpr int pdim = 2; // Physical space dimension. TODO: generalize.
+   const int sdim = mesh0.SpaceDimension();
+   MFEM_VERIFY(grid.GetSize3() == sdim, "");
 
    const int odir = 1 - dir;
    const int ncp = (nel[dir] * ned) + 1;
@@ -6086,10 +6227,10 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 
    for (int i=0; i<ncp; ++i)
    {
-      bgrid[i].SetSize(2);
+      bgrid[i].SetSize(sdim);
       const int ig = (dir == 0) ? i : sideIndex;
       const int jg = (dir == 0) ? sideIndex : i;
-      for (int k=0; k<2; ++k)
+      for (int k=0; k<sdim; ++k)
       {
          bgrid[i][k] = grid(ig, jg, k);
       }
@@ -6124,14 +6265,14 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 
       constexpr real_t conv_tol = 1.0e-12;
 
-      Vector v2(2);
-      Vector v0(2);
-      Vector tp(2);
-      Vector tv(2);
+      Vector v2(sdim);
+      Vector v0(sdim);
+      Vector tp(sdim);
+      Vector tv(sdim);
 
       ComputePointOnSegment0(0.0, v0);
 
-      for (int j=0; j<2; ++j)
+      for (int j=0; j<sdim; ++j)
       {
          tp[j] = p[j] - v0[j];
       }
@@ -6154,7 +6295,7 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
          // TODO: what exactly is the curvature limitation?
          // TODO: can the implementation be generalized to avoid this assumption?
 
-         for (int j=0; j<2; ++j)
+         for (int j=0; j<sdim; ++j)
          {
             tv[j] = v2[j] - p[j];
          }
@@ -6219,20 +6360,18 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 
    const int ncp0 = degree + 1;
 
-   real_t diff = 0.0;
    for (int i=0; i<ncp; ++i)
    {
-      for (int k=0; k<3; ++k)
+      for (int k = 0; k < sdim + 1;
+           ++k) // Coordinates for 2D control point, with weight included.
       {
          const int j = side * (ncp_o - 1);
          if (dir == 0)
          {
-            const real_t d = (*patch[0])(i, j, k) - (*patch0[0])(i, side * (ncp0 - 1), k);
-            diff = std::max(diff, std::abs(d));
-            const real_t w = (*patch0[0])(i, side * (ncp0 - 1), 2);
-            if (k < 2)
+            const real_t w = (*patch0[0])(i, side * (ncp0 - 1), sdim);
+            if (k < sdim)
             {
-               (*patch[0])(i, j, k) = (*patch0[0])(i, side * (ncp0 - 1), k) / w;   // * w
+               (*patch[0])(i, j, k) = (*patch0[0])(i, side * (ncp0 - 1), k) / w;
             }
             else
             {
@@ -6241,12 +6380,10 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
          }
          else
          {
-            const real_t d = (*patch[0])(j, i, k) - (*patch0[0])(side * (ncp0 - 1), i, k);
-            diff = std::max(diff, std::abs(d));
-            const real_t w = (*patch0[0])(side * (ncp0 - 1), i, 2);
-            if (k < 2)
+            const real_t w = (*patch0[0])(side * (ncp0 - 1), i, sdim);
+            if (k < sdim)
             {
-               (*patch[0])(j, i, k) = (*patch0[0])(side * (ncp0 - 1), i, k) / w;   // * w
+               (*patch[0])(j, i, k) = (*patch0[0])(side * (ncp0 - 1), i, k) / w;
             }
             else
             {
@@ -6261,19 +6398,197 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
    delete patch[0];
 
    mesh.NURBSext->SetKnotsFromPatches();
-   mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes(), pdim);
+   mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes(), sdim);
    mesh.GetNodes()->FESpace()->Update();
 }
 
+Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
+                  const Array3D<double> &patchCP);
+
+void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0,
+                           int patchIndex, const Array3D<double> &coarsePatchCP,
+                           int mOrder, int ned,
+                           std::array<int, 3> nel, const Array3D<real_t> &grid,
+                           bool sweep1D);
+
+// mesh0 is a modifiable, temporary copy of a single-element, single-patch mesh,
+// to be refined to match the number of elements in mesh.
+void SolveBoundaryFace(Mesh &mesh, const Mesh &mesh0_,
+                       int patchIndex, const Array3D<double> &coarsePatchCP,
+                       int mOrder,
+                       int ned,
+                       std::array<int, 3> nel, const Array3D<real_t> &grid,
+                       int dir, int side, bool sweep1D)
+{
+   const int sdim = mesh.SpaceDimension(); // Space dimension
+
+   Mesh mesh0(mesh0_);
+   MFEM_VERIFY(mesh0.GetNE() == 1 && sdim == 3, "");
+
+   // Extract a 2D mesh in 3D space for the face; extract the 2D grid for the face;
+   // solve for the physical spacing on the 2D face; copy the DOFs
+   // for the face to the 3D mesh.
+
+   const int ncp0 = mOrder + 1;
+
+   Array3D<double> facePatchCP0(1, ncp0 * ncp0, 4);
+   Array3D<double> facePatchCP(1, ncp0 * ncp0, 4);
+
+   constexpr int p = 0; // Working with 1 patch
+
+   std::array<int, 3> c;
+
+   c[dir] = side * (ncp0 - 1);
+
+   std::array<int, 2> odir, ncp;
+   std::array<int, 3> nelFace = {0, 0, 0};
+   std::array<int, 3> ncp3D;
+
+   {
+      int dcnt = 0;
+      for (int i=0; i<3; ++i)
+      {
+         if (i != dir)
+         {
+            nelFace[dcnt] = nel[i];
+            odir[dcnt++] = i;
+         }
+
+         ncp3D[i] = (nel[i] * ned) + 1;
+      }
+
+      MFEM_VERIFY(dcnt == 2, "");
+   }
+
+   for (int i=0; i<2; ++i)
+   {
+      ncp[i] = (nelFace[i] * ned) + 1;
+   }
+
+   const int ncp_dir = (nel[dir] * ned) + 1;
+
+   for (int j = 0; j < ncp0; ++j)
+   {
+      c[odir[1]] = j;
+      for (int i = 0; i < ncp0; ++i)
+      {
+         c[odir[0]] = i;
+
+         for (int k=0; k<4; ++k) // Loop over control point coordinates, including weight
+         {
+            facePatchCP0(p, i + (ncp0 * j), k) = coarsePatchCP(patchIndex,
+                                                               c[0] + (ncp0 * c[1]) + (ncp0 * ncp0 * c[2]), k);
+         }
+      }
+   }
+
+   Mesh faceMesh0 = GetPatchMesh(p, 2, 3, mOrder, ncp0, facePatchCP0);
+   Mesh faceMesh(faceMesh0);
+
+   {
+      // Refine faceMesh to match the number of elements and control points on the face of `mesh`.
+      MFEM_VERIFY(faceMesh.NURBSext->GetNKV() == 2, "");
+      Array<Vector*> knots(2);
+
+      for (int i=0; i<2; ++i)
+      {
+         knots[i] = new Vector;
+         if (nelFace[i] > 1)
+         {
+            faceMesh.NURBSext->GetKnotVector(i)->UniformRefinement(*knots[i], nelFace[i]);
+         }
+      }
+
+      const int degree = faceMesh.NURBSext->GetOrder();
+      for (int i=0; i<degree; ++i)
+      {
+         faceMesh.KnotInsert(knots);
+      }
+
+      for (int i=0; i<2; ++i)
+      {
+         MFEM_VERIFY(faceMesh.NURBSext->GetKnotVector(i)->GetNCP() == ncp[i], "");
+         MFEM_VERIFY(faceMesh.NURBSext->GetKnotVector(i)->GetNE() == nelFace[i], "");
+      }
+   }
+
+   // Refine faceMesh and set CP from `mesh`
+
+   Array3D<real_t> faceGrid(ncp[0], ncp[1], 3);
+
+   c[dir] = side * (ncp_dir - 1);
+   for (int i=0; i<ncp[0]; ++i)
+   {
+      c[odir[0]] = i;
+      for (int j=0; j<ncp[1]; ++j)
+      {
+         c[odir[1]] = j;
+         for (int k=0; k<3; ++k)
+         {
+            faceGrid(i, j, k) = grid(c[0], c[1], k + (3 * c[2]));
+         }
+      }
+   }
+
+   SolvePhysicalGridBdry(faceMesh, faceMesh0, p, facePatchCP0, mOrder, ned,
+                         nelFace, faceGrid, true || sweep1D);
+
+   // Copy CP from physically spaced faceMesh to mesh.
+
+   Array<int> pdofs;
+   mesh.NURBSext->GetPatchDofs(0, pdofs); // Assuming 1 patch
+
+   Array<int> fdofs;
+   faceMesh.NURBSext->GetPatchDofs(0, fdofs); // Assuming 1 patch
+
+   MFEM_VERIFY(pdofs.Size() == ncp3D[0] * ncp3D[1] * ncp3D[2], "");
+   MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1] * ncp_dir, "");
+   MFEM_VERIFY(fdofs.Size() == ncp[0] * ncp[1], "");
+
+   c[dir] = side * (ncp_dir - 1);
+   for (int i=0; i<ncp[0]; ++i)
+   {
+      c[odir[0]] = i;
+      for (int j=0; j<ncp[1]; ++j)
+      {
+         c[odir[1]] = j;
+
+         const int dof = pdofs[c[0] + (ncp3D[0] * c[1]) + (ncp3D[0] * ncp3D[1] * c[2])];
+         const int fdof = fdofs[i + (ncp[0] * j)];
+         for (int l=0; l<sdim; ++l)
+         {
+            (*mesh.GetNodes())[(sdim * dof) + l] = (*faceMesh.GetNodes())[(sdim * fdof) +
+                                                                          l];
+         }
+      }
+   }
+}
+
 // Assumes 1 patch.
-void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int ned,
-                           std::array<int, 2> nel, const Array3D<real_t> &grid,
+void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0,
+                           int patchIndex, const Array3D<double> &coarsePatchCP,
+                           int mOrder, int ned,
+                           std::array<int, 3> nel, const Array3D<real_t> &grid,
                            bool sweep1D)
 {
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 0);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 1);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 0);
-   SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 1);
+   const int dim = mesh0.Dimension(); // Reference space dimension
+
+   if (dim == 2)
+   {
+      SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 0);
+      SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 0, 1);
+      SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 0);
+      SolveBoundarySegment(mesh, mesh0, ned, nel, grid, 1, 1);
+   }
+   else // dim == 3
+   {
+      // TODO: the boundary edges of the patch are solved twice.
+      // Eliminate this inefficiency.
+      for (int dir=0; dir<3; ++dir)
+         for (int side=0; side<2; ++side)
+            SolveBoundaryFace(mesh, mesh0, patchIndex, coarsePatchCP, mOrder,
+                              ned, nel, grid, dir, side, true || sweep1D);
+   }
 
    // Interpolate weights from boundary to the interior.
    // TODO: should we modify interior weights?
@@ -6304,14 +6619,14 @@ void WriteSinglePatch(NURBSPatch *patch)
 }
 
 // Assumes 1 patch.
-void GetUniformPatchGrid(Mesh &mesh, const SpacingFunction *s0,
-                         const SpacingFunction *s1,
-                         int ned, std::array<int, 2> nel, Array3D<real_t> &grid)
+void GetUniformPatchGrid(Mesh &mesh,
+                         const std::vector<const SpacingFunction*> &sf,
+                         int ned, std::array<int, 3> nel, Array3D<real_t> &grid)
 {
    Array3D<real_t> ugrid(grid.GetSize1(), grid.GetSize2(), grid.GetSize3());
 
    const int dim = mesh.Dimension();
-   MFEM_VERIFY(mesh.GetNodes() && dim == 2, "");
+   MFEM_VERIFY(mesh.GetNodes() && (dim == 2 || dim == 3), "");
 
    FiniteElementCollection* fec = mesh.GetNodes()->OwnFEC();
    FiniteElementSpace fespace(&mesh, fec);
@@ -6328,22 +6643,23 @@ void GetUniformPatchGrid(Mesh &mesh, const SpacingFunction *s0,
    // ncp = (ne * ned) + 1 where ned is the number of DOFs per element minus 1.
    const int ncp0 = (nel[0] * ned) + 1;
    const int ncp1 = (nel[1] * ned) + 1;
+   const int ncp2 = dim == 2 ? 1 : (nel[2] * ned) + 1;
 
-   const std::array<int, 2> ncp = {ncp0, ncp1};
+   const std::array<int, 3> ncp = {ncp0, ncp1, ncp2};
 
    MFEM_VERIFY(grid.GetSize1() == ncp0 && grid.GetSize2() == ncp1, "");
 
-   MFEM_VERIFY(x.Size() == ncp0 * ncp1, "");
+   MFEM_VERIFY(x.Size() == ncp0 * ncp1 * ncp2, "");
    MFEM_VERIFY(dim * x.Size() == mesh.GetNodes()->Size(), "");
-   MFEM_VERIFY(pdofs.Size() == ncp0 * ncp1, "");
+   MFEM_VERIFY(pdofs.Size() == ncp0 * ncp1 * ncp2, "");
 
    // Keep the grid samples aligned with the interpolation collocation points.
    // In FindMaxima mode the active element side of a shared knot matters.
-   std::array<Vector, 2> sample_xi;
-   std::array<Vector, 2> sample_u;
-   std::array<Array<int>, 2> sample_el;
+   std::vector<Vector> sample_xi(3);
+   std::vector<Vector> sample_u(3);
+   std::vector<Array<int>> sample_el(3);
 
-   for (int d=0; d<2; ++d)
+   for (int d=0; d<dim; ++d)
    {
       sample_xi[d].SetSize(ncp[d]);
       sample_u[d].SetSize(ncp[d]);
@@ -6374,214 +6690,323 @@ void GetUniformPatchGrid(Mesh &mesh, const SpacingFunction *s0,
    {
       for (int j=0; j<ncp1; ++j)
       {
-         ugrid(i,j,0) = sample_u[0][i];
-         ugrid(i,j,1) = sample_u[1][j];
+         for (int k=0; k<ncp2; ++k)
+         {
+            const int kos = k*dim;
+
+            ugrid(i,j,0 + kos) = sample_u[0][i];
+            ugrid(i,j,1 + kos) = sample_u[1][j];
+
+            if (dim == 3)
+            {
+               ugrid(i,j,2 + kos) = sample_u[2][k];
+            }
+         }
       }
    }
 
-   Vector v2(2);
+   Vector v2(dim);
 
    // Adjust arc lengths in the given direction `dir`.
    auto AdjustGridArcLengths = [&](int dir)
    {
-      const int odir = 1 - dir;
-
-      for (int dof_j=0; dof_j<ncp[odir]; ++dof_j)
+      std::array<int, 2> odir;  // Other, orthogonal directions
       {
-         const int ej = sample_el[odir][dof_j];
-         const real_t yr = sample_xi[odir][dof_j];
-
-         real_t totalArc = 0.0;
-         // TODO: refactor
-         Vector arcs(nel[dir]);
-         Vector arcL(nel[dir]);
-         for (int ei=0; ei<nel[dir]; ++ei)
+         int dcnt = 0;
+         for (int i=0; i<3; ++i)
          {
-            const int el = dir == 0 ? ei + (ej * nel[0]) : ej + (ei * nel[0]);
-            ElementTransformation *Tr =
-               mesh.GetNodes()->FESpace()->GetElementTransformation(el);
-            DenseMatrix grad;
-
-            const real_t totalArc0 = totalArc;
-            for (auto irp : *ir)
+            if (i != dir)
             {
-               // TODO: refactor with a lambda or something
-               if (dir == 1)
-               {
-                  ip.Set2(yr, irp.x);
-               }
-               else
-               {
-                  ip.Set2(irp.x, yr);
-               }
-
-               Tr->SetIntPoint(&ip);
-               mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
-
-               MFEM_VERIFY(grad.NumRows() == 2, "");
-               MFEM_VERIFY(grad.NumCols() == 2, "");
-               v2.SetSize(2);
-               const int col = dir;
-               for (int i=0; i<2; ++i)
-               {
-                  v2[i] = grad(i,col);
-               }
-
-               totalArc += v2.Norml2() * irp.weight;
+               odir[dcnt++] = i;
             }
-
-            arcL[ei] = totalArc - totalArc0;
-            arcs[ei] = totalArc0;
-         } // ei
-
-         // TODO: generalize spacing from the current uniform setting
-         auto ArcLength = [&](real_t u_p)
-         {
-            const int ei_ = u_p * nel[dir];
-            const int ei = std::min(ei_, nel[dir] - 1);
-            real_t u = std::max(u_p - (ei / (real_t) nel[dir]),
-                                0.0); // Parameter within element
-            u *= (real_t) nel[dir];
-            u = std::min(u, 1.0);
-
-            real_t a = arcs[ei]; // Arc length at start of this element ei.
-
-            const int el = dir == 0 ? ei + (ej * nel[0]) : ej + (ei * nel[0]);
-
-            ElementTransformation *Tr =
-               mesh.GetNodes()->FESpace()->GetElementTransformation(el);
-            DenseMatrix grad;
-
-            for (auto irp : *ir)
-            {
-               // TODO: refactor with a lambda or something
-               if (dir == 1)
-               {
-                  ip.Set2(yr, irp.x * u);
-               }
-               else
-               {
-                  ip.Set2(irp.x * u, yr);
-               }
-
-               Tr->SetIntPoint(&ip);
-               mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
-
-               MFEM_VERIFY(grad.NumRows() == 2, "");
-               MFEM_VERIFY(grad.NumCols() == 2, "");
-               v2.SetSize(2);
-               const int col = dir;
-               for (int i=0; i<2; ++i)
-               {
-                  v2[i] = grad(i,col);
-               }
-
-               a += v2.Norml2() * irp.weight * u;
-            }
-
-            return a;
-         }; // ArcLength
-
-         const SpacingFunction *spacing_dir = dir == 0 ? s0 : s1;
-         std::unique_ptr<SpacingFunction> spacing = spacing_dir ?
-                                                    spacing_dir->Clone() : std::make_unique<UniformSpacingFunction>(nel[dir]);
-         spacing->SetSize(nel[dir]);
-
-         Vector spacing_prefix(nel[dir] + 1);
-         spacing_prefix[0] = 0.0;
-         for (int e=0; e<nel[dir]; ++e)
-         {
-            spacing_prefix[e + 1] = spacing_prefix[e] + spacing->Eval(e);
          }
+         MFEM_VERIFY(dcnt == 2, ""); // TODO: remove this obvious check
+      }
 
-         for (int l=1; l<ncp[dir]-1; ++l)
+      for (int dof_j=0; dof_j<ncp[odir[0]]; ++dof_j)
+      {
+         const int ej = sample_el[odir[0]][dof_j];
+         const real_t xr = sample_xi[odir[0]][dof_j];
+
+         for (int dof_k=0; dof_k<ncp[odir[1]]; ++dof_k)
          {
-            // Set a_l by using spacing function for non-uniform grids.
-            const int el_l = sample_el[dir][l];
-            const real_t s_l = spacing->Eval(el_l);
-            const real_t a_l = (spacing_prefix[el_l] +
-                                (sample_xi[dir][l] * s_l)) * totalArc;
+            const int ek = dim == 2 ? 0 : sample_el[odir[1]][dof_k];
+            const real_t yr = dim == 2 ? 0.0 : sample_xi[odir[1]][dof_k];
 
-            // Find the reference point with arc length equal to a_l.
-            // Use bisection method.
-            real_t u0 = 0.0;
-            real_t u1 = 1.0;
-
-            constexpr real_t conv_tol = 1.0e-12;
-
-            int iter = 0;
-            while (iter < 200)
+            real_t totalArc = 0.0;
+            // TODO: refactor
+            Vector arcs(nel[dir]);
+            Vector arcL(nel[dir]);
+            for (int ei=0; ei<nel[dir]; ++ei)
             {
-               iter++;
-
-               const real_t um = 0.5 * (u0 + u1);
-               const real_t a_i = ArcLength(um);
-               if (a_i < a_l)
+               int el = 0;
+               if (dir == 0) // TODO: improve this implementation
                {
-                  u0 = um;
+                  el = ei + (ej * nel[0]) + (ek * nel[0] * nel[1]);
                }
-               else
+               else if (dir == 1)
                {
-                  u1 = um;
+                  el = ej + (ei * nel[0]) + (ek * nel[0] * nel[1]);
+               }
+               else // dir == 2
+               {
+                  el = ej + (ek * nel[0]) + (ei * nel[0] * nel[1]);
                }
 
-               MFEM_VERIFY(u0 < u1, "");
-               if (u1 - u0 < conv_tol)
+               ElementTransformation *Tr =
+                  mesh.GetNodes()->FESpace()->GetElementTransformation(el);
+               DenseMatrix grad;
+
+               const real_t totalArc0 = totalArc;
+               for (auto irp : *ir)
                {
-                  break;
+                  // TODO: refactor with a lambda or something
+                  if (dim == 2)
+                  {
+                     if (dir == 1)
+                     {
+                        ip.Set2(xr, irp.x);
+                     }
+                     else
+                     {
+                        ip.Set2(irp.x, xr);
+                     }
+                  }
+                  else // dim == 3
+                  {
+                     if (dir == 0)
+                     {
+                        ip.Set3(irp.x, xr, yr);
+                     }
+                     else if (dir == 1)
+                     {
+                        ip.Set3(xr, irp.x, yr);
+                     }
+                     else // dir == 2
+                     {
+                        ip.Set3(xr, yr, irp.x);
+                     }
+                  }
+
+                  Tr->SetIntPoint(&ip);
+                  mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
+
+                  MFEM_VERIFY(grad.NumRows() == dim, "");
+                  MFEM_VERIFY(grad.NumCols() == dim, "");
+                  v2.SetSize(dim);
+                  const int col = dir;
+                  for (int i=0; i<dim; ++i)
+                  {
+                     v2[i] = grad(i, col);
+                  }
+
+                  totalArc += v2.Norml2() * irp.weight;
                }
+
+               arcL[ei] = totalArc - totalArc0;
+               arcs[ei] = totalArc0;
+            } // ei
+
+            // TODO: generalize spacing from the current uniform setting
+            auto ArcLength = [&](real_t u_p)
+            {
+               const int ei_ = u_p * nel[dir];
+               const int ei = std::min(ei_, nel[dir] - 1);
+
+               // Parameter within element
+               real_t u = std::max(u_p - (ei / (real_t) nel[dir]), 0.0);
+               u *= (real_t) nel[dir];
+               u = std::min(u, 1.0);
+
+               real_t a = arcs[ei]; // Arc length at start of this element ei.
+
+               int el = 0;
+               if (dir == 0) // TODO: improve this implementation
+               {
+                  el = ei + (ej * nel[0]) + (ek * nel[0] * nel[1]);
+               }
+               else if (dir == 1)
+               {
+                  el = ej + (ei * nel[0]) + (ek * nel[0] * nel[1]);
+               }
+               else // dir == 2
+               {
+                  el = ej + (ek * nel[0]) + (ei * nel[0] * nel[1]);
+               }
+
+               ElementTransformation *Tr =
+                  mesh.GetNodes()->FESpace()->GetElementTransformation(el);
+               DenseMatrix grad;
+
+               for (auto irp : *ir)
+               {
+                  // TODO: refactor with a lambda or something
+                  if (dim == 2)
+                  {
+                     if (dir == 1)
+                     {
+                        ip.Set2(xr, irp.x * u);
+                     }
+                     else
+                     {
+                        ip.Set2(irp.x * u, xr);
+                     }
+                  }
+                  else // dim == 3
+                  {
+                     if (dir == 0)
+                     {
+                        ip.Set3(irp.x * u, xr, yr);
+                     }
+                     else if (dir == 1)
+                     {
+                        ip.Set3(xr, irp.x * u, yr);
+                     }
+                     else // dir == 2
+                     {
+                        ip.Set3(xr, yr, irp.x * u);
+                     }
+                  }
+
+                  Tr->SetIntPoint(&ip);
+                  mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
+
+                  MFEM_VERIFY(grad.NumRows() == dim, "");
+                  MFEM_VERIFY(grad.NumCols() == dim, "");
+                  v2.SetSize(dim);
+                  const int col = dir;
+                  for (int i=0; i<dim; ++i)
+                  {
+                     v2[i] = grad(i, col);
+                  }
+
+                  a += v2.Norml2() * irp.weight * u;
+               }
+
+               return a;
+            }; // ArcLength
+
+            const SpacingFunction *spacing_dir = sf[dir];
+            std::unique_ptr<SpacingFunction> spacing = spacing_dir ?
+                                                       spacing_dir->Clone() : std::make_unique<UniformSpacingFunction>(nel[dir]);
+            spacing->SetSize(nel[dir]);
+
+            Vector spacing_prefix(nel[dir] + 1);
+            spacing_prefix[0] = 0.0;
+            for (int e=0; e<nel[dir]; ++e)
+            {
+               spacing_prefix[e + 1] = spacing_prefix[e] + spacing->Eval(e);
             }
 
-            MFEM_VERIFY(0.0 < u1 - u0 && u1 - u0 < conv_tol, "");
+            for (int l=1; l<ncp[dir]-1; ++l)
+            {
+               // Set a_l by using spacing function for non-uniform grids.
+               const int el_l = sample_el[dir][l];
+               const real_t s_l = spacing->Eval(el_l);
+               const real_t a_l = (spacing_prefix[el_l] +
+                                   (sample_xi[dir][l] * s_l)) * totalArc;
 
-            // Update ugrid. grid(i,j,*) follows local patch directions 0 and 1.
-            if (dir == 0)
-            {
-               ugrid(l, dof_j, 0) = u0;
-            }
-            else
-            {
-               ugrid(dof_j, l, 1) = u0;
-            }
-         } // l
+               // Find the reference point with arc length equal to a_l.
+               // Use bisection method.
+               real_t u0 = 0.0;
+               real_t u1 = 1.0;
+
+               constexpr real_t conv_tol = 1.0e-12;
+
+               int iter = 0;
+               while (iter < 200)
+               {
+                  iter++;
+
+                  const real_t um = 0.5 * (u0 + u1);
+                  const real_t a_i = ArcLength(um);
+                  if (a_i < a_l)
+                  {
+                     u0 = um;
+                  }
+                  else
+                  {
+                     u1 = um;
+                  }
+
+                  MFEM_VERIFY(u0 < u1, "");
+                  if (u1 - u0 < conv_tol)
+                  {
+                     break;
+                  }
+               }
+
+               MFEM_VERIFY(0.0 < u1 - u0 && u1 - u0 < conv_tol, "");
+
+               // Update ugrid. grid(i,j,*) follows local patch directions 0 and 1.
+               if (dir == 0)
+               {
+                  ugrid(l, dof_j, 0 + (dof_k * dim)) = u0;
+               }
+               else if (dir == 1)
+               {
+                  ugrid(dof_j, l, 1 + (dof_k * dim)) = u0;
+               }
+               else // dir == 2
+               {
+                  ugrid(dof_j, dof_k, 2 + (l * dim)) = u0;
+               }
+            } // l
+         } // dof_k
       } // dof_j
    }; // AdjustGridArcLengths
 
-   for (int i=0; i<2; ++i)
+   for (int i=0; i<dim; ++i)
    {
-      AdjustGridArcLengths(0);
-      AdjustGridArcLengths(1);
+      for (int d=0; d<dim; ++d)
+      {
+         AdjustGridArcLengths(d);
+      }
    }
 
    // Set physical grid from the reference ugrid.
+   const int nk = grid.GetSize3() / dim;
    for (int i=0; i<grid.GetSize1(); ++i)
    {
       for (int j=0; j<grid.GetSize2(); ++j)
       {
-         const real_t u0 = ugrid(i,j,0);
-         const real_t u1 = ugrid(i,j,1);
-
-         std::array<real_t, 2> u = {u0, u1};
-         std::array<real_t, 2> u_e;
-         std::array<int, 2> el;
-         for (int k=0; k<2; ++k)
+         for (int k=0; k<nk; ++k)
          {
-            // TODO: refactor this
-            const int el_ = u[k] * nel[k];
-            el[k] = std::min(el_, nel[k] - 1);
-            u_e[k] = std::max(u[k] - (el[k] / (real_t) nel[k]),
-                              0.0); // Parameter within element
-            u_e[k] *= (real_t) nel[k];
-            u_e[k] = std::min(u_e[k], 1.0);
-         }
+            const int kos = k * dim;
+            const real_t u0 = ugrid(i,j,0 + kos);
+            const real_t u1 = ugrid(i,j,1 + kos);
+            const real_t u2 = dim == 3 ? ugrid(i,j,2 + kos) : 0.0;
 
-         ip.Set2(u_e[0], u_e[1]);
-         const int el_ij = el[0] + (el[1] * nel[0]);
+            std::array<real_t, 3> u = {u0, u1, u2};
+            std::array<real_t, 3> u_e = {0.0, 0.0, 0.0};
+            std::array<int, 3> el = {0, 0, 0};
+            for (int l=0; l<dim; ++l)
+            {
+               // TODO: refactor this
+               const int el_ = u[l] * nel[l];
+               el[l] = std::min(el_, nel[l] - 1);
+               // Parameter within element
+               u_e[l] = std::max(u[l] - (el[l] / (real_t) nel[l]), 0.0);
+               u_e[l] *= (real_t) nel[l];
+               u_e[l] = std::min(u_e[l], 1.0);
+            }
 
-         mesh.GetNodes()->GetVectorValue(el_ij, ip, v2);
-         for (int k=0; k<2; ++k)
-         {
-            grid(i, j, k) = v2[k];
+            if (dim == 2)
+            {
+               ip.Set2(u_e[0], u_e[1]);
+            }
+            else
+            {
+               ip.Set3(u_e[0], u_e[1], u_e[2]);
+            }
+
+            const int el_ij = el[0] + (el[1] * nel[0]) + (el[2] * nel[0] * nel[1]);
+
+            mesh.GetNodes()->GetVectorValue(el_ij, ip, v2);
+            for (int l=0; l<dim; ++l)
+            {
+               grid(i, j, l + kos) = v2[l];
+            }
          }
       }
    }
@@ -6611,8 +7036,8 @@ void PrintGrid(const Array3D<real_t> &grid)
    os.close();
 }
 
-Mesh GetQuadPatchMesh(int p, int degree, int ncp,
-                      const Array3D<double> &patchCP)
+Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
+                  const Array3D<double> &patchCP)
 {
    Array<real_t> intervals_array({1});
    Vector intervals(intervals_array.GetData(), intervals_array.Size());
@@ -6620,89 +7045,121 @@ Mesh GetQuadPatchMesh(int p, int degree, int ncp,
 
    const KnotVector kv(degree, intervals, continuity);
 
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   MFEM_VERIFY(sdim == 2 || sdim == 3, "");
    MFEM_VERIFY(kv.GetNCP() == ncp, "");
+   MFEM_VERIFY(patchCP.GetSize2() == std::pow(ncp, dim) &&
+               patchCP.GetSize3() == sdim + 1, "");
 
-   Vector pts_2d(3 * ncp * ncp);
-   int count = 0;
-   for (int j = 0; j < kv.GetNCP(); ++j)
-      for (int i = 0; i < kv.GetNCP(); ++i)
-      {
-         const real_t w = patchCP(p, i + (kv.GetNCP() * j), 2);
-         pts_2d[count + 2] = w;
-         for (int k=0; k<2; ++k)
+   const int ncpz = dim == 3 ? ncp : 1;
+
+   Vector points((sdim + 1) * ncp * ncp * ncpz);
+   int count = 0; // TODO: eliminate?
+   for (int k = 0; k < ncpz; ++k)
+      for (int j = 0; j < ncp; ++j)
+         for (int i = 0; i < ncp; ++i)
          {
-            pts_2d[count + k] = patchCP(p, i + (kv.GetNCP() * j), k) * w;
+            const int ijk = i + (ncp * j) + (ncp * ncp * k);
+            const real_t w = patchCP(p, ijk, sdim);
+            points[count + sdim] = w;
+            for (int l=0; l<sdim; ++l)
+            {
+               points[count + l] = patchCP(p, ijk, l) * w;
+            }
+
+            count += sdim + 1;
          }
 
-         count += 3;
-      }
-
-   NURBSPatch patch(&kv, &kv, 3, pts_2d.GetData());
-
-   Array<NURBSPatch*> patches;
-   patches.Append(&patch);
-   Mesh patch_topology_2d =
-      Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL);
-
-   NURBSExtension ne(&patch_topology_2d, patches);
-
-   return Mesh(ne);
-}
-
-void SpacePatch(NURBSPatch *patch, Mesh &mesh0, int ned, std::array<int, 2> nel,
-                bool sweep1D)
-{
-   MFEM_VERIFY(patch->GetNKV() == 2, "");
-   MFEM_VERIFY(patch->GetKV(0)->GetNE() == nel[0], "");
-   MFEM_VERIFY(patch->GetKV(1)->GetNE() == nel[1], "");
+   NURBSPatch *patch = dim == 2 ? new NURBSPatch(&kv, &kv, sdim + 1,
+                                                 points.GetData()) :
+                       new NURBSPatch(&kv, &kv, &kv, sdim + 1, points.GetData());
 
    Array<NURBSPatch*> patches;
    patches.Append(patch);
-   Mesh patch_topology_2d =
-      Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL);
+   Mesh patch_topology = dim == 2 ?
+                         Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
+                         Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
 
-   NURBSExtension ne(&patch_topology_2d, patches);
+   NURBSExtension ne(&patch_topology, patches);
+   delete patch;
+   return Mesh(ne);
+}
+
+void SpacePatch(NURBSPatch *patch, int patchIndex,
+                const Array3D<double> &coarsePatchCP, Mesh &mesh0,
+                int mOrder, int ned, std::array<int, 3> nel, bool sweep1D)
+{
+   const int dim = mesh0.Dimension(); // Reference space dimension
+   const int sdim = mesh0.SpaceDimension(); // Space dimension
+
+   MFEM_VERIFY(dim == sdim, "");
+   MFEM_VERIFY(patch->GetNKV() == dim, "");
+   MFEM_VERIFY(patch->GetKV(0)->GetNE() == nel[0], "");
+   MFEM_VERIFY(patch->GetKV(1)->GetNE() == nel[1], "");
+   MFEM_VERIFY(dim == 2 || patch->GetKV(2)->GetNE() == nel[2], "");
+
+   Array<NURBSPatch*> patches;
+   patches.Append(patch);
+   Mesh patch_topology = dim == 2 ?
+                         Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
+                         Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
+
+   NURBSExtension ne(&patch_topology, patches);
    Mesh mesh(ne);
 
    const int ncpx = (nel[0] * ned) + 1;
    const int ncpy = (nel[1] * ned) + 1;
+   const int ncpz = dim == 2 ? 1 : (nel[2] * ned) + 1;
 
-   Array3D<real_t> grid(ncpx, ncpy, 2);
-   GetUniformPatchGrid(mesh, patch->GetKV(0)->spacing.get(),
-                       patch->GetKV(1)->spacing.get(),
+   Array3D<real_t> grid(ncpx, ncpy, ncpz * dim);
+
+   std::vector<const SpacingFunction*> sf(dim);
+   for (int i=0; i<dim; ++i)
+   {
+      sf[i] = patch->GetKV(i)->spacing.get();
+   }
+
+   GetUniformPatchGrid(mesh, sf,
                        ned, nel, grid);
 
-   //PrintGrid(grid);
-
-   SolvePhysicalGridBdry(mesh, mesh0, ned, nel, grid, sweep1D);
-
-   /*
-   {
-     ofstream mesh_ofs("ipatch.mesh");
-     mesh_ofs.precision(8);
-     mesh.Print(mesh_ofs);
-   }
-   */
+   SolvePhysicalGridBdry(mesh, mesh0, patchIndex, coarsePatchCP, mOrder, ned, nel,
+                         grid, sweep1D);
 
    // Copy CP from mesh to patch.
 
    Array<int> pdofs;
    mesh.NURBSext->GetPatchDofs(0, pdofs);
 
-   constexpr int dim = 2;
+   //constexpr int dim = 2;
    const Vector &mweights = mesh.NURBSext->GetWeights();
 
    for (int i=0; i<ncpx; ++i)
       for (int j=0; j<ncpy; ++j)
-      {
-         const int dof = pdofs[i + (ncpx * j)];
-         const real_t w = mweights[dof];
-         for (int l=0; l<2; ++l)
+         for (int k=0; k<ncpz; ++k)
          {
-            (*patch)(i,j,l) = w * (*mesh.GetNodes())[(dim * dof) + l];
+            const int dof = pdofs[i + (ncpx * j) + (ncpx * ncpy * k)];
+            const real_t w = mweights[dof];
+            for (int l=0; l<sdim; ++l)
+            {
+               if (dim == 2)
+               {
+                  (*patch)(i,j,l) = w * (*mesh.GetNodes())[(sdim * dof) + l];
+               }
+               else
+               {
+                  (*patch)(i,j,k,l) = w * (*mesh.GetNodes())[(sdim * dof) + l];
+               }
+            }
+
+            if (dim == 2)
+            {
+               (*patch)(i,j,sdim) = w;
+            }
+            else
+            {
+               (*patch)(i,j,k,sdim) = w;
+            }
          }
-         (*patch)(i,j,2) = w;
-      }
 }
 
 void NURBSExtension::SetNumCoarsePatches(int n)
@@ -6735,11 +7192,21 @@ void NURBSExtension::SetCoarsePatchCP(int p, const Array2D<real_t> &cp)
    }
 }
 
+void NURBSExtension::GetCoarsePatchCP(int p, Array2D<real_t> &cp) const
+{
+   cp.SetSize(patchCP.GetSize2(), patchCP.GetSize3());
+
+   for (int i=0; i<cp.NumRows(); ++i)
+   {
+      for (int j=0; j<cp.NumCols(); ++j)
+      {
+         cp(i, j) = patchCP(p, i, j);
+      }
+   }
+}
+
 void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
 {
-   MFEM_VERIFY(Dimension() == 2, "PhysicalSpacing is currently implemented "
-               "only for 2D NURBS patches.");
-
    if (patches.Size() == 0)
    {
       ConvertToPatches(Nodes);
@@ -6747,14 +7214,16 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
 
    MFEM_VERIFY(patches.Size() == GetNP(), "");
 
+   const int dim = Dimension(); // Reference space dimension
+
    const int numStructuredPatches = patchCP.GetSize1();
    for (int p = 0; p < numStructuredPatches; p++)
    {
       NURBSPatch *patch = patches[p];
-      MFEM_VERIFY(patch->GetNKV() == 2, "");
+      MFEM_VERIFY(patch->GetNKV() == dim, "");
 
-      std::array<int, 2> ne, ncp;
-      for (int i=0; i<2; ++i)
+      std::array<int, 3> ne, ncp;
+      for (int i=0; i<dim; ++i)
       {
          ne[i] = patch->GetKV(i)->GetNE();
          ncp[i] = patch->GetKV(i)->GetNCP();
@@ -6763,8 +7232,15 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
       Array<int> pdofs;
       GetPatchDofs(p, pdofs);
 
-      MFEM_VERIFY(patch_to_el[p].Size() == ne[0] * ne[1], "");
-      MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1], "");
+      if (dim == 2)
+      {
+         // TODO: better implementation
+         ne[2] = 1;
+         ncp[2] = 1;
+      }
+
+      MFEM_VERIFY(patch_to_el[p].Size() == ne[0] * ne[1] * ne[2], "");
+      MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1] * ncp[2], "");
 
       // ncp = (ne * ned) + 1 where ned is the number of DOFs per element minus 1.
       const int ned = (ncp[0] - 1) / ne[0];
@@ -6777,14 +7253,14 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
       MFEM_VERIFY(p < patchCP.GetSize1(), "Missing coarse patch data for "
                   "physical NURBS spacing.");
       MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
-      Mesh mesh0 = GetQuadPatchMesh(p, mOrder, ncp0, patchCP);
+      Mesh mesh0 = GetPatchMesh(p, dim, dim, mOrder, ncp0, patchCP);
 
       if (mesh0.NURBSext->GetOrder() < mOrder)
       {
          mesh0.DegreeElevate(mOrder - mesh0.NURBSext->GetOrder());
       }
 
-      SpacePatch(patch, mesh0, ned, ne, sweep1D);
+      SpacePatch(patch, p, patchCP, mesh0, mOrder, ned, ne, sweep1D);
    }
 }
 
@@ -6829,7 +7305,16 @@ void NURBSPatch::DivideOutWeights()
    // Set weights and weighted control points
    if (Dim == 4) // 3D case
    {
-      MFEM_ABORT("TODO");
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+            for (int k=0; k<nk; ++k)
+            {
+               const real_t w = (*this)(i,j,k,Dim-1); // Weight
+               for (int l=0; l<3; ++l) // Weighted control point
+               {
+                  (*this)(i,j,k,l) /= w;
+               }
+            }
    }
    else if (Dim == 3) // 2D case
    {

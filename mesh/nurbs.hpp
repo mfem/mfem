@@ -1139,6 +1139,18 @@ public:
 
    void SetCoarsePatchCP(int p, const Array2D<real_t> &cp);
 
+   void GetCoarsePatchCP(int p, Array2D<real_t> &cp) const;
+
+   bool HaveCoarsePatchData() const
+   {
+      return patchCP.GetSize1() > 0;
+   }
+
+   int NumCoarsePatches() const
+   {
+      return patchCP.GetSize1();
+   }
+
    /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
 
