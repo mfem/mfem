@@ -462,6 +462,7 @@ void test_pa_vector_mass_kernels(int dim, int p, int q_order)
 
    BilinearForm blf_fa(&fes);
    blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   // blf_fa will take ownership of integ_fa
    auto *integ_fa = new VectorMassIntegrator;
    integ_fa->SetIntRule(&ir);
    blf_fa.AddDomainIntegrator(integ_fa);
@@ -474,6 +475,7 @@ void test_pa_vector_mass_kernels(int dim, int p, int q_order)
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // blf_pa will take ownership of integ_pa
    auto *integ_pa = new VectorMassIntegrator;
    integ_pa->SetIntRule(&ir);
    blf_pa.AddDomainIntegrator(integ_pa);
