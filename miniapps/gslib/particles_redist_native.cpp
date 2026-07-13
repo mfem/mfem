@@ -75,21 +75,22 @@ int main (int argc, char *argv[])
    }
    if (rank == 0) { args.PrintOptions(cout); }
 
-   // The mesh is used only for a spatial dimension and bounding box, so that
-   // particle coordinates (used purely for visualization) are meaningful.
+   // Create mesh
    Mesh mesh(mesh_file);
    int space_dim = mesh.Dimension();
+
+   // Create parallel particle set
+   // ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
+   //             const Array<int> &field_vdims, int num_tags);
+   ParticleSet pset(MPI_COMM_WORLD, npt, space_dim, Array<int>(), 1);
 
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
 
-   // Create parallel particle set with one tag holding the target rank.
-   ParticleSet pset(MPI_COMM_WORLD, npt, space_dim, Array<int>(), 1);
 
-   // Scatter particles randomly across the bounding box (per rank), and assign
-   // each a random target rank, recorded both in the rank list and in tag 0.
+   // Set particles randomly on entire mesh domain, for each rank (with seed)
    std::mt19937 gen(seed + rank);
-   std::uniform_real_distribution<real_t> real_dist;
+   std::uniform_real_distribution<real_t> point_dist;
    std::uniform_int_distribution<int> rank_dist(0, size - 1);
 
    Array<unsigned int> ranks(pset.GetNParticles());
@@ -98,12 +99,12 @@ int main (int argc, char *argv[])
       Particle p = pset.GetParticleRef(i);
       for (int d = 0; d < pset.GetDim(); d++)
       {
-         p.Coords()[d] = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
+         p.Coords()[d] = pos_min[d] + point_dist(gen)*(pos_max[d] - pos_min[d]);
       }
       int target = rank_dist(gen);
       ranks[i] = static_cast<unsigned int>(target);
-      pset.Tag(0)[i] = target; // travels with the particle through the router
    }
+
 
    // Particle size for visualization
    real_t psize = Distance(pos_min, pos_max)*2e-3;
@@ -124,7 +125,7 @@ int main (int argc, char *argv[])
    }
    PrintRankCounts(pset);
 
-   // Redistribute using the native CrystalRouter (all-to-all, no GSLIB).
+   // Redistribute using the native CrystalRouter (no GSLIB)
    pset.Redistribute(ranks);
 
    if (rank == 0)
@@ -145,6 +146,9 @@ int main (int argc, char *argv[])
 
    return 0;
 }
+
+
+
 
 void PrintRankCounts(const ParticleSet &pset)
 {

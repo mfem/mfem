@@ -341,32 +341,6 @@ protected:
    CrystalRouter* crystal_router = nullptr; // backs Redistribute (flat-buffer router)
 #endif // MFEM_USE_MPI
 
-//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-#if 0
-   struct gslib::crystal *cr = nullptr;               // gslib's internal data
-   struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
-
-   /// \cond DO_NOT_DOCUMENT
-   template<std::size_t NBytes>
-   static void TransferParticlesImpl(ParticleSet &pset,
-                                     const Array<int> &send_idxs,
-                                     const Array<unsigned int> &send_ranks);
-
-   using TransferParticlesType = void (*)(ParticleSet &pset,
-                                          const Array<int> &send_idxs,
-                                          const Array<unsigned int> &send_ranks);
-
-   // Specialization parameter: NBytes
-   MFEM_REGISTER_KERNELS(TransferParticles, TransferParticlesType, (size_t));
-   friend TransferParticles;
-   struct Kernels
-   {
-      Kernels();
-   };
-   /// \endcond
-
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
-
    /** @brief  Update global ID of a particle.
     *
     *  @details This method updates the global ID of the particle at given
