@@ -146,7 +146,7 @@ void test_pa_tmo_mass(Mesh mesh, int p, int btype, const char *env_name)
    {
       mesh = Mesh::MakeSimplicial(mesh);
    }
-   REQUIRE(mesh.Dimension() == 2);
+   REQUIRE((mesh.Dimension() == 2 || mesh.Dimension() == 3));
    MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
 
    H1_FECollection fec(p, mesh.Dimension(), btype);
@@ -253,6 +253,7 @@ TEST_CASE("PA TMO MMA_1 Mass", "[PartialAssembly][TMO][MMA1][GPU]")
 {
    // Single chart k=0 (no mirror average). Same FA match as Tensor/MMA on
    // symmetric triangle rules; apply does 1× the chart GEMMs of full MMA.
+   // 3D: GLL tet, identity chart on the tet IntRule (nmirrors=1).
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
 
@@ -265,6 +266,12 @@ TEST_CASE("PA TMO MMA_1 Mass", "[PartialAssembly][TMO][MMA1][GPU]")
    SECTION("beam-tri")
    {
       test_pa_tmo_mass(Mesh("../../data/beam-tri.mesh"), p,
+                       BasisType::GaussLobatto, "MFEM_USE_TMO_MMA_1");
+   }
+
+   SECTION("single tet")
+   {
+      test_pa_tmo_mass(Mesh::MakeCartesian3D(1, 1, 1, Element::TETRAHEDRON), p,
                        BasisType::GaussLobatto, "MFEM_USE_TMO_MMA_1");
    }
 }

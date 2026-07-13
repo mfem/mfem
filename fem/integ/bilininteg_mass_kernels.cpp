@@ -91,6 +91,23 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddTmoMmaSpecialization<2,7,55>();
    MassIntegrator::AddTmoMmaSpecialization<2,8,60>(); // GLL BP1tri p=7
 
+   // TMO MMA_1 3D (GLL tet): key is (D1D, tet nq1).
+   // BP1tet GLL uses IntRules order 2p; unit tests use order 2p+4.
+   MassIntegrator::AddTmoMmaSpecialization<3,2,4>();   // BP p=1 order 2
+   MassIntegrator::AddTmoMmaSpecialization<3,2,24>();  // test p=1 order 6
+   MassIntegrator::AddTmoMmaSpecialization<3,3,14>();  // BP p=2 order 4
+   MassIntegrator::AddTmoMmaSpecialization<3,3,46>();  // test p=2 order 8
+   MassIntegrator::AddTmoMmaSpecialization<3,4,24>();  // BP p=3 order 6
+   MassIntegrator::AddTmoMmaSpecialization<3,4,81>();  // test p=3 order 10
+   MassIntegrator::AddTmoMmaSpecialization<3,5,46>();  // BP p=4 order 8
+   MassIntegrator::AddTmoMmaSpecialization<3,5,123>(); // test p=4 order 12
+   MassIntegrator::AddTmoMmaSpecialization<3,6,81>();  // BP p=5 order 10
+   MassIntegrator::AddTmoMmaSpecialization<3,6,175>(); // test p=5 order 14
+   MassIntegrator::AddTmoMmaSpecialization<3,7,123>(); // BP p=6 order 12
+   MassIntegrator::AddTmoMmaSpecialization<3,7,209>();
+   MassIntegrator::AddTmoMmaSpecialization<3,7,248>(); // test p=6 order 16
+   MassIntegrator::AddTmoMmaSpecialization<3,8,175>(); // BP p=7 order 14
+
    // 3D
    // Q=P+1
    MassIntegrator::AddSpecialization<3,1,1>();

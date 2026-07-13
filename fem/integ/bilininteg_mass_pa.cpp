@@ -180,10 +180,18 @@ void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes,
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2, "MFEM_USE_TMO_TENSOR currently supports 2D triangles only");
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "MFEM_USE_TMO_TENSOR/MMA_1 supports 2D triangles or 3D tets");
    MFEM_VERIFY(!fes.UsesRaggedTensorBasis(),
                "MFEM_USE_TMO_TENSOR requires standard H1 (Gauss-Lobatto), not Positive");
-   MFEM_VERIFY(mesh->SpaceDimension() == 2, "MFEM_USE_TMO_TENSOR requires a 2D mesh");
+   MFEM_VERIFY(mesh->SpaceDimension() == dim,
+               "MFEM_USE_TMO_TENSOR requires mesh SpaceDimension == Dimension");
+
+   if (dim == 3)
+   {
+      MFEM_VERIFY(nmirrors == 1,
+                  "3D TMO Tensor currently supports nmirrors=1 (MMA_1) only");
+   }
 
    if (mesh->GetNodes())
    {
@@ -192,10 +200,20 @@ void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes,
    }
 
    const FiniteElement &el = *fes.GetTypicalFE();
-   MFEM_VERIFY(el.GetGeomType() == Geometry::TRIANGLE,
-               "MFEM_USE_TMO_TENSOR currently supports triangles only");
-   const H1_TriangleElement *tel = dynamic_cast<const H1_TriangleElement *>(&el);
-   MFEM_VERIFY(tel, "MFEM_USE_TMO_TENSOR requires H1_TriangleElement");
+   const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
+                                            : Geometry::TETRAHEDRON;
+   MFEM_VERIFY(el.GetGeomType() == geom_t,
+               "MFEM_USE_TMO_TENSOR: expected triangle (2D) or tetrahedron (3D)");
+   if (dim == 2)
+   {
+      MFEM_VERIFY(dynamic_cast<const H1_TriangleElement *>(&el),
+                  "MFEM_USE_TMO_TENSOR requires H1_TriangleElement");
+   }
+   else
+   {
+      MFEM_VERIFY(dynamic_cast<const H1_TetrahedronElement *>(&el),
+                  "MFEM_USE_TMO_TENSOR 3D requires H1_TetrahedronElement");
+   }
 
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const int map_type = el.GetMapType();
@@ -203,15 +221,14 @@ void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes,
    dofs1D = p + 1;
    const int ndof = el.GetDof();
 
-   // Integrate on T via nmirrors parallelogram charts φ_k (k=0..nmirrors-1),
-   // using a triangle rule as (s,t)∈T (weight 1/nmirrors). nmirrors=1 is the
-   // single-chart path (MFEM_USE_TMO_MMA_1): k=0 only, weight 1.
+   // 2D: nmirrors parallelogram charts (nmirrors=1 ⇒ k=0 identity on T).
+   // 3D MMA_1: single chart = identity on the tet rule (weight 1).
    const int q_order = IntRule ? IntRule->GetOrder()
                        : 2 * p + T0->OrderW() + 4;
    const IntegrationRule &ir_T =
-      IntRule ? *IntRule : IntRules.Get(Geometry::TRIANGLE, q_order);
+      IntRule ? *IntRule : IntRules.Get(geom_t, q_order);
    const int nq1 = ir_T.GetNPoints();
-   quad1D = nq1; // for TENSOR: points per mirror (not a 1D count)
+   quad1D = nq1; // points per chart (not a 1D count)
    this->nq = nmirrors * nq1;
    const int nq_tmo = this->nq;
    ne = mesh->GetNE();
@@ -231,17 +248,34 @@ void MassIntegrator::AssemblePA_TMO_Tensor(const FiniteElementSpace &fes,
          for (int q1 = 0; q1 < nq1; q1++)
          {
             const IntegrationPoint &ip0 = ir_T.IntPoint(q1);
-            real_t xf, yf;
-            internal::tmo::MapSquareToParallelogram(k, ip0.x, ip0.y, xf, yf);
-            ip.Set2(xf, yf);
-            tel->CalcShape(ip, shape_ref);
+            if (dim == 2)
+            {
+               real_t xf, yf;
+               internal::tmo::MapSquareToParallelogram(k, ip0.x, ip0.y, xf, yf);
+               ip.Set2(xf, yf);
+            }
+            else
+            {
+               // MMA_1 / nmirrors=1: identity chart on the tet rule.
+               ip = ip0;
+            }
+            el.CalcShape(ip, shape_ref);
             for (int i = 0; i < ndof; i++)
             {
                Ph[q1 + nq1 * (i + ndof * k)] = shape_ref(i);
             }
             const int q = q1 + nq1 * k;
             IntegrationPoint &ipt = ir_tmo.IntPoint(q);
-            ipt.Set2(xf, yf);
+            if (dim == 2)
+            {
+               real_t xf, yf;
+               internal::tmo::MapSquareToParallelogram(k, ip0.x, ip0.y, xf, yf);
+               ipt.Set2(xf, yf);
+            }
+            else
+            {
+               ipt = ip0;
+            }
             ipt.weight = inv_m * ip0.weight;
          }
       }
@@ -664,8 +698,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       if (mode == TMO_TENSOR) { dbg("[TMO Tensor] AssemblePA"); }
       else if (mode == TMO_MMA) { dbg("[TMO MMA] AssemblePA"); }
       else { dbg("[TMO MMA_1] AssemblePA"); }
-      MFEM_VERIFY(fes.GetMesh()->Dimension() == 2,
-                  "TMO Tensor/MMA is only implemented for 2D triangles");
+      const int mesh_dim = fes.GetMesh()->Dimension();
+      if (mode == TMO_MMA_1)
+      {
+         MFEM_VERIFY(mesh_dim == 2 || mesh_dim == 3,
+                     "MFEM_USE_TMO_MMA_1 supports 2D triangles or 3D tetrahedra");
+      }
+      else
+      {
+         MFEM_VERIFY(mesh_dim == 2,
+                     "TMO Tensor/MMA is only implemented for 2D triangles");
+      }
       const int nm = (mode == TMO_MMA_1) ? 1 : internal::tmo::NMIRRORS;
       AssemblePA_TMO_Tensor(fes, nm);
       if (mode == TMO_MMA) { pa_tmo = TMO_MMA; }

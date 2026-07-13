@@ -2564,7 +2564,7 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddTmoMmaSpecialization()
    {
-      if constexpr (DIM == 2)
+      if constexpr (DIM == 2 || DIM == 3)
       {
          ApplyTmoMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }

@@ -674,11 +674,43 @@ constexpr int MagicForDims(int ndof, int nq1)
    return MagicDefault;
 }
 
-template <int D1D, int Q1D>
+template <int DIM, int D1D, int Q1D>
 constexpr int MagicFor()
 {
    if (D1D == 0 || Q1D == 0) { return MagicDefault; }
-   return MagicForDims(D1D * (D1D + 1) / 2, Q1D);
+   constexpr int ndof = (DIM == 2)
+                        ? (D1D * (D1D + 1) / 2)
+                        : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   return MagicForDims(ndof, Q1D);
+}
+
+// Fallback (T_D1D==0) caps: keep static smem under ~48KB with NB=8.
+// 2D: MAX_D1D triangle ndof; 3D: D1D<=8 (p<=7) covers BP1tet / unit tests.
+constexpr int FallbackMaxD1D2 = DofQuadLimits::MAX_D1D;
+constexpr int FallbackMaxD1D3 = 8;
+constexpr int FallbackMaxNq2 = DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D;
+constexpr int FallbackMaxNq3 = 256; // covers tet IntRules through order ~16
+
+template <int DIM, int D1D>
+constexpr int SimplexNdof()
+{
+   if constexpr (DIM == 2)
+   {
+      return D1D ? (D1D * (D1D + 1) / 2)
+                 : (FallbackMaxD1D2 * (FallbackMaxD1D2 + 1) / 2);
+   }
+   else
+   {
+      const int d = D1D ? D1D : FallbackMaxD1D3;
+      return d * (d + 1) * (d + 2) / 6;
+   }
+}
+
+template <int DIM, int Q1D>
+constexpr int SimplexMaxNq()
+{
+   if (Q1D) { return Q1D; }
+   return (DIM == 2) ? FallbackMaxNq2 : FallbackMaxNq3;
 }
 
 template <int MAGIC>
@@ -932,28 +964,30 @@ struct YBatchAcc
 } // namespace mma
 } // namespace tmo
 
-template<int T_D1D, int T_Q1D, bool SINGLE_CHART>
+template<int DIM, int T_D1D, int T_Q1D, bool SINGLE_CHART>
 MFEM_HOST_DEVICE inline
-void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
-                                         const int NE,
-                                         const real_t *p_,
-                                         const real_t *d_,
-                                         const real_t *x_,
-                                         real_t *y_,
-                                         const int d1d,
-                                         const int nq1,
-                                         const int nmirrors)
+void SmemPAMassApplySimplexTmoMma_Batch(const int e0,
+                                        const int NE,
+                                        const real_t *p_,
+                                        const real_t *d_,
+                                        const real_t *x_,
+                                        real_t *y_,
+                                        const int d1d,
+                                        const int nq1,
+                                        const int nmirrors)
 {
-   constexpr int MQ = T_Q1D ? T_Q1D : (DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D);
-   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-   constexpr int BASIS_DIM = MD1 * (MD1 + 1) / 2;
-   constexpr int MAGIC = tmo::mma::MagicFor<T_D1D, T_Q1D>();
+   constexpr int MQ = tmo::mma::SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int BASIS_DIM = tmo::mma::SimplexNdof<DIM, T_D1D>();
+   constexpr int MAGIC = tmo::mma::MagicFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = tmo::mma::PadLdBank<MAGIC>(BASIS_DIM);
    constexpr int U_LD = tmo::mma::PadLdBank<MAGIC>(MQ);
-   // Specialized: NBATCH=16. Fallback (huge MQ): keep NB=8 to stay under 48KB smem.
-   constexpr int NB = (T_D1D && T_Q1D) ? tmo::mma::NBATCH : tmo::mma::mmaN;
+   // Specialized: NBATCH=16. Fallback: NB=8 to stay under 48KB smem.
+   // Large 3D tet rules (nq>~200): NB=8 even when specialized.
+   constexpr int NB = (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160))
+                      ? tmo::mma::NBATCH : tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
-   const int ndof = D1D * (D1D + 1) / 2;
+   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
+                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
 
    const auto D = DeviceTensor<3, const real_t>(d_, NQ1, nmirrors, NE);
@@ -1050,26 +1084,35 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
 #endif
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAMassApplyTriangleTmoMma(const int NE,
-                                          const Array<real_t> &p_,
-                                          const Vector &d_,
-                                          const Vector &x_,
-                                          Vector &y_,
-                                          const int d1d = 0,
-                                          const int nq1 = 0)
+template<int DIM = 2, int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPAMassApplySimplexTmoMma(const int NE,
+                                         const Array<real_t> &p_,
+                                         const Vector &d_,
+                                         const Vector &x_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int nq1 = 0)
 {
-   constexpr int NB = (T_D1D && T_Q1D) ? tmo::mma::NBATCH : tmo::mma::mmaN;
+   constexpr int NB = (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160))
+                      ? tmo::mma::NBATCH : tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
-   const int ndof = D1D * (D1D + 1) / 2;
-   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
+                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   const int max_d1d = T_D1D ? T_D1D
+                       : ((DIM == 3) ? tmo::mma::FallbackMaxD1D3
+                          : DeviceDofQuadLimits::Get().MAX_D1D);
+   const int max_nq = tmo::mma::SimplexMaxNq<DIM, T_Q1D>();
    MFEM_VERIFY(D1D <= max_d1d, "");
-   MFEM_VERIFY(NQ1 <= DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D, "");
+   MFEM_VERIFY(NQ1 <= max_nq, "");
    MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() % (NQ1 * NE) == 0, "");
    const int nmirrors = d_.Size() / (NQ1 * NE);
    MFEM_VERIFY(nmirrors >= 1 && nmirrors <= tmo::NMIRRORS, "");
    MFEM_VERIFY(p_.Size() == NQ1 * ndof * nmirrors, "");
+   if constexpr (DIM == 3)
+   {
+      MFEM_VERIFY(nmirrors == 1, "3D TMO MMA currently supports nmirrors=1 only");
+   }
 
    const auto P = p_.Read();
    const auto D = d_.Read();
@@ -1088,7 +1131,7 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
    {
       mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
       {
-         SmemPAMassApplyTriangleTmoMma_Batch<T_D1D, T_Q1D, true>(
+         SmemPAMassApplySimplexTmoMma_Batch<DIM, T_D1D, T_Q1D, true>(
             batch * NB, NE, P, D, X, Y, d1d, nq1, 1);
       });
    }
@@ -1096,10 +1139,23 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
    {
       mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
       {
-         SmemPAMassApplyTriangleTmoMma_Batch<T_D1D, T_Q1D, false>(
+         SmemPAMassApplySimplexTmoMma_Batch<DIM, T_D1D, T_Q1D, false>(
             batch * NB, NE, P, D, X, Y, d1d, nq1, nmirrors);
       });
    }
+}
+
+// Backward-compatible alias used by existing 2D call sites / specializations.
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPAMassApplyTriangleTmoMma(const int NE,
+                                          const Array<real_t> &p_,
+                                          const Vector &d_,
+                                          const Vector &x_,
+                                          Vector &y_,
+                                          const int d1d = 0,
+                                          const int nq1 = 0)
+{
+   SmemPAMassApplySimplexTmoMma<2, T_D1D, T_Q1D>(NE, p_, d_, x_, y_, d1d, nq1);
 }
 
 // Bernstein parallelogram TMO: even-prolong to tensor Bernstein coeffs, then
@@ -1342,15 +1398,31 @@ template<int DIM, int T_D1D, int T_Q1D>
 MassIntegrator::ApplyTmoTensorKernelType
 MassIntegrator::ApplyTmoMmaPAKernels::Kernel()
 {
-   MFEM_CONTRACT_VAR(DIM);
-   return internal::SmemPAMassApplyTriangleTmoMma<T_D1D, T_Q1D>;
+   if constexpr (DIM == 2)
+   {
+      return internal::SmemPAMassApplySimplexTmoMma<2, T_D1D, T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::SmemPAMassApplySimplexTmoMma<3, T_D1D, T_Q1D>;
+   }
+   else
+   {
+      MFEM_ABORT("TMO MMA only supports DIM 2 or 3");
+      return nullptr;
+   }
 }
 
 inline MassIntegrator::ApplyTmoTensorKernelType
 MassIntegrator::ApplyTmoMmaPAKernels::Fallback(int dim, int, int)
 {
-   MFEM_VERIFY(dim == 2, "TMO MMA mass PA is only implemented for triangles");
-   return internal::SmemPAMassApplyTriangleTmoMma;
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "TMO MMA mass PA is only implemented for triangles/tets");
+   if (dim == 3)
+   {
+      return internal::SmemPAMassApplySimplexTmoMma<3>;
+   }
+   return internal::SmemPAMassApplySimplexTmoMma<2>;
 }
 
 template<int DIM, int T_D1D, int T_Q1D>
