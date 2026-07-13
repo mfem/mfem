@@ -96,10 +96,12 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddTmoMmaSpecialization<3,2,4>();   // BP p=1 order 2
    MassIntegrator::AddTmoMmaSpecialization<3,2,24>();  // test p=1 order 6
    MassIntegrator::AddTmoMmaSpecialization<3,3,14>();  // BP p=2 order 4
+   MassIntegrator::AddTmoMmaSpecialization<3,3,35>();
    MassIntegrator::AddTmoMmaSpecialization<3,3,46>();  // test p=2 order 8
    MassIntegrator::AddTmoMmaSpecialization<3,4,24>();  // BP p=3 order 6
    MassIntegrator::AddTmoMmaSpecialization<3,4,81>();  // test p=3 order 10
    MassIntegrator::AddTmoMmaSpecialization<3,5,46>();  // BP p=4 order 8
+   MassIntegrator::AddTmoMmaSpecialization<3,5,96>();
    MassIntegrator::AddTmoMmaSpecialization<3,5,123>(); // test p=4 order 12
    MassIntegrator::AddTmoMmaSpecialization<3,6,81>();  // BP p=5 order 10
    MassIntegrator::AddTmoMmaSpecialization<3,6,175>(); // test p=5 order 14
