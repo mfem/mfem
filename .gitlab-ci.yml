@@ -23,7 +23,6 @@
 # In addition, each project should copy over and complete:
 # - .gitlab/custom-variables.yml
 # - .gitlab/custom-jobs.yml
-# - .gitlab/subscribed-pipelines.yml
 #
 # The jobs should be specified in a file local to the project,
 # - .gitlab/jobs/${CI_MACHINE}.yml
@@ -114,7 +113,7 @@
 #  │         └── .gitlab/jobs/tioga-reports.yml   [used conditionally]
 #  │              ├── report_job_success
 #  │              └── report_job_failure
-#  └── .gitlab/subscribed-pipelines.yml
+#  └── <subscribed sub-pipelines>  [jobs, defined in this file]
 #       ├── generate-job-lists     [job]
 #       ├── dane-up-check          [job]
 #       ├── dane-build-and-test    [job]
@@ -151,7 +150,6 @@
 #  │    │    │    ├── ref:       '2026.6.0'
 #  │    │    │    ├── component: 'base-pipeline'
 #  │    │    │    └── provides:  .machine-check, .build-and-test, .dane/.matrix/.tioga
-#  │    │    ├── .gitlab/subscribed-pipelines.yml
 #  │    │    ├── .gitlab/custom-variables.yml  [by parent pipeline]
 #  │    │    ├── .gitlab/custom-jobs.yml  [by ".build-and-test"]
 #  │    │    ├── <artifact>  [by ".build-and-test"]
@@ -319,56 +317,35 @@
 #  │    │         ├── TIOGA_SHARED_ALLOC
 #  │    │         ├── TIOGA_JOB_ALLOC
 #  │    │         └── MATRIX_JOB_ALLOC
-#  │    ├── dane-baseline.yml
-#  │    │    ├── <jobs>
-#  │    │    │    ├── .on_dane
-#  │    │    │    ├── baselinecheck_mfem_intel_dane
-#  │    │    │    ├── cleanup
-#  │    │    │    ├── report_baseline
-#  │    │    │    └── baselinepublish_mfem_dane
-#  │    │    ├── <included and used files>
-#  │    │    │    ├── .gitlab/custom-variables.yml
-#  │    │    │    ├── .gitlab/configs/setup-baseline.yml
-#  │    │    │    ├── .gitlab/scripts/rebaseline
-#  │    │    │    ├── .gitlab/scripts/baseline
-#  │    │    │    └── .gitlab/scripts/git_try_to_push
-#  │    │    ├── <defined variables>
-#  │    │    │    ├── BASELINE_TEST: baseline
-#  │    │    │    ├── MACHINE_NAME: dane
-#  │    │    │    ├── TPLS_DIR
-#  │    │    │    └── export MFEM_TEST_NP
-#  │    │    └── <used variables>
-#  │    │         ├── ON_DANE
-#  │    │         ├── AUTOTEST       [defined by .gitlab-ci.yml]
-#  │    │         ├── BUILD_ROOT     [defined by custom-variables.yml]
-#  │    │         ├── TPLS_DIR       [defined by this file]
-#  │    │         ├── ARTIFACTS_DIR  [defined by custom-variables.yml]
-#  │    │         ├── MACHINE_NAME   [defined by this file]
-#  │    │         ├── AUTOTEST_COMMIT  [defined by .gitlab-ci.yml]
-#  │    │         ├── AUTOTEST_ROOT  [defined by .gitlab-ci.yml]
-#  │    │         ├── BASELINE_TEST  [defined by this file]
-#  │    │         └── REBASELINE     [defined by .gitlab-ci.yml]
-#  │    └── subscribed-pipelines.yml
+#  │    └── dane-baseline.yml
 #  │         ├── <jobs>
-#  │         │    ├── generate-job-lists
-#  │         │    ├── dane-up-check
-#  │         │    ├── dane-build-and-test
-#  │         │    ├── dane-baseline
-#  │         │    ├── tioga-up-check
-#  │         │    ├── tioga-build-and-test
-#  │         │    ├── matrix-up-check
-#  │         │    └── matrix-build-and-test
-#  │         ├── <used jobs>
-#  │         │    ├── .machine-check    [from base-pipeline component]
-#  │         │    └── .build-and-test   [from base-pipeline component]
-#  │         ├── <included files>
-#  │         │    └── .gitlab/dane-baseline.yml  [by "dane-baseline"]
+#  │         │    ├── .on_dane
+#  │         │    ├── baselinecheck_mfem_intel_dane
+#  │         │    ├── cleanup
+#  │         │    ├── report_baseline
+#  │         │    └── baselinepublish_mfem_dane
+#  │         ├── <included and used files>
+#  │         │    ├── .gitlab/custom-variables.yml
+#  │         │    ├── .gitlab/configs/setup-baseline.yml
+#  │         │    ├── .gitlab/scripts/rebaseline
+#  │         │    ├── .gitlab/scripts/baseline
+#  │         │    └── .gitlab/scripts/git_try_to_push
+#  │         ├── <defined variables>
+#  │         │    ├── BASELINE_TEST: baseline
+#  │         │    ├── MACHINE_NAME: dane
+#  │         │    ├── TPLS_DIR
+#  │         │    └── export MFEM_TEST_NP
 #  │         └── <used variables>
-#  │              ├── GITHUB_PROJECT_ORG
-#  │              ├── GITHUB_PROJECT_NAME
-#  │              ├── AUTOTEST
-#  │              ├── AUTOTEST_COMMIT
-#  │              └── REBASELINE
+#  │              ├── ON_DANE
+#  │              ├── AUTOTEST       [defined by .gitlab-ci.yml]
+#  │              ├── BUILD_ROOT     [defined by custom-variables.yml]
+#  │              ├── TPLS_DIR       [defined by this file]
+#  │              ├── ARTIFACTS_DIR  [defined by custom-variables.yml]
+#  │              ├── MACHINE_NAME   [defined by this file]
+#  │              ├── AUTOTEST_COMMIT  [defined by .gitlab-ci.yml]
+#  │              ├── AUTOTEST_ROOT  [defined by .gitlab-ci.yml]
+#  │              ├── BASELINE_TEST  [defined by this file]
+#  │              └── REBASELINE     [defined by .gitlab-ci.yml]
 #  └── tests
 #       ├── gitlab
 #       │    ├── build_and_test
@@ -548,5 +525,172 @@ include:
   #    github_project_org: $GITHUB_PROJECT_ORG
   #    always_run_pattern: $ALWAYS_RUN_PATTERN
   - local: '.gitlab/custom-variables.yml'
-  # pipelines subscribed by the project
-  - local: '.gitlab/subscribed-pipelines.yml'
+
+###############################################################################
+# Subscribed sub-pipelines
+###############################################################################
+# Trigger a build-and-test pipeline for a machine.
+# Comment the jobs for machines you don’t need.
+
+# One job to generate the job list for all the subpipelines
+generate-job-lists:
+  stage: prerequisites
+  tags: [shell, oslic]
+  variables:
+    LOCAL_JOBS_PATH: ".gitlab/jobs"
+  script:
+    - |
+      echo "AUTOTEST=$AUTOTEST"
+      echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
+      echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
+    - |
+      cat ${LOCAL_JOBS_PATH}/dane.yml > dane-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/dane-reports.yml >> dane-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/matrix.yml > matrix-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/matrix-reports.yml >> matrix-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/tioga-reports.yml >> tioga-jobs.yml
+      fi
+  artifacts:
+    paths:
+      - dane-jobs.yml
+      - matrix-jobs.yml
+      - tioga-jobs.yml
+
+
+# DANE
+dane-up-check:
+  variables:
+    ASSOCIATED_CHILD_PIPELINE: "dane-build-and-test"
+  extends: [.dane, .machine-check]
+
+dane-build-and-test:
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
+  needs: [dane-up-check, generate-job-lists]
+  extends: [.dane, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/dane-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $DANE_SHARED_ALLOC
+          job_alloc: $DANE_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'dane-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true
+
+# DANE, MFEM Specific
+dane-baseline:
+  stage: build-and-test
+  extends: [.dane]
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    # Note: in some cases, this does not work as expected, e.g. when the
+    # variable is not re-defined in the web interface; in such cases, the child
+    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
+    # AUTOTEST is undefined, even though there is a default value in
+    # .gitlab-ci.yml.
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
+  trigger:
+    include: .gitlab/dane-baseline.yml
+    strategy: depend
+    forward:
+      pipeline_variables: true
+  needs: [dane-up-check]
+
+
+# TIOGA
+tioga-up-check:
+  variables:
+    ASSOCIATED_CHILD_PIPELINE: "tioga-build-and-test"
+  extends: [.tioga, .machine-check]
+
+tioga-build-and-test:
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
+  needs: [tioga-up-check, generate-job-lists]
+  extends: [.tioga, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/tioga-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $TIOGA_SHARED_ALLOC
+          job_alloc: $TIOGA_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'tioga-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true
+
+
+# Matrix
+matrix-up-check:
+  variables:
+    ASSOCIATED_CHILD_PIPELINE: "matrix-build-and-test"
+  extends: [.matrix, .machine-check]
+
+matrix-build-and-test:
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
+  needs: [matrix-up-check, generate-job-lists]
+  extends: [.matrix, .build-and-test]
+  trigger:
+    include:
+      - local: '.gitlab/custom-jobs.yml'
+      - component: $CI_SERVER_FQDN/radiuss/radiuss-shared-ci/matrix-pipeline@2026.6.0
+        inputs:
+          job_cmd: $JOB_CMD
+          shared_alloc: $MATRIX_SHARED_ALLOC
+          job_alloc: $MATRIX_JOB_ALLOC
+          alloc_name: $ALLOC_NAME
+          github_project_name: $GITHUB_PROJECT_NAME
+          github_project_org: $GITHUB_PROJECT_ORG
+          llnl_service_user: $LLNL_SERVICE_USER
+      - artifact: 'matrix-jobs.yml'
+        job: 'generate-job-lists'
+    strategy: depend
+    forward:
+      pipeline_variables: true

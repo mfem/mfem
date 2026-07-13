@@ -55,9 +55,9 @@ defined in the jobs files, and some scheduling parameters defined in the
 
 Build-and-test jobs all run the `tests/gitlab/build_and_test` script.
 
-The build-and-test pipelines are controlled by the
-`.gitlab/subscribed-pipelines.yml` which defines which machines to run on and
-implements additional features like machine availability check, job list
+The build-and-test pipelines are controlled by the sub-pipeline trigger jobs at
+the bottom of `.gitlab-ci.yml`, which define which machines to run on and
+implement additional features like machine availability check, job list
 generation, and the machine-specific RADIUSS Shared CI component includes.
 
 ### baseline
