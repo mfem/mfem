@@ -4,6 +4,21 @@
 //
 // This file is part of the MFEM library. For more information and source code
 // availability visit https://mfem.org.
+
+// Multi-kernel scratch regression for the weak residual
+//
+//   F(u)_i = int_Omega phi_i c u^3 dx,
+//
+// evaluated as the scratch chain s = u, s = s*u, y = c*s*u.  The directional
+// derivative is
+//
+//   DF(u)[du]_i = int_Omega phi_i 3 c u^2 du dx.
+//
+// If the tangent stored in the qfunction scratch shadow is lost between the
+// split scratch updates, the final product only sees the direct derivative of
+// the last factor and produces int_Omega phi_i c u^2 du dx instead.  This test
+// checks both the direct DerivativeAction path and the cached
+// DerivativeSetup+DerivativeApply path against the factor-of-3 result.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
@@ -356,6 +371,44 @@ struct CubicQFWithGlobalScratch : QFWithScratch<bool, real_t, Vector>
     }
 };
 
+struct CubicQFWithScratchThreeKernels : QFWithScratch<>
+{
+    CubicQFWithScratchThreeKernels CreateShadow() const
+    {
+        CubicQFWithScratchThreeKernels shadow;
+        CloneScratchLayoutTo(shadow);
+        return shadow;
+    }
+
+    void operator()(tensor_array<const dscalar_t> &x,
+                    tensor_array<const dscalar_t> &coef,
+                    tensor_array<const real_t, 2, 2> &J,
+                    tensor_array<const real_t> &w,
+                    tensor_array<dscalar_t> &y) const
+    {
+        const int NQ = nq;
+        MFEM_ASSERT(NQ == static_cast<int>(x.size()),
+                    "unexpected number of quadrature points");
+
+        auto scratch_q = make_tensor_array<>(scratch[0], NQ);
+
+        for (int q = 0; q < NQ; ++q)
+        {
+            scratch_q(q) = x(q);
+        }
+
+        for (int q = 0; q < NQ; ++q)
+        {
+            scratch_q(q) = scratch_q(q) * x(q);
+        }
+
+        for (int q = 0; q < NQ; ++q)
+        {
+            y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+        }
+    }
+};
+
 ///<--- Utils
 
 /// @param fes
@@ -514,6 +567,91 @@ TEST_CASE("dFEM Scratch scalar", "[Parallel][dFEM][Scratch-Scalar]")
 
     ///<--- Check the result against the expected output
     CheckResults(fes, ir, y, dy);
+}
+
+TEST_CASE("dFEM Scratch multi-kernel persists tangents",
+          "[Parallel][dFEM][Scratch-MultiKernel]")
+{
+    int order = 2;
+    int ref_levels = 1;
+
+    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, true, 1.0,
+                                      1.0);
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh.UniformRefinement();
+    }
+
+    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+    pmesh.EnsureNodes();
+    H1_FECollection fec(order, pmesh.Dimension());
+    ParFiniteElementSpace fes(&pmesh, &fec);
+    auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+    ParFiniteElementSpace *nodes_fes = nodes->ParFESpace();
+    Vector nodes_tvec;
+    nodes->GetTrueDofs(nodes_tvec);
+
+    const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 2 * order + 1);
+    QuadratureSpace qspace(pmesh, ir);
+    VectorQuadratureSpace coef_qspace(qspace, 1);
+    QuadratureFunction coef(coef_qspace);
+    coef.UseDevice(true);
+    FunctionCoefficient coeff_fc([](const Vector &p)
+                                   { return 0.5 + p(0) + 0.125 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillQData(fes, ir, coeff_fc, coef);
+
+    Array<int> all_domain_attr(pmesh.attributes.Max());
+    all_domain_attr = 1;
+
+    const std::vector<FieldDescriptor> inputs{
+        {U, &fes},
+        {COEF, &coef_qspace},
+        {COORDINATES, nodes_fes}};
+    const std::vector<FieldDescriptor> outputs{
+        {Y, &fes}};
+    DifferentiableOperator dop(inputs, outputs, pmesh);
+
+    CubicQFWithScratchThreeKernels cubic_qf;
+    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
+    dop.AddDomainIntegrator<GlobalQFBackend>(
+        cubic_qf,
+        Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight>{},
+        Outputs<Value<Y>>{},
+        ir, all_domain_attr,
+        Derivatives<U>{});
+
+    Vector x(fes.GetTrueVSize()), y(fes.GetTrueVSize()), dx(fes.GetTrueVSize());
+    Vector dy_action(fes.GetTrueVSize()), dy_cached(fes.GetTrueVSize());
+    x.UseDevice(true);
+    y.UseDevice(true);
+    dx.UseDevice(true);
+    dy_action.UseDevice(true);
+    dy_cached.UseDevice(true);
+    FunctionCoefficient input_coeff([](const Vector &p)
+                                    { return 1.0 + p(0) + 0.25 * (p.Size() > 1 ? p(1) : 0.0); });
+    FillInput(fes, input_coeff, x);
+    ConstantCoefficient direction_coeff(1.0);
+    FillInput(fes, direction_coeff, dx);
+    y = 0.0;
+    dy_action = 0.0;
+    dy_cached = 0.0;
+
+    MultiVector X{x, coef, nodes_tvec};
+    MultiVector Y{y};
+    dop.Mult(X, Y);
+
+    auto dop_deriv_action = dop.GetDerivative(U, X, false);
+    MultiVector dY_action{dy_action};
+    dop_deriv_action->Mult(dx, dY_action);
+    Vector y_action_check(y);
+    CheckResults(fes, ir, y_action_check, dy_action);
+
+    auto dop_deriv_cached = dop.GetDerivative(U, X, true);
+    MultiVector dY_cached{dy_cached};
+    dop_deriv_cached->Mult(dx, dY_cached);
+
+    Vector y_cached_check(y);
+    CheckResults(fes, ir, y_cached_check, dy_cached);
 }
 
 
