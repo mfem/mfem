@@ -10,7 +10,7 @@
 //               assembles upper-packed L2 element mass matrices for the
 //               eq-iter-cholesky inverse path and lower-packed matrices for
 //               the MAGMA packed Cholesky solve path, then times repeated
-//               mass inverse applications. 
+//               mass inverse applications.
 
 #include "mfem.hpp"
 #ifdef MFEM_USE_MAGMA
@@ -111,7 +111,8 @@ real_t **SetMagmaPackedPointerArray(Array<real_t *> &ptrs, real_t *data,
 void ComputeMagmaPackedCholeskyLower(
    const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
    TriPackMatrix<TriangularPart::LOWER> &lower_factor,
-   Array<real_t *> &factor_ptrs)
+   Array<real_t *> &factor_ptrs,
+   const magma_queue_t queue)
 {
    const int n = packed_lower.GetNumRows();
    const int batch_size = packed_lower.GetNumMatrices();
@@ -124,7 +125,6 @@ void ComputeMagmaPackedCholeskyLower(
 
    lower_factor.Data() = packed_lower.Data();
 
-   magma_queue_t queue = Magma::Queue();
    real_t *factor_data = lower_factor.Data().ReadWrite();
    real_t **d_factor_ptrs =
       SetMagmaPackedPointerArray(factor_ptrs, factor_data, packed_size,
@@ -158,7 +158,8 @@ void SolveMagmaPackedCholeskyLowerInPlace(
    const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
    const Array<real_t *> &factor_ptrs,
    Array<real_t *> &rhs_ptrs,
-   Vector &rhs_sol)
+   Vector &rhs_sol,
+   const magma_queue_t queue)
 {
    const int n = lower_factor.GetNumRows();
    const int batch_size = lower_factor.GetNumMatrices();
@@ -174,7 +175,6 @@ void SolveMagmaPackedCholeskyLowerInPlace(
    MFEM_VERIFY(factor_ptrs.Size() == batch_size,
                "Factor pointer array has the wrong size.");
 
-   magma_queue_t queue = Magma::Queue();
    real_t *rhs_data = rhs_sol.ReadWrite();
    real_t **d_factor_ptrs = const_cast<real_t **>(factor_ptrs.Read());
    real_t **d_rhs_ptrs =
@@ -338,7 +338,8 @@ double TimeMagmaSolve(
    const Array<real_t *> &factor_ptrs,
    const Vector &rhs,
    const int reps,
-   Vector &x)
+   Vector &x,
+   const magma_queue_t queue)
 {
    StopWatch sw;
    Array<real_t *> rhs_ptrs;
@@ -346,14 +347,14 @@ double TimeMagmaSolve(
    // Dry run to remove first-use MAGMA and RHS pointer-array setup costs.
    x = rhs;
    SolveMagmaPackedCholeskyLowerInPlace(lower_factor, factor_ptrs,
-                                        rhs_ptrs, x);
+                                        rhs_ptrs, x, queue);
    MFEM_DEVICE_SYNC;
    sw.Start();
    for (int r = 0; r < reps; ++r)
    {
       x = rhs;
       SolveMagmaPackedCholeskyLowerInPlace(lower_factor, factor_ptrs,
-                                           rhs_ptrs, x);
+                                           rhs_ptrs, x, queue);
    }
    MFEM_DEVICE_SYNC;
    sw.Stop();
@@ -453,12 +454,16 @@ int main(int argc, char *argv[])
    for (int r = 0; r < setup_reps; ++r)
    {
       tripack::ComputeJacobiScaledCholeskyUpperInverse(upper_ea, upper_inverse);
-      MFEM_DEVICE_SYNC;
+
    }
+   MFEM_DEVICE_SYNC;
    sw.Stop();
    const double upper_inverse_setup_ms = 1000.0*sw.RealTime()/setup_reps;
 
 #ifdef MFEM_USE_MAGMA
+   magma_queue_t magma_queue = nullptr;
+   if (use_magma) { magma_queue = Magma::Queue(); }
+
    TriPackMatrix<TriangularPart::LOWER> magma_factor;
    Array<real_t *> magma_factor_ptrs;
    double magma_factor_ms = 0.0;
@@ -466,7 +471,7 @@ int main(int argc, char *argv[])
    {
       // Dry run setup before timing steady-state setup work.
       ComputeMagmaPackedCholeskyLower(lower_ea, magma_factor,
-                                      magma_factor_ptrs);
+                                      magma_factor_ptrs, magma_queue);
       MFEM_DEVICE_SYNC;
 
       sw.Clear();
@@ -474,9 +479,9 @@ int main(int argc, char *argv[])
       for (int r = 0; r < setup_reps; ++r)
       {
          ComputeMagmaPackedCholeskyLower(lower_ea, magma_factor,
-                                         magma_factor_ptrs);
-         MFEM_DEVICE_SYNC;
+                                         magma_factor_ptrs, magma_queue);
       }
+      MFEM_DEVICE_SYNC;
       sw.Stop();
       magma_factor_ms = 1000.0*sw.RealTime()/setup_reps;
    }
@@ -507,7 +512,8 @@ int main(int argc, char *argv[])
       magma_x.SetSize(rhs.Size());
       magma_x.UseDevice(true);
       magma_solve_ms =
-         TimeMagmaSolve(magma_factor, magma_factor_ptrs, rhs, reps, magma_x);
+         TimeMagmaSolve(magma_factor, magma_factor_ptrs, rhs, reps, magma_x,
+                        magma_queue);
       ComputeLowerPackedResidual(lower_ea, magma_x, rhs,
                                  magma_res_l2, magma_rel_res_l2,
                                  magma_res_max, magma_rel_res_max);
