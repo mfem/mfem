@@ -416,43 +416,31 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   using VectorConvectionNLFAddMultPAType =
+   using AddMultPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *x, real_t *y,
               const int d1d, const int q1d);
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultPA,
-                         VectorConvectionNLFAddMultPAType,
-                         (int, int, int));
+   MFEM_REGISTER_KERNELS(AddMultPAKernels, AddMultPAType, (int, int, int));
 
    void AddMultGradPA(const Vector &x, Vector &y) const override;
 
-   using VectorConvectionNLFAddMultGradPAType =
+   using AddMultGradPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *u, const real_t *x, real_t *y,
               const int d1d, const int q1d);
 
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA2D,
-                         VectorConvectionNLFAddMultGradPAType,
-                         (int, int));
-
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA3D,
-                         VectorConvectionNLFAddMultGradPAType,
-                         (int, int));
+   MFEM_REGISTER_KERNELS(AddMultGradPA2D, AddMultGradPAType, (int, int));
+   MFEM_REGISTER_KERNELS(AddMultGradPA3D, AddMultGradPAType, (int, int));
 
    void AssembleGradDiagonalPA(Vector &) const override;
 
-   using VectorConvectionNLFGradDiagPAType =
+   using GradDiagPAType =
       void (*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
                const real_t *u, real_t *y,
                const int d1d, const int q1d);
 
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFGradDiagPA2D,
-                         VectorConvectionNLFGradDiagPAType,
-                         (int, int));
-
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFGradDiagPA3D,
-                         VectorConvectionNLFGradDiagPAType,
-                         (int, int));
+   MFEM_REGISTER_KERNELS(GradDiagPA2D, GradDiagPAType, (int, int));
+   MFEM_REGISTER_KERNELS(GradDiagPA3D, GradDiagPAType, (int, int));
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 

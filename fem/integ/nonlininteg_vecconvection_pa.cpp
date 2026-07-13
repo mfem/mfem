@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <utility>
-
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
 #include "./nonlininteg_vecconvection_pa.hpp" // IWYU pragma: keep
 
@@ -164,34 +162,6 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("dim " << dim << " not supported!");
    }
-
-   if (static auto ini = false; !std::exchange(ini, true))
-   {
-      // 2D
-      VectorConvectionNLFAddMultPA::Specialization<2, 2,2>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 2,3>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 3,4>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 3,5>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 4,5>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 4,6>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 5,7>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 5,8>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<2, 6,8>::Add();
-      // 3D
-      VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 2,4>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 2,5>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 3,4>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 3,5>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 3,6>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 4,5>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 4,6>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 4,7>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 4,8>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 5,6>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 5,7>::Add();
-      VectorConvectionNLFAddMultPA::Specialization<3, 5,8>::Add();
-   }
 }
 
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -202,13 +172,40 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      VectorConvectionNLFAddMultPA::Run(dim, d1d, q1d, ne,
-                                        maps->B.Read(),
-                                        maps->G.Read(),
-                                        pa_adj.Read(),
-                                        x.Read(),
-                                        y.ReadWrite(),
-                                        d1d, q1d);
+      static const auto specializations =
+         (AddMultPAKernels::Specialization<2, 2,2>::Add(),
+          AddMultPAKernels::Specialization<2, 2,3>::Add(),
+          AddMultPAKernels::Specialization<2, 3,4>::Add(),
+          AddMultPAKernels::Specialization<2, 3,5>::Add(),
+          AddMultPAKernels::Specialization<2, 4,5>::Add(),
+          AddMultPAKernels::Specialization<2, 4,6>::Add(),
+          AddMultPAKernels::Specialization<2, 5,7>::Add(),
+          AddMultPAKernels::Specialization<2, 5,8>::Add(),
+          AddMultPAKernels::Specialization<2, 6,8>::Add(),
+          // 3D
+          AddMultPAKernels::Specialization<3, 2,3>::Add(),
+          AddMultPAKernels::Specialization<3, 2,4>::Add(),
+          AddMultPAKernels::Specialization<3, 2,5>::Add(),
+          AddMultPAKernels::Specialization<3, 3,4>::Add(),
+          AddMultPAKernels::Specialization<3, 3,5>::Add(),
+          AddMultPAKernels::Specialization<3, 3,6>::Add(),
+          AddMultPAKernels::Specialization<3, 4,5>::Add(),
+          AddMultPAKernels::Specialization<3, 4,6>::Add(),
+          AddMultPAKernels::Specialization<3, 4,7>::Add(),
+          AddMultPAKernels::Specialization<3, 4,8>::Add(),
+          AddMultPAKernels::Specialization<3, 5,6>::Add(),
+          AddMultPAKernels::Specialization<3, 5,7>::Add(),
+          AddMultPAKernels::Specialization<3, 5,8>::Add(),
+          true);
+      MFEM_CONTRACT_VAR(specializations);
+
+      AddMultPAKernels::Run(dim, d1d, q1d, ne,
+                            maps->B.Read(),
+                            maps->G.Read(),
+                            pa_adj.Read(),
+                            x.Read(),
+                            y.ReadWrite(),
+                            d1d, q1d);
    }
 }
 

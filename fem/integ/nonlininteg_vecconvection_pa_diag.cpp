@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <utility>
-
 #include "../ceed/interface/util.hpp"
 #include "./nonlininteg_vecconvection_pa_diag.hpp" // IWYU pragma: keep
 
@@ -25,51 +23,53 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 
    if (dim == 2)
    {
-      if (static auto ini = false; !std::exchange(ini, true))
-      {
-         VectorConvectionNLFGradDiagPA2D::Specialization<2, 2>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<2, 3>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<3, 4>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<3, 5>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<4, 5>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<4, 6>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<5, 7>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<5, 8>::Add();
-         VectorConvectionNLFGradDiagPA2D::Specialization<6, 8>::Add();
-      }
-      VectorConvectionNLFGradDiagPA2D::Run(d1d, q1d, ne,
-                                           maps->B.Read(),
-                                           maps->G.Read(),
-                                           pa_adj.Read(),
-                                           pa_u.Read(),
-                                           de.ReadWrite(),
-                                           d1d, q1d);
+      static const auto specializations =
+         (GradDiagPA2D::Specialization<2, 2>::Add(),
+          GradDiagPA2D::Specialization<2, 3>::Add(),
+          GradDiagPA2D::Specialization<3, 4>::Add(),
+          GradDiagPA2D::Specialization<3, 5>::Add(),
+          GradDiagPA2D::Specialization<4, 5>::Add(),
+          GradDiagPA2D::Specialization<4, 6>::Add(),
+          GradDiagPA2D::Specialization<5, 7>::Add(),
+          GradDiagPA2D::Specialization<5, 8>::Add(),
+          GradDiagPA2D::Specialization<6, 8>::Add(),
+          true);
+      MFEM_CONTRACT_VAR(specializations);
+
+      GradDiagPA2D::Run(d1d, q1d, ne,
+                        maps->B.Read(),
+                        maps->G.Read(),
+                        pa_adj.Read(),
+                        pa_u.Read(),
+                        de.ReadWrite(),
+                        d1d, q1d);
    }
    else if (dim == 3)
    {
-      if (static auto ini = false; !std::exchange(ini, true))
-      {
-         VectorConvectionNLFGradDiagPA3D::Specialization<2, 3>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<2, 4>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<2, 5>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<3, 4>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<3, 5>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<3, 6>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<4, 5>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<4, 6>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<4, 7>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<4, 8>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<5, 6>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<5, 7>::Add();
-         VectorConvectionNLFGradDiagPA3D::Specialization<5, 8>::Add();
-      }
-      VectorConvectionNLFGradDiagPA3D::Run(d1d, q1d, ne,
-                                           maps->B.Read(),
-                                           maps->G.Read(),
-                                           pa_adj.Read(),
-                                           pa_u.Read(),
-                                           de.ReadWrite(),
-                                           d1d, q1d);
+      static const auto specializations =
+         (GradDiagPA3D::Specialization<2, 3>::Add(),
+          GradDiagPA3D::Specialization<2, 4>::Add(),
+          GradDiagPA3D::Specialization<2, 5>::Add(),
+          GradDiagPA3D::Specialization<3, 4>::Add(),
+          GradDiagPA3D::Specialization<3, 5>::Add(),
+          GradDiagPA3D::Specialization<3, 6>::Add(),
+          GradDiagPA3D::Specialization<4, 5>::Add(),
+          GradDiagPA3D::Specialization<4, 6>::Add(),
+          GradDiagPA3D::Specialization<4, 7>::Add(),
+          GradDiagPA3D::Specialization<4, 8>::Add(),
+          GradDiagPA3D::Specialization<5, 6>::Add(),
+          GradDiagPA3D::Specialization<5, 7>::Add(),
+          GradDiagPA3D::Specialization<5, 8>::Add(),
+          true);
+      MFEM_CONTRACT_VAR(specializations);
+
+      GradDiagPA3D::Run(d1d, q1d, ne,
+                        maps->B.Read(),
+                        maps->G.Read(),
+                        pa_adj.Read(),
+                        pa_u.Read(),
+                        de.ReadWrite(),
+                        d1d, q1d);
    }
    else
    {

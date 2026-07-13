@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <utility>
-
 #include "../ceed/interface/util.hpp"
 #include "./nonlininteg_vecconvection_pa_grad.hpp" // IWYU pragma: keep
 
@@ -26,34 +24,6 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(
 
    this->pa_u = u;
    AssemblePA(fes);
-
-   if (static auto done = false; !std::exchange(done, true))
-   {
-      // 2D
-      VectorConvectionNLFAddMultGradPA2D::Specialization<2, 2>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<2, 3>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<3, 4>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<3, 5>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<4, 5>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<4, 6>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<5, 7>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<5, 8>::Add();
-      VectorConvectionNLFAddMultGradPA2D::Specialization<6, 8>::Add();
-      // 3D
-      VectorConvectionNLFAddMultGradPA3D::Specialization<2, 3>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<2, 4>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<2, 5>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<3, 4>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<3, 5>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<3, 6>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<4, 5>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<4, 6>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<4, 7>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<4, 8>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 6>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 7>::Add();
-      VectorConvectionNLFAddMultGradPA3D::Specialization<5, 8>::Add();
-   }
 }
 
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
@@ -65,25 +35,55 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
 
    if (dim == 2)
    {
-      VectorConvectionNLFAddMultGradPA2D::Run(d1d, q1d, ne,
-                                              maps->B.Read(),
-                                              maps->G.Read(),
-                                              pa_adj.Read(),
-                                              pa_u.Read(),
-                                              x.Read(),
-                                              y.ReadWrite(),
-                                              d1d, q1d);
+      static const auto specializations =
+         (AddMultGradPA2D::Specialization<2, 2>::Add(),
+          AddMultGradPA2D::Specialization<2, 3>::Add(),
+          AddMultGradPA2D::Specialization<3, 4>::Add(),
+          AddMultGradPA2D::Specialization<3, 5>::Add(),
+          AddMultGradPA2D::Specialization<4, 5>::Add(),
+          AddMultGradPA2D::Specialization<4, 6>::Add(),
+          AddMultGradPA2D::Specialization<5, 7>::Add(),
+          AddMultGradPA2D::Specialization<5, 8>::Add(),
+          AddMultGradPA2D::Specialization<6, 8>::Add(),
+          true);
+      MFEM_CONTRACT_VAR(specializations);
+
+      AddMultGradPA2D::Run(d1d, q1d, ne,
+                           maps->B.Read(),
+                           maps->G.Read(),
+                           pa_adj.Read(),
+                           pa_u.Read(),
+                           x.Read(),
+                           y.ReadWrite(),
+                           d1d, q1d);
    }
    else if (dim == 3)
    {
-      VectorConvectionNLFAddMultGradPA3D::Run(d1d, q1d, ne,
-                                              maps->B.Read(),
-                                              maps->G.Read(),
-                                              pa_adj.Read(),
-                                              pa_u.Read(),
-                                              x.Read(),
-                                              y.ReadWrite(),
-                                              d1d, q1d);
+      static const auto specializations =
+         (AddMultGradPA3D::Specialization<2, 3>::Add(),
+          AddMultGradPA3D::Specialization<2, 4>::Add(),
+          AddMultGradPA3D::Specialization<2, 5>::Add(),
+          AddMultGradPA3D::Specialization<3, 4>::Add(),
+          AddMultGradPA3D::Specialization<3, 5>::Add(),
+          AddMultGradPA3D::Specialization<3, 6>::Add(),
+          AddMultGradPA3D::Specialization<4, 5>::Add(),
+          AddMultGradPA3D::Specialization<4, 6>::Add(),
+          AddMultGradPA3D::Specialization<4, 7>::Add(),
+          AddMultGradPA3D::Specialization<4, 8>::Add(),
+          AddMultGradPA3D::Specialization<5, 6>::Add(),
+          AddMultGradPA3D::Specialization<5, 7>::Add(),
+          AddMultGradPA3D::Specialization<5, 8>::Add(),
+          true);
+      MFEM_CONTRACT_VAR(specializations);
+
+      AddMultGradPA3D::Run(d1d, q1d, ne,
+                           maps->B.Read(),
+                           maps->G.Read(),
+                           pa_adj.Read(),
+                           pa_u.Read(),
+                           x.Read(),
+                           y.ReadWrite(),
+                           d1d, q1d);
    }
    else
    {

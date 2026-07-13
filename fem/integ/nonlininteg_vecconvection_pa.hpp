@@ -171,8 +171,8 @@ inline void SmemPAConvectionNLApply3D(const int NE,
 } // namespace internal
 
 template<int DIM, int T_D1D, int T_Q1D>
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
+VectorConvectionNLFIntegrator::AddMultPAType
+VectorConvectionNLFIntegrator::AddMultPAKernels::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
    if constexpr (DIM == 2)
@@ -186,8 +186,8 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Kernel()
    else { MFEM_ABORT("Unsupported kernel"); }
 }
 
-inline VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultPA::Fallback
+inline VectorConvectionNLFIntegrator::AddMultPAType
+VectorConvectionNLFIntegrator::AddMultPAKernels::Fallback
 (int dim, int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");

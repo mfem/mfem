@@ -264,15 +264,15 @@ inline void SmemPAConvectionNLGradDiagonal3D(const int NE,
 } // namespace internal
 
 template<int T_D1D, int T_Q1D>
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Kernel()
+VectorConvectionNLFIntegrator::GradDiagPAType
+VectorConvectionNLFIntegrator::GradDiagPA2D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
    return internal::SmemPAConvectionNLGradDiagonal2D<T_D1D, T_Q1D>;
 }
 
-inline VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Fallback
+inline VectorConvectionNLFIntegrator::GradDiagPAType
+VectorConvectionNLFIntegrator::GradDiagPA2D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
@@ -282,15 +282,15 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA2D::Fallback
 }
 
 template<int T_D1D, int T_Q1D>
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Kernel()
+VectorConvectionNLFIntegrator::GradDiagPAType
+VectorConvectionNLFIntegrator::GradDiagPA3D::Kernel()
 {
    static_assert(T_D1D <= T_Q1D, "d1d > q1d is not supported");
    return internal::SmemPAConvectionNLGradDiagonal3D<T_D1D, T_Q1D>;
 }
 
-inline VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFGradDiagPA3D::Fallback
+inline VectorConvectionNLFIntegrator::GradDiagPAType
+VectorConvectionNLFIntegrator::GradDiagPA3D::Fallback
 (int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
