@@ -5786,7 +5786,6 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
-// TODO: if this is the same as NCNURBSExtension::PrintCoarsePatches, then eliminate the duplication.
 void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 {
    const int patchCP_size1 = patchCP.GetSize1();
@@ -5913,7 +5912,7 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
    const int niz = dim == 2 ? 1 : ncps[2] - 2;
    const int ncp = (ncps[0] - 2) * (ncps[1] - 2) * niz;
 
-   std::vector<DenseMatrix> A(sdim);
+   DenseMatrix A(sdim);
    GridFunction x0(&fespace);
    Vector sol(ncp);
    std::vector<Vector> b(sdim);
@@ -5921,11 +5920,62 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
    for (int i = 0; i < sdim; ++i)
    {
       b[i].SetSize(ncp);
-      A[i].SetSize(ncp);
-      A[i] = 0.0;
    }
 
    IntegrationPoint ip;
+
+   // Set the system matrix A
+   A.SetSize(ncp);
+   A = 0.0;
+   x = 0.0;
+
+   int dofprev = -1;
+   for (int dof_k=1; dof_k <= niz; ++dof_k)
+   {
+      const int osi_k = (ncps[0] - 2) * (ncps[1] - 2) * (dof_k - 1);
+
+      for (int dof_i=1; dof_i < ncp0 - 1; ++dof_i)
+         for (int dof_j=1; dof_j < ncp1 - 1; ++dof_j)
+         {
+            const int el_i = i_args[0][dof_i];
+            const int el_j = i_args[1][dof_j];
+            const int el_k = dim == 2 ? 0 : i_args[2][dof_k];
+
+            // Element index, assuming a single patch in the mesh.
+            const int elem = el_i + (nel[0] * el_j) + (nel[0] * nel[1] * el_k);
+
+            if (dim == 2)
+            {
+               ip.Set2(xi_args[0][dof_i], xi_args[1][dof_j]);
+            }
+            else
+            {
+               ip.Set3(xi_args[0][dof_i], xi_args[1][dof_j], xi_args[2][dof_k]);
+            }
+
+            for (int l_i=1; l_i<ncps[0] - 1; ++l_i)
+               for (int l_j=1; l_j<ncps[1] - 1; ++l_j)
+                  for (int l_k=1; l_k<=niz; ++l_k)
+                  {
+                     const int l = l_i - 1 + ((ncps[0] - 2) * (l_j - 1)) +
+                                   ((ncps[0] - 2) * (ncps[1] - 2) * (l_k - 1));
+                     const int os_k = dim == 2 ? 0 : (ncps[0] * ncps[1] * l_k);
+                     const int l_full = l_i + (ncps[0] * l_j) + os_k;
+
+                     if (dofprev >= 0)
+                     {
+                        x[dofprev] = 0.0;
+                     }
+
+                     const int dof = pdofs[l_full];
+                     x[dof] = 1.0;
+                     dofprev = dof;
+                     const real_t v = x.GetValue(elem, ip);
+                     A(dof_i - 1 + ((ncp0 - 2) * (dof_j - 1)) + osi_k, l) = v;
+                  }
+         }
+   }
+
    for (int dir=0; dir<sdim; ++dir)
    {
       // Set b[dir]
@@ -5983,8 +6033,7 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
       // Set the interior DOFs
       for (int dof_k=1; dof_k <= niz; ++dof_k)
       {
-         // TODO: remove ? : as you get the same result either way.
-         const int osi_k = dim == 2 ? 0 : ((ncps[0] - 2) * (ncps[1] - 2) * (dof_k - 1));
+         const int osi_k = (ncps[0] - 2) * (ncps[1] - 2) * (dof_k - 1);
 
          for (int dof_i=1; dof_i < ncp0 - 1; ++dof_i)
             for (int dof_j=1; dof_j < ncp1 - 1; ++dof_j)
@@ -6005,29 +6054,6 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
                   ip.Set3(xi_args[0][dof_i], xi_args[1][dof_j], xi_args[2][dof_k]);
                }
 
-               for (int l_i=1; l_i<ncps[0] - 1; ++l_i)
-                  for (int l_j=1; l_j<ncps[1] - 1; ++l_j)
-                     for (int l_k=1; l_k<=niz; ++l_k)
-                     {
-                        const int l = l_i - 1 + ((ncps[0] - 2) * (l_j - 1)) + ((ncps[0] - 2) *
-                                                                               (ncps[1] - 2) * (l_k - 1));
-                        const int os_k = dim == 2 ? 0 : (ncps[0] * ncps[1] * l_k);
-                        const int l_full = l_i + (ncps[0] * l_j) + os_k;
-
-                        if (dofprev >= 0)
-                        {
-                           x[dofprev] = 0.0;
-                        }
-
-                        const int dof = pdofs[l_full];
-                        x[dof] = 1.0; // TODO: this is just [l]?
-
-                        dofprev = dof;
-                        const real_t v = x.GetValue(elem, ip);
-                        // TODO: are the matrices in A the same for all dir?
-                        A[dir](dof_i - 1 + ((ncp0 - 2) * (dof_j - 1)) + osi_k, l) = v;
-                     }
-
                const real_t v0 = x0.GetValue(elem, ip);
 
                // Set the physical point
@@ -6046,10 +6072,11 @@ void SolvePhysicalGridInterior(Mesh &mesh, int ned, std::array<int, 3> nel,
       }
    } // dir loop
 
+   A.Invert();
+
    for (int i = 0; i < sdim; ++i)
    {
-      A[i].Invert();
-      A[i].Mult(b[i], sol);
+      A.Mult(b[i], sol);
 
       for (int j=1; j<ncp0 - 1; ++j)
          for (int k=1; k<ncp1 - 1; ++k)
@@ -6405,18 +6432,15 @@ void SolveBoundarySegment(Mesh &mesh, const Mesh &mesh0_, int ned,
 Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
                   const Array3D<double> &patchCP);
 
-void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0,
-                           int patchIndex, const Array3D<double> &coarsePatchCP,
-                           int mOrder, int ned,
-                           std::array<int, 3> nel, const Array3D<real_t> &grid,
-                           bool sweep1D);
+void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
+                           const Array3D<double> &coarsePatchCP,
+                           int mOrder, int ned, std::array<int, 3> nel,
+                           const Array3D<real_t> &grid, bool sweep1D);
 
 // mesh0 is a modifiable, temporary copy of a single-element, single-patch mesh,
 // to be refined to match the number of elements in mesh.
-void SolveBoundaryFace(Mesh &mesh, const Mesh &mesh0_,
-                       int patchIndex, const Array3D<double> &coarsePatchCP,
-                       int mOrder,
-                       int ned,
+void SolveBoundaryFace(Mesh &mesh, const Mesh &mesh0_, int patchIndex,
+                       const Array3D<double> &coarsePatchCP, int mOrder, int ned,
                        std::array<int, 3> nel, const Array3D<real_t> &grid,
                        int dir, int side, bool sweep1D)
 {
@@ -6531,7 +6555,7 @@ void SolveBoundaryFace(Mesh &mesh, const Mesh &mesh0_,
    }
 
    SolvePhysicalGridBdry(faceMesh, faceMesh0, p, facePatchCP0, mOrder, ned,
-                         nelFace, faceGrid, true || sweep1D);
+                         nelFace, faceGrid, sweep1D);
 
    // Copy CP from physically spaced faceMesh to mesh.
 
@@ -6565,11 +6589,10 @@ void SolveBoundaryFace(Mesh &mesh, const Mesh &mesh0_,
 }
 
 // Assumes 1 patch.
-void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0,
-                           int patchIndex, const Array3D<double> &coarsePatchCP,
-                           int mOrder, int ned,
-                           std::array<int, 3> nel, const Array3D<real_t> &grid,
-                           bool sweep1D)
+void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
+                           const Array3D<double> &coarsePatchCP, int mOrder,
+                           int ned, std::array<int, 3> nel,
+                           const Array3D<real_t> &grid, bool sweep1D)
 {
    const int dim = mesh0.Dimension(); // Reference space dimension
 
@@ -6587,7 +6610,7 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0,
       for (int dir=0; dir<3; ++dir)
          for (int side=0; side<2; ++side)
             SolveBoundaryFace(mesh, mesh0, patchIndex, coarsePatchCP, mOrder,
-                              ned, nel, grid, dir, side, true || sweep1D);
+                              ned, nel, grid, dir, side, sweep1D);
    }
 
    // Interpolate weights from boundary to the interior.
@@ -7119,11 +7142,9 @@ void SpacePatch(NURBSPatch *patch, int patchIndex,
       sf[i] = patch->GetKV(i)->spacing.get();
    }
 
-   GetUniformPatchGrid(mesh, sf,
-                       ned, nel, grid);
-
-   SolvePhysicalGridBdry(mesh, mesh0, patchIndex, coarsePatchCP, mOrder, ned, nel,
-                         grid, sweep1D);
+   GetUniformPatchGrid(mesh, sf, ned, nel, grid);
+   SolvePhysicalGridBdry(mesh, mesh0, patchIndex, coarsePatchCP, mOrder, ned,
+                         nel, grid, sweep1D);
 
    // Copy CP from mesh to patch.
 

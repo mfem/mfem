@@ -1161,8 +1161,8 @@ public:
        a mesh with a nonconforming patch topology. */
    void FullyCoarsen();
 
-   /// Print control points for coarse patches.
-   virtual void PrintCoarsePatches(std::ostream &os);
+   /// Print control points for coarse patches @a patchCP.
+   void PrintCoarsePatches(std::ostream &os);
 
    // If sweep1D is true, an approximate 1D sweeping solver is used; otherwise,
    // a more expensive full-dimensional system solver is used on each patch. The

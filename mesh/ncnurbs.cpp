@@ -2944,47 +2944,6 @@ void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
       }
 }
 
-void NCNURBSExtension::PrintCoarsePatches(std::ostream &os)
-{
-   const int patchCP_size1 = patchCP.GetSize1();
-   MFEM_VERIFY(patchCP_size1 == num_structured_patches || patchCP_size1 == 0,
-               "");
-
-   if (patchCP_size1 == 0) { return; }
-
-   const int maxOrder = mOrders.Max();
-
-   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
-   // and the number of control points in each dimension is
-   // 2*(maxOrder + 1) - maxOrder - 1
-   const int ncp1D = maxOrder + 1;
-   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
-
-   MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
-
-   if (num_structured_patches > 0) // TODO: remove this!
-   {
-      if (patchCP.GetSize2() < ncp)
-      {
-         return;
-      }
-   }
-
-   os << "\npatch_cp\n" << num_structured_patches << "\n";
-   for (int p=0; p<num_structured_patches; ++p)
-   {
-      for (int i=0; i<ncp; ++i)
-      {
-         os << patchCP(p, i, 0);
-         for (int j = 1; j < Dimension() + 1; ++j)
-         {
-            os << ' ' << patchCP(p, i, j);
-         }
-         os << '\n';
-      }
-   }
-}
-
 void ApplyFineToCoarse(const Array<int> &f, Array<int> &c)
 {
    MFEM_ASSERT(f.Size() == c.Sum(), "");
