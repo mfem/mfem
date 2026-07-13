@@ -65,8 +65,13 @@ if (MFEM_USE_GSLIB)
     MAIN particles_redist.cpp
     LIBRARIES mfem-common)
 
+  add_mfem_miniapp(particles_redist_native
+    MAIN particles_redist_native.cpp
+    LIBRARIES mfem-common)
+
     if (MFEM_ENABLE_TESTING)
-      foreach (test "schwarz_ex1p" "pfindpts" "particles_redist")
+      foreach (test "schwarz_ex1p" "pfindpts" "particles_redist"
+               "particles_redist_native")
         add_test(NAME ${test}_np${MFEM_MPI_NP}
           COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
           ${MPIEXEC_PREFLAGS}
