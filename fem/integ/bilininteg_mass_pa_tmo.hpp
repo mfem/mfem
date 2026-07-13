@@ -763,7 +763,9 @@ struct SmemMatAcc
    }
 };
 
-constexpr int NBATCH = mmaN;
+/** Max N-tiles / elements per specialized CTA (A fragment shared across tiles). */
+constexpr int MAX_N_TILES = 2;
+constexpr int NBATCH = MAX_N_TILES * mmaN; // 16
 
 MFEM_HOST_DEVICE inline int getNumWarps()
 {
@@ -774,9 +776,7 @@ MFEM_HOST_DEVICE inline int getNumWarps()
 #endif
 }
 
-/** C = A * B with optional fused D-scale on the C store (U *= D).
-    When SCALE is true, D(q,k,e) multiplies register results before smem store —
-    avoids a separate Us load/modify/store (ncu: shared short-scoreboard). */
+/** C = A * B with fused D-scale on the C store (U *= D from registers). */
 template <int MAGIC, bool SCALE, typename AAcc, typename BAcc, typename CAcc,
           typename DAcc>
 MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
@@ -791,46 +791,58 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (M + mmaM - 1) / mmaM;
+   // One A fragment feeds all N-tiles (NBATCH may be 2×mmaN).
+   const int nTiles = (N + mmaN - 1) / mmaN;
 
    for (int tile = warpId; tile < mPass; tile += nWarps)
    {
-      const int row0 = tile * mmaM; // blocked f_m
-      double cReg[2] = {};
+      const int row0 = tile * mmaM;
+      double cReg[MAX_N_TILES][2] = {}; // [nTile][frag]
 
       for (int mK = 0; mK < (K + mmaK - 1) / mmaK; mK++)
       {
-         double bReg[1];
-         const int bRow = threadIdInGroup + mK * mmaK;
-         const int bColumn = MagicCol<MAGIC>(groupId);
-         bReg[0] = (bRow < K && bColumn < N)
-                   ? static_cast<double>(B(bRow, bColumn)) : 0.0;
-
          double aReg[1];
          const int aRow = row0 + groupId;
          const int aColumn = threadIdInGroup + mK * mmaK;
          aReg[0] = (aRow < M && aColumn < K)
                    ? static_cast<double>(A(aRow, aColumn)) : 0.0;
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = row0 + groupId;
-         const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
-         if (cRow < M && cColumn < N)
+
+         for (int nt = 0; nt < nTiles; ++nt)
          {
-            real_t v = static_cast<real_t>(cReg[i]);
-            if constexpr (SCALE)
+            const int n0 = nt * mmaN;
+            const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicCol<MAGIC>(groupId);
+            bReg[0] = (bRow < K && bColumn < nTile)
+                      ? static_cast<double>(B(bRow, n0 + bColumn)) : 0.0;
+            dmmaSync(aReg, bReg, cReg[nt]);
+         }
+      }
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
+            if (cRow < M && cColumn < nTile)
             {
-               const int e = e0 + cColumn;
-               v = (e < NE) ? v * D(cRow, k_mir, e) : real_t(0);
+               real_t v = static_cast<real_t>(cReg[nt][i]);
+               if constexpr (SCALE)
+               {
+                  const int e = e0 + n0 + cColumn;
+                  v = (e < NE) ? v * D(cRow, k_mir, e) : real_t(0);
+               }
+               C(cRow, n0 + cColumn) = v;
             }
-            C(cRow, cColumn) = v;
          }
       }
    }
 }
 
-/** C += A^T * B. C(r,b) is typically global Y for element e0+b (skip if e>=NE). */
+/** C += A^T * B into global Y (via C accessor); skip if e0+b >= NE. */
 template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
 MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
                                          AAcc A, BAcc B, CAcc C,
@@ -843,35 +855,46 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (K + mmaM - 1) / mmaM;
+   const int nTiles = (N + mmaN - 1) / mmaN;
 
    for (int tile = warpId; tile < mPass; tile += nWarps)
    {
-      const int row0 = tile * mmaM; // blocked f_m on K
-      double cReg[2] = {};
+      const int row0 = tile * mmaM;
+      double cReg[MAX_N_TILES][2] = {}; // [nTile][frag]
 
       for (int mK = 0; mK < (M + mmaK - 1) / mmaK; mK++)
       {
-         double bReg[1];
-         const int bRow = threadIdInGroup + mK * mmaK;
-         const int bColumn = MagicCol<MAGIC>(groupId);
-         bReg[0] = (bRow < M && bColumn < N)
-                   ? static_cast<double>(B(bRow, bColumn)) : 0.0;
-
          double aReg[1];
          const int aT_row = row0 + groupId;
          const int aT_col = threadIdInGroup + mK * mmaK;
          aReg[0] = (aT_row < K && aT_col < M)
                    ? static_cast<double>(A(aT_col, aT_row)) : 0.0;
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = row0 + groupId;
-         const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
-         const int e = e0 + cColumn;
-         if (cRow < K && cColumn < N && e < NE)
+
+         for (int nt = 0; nt < nTiles; ++nt)
          {
-            C(cRow, cColumn) += static_cast<real_t>(cReg[i]);
+            const int n0 = nt * mmaN;
+            const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicCol<MAGIC>(groupId);
+            bReg[0] = (bRow < M && bColumn < nTile)
+                      ? static_cast<double>(B(bRow, n0 + bColumn)) : 0.0;
+            dmmaSync(aReg, bReg, cReg[nt]);
+         }
+      }
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
+            const int e = e0 + n0 + cColumn;
+            if (cRow < K && cColumn < nTile && e < NE)
+            {
+               C(cRow, n0 + cColumn) += static_cast<real_t>(cReg[nt][i]);
+            }
          }
       }
    }
@@ -927,7 +950,8 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
    constexpr int MAGIC = tmo::mma::MagicFor<T_D1D, T_Q1D>();
    constexpr int X_LD = tmo::mma::PadLdBank<MAGIC>(BASIS_DIM);
    constexpr int U_LD = tmo::mma::PadLdBank<MAGIC>(MQ);
-   constexpr int NB = tmo::mma::NBATCH;
+   // Specialized: NBATCH=16. Fallback (huge MQ): keep NB=8 to stay under 48KB smem.
+   constexpr int NB = (T_D1D && T_Q1D) ? tmo::mma::NBATCH : tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = D1D * (D1D + 1) / 2;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
@@ -935,7 +959,8 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
    const auto D = DeviceTensor<3, const real_t>(d_, NQ1, nmirrors, NE);
    const auto x = ConstDeviceMatrix(x_, ndof, NE);
 
-   // XY holds X only (Y accumulates in global memory from GemmT).
+   // XY = X only; Us = U; Y accumulates in global memory from GemmT.
+   // P stays in global/L2 (staging was measured slower — mesh-wide P is hot).
    struct alignas(16) Smem
    {
       real_t XY[X_LD * NB];
@@ -1034,7 +1059,7 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
                                           const int d1d = 0,
                                           const int nq1 = 0)
 {
-   constexpr int NB = tmo::mma::NBATCH;
+   constexpr int NB = (T_D1D && T_Q1D) ? tmo::mma::NBATCH : tmo::mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = D1D * (D1D + 1) / 2;
@@ -1051,12 +1076,12 @@ inline void SmemPAMassApplyTriangleTmoMma(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   // Balance CTA warps across Gemm (M=NQ1) and GemmT (K=ndof): launch
-   // min(mPassQ,mPassD) warps and stride tiles (ncu: idle warps → barriers).
+   // Keep all warps busy in both Gemm phases (strided M-tiles).
    const int mPassQ = (NQ1 + tmo::mma::mmaM - 1) / tmo::mma::mmaM;
    const int mPassD = (ndof + tmo::mma::mmaM - 1) / tmo::mma::mmaM;
-   const int nWarps = (mPassQ < mPassD) ? mPassQ : mPassD;
-   const int nthreads = ((nWarps > 1) ? nWarps : 1) * 32;
+   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
+                                        : (mPassD > 1 ? mPassD : 1);
+   const int nthreads = nWarps * 32;
    const int nbatches = (NE + NB - 1) / NB;
 
    if (nmirrors == 1)
