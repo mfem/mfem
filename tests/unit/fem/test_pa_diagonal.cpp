@@ -320,7 +320,8 @@ double test_vdiag_pa(int dim, int order)
 }
 
 TEST_CASE("Vector Mass Diagonal PA",
-          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA][CUDA]")
+          "[AssembleDiagonal][PartialAssembly]"
+          "[VectorPA][VectorDiagonalPA][VectorMassPA][GPU]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);
@@ -329,7 +330,8 @@ TEST_CASE("Vector Mass Diagonal PA",
 }
 
 TEST_CASE("Vector Mass Diagonal PA accumulate",
-          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorMassPA][GPU]")
+          "[AssembleDiagonal][PartialAssembly]"
+          "[VectorPA][VectorDiagonalPA][VectorMassPA][GPU]")
 {
    const auto dim = GENERATE(2, 3);
    const auto order = GENERATE(1, 2, 3);
@@ -338,11 +340,11 @@ TEST_CASE("Vector Mass Diagonal PA accumulate",
    Mesh mesh;
    if (dim == 2)
    {
-      mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
    }
    else
    {
-      mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    }
 
    H1_FECollection fec(order, dim);
@@ -367,7 +369,8 @@ TEST_CASE("Vector Mass Diagonal PA accumulate",
 }
 
 TEST_CASE("Vector Diffusion Diagonal PA",
-          "[AssembleDiagonal][PartialAssembly][VectorPA][VectorDiagonalPA][VectorDiffusionPA][CUDA]")
+          "[AssembleDiagonal][PartialAssembly]"
+          "[VectorPA][VectorDiagonalPA][VectorDiffusionPA][GPU]")
 {
    const auto DIM = GENERATE(2, 3);
    const auto P = GENERATE(1, 2, 3);
