@@ -200,6 +200,11 @@ protected:
    mutable bool compute_metric_quantile_flag = true;
    // Tangential relaxation
    bool tangential_relaxation = false;
+#ifdef MFEM_USE_GSLIB
+   Array<FindPointsGSLIB *> finder_arr; // Owned.
+   Array<Array<int> *> fdofs_arr;       // Not owned.
+   Array<GridFunction *> nodes_int_arr; // Not owned.
+#endif
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
@@ -415,13 +420,49 @@ public:
    }
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
 
-   void SetTangentialRelaxationFlag(bool flag)
-   {
-      tangential_relaxation = flag;
-   }
+#ifdef MFEM_USE_GSLIB
+   /** @brief Enable tangential relaxation for selected boundary DOFs.
+
+       The reference meshes define the lower-dimensional geometry onto which
+       the corresponding DOFs are projected. The solver owns the internal
+       FindPointsGSLIB objects, but not @a ref_mesh_arr_ or @a fdofs_arr_.
+
+       @param[in] ref_mesh_arr_ Reference curve/surface meshes. Each mesh must
+                                have a nodal GridFunction.
+       @param[in] fdofs_arr_    Boundary DOF lists, one per reference mesh.
+       @param[in] aabb_sz_inc   Absolute AABB expansion used by
+                                FindPointsGSLIB in all physical directions.
+
+       @note The sizes of @a ref_mesh_arr_ and @a fdofs_arr_ must match, and
+             the referenced objects must remain valid during optimization. */
+   void EnableTangentialRelaxation(Array<Mesh *> ref_mesh_arr_,
+                                   Array<Array<int> *> fdofs_arr_,
+                                   real_t aabb_sz_inc = 0.1);
+#endif
+
+   ~TMOPNewtonSolver();
 
    bool TangentialRelaxation(const Vector &d_loc_in, Vector &d_loc_out) const;
 
+protected:
+#ifdef MFEM_USE_GSLIB
+   /// Check whether all relaxed boundary points are found by FindPointsGSLIB.
+   bool PreprocessTangentialRelaxation(const Vector &d_loc,
+                                       const FiniteElementSpace *d_fes) const;
+
+   /// Project relaxed boundary DOFs and blend the correction into the mesh.
+   void TangentialRelaxationImpl(const Vector &d_in,
+                                 FiniteElementSpace *d_fes,
+                                 Vector &d_out) const;
+
+   /// Extend boundary displacement corrections smoothly into the mesh interior.
+   void BlendDisplacement(FiniteElementSpace *fes,
+                          const Vector &d_loc,
+                          Vector &uvals,
+                          double beta=1.0) const;
+#endif
+
+public:
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

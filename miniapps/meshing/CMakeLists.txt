@@ -131,11 +131,13 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
-  add_mfem_miniapp(tangential-relaxation
-    MAIN tangential-relaxation.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem-common)
-  add_dependencies(tangential-relaxation copy_miniapps_meshing_data)
+  if (MFEM_USE_GSLIB)
+    add_mfem_miniapp(tangential-relaxation
+      MAIN tangential-relaxation.cpp
+      ${MFEM_MINIAPPS_COMMON_HEADERS}
+      LIBRARIES mfem-common)
+    add_dependencies(tangential-relaxation copy_miniapps_meshing_data)
+  endif()
 
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp

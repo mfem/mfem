@@ -12,6 +12,7 @@
 #include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "plinearform.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -1040,44 +1041,332 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
 bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
                                             Vector &d_loc_out) const
 {
+#ifdef MFEM_USE_GSLIB
    MFEM_VERIFY(tangential_relaxation,
                "Tangential relaxation is not enabled.");
 
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   TMOP_Integrator *ti  = NULL;
-   bool flag;
+   FiniteElementSpace *d_fes = const_cast<FiniteElementSpace *>(nlf->FESpace());
 
-   for (int i = 0; i < 1; i++)
-   {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
-      {
-         flag = ti->PreprocessTangentialRelaxation(d_loc_in, nlf->FESpace());
-      }
-      else
-      {
-         MFEM_ABORT("Combo integrators not supported yet.");
-      }
-   }
+   bool flag = PreprocessTangentialRelaxation(d_loc_in, d_fes);
    if (!flag) { return flag; }
 
-   for (int i = 0; i < 1; i++)
+   TangentialRelaxationImpl(d_loc_in, d_fes, d_loc_out);
+
+   return true;
+#else
+   MFEM_ABORT("Tangential relaxation requires MFEM_USE_GSLIB.");
+   return false;
+#endif
+}
+
+#ifdef MFEM_USE_GSLIB
+TMOPNewtonSolver::~TMOPNewtonSolver()
+{
+   // Clean up FindPointsGSLIB objects created in EnableTangentialRelaxation
+   for (int i = 0; i < finder_arr.Size(); i++)
    {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
+      if (finder_arr[i])
       {
-         FiniteElementSpace *d_fes = const_cast<FiniteElementSpace *>(nlf->FESpace());
-         ti->TangentialRelaxation(d_loc_in, d_fes, d_loc_out);
+         finder_arr[i]->FreeData();
+         delete finder_arr[i];
       }
-      else
+   }
+}
+
+void TMOPNewtonSolver::EnableTangentialRelaxation(
+   Array<Mesh *> ref_mesh_arr_,
+   Array<Array<int> *> fdofs_arr_,
+   real_t aabb_sz_inc)
+{
+   MFEM_VERIFY(ref_mesh_arr_.Size() == fdofs_arr_.Size(),
+               "TangentialRelaxation: Array sizes must match. ");
+
+   MFEM_VERIFY(ref_mesh_arr_.Size() > 0,
+               "TangentialRelaxation: Arrays cannot be empty.");
+
+   MFEM_VERIFY(aabb_sz_inc > 0.0,
+               "TangentialRelaxation: aabb_sz_inc must be positive.");
+
+   // Clean up any existing finders from a previous call
+   for (int i = 0; i < finder_arr.Size(); i++)
+   {
+      if (finder_arr[i])
       {
-         MFEM_ABORT("Combo integrators not supported yet.");
+         finder_arr[i]->FreeData();
+         delete finder_arr[i];
+      }
+   }
+   finder_arr.SetSize(0);
+   nodes_int_arr.SetSize(0);
+
+   // Validate inputs and create FindPointsGSLIB objects
+   for (int i = 0; i < ref_mesh_arr_.Size(); i++)
+   {
+      MFEM_VERIFY(ref_mesh_arr_[i] != nullptr,
+                  "TangentialRelaxation: ref_mesh_arr["<< i <<"] is null.");
+
+      MFEM_VERIFY(fdofs_arr_[i] != nullptr,
+                  "TangentialRelaxation: fdofs_arr["<< i <<"] is null.");
+
+      // Create and setup FindPointsGSLIB for this reference mesh
+      FindPointsGSLIB *finder = new FindPointsGSLIB();
+      Vector aabb_sz_inc_vec({aabb_sz_inc});
+      finder->SetupSurfWithAABBExpansion(*ref_mesh_arr_[i], aabb_sz_inc_vec);
+      finder_arr.Append(finder);
+
+      // Store pointer to the reference mesh nodes
+      GridFunction *nodes = ref_mesh_arr_[i]->GetNodes();
+      MFEM_VERIFY(nodes != nullptr,
+                  "TangentialRelaxation: ref_mesh_arr["<< i <<"] has no "
+                  "nodes. Reference meshes must have nodal GridFunctions.");
+      nodes_int_arr.Append(nodes);
+   }
+
+   tangential_relaxation = true;
+   fdofs_arr = fdofs_arr_;
+}
+
+bool TMOPNewtonSolver::PreprocessTangentialRelaxation(
+   const Vector &d_loc, const FiniteElementSpace *d_fes) const
+{
+   Vector pos(d_loc.Size());
+   if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
+   else { pos = d_loc; }
+   const int dim = x_0.FESpace()->GetMesh()->Dimension();
+
+   int ordering = x_0.FESpace()->GetOrdering();
+   int n_m_nodes = pos.Size()/dim;
+
+   for (int ii = 0; ii < fdofs_arr.Size(); ii++)
+   {
+      Array<int> facedofs = *(fdofs_arr[ii]);
+
+      Vector fnodes(facedofs.Size()*dim);
+      int n_f_nodes = facedofs.Size();
+      for (int i = 0; i < facedofs.Size(); i++)
+      {
+         int dof_index = facedofs[i];
+         for (int d = 0; d < dim; d++)
+         {
+            int offset_in = ordering == Ordering::byNODES ?
+                            (dof_index + d*n_m_nodes) :
+                            (dof_index*dim + d);
+            fnodes(i+n_f_nodes*d) = pos(offset_in);
+         }
+      }
+
+      FindPointsGSLIB *finder = finder_arr[ii];
+      finder->FindPointsSurf(fnodes);
+      unsigned int maxcode = 0;
+      Array<unsigned int> code = finder->GetCode();
+      Array<unsigned int> elems = finder->GetElem();
+      for (int i = 0; i < code.Size(); i++)
+      {
+         maxcode = std::max(maxcode, code[i]);
+      }
+#ifdef MFEM_USE_MPI
+      const ParFiniteElementSpace *pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(d_fes);
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &maxcode, 1,
+                       MPI_UNSIGNED, MPI_MAX, pfes->GetComm());
+      }
+#endif
+      if (maxcode == 2) {  return false; }
+   }
+   return true;
+}
+
+void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
+                                                FiniteElementSpace *d_fes,
+                                                Vector &d_out) const
+{
+   Vector pos(d_loc.Size());
+   if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
+   else { pos = d_loc; }
+
+   const int dim = x_0.FESpace()->GetMesh()->Dimension();
+   Vector dx(d_loc.Size());
+   dx = 0.0;
+   int n_m_nodes = pos.Size()/dim;
+   d_out = d_loc;
+   int ordering = x_0.FESpace()->GetOrdering();
+
+   for (int i = 0; i < fdofs_arr.Size(); i++)
+   {
+      Array<int> facedofs = *(fdofs_arr[i]);
+      FindPointsGSLIB *finder = finder_arr[i];
+      GridFunction *intnodes = nodes_int_arr[i];
+
+      Array<unsigned int> elems = finder->GetElem();
+      Vector rst = finder->GetReferencePosition();
+      Vector int_nodes_vals;
+      finder->InterpolateSurf(*intnodes, int_nodes_vals);
+      int node_val_ordering = intnodes->FESpace()->GetOrdering();
+      for (int e = 0; e < elems.Size(); e++)
+      {
+         int dof_index = facedofs[e];
+         for (int d = 0; d < dim; d++)
+         {
+            int offset_in = ordering == Ordering::byNODES ?
+                            (dof_index + d*n_m_nodes) :
+                            (dof_index*dim + d);
+            int offset_val = node_val_ordering == Ordering::byNODES ?
+                             (e + d*int_nodes_vals.Size()/dim) :
+                             e*dim + d;
+            dx(offset_in) = int_nodes_vals(offset_val)-pos(offset_in);
+            d_out(offset_in) += dx(offset_in);
+         }
       }
    }
 
-   return true;
+   d_out = d_loc;
+
+   BlendDisplacement(d_fes, d_loc, dx, 1.0);
+
+   d_out += dx;
 }
+
+void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
+                                         const Vector &d_loc,
+                                         Vector &uvals,
+                                         double beta) const
+{
+   Vector pos(d_loc.Size());
+   if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
+   else { pos = d_loc; }
+
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(fes);
+   bool parallel = (pfes != nullptr);
+#else
+   bool parallel = false;
+#endif
+
+   Mesh *mesh = fes->GetMesh();
+   int order = mesh->GetNodalFESpace()->GetMaxElementOrder();
+   int dim = mesh->Dimension();
+
+   Array<int> ess_scalar_dofs;
+   for (int i = 0; i < fdofs_arr.Size(); i++)
+   {
+      Array<int> facedofs = *(fdofs_arr[i]);
+      ess_scalar_dofs.Append(facedofs);
+   }
+   ess_scalar_dofs.Sort();
+   ess_scalar_dofs.Unique();
+
+   H1_FECollection fec(order, dim);
+   ConstantCoefficient beta_coeff(beta);
+
+   Array<int> ess_tdof_list(0);
+   Array<int> bdr(mesh->bdr_attributes.Max());
+   bdr = 1;
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      ParFiniteElementSpace fespace(pmesh, &fec, dim);
+
+      ParGridFunction u(&fespace);
+      u = uvals;
+
+      ParLinearForm b(&fespace);
+      b = 0.0;
+
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(beta_coeff));
+      a.Assemble();
+
+      fespace.GetEssentialTrueDofs(bdr, ess_tdof_list);
+
+      Array<int> ess_tdof_list2;
+      for (int v = 0; v < ess_scalar_dofs.Size(); v++)
+      {
+         int scalar_dof = ess_scalar_dofs[v];
+         for (int d = 0; d < dim; d++)
+         {
+            int vdof = fespace.DofToVDof(scalar_dof, d);
+            int tdof = fespace.GetLocalTDofNumber(vdof);
+            if (tdof > -1)
+            {
+               ess_tdof_list2.Append(tdof);
+            }
+         }
+      }
+      ess_tdof_list.Append(ess_tdof_list2);
+
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+
+      HypreBoomerAMG *amg = new HypreBoomerAMG;
+      amg->SetPrintLevel(0);
+      HyprePCG pcg(pfes->GetComm());
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(2000);
+      pcg.SetPrintLevel(-1);
+      pcg.SetPreconditioner(*amg);
+      pcg.SetOperator(*A);
+      pcg.SetPrintLevel(-1);
+      pcg.Mult(B, X);
+      delete amg;
+
+      a.RecoverFEMSolution(X, b, u);
+      uvals = u;
+   }
+   else
+#endif
+   {
+      FiniteElementSpace fespace(mesh, &fec, dim);
+
+      GridFunction u(&fespace);
+      u = uvals;
+
+      LinearForm b(&fespace);
+      b = 0.0;
+
+      BilinearForm a(&fespace);
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(beta_coeff));
+      a.Assemble();
+
+      fespace.GetEssentialTrueDofs(bdr, ess_tdof_list);
+
+      for (int v = 0; v < ess_scalar_dofs.Size(); v++)
+      {
+         int scalar_dof = ess_scalar_dofs[v];
+         for (int d = 0; d < dim; d++)
+         {
+            int vdof = fespace.DofToVDof(scalar_dof, d);
+            ess_tdof_list.Append(vdof);
+         }
+      }
+      ess_tdof_list.Sort();
+      ess_tdof_list.Unique();
+
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+
+      GSSmoother M((SparseMatrix&)(*A));
+      CGSolver cg;
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(-1);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+
+      a.RecoverFEMSolution(X, b, u);
+      uvals = u;
+   }
+}
+#else
+TMOPNewtonSolver::~TMOPNewtonSolver() { }
+#endif // MFEM_USE_GSLIB
 
 void TMOPNewtonSolver::EnsurePositiveDeterminantBound(
    Mesh &mesh, int ref_factor, int max_recursion_depth)

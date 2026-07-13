@@ -35,8 +35,8 @@
 // Compile with: make tangential-relaxation
 //
 // Sample runs:
-// Blade - bound on Jacobian + tangential relaxation
-// make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -bnd -bdropt 1 -bound
+// Blade - tangential relaxation
+// make tangential-relaxation -j4 && mpirun -np 4 tangential-relaxation -m blade.mesh -o 4 -qo 16 -vis -rs 0 -mid 2 -tid 1  -ni 400 -bnd -bdropt 1
 // curvilinear surfaces
 // make tangential-relaxation -j4 &&  mpirun -np 4 tangential-relaxation -m square01.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 2  -ni 400 -bnd -transform 1
 // make tangential-relaxation -j4 &&  mpirun -np 4 tangential-relaxation -m square01-tri.mesh -o 2 -qo 8 -vis -mid 80 -tid 2 -bdropt 2 -rs 1  -ni 400 -bnd -transform 1
@@ -93,10 +93,6 @@ void UnitSquareShieldTransformation(const Vector &xin, Vector &xout)
 
 int main (int argc, char *argv[])
 {
-#ifndef MFEM_USE_GSLIB
-   cout << "AMSTER requires GSLIB!" << endl; return 1;
-#endif
-
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    const int myid = Mpi::WorldRank();
@@ -115,7 +111,6 @@ int main (int argc, char *argv[])
    int bdr_opt_case      = 1;
    bool vis              = false;
    bool move_bnd         = false;
-   bool bound            = false;
    int transform         = 0;
 
    // Parse command-line input file.
@@ -151,9 +146,6 @@ int main (int argc, char *argv[])
                   "2: parallel to x-axis in 2D, x-z plane in 3D\n\t"
                   "3: parallel to x-y plane in 3D\n\t"
                   "Attributes based on bdr_opt_case are handled separately.");
-   args.AddOption(&bound, "-bound", "--bound", "-no-bound",
-                  "--no-bound",
-                  "Enable bounds.");
    args.AddOption(&transform, "-transform", "--transform",
                   "Transformation type:\n\t"
                   "0: No transformation (default)\n\t"
@@ -232,7 +224,6 @@ int main (int argc, char *argv[])
       surf_mesh_arr.SetSize(1);
       surf_mesh_attr[0] = 4;
    }
-   double bbox_fac = 0.2;
 
    // Decode the stored boundary-attribute pairs.
    auto getTwoSetBits = [](int val) -> std::pair<int, int>
@@ -332,19 +323,6 @@ int main (int argc, char *argv[])
    // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(&pfes);
    x0 = x;
-
-   // Compute Jacobian determinant bounds during line-search if requested.
-   const int bound_refs = dim == 2 ? 10 : 8;
-   const int bound_recs = 2;
-
-   bool tensor_product_only =
-      pmesh->GetNE() == 0 ||
-      (pmesh->GetNumGeometries(dim) == 1 &&
-       (pmesh->GetElementType(0)==Element::QUADRILATERAL ||
-        pmesh->GetElementType(0) == Element::HEXAHEDRON));
-   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
-                 MPI_LAND, MPI_COMM_WORLD);
-   const bool use_det_bound = tensor_product_only && bound;
 
    // Visualize the starting mesh.
    if (vis)
@@ -502,10 +480,6 @@ int main (int argc, char *argv[])
       IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
    auto *solver = new TMOPNewtonSolver(pfes.GetComm(), ir, 1); // use LBFGS
    solver->SetIntegrationRules(IntRulesLo, quad_order);
-   if (use_det_bound)
-   {
-      solver->EnsurePositiveDeterminantBound(*pmesh, bound_refs, bound_recs);
-   }
    solver->SetOperator(*nlf);
    solver->SetMinDetPtr(&min_det_m0);
    solver->SetMaxIter(solver_iter);
@@ -514,35 +488,24 @@ int main (int argc, char *argv[])
    IterativeSolver::PrintLevel newton_pl;
    solver->SetPrintLevel(newton_pl.Iterations().Summary());
 
-   // Setup FindPoints data for the extracted boundary meshes and enable
-   // tangential relaxation for the selected boundary dofs.
-   Array<FindPointsGSLIB *> finder_arr;
-   Array<Array<int> *> tang_dofs_arr;
-   Array<GridFunction *> nodes0_arr;
+   // Enable tangential relaxation for the selected boundary dofs.
+   // The solver will create FindPointsGSLIB objects internally for each
+   // reference mesh.
+   real_t aabb_sz_inc = 0.2; // Absolute AABB expansion for FindPointsGSLIB.
    if (bdr_opt_case)
    {
+      Array<Array<int> *> tang_dofs_arr;
       for (int i = 0; i < surf_mesh_attr.Size(); i++)
       {
-         FindPointsGSLIB *finder = new FindPointsGSLIB();
-         finder_arr.Append(finder);
-         finder->SetupSurf(*surf_mesh_arr[i], bbox_fac);
-         finder->SetDistanceToleranceForPointsFoundOnBoundary(0.2);
          tang_dofs_arr.Append(bdr_face_dofs[i]);
-         nodes0_arr.Append(surf_mesh_arr[i]->GetNodes());
       }
       int noff = surf_mesh_attr.Size();
       for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
       {
-         FindPointsGSLIB *finder = new FindPointsGSLIB();
-         finder_arr.Append(finder);
-         finder->SetupSurf(*surf_mesh_arr[i+noff], bbox_fac);
-         finder->SetDistanceToleranceForPointsFoundOnBoundary(0.2);
          tang_dofs_arr.Append(bdr_edge_dofs[i]);
-         nodes0_arr.Append(surf_mesh_arr[i+noff]->GetNodes());
       }
-      solver->SetTangentialRelaxationFlag(true);
-      tmop_integ->EnableTangentialRelaxation(finder_arr, tang_dofs_arr,
-                                             nodes0_arr);
+      solver->EnableTangentialRelaxation(surf_mesh_arr, tang_dofs_arr,
+                                         aabb_sz_inc);
    }
 
    // Optimize the mesh nodes.
@@ -581,7 +544,6 @@ int main (int argc, char *argv[])
    delete nlf;
    delete target_c;
    delete metric;
-   for (int i = 0; i < finder_arr.Size(); i++) { delete finder_arr[i]; }
    for (int i = 0; i < bdr_face_dofs.Size(); i++) { delete bdr_face_dofs[i]; }
    for (int i = 0; i < bdr_edge_dofs.Size(); i++) { delete bdr_edge_dofs[i]; }
    for (int i = 0; i < surf_mesh_arr.Size(); i++) { delete surf_mesh_arr[i]; }
