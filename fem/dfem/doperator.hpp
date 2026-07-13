@@ -19,6 +19,7 @@
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
+#include "backends/util.hpp"
 
 #include "backends/global_qf/prelude.hpp"
 #include "backends/local_qf/prelude.hpp" // IWYU pragma: keep
@@ -32,12 +33,79 @@ using action_t =
    std::function<void(const std::vector<Vector *> &, std::vector<Vector *> &)>;
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
-using derivative_setup_t =
-   std::function<void(const std::vector<Vector *> &)>;
+// Transitioned from type erased std::function to a struct with std::function members to allow retrieval
+// of the qfunction and shadow qfunction pointers (to manage scratch variables) for the derivative action.
+struct derivative_setup_t
+{
+   using apply_t = std::function<void(const std::vector<Vector *> &)>;
+
+   derivative_setup_t() = default;
+
+   template <typename func_t,
+             typename = std::enable_if_t<!std::is_same_v<
+                std::decay_t<func_t>, derivative_setup_t>>>
+   derivative_setup_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+
+   void operator()(const std::vector<Vector *> &xe) const { apply(xe); }
+
+   template <typename qfunc_t>
+   qfunc_t *GetQFunction() const
+   {
+      return qfunc ? static_cast<qfunc_t *>(qfunc()) : nullptr;
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
+   {
+      return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
+                qfunc_shadow()) : nullptr;
+   }
+
+   apply_t apply;
+   std::function<void *()> qfunc;
+   std::function<void *()> qfunc_shadow;
+};
 
 /// @brief Type alias for a function that computes the action of a derivative
-using derivative_action_t =
-   std::function<void(const std::vector<Vector *> &, const Vector *, std::vector<Vector *> &)>;
+// Transitioned from type erased std::function to a struct with std::function members to allow retrieval
+// of the qfunction and shadow qfunction pointers (to manage scratch variables) for the derivative action.
+struct derivative_action_t
+{
+   using apply_t = std::function<void(const std::vector<Vector *> &,
+                                      const Vector *,
+                                      std::vector<Vector *> &)>;
+
+   derivative_action_t() = default;
+
+   template <typename func_t,
+             typename = std::enable_if_t<!std::is_same_v<
+                std::decay_t<func_t>, derivative_action_t>>>
+   derivative_action_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+
+   void operator()(const std::vector<Vector *> &xe,
+                   const Vector *de,
+                   std::vector<Vector *> &ye) const
+   {
+      apply(xe, de, ye);
+   }
+
+   template <typename qfunc_t>
+   qfunc_t *GetQFunction() const
+   {
+      return qfunc ? static_cast<qfunc_t *>(qfunc()) : nullptr;
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
+   {
+      return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
+                qfunc_shadow()) : nullptr;
+   }
+
+   apply_t apply;
+   std::function<void *()> qfunc;
+   std::function<void *()> qfunc_shadow;
+};
 
 /// @brief Type alias for a function that assembles the SparseMatrix of a
 /// derivative operator
@@ -57,6 +125,78 @@ using assemble_diagonal_callback_t = std::function<void(Vector &)>;
 /// the solution and parameters
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
+
+namespace detail
+{
+template <typename T, typename = void>
+struct has_qfunc_member : std::false_type { };
+
+template <typename T>
+struct has_qfunc_member<T, std::void_t<decltype(std::declval<T &>().qfunc)>>
+   : std::true_type { };
+
+template <typename T, typename = void>
+struct has_qfunc_shadow_member : std::false_type { };
+
+template <typename T>
+struct has_qfunc_shadow_member<T,
+       std::void_t<decltype(std::declval<T &>().qfunc_shadow)>>
+   : std::true_type { };
+}
+
+template <typename derivative_action_impl_t>
+derivative_action_t MakeDerivativeActionCallback(
+   derivative_action_impl_t &&impl)
+{
+   using impl_t = std::decay_t<derivative_action_impl_t>;
+   auto action = std::make_shared<impl_t>(
+                    std::forward<derivative_action_impl_t>(impl));
+   derivative_action_t callback;
+   callback.apply = [action](const std::vector<Vector *> &xe,
+                             const Vector *de,
+                             std::vector<Vector *> &ye)
+   {
+      (*action)(xe, de, ye);
+   };
+   if constexpr (detail::has_qfunc_member<impl_t>::value)
+   {
+      callback.qfunc = [action]() -> void * { return &action->qfunc; };
+   }
+   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
+   {
+      callback.qfunc_shadow = [action]() -> void *
+      {
+         return &action->qfunc_shadow;
+      };
+   }
+   return callback;
+}
+
+template <typename derivative_setup_impl_t>
+derivative_setup_t MakeDerivativeSetupCallback(
+   derivative_setup_impl_t &&impl)
+{
+   using impl_t = std::decay_t<derivative_setup_impl_t>;
+   auto setup = std::make_shared<impl_t>(
+                   std::forward<derivative_setup_impl_t>(impl));
+   derivative_setup_t callback;
+   callback.apply = [setup](const std::vector<Vector *> &xe)
+   {
+      (*setup)(xe);
+   };
+   if constexpr (detail::has_qfunc_member<impl_t>::value)
+   {
+      callback.qfunc = [setup]() -> void * { return &setup->qfunc; };
+   }
+   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
+   {
+      callback.qfunc_shadow = [setup]() -> void *
+      {
+         return &setup->qfunc_shadow;
+      };
+   }
+   return callback;
+}
 
 /// Class representing the derivative (Jacobian) operator of a
 /// DifferentiableOperator.
@@ -711,6 +851,50 @@ public:
       size_t derivative_id, const MultiVector &x,
       const bool use_cached_setup = false);
 
+   template <typename qfunc_t>
+   qfunc_t *GetDerivativeActionQFunction(size_t derivative_id,
+                                         size_t integrator = 0)
+   {
+      auto it = derivative_action_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_action_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative action callback not found");
+      return it->second[integrator].template GetQFunction<qfunc_t>();
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetDerivativeActionShadowQFunction(
+      size_t derivative_id, size_t integrator = 0)
+   {
+      auto it = derivative_action_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_action_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative action callback not found");
+      return it->second[integrator].template GetShadowQFunction<qfunc_t>();
+   }
+
+   template <typename qfunc_t>
+   qfunc_t *GetDerivativeSetupQFunction(size_t derivative_id,
+                                        size_t integrator = 0)
+   {
+      auto it = derivative_setup_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_setup_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative setup callback not found");
+      return it->second[integrator].template GetQFunction<qfunc_t>();
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetDerivativeSetupShadowQFunction(
+      size_t derivative_id, size_t integrator = 0)
+   {
+      auto it = derivative_setup_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_setup_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative setup callback not found");
+      return it->second[integrator].template GetShadowQFunction<qfunc_t>();
+   }
+
 private:
    const ParMesh &mesh;
 
@@ -1021,18 +1205,21 @@ void DifferentiableOperator::AddIntegrator(
       {
          // Setup the qp cache for the derivative
          setup_callbacks[i].push_back(
-            backend_t::template MakeDerivativeSetup<i>(
-               callback_ctx, qf, inputs, outputs, qp_cache));
+            MakeDerivativeSetupCallback(
+               backend_t::template MakeDerivativeSetup<i>(
+                  callback_ctx, qf, inputs, outputs, qp_cache)));
 
          // Apply the derivative to the qp cache
          apply_callbacks[i].push_back(
-            backend_t::template MakeDerivativeApply<i>(
-               callback_ctx, qf, inputs, outputs, qp_cache));
+            derivative_action_t(
+               backend_t::template MakeDerivativeApply<i>(
+                  callback_ctx, qf, inputs, outputs, qp_cache)));
 
          // Apply the transpose of the derivative to the qp cache
          transpose_callbacks[i].push_back(
-            backend_t::template MakeDerivativeApplyTranspose<i>(
-               callback_ctx, qf, inputs, outputs, qp_cache));
+            derivative_action_t(
+               backend_t::template MakeDerivativeApplyTranspose<i>(
+                  callback_ctx, qf, inputs, outputs, qp_cache)));
 
          if (!disable_assemble)
          {
@@ -1049,8 +1236,9 @@ void DifferentiableOperator::AddIntegrator(
 
          // Apply the derivative
          action_cbs[i].push_back(
-            backend_t::template MakeDerivativeAction<i>(callback_ctx, qf,
-                                                        inputs, outputs));
+            MakeDerivativeActionCallback(
+               backend_t::template MakeDerivativeAction<i>(callback_ctx, qf,
+                                                           inputs, outputs)));
       };
 
 #ifdef MFEM_USE_ENZYME
