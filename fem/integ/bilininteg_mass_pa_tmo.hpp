@@ -774,13 +774,15 @@ MFEM_HOST_DEVICE inline int getNumWarps()
 #endif
 }
 
-/** C = A * B; A is M×K, B is K×N, C is M×N (m8n8k4).
-    MAGIC is the packed f_n∘fragment column map (paper §III-C).
-    Warps stride over M-tiles so a smaller CTA stays busy (avoids idle
-    warps waiting at CTA barriers when mPass differs across Gemm/GemmT). */
-template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
+/** C = A * B with optional fused D-scale on the C store (U *= D).
+    When SCALE is true, D(q,k,e) multiplies register results before smem store —
+    avoids a separate Us load/modify/store (ncu: shared short-scoreboard). */
+template <int MAGIC, bool SCALE, typename AAcc, typename BAcc, typename CAcc,
+          typename DAcc>
 MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
-                                        AAcc A, BAcc B, CAcc C)
+                                        AAcc A, BAcc B, CAcc C,
+                                        DAcc D, const int e0, const int NE,
+                                        const int k_mir)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -816,17 +818,23 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
          const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
          if (cRow < M && cColumn < N)
          {
-            C(cRow, cColumn) = static_cast<real_t>(cReg[i]);
+            real_t v = static_cast<real_t>(cReg[i]);
+            if constexpr (SCALE)
+            {
+               const int e = e0 + cColumn;
+               v = (e < NE) ? v * D(cRow, k_mir, e) : real_t(0);
+            }
+            C(cRow, cColumn) = v;
          }
       }
    }
 }
 
-/** C = A^T * B (ACCUM=false) or C += A^T * B (ACCUM=true);
-    A is M×K, B is M×N, C is K×N (m8n8k4). */
-template <int MAGIC, bool ACCUM, typename AAcc, typename BAcc, typename CAcc>
+/** C += A^T * B. C(r,b) is typically global Y for element e0+b (skip if e>=NE). */
+template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
 MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
-                                         AAcc A, BAcc B, CAcc C)
+                                         AAcc A, BAcc B, CAcc C,
+                                         const int e0, const int NE)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -860,34 +868,43 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
       {
          const int cRow = row0 + groupId;
          const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
-         if (cRow < K && cColumn < N)
+         const int e = e0 + cColumn;
+         if (cRow < K && cColumn < N && e < NE)
          {
-            if constexpr (ACCUM)
-            {
-               C(cRow, cColumn) += static_cast<real_t>(cReg[i]);
-            }
-            else
-            {
-               C(cRow, cColumn) = static_cast<real_t>(cReg[i]);
-            }
+            C(cRow, cColumn) += static_cast<real_t>(cReg[i]);
          }
       }
    }
 }
 
-template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
+template <int MAGIC, bool SCALE, typename AAcc, typename BAcc, typename CAcc,
+          typename DAcc>
 MFEM_HOST_DEVICE inline void dmma_Gemm(const int M, const int K, const int N,
-                                       AAcc A, BAcc B, CAcc C)
+                                       AAcc A, BAcc B, CAcc C,
+                                       DAcc D, const int e0, const int NE,
+                                       const int k_mir)
 {
-   dmma_Gemm8<MAGIC>(M, K, N, A, B, C);
+   dmma_Gemm8<MAGIC, SCALE>(M, K, N, A, B, C, D, e0, NE, k_mir);
 }
 
-template <int MAGIC, bool ACCUM = true, typename AAcc, typename BAcc, typename CAcc>
+template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
 MFEM_HOST_DEVICE inline void dmma_GemmT(const int M, const int K, const int N,
-                                        AAcc A, BAcc B, CAcc C)
+                                        AAcc A, BAcc B, CAcc C,
+                                        const int e0, const int NE)
 {
-   dmma_GemmT8<MAGIC, ACCUM>(M, K, N, A, B, C);
+   dmma_GemmT8<MAGIC>(M, K, N, A, B, C, e0, NE);
 }
+
+/** Y(r, e0+b) for in-register GemmT store (skips XY scratch / final smem store). */
+struct YBatchAcc
+{
+   real_t *y;
+   int ndof, e0;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
+   {
+      return y[r + ndof * (e0 + b)];
+   }
+};
 
 } // namespace mma
 } // namespace tmo
@@ -917,9 +934,8 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
 
    const auto D = DeviceTensor<3, const real_t>(d_, NQ1, nmirrors, NE);
    const auto x = ConstDeviceMatrix(x_, ndof, NE);
-   auto Y = DeviceMatrix(y_, ndof, NE);
 
-   // XY holds X for Gemm, then the per-mirror Y scratch for GemmT (Xs/Ys aliased).
+   // XY holds X only (Y accumulates in global memory from GemmT).
    struct alignas(16) Smem
    {
       real_t XY[X_LD * NB];
@@ -945,64 +961,33 @@ void SmemPAMassApplyTriangleTmoMma_Batch(const int e0,
 #endif
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   tmo::mma::SmemMatAcc<X_LD> XYacc{sm.XY};
+   tmo::mma::SmemMatAcc<X_LD> Xacc{sm.XY};
    tmo::mma::SmemMatAcc<U_LD> Uacc{sm.Us};
+   tmo::mma::YBatchAcc Yacc{y_, ndof, e0};
 
-   // MMA_1: one chart, load X once, GemmT assigns (no Y clear), fewer syncs.
-   // Multi-mirror: reload X each chart; GemmT accumulates into cleared Y.
+   // X is chart-independent: load once. D-scale fused into Gemm. GemmT
+   // accumulates straight into global Y (no XY clear / smem Y store).
+   for (int i = tid; i < X_LD * NB; i += nthreads)
+   {
+      const int b = i / X_LD;
+      const int r = i - b * X_LD;
+      const int e = e0 + b;
+      sm.XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
+   }
+   MFEM_SYNC_THREAD;
+
    const int k_end = SINGLE_CHART ? 1 : nmirrors;
    for (int k = 0; k < k_end; ++k)
    {
-      if (!SINGLE_CHART || k == 0)
-      {
-         for (int i = tid; i < X_LD * NB; i += nthreads)
-         {
-            const int b = i / X_LD;
-            const int r = i - b * X_LD;
-            const int e = e0 + b;
-            sm.XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
-         }
-         MFEM_SYNC_THREAD;
-      }
-
       PSlice A{p_, NQ1, ndof, k};
-      tmo::mma::dmma_Gemm<MAGIC>(NQ1, ndof, NB, A, XYacc, Uacc);
+      tmo::mma::dmma_Gemm<MAGIC, true>(NQ1, ndof, NB, A, Xacc, Uacc,
+                                       D, e0, NE, k);
       MFEM_SYNC_THREAD;
-      for (int b = 0; b < NB; ++b)
-      {
-         const int e = e0 + b;
-         if (e >= NE) { continue; }
-         for (int q = tid; q < NQ1; q += nthreads)
-         {
-            sm.Us[q + U_LD * b] *= D(q, k, e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      if constexpr (SINGLE_CHART)
-      {
-         tmo::mma::dmma_GemmT<MAGIC, false>(NQ1, ndof, NB, A, Uacc, XYacc);
-      }
-      else
-      {
-         for (int i = tid; i < X_LD * NB; i += nthreads) { sm.XY[i] = 0.0; }
-         MFEM_SYNC_THREAD;
-         tmo::mma::dmma_GemmT<MAGIC, true>(NQ1, ndof, NB, A, Uacc, XYacc);
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int b = 0; b < NB; ++b)
-      {
-         const int e = e0 + b;
-         if (e >= NE) { continue; }
-         for (int i = tid; i < ndof; i += nthreads)
-         {
-            Y(i, e) += sm.XY[i + X_LD * b];
-         }
-      }
-      if (!SINGLE_CHART && k + 1 < k_end) { MFEM_SYNC_THREAD; }
+      tmo::mma::dmma_GemmT<MAGIC>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
+      if (k + 1 < k_end) { MFEM_SYNC_THREAD; }
    }
 #else
+   auto Y = DeviceMatrix(y_, ndof, NE);
    if (tid == 0)
    {
       for (int k = 0; k < nmirrors; ++k)
