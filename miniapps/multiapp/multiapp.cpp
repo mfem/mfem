@@ -16,11 +16,6 @@
 namespace mfem
 {
 
-void Field::GetDerivative(Field* x, Vector &x0, Vector &dydx)
-{
-    MFEM_ABORT("Field::GetDerivative() not implemented");
-}
-
 DAGraph::~DAGraph()
 {
     for(int i=0; i < nnodes; i++)
@@ -119,11 +114,6 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     }
 
     return *grad;
-}
-
-void DAGraph::GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx)
-{
-    MFEM_ABORT("DAGraph::GetDerivative() not implemented.");
 }
 
 void GraphGradient::Mult(const Vector &x, Vector &y) const

@@ -288,7 +288,7 @@ public:
 
 /// An application that takes an input field T, and computes an output field k(T)
 // represented by the FunctionalCoefficient class.
-class DiffusionCoefficient : public Application
+class DiffusionCoefficient : public GraphNode
 {
 public:
    using Mode = FunctionalCoefficient::Mode;
@@ -307,16 +307,15 @@ protected:
 
 public:
    DiffusionCoefficient(ParFiniteElementSpace &fes) :
-                        Application(fes.GetTrueVSize()), fes(fes), T(&fes), k(&fes),
+                        GraphNode(fes.GetTrueVSize()), fes(fes), T(&fes), k(&fes),
                         kc(new FunctionalCoefficient(&T, 1.0, 5.0e-2)),
                         Nform(&fes),
                         coeff_integrator(new CoefficientIntegrator(kc))
    {
       k = 0.0;
       T = 0.0;
-      fields.AddSourceField("k(T)", &kdof); // Either works (pass a Vector* or a Field*)
-      // fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
-      fields.AddField("T", &tdof);
+      fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
+      fields.AddField("T", new Field(&tdof, Field::Type::DEFAULT), true);
       k.ProjectCoefficient(*kc);
       k.GetTrueDofs(kdof);
       dk_dof = kdof;
@@ -399,7 +398,7 @@ public:
 /// An application that takes n input fields x_i, and computes an output 
 /// field prod(x) := y = prod_i x_i.
 /// Also provides the derivative dy/dx_i = prod_{j!=i} x_j * dx_i/dx for i = 0,...,n-1.
-class ProductGridFunctions : public Application
+class ProductGridFunctions : public GraphNode
 {
 protected:
 
@@ -413,7 +412,7 @@ protected:
 
 public:
    ProductGridFunctions(ParFiniteElementSpace &fes, int n) :
-                       Application(fes.GetTrueVSize()),
+                       GraphNode(fes.GetTrueVSize()),
                        fes(fes), x_dof(n), x_adj(n), x_gf(n),
                        y_gf(&fes), prod_coeff(x_gf)
    {
@@ -428,8 +427,7 @@ public:
          x_gf[i]->GetTrueDofs(*x_dof[i]);
 
          std::string x_name = "x" + std::to_string(i);
-         fields.AddField(x_name, x_dof[i]);
-         Fields(x_name)->SetAdjoint(x_adj[i]);
+         fields.AddField(x_name, new Field(x_dof[i], x_adj[i], Field::Type::DEFAULT), true);         
       }
 
       y_gf.ProjectCoefficient(prod_coeff);
@@ -497,7 +495,7 @@ public:
 
 /// An application that represents the nonlinear diffusion operator: f(T) = -Div(k(u) grad(T)) 
 /// with input field T and k, and output field f(T).
-class DiffusionOperator : public Application
+class DiffusionOperator : public GraphNode
 {
 public:
 
@@ -525,7 +523,7 @@ public:
 public:
 
    DiffusionOperator(ParFiniteElementSpace &fes_) :
-                     Application(fes_.GetTrueVSize()),
+                     GraphNode(fes_.GetTrueVSize()),
                      mesh(*fes_.GetParMesh()), fes(fes_),
                      T(&fes), k(&fes), dk(&fes),
                      k_gfc(&k), dk_gfc(&dk),
@@ -539,9 +537,9 @@ public:
       k = 0.0;
       dk = 0.0;
 
-      fields.AddField("T",&tdofs);
+      fields.AddField("T", new Field(&tdofs, &dT_dofs, Field::Type::DEFAULT), true);
       Fields("T")->SetAdjoint(&dT_dofs);
-      fields.AddField("k",&kdofs);
+      fields.AddField("k", new Field(&kdofs, &dk_dofs, Field::Type::DEFAULT), true);
       Fields("k")->SetAdjoint(&dk_dofs);
 
       bform.AddDomainIntegrator(new DomainLFIntegrator(one_coeff));

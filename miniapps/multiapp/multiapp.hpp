@@ -25,7 +25,6 @@ class Field;
 class FieldEdge;
 class FieldCollection;
 class GraphNode;
-class Application;
 class DAGraph;
 class GraphGradient;
 
@@ -56,7 +55,7 @@ protected:
     Vector *adjoint = nullptr; // For storing derivative info
     int id = -1; // initialized to invalid id
 
-    GraphNode *node = nullptr; // Node that owns this field
+    Operator *node  = nullptr; // Node that owns this field
     FieldEdge *edge = nullptr; // Edge for this source field, if applicable
     Field *source = nullptr; // source field for this target field, if applicable
 
@@ -67,31 +66,31 @@ protected:
 
 public:
 
-    ///@brief Constructor for a Source field
-    Field(Vector *field, int id_ = -1) :
-          type(Type::SOURCE), data(field), id(GetValidID(id_)) { }
-
-    ///@brief Constructor for a Field of type Type
-    Field(Vector *field, Type type, int id_ = -1) :
-          type(type), data(field), id(GetValidID(id_)) { }
-
+    ///@brief Constructor for a Field of type Type with optional ID
     Field(Vector *field, Vector *adjoint, Type type, int id_ = -1) :
           type(type), data(field), adjoint(adjoint), id(GetValidID(id_)) { }
 
+    ///@brief Constructor for a Source field
+    Field(Vector *field, int id_ = -1) :
+          Field(field, nullptr, Type::SOURCE, id_) { }
+
+    ///@brief Constructor for a Field of type Type
+    Field(Vector *field, Type type, int id_ = -1) :
+          Field(field, nullptr, type, id_) { }
+
     ///@brief Get the stored internally stored data pointer
-    virtual Vector* Data() const { return data; }
+    Vector* Data() const { return data; }
+    Vector* Adjoint() const { return adjoint; }
+    Operator* Node() const { return node; }
+    Field* SourceField() const { return source; }
+    FieldEdge* GetEdge() const { return edge; }
 
     ///@brief Set the internally stored data pointer
     virtual void SetData(Vector *field) { data = field; }
-
-    virtual Vector* Adjoint() const { return adjoint; }
-    virtual void SetAdjoint(Vector *v) { adjoint = v; }
-
-    virtual void SetNode(GraphNode *op) { node = op; }
-    virtual GraphNode* GetNode() const { return node; }
-
-    ///@brief Update the stored field with new values
-    virtual void Update(const Vector &f) { }
+    virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
+    virtual void SetNode(Operator *op) { node = op; }
+    void SetSource(Field *src) { source = src; }
+    void SetEdge(FieldEdge *fe) { edge = fe; }
 
     int ID() const { return id; }
 
@@ -101,10 +100,7 @@ public:
         id = id_;
     }
 
-    void SetSource(Field *src) { source = src; }
-    Field* GetSource() const { return source; }
-    
-    virtual GraphNode* GetSourceNode() const
+    virtual Operator* SourceNode() const
     {
         if(IsSource())
         {
@@ -116,10 +112,10 @@ public:
         {
             MFEM_VERIFY(source != nullptr, "Field: " << ID()
                         << " does not have an associated source field.");
-            MFEM_VERIFY(source->GetNode() != nullptr, "Source field: "
+            MFEM_VERIFY(source->Node() != nullptr, "Source field: "
                         << source->ID() << " for field: " << ID()
                         << " does not have an associated GraphNode.");
-            return source->GetNode();
+            return source->Node();
         }
         return node;
     }
@@ -130,8 +126,6 @@ public:
                     << "Field ID: " << id << " is not a source field.");
         edge = fe;
     }
-    FieldEdge* GetFieldEdge() const { return edge; }
-    virtual void GetDerivative(Field* x, Vector &x0, Vector &dydx);
 
     bool IsSource() const {return (type == Type::SOURCE);}
     bool IsTarget() const {return (type == Type::TARGET); }
@@ -172,7 +166,6 @@ protected:
     bool own_source = false;
     std::vector<Field*> targets;
     std::vector<bool> targets_owned;
-    int ndest = 0;
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -184,21 +177,10 @@ public:
     FieldEdge(int id_ = -1) : id(GetValidID(id_)) { }
 
     /**
-       @brief Constructor given a source @a Vector.
-       @param src Source @a Vector
-     */
-    FieldEdge(Vector *src, int id_ = -1): id(GetValidID(id_))
-    {
-        source = new Field(src, Field::Type::SOURCE);
-        source->SetFieldEdge(this);
-        own_source = true;
-    }
-
-    /**
      * @brief Construct a new FieldEdge with only a source and empty target
      */
-    FieldEdge(Field *src, bool own=false, int id_ = -1) : id(GetValidID(id_)),
-              source(src), own_source(own)
+    FieldEdge(Field *src, bool own=false, int id_ = -1) :
+              id(GetValidID(id_)), source(src), own_source(own)
     {
         if(source)
         {
@@ -207,15 +189,10 @@ public:
         }
     }
 
-    /**
-       @brief Constructor given a source and target @a Vector.
-
-       @param src Source  @a Vector
-       @param tar Target  @a Vector
-     */
-    FieldEdge(Vector *src, Vector *tar) : FieldEdge(src)
+    FieldEdge(Field *src, Field *tar, bool own_src=false, bool own_tar=false, int id_ = -1) :
+              FieldEdge(src, own_src, id_)
     {
-        AddTarget(tar);
+        AddTarget(tar, own_tar);
     }
 
     virtual void Execute(const Vector &x, Vector &y) 
@@ -247,20 +224,11 @@ public:
         }
     }
 
-    ///@brief Set the source @a Vector (does not own).
-    void SetSource(Vector *src)
-    {
-        if(own_source && source) delete source;
-        source = new Field(src, Field::Type::SOURCE);
-        own_source = true;
-        source->SetFieldEdge(this);
-    }
-
     ///@brief Get the source @a Field
-    Field* GetSource() const { return source; }
+    Field* SourceField() const { return source; }
 
     ///@brief Adds the target @a Field, @a tar, to the list of targets
-    void AddTarget(Field *tar, bool own=false)
+    virtual void AddTarget(Field *tar, bool own=false)
     {
         tar->SetType(Field::Type::TARGET);
         targets.push_back(tar);
@@ -287,46 +255,10 @@ public:
                 tar_adj->MakeRef(*src_adj,0);
             }
         }
-        ndest++;
-    }
-
-    /**
-       @brief Adds the @a Vector, @a tar to the list of targets
-     */
-    void AddTarget(Vector *tar)
-    {
-        Field *target = new Field(tar, Field::Type::TARGET);
-        AddTarget(target, true);
-    }
-
-    void UpdateTargets()
-    {
-        for (size_t i=0; i < targets.size(); i++)
-        {
-            Field *tar = targets[i];
-            if(source)
-            {
-                tar->SetID(source->ID());
-                tar->SetSource(source);
-                Vector *srcv = source->Data();
-                Vector *tarv = tar->Data();
-                if(srcv && tarv)
-                {
-                    tarv->MakeRef(*srcv,0,srcv->Size());
-                }
-
-                Vector *src_adj = source->Adjoint();
-                Vector *tar_adj = tar->Adjoint();
-                if(src_adj && tar_adj)
-                {
-                    tar_adj->MakeRef(*src_adj,0,src_adj->Size());
-                }
-            }
-        }
     }
 
     ///@brief Get all target fields
-    std::vector<Field*>& GetTargets() { return targets; }
+    std::vector<Field*>& Targets() { return targets; }
 
     bool HasTargets() const { return !targets.empty(); }
 
@@ -347,42 +279,40 @@ class FieldCollection
 {
 private:
     std::string name; /// Name of the collection
-    GraphNode *src_op = nullptr; /// Source Application (not owned)
+    Operator *src_op = nullptr; /// Source operator (not owned)
 
-    /// Fields for source Application. Contains all source fields and fields that
-    /// may be targets of other applications.
+    /// Fields for source operator. Contains all source fields and fields that
+    /// may be targets of other operator.
     NamedFieldsMap<Field> fields;
 
-    /// FieldEdge for source Application.
+    /// FieldEdge for source operator.
     NamedFieldsMap<FieldEdge> edges;
 
 public:
 
     FieldCollection() = default;
 
-    /// @brief Constructor with collection name and optional source Application
-    FieldCollection(std::string collection_name,
-                    GraphNode *op = nullptr):
-                    name(collection_name), 
-                    src_op(op){}
+    /// @brief Constructor with collection name and optional source operator
+    FieldCollection(std::string collection_name, Operator *op = nullptr):
+                    name(collection_name), src_op(op) {}
 
-    /// @brief Constructor with source Application
-    FieldCollection(GraphNode *src):src_op(src){}
+    /// @brief Constructor with source operator
+    FieldCollection(Operator *src) : name("FieldCollection"), src_op(src) {}
 
     /// @brief Get the number of linked fields in the collection
     int Size() const { return edges.NumFields(); }
 
     /// @brief Set the name of the collection
-    void SetName(const std::string &collection_name){ name = collection_name;}
+    void SetName(const std::string &collection_name) { name = collection_name;}
 
     /// @brief Get the name of the collection
     std::string Name() const { return name; }
 
-    /// @brief Set the source Application
-    void SetSourceOperator(GraphNode *op){ src_op = op; }
+    /// @brief Set the source operator
+    void SetOperator(Operator *op){ src_op = op; }
 
-    /// @brief Get the source Application
-    const GraphNode* GetSourceOperator() const { return src_op; }
+    /// @brief Get the source operator
+    const Operator* GetOperator() const { return src_op; }
 
     /// @brief Get the ParGridFunction for a given source name
     Field *GetSourceField(const std::string &src_name) const
@@ -394,7 +324,7 @@ public:
             //              + src_name + " not found!");
             return nullptr;
         }
-        return edge->GetSource();
+        return edge->SourceField();
     }
 
     /// @brief Get the ParGridFunction for a given field name
@@ -409,32 +339,23 @@ public:
     }
 
     /// @brief Add a ParGridFunction as a field (does not specify source or target)
-    void AddField(const std::string &field_name,
-                  Field *field, bool own = false)
+    void AddField(const std::string &field_name, Field *field, bool own = false)
     {
         fields.Register(field_name, field, own);
-        if(field->GetNode() == nullptr)
+        if(field->Node() == nullptr)
         {
             field->SetNode(src_op);
         }
     }
 
-    void AddField(const std::string &field_name,
-                  Vector *field)
-    {
-        Field *f = new Field(field, Field::Type::DEFAULT);
-        f->SetNode(src_op);
-        fields.Register(field_name, f, true);
-    }
-
     /// @brief Add a FieldEdge to the collection with name src_name
     void AddFieldEdge(const std::string &src_name,
-                         FieldEdge *edge, bool own = false)
+                      FieldEdge *edge, bool own = false)
     {
         FieldEdge *edge_exist = edges.Get(src_name);
         if(edge_exist)
         {
-            auto targets = edge->GetTargets();
+            auto targets = edge->Targets();
             for (auto &dest : targets) {
                 // auto [target, owned] = dest;
                 // edge_exist->AddTarget(target, owned);
@@ -443,37 +364,13 @@ public:
             return;
         }
         edges.Register(src_name, edge, own);
-        fields.Register(src_name, edge->GetSource(), false);
-    }
-
-    // /// @brief Add a source ParGridFunction to the collection. If src_name does not
-    // /// exist, a new FieldEdge is created and owned.
-    void AddSourceField(const std::string &src_name, Vector *src)
-    {
-        FieldEdge *edge = edges.Get(src_name);
-        if(!edge)
-        {
-            edge = new FieldEdge(src);
-            edges.Register(src_name, edge, true);
-        }
-        else
-        {
-            edge->SetSource(src);
-        }
-
-        Field *src_field = edge->GetSource();
-        if(src_field->GetNode() == nullptr)
-        {
-            src_field->SetNode(src_op);
-        }
-
-        fields.Register(src_name, edge->GetSource(), false);
+        fields.Register(src_name, edge->SourceField(), false);
     }
 
     void AddSourceField(const std::string &src_name, Field *src, bool own=false)
     {
         fields.Register(src_name, src, false);
-        if(src->GetNode() == nullptr)
+        if(src->Node() == nullptr)
         {
             src->SetNode(src_op);
         }
@@ -487,23 +384,7 @@ public:
         edge->SetSource(src, own);
     }
 
-    /// @brief Add a target field
-    /// to the source named src_name. If src_name does not exist, a new 
-    /// FieldEdge is created and owned.
-    void AddTargetField(const std::string &src_name,
-                        Vector *tar)
-    {
-        FieldEdge *edge = edges.Get(src_name);
-        if(!edge)
-        {
-            edge = new FieldEdge();
-            edges.Register(src_name, edge, true);
-        }
-        edge->AddTarget(tar);
-    }
-
-    void AddTargetField(const std::string &src_name,
-                        Field *tar,
+    void AddTargetField(const std::string &src_name, Field *tar,
                         bool own = false)
     {
         FieldEdge *edge = edges.Get(src_name);
@@ -521,7 +402,7 @@ public:
     }
 
     NamedFieldsMap<Field> &GetFields() { return fields; }
-    NamedFieldsMap<FieldEdge> &GetFieldEdge() { return edges; }
+    NamedFieldsMap<FieldEdge> &GetEdges() { return edges; }
 
     virtual void Save (std::ostream &out) const
     {
@@ -545,7 +426,7 @@ public:
             std::string edge_name = edge_pair->first;
             FieldEdge *edge = edge_pair->second;
             // out << "  " << lf_name << ": ID " << lf_obj->ID() << ",\n";
-            out << '\"' << edge->GetSource()->ID() << "\": \"" << edge_name << "\"";
+            out << '\"' << edge->SourceField()->ID() << "\": \"" << edge_name << "\"";
             if(edge_pair != std::prev(edges.end())) out << ",";
             out << "\n";
         }
@@ -554,8 +435,6 @@ public:
 
     Field* HasField(const Field &field) const
     {
-        // Field *f = HasField(field.ID());
-        // return (f == &field) ? f : nullptr;
         for (auto f = fields.begin(); f != fields.end(); ++f)
         {
             if(f->second == &field)
@@ -594,7 +473,7 @@ public:
     enum ExecutionMode
     {
         GRADIENT_MODE, ///< Node is being executed as part of a gradient evaluation
-        DEFAULT_MODE   ///< Node is being executed in default mode (e.g. application evaluation)
+        DEFAULT_MODE   ///< Node is being executed in default mode (e.g. operator evaluation)
     };
 
 private:
@@ -629,27 +508,6 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const override
     {
         MFEM_ABORT("GraphNode::Mult() not implemented");
-    }
-
-    virtual Operator* GetDerivative(Field *y, Vector &x)
-    {
-        MFEM_ABORT("GraphNode::GetDerivative not implemented");
-    }
-
-    // TODO: Consider returning bool to indicate ownership of dydx operator
-    [[nodiscard]] virtual bool GetDerivative(Field* y, Vector &x, Operator* &dydx)
-    {
-        MFEM_ABORT("GraphNode::GetDerivative not implemented");
-    }
-
-    [[nodiscard]] virtual bool GetDerivative(Field* y, Field* x, Vector &x0, Operator *dydx)
-    {
-        MFEM_ABORT("GraphNode::GetDerivative not implemented");
-    }
-
-    virtual void GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx)
-    {
-        MFEM_ABORT("GraphNode::GetDerivative not implemented");
     }
 
     void SetNodeIndex(int index){ node_index = index; }
@@ -718,73 +576,14 @@ public:
 };
 
 
-/** @brief This class is used to define the interface for applications and miniapps.
- */
-class Application : public GraphNode
-{
-public: 
-    /**
-       @brief Enum used to keep track of the type of operator
-     */
-    enum OperatorType {
-        ANY_TYPE,       ///< Any MFEM Operator
-        MFEM_TDO,       ///< MFEM TimeDependentOperator
-        MFEM_SOLVER,    ///< MFEM Solver
-        MFEM_ODESOLVER, ///< MFEM ODESolver
-        NOT_MFEM_OBJECT ///< Object is not derived from an MFEM class
-    };
-
-protected:
-    OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
-
-public:
-    /**
-       @brief Construct a new Application object.
-       @param n Size of the operator
-     */
-    Application(int n=0) : GraphNode(n) {}
-
-    /**
-       @brief Construct a new Application object.
-       @param h Height of the operator
-       @param w Width of the operator
-     */
-    Application(int h, int w) : GraphNode(h,w) {}
-
-    /**
-       @brief Set the Operator Type object. 
-     */
-    void SetOperatorType(OperatorType type) { operator_type = type; }
-
-    /**
-       @brief Get the Operator Type.
-     */
-    OperatorType GetOperatorType() const { return operator_type; }
-
-    virtual void Mult(const Vector &x, Vector &y) const override
-    {
-        MFEM_ABORT("Not implemented for this Application.");
-    }
-
-    /**
-       @brief Update the operator state. 
-     */
-    virtual void Update()
-    {
-        mfem_error("Application::Update() is not overridden!");
-    }
-};
-
-
 /**
    @brief An abstract, type-erased class to define the interface for 
-   operators (not inherited from @a Application) to be used
-   with applications. It performs SFINAE checks for stored operator's
-   member functions and override the Mult, ImplicitSolve and Step methods
+   operators, not inherited from @a GraphNode. It performs SFINAE 
+   checks for stored operator's member functions and override the Mult
    to call the stored object's functions.
  */
 template <typename OpType>
-class AbstractOperator : public Application
+class AbstractOperator : public GraphNode
 {
 protected:
     /// Define a template class 'check' to test for the existence of member functions
@@ -843,7 +642,7 @@ public:
 
 
     /// @brief Constructor for the type-erased AbstractOperator class
-    AbstractOperator(OpType *op_, int h, int w) : Application(h,w), op(op_)
+    AbstractOperator(OpType *op_, int h, int w) : GraphNode(h,w), op(op_)
     { }
 
     /// @brief Constructor for the type-erased AbstractOperator class.
@@ -936,7 +735,7 @@ public:
 private: // Hide all other functions from user
     using GraphNode::Execute;
     using GraphNode::Mult;
-    using GraphNode::GetDerivative;
+    // using GraphNode::GetDerivative;
     using GraphNode::JVP;
     using GraphNode::VJP;
 };
@@ -1040,7 +839,7 @@ protected:
     Array<int> out_offsets; ///< Block offsets for output fields
     int max_width=0;        ///< Largest operator width
     int max_height=0;       ///< Largest operator height
-    int nnodes = 0;         ///< The number of applications
+    int nnodes = 0;         ///< The number of nodes
     
     mutable Operator *grad = nullptr; ///< Jacobain operator
     GradMode grad_mode = GradMode::FD;
@@ -1083,7 +882,7 @@ public:
 
     /**
        @brief Add an operator to the list of coupled operator and
-       return pointer to it. Not owned unless it's not derived from Application.
+       return pointer to it. Not owned unless it's not derived from GraphNode.
      */
     template <class OpType>
     GraphNode* AddOperator(OpType *op_, int h, int w)
@@ -1222,8 +1021,6 @@ public:
 
     Operator& GetGradient(const Vector &x) const override;
 
-    virtual void GetDerivative(Field* y, Field* x, Vector &x0, Vector &dydx) override;
-
     /// @brief Destroy the Coupled Application object
     ~DAGraph();
 };
@@ -1269,7 +1066,7 @@ public:
    @brief MFEM SubMesh transfer between two FiniteElementSpaces 
    using ParTransferMap.
    NOT USED YET
- */
+
 class SubMeshTransfer : public GraphNode
 {
 protected:
@@ -1278,24 +1075,12 @@ protected:
     bool own_map = false;
 
 public:
-    /**
-       @brief Construct a new SubMeshTransfer between 
-       two @a ParFiniteElementSpace.
-       
-       @param src Source @a ParFiniteElementSpace
-       @param tar Target @a ParFiniteElementSpace
-     */
+
     SubMeshTransfer(ParFiniteElementSpace *src,
                     ParFiniteElementSpace *tar) : GraphNode(),
                     src_fes(src), tar_fes(tar),
                     transfer_map(new ParTransferMap(src_fes, tar_fes)), own_map(true) {}
 
-    /**
-       @brief Construct a new SubMeshTransfer between
-       @a ParFiniteElementSpace of two @a ParGridFunction.
-       @param src Source @a ParGridFunction
-       @param tar Target @a ParGridFunction
-     */
     SubMeshTransfer(ParGridFunction *src, ParGridFunction *tar) :
                     SubMeshTransfer(src->ParFESpace(), tar->ParFESpace()) {}
 
@@ -1311,12 +1096,12 @@ public:
         MFEM_ASSERT(transfer_map != nullptr, "SubMeshTransfer::Execute: transfer map not set!");
 
         // Loop through all the edges and perform the operator
-        NamedFieldsMap<FieldEdge> &edges = Fields().GetFieldEdge();
+        NamedFieldsMap<FieldEdge> &edges = Fields().GetEdges();
         for (auto edge_pair = edges.begin(); edge_pair != edges.end(); ++edge_pair)
         {
             std::string edge_name = edge_pair->first;
             FieldEdge *edge = edge_pair->second;
-            ParGridFunction &src_gf = dynamic_cast<ParGridFunction&>(*edge->GetSource()->Data());
+            ParGridFunction &src_gf = dynamic_cast<ParGridFunction&>(*edge->SourceField()->Data());
 
             // Loop through all the targets for this source field and perform the transfer
             auto &targets = edge->GetTargets();
@@ -1333,7 +1118,7 @@ public:
         if(own_map && transfer_map) delete transfer_map;
     }
 };
-
+ */
 
 
 
