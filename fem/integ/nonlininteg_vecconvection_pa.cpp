@@ -55,32 +55,23 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    q1d = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(qs);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   if (auto cc = dynamic_cast<ConstantCoefficient *>(Q))
-   {
-      coeff.SetConstant(cc->constant);
-   }
-   else if (Q)
-   {
-      coeff.Project(*Q);
-   }
-   else
-   {
-      coeff.SetConstant(1.0);
-   }
-   MFEM_VERIFY(coeff.Size() == q1d*q1d*(dim==3?q1d:1)*ne, "Invalid coeff size");
+   const int nq1d = q1d * q1d * (dim==3 ? q1d : 1);
+   MFEM_VERIFY(coeff.Size() == 1 || coeff.Size() == nq1d*ne, "Invalid coeff");
+   MFEM_VERIFY(ir->GetWeights().Size() == nq1d, "Invalid weights size");
 
-   MFEM_VERIFY(ir->GetWeights().Size() == q1d*q1d*(dim==3?q1d:1),
-               "Invalid weights size");
    const auto w_r = ir->GetWeights().Read();
+   const bool const_coeff = coeff.Size() == 1;
 
    if (dim == 2)
    {
       const int Q1D = q1d;
       constexpr int VDIM = 2, DIM = 2;
       const auto W = Reshape(w_r, Q1D, Q1D);
-      const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
+      const auto C = const_coeff ?
+                     Reshape(coeff.Read(), 1, 1, 1) :
+                     Reshape(coeff.Read(), Q1D, Q1D, ne);
       const auto J = Reshape(geom->J.Read(), Q1D, Q1D, VDIM, DIM, ne);
       auto A = Reshape(pa_adj.Write(), VDIM, DIM, Q1D, Q1D, ne);
 
@@ -97,7 +88,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const real_t A21 = -J21, A22 = +J11;
                // Store w * coeff * adj(J)
                const real_t w = W(qx, qy);
-               const real_t c = C(qx, qy, e);
+               const real_t c = const_coeff ? C(0, 0, 0) : C(qx, qy, e);
                A(0, 0, qx, qy, e) = w * c * A11;
                A(1, 0, qx, qy, e) = w * c * A12;
                A(0, 1, qx, qy, e) = w * c * A21;
@@ -111,7 +102,9 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int Q1D = q1d;
       constexpr int VDIM = 3, DIM = 3;
       const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
-      const auto C = Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
+      const auto C = const_coeff ?
+                     Reshape(coeff.Read(), 1, 1, 1, 1) :
+                     Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
       const auto J = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, VDIM, DIM, ne);
       auto A = Reshape(pa_adj.Write(), VDIM, DIM, Q1D, Q1D, Q1D, ne);
 
@@ -132,7 +125,9 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t J31 = J(qx, qy, qz, 2, 0, e),
                                J32 = J(qx, qy, qz, 2, 1, e),
                                J33 = J(qx, qy, qz, 2, 2, e);
-                  const real_t cw = W(qx, qy, qz) * C(qx, qy, qz, e);
+                  const real_t c =
+                     const_coeff ? C(0, 0, 0, 0) : C(qx, qy, qz, e);
+                  const real_t cw = W(qx, qy, qz) * c;
                   // adj(J)
                   const real_t A11 = (J22 * J33) - (J23 * J32);
                   const real_t A12 = (J32 * J13) - (J12 * J33);
