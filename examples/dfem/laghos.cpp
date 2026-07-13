@@ -3259,7 +3259,7 @@ int main(int argc, char *argv[])
             }
             else if (hydro->newton_max_iter <= 1)
             {            
-               dt *= 1.02;
+               dt *= 1.05;
                if (Mpi::Root()) { out << "Increasing dt: " << dt << std::endl; }  
             }
          }
