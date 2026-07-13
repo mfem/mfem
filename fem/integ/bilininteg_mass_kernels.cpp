@@ -75,14 +75,16 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddTmoMmaSpecialization<2,2,3>();
    MassIntegrator::AddTmoMmaSpecialization<2,2,12>();
    MassIntegrator::AddTmoMmaSpecialization<2,3,6>();
+   MassIntegrator::AddTmoMmaSpecialization<2,3,15>(); // GLL BP1tri p=2
    MassIntegrator::AddTmoMmaSpecialization<2,3,16>();
    MassIntegrator::AddTmoMmaSpecialization<2,4,12>();
+   MassIntegrator::AddTmoMmaSpecialization<2,4,19>(); // GLL BP1tri p=3
    MassIntegrator::AddTmoMmaSpecialization<2,4,25>();
    MassIntegrator::AddTmoMmaSpecialization<2,5,16>();
    MassIntegrator::AddTmoMmaSpecialization<2,5,28>(); // GLL BP1tri p=4
    MassIntegrator::AddTmoMmaSpecialization<2,5,33>();
    MassIntegrator::AddTmoMmaSpecialization<2,6,25>();
-   MassIntegrator::AddTmoMmaSpecialization<2,6,37>();
+   MassIntegrator::AddTmoMmaSpecialization<2,6,37>(); // GLL BP1tri p=5
    MassIntegrator::AddTmoMmaSpecialization<2,6,42>();
    MassIntegrator::AddTmoMmaSpecialization<2,7,33>();
    MassIntegrator::AddTmoMmaSpecialization<2,7,49>(); // GLL BP1tri p=6
