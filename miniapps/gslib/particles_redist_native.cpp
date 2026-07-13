@@ -103,6 +103,7 @@ int main (int argc, char *argv[])
       }
       int target = rank_dist(gen);
       ranks[i] = static_cast<unsigned int>(target);
+      pset.Tag(0)[i] = target;
    }
 
 

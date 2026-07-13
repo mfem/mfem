@@ -578,7 +578,7 @@ Particle ParticleSet::GetParticle(int i) const
    for (int t = 0; t < GetNTags(); t++)
    {
       p.Tag(t) = Tag(t)[i];
-
+   }
    return p;
 }
 
