@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -535,7 +535,7 @@ int main (int argc, char *argv[])
    if (vis)
    {
       socketstream vis;
-      common::VisualizeField(vis, "localhost", 19916, x0,
+      common::VisualizeField(vis, "localhost", 19916, x,
                              "Final mesh", 600, 0, 500, 500, "jRmlA");
    }
 
