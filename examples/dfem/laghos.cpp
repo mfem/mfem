@@ -68,7 +68,6 @@ enum EXT_DATA_IDX
    VISC_Q2,
    H0,
    DT_ESTIMATE,
-   DT_EST_METHOD,
    COUNT
 };
 
@@ -259,7 +258,6 @@ matd_t<DIM> qdata_setup(
    const real_t &cfl,
    const bool &use_viscosity,
    const int &viscosity_type,
-   const int &dt_est_method,
    const real_t &visc_q1,
    const real_t &visc_q2,
    real_t &dt_est)
@@ -409,7 +407,7 @@ matd_t<DIM> qdata_setup(
 
          // Coarses mesh h for the domain.
          const real_t h_coarse = 1.0;
-         real_t dv_scale = 5.0 * h / h_coarse * cs;
+         real_t dv_scale = 2.0 * h / h_coarse * cs;
 
          // Smooth activation switch.
          // Motivation: in compression, delta_v < 0.
@@ -484,7 +482,6 @@ struct TimeStepEstimateQFunction
          external_data[EXT_DATA_IDX::CFL],
          static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
          static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
-         static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
          external_data[EXT_DATA_IDX::VISC_Q1],
          external_data[EXT_DATA_IDX::VISC_Q2],
          dt_est);
@@ -519,7 +516,6 @@ struct UpdateQuadratureDataQFunction
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
-            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             external_data[EXT_DATA_IDX::VISC_Q1],
             external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est_dummy);
@@ -551,7 +547,6 @@ public:
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
-            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             external_data[EXT_DATA_IDX::VISC_Q1],
             external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est_dummy);
@@ -604,7 +599,6 @@ public:
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
             external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
-            static_cast<int>(external_data[EXT_DATA_IDX::DT_EST_METHOD]),
             external_data[EXT_DATA_IDX::VISC_Q1],
             external_data[EXT_DATA_IDX::VISC_Q2],
             dt_est);
@@ -1895,7 +1889,14 @@ public:
          lag++;
 
          newton->Mult(zero, K);
-         newton_converged = newton->GetConverged();
+         
+         // If some SDIRK stage didn't converge, keep it at false.
+         // (these are reset after every time step).
+         if (newton_converged)
+         {
+            newton_converged = newton->GetConverged();
+         }
+         newton_max_iter = std::max(newton_max_iter, newton->GetNumIterations());
       }
 
       Kx.MakeRef(K, 0, H1.GetTrueVSize());
@@ -1928,6 +1929,12 @@ public:
    void ResetQuadratureData() const
    {
       qdata_is_current = false;
+   }
+   
+   void ResetNewtonInfo()
+   {
+       newton_converged = true;
+       newton_max_iter = -1;
    }
 
    real_t GetTimeStepEstimate(const Vector &S)
@@ -2155,6 +2162,7 @@ public:
    const int preconditioner_lag;
    const PRECONDITIONER_TYPE preconditioner_type;
    bool newton_converged = true;
+   int  newton_max_iter = -1;
    Vector &external_data;
    const bool use_petsc;
    mutable bool qdata_is_current = false;
@@ -2674,7 +2682,7 @@ int main(int argc, char *argv[])
    bool glvis = false;
    bool paraview = false;
    int viscosity_type = 2;
-   real_t viscosity_q1 = 0.25;
+   real_t viscosity_q1 = 0.5;
    real_t viscosity_q2 = 1.0;
    int preconditioner_type = PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
    int dump_jacobians = 0;
@@ -3029,7 +3037,6 @@ int main(int argc, char *argv[])
    external_data[EXT_DATA_IDX::VISC_Q2] = viscosity_q2;
    external_data[EXT_DATA_IDX::DT_ESTIMATE] =
       std::numeric_limits<real_t>::infinity();
-   external_data[EXT_DATA_IDX::DT_EST_METHOD] = (problem == 0) ? 1.0 : 0.0;
 
    LagrangianHydroOperator *hydro = nullptr;
    switch (dim)
@@ -3126,18 +3133,10 @@ int main(int argc, char *argv[])
    {
       out << "energy initial: " << energy_init << "\n";
    }
-
-   hydro->ResetTimeStepEstimate();
+   
    real_t t = 0.0;
-   real_t dt = 0.0;
-   if (problem == 0) { dt = hydro->GetTimeStepEstimate(S); }
-   else
-   {
-      // Keep the original conservative startup for non-TG problems.
-      external_data[EXT_DATA_IDX::CFL] = 0.5;
-      dt = hydro->GetTimeStepEstimate(S);
-      external_data[EXT_DATA_IDX::CFL] = cfl;
-   }
+   hydro->ResetTimeStepEstimate();
+   real_t dt = hydro->GetTimeStepEstimate(S);
 
    if (Mpi::Root())
    {
@@ -3199,9 +3198,8 @@ int main(int argc, char *argv[])
       S_old = S;
       t_old = t;
       hydro->ResetTimeStepEstimate();
-
-      // S is the vector of dofs, t is the current time, and dt is the time step
-      // to advance.
+      
+      hydro->ResetNewtonInfo();
       ode_solver->Step(S, t, dt);
 
       // Adaptive time step control.
@@ -3209,22 +3207,12 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10) // implicit.
       {
-         // Don't repeat for TGreen and 3point (allow dt growth for 3point).
+         // Don't repeat for TGreen.
          if (problem != 0)
          {
-            // Repeat only when the mesh inverted or the nonlinear solve failed.
-            // Can happen at time integration, even if all stages were ok.
-            if ((dt_est < dt || !hydro->newton_converged) && (problem != 3))
+            // Repeat.
+            if (hydro->newton_converged == false || hydro->newton_max_iter >= 4)
             {
-               if (!hydro->newton_converged)
-               {
-                  if (Mpi::Root())
-                  {
-                     out << "writing viz for non converged newton step " << ti
-                         << " at time=" << t << "\n";
-                  }
-               }
-
                dt *= 0.85;
                t = t_old;
                S = S_old;
@@ -3247,14 +3235,14 @@ int main(int argc, char *argv[])
                      else
                      {
                         out << "Newton did not converge in "
-                            << hydro->newton->GetNumIterations() << " iterations.\n";
+                            << hydro->newton_max_iter << " iterations.\n";
                      }
                   }
                   else { out << "Estimated dt lower than taken dt.\n"; }
                }
 
                if (!hydro->newton_converged)
-               {
+               {        
                   if (nretry == 1)
                   {
                      hydro->residual->dump_jacobians = 1;
@@ -3269,7 +3257,11 @@ int main(int argc, char *argv[])
 
                ti--; continue;
             }
-            else if (dt_est > 1.25 * dt) { dt *= 1.10; }
+            else if (hydro->newton_max_iter <= 1)
+            {            
+               dt *= 1.02;
+               if (Mpi::Root()) { out << "Increasing dt: " << dt << std::endl; }  
+            }
          }
       }
       else if (dt_est < dt) // explicit.
