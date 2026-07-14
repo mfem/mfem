@@ -46,6 +46,19 @@
 #define MFEM_GPUSPARSE_ALG HIPSPARSE_CSRMV_ALG1
 #endif // defined(MFEM_USE_CUDA)
 
+#ifdef MFEM_USE_CUDA_OR_HIP
+#define MFEM_CHECK_SPARSE(call)                                    \
+do {                                                               \
+    auto status = (call);                                          \
+    if (status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))           \
+    {                                                              \
+      MFEM_VERIFY(status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS), \
+                  MFEM_cu_or_hip(sparseGetErrorString)(status));   \
+    }                                                              \
+} while (0)
+#endif // MFEM_USE_CUDA_OR_HIP
+
+
 #if defined(MFEM_USE_SINGLE)
 #define MFEM_CUDA_or_HIP_REAL_T MFEM_CUDA_or_HIP(_R_32F)
 #elif defined(MFEM_USE_DOUBLE)
@@ -69,13 +82,16 @@ void * SparseMatrix::dBuffer = nullptr;
 #endif
 #endif // MFEM_USE_CUDA_OR_HIP
 
+bool SparseMatrix::use_gpu_vendor_sparse_if_available = true;
+
 void SparseMatrix::InitGPUSparse()
 {
    // Initialize cuSPARSE/hipSPARSE library
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+       use_gpu_vendor_sparse_if_available)
    {
-      if (!handle) { MFEM_cu_or_hip(sparseCreate)(&handle); }
+      if (!handle) { MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreate)(&handle)); }
       useGPUSparse=true;
       SparseMatrixCount++;
    }
@@ -92,9 +108,9 @@ void SparseMatrix::ClearGPUSparse()
    if (initBuffers)
    {
 #if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
-      MFEM_cu_or_hip(sparseDestroySpMat)(matA_descr);
-      MFEM_cu_or_hip(sparseDestroyDnVec)(vecX_descr);
-      MFEM_cu_or_hip(sparseDestroyDnVec)(vecY_descr);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matA_descr));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyDnVec)(vecX_descr));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyDnVec)(vecY_descr));
 #else
       cusparseDestroyMatDescr(matA_descr);
 #endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
@@ -472,7 +488,8 @@ void SparseMatrix::SortColumnIndices()
    }
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK))
+   if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) &&
+       useGPUSparse)
    {
       const int m = Height();
       const int n = Width();
@@ -483,14 +500,15 @@ void SparseMatrix::SortColumnIndices()
       // Get size of temporary buffer needed to sort the column indices,
       // allocate the temporary buffer.
       size_t pBufferSizeInBytes;
-      MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(handle, m, n, nnzA, d_ia,
-                                                   d_ja, &pBufferSizeInBytes);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(handle, m, n,
+                                                                     nnzA, d_ia,
+                                                                     d_ja, &pBufferSizeInBytes));
       void *pBuffer = MFEM_Cu_or_Hip(MemAlloc)(&pBuffer, pBufferSizeInBytes);
 
       // Create matrix descriptor, will have default values
       // CUSPARSE_INDEX_BASE_ZERO and CUSPARSE_MATRIX_TYPE_GENERAL.
       MFEM_cu_or_hip(sparseMatDescr_t) matA_descr;
-      MFEM_cu_or_hip(sparseCreateMatDescr)(&matA_descr);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateMatDescr)(&matA_descr));
 
       // Initialize permutation to identity
       Array<int> P(nnzA);
@@ -499,8 +517,9 @@ void SparseMatrix::SortColumnIndices()
 
       // Sort the column indices. The array d_ja will now be sorted. The
       // permutation required to sort the values will be returned in d_P.
-      MFEM_cu_or_hip(sparseXcsrsort)(handle, m, n, nnzA, matA_descr, d_ia, d_ja,
-                                     d_P, pBuffer);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort)(handle, m, n, nnzA, matA_descr,
+                                                       d_ia, d_ja,
+                                                       d_P, pBuffer));
 
       // Create a copy of the unsorted matrix values.
       real_t *d_a = ReadWriteData();
@@ -510,26 +529,28 @@ void SparseMatrix::SortColumnIndices()
 
       // Create the (input) dense vector with the unsorted values.
       MFEM_cu_or_hip(sparseDnVecDescr_t) d_a_dense;
-      MFEM_cu_or_hip(sparseCreateDnVec)(&d_a_dense, nnzA, d_a_unsorted,
-                                        MFEM_CUDA_or_HIP_REAL_T);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateDnVec)(&d_a_dense, nnzA,
+                                                          d_a_unsorted,
+                                                          MFEM_CUDA_or_HIP_REAL_T));
 
       // Create the (output) sparse vector that will have the sorted values.
       MFEM_cu_or_hip(sparseSpVecDescr_t) d_a_sparse;
-      MFEM_cu_or_hip(sparseCreateSpVec)(&d_a_sparse, nnzA, nnzA, d_P, d_a,
-                                        MFEM_CU_or_HIP(SPARSE_INDEX_32I),
-                                        MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
-                                        MFEM_CUDA_or_HIP_REAL_T);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateSpVec)(&d_a_sparse, nnzA, nnzA,
+                                                          d_P, d_a,
+                                                          MFEM_CU_or_HIP(SPARSE_INDEX_32I),
+                                                          MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                                                          MFEM_CUDA_or_HIP_REAL_T));
 
       // Sort the matrix values using the permutation vector.
-      MFEM_cu_or_hip(sparseGather)(handle, d_a_dense, d_a_sparse);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseGather)(handle, d_a_dense, d_a_sparse));
 
       // The above calls may be asynchronous, so we need to wait for them to
       // finish before we can free memory.
       MFEM_STREAM_SYNC;
 
-      MFEM_cu_or_hip(sparseDestroyDnVec)(d_a_dense);
-      MFEM_cu_or_hip(sparseDestroySpVec)(d_a_sparse);
-      MFEM_cu_or_hip(sparseDestroyMatDescr)(matA_descr);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyDnVec)(d_a_dense));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpVec)(d_a_sparse));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyMatDescr)(matA_descr));
 
       MFEM_Cu_or_Hip(MemFree)(d_a_unsorted);
       MFEM_Cu_or_Hip(MemFree)(pBuffer);
@@ -777,25 +798,25 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
       {
 #if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
          // Setup matrix descriptor
-         MFEM_cu_or_hip(sparseCreateCsr)(
-            &matA_descr,Height(),
-            Width(),
-            J.Capacity(),
-            const_cast<int *>(d_I),
-            const_cast<int *>(d_J),
-            const_cast<real_t *>(d_A),
-            MFEM_CU_or_HIP(SPARSE_INDEX_32I),
-            MFEM_CU_or_HIP(SPARSE_INDEX_32I),
-            MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
-            MFEM_CUDA_or_HIP_REAL_T);
+         MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                              &matA_descr,Height(),
+                              Width(),
+                              J.Capacity(),
+                              const_cast<int *>(d_I),
+                              const_cast<int *>(d_J),
+                              const_cast<real_t *>(d_A),
+                              MFEM_CU_or_HIP(SPARSE_INDEX_32I),
+                              MFEM_CU_or_HIP(SPARSE_INDEX_32I),
+                              MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                              MFEM_CUDA_or_HIP_REAL_T));
 
          // Create handles for input/output vectors
-         MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
-                                           x.Size(),
-                                           const_cast<real_t *>(d_x),
-                                           MFEM_CUDA_or_HIP_REAL_T);
-         MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
-                                           MFEM_CUDA_or_HIP_REAL_T);
+         MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
+                                                             x.Size(),
+                                                             const_cast<real_t *>(d_x),
+                                                             MFEM_CUDA_or_HIP_REAL_T));
+         MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
+                                                             MFEM_CUDA_or_HIP_REAL_T));
 #else
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
@@ -806,17 +827,17 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-      MFEM_cu_or_hip(sparseSpMV_bufferSize)(
-         handle,
-         MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
-         &alpha,
-         matA_descr,
-         vecX_descr,
-         &beta,
-         vecY_descr,
-         MFEM_CUDA_or_HIP_REAL_T,
-         MFEM_GPUSPARSE_ALG,
-         &newBufferSize);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpMV_bufferSize)(
+                           handle,
+                           MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+                           &alpha,
+                           matA_descr,
+                           vecX_descr,
+                           &beta,
+                           vecY_descr,
+                           MFEM_CUDA_or_HIP_REAL_T,
+                           MFEM_GPUSPARSE_ALG,
+                           &newBufferSize));
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
@@ -826,24 +847,46 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          MFEM_Cu_or_Hip(MemAlloc)(&dBuffer, bufferSize);
       }
 
+      // With ROCm 7, rocsparse (used by hipsparse) requires an explicit analysis call before the spmv otherwise you get errors like:
+      // invalid stage, the stage rocsparse_v2_spmv_stage_analysis must be executed before the stage rocsparse_v2_spmv_stage_compute
+      //
+      // It's not clear if this is supposed to be necessary or not but as of ROCm 7.2.1 it is still required to run without issues
+      //
+      // "This step is optional but if used may results in better performance."
+      // https://rocm.docs.amd.com/projects/hipSPARSE/en/docs-7.2.1/reference/generic.html#hipsparsespmv-preprocess
+#if HIP_VERSION_MAJOR >= 7
+      MFEM_CHECK_SPARSE(hipsparseSpMV_preprocess(
+                           handle,
+                           MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+                           &alpha,
+                           matA_descr,
+                           vecX_descr,
+                           &beta,
+                           vecY_descr,
+                           MFEM_CUDA_or_HIP_REAL_T,
+                           MFEM_GPUSPARSE_ALG,
+                           dBuffer));
+
+#endif
+
 #if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
       // Update input/output vectors
-      MFEM_cu_or_hip(sparseDnVecSetValues)(vecX_descr,
-                                           const_cast<real_t *>(d_x));
-      MFEM_cu_or_hip(sparseDnVecSetValues)(vecY_descr, d_y);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDnVecSetValues)(vecX_descr,
+                                                             const_cast<real_t *>(d_x)));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDnVecSetValues)(vecY_descr, d_y));
 
       // Y = alpha A * X + beta * Y
-      MFEM_cu_or_hip(sparseSpMV)(
-         handle,
-         MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
-         &alpha,
-         matA_descr,
-         vecX_descr,
-         &beta,
-         vecY_descr,
-         MFEM_CUDA_or_HIP_REAL_T,
-         MFEM_GPUSPARSE_ALG,
-         dBuffer);
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpMV)(
+                           handle,
+                           MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+                           &alpha,
+                           matA_descr,
+                           vecX_descr,
+                           &beta,
+                           vecY_descr,
+                           MFEM_CUDA_or_HIP_REAL_T,
+                           MFEM_GPUSPARSE_ALG,
+                           dBuffer));
 #else
 #ifdef MFEM_USE_SINGLE
       cusparseScsrmv(handle,
@@ -4335,7 +4378,7 @@ SparseMatrix::~SparseMatrix()
       {
          if (handle)
          {
-            MFEM_cu_or_hip(sparseDestroy)(handle);
+            MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroy)(handle));
             handle = nullptr;
          }
 #ifndef MFEM_CUDA_1897_WORKAROUND

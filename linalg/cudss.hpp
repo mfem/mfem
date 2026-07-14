@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #ifndef MFEM_CUDSS
 #define MFEM_CUDSS
 
@@ -27,7 +38,7 @@ class CuDSSSolver : public Solver
 {
 public:
    /// Specify the type of matrix we are applying the solver to
-   enum class MatType
+   enum MatType
    {
       /// CUDSS_MTYPE_GENERAL: General matrix [default].
       NONSYMMETRIC = 0,
@@ -38,7 +49,7 @@ public:
    };
 
    /// Specify the view type of matrix we are applying the solver to
-   enum class MatViewType
+   enum MatViewType
    {
       /// CUDSS_MVIEW_FULL: Full matrix [default]
       FULL = 0,
@@ -105,7 +116,7 @@ public:
     * Supported matrix types:
     *          CuDSSSolver::NONSYMMETRIC,
     *          CuDSSSolver::SYMMETRIC_INDEFINITE,
-    *      and CuDSSSolver::SYMMETRIC_INDEFINITE,
+    *      and CuDSSSolver::SYMMETRIC_POSITIVE_DEFINITE
     *
     * @param mtype_ Matrix type
     *
@@ -119,7 +130,7 @@ public:
     * Supported matrix types:
     *          CuDSSSolver::FULL,
     *          CuDSSSolver::LOWER,
-    *      and CuDSSSolver::UPPER,
+    *      and CuDSSSolver::UPPER
     *
     * @param mvtype Matrix view type
     *
@@ -168,7 +179,8 @@ public:
     * @param X Array of RHS vectors
     * @param Y Array of Solution vectors
     */
-   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   void ArrayMult(const Array<const Vector *> &X,
+                  Array<Vector *> &Y) const override;
 
    ~CuDSSSolver();
 
@@ -185,11 +197,6 @@ private:
    // for multiple calls to SetOperator
    bool reorder_reuse = false;
 
-   // Parameter controlling whether or not to sort the row of CSR matrix
-   bool sort_row = false;
-
-   // Matrix type
-   MatType mtype = MatType::NONSYMMETRIC;
    // Parameter controlling the matrix type
    cudssMatrixType_t mat_type = CUDSS_MTYPE_GENERAL;
 
@@ -203,6 +210,7 @@ private:
    // phase
    void *csr_offsets_d = NULL; // copy and keep I in device
    void *csr_columns_d = NULL; // copy and keep J in device
+   void *csr_values_d = NULL;  // copy and keep csr data in device
 
    // cuDSS object specifies available matrix types for sparse matrices
    cudssMatrixViewType_t mview = CUDSS_MVIEW_FULL;
@@ -213,8 +221,7 @@ private:
 
    // common for all cuDSS solver instances.
    // cuDSS object holds the cuDSS library context
-   static cudssHandle_t handle;
-   static int CuDSSSolverCount;
+   cudssHandle_t handle;
 
    // cuDSS object stores configuration settings for the solver
    mutable cudssConfig_t solverConfig;
@@ -247,6 +254,20 @@ private:
     * @note This method is called inside SetOperator
     */
    void SetMatrix(const SparseMatrix &op);
+
+   /**
+    * @brief Set the matrix values for cuDSS
+    *
+    * @param csr_offsets Row offsets of the CSR matrix
+    * @param csr_columns Column indices of the CSR matrix
+    * @param csr_values Non-zero values of the CSR matrix
+    *
+    * @note This method is called inside SetMatrix.
+   */
+   void SetMatrixCuDSS(int* csr_offsets, int* csr_columns, real_t* csr_values);
+
+   /// Method for initializing the cuDSS library and creating the cuDSS handle
+   void InitCuDSS();
 };
 
 } // namespace mfem

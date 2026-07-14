@@ -486,8 +486,14 @@ void multidomain_test_3d(FECType fec_type)
          {
             cylinder_gf.ProjectCoefficient(vcoeff);
             outer_gf.ProjectCoefficient(vcoeff);
-            outer_gf.ProjectBdrCoefficient(vzerocoeff,
-                                           outer_cyl_surf_marker);
+            if (fec_type == FECType::RT)
+            {
+               outer_gf.ProjectBdrCoefficientNormal(vzerocoeff, outer_cyl_surf_marker);
+            }
+            else
+            {
+               outer_gf.ProjectBdrCoefficientTangent(vzerocoeff, outer_cyl_surf_marker);
+            }
             outer_gf_ex.ProjectCoefficient(vcoeff);
          }
          ParSubMesh::Transfer(cylinder_gf, outer_gf);
@@ -507,8 +513,14 @@ void multidomain_test_3d(FECType fec_type)
          {
             outer_gf.ProjectCoefficient(vcoeff);
             cylinder_gf.ProjectCoefficient(vcoeff);
-            cylinder_gf.ProjectBdrCoefficient(vzerocoeff,
-                                              cylinder_cyl_surf_marker);
+            if (fec_type == FECType::RT)
+            {
+               cylinder_gf.ProjectBdrCoefficientNormal(vzerocoeff, cylinder_cyl_surf_marker);
+            }
+            else
+            {
+               cylinder_gf.ProjectBdrCoefficientTangent(vzerocoeff, cylinder_cyl_surf_marker);
+            }
             cylinder_gf_ex.ProjectCoefficient(vcoeff);
          }
          ParSubMesh::Transfer(outer_gf, cylinder_gf);

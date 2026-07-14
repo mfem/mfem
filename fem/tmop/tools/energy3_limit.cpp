@@ -107,6 +107,56 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
    });
 }
 
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
+void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
+                               const real_t adapt_lim_delta_max,
+                               const bool const_coeff,
+                               const DeviceTensor<4, const real_t> &ALC,
+                               const int NE,
+                               const DeviceTensor<6, const real_t> &J,
+                               const ConstDeviceCube &W,
+                               const real_t *b,
+                               const DeviceTensor<4, const real_t> &ALFmF0,
+                               DeviceTensor<4> &E,
+                               const int d1d,
+                               const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1];
+
+      // Load basis functions for ALF/ALF0.
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+
+      // Load ALF and ALF0 (scalar pattern).
+      kernels::internal::s_regs3d_t<MQ1> rtmp, ralf;
+      kernels::internal::LoadDofs3d(e, D1D, ALFmF0, rtmp);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, rtmp, ralf);
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
+               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t weight = W(qx, qy, qz) * detJtr;
+
+               const real_t diff = ralf(qz, qy, qx) / adapt_lim_delta_max;
+
+               const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
+               E(qx, qy, qz, e) = weight * coeff * lim_normal * diff * diff;
+            }
+         }
+      }
+   });
+}
+
 MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D);
 
@@ -140,6 +190,51 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
                          b, bld, XL, X, E, exp_lim, d, q);
 
    return PA.E * PA.O;
+}
+
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim3D, TMOP_EnergyPA_AdaptLim_3D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim3D);
+
+real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
+{
+   const real_t ln = lim_normal;
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
+   const auto *b = PA.maps->B.Read();
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
+   auto E = Reshape(PA.E.Write(), q, q, q, NE);
+
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   MFEM_VERIFY(PA.ALD.Size() == nal, "internal error");
+   PA.ALD.HostRead();
+
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALF_stride = ndof_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   real_t energy = 0.0;
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = PA.ALD(c);
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
+                                ALFmF0, E, d, q);
+      energy += PA.E * PA.O;
+   }
+
+   return energy;
 }
 
 } // namespace mfem

@@ -759,7 +759,9 @@ private:
    {
       switch (mt)
       {
-         case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdHostMemorySpace(); }
+            return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
@@ -788,7 +790,9 @@ private:
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
-         case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdDeviceMemorySpace(); }
+            return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)

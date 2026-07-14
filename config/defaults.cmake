@@ -172,9 +172,6 @@ set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
 #     "Additional libraries required by STRUMPACK.")
 
-set(CUDSS_DIR "${MFEM_DIR}/../cudss" CACHE PATH
-    "Path to the cuDSS library.")
-
 # The Scotch library, required by STRUMPACK <= v2.1.0, optional in STRUMPACK >=
 # v2.2.0.
 set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH

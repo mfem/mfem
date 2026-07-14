@@ -370,14 +370,17 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
 # CUDSS library configuration
-ifeq ($(MFEM_USE_CUDSS),YES)
-   ifneq ($(MFEM_USE_CUDA),YES)
-      $(error cuDSS requires that CUDA be enabled.)
-   endif
-endif
-CUDSS_DIR = @MFEM_DIR@/../cudss
-CUDSS_OPT = -I$(CUDSS_DIR)/include
-CUDSS_LIB = $(XLINKER)-rpath,$(CUDSS_DIR)/lib -L$(CUDSS_DIR)/lib -lcudss
+CUDSS_DIR         = @MFEM_DIR@/../cudss
+CUDSS_INCLUDE_DIR = $(CUDSS_DIR)/include
+CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
+CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
+CUDSS_LIB         = \
+ $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
+# The cuDSS communication and threading libraries. 
+MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
 
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
@@ -632,7 +635,7 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration

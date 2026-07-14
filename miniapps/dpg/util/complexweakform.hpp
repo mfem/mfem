@@ -273,6 +273,23 @@ public:
 
    Vector & ComputeResidual(const Vector & x);
 
+   void GetTraceFESpaces(Array<FiniteElementSpace *> & trace_fes) const
+   {
+      trace_fes.SetSize(0);
+      Array<FiniteElementSpace *> trace_fes_all;
+      if (static_cond)
+      {
+         static_cond->GetTraceFESpaces(trace_fes_all);
+         for (int i = 0; i < trace_fes_all.Size(); i++)
+         {
+            if (trace_fes_all[i])
+            {
+               trace_fes.Append(trace_fes_all[i]);
+            }
+         }
+      }
+   }
+
    /// Destroys bilinear form.
    virtual ~ComplexDPGWeakForm();
 

@@ -23,6 +23,8 @@
 // (2) Dzanic et al., "A method for bounding high-order finite element
 //     functions: Applications to mesh validity and bounds-preserving limiters".
 //
+// We also use a recursive subdivision strategy to compute tighter estimate of
+// the function extremum.
 //
 // Compile with: make gridfunction-bounds
 //
@@ -31,9 +33,6 @@
 //  mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
 
 #include "mfem.hpp"
-#include <memory>
-#include <iostream>
-#include <fstream>
 
 using namespace mfem;
 using namespace std;
@@ -56,6 +55,8 @@ int main (int argc, char *argv[])
    int  b_type           = -1;
    bool continuous       = true;
    int  nbrute           = 0;
+   int  rec_depth        = 4;
+   real_t rel_tol        = 1e-4;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -83,6 +84,12 @@ int main (int argc, char *argv[])
    args.AddOption(&nbrute, "-nb", "--nbrute",
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
+   args.AddOption(&rec_depth, "-rd", "--rec-depth",
+                  "Maximum depth for recursive subdivision to compute function "
+                  "extremum.");
+   args.AddOption(&rel_tol, "-rt", "--rel-tol",
+                  "Relative tolerance for termination of recursive "
+                  "subdivision.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file, 1, 1, false);
@@ -151,7 +158,19 @@ int main (int argc, char *argv[])
    ParGridFunction lowerb(&fes_pc), upperb(&fes_pc);
 
    // Compute bounds
-   pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+   PLBound plb = pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+
+   // Compute minimum and maximum bounds via recursion
+   Vector bound_rec_min(vdim), bound_rec_max(vdim);
+   for (int d = 0; d < vdim; d++)
+   {
+      auto min_interval = pfunc_proj->EstimateFunctionMinimum(d, plb, rec_depth,
+                                                              rel_tol);
+      auto max_interval = pfunc_proj->EstimateFunctionMaximum(d, plb, rec_depth,
+                                                              rel_tol);
+      bound_rec_min(d) = min_interval.first;
+      bound_rec_max(d) = max_interval.second;
+   }
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
@@ -236,17 +255,31 @@ int main (int argc, char *argv[])
       {
          for (int d = 0; d < vdim; d++)
          {
-            cout << "Brute force and bounding comparison for component " <<
+            cout << "Compare function extremum for component " <<
                  d << endl;
-            cout << "Brute force minimum and minimum bound: " << global_min(d)
-                 << " " <<  bound_min(d) << endl;
-
-            cout << "Brute force maximum and maximum bound: " << global_max(d)
-                 << " " <<  bound_max(d) << endl;
-
-            cout << "The difference in bounds is: " <<
-                 global_min(d)-bound_min(d) << " " <<
-                 bound_max(d)-global_max(d) << endl;
+            constexpr int w = 20;
+            cout << left << setw(w) << " "
+                 << setw(w)  << "Brute force"
+                 << setw(w) << "PL Bound"
+                 << setw(w) << "PL Bound + recursion" << endl
+                 << left << setw(w) << "Minimum: "
+                 << setw(w) << global_min(d)
+                 << setw(w) << bound_min(d)
+                 << setw(w) << bound_rec_min(d) << endl
+                 << left << setw(w) << "Difference: "
+                 << setw(w) << "-"
+                 << setw(w) << global_min(d)-bound_min(d)
+                 << setw(w) << global_min(d)-bound_rec_min(d) << endl;
+            cout << endl
+                 << left << setw(w) << "Maximum: "
+                 << setw(w) << global_max(d)
+                 << setw(w) << bound_max(d)
+                 << setw(w) << bound_rec_max(d) << endl
+                 << left << setw(w) << "Difference: "
+                 << setw(w) << "-"
+                 << setw(w) << bound_max(d)-global_max(d)
+                 << setw(w) << bound_rec_max(d)-global_max(d) << endl;
+            cout << endl;
          }
       }
    }
@@ -255,10 +288,19 @@ int main (int argc, char *argv[])
    {
       for (int d = 0; d < vdim; d++)
       {
-         cout << "Minimum bound for component " << d << " is " <<
-              bound_min(d) << endl;
-         cout << "Maximum bound for component " << d << " is " <<
-              bound_max(d) << endl;
+         cout << "Compare function extremum for component " <<
+              d << endl;
+         constexpr int w = 20;
+         cout << left << setw(w) << " "
+              << setw(w) << "PL Bound"
+              << setw(w) << "PL Bound + recursion" << endl
+              << left << setw(w) << "Minimum: "
+              << setw(w) << bound_min(d)
+              << setw(w) << bound_rec_min(d) << endl;
+         cout << endl
+              << left << setw(w) << "Maximum: "
+              << setw(w) << bound_max(d)
+              << setw(w) << bound_rec_max(d) << endl;
       }
    }
 

@@ -30,3 +30,29 @@ TEST_CASE("String Manipulation", "[General]")
       }
    }
 }
+
+TEST_CASE("Quoted String Input", "[General]")
+{
+   const auto test_strings =
+   {
+      "Test",
+      "Test with spaces",
+      "Test with \"quoted text\"",
+      "Test string ending with \\",
+      "\nTest with\tvarious white\v\rspace characters.",
+      "Test with some unicode characters: ∆, ∉, ∑, 🍎."
+   };
+
+   for (const auto c_str : test_strings)
+   {
+      CAPTURE(c_str);
+      const std::string str(c_str);
+      std::stringstream ss;
+      ss << std::quoted(str);
+
+      std::string read_str;
+      int error = parse_quoted_string(read_str, ss);
+      CHECK(error == 0);
+      CHECK(read_str == str);
+   }
+}

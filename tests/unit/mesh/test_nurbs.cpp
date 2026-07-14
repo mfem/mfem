@@ -222,13 +222,13 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
       mfem::out<<"Knotvector : "; kvp.Print(mfem::out);
 
       kvp.GetGreville(xi);
-      mfem::out<<"Greville points : "; xi.Print(std::cout,999);
+      mfem::out<<"Greville points : "; xi.Print(mfem::out,999);
 
       kvp.GetBotella(xi);
-      mfem::out<<"Botella  points : "; xi.Print(std::cout,999);
+      mfem::out<<"Botella  points : "; xi.Print(mfem::out,999);
 
       kvp.GetDemko(xi);
-      mfem::out<<"Demko    points : "; xi.Print(std::cout,999);
+      mfem::out<<"Demko    points : "; xi.Print(mfem::out,999);
    }
 
    KnotVector kv(3, Vector({0.0, 0.3, 0.3, 0.3, 0.6, 1.0}));
