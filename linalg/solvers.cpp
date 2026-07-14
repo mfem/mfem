@@ -1280,7 +1280,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
-                      << "  ||B r|| = " << resid << '\n';
+                      << "  ||B r|| = " << resid << std::endl;
          }
       }
 
@@ -1321,15 +1321,15 @@ finish:
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << final_iter
-                << "  ||B r|| = " << final_norm << '\n';
+                << "  ||B r|| = " << final_norm << std::endl;
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
-      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
+      mfem::out << "GMRES: Number of iterations: " << final_iter << std::endl;
    }
    if (print_options.warnings && !converged)
    {
-      mfem::out << "GMRES: No convergence!\n";
+      mfem::out << "GMRES: No convergence!" << std::endl;
    }
 
    Monitor(final_iter, final_norm, r, x, true);
