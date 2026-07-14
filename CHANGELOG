@@ -70,6 +70,9 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Improved partial assembly for VectorDivergenceIntegrator with shared-memory
+  kernels, kernel registration, and transpose support.
+
 - Improved partial-assembly diagonal kernels for VectorMassIntegrator (shared-
   memory specializations) and ElasticityIntegrator (no scratch Q-vector).
 
