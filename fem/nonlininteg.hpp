@@ -391,9 +391,11 @@ private:
    const GeometricFactors *geom;  ///< Not owned
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   struct Kernels { Kernels(); };
 
-   VectorConvectionNLFIntegrator() = default;
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { static Kernels kernels; }
+
+   VectorConvectionNLFIntegrator() { static Kernels kernels; }
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
                                          const ElementTransformation &T);
@@ -416,43 +418,47 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   using VectorConvectionNLFAddMultPAType =
+   using AddMultPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *x, real_t *y,
               const int d1d, const int q1d);
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultPA,
-                         VectorConvectionNLFAddMultPAType,
-                         (int, int, int));
+   MFEM_REGISTER_KERNELS(AddMultPAKernels, AddMultPAType, (int, int, int));
 
    void AddMultGradPA(const Vector &x, Vector &y) const override;
 
-   using VectorConvectionNLFAddMultGradPAType =
+   using AddMultGradPAType =
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *u, const real_t *x, real_t *y,
               const int d1d, const int q1d);
 
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA2D,
-                         VectorConvectionNLFAddMultGradPAType,
-                         (int, int));
-
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA3D,
-                         VectorConvectionNLFAddMultGradPAType,
-                         (int, int));
+   MFEM_REGISTER_KERNELS(AddMultGradPA2D, AddMultGradPAType, (int, int));
+   MFEM_REGISTER_KERNELS(AddMultGradPA3D, AddMultGradPAType, (int, int));
 
    void AssembleGradDiagonalPA(Vector &) const override;
 
-   using VectorConvectionNLFGradDiagPAType =
+   using GradDiagPAType =
       void (*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
                const real_t *u, real_t *y,
                const int d1d, const int q1d);
 
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFGradDiagPA2D,
-                         VectorConvectionNLFGradDiagPAType,
-                         (int, int));
+   MFEM_REGISTER_KERNELS(GradDiagPA2D, GradDiagPAType, (int, int));
+   MFEM_REGISTER_KERNELS(GradDiagPA3D, GradDiagPAType, (int, int));
 
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFGradDiagPA3D,
-                         VectorConvectionNLFGradDiagPAType,
-                         (int, int));
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AddMultPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      if constexpr (DIM == 2)
+      {
+         AddMultGradPA2D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA2D::Specialization<D1D, Q1D>::Add();
+      }
+      else if constexpr (DIM == 3)
+      {
+         AddMultGradPA3D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA3D::Specialization<D1D, Q1D>::Add();
+      }
+   }
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 
@@ -470,7 +476,8 @@ protected:
 
 
 /** This class is used to assemble the convective form of the nonlinear term
-    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$ */
+    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class ConvectiveVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -488,12 +495,20 @@ public:
                             ElementTransformation &trans,
                             const Vector &elfun,
                             DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
-    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$ */
+    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class SkewSymmetricVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -511,6 +526,13 @@ public:
                             ElementTransformation &trans,
                             const Vector &elfun,
                             DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 }

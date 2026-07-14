@@ -208,6 +208,9 @@ set(HDRS
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecdiv_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
+  integ/nonlininteg_vecconvection_pa.hpp
+  integ/nonlininteg_vecconvection_pa_diag.hpp
+  integ/nonlininteg_vecconvection_pa_grad.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp

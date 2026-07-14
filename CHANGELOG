@@ -70,6 +70,9 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added PA gradient and diagonal support for VectorConvectionNLFIntegrator
+ (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
+
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
   kernels, kernel registration, and transpose support.
 
