@@ -72,17 +72,7 @@ VectorFEMassIntegrator::ApplyPAKernels::Fallback(
 VectorFEMassIntegrator::Kernels::Kernels()
 {
    // h(curl), h(curl)
-   // P = Q (3D)
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 2, 2, 2>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 3, 3, 3>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 4, 4, 4>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 5, 5, 5>();
-
-   // P = Q + 1 (3D)
+   // Q = P + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 2, 2, 3>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
@@ -91,8 +81,26 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::CURL, 3, 4, 4, 5>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 5, 5, 6>();
+   // Q = P + 2 (3D)
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 2, 2, 4>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 3, 3, 5>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 4, 4, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 5, 5, 7>();
+   // Q = P + 3 (3D)
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 2, 2, 5>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 3, 3, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 4, 4, 7>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
+                          FiniteElement::CURL, 3, 5, 5, 8>();
    // h(div), h(div)
-   // P = Q (2D)
+   // Q = P (2D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 2, 2, 2>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
@@ -102,7 +110,7 @@ VectorFEMassIntegrator::Kernels::Kernels()
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 5, 5, 5>();
 
-   // P = Q + 1 (3D)
+   // Q = P + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 3, 2, 2, 3>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
