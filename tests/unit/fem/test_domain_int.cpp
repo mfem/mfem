@@ -1289,6 +1289,13 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    ND_FECollection fec(1, 3);
    VectorFunctionCoefficient field(3, GenericField);
 
+   FiniteElementSpace fes_ref(&mesh, &fec);
+   GridFunction g_ref(&fes_ref);
+   g_ref.ProjectCoefficient(field);
+   Vector ref;
+   AssembleDeltaReferenceBruteForce(fes_ref, x0, dir, ref);
+   const real_t ref_action = ref * g_ref;
+
    // Reference: same assembly path on an unpartitioned COMM_SELF ParMesh.
    auto action = [&](MPI_Comm comm, int *part) -> real_t
    {
@@ -1308,7 +1315,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(std::abs(serial_action) > 0.01);
+   REQUIRE(serial_action == MFEM_Approx(ref_action));
 
    // Keep the coarse master and fine slaves on different ranks.
    const int nranks = Mpi::WorldSize();
@@ -1322,9 +1329,10 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
-        << serial_action << ", parallel = " << par_action);
-   REQUIRE(par_action == MFEM_Approx(serial_action));
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", ref = "
+        << ref_action << ", serial = " << serial_action << ", parallel = "
+        << par_action);
+   REQUIRE(par_action == MFEM_Approx(ref_action));
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
@@ -1350,6 +1358,13 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    ND_FECollection fec(1, 3);
    VectorFunctionCoefficient field(3, GenericField);
 
+   FiniteElementSpace fes_ref(&mesh, &fec);
+   GridFunction g_ref(&fes_ref);
+   g_ref.ProjectCoefficient(field);
+   Vector ref;
+   AssembleDeltaReferenceBruteForce(fes_ref, x0, dir, ref);
+   const real_t ref_action = ref * g_ref;
+
    auto action = [&](MPI_Comm comm, int *part) -> real_t
    {
       ParMesh pmesh(comm, mesh, part);
@@ -1368,7 +1383,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(std::abs(serial_action) > 0.01);
+   REQUIRE(serial_action == MFEM_Approx(ref_action));
 
    const int nranks = Mpi::WorldSize();
    real_t vmax = 0.0;
@@ -1381,9 +1396,10 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
-        << serial_action << ", parallel = " << par_action);
-   REQUIRE(par_action == MFEM_Approx(serial_action));
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", ref = "
+        << ref_action << ", serial = " << serial_action << ", parallel = "
+        << par_action);
+   REQUIRE(par_action == MFEM_Approx(ref_action));
 }
 
 #endif // MFEM_USE_MPI
