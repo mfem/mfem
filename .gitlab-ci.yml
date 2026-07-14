@@ -295,6 +295,8 @@
 #  │    │    │    ├── .reproducer_vars
 #  │    │    │    ├── .report_job_success
 #  │    │    │    └── .report_job_failure
+#  │    │    ├── <used files>
+#  │    │    │    └── .gitlab/scripts/report_build_and_test  [by .report_job_*]
 #  │    │    └── <used variables>
 #  │    │         ├── SPEC
 #  │    │         ├── BUILD_ROOT
