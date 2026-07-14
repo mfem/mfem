@@ -144,6 +144,10 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
+examples/mixedprec/ex[0-9]p
+examples/mixedprec/mesh.*
+examples/mixedprec/sol.*
+
 examples/caliper/ex1
 examples/caliper/ex1p
 examples/caliper/refined.mesh
