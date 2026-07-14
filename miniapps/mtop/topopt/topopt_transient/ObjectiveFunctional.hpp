@@ -90,6 +90,28 @@ public:
    }
 };
 
+// Union of three rectangular regions (for passive region specification)
+class TripleRectangularIndicator : public Coefficient
+{
+private:
+   std::unique_ptr<Coefficient> first;
+   std::unique_ptr<Coefficient> second;
+   std::unique_ptr<Coefficient> third;
+
+public:
+   TripleRectangularIndicator(std::unique_ptr<Coefficient> first_,
+                              std::unique_ptr<Coefficient> second_,
+                              std::unique_ptr<Coefficient> third_)
+      : first(std::move(first_)),
+        second(std::move(second_)),
+        third(std::move(third_)) {}
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      return std::max({first->Eval(T, ip), second->Eval(T, ip), third->Eval(T, ip)});
+   }
+};
+
 // =============================================================================
 // ABSTRACT BASE CLASS: TimeIntegratedObjective
 // =============================================================================

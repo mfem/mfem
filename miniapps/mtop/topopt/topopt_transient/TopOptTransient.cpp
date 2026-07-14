@@ -31,23 +31,47 @@
 #include "mfem.hpp"
 #include "ElastodynamicsSolver.hpp"
 #include "ProblemSpecification.hpp"
+#include "OptimizationCheckpoint.hpp"
 #include "../../pde_filter.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
 
 using namespace std;
 using namespace mfem;
 
 namespace
 {
+
+// =============================================================================
+// OUTPUT DIRECTORY HELPER: Timestamp + SLURM Job ID
+// =============================================================================
+string GenerateOutputDirectory()
+{
+   // Get current time
+   time_t now = time(nullptr);
+   struct tm* tm_info = localtime(&now);
+
+   char timestamp[64];
+   strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
+
+   // Get SLURM job ID (if available)
+   const char* job_id_env = std::getenv("SLURM_JOB_ID");
+   string job_id = job_id_env ? job_id_env : "local";
+
+   ostringstream dirname;
+   dirname << timestamp << "_job" << job_id;
+   return dirname.str();
+}
 
 string ToLower(const char *text)
 {
@@ -58,11 +82,15 @@ string ToLower(const char *text)
 }
 
 unique_ptr<HypreParVector> AssembleVolumeWeights(ParFiniteElementSpace &fes,
-                                                 real_t &domain_volume)
+                                                 real_t &domain_volume,
+                                                 Coefficient *active_region = nullptr)
 {
-   ConstantCoefficient one(1.0);
+   // If active_region is provided, integrate only over active (designable) region.
+   // Otherwise integrate over entire domain.
+   Coefficient *integrand = active_region ? active_region : new ConstantCoefficient(1.0);
+
    ParLinearForm volume_form(&fes);
-   volume_form.AddDomainIntegrator(new DomainLFIntegrator(one));
+   volume_form.AddDomainIntegrator(new DomainLFIntegrator(*integrand));
    volume_form.Assemble();
 
    unique_ptr<HypreParVector> weights(volume_form.ParallelAssemble());
@@ -71,7 +99,145 @@ unique_ptr<HypreParVector> AssembleVolumeWeights(ParFiniteElementSpace &fes,
    MPI_Allreduce(&local_volume, &domain_volume, 1,
                  MPITypeMap<real_t>::mpi_type, MPI_SUM, fes.GetComm());
 
+   if (!active_region)
+   {
+      delete integrand;
+   }
+
    return weights;
+}
+
+// =============================================================================
+// Active/Passive DOF Management
+// =============================================================================
+// Identifies which DOFs are in active (designable) vs passive (fixed) regions.
+// A DOF is passive if its associated element has ANY integration point where
+// the passive_region_coef evaluates to > 0.5.
+void IdentifyActivePassiveDOFs(ParFiniteElementSpace &fes,
+                                Coefficient &passive_region_coef,
+                                Array<int> &active_tdof_list,
+                                Array<int> &passive_tdof_list,
+                                ParGridFunction &passive_marker)
+{
+   const int n_local = fes.GetVSize();
+   Array<int> local_is_passive(n_local);
+   local_is_passive = 0;
+
+   // Mark DOFs that touch passive regions
+   ParMesh *pmesh = fes.GetParMesh();
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      ElementTransformation *T = fes.GetElementTransformation(e);
+      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), 2 * fe->GetOrder());
+
+      bool element_is_passive = false;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         if (passive_region_coef.Eval(*T, ip) > 0.5)
+         {
+            element_is_passive = true;
+            break;
+         }
+      }
+
+      if (element_is_passive)
+      {
+         Array<int> dofs;
+         fes.GetElementVDofs(e, dofs);
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            int dof = dofs[i];
+            if (dof < 0) { dof = -1 - dof; }
+            local_is_passive[dof] = 1;
+         }
+      }
+   }
+
+   // Convert to true DOF markers
+   const int n_true = fes.GetTrueVSize();
+   Array<int> true_is_passive(n_true);
+   true_is_passive = 0;
+
+   const SparseMatrix *P = fes.GetRestrictionMatrix();
+   if (P)
+   {
+      // Has parallel restriction: map local to true DOFs
+      for (int i = 0; i < n_local; i++)
+      {
+         if (local_is_passive[i])
+         {
+            const int *cols = P->GetRowColumns(i);
+            const int ncols = P->RowSize(i);
+            for (int j = 0; j < ncols; j++)
+            {
+               true_is_passive[cols[j]] = 1;
+            }
+         }
+      }
+   }
+   else
+   {
+      // Serial or no restriction: true DOFs = local DOFs
+      for (int i = 0; i < n_true; i++)
+      {
+         true_is_passive[i] = local_is_passive[i];
+      }
+   }
+
+   // Build active and passive lists
+   active_tdof_list.SetSize(0);
+   passive_tdof_list.SetSize(0);
+   for (int i = 0; i < n_true; i++)
+   {
+      if (true_is_passive[i])
+      {
+         passive_tdof_list.Append(i);
+      }
+      else
+      {
+         active_tdof_list.Append(i);
+      }
+   }
+
+   // Store marker in grid function for visualization
+   for (int i = 0; i < n_local; i++)
+   {
+      passive_marker(i) = local_is_passive[i];
+   }
+}
+
+// Map from reduced active design vector to full grid function
+void MapActiveToFull(const Vector &rho_active,
+                     const Array<int> &active_tdof_list,
+                     const Array<int> &passive_tdof_list,
+                     real_t passive_value,
+                     Vector &rho_full_tv)
+{
+   // Set active DOFs from reduced vector
+   for (int i = 0; i < active_tdof_list.Size(); i++)
+   {
+      rho_full_tv[active_tdof_list[i]] = rho_active[i];
+   }
+
+   // Set passive DOFs to fixed value
+   for (int i = 0; i < passive_tdof_list.Size(); i++)
+   {
+      rho_full_tv[passive_tdof_list[i]] = passive_value;
+   }
+}
+
+// Map from full grid function to reduced active design vector
+void MapFullToActive(const Vector &rho_full_tv,
+                     const Array<int> &active_tdof_list,
+                     Vector &rho_active)
+{
+   for (int i = 0; i < active_tdof_list.Size(); i++)
+   {
+      rho_active[i] = rho_full_tv[active_tdof_list[i]];
+   }
 }
 
 Array<int> MakeBoundaryMarker(const ParMesh &pmesh, const Array<int> &attrs)
@@ -140,6 +306,7 @@ int main(int argc, char *argv[])
 
    TransientTopOptConfig cfg;
    bool paraview = false;
+   int pv_freq = 0;   // ParaView design-output interval; 0 = auto (~100 frames)
    // Mass discretization for the forward/adjoint sweeps. Both give a
    // gradient-consistent dJ/drho (the design sensitivity differentiates whichever
    // mass matrix is used - see StageMassDesignLFIntegrator - and both are verified
@@ -150,6 +317,11 @@ int main(int argc, char *argv[])
    const char *design_init = "uniform";
    const char *problem_name = "wave";
    bool damping = true;   // -damp / -no-damp: apply the problem's damping
+
+   // === Checkpoint and output directory options ===
+   const char *output_parent = nullptr;  // Parent directory for all outputs
+   bool restart = false;                 // Restart from checkpoint?
+   bool auto_checkpoint = true;          // Auto-save checkpoint each iteration
 
    OptionsParser args(argc, argv);
    args.AddOption(&problem_name, "-problem", "--problem",
@@ -174,6 +346,17 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-mesh", "--mesh-file", "Mesh file");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Write ParaView output");
+   args.AddOption(&output_parent, "-out", "--output-parent",
+                  "Parent directory for all outputs (ParaView, checkpoint, history). "
+                  "If not specified, auto-generates: YYYYMMDD_HHMMSS_jobSLURM_ID");
+   args.AddOption(&restart, "-restart", "--restart", "-no-restart", "--no-restart",
+                  "Restart optimization from checkpoint in output-parent directory");
+   args.AddOption(&auto_checkpoint, "-ckpt", "--checkpoint", "-no-ckpt", "--no-checkpoint",
+                  "Enable automatic checkpointing at each iteration");
+   args.AddOption(&pv_freq, "-pvf", "--paraview-freq",
+                  "Save ParaView design output every N optimization iterations "
+                  "(0 = auto: ~100 evenly spaced frames). The first and last "
+                  "iterations are always saved.");
    args.AddOption(&use_iterative_mass, "-iterative-mass", "--iterative-mass",
                   "-lumped-mass", "--lumped-mass",
                   "Mass solver: consistent CG+AMG (default) or faster lumped. "
@@ -248,10 +431,99 @@ int main(int argc, char *argv[])
 
    if (myid == 0) { args.PrintOptions(cout); }
 
+   // =========================================================================
+   // SETUP OUTPUT DIRECTORY STRUCTURE (timestamp_jobID)
+   // =========================================================================
+   string output_parent_dir;
+   if (output_parent)
+   {
+      output_parent_dir = output_parent;
+   }
+   else
+   {
+      // Auto-generate timestamped directory
+      if (myid == 0)
+      {
+         output_parent_dir = GenerateOutputDirectory();
+      }
+      // Broadcast to all ranks
+      char dir_buf[256];
+      if (myid == 0)
+      {
+         strncpy(dir_buf, output_parent_dir.c_str(), 255);
+         dir_buf[255] = '\0';
+      }
+      MPI_Bcast(dir_buf, 256, MPI_CHAR, 0, comm);
+      if (myid != 0)
+      {
+         output_parent_dir = string(dir_buf);
+      }
+   }
+
+   // Create parent directory (rank 0 only)
+   if (myid == 0)
+   {
+      struct stat st;
+      if (stat(output_parent_dir.c_str(), &st) != 0)
+      {
+         if (mkdir(output_parent_dir.c_str(), 0755) != 0 && !restart)
+         {
+            cerr << "ERROR: Failed to create output directory: "
+                 << output_parent_dir << endl;
+            return 1;
+         }
+      }
+      else if (!restart)
+      {
+         cerr << "WARNING: Output directory already exists: "
+              << output_parent_dir << "\n"
+              << "         Use -restart to continue from checkpoint, or specify different -out\n";
+      }
+   }
+   MPI_Barrier(comm);
+
+   // Subdirectories
+   string paraview_dir = output_parent_dir + "/ParaView";
+   string checkpoint_dir = output_parent_dir + "/optimization_checkpoint";
+   string history_file = output_parent_dir + "/optimization_history.txt";
+
+   if (myid == 0)
+   {
+      cout << "\n=== Output Configuration ===\n";
+      cout << "Parent directory: " << output_parent_dir << "\n";
+      cout << "ParaView output:  " << paraview_dir << "\n";
+      cout << "Checkpoint:       " << checkpoint_dir << "\n";
+      cout << "History file:     " << history_file << "\n";
+      cout << "Restart mode:     " << (restart ? "YES" : "NO") << "\n";
+      cout << "============================\n\n";
+   }
+
    // The problem builds its own coarse mesh (file-based by default; generated
    // geometry for e.g. the cantilever).
    Mesh mesh = problem.CreateMesh();
    const int dim = mesh.Dimension();
+
+   // Apply periodic boundary conditions in y-direction for band-waveguide
+   if (problem_sel == "band-waveguide" && dim == 2)
+   {
+      real_t y_max = 0.0, x_max = 0.0;
+      problem.GetReferenceDomainExtents(x_max, y_max);
+
+      // Make mesh periodic in y-direction only
+      // Use large x-translation to make x effectively non-periodic
+      std::vector<Vector> translations = {
+         Vector({1000.0, 0.0}),  // x: effectively non-periodic
+         Vector({0.0, y_max})    // y: periodic with period = domain height
+      };
+      std::vector<int> v2v = mesh.CreatePeriodicVertexMapping(translations);
+      mesh = Mesh::MakePeriodic(mesh, v2v);
+
+      if (myid == 0)
+      {
+         cout << "Applied periodic boundary conditions in y-direction (y_period="
+              << y_max << ")\n";
+      }
+   }
 
    for (int l = 0; l < problem.GetRefinementLevel(); l++)
    {
@@ -289,18 +561,88 @@ int main(int argc, char *argv[])
    ParGridFunction rho(&control_fes);
    ParGridFunction rho_tilde(&filter_fes);
 
-   real_t ref_x_max = 0.0, ref_y_max = 0.0;
-   problem.GetReferenceDomainExtents(ref_x_max, ref_y_max);
+   // =========================================================================
+   // CHECKPOINT LOAD (if restarting)
+   // =========================================================================
+   OptimizationCheckpoint checkpoint(checkpoint_dir, comm);
+   OptimizationCheckpointMetadata ckpt_meta;
+   MMACheckpointState mma_ckpt;
+   bool restarting = false;
+   int start_iteration = 0;
 
-   if (!InitializeDesign(rho, design_init, problem.GetVolumeFraction(),
-                         ref_x_max, ref_y_max))
+   if (restart && checkpoint.Exists())
+   {
+      if (checkpoint.ValidateCompatibility(cfg.ref_levels, cfg.order, ckpt_meta))
+      {
+         if (myid == 0)
+         {
+            cout << "\n=== RESTARTING FROM CHECKPOINT ===\n";
+            cout << "Previous run stopped at iteration: " << ckpt_meta.iteration << "\n";
+            cout << "Objective value: " << scientific << ckpt_meta.objective << "\n";
+            cout << "Volume fraction: " << fixed << ckpt_meta.volume_fraction << "\n";
+            cout << "Convergence error: " << scientific << ckpt_meta.convergence_error << "\n";
+            cout << "Original ParaView dir: " << ckpt_meta.GetOutputDir() << "\n";
+         }
+
+         if (checkpoint.Load(ckpt_meta, rho, mma_ckpt))
+         {
+            restarting = true;
+            start_iteration = ckpt_meta.iteration + 1;
+
+            if (myid == 0)
+            {
+               cout << "Checkpoint loaded successfully.\n";
+               cout << "Resuming from iteration " << start_iteration << "\n";
+               cout << "==================================\n\n";
+            }
+         }
+         else
+         {
+            if (myid == 0)
+            {
+               cerr << "ERROR: Failed to load checkpoint. Exiting.\n";
+            }
+            return 1;
+         }
+      }
+      else
+      {
+         if (myid == 0)
+         {
+            cerr << "ERROR: Checkpoint exists but is incompatible. Exiting.\n";
+            cerr << "       Remove -restart flag to start fresh run.\n";
+         }
+         return 1;
+      }
+   }
+   else if (restart && !checkpoint.Exists())
    {
       if (myid == 0)
       {
-         cerr << "Error: unknown -init value '" << design_init
-              << "'. Use uniform, solid, void, or gaussian.\n";
+         cerr << "ERROR: -restart specified but no checkpoint found in: "
+              << checkpoint_dir << "\n";
       }
       return 1;
+   }
+
+   // =========================================================================
+   // INITIALIZE DESIGN (skip if restarting - already loaded from checkpoint)
+   // =========================================================================
+   real_t ref_x_max = 0.0, ref_y_max = 0.0;
+   problem.GetReferenceDomainExtents(ref_x_max, ref_y_max);
+
+   if (!restarting)
+   {
+      if (!InitializeDesign(rho, design_init, problem.GetVolumeFraction(),
+                            ref_x_max, ref_y_max))
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: unknown -init value '" << design_init
+                 << "'. Use uniform, solid, void, or gaussian.\n";
+         }
+         return 1;
+      }
    }
    rho_tilde = 0.0;
 
@@ -310,9 +652,56 @@ int main(int argc, char *argv[])
    filter.Assemble();
    filter.Mult(rho, rho_tilde);
 
+   // --- Active/Passive Region Setup -----------------------------------------
+   // Check if problem defines passive (non-designable) regions
+   unique_ptr<Coefficient> passive_region_coef = problem.CreatePassiveRegionCoefficient();
+   ConstantCoefficient one_coef(1.0);
+   unique_ptr<Coefficient> active_region_coef;
+   Array<int> active_tdof_list, passive_tdof_list;
+   ParGridFunction passive_marker(&control_fes);
+   // Passive regions fixed at the initial uniform value (volume fraction)
+   const real_t passive_rho_value = problem.GetVolumeFraction();
+
+   if (passive_region_coef)
+   {
+      // Active region = 1 - passive region
+      active_region_coef = std::make_unique<SumCoefficient>(
+         one_coef, *passive_region_coef, 1.0, -1.0);
+
+      // Identify which DOFs are active vs passive
+      IdentifyActivePassiveDOFs(control_fes, *passive_region_coef,
+                                active_tdof_list, passive_tdof_list,
+                                passive_marker);
+
+      // Passive DOFs are already initialized to vol_frac by InitializeDesign.
+      // We just need to ensure they stay at that value throughout optimization.
+      // No need to re-set them here.
+
+      // Get global DOF counts across all ranks
+      HYPRE_BigInt global_control_dofs = control_fes.GlobalTrueVSize();
+      HYPRE_BigInt local_active = active_tdof_list.Size();
+      HYPRE_BigInt local_passive = passive_tdof_list.Size();
+      HYPRE_BigInt global_active = 0, global_passive = 0;
+      MPI_Allreduce(&local_active, &global_active, 1,
+                    HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+      MPI_Allreduce(&local_passive, &global_passive, 1,
+                    HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+
+      if (myid == 0)
+      {
+         cout << "Passive regions defined:\n";
+         cout << "  Total control DOFs: " << global_control_dofs << "\n";
+         cout << "  Active DOFs:  " << global_active << "\n";
+         cout << "  Passive DOFs: " << global_passive << " (fixed at rho="
+              << passive_rho_value << ")\n";
+      }
+   }
+
+   // Assemble volume weights over active region only
    real_t domain_volume = 0.0;
    unique_ptr<HypreParVector> volume_weights =
-      AssembleVolumeWeights(control_fes, domain_volume);
+      AssembleVolumeWeights(control_fes, domain_volume,
+                           active_region_coef.get());
    const real_t target_volume = problem.GetVolumeFraction() * domain_volume;
 
    // Material and problem constants (match test_adjoint_verification).
@@ -361,43 +750,94 @@ int main(int argc, char *argv[])
    }
 
    // --- MMA setup -----------------------------------------------------------
-   const int n = control_fes.GetTrueVSize();
+   // MMA works with active (designable) DOFs only
+   const int n_full = control_fes.GetTrueVSize();
+   const int n_active = passive_region_coef ? active_tdof_list.Size() : n_full;
    const int num_con = 1;  // single volume constraint
 
-   Vector rho_tv(n), rho_old(n);
-   rho.GetTrueDofs(rho_tv);
+   Vector rho_tv_full(n_full);
+   rho.GetTrueDofs(rho_tv_full);
 
-   Vector dJ_drho(n);
+   Vector rho_active(n_active);
+   Vector rho_active_old(n_active);
+   if (passive_region_coef)
+   {
+      MapFullToActive(rho_tv_full, active_tdof_list, rho_active);
+   }
+   else
+   {
+      rho_active = rho_tv_full;
+   }
+
+   // If restarting, load MMA state from checkpoint
+   if (restarting)
+   {
+      rho_active = mma_ckpt.xval;
+      if (myid == 0)
+      {
+         cout << "MMA design state restored from checkpoint.\n";
+      }
+   }
+
+   Vector dJ_drho_full(n_full);
+   Vector dJ_drho_active(n_active);
    Vector fival(num_con);
 
    // Volume-constraint gradient d/drho [ (1/V*) int rho - 1 ] = w / V*
-   // (FE volume weights, not a constant vector).
-   Vector dvol(*volume_weights);
-   dvol /= target_volume;
+   // Extract only active DOF contributions
+   Vector dvol_full(*volume_weights);
+   dvol_full /= target_volume;
+   Vector dvol_active(n_active);
+   if (passive_region_coef)
+   {
+      MapFullToActive(dvol_full, active_tdof_list, dvol_active);
+   }
+   else
+   {
+      dvol_active = dvol_full;
+   }
    Vector dfidx[num_con];
-   dfidx[0] = dvol;
+   dfidx[0] = dvol_active;
 
-   mfem_mma::MMAOptimizerParallel mma(comm, n, num_con, rho_tv);
+   mfem_mma::MMAOptimizerParallel mma(comm, n_active, num_con, rho_active);
    mma.SetAsymptotes(0.5, 0.7, 1.2);
 
-   Vector rho_min(n), rho_max(n);
+   Vector rho_active_min(n_active), rho_active_max(n_active);
 
    ParaViewDataCollection paraview_dc("TopOptTransient", &pmesh);
    if (paraview)
    {
-      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetPrefixPath(paraview_dir);  // Use subdirectory in parent
       paraview_dc.SetLevelsOfDetail(problem.GetOrder());
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.RegisterField("rho", &rho);
       paraview_dc.RegisterField("rho_tilde", &rho_tilde);
+      if (passive_region_coef)
+      {
+         paraview_dc.RegisterField("passive_region", &passive_marker);
+      }
    }
 
    ofstream history;
    if (myid == 0)
    {
-      history.open("optimization_history.txt");
-      history << "# iter    J                 vol_frac      g\n";
+      if (restarting)
+      {
+         // APPEND to existing history
+         history.open(history_file, ios::app);
+         history << "\n# === RESTART at iteration " << start_iteration << " ===\n";
+      }
+      else
+      {
+         // NEW history file
+         history.open(history_file);
+         history << "# Transient Topology Optimization History\n";
+         history << "# Output directory: " << output_parent_dir << "\n";
+         history << "# Problem: " << problem_name << "\n";
+         history << "#\n";
+         history << "# iter    J                 vol_frac      g\n";
+      }
    }
 
    // --- Optimization loop ---------------------------------------------------
@@ -411,38 +851,85 @@ int main(int argc, char *argv[])
       *load_coef, impedance, num_steps, dt_eff, mass_solver, rho, rho_tilde);
 
    GridFunctionCoefficient rho_cf(&rho);
-   int k = 0;
-   real_t iterationError = 1.0;
+   int k = start_iteration;  // Start from checkpoint iteration (or 0 if fresh)
+   real_t iterationError = restarting ? ckpt_meta.convergence_error : 1.0;
+
+   // ParaView design snapshots: cap the number of files written to the shared
+   // filesystem. Saving every iteration exhausts the inode quota (each Save is
+   // ~1 directory + one .vtu per MPI rank). Default to ~100 evenly spaced
+   // frames; -pvf overrides the interval. First/last iterations always saved.
+   const int pv_save_interval =
+      (pv_freq > 0) ? pv_freq : max(1, problem.GetMaxIterations() / 100);
+
    for (; k < problem.GetMaxIterations() &&
           iterationError > problem.GetChangeTolerance(); k++)
    {
-      design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
-      const real_t J = design_solver.PhysicsFSolve(k); // forward physics: -> J
-      design_solver.PhysicsASolve();                   // adjoint physics: -> dJ/drho_tilde
-      design_solver.FilterASolve(dJ_drho);             // adjoint filter:  -> dJ/drho
+      // Map active design to full for forward solve
+      if (passive_region_coef)
+      {
+         MapActiveToFull(rho_active, active_tdof_list, passive_tdof_list,
+                        passive_rho_value, rho_tv_full);
+         rho.SetFromTrueDofs(rho_tv_full);
+      }
+      else
+      {
+         rho.SetFromTrueDofs(rho_active);
+      }
 
-      // Volume constraint and current fraction.
-      const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv);
+      design_solver.FilterFSolve(rho_tv_full);              // forward filter:  rho -> rho_tilde
+      const real_t J = design_solver.PhysicsFSolve(k);      // forward physics: -> J
+      design_solver.PhysicsASolve();                        // adjoint physics: -> dJ/drho_tilde
+      design_solver.FilterASolve(dJ_drho_full);             // adjoint filter:  -> dJ/drho
+
+      // Extract gradients for active DOFs only
+      if (passive_region_coef)
+      {
+         MapFullToActive(dJ_drho_full, active_tdof_list, dJ_drho_active);
+      }
+      else
+      {
+         dJ_drho_active = dJ_drho_full;
+      }
+
+      // Volume constraint and current fraction (over active region only)
+      const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv_full);
       const real_t cur_vol_frac = cur_volume / domain_volume;
       fival(0) = cur_volume / target_volume - 1.0;
 
-      // Box constraints with move limits.
-      rho_old = rho_tv;
-      for (int i = 0; i < n; i++)
+      // Box constraints with move limits (active DOFs only)
+      rho_active_old = rho_active;
+      for (int i = 0; i < n_active; i++)
       {
-         rho_min[i] = max(real_t(0.0), rho_tv[i] - problem.GetMoveLimit());
-         rho_max[i] = min(real_t(1.0), rho_tv[i] + problem.GetMoveLimit());
+         rho_active_min[i] = max(real_t(0.0), rho_active[i] - problem.GetMoveLimit());
+         rho_active_max[i] = min(real_t(1.0), rho_active[i] + problem.GetMoveLimit());
       }
 
-      // MMA outer iteration (minimizes J subject to fival <= 0).
-      mma.Update(rho_tv, dJ_drho, J, fival, dfidx, rho_min, rho_max);
-      rho.SetFromTrueDofs(rho_tv);
+      // MMA outer iteration (minimizes J subject to fival <= 0) - active DOFs only
+      mma.Update(rho_active, dJ_drho_active, J, fival, dfidx,
+                rho_active_min, rho_active_max);
+
+      // Update full grid function for visualization
+      if (passive_region_coef)
+      {
+         MapActiveToFull(rho_active, active_tdof_list, passive_tdof_list,
+                        passive_rho_value, rho_tv_full);
+         rho.SetFromTrueDofs(rho_tv_full);
+      }
+      else
+      {
+         rho.SetFromTrueDofs(rho_active);
+      }
 
       // Design change (L1 norm, matches ElastTopOpt_static) for the
       // early-stop test and progress monitoring: iterationError = int |dRho|.
-      ParGridFunction rho_old_gf(&control_fes);
-      rho_old_gf.SetFromTrueDofs(rho_old);
-      iterationError = rho_old_gf.ComputeL1Error(rho_cf);
+      Vector rho_active_change(n_active);
+      for (int i = 0; i < n_active; i++)
+      {
+         rho_active_change[i] = fabs(rho_active[i] - rho_active_old[i]);
+      }
+      iterationError = rho_active_change.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &iterationError, 1,
+                   MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
 
       if (myid == 0)
       {
@@ -455,28 +942,149 @@ int main(int argc, char *argv[])
                  << scientific << setprecision(8) << J << "  "
                  << fixed << setprecision(6) << cur_vol_frac << "  "
                  << scientific << setprecision(6) << fival(0) << "\n";
+         history.flush();  // Ensure history is written to disk
       }
 
+      // ======================================================================
+      // SAVE CHECKPOINT (at end of each successful iteration)
+      // ======================================================================
+      if (auto_checkpoint)
+      {
+         // Update full rho for saving
+         if (passive_region_coef)
+         {
+            MapActiveToFull(rho_active, active_tdof_list, passive_tdof_list,
+                           passive_rho_value, rho_tv_full);
+            rho.SetFromTrueDofs(rho_tv_full);
+         }
+         else
+         {
+            rho.SetFromTrueDofs(rho_active);
+         }
+
+         // Fill checkpoint metadata
+         ckpt_meta.iteration = k;
+         ckpt_meta.objective = J;
+         ckpt_meta.volume_fraction = cur_vol_frac;
+         ckpt_meta.convergence_error = iterationError;
+         ckpt_meta.n_active_dofs = n_active;
+         ckpt_meta.n_mpi_ranks = Mpi::WorldSize();
+         ckpt_meta.refinement_level = cfg.ref_levels;
+         ckpt_meta.fe_order = cfg.order;
+         ckpt_meta.SetOutputDir(paraview_dir.c_str());
+
+         // Fill MMA state from MMA optimizer internal state
+         mma_ckpt.SetSize(n_active);
+         mma_ckpt.xval = rho_active;
+         mma_ckpt.xold1 = mma.GetXOld1();
+         mma_ckpt.xold2 = mma.GetXOld2();
+         mma_ckpt.low = mma.GetLowerAsymptotes();
+         mma_ckpt.upp = mma.GetUpperAsymptotes();
+
+         // Save checkpoint (overwrites previous)
+         if (!checkpoint.Save(ckpt_meta, rho, mma_ckpt))
+         {
+            if (myid == 0)
+            {
+               cerr << "WARNING: Failed to save checkpoint at iteration " << k << "\n";
+            }
+         }
+      }
+
+      const bool is_last_iter =
+         (k + 1 >= problem.GetMaxIterations()) ||
+         (iterationError <= problem.GetChangeTolerance());
       if (paraview)
       {
-         paraview_dc.SetCycle(k + 1);
-         paraview_dc.SetTime(k + 1);
-         paraview_dc.Save();
+         // Design snapshot: first, last, and every pv_save_interval-th iteration.
+         if (k == 0 || is_last_iter || (k + 1) % pv_save_interval == 0)
+         {
+            paraview_dc.SetCycle(k + 1);
+            paraview_dc.SetTime(k + 1);
+            paraview_dc.Save();
+         }
+
+         // Forward wave visualization (first and last iteration only).
+         // NOTE: This runs a separate forward-only sweep that stores ALL states.
+         // Memory usage temporarily increases, but only for 2 iterations total.
+         if (k == 0 || is_last_iter)
+         {
+            if (myid == 0)
+            {
+               cout << "    Generating forward wave visualization...\n";
+            }
+
+            // Run forward-only sweep for visualization
+            std::vector<Vector> viz_states;
+            std::vector<real_t> viz_times;
+            design_solver.ForwardVisualizationSweep(rho_tv_full, viz_states, viz_times);
+
+            // Save wave propagation to ParaView
+            string wave_dir = output_parent_dir + "/wave_iter" + to_string(k);
+            if (myid == 0)
+            {
+               system(("mkdir -p " + wave_dir).c_str());
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+
+            ParaViewDataCollection wave_dc(wave_dir.c_str(), &pmesh);
+            wave_dc.SetLevelsOfDetail(problem.GetOrder());
+            wave_dc.SetDataFormat(VTKFormat::BINARY);
+            wave_dc.SetHighOrderOutput(true);
+            wave_dc.SetPrefixPath("ParaView");
+
+            // Create grid functions for displacement and velocity
+            ParGridFunction u_gf(&state_fes);
+            ParGridFunction v_gf(&state_fes);
+            wave_dc.RegisterField("displacement", &u_gf);
+            wave_dc.RegisterField("velocity", &v_gf);
+
+            // Save all timesteps
+            const int nsteps = design_solver.GetNumSteps();
+            for (int step = 0; step <= nsteps; step++)
+            {
+               const Vector &state = viz_states[step];
+               const int half_size = state.Size() / 2;
+
+               // Extract u and v
+               Vector u_vec(state.GetData(), half_size);
+               Vector v_vec(state.GetData() + half_size, half_size);
+
+               u_gf.SetFromTrueDofs(u_vec);
+               v_gf.SetFromTrueDofs(v_vec);
+
+               wave_dc.SetCycle(step);
+               wave_dc.SetTime(viz_times[step]);
+               wave_dc.Save();
+            }
+
+            if (myid == 0)
+            {
+               cout << "    Wave visualization saved to: " << wave_dir << "/\n";
+            }
+         }
       }
    }
 
    if (myid == 0)
    {
       history.close();
-      cout << "\nOptimization stopped after " << k << " iterations"
-            << " (final L1 design change = " << scientific << setprecision(3)
-            << iterationError << ", tol = "
-            << problem.GetChangeTolerance() << ").\n";
+      cout << "\n=== Optimization Complete ===\n";
+      cout << "Output directory: " << output_parent_dir << "\n";
+      cout << "Total iterations: " << k << "\n";
+      cout << "Final convergence error: " << scientific << setprecision(3)
+           << iterationError << " (tol = " << problem.GetChangeTolerance() << ")\n";
       if (paraview)
       {
-         cout << "ParaView output: ParaView/TopOptTransient.pvd\n";
+         cout << "ParaView output: " << paraview_dir << "/TopOptTransient.pvd\n";
       }
-      cout << "History: optimization_history.txt\n";
+      cout << "History file: " << history_file << "\n";
+      if (auto_checkpoint)
+      {
+         cout << "Checkpoint: " << checkpoint_dir << "\n";
+         cout << "  (Use '-out " << output_parent_dir << " -restart' to continue)\n";
+      }
+      cout << "=============================\n";
    }
 
    return 0;

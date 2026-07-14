@@ -26,6 +26,7 @@
 #include "ObjectiveFunctional.hpp"     // TimeIntegratedObjective (J, dJ/du)
 #include "ProblemSpecification.hpp"    // MaterialParams, BoundaryLoadSpec, damping
 #include "../../pde_filter.hpp"
+#include "TrajectoryCheckpointing.hpp" // REVOLVE checkpointing
 #include <memory>
 #include <vector>
 #include <iomanip>
@@ -1490,11 +1491,109 @@ private:
    // Per-iteration forward state produced by PhysicsFSolve, consumed by the
    // adjoint steps. (Declared after the coefficients it references.)
    std::unique_ptr<ElastodynamicsOperator> oper_;
-   std::vector<Vector> states_;
-   std::vector<real_t> times_;
+
+   // Trajectory checkpointing (replaces full storage of states_/times_)
+   std::unique_ptr<TrajectoryCheckpointing<>> checkpoint_;
+   int num_checkpoints_;
+
    Vector dJ_drho_tilde_;
    int outer_it_ = -1;
    bool banner_printed_ = false;   // operator banner prints once, not every iter
+
+   // Checkpointed forward sweep (returns J, checkpoints trajectory)
+   real_t RolloutObjectiveCheckpointed()
+   {
+      const int n = x0_.Size();
+      Vector x(x0_);
+      real_t t = 0.0;
+      const int total_steps = nsteps_ + 1;
+
+      objective_.Reset();
+
+      RK4Solver solver;
+      solver.Init(*oper_);
+
+      // Primal step lambda for REVOLVE
+      auto primal_step = [&](int i, Vector &state)
+      {
+         real_t dt = h_;
+         real_t ti = i * h_;
+         solver.Step(state, ti, dt);
+      };
+
+      // Add initial objective contribution
+      AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
+                               objective_, x, h_, 0, total_steps);
+
+      // Forward loop with checkpointing
+      for (int i = 0; i < nsteps_; i++)
+      {
+         checkpoint_->ForwardStep(i, x, t, primal_step);
+         t = (i + 1) * h_;
+
+         AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
+                                  objective_, x, h_, i + 1, total_steps);
+      }
+
+      return objective_.GetObjective();
+   }
+
+   // Checkpointed adjoint sweep (accumulates dJ/drho_tilde)
+   void AdjointDesignSweepCheckpointed()
+   {
+      const int n = x0_.Size();
+      const int total_steps = nsteps_ + 1;
+
+      dJ_drho_tilde_.SetSize(filter_fes_.GetTrueVSize());
+      dJ_drho_tilde_ = 0.0;
+
+      Vector q(n), lambda(n), lambda_prev(n), u_work(n);
+
+      // Initialize adjoint at final time
+      // (need to recompute final state first)
+      u_work = x0_;
+      RK4Solver solver;
+      solver.Init(*oper_);
+      for (int i = 0; i < nsteps_; i++)
+      {
+         real_t dt = h_;
+         real_t ti = i * h_;
+         solver.Step(u_work, ti, dt);
+      }
+
+      ObjectiveGradientAtState(state_fes_, oper_->GetBlockOffsets(),
+                               objective_, u_work, h_, nsteps_, total_steps, lambda);
+
+      // Primal step lambda for REVOLVE (re-evaluation during adjoint)
+      auto primal_step = [&](int i, Vector &state)
+      {
+         real_t dt = h_;
+         real_t ti = i * h_;
+         RK4Solver reeval_solver;
+         reeval_solver.Init(*oper_);
+         reeval_solver.Step(state, ti, dt);
+      };
+
+      // Adjoint step lambda for REVOLVE
+      auto adjoint_step = [&](int i, const Vector &state_i, Vector &lambda_current)
+      {
+         real_t ti = i * h_;
+         RK4AdjointOneStepWithDesign(*oper_, state_fes_, filter_fes_, rho_tilde_,
+                                     mat_, state_i, ti, h_,
+                                     lambda_current, lambda_prev, dJ_drho_tilde_);
+
+         ObjectiveGradientAtState(state_fes_, oper_->GetBlockOffsets(),
+                                  objective_, state_i, h_, i, total_steps, q);
+         lambda_current = lambda_prev;
+         lambda_current += q;
+      };
+
+      // Backward loop with checkpointing
+      for (int i = nsteps_ - 1; i >= 0; i--)
+      {
+         checkpoint_->BackwardStep(i, lambda, u_work, primal_step, adjoint_step);
+      }
+   }
 
 public:
    TransientDesignSolver(ParFiniteElementSpace &state_fes,
@@ -1512,7 +1611,8 @@ public:
                          int nsteps, real_t h,
                          MassSolverType mass_type,
                          ParGridFunction &rho,
-                         ParGridFunction &rho_tilde)
+                         ParGridFunction &rho_tilde,
+                         int num_checkpoints = -1)  // -1 = auto-size
       : state_fes_(state_fes), filter_fes_(filter_fes), control_fes_(control_fes),
         filter_(filter), gamma_coef_(gamma_coef),
         exterior_bdr_attr_(exterior_bdr_attr), ess_bdr_attr_(ess_bdr_attr),
@@ -1526,7 +1626,10 @@ public:
         simp_stiff_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
         mass_coef_(simp_mass_, rho0_coef_),
         lambda_coef_(simp_stiff_, lambda0_coef_),
-        mu_coef_(simp_stiff_, mu0_coef_)
+        mu_coef_(simp_stiff_, mu0_coef_),
+        num_checkpoints_(num_checkpoints < 0 ?
+                         AutoCheckpointCount(nsteps, 0.0, 2 * state_fes.GetTrueVSize()) :
+                         num_checkpoints)
    {
       x0_ = 0.0;
    }
@@ -1555,23 +1658,34 @@ public:
                  /*print_banner=*/!banner_printed_);
       banner_printed_ = true;
 
+      // Initialize checkpointing system
+      const int state_size = x0_.Size();
+      checkpoint_ = std::make_unique<TrajectoryCheckpointing<>>(
+         nsteps_, num_checkpoints_, state_size);
+
       if (Mpi::Root())
       {
          std::cout << "    [it " << outer_it_ + 1 << "] forward sweep ("
-                   << nsteps_ << " steps)\n";
+                   << nsteps_ << " steps, " << num_checkpoints_ << " checkpoints)\n";
+         checkpoint_->PrintInfo();
       }
-      return RolloutObjective(*oper_, state_fes_, oper_->GetBlockOffsets(),
-                              objective_, x0_, nsteps_, 0.0, h_,
-                              &states_, &times_, "forward");
+
+      return RolloutObjectiveCheckpointed();
    }
 
-   // 3. Adjoint physics: backward discrete-adjoint sweep -> dJ/d(rho_tilde).
+   // 3. Adjoint physics: backward discrete-adjoint sweep with checkpointing -> dJ/d(rho_tilde).
    void PhysicsASolve()
    {
       MFEM_VERIFY(oper_, "PhysicsASolve() requires a preceding PhysicsFSolve().");
-      AdjointDesignSweep(*oper_, state_fes_, filter_fes_, rho_tilde_, mat_,
-                         objective_, states_, times_, nsteps_, h_,
-                         dJ_drho_tilde_, outer_it_);
+      MFEM_VERIFY(checkpoint_, "PhysicsASolve() requires initialized checkpointing.");
+
+      if (Mpi::Root())
+      {
+         std::cout << "    [it " << outer_it_ + 1 << "] adjoint sweep ("
+                   << nsteps_ << " steps, with checkpointed recomputation)\n";
+      }
+
+      AdjointDesignSweepCheckpointed();
    }
 
    // 4. Adjoint filter: transpose the filter, dJ/d(rho_tilde) -> dJ/d(rho).
@@ -1602,6 +1716,61 @@ public:
                 gamma_coef_, exterior_bdr_attr_, ess_bdr_attr_, objective_, mat_,
                 load_spec_, load_coef_, impedance_, nsteps_, h_, mass_type_);
    }
+
+   // NOTE: GetFinalState(), GetState(t), GetNumStates() removed with checkpointing.
+   // With REVOLVE, states are not stored - they're checkpointed and recomputed as needed.
+   // If visualization of intermediate states is needed, run a forward-only sweep separately.
+
+   // Forward-only sweep that stores ALL states (for visualization only).
+   // WARNING: This defeats the memory savings from checkpointing!
+   // Only use for first/last iteration visualization.
+   void ForwardVisualizationSweep(const Vector &rho_tv,
+                                   std::vector<Vector> &states_out,
+                                   std::vector<real_t> &times_out)
+   {
+      states_out.clear();
+      times_out.clear();
+      states_out.reserve(nsteps_ + 1);
+      times_out.reserve(nsteps_ + 1);
+
+      const int state_size = x0_.Size();
+      Vector x(x0_);  // Initial condition
+
+      // Store initial state
+      states_out.push_back(x);
+      times_out.push_back(0.0);
+
+      // Filter design (rho_tv already set by caller, rho_tilde_ and SIMP
+      // coefficients are already configured by preceding FilterFSolve)
+      // No need to filter again - SIMP coefficients already reference current rho_tilde_
+
+      // Create physics operator (same as PhysicsFSolve, but don't store in oper_)
+      ElastodynamicsOperator viz_oper(
+         state_fes_, mass_coef_, lambda_coef_, mu_coef_,
+         load_spec_.amplitude, load_spec_.duration, load_spec_.time_profile,
+         load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
+         load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
+         exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
+         /*print_banner=*/false);
+
+      // RK4 time integration
+      RK4Solver solver;
+      solver.Init(viz_oper);
+      real_t t = 0.0;
+
+      for (int i = 0; i < nsteps_; i++)
+      {
+         solver.Step(x, t, h_);
+         states_out.push_back(x);
+         times_out.push_back(t);
+      }
+   }
+
+   // Get timestep size
+   real_t GetTimeStep() const { return h_; }
+
+   // Get number of timesteps
+   int GetNumSteps() const { return nsteps_; }
 };
 
 } // namespace mfem

@@ -11,11 +11,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 # Shared source compiled into local objects
-MTOP_OBJ = mtop_solvers.o pde_filter.o
+MTOP_OBJ = mtop_solvers.o pde_filter.o ascii.o
 MMA_OBJ = MMA_MFEM.o
 MMA_LIBS ?= -llapack -lblas
 TRANSIENT_HEADERS = ElastodynamicsSolver.hpp ObjectiveFunctional.hpp \
-                    ProblemSpecification.hpp
+                    ProblemSpecification.hpp OptimizationCheckpoint.hpp
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static test_adjoint_verification
@@ -65,6 +65,9 @@ mtop_solvers.o: $(SRC)../../mtop_solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 pde_filter.o: $(SRC)../../pde_filter.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+ascii.o: $(SRC)../ascii.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 # Generate an error message if the MFEM library is not built and exit

@@ -604,6 +604,17 @@ public:
      */
     const std::vector<double>& GetLambda() const { return lam_; }
 
+    // ── Checkpoint state accessors (for optimization restart) ────────────
+    /**
+     * @brief Return design history (read-only, for checkpointing).
+     * @{
+     */
+    const mfem::Vector& GetXOld1() const { return xo1_; }  ///< x^(k-1)
+    const mfem::Vector& GetXOld2() const { return xo2_; }  ///< x^(k-2)
+    const mfem::Vector& GetLowerAsymptotes() const { return L_; }  ///< L^k
+    const mfem::Vector& GetUpperAsymptotes() const { return U_; }  ///< U^k
+    /** @} */
+
     // ── Unconstrained convenience overloads (m=0) ────────────────────────
     
     // ── Equality-constraint factory ───────────────────────────────────────
@@ -1019,6 +1030,17 @@ public:
      * @return  Const reference to λ (length m).
      */
     const std::vector<double>& GetLambda() const { return lam_; }
+
+    // ── Checkpoint state accessors (for optimization restart) ────────────
+    /**
+     * @brief Return local design history (read-only, for checkpointing).
+     * @{
+     */
+    const mfem::Vector& GetXOld1() const { return xo1_; }  ///< local x^(k-1)
+    const mfem::Vector& GetXOld2() const { return xo2_; }  ///< local x^(k-2)
+    const mfem::Vector& GetLowerAsymptotes() const { return L_; }  ///< local L^k
+    const mfem::Vector& GetUpperAsymptotes() const { return U_; }  ///< local U^k
+    /** @} */
 
     // ── Unconstrained convenience overloads (m=0) ────────────────────────
     

@@ -503,6 +503,14 @@ public:
    virtual std::unique_ptr<TimeIntegratedObjective>
    CreateObjective(ParFiniteElementSpace *state_fes, MPI_Comm comm) const = 0;
 
+   /// Create a coefficient identifying passive (non-designable) regions.
+   /// Returns 1.0 in passive regions (fixed material), 0.0 in active design regions.
+   /// Default: nullptr (entire domain is designable).
+   virtual std::unique_ptr<Coefficient> CreatePassiveRegionCoefficient() const
+   {
+      return nullptr;
+   }
+
    virtual bool Validate(std::ostream &err) const
    {
       const TransientTopOptConfig &cfg = GetConfig();
@@ -622,9 +630,10 @@ private:
    static constexpr real_t source_width_ = 0.06;
    static constexpr real_t source_x_ = 0.5 * length_;
 
+   // Measurement regions: ~2 wavelengths wide (wavelength ≈ 0.4, so 2λ ≈ 0.8)
    static constexpr real_t left_receiver_x_min_ = 0.90;
-   static constexpr real_t left_receiver_x_max_ = 2.10;
-   static constexpr real_t right_receiver_x_min_ = 5.90;
+   static constexpr real_t left_receiver_x_max_ = 1.70;   // 0.8 units wide
+   static constexpr real_t right_receiver_x_min_ = 6.30;  // 0.8 units wide
    static constexpr real_t right_receiver_x_max_ = 7.10;
 
    TransientTopOptConfig cfg;
@@ -726,6 +735,30 @@ public:
 
       return std::make_unique<DisplacementL2Objective>(
          state_fes, std::move(indicator), comm);
+   }
+
+   std::unique_ptr<Coefficient> CreatePassiveRegionCoefficient() const override
+   {
+      // Active (designable) region: between the two receivers [2.10, 5.90]
+      // Passive (non-designable): everything else (damping zones + receivers)
+      // Returns 1.0 in passive regions, 0.0 in active design region
+
+      // Define passive as the union of:
+      // 1. Left side: everything up to left_receiver_x_max (x < 2.10)
+      // 2. Right side: everything from right_receiver_x_min onwards (x > 5.90)
+
+      // Left passive region: [0, 2.10]
+      auto left_passive = std::make_unique<RectangularIndicator>(
+         0.0, left_receiver_x_max_, 0.0, height_);
+
+      // Right passive region: [5.90, 8.0]
+      auto right_passive = std::make_unique<RectangularIndicator>(
+         right_receiver_x_min_, length_, 0.0, height_);
+
+      // Combine: passive = left OR right
+      return std::make_unique<DoubleRectangularIndicator>(
+         0.0, left_receiver_x_max_, 0.0, height_,
+         right_receiver_x_min_, length_, 0.0, height_);
    }
 };
 

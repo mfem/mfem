@@ -493,3 +493,20 @@ TAGS
 
 # vs code
 .vscode
+
+# Topology optimization specific
+miniapps/mtop/topopt/topopt_transient/TopOptTransient
+miniapps/mtop/topopt/topopt_transient/test_adjoint_verification
+miniapps/mtop/topopt/topopt_transient/*.out
+miniapps/mtop/topopt/topopt_transient/*.err
+miniapps/mtop/topopt/topopt_transient/logs/
+miniapps/mtop/topopt/topopt_transient/archive/
+miniapps/mtop/topopt/topopt_transient/smoke_tests/
+miniapps/mtop/topopt/topopt_transient/optimization_checkpoint/
+miniapps/mtop/topopt/topopt_transient/ParaView/
+*.core
+*.tar.gz
+
+# Sandbox/development config files
+sandbox-config.yaml
+sandbox-config.yaml
