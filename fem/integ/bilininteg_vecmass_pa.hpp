@@ -225,14 +225,15 @@ static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
             {
                u += B(qx, dx) * B(qx, dx) * sm[qx][dy];
             }
-            Y(dx, dy, 0, e) = u;
-            Y(dx, dy, 1, e) = u;
+            Y(dx, dy, 0, e) += u;
+            Y(dx, dy, 1, e) += u;
          }
       }
    });
 }
 
-template <int T_Q1D = 0, int T_MDQ = 12>
+// T_MDQ <= 10 so the Q1D^3 thread block stays within the 1024/block GPU limit
+template <int T_Q1D = 0, int T_MDQ = 10>
 static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
                                                const int d1d,
                                                const int q1d,
@@ -303,9 +304,9 @@ static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
                {
                   u += B(qx, dx) * B(qx, dx) * sm[1][dz][dy][qx];
                }
-               Y(dx, dy, dz, 0, e) = u;
-               Y(dx, dy, dz, 1, e) = u;
-               Y(dx, dy, dz, 2, e) = u;
+               Y(dx, dy, dz, 0, e) += u;
+               Y(dx, dy, dz, 1, e) += u;
+               Y(dx, dy, dz, 2, e) += u;
             }
          }
       }
