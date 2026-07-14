@@ -15,6 +15,12 @@
 #include "backends.hpp"
 #include "forall.hpp"
 
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+#error "This header requires compilation with CUDA/HIP language!"
+#endif
+
+#ifdef MFEM_USE_CUDA_OR_HIP_LANG
+
 #ifdef MFEM_USE_CUDA
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_select.cuh>
@@ -405,5 +411,7 @@ void CopyUnique(bool use_dev, InputIt d_in, OutputIt d_out,
 } // namespace mfem
 
 #undef MFEM_CUB_NAMESPACE
+
+#endif // #ifdef MFEM_USE_CUDA_OR_HIP_LANG
 
 #endif

@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP)
 #include <hip/hip_runtime.h>
 #endif
 
@@ -153,20 +153,12 @@ void mfem_warning(const char *msg = NULL);
 
 
 // Additional abort functions for HIP
-#if defined(MFEM_USE_HIP)
-#ifndef __HIP_DEVICE_COMPILE__
-template<typename T>
-__host__ void abort_msg(T & msg)
-{
-   MFEM_ABORT(msg);
-}
-#else
+#if defined(__HIP_DEVICE_COMPILE__)
 template<typename T>
 __device__ void abort_msg(T & msg)
 {
    abort();
 }
-#endif
 #endif
 
 // Abort inside a device kernel
