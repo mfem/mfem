@@ -6613,9 +6613,6 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
                               ned, nel, grid, dir, side, sweep1D);
    }
 
-   // Interpolate weights from boundary to the interior.
-   // TODO: should we modify interior weights?
-
    if (sweep1D)
    {
       SolvePhysicalGridInteriorSweep(mesh, ned, nel, grid);
@@ -6730,6 +6727,17 @@ void GetUniformPatchGrid(Mesh &mesh,
 
    Vector v2(dim);
 
+   // Parameter within element
+   auto ElementParameter = [](real_t u_g, int ne, int &ei)
+   {
+      const int ei_ = u_g * ne;
+      ei = std::min(ei_, ne - 1);
+      real_t u = std::max(u_g - (ei / (real_t) ne), 0.0);
+      u *= (real_t) ne;
+      u = std::min(u, 1.0);
+      return u;
+   };
+
    // Adjust arc lengths in the given direction `dir`.
    auto AdjustGridArcLengths = [&](int dir)
    {
@@ -6743,8 +6751,85 @@ void GetUniformPatchGrid(Mesh &mesh,
                odir[dcnt++] = i;
             }
          }
-         MFEM_VERIFY(dcnt == 2, ""); // TODO: remove this obvious check
+         MFEM_VERIFY(dcnt == 2, "Invalid direction");
       }
+
+      auto ElementIndex = [&nel, &dir](int i, int j, int k)
+      {
+         if (dir == 0)
+         {
+            return i + (j * nel[0]) + (k * nel[0] * nel[1]);
+         }
+         else if (dir == 1)
+         {
+            return j + (i * nel[0]) + (k * nel[0] * nel[1]);
+         }
+         else // (dir == 2)
+         {
+            return j + (k * nel[0]) + (i * nel[0] * nel[1]);
+         }
+      };
+
+      auto SetIP = [&dim, &dir, &ip](real_t v, real_t x, real_t y)
+      {
+         if (dim == 2)
+         {
+            if (dir == 1)
+            {
+               ip.Set2(x, v);
+            }
+            else
+            {
+               ip.Set2(v, x);
+            }
+         }
+         else // dim == 3
+         {
+            if (dir == 0)
+            {
+               ip.Set3(v, x, y);
+            }
+            else if (dir == 1)
+            {
+               ip.Set3(x, v, y);
+            }
+            else // dir == 2
+            {
+               ip.Set3(x, y, v);
+            }
+         }
+      };
+
+      auto ArcLengthElement = [&](int ei, int ej, int ek, real_t x, real_t y,
+                                  real_t u)
+      {
+         const int el = ElementIndex(ei, ej, ek);
+
+         ElementTransformation *Tr =
+            mesh.GetNodes()->FESpace()->GetElementTransformation(el);
+         DenseMatrix grad;
+
+         real_t arc = 0.0;
+         for (auto irp : *ir)
+         {
+            SetIP(irp.x * u, x, y);
+            Tr->SetIntPoint(&ip);
+            mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
+
+            MFEM_VERIFY(grad.NumRows() == dim, "");
+            MFEM_VERIFY(grad.NumCols() == dim, "");
+            v2.SetSize(dim);
+            const int col = dir;
+            for (int i=0; i<dim; ++i)
+            {
+               v2[i] = grad(i, col);
+            }
+
+            arc += v2.Norml2() * irp.weight * u;
+         }
+
+         return arc;
+      };
 
       for (int dof_j=0; dof_j<ncp[odir[0]]; ++dof_j)
       {
@@ -6757,161 +6842,28 @@ void GetUniformPatchGrid(Mesh &mesh,
             const real_t yr = dim == 2 ? 0.0 : sample_xi[odir[1]][dof_k];
 
             real_t totalArc = 0.0;
-            // TODO: refactor
             Vector arcs(nel[dir]);
             Vector arcL(nel[dir]);
             for (int ei=0; ei<nel[dir]; ++ei)
             {
-               int el = 0;
-               if (dir == 0) // TODO: improve this implementation
-               {
-                  el = ei + (ej * nel[0]) + (ek * nel[0] * nel[1]);
-               }
-               else if (dir == 1)
-               {
-                  el = ej + (ei * nel[0]) + (ek * nel[0] * nel[1]);
-               }
-               else // dir == 2
-               {
-                  el = ej + (ek * nel[0]) + (ei * nel[0] * nel[1]);
-               }
-
-               ElementTransformation *Tr =
-                  mesh.GetNodes()->FESpace()->GetElementTransformation(el);
-               DenseMatrix grad;
-
-               const real_t totalArc0 = totalArc;
-               for (auto irp : *ir)
-               {
-                  // TODO: refactor with a lambda or something
-                  if (dim == 2)
-                  {
-                     if (dir == 1)
-                     {
-                        ip.Set2(xr, irp.x);
-                     }
-                     else
-                     {
-                        ip.Set2(irp.x, xr);
-                     }
-                  }
-                  else // dim == 3
-                  {
-                     if (dir == 0)
-                     {
-                        ip.Set3(irp.x, xr, yr);
-                     }
-                     else if (dir == 1)
-                     {
-                        ip.Set3(xr, irp.x, yr);
-                     }
-                     else // dir == 2
-                     {
-                        ip.Set3(xr, yr, irp.x);
-                     }
-                  }
-
-                  Tr->SetIntPoint(&ip);
-                  mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
-
-                  MFEM_VERIFY(grad.NumRows() == dim, "");
-                  MFEM_VERIFY(grad.NumCols() == dim, "");
-                  v2.SetSize(dim);
-                  const int col = dir;
-                  for (int i=0; i<dim; ++i)
-                  {
-                     v2[i] = grad(i, col);
-                  }
-
-                  totalArc += v2.Norml2() * irp.weight;
-               }
-
-               arcL[ei] = totalArc - totalArc0;
-               arcs[ei] = totalArc0;
+               arcs[ei] = totalArc;
+               arcL[ei] = ArcLengthElement(ei, ej, ek, xr, yr, 1.0);
+               totalArc += arcL[ei];
             } // ei
 
-            // TODO: generalize spacing from the current uniform setting
             auto ArcLength = [&](real_t u_p)
             {
-               const int ei_ = u_p * nel[dir];
-               const int ei = std::min(ei_, nel[dir] - 1);
-
-               // Parameter within element
-               real_t u = std::max(u_p - (ei / (real_t) nel[dir]), 0.0);
-               u *= (real_t) nel[dir];
-               u = std::min(u, 1.0);
-
-               real_t a = arcs[ei]; // Arc length at start of this element ei.
-
-               int el = 0;
-               if (dir == 0) // TODO: improve this implementation
-               {
-                  el = ei + (ej * nel[0]) + (ek * nel[0] * nel[1]);
-               }
-               else if (dir == 1)
-               {
-                  el = ej + (ei * nel[0]) + (ek * nel[0] * nel[1]);
-               }
-               else // dir == 2
-               {
-                  el = ej + (ek * nel[0]) + (ei * nel[0] * nel[1]);
-               }
-
-               ElementTransformation *Tr =
-                  mesh.GetNodes()->FESpace()->GetElementTransformation(el);
-               DenseMatrix grad;
-
-               for (auto irp : *ir)
-               {
-                  // TODO: refactor with a lambda or something
-                  if (dim == 2)
-                  {
-                     if (dir == 1)
-                     {
-                        ip.Set2(xr, irp.x * u);
-                     }
-                     else
-                     {
-                        ip.Set2(irp.x * u, xr);
-                     }
-                  }
-                  else // dim == 3
-                  {
-                     if (dir == 0)
-                     {
-                        ip.Set3(irp.x * u, xr, yr);
-                     }
-                     else if (dir == 1)
-                     {
-                        ip.Set3(xr, irp.x * u, yr);
-                     }
-                     else // dir == 2
-                     {
-                        ip.Set3(xr, yr, irp.x * u);
-                     }
-                  }
-
-                  Tr->SetIntPoint(&ip);
-                  mesh.GetNodes()->GetVectorGradientHat(*Tr, grad);
-
-                  MFEM_VERIFY(grad.NumRows() == dim, "");
-                  MFEM_VERIFY(grad.NumCols() == dim, "");
-                  v2.SetSize(dim);
-                  const int col = dir;
-                  for (int i=0; i<dim; ++i)
-                  {
-                     v2[i] = grad(i, col);
-                  }
-
-                  a += v2.Norml2() * irp.weight * u;
-               }
-
+               int ei;
+               const real_t u = ElementParameter(u_p, nel[dir], ei);
+               real_t a = arcs[ei]; // Arc length at start of this element.
+               a += ArcLengthElement(ei, ej, ek, xr, yr, u);
                return a;
             }; // ArcLength
 
             const SpacingFunction *spacing_dir = sf[dir];
             std::unique_ptr<SpacingFunction> spacing = spacing_dir ?
-                                                       spacing_dir->Clone() : std::make_unique<UniformSpacingFunction>(nel[dir]);
+                                                       spacing_dir->Clone() :
+                                                       std::make_unique<UniformSpacingFunction>(nel[dir]);
             spacing->SetSize(nel[dir]);
 
             Vector spacing_prefix(nel[dir] + 1);
@@ -7005,13 +6957,7 @@ void GetUniformPatchGrid(Mesh &mesh,
             std::array<int, 3> el = {0, 0, 0};
             for (int l=0; l<dim; ++l)
             {
-               // TODO: refactor this
-               const int el_ = u[l] * nel[l];
-               el[l] = std::min(el_, nel[l] - 1);
-               // Parameter within element
-               u_e[l] = std::max(u[l] - (el[l] / (real_t) nel[l]), 0.0);
-               u_e[l] *= (real_t) nel[l];
-               u_e[l] = std::min(u_e[l], 1.0);
+               u_e[l] = ElementParameter(u[l], nel[l], el[l]);
             }
 
             if (dim == 2)
@@ -7024,7 +6970,6 @@ void GetUniformPatchGrid(Mesh &mesh,
             }
 
             const int el_ij = el[0] + (el[1] * nel[0]) + (el[2] * nel[0] * nel[1]);
-
             mesh.GetNodes()->GetVectorValue(el_ij, ip, v2);
             for (int l=0; l<dim; ++l)
             {
@@ -7077,20 +7022,17 @@ Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
    const int ncpz = dim == 3 ? ncp : 1;
 
    Vector points((sdim + 1) * ncp * ncp * ncpz);
-   int count = 0; // TODO: eliminate?
-   for (int k = 0; k < ncpz; ++k)
+   for (int k = 0, count = 0; k < ncpz; ++k)
       for (int j = 0; j < ncp; ++j)
          for (int i = 0; i < ncp; ++i)
          {
             const int ijk = i + (ncp * j) + (ncp * ncp * k);
             const real_t w = patchCP(p, ijk, sdim);
-            points[count + sdim] = w;
             for (int l=0; l<sdim; ++l)
             {
-               points[count + l] = patchCP(p, ijk, l) * w;
+               points[count++] = patchCP(p, ijk, l) * w;
             }
-
-            count += sdim + 1;
+            points[count++] = w;
          }
 
    NURBSPatch *patch = dim == 2 ? new NURBSPatch(&kv, &kv, sdim + 1,
@@ -7099,9 +7041,9 @@ Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
 
    Array<NURBSPatch*> patches;
    patches.Append(patch);
-   Mesh patch_topology = dim == 2 ?
-                         Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
-                         Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
+   Mesh patch_topology =
+      dim == 2 ? Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
+      Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
 
    NURBSExtension ne(&patch_topology, patches);
    delete patch;
@@ -7236,7 +7178,6 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
    MFEM_VERIFY(patches.Size() == GetNP(), "");
 
    const int dim = Dimension(); // Reference space dimension
-
    const int numStructuredPatches = patchCP.GetSize1();
    for (int p = 0; p < numStructuredPatches; p++)
    {
@@ -7255,7 +7196,6 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
 
       if (dim == 2)
       {
-         // TODO: better implementation
          ne[2] = 1;
          ncp[2] = 1;
       }
