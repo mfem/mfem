@@ -55,6 +55,7 @@ protected:
     Vector *adjoint = nullptr; // For storing derivative info
     int id = -1; // initialized to invalid id
 
+    std::string name; // Optional name for the field
     Operator *node  = nullptr; // Node that owns this field
     FieldEdge *edge = nullptr; // Edge for this source field, if applicable
     Field *source = nullptr; // source field for this target field, if applicable
@@ -68,7 +69,8 @@ public:
 
     ///@brief Constructor for a Field of type Type with optional ID
     Field(Vector *field, Vector *adjoint, Type type, int id_ = -1) :
-          type(type), data(field), adjoint(adjoint), id(GetValidID(id_)) { }
+          type(type), data(field), adjoint(adjoint), id(GetValidID(id_)),
+          name("Field_" + std::to_string(id_)) { }
 
     ///@brief Constructor for a Source field
     Field(Vector *field, int id_ = -1) :
@@ -92,6 +94,8 @@ public:
     void SetSource(Field *src) { source = src; }
     void SetEdge(FieldEdge *fe) { edge = fe; }
 
+    std::string Name() const { return name; }
+    void SetName(const std::string &n) { name = n; }
     int ID() const { return id; }
 
     void SetID(int id_)
@@ -288,6 +292,9 @@ private:
     /// FieldEdge for source operator.
     NamedFieldsMap<FieldEdge> edges;
 
+    std::vector<Field*> input_fields;  // Input fields for this node
+    std::vector<Field*> output_fields; // Output fields for this node
+
 public:
 
     FieldCollection() = default;
@@ -318,13 +325,7 @@ public:
     Field *GetSourceField(const std::string &src_name) const
     {
         FieldEdge *edge = edges.Get(src_name);
-        if(!edge)
-        {
-            // MFEM_WARNING("FieldCollection::GetSourceField: Source field "
-            //              + src_name + " not found!");
-            return nullptr;
-        }
-        return edge->SourceField();
+        return edge ? edge->SourceField() : nullptr;
     }
 
     /// @brief Get the ParGridFunction for a given field name
@@ -366,6 +367,25 @@ public:
         edges.Register(src_name, edge, own);
         fields.Register(src_name, edge->SourceField(), false);
     }
+
+    void AddInput(const std::string &field_name,
+                  Field *field, bool own = false)
+    {
+        AddField(field_name, field, own);
+        input_fields.push_back(field);
+    }
+
+    void AddOutput(const std::string &field_name,
+                   Field *field, bool own = false)
+    {
+        AddSourceField(field_name, field, own);
+        output_fields.push_back(field);
+    }
+
+    std::vector<Field*>& InputFields() { return input_fields; }
+    std::vector<Field*>& OutputFields() { return output_fields; }
+    Field* InputField(int i) const { return input_fields[i]; }
+    Field* OutputField(int i) const { return output_fields[i]; }
 
     void AddSourceField(const std::string &src_name, Field *src, bool own=false)
     {
@@ -525,7 +545,7 @@ public:
     FieldCollection& Fields() { return fields; }
     const FieldCollection& Fields() const { return fields; }
 
-    Field* Fields(const std::string &field_name) const 
+    Field* Fields(const std::string &field_name) const
     { return fields.GetField(field_name); }
 
     Field* Fields(const std::string &field_name)
@@ -537,15 +557,21 @@ public:
     FieldEdge* Edge(const std::string &src_name)
     { return fields.GetFieldEdge(src_name); }
 
-    void AddField(const std::string &field_name, Field *field, bool own = false)
+    std::vector<Field*>& InputFields() { return fields.InputFields(); }
+    std::vector<Field*>& OutputFields() { return fields.OutputFields(); }
+    Field* InputField(int i) const { return fields.InputField(i); }
+    Field* OutputField(int i) const { return fields.OutputField(i); }
+
+    virtual void AddInput(const std::string &field_name,
+                          Field *field, bool own = false)
     {
-        fields.AddField(field_name, field, own);
+        fields.AddInput(field_name, field, own);
     }
 
-    /// @brief Add a FieldEdge to the collection with name src_name
-    void AddFieldEdge(const std::string &src_name, FieldEdge *field)
+    virtual void AddOutput(const std::string &field_name,
+                           Field *field, bool own = false)
     {
-        fields.AddFieldEdge(src_name, field);
+        fields.AddOutput(field_name, field, own);
     }
 
     virtual void Save (std::ostream &out) const
@@ -735,7 +761,6 @@ public:
 private: // Hide all other functions from user
     using GraphNode::Execute;
     using GraphNode::Mult;
-    // using GraphNode::GetDerivative;
     using GraphNode::JVP;
     using GraphNode::VJP;
 };
