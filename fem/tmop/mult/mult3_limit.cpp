@@ -76,7 +76,7 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                                       r11(1, qz, qy, qx),
                                       r11(2, qz, qy, qx)
                                     };
-               const real_t coeff0 = const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
+               const real_t coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx, qy, qz, e);
 
                real_t d1[3];
                // Eval_d1 (Quadratic Limiter)
@@ -193,7 +193,8 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
 
-               const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
+               const real_t coeff =
+                  const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
                const real_t factor = weight * coeff * normal_inv_delta_sq *
                                      alf_quad(qz, qy, qx);
 
@@ -217,26 +218,41 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
                                             Vector &y) const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
-   const auto ALF_grad = Reshape(PA.ALFG.Read(), 3, q, q, q, NE);
    auto Y = Reshape(y.ReadWrite(), d, d, d, 3, NE);
 
-   TMOPMultAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                           B, ALF_grad, ALFmF0, Y, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   const real_t *ALD = PA.ALD.HostRead();
+
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 3 * nqp_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   const real_t *ALFG_all = PA.ALFG.Read();
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = ALD[c];
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);
+      TMOPMultAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
+                              B, ALF_grad, ALFmF0, Y, d, q);
+   }
 }
 
 } // namespace mfem

@@ -113,7 +113,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-// Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
+// Assemble gradient and Hessian of ALF field at quad points for AdaptLim (2D).
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
                                      const real_t *B_nodes,
@@ -185,7 +185,7 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Compute/interpolate gradient and Hessian one vector component at a time.
+      // Compute/interpolate gradient and Hessian, one component at a time.
       for (int c = 0; c < 2; c++)
       {
          kernels::internal::s_regs2d_t<MD1> rgrad_nodes, ddalf_dx_n, ddalf_dy_n;
@@ -326,16 +326,31 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+
    const auto *B_nodes = PA.maps_nodes->B.Read(),
                *G_nodes = PA.maps_nodes->G.Read();
    const auto *B = PA.maps->B.Read();
    const auto X = Reshape(x.Read(), d, d, 2, NE);
-   const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
-   auto ALF_grad = Reshape(PA.ALFG.Write(), 2, q, q, NE);
-   auto ALF_hess = Reshape(PA.ALFH.Write(), 2, 2, q, q, NE);
+   const int ndof_el = d * d;
+   const int nqp_el = q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 2 * nqp_el * NE;
+   const int ALFH_stride = 2 * 2 * nqp_el * NE;
 
-   TMOPAssembleGradAdaptLim2D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
-                                   ALF_grad, ALF_hess, d, q);
+   const real_t *ALF_all = PA.ALF.Read();
+   real_t *ALFG_all = PA.ALFG.Write();
+   real_t *ALFH_all = PA.ALFH.Write();
+   for (int c = 0; c < nal; c++)
+   {
+      const auto ALF = Reshape(ALF_all + c * ALF_stride, d, d, NE);
+      auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
+      auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 2, 2, q, q, NE);
+
+      TMOPAssembleGradAdaptLim2D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
+                                      ALF_grad, ALF_hess, d, q);
+   }
    PA.AL_grads_assembled = true;
 }
 

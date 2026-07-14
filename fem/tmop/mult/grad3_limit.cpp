@@ -169,10 +169,12 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
 
                // Hessian action:
                // H = factor * (grad x grad + (gf - gf0) * hess)
-               const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
+               const real_t coeff =
+                  const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
                const real_t factor = weight * coeff * normal_inv_delta_sq;
-               const real_t grad_dot_R =
-                  grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1] + grad_alf[2] * R_q[2];
+               const real_t grad_dot_R = grad_alf[0] * R_q[0] +
+                                         grad_alf[1] * R_q[1] +
+                                         grad_alf[2] * R_q[2];
                real_t hess_R[3];
                hess_R[0] =
                   ALF_hess(0, 0, qx, qy, qz, e) * R_q[0] +
@@ -187,9 +189,12 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
                   ALF_hess(2, 1, qx, qy, qz, e) * R_q[1] +
                   ALF_hess(2, 2, qx, qy, qz, e) * R_q[2];
 
-               r00(0, qz, qy, qx) = factor * (grad_alf[0] * grad_dot_R + diff * hess_R[0]);
-               r00(1, qz, qy, qx) = factor * (grad_alf[1] * grad_dot_R + diff * hess_R[1]);
-               r00(2, qz, qy, qx) = factor * (grad_alf[2] * grad_dot_R + diff * hess_R[2]);
+               r00(0, qz, qy, qx) = factor * (grad_alf[0] * grad_dot_R +
+                                              diff * hess_R[0]);
+               r00(1, qz, qy, qx) = factor * (grad_alf[1] * grad_dot_R +
+                                              diff * hess_R[1]);
+               r00(2, qz, qy, qx) = factor * (grad_alf[2] * grad_dot_R +
+                                              diff * hess_R[2]);
             }
          }
       }
@@ -206,27 +211,46 @@ void TMOP_Integrator::AddMultGradPA_AdaptLim_3D(const Vector &R,
                                                 Vector &C) const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *B = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
    const auto RR = Reshape(R.Read(), d, d, d, 3, NE);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
-   const auto ALF_grad = Reshape(PA.ALFG.Read(), 3, q, q, q, NE);
-   const auto ALF_hess = Reshape(PA.ALFH.Read(), 3, 3, q, q, q, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, 3, NE);
 
-   TMOPMultGradAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, B,
-                               RR, ALF_grad, ALF_hess, ALFmF0, Y, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   const real_t *ALD = PA.ALD.HostRead();
+
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 3 * nqp_el * NE;
+   const int ALFH_stride = 3 * 3 * nqp_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   const real_t *ALFG_all = PA.ALFG.Read();
+   const real_t *ALFH_all = PA.ALFH.Read();
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = ALD[c];
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);
+      const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 3, 3, q, q, q, NE);
+
+      TMOPMultGradAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J,
+                                  W, B, RR, ALF_grad, ALF_hess, ALFmF0, Y, d, q);
+   }
 }
 
 } // namespace mfem

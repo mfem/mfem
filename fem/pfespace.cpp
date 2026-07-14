@@ -349,6 +349,7 @@ void ParFiniteElementSpace::GetGroupComm(
       }
    }
 
+   bool have_sign_flips = false;
    if (g_ldof_sign)
    {
       g_ldof_sign->SetSize(GetNDofs());
@@ -428,6 +429,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -466,6 +468,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -504,6 +507,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -527,12 +531,18 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof.GetI()[gr+1] = group_ldof_counter;
    }
 
+   if (g_ldof_sign && have_sign_flips == false)
+   {
+      g_ldof_sign->DeleteAll();
+   }
+
    gc.Finalize();
 }
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
+   if (!HaveDofSigns()) { return; }
 
    for (int i = 0; i < dofs.Size(); i++)
    {
@@ -557,6 +567,24 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 {
    Array<int> all_dofs(el_dof.GetJ(), el_dof.Size_of_connections());
    ApplyLDofSigns(all_dofs);
+}
+
+void ParFiniteElementSpace::ApplyDofSigns(real_t *h_data) const
+{
+   if (!HaveDofSigns()) { return; }
+
+   const bool byvdim = (ordering == Ordering::byVDIM);
+   for (int i = 0; i < ndofs; i++)
+   {
+      if (ldof_sign[i] < 0)
+      {
+         for (int d = 0; d < vdim; d++)
+         {
+            const int idx = byvdim ? d+vdim*i : i+ndofs*d;
+            h_data[idx] = -h_data[idx];
+         }
+      }
+   }
 }
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,

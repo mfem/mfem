@@ -2158,7 +2158,7 @@ void DenseMatrix::GetFromVector(int offset, const Vector &v)
    }
 }
 
-void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
+void DenseMatrix::AdjustDofDirection(const Array<int> &dofs)
 {
    const int n = Height();
 
@@ -2169,7 +2169,7 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
    }
 #endif
 
-   int *dof = dofs;
+   const int *dof = dofs;
    for (int i = 0; i < n-1; i++)
    {
       const int s = (dof[i] < 0) ? (-1) : (1);
@@ -2181,6 +2181,45 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
             (*this)(i,j) = -(*this)(i,j);
             (*this)(j,i) = -(*this)(j,i);
          }
+      }
+   }
+}
+
+void DenseMatrix::AdjustDofDirection(Array<int> &row_dofs,
+                                     Array<int> &col_dofs)
+{
+   const int nr = row_dofs.Size();
+   const int nc = col_dofs.Size();
+
+   MFEM_VERIFY(Height() == nr && Width() == nc,
+               "DenseMatrix::AdjustDofDirection: size mismatch.");
+
+   // Extract signs and convert to unsigned indices
+   Vector rsign(nr), csign(nc);
+
+   for (int i = 0; i < nr; i++)
+   {
+      const int d = row_dofs[i];
+      if (d >= 0) { rsign(i) =  1.0; }
+      else        { rsign(i) = -1.0; row_dofs[i] = -d - 1; continue; }
+      row_dofs[i] = d;
+   }
+
+   for (int j = 0; j < nc; j++)
+   {
+      const int d = col_dofs[j];
+      if (d >= 0) { csign(j) =  1.0; }
+      else        { csign(j) = -1.0; col_dofs[j] = -d - 1; continue; }
+      col_dofs[j] = d;
+   }
+
+   // Apply row/column signs
+   for (int i = 0; i < nr; i++)
+   {
+      const real_t rs = rsign(i);
+      for (int j = 0; j < nc; j++)
+      {
+         (*this)(i,j) *= rs * csign(j);
       }
    }
 }
