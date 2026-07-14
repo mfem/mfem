@@ -52,9 +52,10 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
     
-    real_t decay = 0.7;
+    real_t decay     = 0.7;
     real_t eps_floor = 1e-10;
-    int decay_int = 20;
+    int decay_int    = 20;
+    int decay_start  = 50;
 
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
     args.AddOption(&ray_type, "-rt", "--raytype", "ray field type: 1=vertical, 2=diagonal");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
+    args.AddOption(&decay_start, "-ds", "--decay_start", "iteration count to start the decay");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -314,7 +316,7 @@ int main(int argc, char *argv[])
     real_t iterationError = 1.0;
     for (; k < max_it && iterationError > tol; k++)
     {
-        if (k % decay_int == 0 && k > 0)
+        if (k % decay_int == 0 && k > decay_start)
         {
             epsilon = std::max(epsilon * decay, eps_floor);
         }
@@ -345,6 +347,9 @@ int main(int argc, char *argv[])
 
         // (5) thickness constraint evaluation and gradient
         advect.FSolve();
+        int ic = advect.GetIterCount();
+        if (myid == 0)
+            mfem::out << "\nTotal amount of iterations for the forward time marching: " << ic << " iterations." << endl;
         real_t thickness_res = adv_res.Eval();
 
         Vector dGdrhoa;
@@ -359,9 +364,7 @@ int main(int argc, char *argv[])
         // chain rule adjoint solve: dG/drho = M_fc^T N^T g
         advect.SetAdjointRHS(rhs_full);
         advect.ASolve();
-        Vector dGdrf;
-        advect.GetFilterGrad(dGdrf);
-        filter.MultTranspose(dGdrf, dthick.GetBlock(0));
+        filter.MultTranspose(advect.GetFilterSensitivity(), dthick.GetBlock(0));
         dfidx[1] = dthick;
 
         // (6) MMA update

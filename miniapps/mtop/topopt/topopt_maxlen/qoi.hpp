@@ -140,7 +140,7 @@ class ThicknessResidual : public QuantityOfInterest
             total_residual += res * res;
         }
 
-        return 0.5 * total_residual;
+        return 0.5 * total_residual / nrays;
     }
 
     // Gradient w.r.t. alpha: ∂R/∂α_i = - (A_i - α_i)
@@ -148,6 +148,7 @@ class ThicknessResidual : public QuantityOfInterest
     {
         grad.SetSize(nrays);
         grad = ray_residuals;
+        grad /= nrays;
         grad.Neg();  // - (A_i - α_i)
     }
 
@@ -178,7 +179,7 @@ class ThicknessResidual : public QuantityOfInterest
 
         for (int r = 0; r < nrays; r++)
         {
-            const real_t w = ray_residuals(r) * ds[r];     // (A_i − α_i) * ds_i
+            const real_t w = (ray_residuals(r) / nrays) * ds[r];     // (A_i − α_i) * ds_i
             for (int k = 0; k < nsamples; k++)
             {
                 const int idx = r * nsamples + k;

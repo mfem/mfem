@@ -129,22 +129,32 @@ class PseudoTransientSolver : public Operator
 {
 private:
    MPI_Comm comm;
+
+   ParTransferMap *filter_to_eval = nullptr;    // rho_filter -> eval_mesh
+   ParTransferMap *eval_to_filter = nullptr;    // adjoint field (lives on eval_mesh) -> filter_mesh
+   bool same_mesh;                   // filter_mesh == eval_mesh
+
+   ParFiniteElementSpace *srcfes = nullptr;
    ParFiniteElementSpace *dgfes;   // DG space of rho_a
 
    VectorCoefficient &v_cf;        // advection direction
-   GridFunctionCoefficient rf_gfcf;  // rho_filter coefficient
 
-   ParGridFunction rho_a_gf;       // forward DG field 
-   ParGridFunction *rho_filter;    // source rho_p 
+   ParGridFunction rho_a_gf;       // forward DG field
+   ParGridFunction *rho_filter;    // source rho_filter, lives on the design domain
+   mutable ParGridFunction lambda_design;
+   mutable ParGridFunction rho_p;  // rho_filter on eval_mesh, set by UpdateRhoP()
 
    ParBilinearForm *K;
    HypreParMatrix  *Kmat;
    DG_AdvectionSolver *adv;
    mutable Vector b;               // source  b = N rho_p  
-   Vector adj_rhs;                 // adjoint RHS 
+   Vector adj_rhs;                 // adjoint RHS
    Vector lambda;
+   Vector filter_sensitivity;      // dG/drho_filter = -N^T lambda, set by ASolve()
 
    real_t dt = 1e-3;               // pseudo-transient time step
+   real_t Tt = 10; 
+   int iter_count = 0;
 
    // forward transport solve  K rho_a = -b   (direct, design-independent K)
    std::unique_ptr<BlockILU>       fwd_prec;
@@ -156,45 +166,87 @@ private:
    std::unique_ptr<GMRESSolver>    adj_gmres;
 
    void Assemble();
-   void AssembleSource(const ParGridFunction &rf) const;  // b = N rf
+   void UpdateRhoP(const ParGridFunction &rf) const;
+   void AssembleSource() const;  // b = N rho_p
    void rho_a_init(Vector &r_a);
    void SetupForwardSolver();
    void SetupAdjointSolver();
 
 public:
-   PseudoTransientSolver(ParGridFunction &rho_a_, ParGridFunction &rho_filter_,
-                         VectorCoefficient &v_cf_)
-   : v_cf(v_cf_), rho_a_gf(rho_a_), rho_filter(&rho_filter_), rf_gfcf(&rho_filter_),
-     K(nullptr), Kmat(nullptr), adv(nullptr)
-   {
-      dgfes = rho_a_gf.ParFESpace();
-      comm  = dgfes->GetComm();
-
-      K = new ParBilinearForm(dgfes);
-
-      Assemble();                                    // -> Kmat
-      adv = new DG_AdvectionSolver(*Kmat, *dgfes, v_cf);
-
-      SetupForwardSolver();                          // K   solver, reused every solve
-      SetupAdjointSolver();                          // K^T solver, reused every solve
-   }
+   // constructor
+   PseudoTransientSolver(ParGridFunction &rho_a_, 
+                         ParGridFunction &rho_filter_,
+                         VectorCoefficient &v_cf_);
 
    ~PseudoTransientSolver()
-   { delete adv; delete Kmat; delete K; }
+   { delete adv; delete Kmat; delete K; 
+      delete filter_to_eval; delete eval_to_filter; delete srcfes; }
 
-   ParGridFunction &GetRhoA() { return rho_a_gf; }
-   Vector &GetAdjoint() { return lambda; }
-   void GetFilterGrad(Vector &dGdrf) const;        // dG/drho_filter = -N^T lambda 
+   // return number of iterations for the foward solve
+   int GetIterCount() { return iter_count; } 
+   ParGridFunction &GetRhoA() { return rho_a_gf; }    // return rho_a gridfunction
+   // rho_filter transferred onto eval_mesh (diagnostic accessor)
+   const ParGridFunction &GetRhoP() const { UpdateRhoP(*rho_filter); return rho_p; }
+   Vector &GetAdjoint() { return lambda; }            // return lambda gridfunction
+   Vector &GetFilterSensitivity() { return filter_sensitivity; }
 
    // set the adjoint RHS from an assembled dG/drho_a
    void SetAdjointRHS(const Vector &rhs) { adj_rhs = rhs; }
    void SetTimeStep(const real_t dt_) { dt = dt_; }
+   void SetTerminalTime(const real_t Tt_) { Tt = Tt_; }
 
    // forward direct steady solve  K r_a = -b(r_f)
    void Mult(const Vector &r_f, Vector &r_a) const override;
    void FSolve();    // time march forward solve
-   void ASolve();    // solve for lambda -> K^T lambda = (rhs)
+
+   // adjoint solve K^T lambda = adj_rhs, then dG/drho_filter = -N^T lambda
+   void ASolve();
 };
+
+PseudoTransientSolver::PseudoTransientSolver(ParGridFunction &rho_a_, 
+                                             ParGridFunction &rho_filter_,
+                                             VectorCoefficient &v_cf_)
+                     : v_cf(v_cf_), rho_a_gf(rho_a_), rho_filter(&rho_filter_),
+                       K(nullptr), Kmat(nullptr), adv(nullptr)
+{
+   dgfes = rho_a_gf.ParFESpace();
+   comm  = dgfes->GetComm();
+
+   ParMesh *filter_mesh = rho_filter->ParFESpace()->GetParMesh();
+   ParMesh *eval_mesh   = dgfes->GetParMesh();
+
+   MFEM_VERIFY(filter_mesh && eval_mesh,
+               "PseudoTransientSolver: rho_filter or rho_a has no mesh");
+   same_mesh = (filter_mesh == eval_mesh);
+
+
+   srcfes = new ParFiniteElementSpace(eval_mesh, rho_filter->ParFESpace()->FEColl());
+   rho_p.SetSpace(srcfes);
+   
+   if (!same_mesh)
+   {
+      MFEM_VERIFY(ParSubMesh::IsParSubMesh(filter_mesh),
+      "PseudoTransientSolver: filter_mesh is not a ParSubMesh");
+      ParSubMesh *filter_submesh = static_cast<ParSubMesh *>(filter_mesh);
+      MFEM_VERIFY(filter_submesh->GetParent() == eval_mesh,
+      "PseudoTransientSolver: filter_mesh's parent is not eval_mesh");
+      
+      filter_to_eval = new ParTransferMap(*rho_filter, rho_p);
+      
+      lambda_design.SetSpace(rho_filter->ParFESpace());
+      eval_to_filter = new ParTransferMap(rho_p, lambda_design);
+   }
+
+   rho_p = 0.0;
+      
+   K = new ParBilinearForm(dgfes);
+   Assemble();                                    // -> Kmat
+   adv = new DG_AdvectionSolver(*Kmat, *dgfes, v_cf);
+
+   SetupForwardSolver();                          // K   solver, reused every solve
+   SetupAdjointSolver();                          // K^T solver, reused every solve
+}
+
 
 // K (upwind discretization of -v.grad)
 // M drho_a/dt = K rho_a + b.
@@ -209,11 +261,17 @@ void PseudoTransientSolver::Assemble()
    Kmat = K->ParallelAssemble();
 }
 
-// source  b = N rf = INT rf w_dg
-void PseudoTransientSolver::AssembleSource(const ParGridFunction &rf) const
+void PseudoTransientSolver::UpdateRhoP(const ParGridFunction &rf) const
+{
+   if (same_mesh) { rho_p.ProjectGridFunction(rf); }
+   else { filter_to_eval->Transfer(rf, rho_p); }
+}
+
+// source  b = N rho_p = INT rho_p w_dg
+void PseudoTransientSolver::AssembleSource() const
 {
    ParLinearForm src(dgfes);
-   GridFunctionCoefficient rf_cf(&rf);
+   GridFunctionCoefficient rf_cf(&rho_p);
    src.AddDomainIntegrator(new DomainLFIntegrator(rf_cf));
    src.Assemble();
    std::unique_ptr<HypreParVector> bv(src.ParallelAssemble());
@@ -223,8 +281,9 @@ void PseudoTransientSolver::AssembleSource(const ParGridFunction &rf) const
 
 void PseudoTransientSolver::rho_a_init(Vector &r_a)
 {
+   GridFunctionCoefficient rf_cf(&rho_p);
    ParGridFunction rf_dg_gf(dgfes);
-   rf_dg_gf.ProjectDiscCoefficient(rf_gfcf);
+   rf_dg_gf.ProjectDiscCoefficient(rf_cf);
    rf_dg_gf.GetTrueDofs(r_a);
 }
 
@@ -265,7 +324,8 @@ void PseudoTransientSolver::Mult(const Vector &r_f, Vector &r_a) const
 {
    ParGridFunction rf_gf(rho_filter->ParFESpace());
    rf_gf.SetFromTrueDofs(r_f);
-   AssembleSource(rf_gf);         // b = N r_f  (H1 -> DG)
+   UpdateRhoP(rf_gf);
+   AssembleSource();
 
    Vector rhs(b); rhs.Neg();      // rhs = -b
    r_a.SetSize(adv->Height());
@@ -276,21 +336,22 @@ void PseudoTransientSolver::Mult(const Vector &r_f, Vector &r_a) const
 // forward pseudo-transient solve:  M (drho_a/dt) = K rho_a + b
 void PseudoTransientSolver::FSolve()
 {
-   AssembleSource(*rho_filter);   // b = N rho_filter
+   UpdateRhoP(*rho_filter);
+   AssembleSource();
    const int n = adv->Height();
 
    Vector r_a(n), rate(n);
-   rho_a_init(r_a);     // initial guess for rho_a
-   
+   rho_a_init(r_a);               // initial guess for rho_a
+
    RK3SSPSolver ode; ode.Init(*adv);
 
    real_t t = 0.0;     // explicit step  (set < CFL limit)
    real_t eps = 1e-10;            // steady-state stop tolerance
    real_t res = 2.0 * eps;
 
-   const int max_steps = 100000;  // safety cap
+   const int max_steps = 10000;  // safety cap
    int step = 0;
-   while (res > eps && step < max_steps)
+   while (res > eps && step < max_steps && t < Tt)
    {
       adv->Mult(r_a, rate);                       // rate = M^{-1}(K rho + b)
       res = std::sqrt(InnerProduct(comm, rate, rate));
@@ -298,29 +359,34 @@ void PseudoTransientSolver::FSolve()
       step++;
    }
 
+   iter_count = step;
    rho_a_gf.SetFromTrueDofs(r_a);
 }
 
-// steady adjoint transport:  K^T lambda = adj_rhs
+// steady adjoint transport solve  K^T lambda = adj_rhs, then
+// dG/drho_filter = -N^T lambda (cached in filter_sensitivity)
 void PseudoTransientSolver::ASolve()
 {
    MFEM_VERIFY(adj_rhs.Size() > 0, "call SetAdjointRHS() before ASolve()");
    lambda.SetSize(dgfes->GetTrueVSize());
    lambda = 0.0;
    adj_gmres->Mult(adj_rhs, lambda);
-}
 
-// dG/drho_filter (H1) = -N^T lambda
-void PseudoTransientSolver::GetFilterGrad(Vector &dGdrf) const
-{
    ParGridFunction lam_gf(dgfes);
    lam_gf.SetFromTrueDofs(lambda);
-   GridFunctionCoefficient lam_cf(&lam_gf);
+
+   const ParGridFunction *lam_on_design = &lam_gf;
+   if (!same_mesh)
+   {
+      eval_to_filter->Transfer(lam_gf, lambda_design);
+      lam_on_design = &lambda_design;
+   }
+   GridFunctionCoefficient lam_cf(lam_on_design);
 
    ParLinearForm lf(rho_filter->ParFESpace());
    lf.AddDomainIntegrator(new DomainLFIntegrator(lam_cf));
    lf.Assemble();
    std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
-   dGdrf = *v;
-   dGdrf.Neg();
+   filter_sensitivity = *v;
+   filter_sensitivity.Neg();
 }

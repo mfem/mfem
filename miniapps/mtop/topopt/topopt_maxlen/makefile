@@ -25,8 +25,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 # cannot build with a pattern rule.
 COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o diffusion_mass_solver.o
 
-SEQ_MINIAPPS =
-PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv DiffuTopOpt
+SEQ_MINIAPPS = 
+PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv ElastTopOpt_ct DiffuTopOpt
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
