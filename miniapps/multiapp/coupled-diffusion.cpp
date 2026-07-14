@@ -314,14 +314,15 @@ public:
    {
       k = 0.0;
       T = 0.0;
-      fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
+      // fields.AddSourceField("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
+      AddOutput("k(T)", new Field(&kdof, Field::Type::SOURCE), true);
       fields.AddField("T", new Field(&tdof, Field::Type::DEFAULT), true);
       k.ProjectCoefficient(*kc);
       k.GetTrueDofs(kdof);
       dk_dof = kdof;
 
-      Fields("T")->SetAdjoint(&dT_dof); // Set adjoint for T
-      Fields("k(T)")->SetAdjoint(&dk_dof); // Set adjoint for dk/dT
+      Fields().Get("T")->SetAdjoint(&dT_dof); // Set adjoint for T
+      Fields().Get("k(T)")->SetAdjoint(&dk_dof); // Set adjoint for dk/dT
 
       // Testing with the nonlinear form framework to compute k(T) and dk/dT
       Nform.AddDomainIntegrator(coeff_integrator); // Transfer ownership
@@ -356,8 +357,8 @@ public:
    {
       if(J)
       {
-         Vector *xadj = Fields("T")->Adjoint();
-         Vector *yadj = Fields("k(T)")->Adjoint();
+         Vector *xadj = Fields().Get("T")->Adjoint();
+         Vector *yadj = Fields().Get("k(T)")->Adjoint();
          MFEM_ASSERT(xadj && yadj, "Adjoints not set for JVP");
          J->Mult(*xadj, *yadj);
       }
@@ -372,8 +373,8 @@ public:
    {
       if(J)
       {
-         Vector *xadj = Fields("T")->Adjoint();
-         Vector *yadj = Fields("k(T)")->Adjoint();
+         Vector *xadj = Fields().Get("T")->Adjoint();
+         Vector *yadj = Fields().Get("k(T)")->Adjoint();
          MFEM_ASSERT(xadj && yadj, "Adjoints not set for VJP");
          J->MultTranspose(*yadj, *xadj);
       }
@@ -434,7 +435,8 @@ public:
       y_gf.GetTrueDofs(y_dof);
       y_adj.SetSize(y_dof.Size());
 
-      fields.AddSourceField("prod(x)", new Field(&y_dof, &y_adj, Field::Type::SOURCE), true);
+      // fields.AddSourceField("prod(x)", new Field(&y_dof, &y_adj, Field::Type::SOURCE), true);
+      AddOutput("prod(x)", new Field(&y_dof, &y_adj, Field::Type::SOURCE), true);
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -461,12 +463,12 @@ public:
          x_gf[i]->SetFromTrueDofs(*x_dof[i]); // Set all x_i
       }
 
-      Vector *jvp = Fields("prod(x)")->Adjoint();
+      Vector *jvp = Fields().Get("prod(x)")->Adjoint();
       *jvp = 0.0;
       for (size_t i = 0; i < x_gf.size(); i++)
       {
          std::string x_name = "x" + std::to_string(i);
-         Vector *dx = Fields(x_name)->Adjoint(); // Get dx_i/dx
+         Vector *dx = Fields().Get(x_name)->Adjoint(); // Get dx_i/dx
 
          x_gf[i]->SetFromTrueDofs(*dx); // Set x_i = dx_i/dx for i-th term in the product
          y_gf.ProjectCoefficient(prod_coeff); // Recompute product with x_i replaced by dx_i/dx
@@ -530,7 +532,8 @@ public:
                      Nform(&fes), bform(&fes),
                      zero_coeff(0.0), one_coeff(1.0)
    {
-      fields.AddSourceField("f(k,T)", new Field(&output, &output_adj, Field::Type::SOURCE), true);
+      // fields.AddSourceField("f(k,T)", new Field(&output, &output_adj, Field::Type::SOURCE), true);
+      AddOutput("f(k,T)", new Field(&output, &output_adj, Field::Type::SOURCE), true);
 
       fes.GetBoundaryTrueDofs(ess_tdofs);
       T = 0.0;
@@ -538,9 +541,9 @@ public:
       dk = 0.0;
 
       fields.AddField("T", new Field(&tdofs, &dT_dofs, Field::Type::DEFAULT), true);
-      Fields("T")->SetAdjoint(&dT_dofs);
+      Fields().Get("T")->SetAdjoint(&dT_dofs);
       fields.AddField("k", new Field(&kdofs, &dk_dofs, Field::Type::DEFAULT), true);
-      Fields("k")->SetAdjoint(&dk_dofs);
+      Fields().Get("k")->SetAdjoint(&dk_dofs);
 
       bform.AddDomainIntegrator(new DomainLFIntegrator(one_coeff));
       Nform.AddDomainIntegrator(new NonlinearDiffusionIntegrator(&k_gfc, &dk_gfc));
@@ -612,9 +615,9 @@ public:
 
    void JVP(const Vector &x, Vector &y) const override
    {
-      Vector *Tadj = Fields("T")->Adjoint();
-      Vector *kadj = Fields("k")->Adjoint();
-      Vector *yadj = Fields("f(k,T)")->Adjoint();
+      Vector *Tadj = Fields().Get("T")->Adjoint();
+      Vector *kadj = Fields().Get("k")->Adjoint();
+      Vector *yadj = Fields().Get("f(k,T)")->Adjoint();
       MFEM_ASSERT(Tadj && kadj && yadj, "Adjoints not set for JVP");
 
       // *yadj = 0.0;
@@ -722,29 +725,29 @@ int main(int argc, char *argv[])
    dag.AddOutputNode(&f2_out);
 
    // Form connections between the nodes in the DAG
-   T1_in.AddTargetField(kappa.Fields("T"));
-   T2_in.AddTargetField(gamma.Fields("T"));
+   T1_in.AddTargetField(kappa.Fields().Get("T"));
+   T2_in.AddTargetField(gamma.Fields().Get("T"));
 
-   T1_in.AddTargetField(diffusion_op.Fields("T"));
-   T2_in.AddTargetField(diffusion_op2.Fields("T"));
+   T1_in.AddTargetField(diffusion_op.Fields().Get("T"));
+   T2_in.AddTargetField(diffusion_op2.Fields().Get("T"));
    // diffusion_op.Fields().AddField("T", T1_in.GetField());
    // diffusion_op2.Fields().AddField("T", T2_in.GetField());
 
-   diffusion_op.Fields().AddTargetField("f(k,T)", f1_out.GetField());
-   diffusion_op2.Fields().AddTargetField("f(k,T)", f2_out.GetField());
+   diffusion_op.Edges().Get("f(k,T)")->AddTarget(f1_out.GetField());
+   diffusion_op2.Edges().Get("f(k,T)")->AddTarget(f2_out.GetField());
 
-   kappa.Fields().AddTargetField("k(T)", kap_gamma.Fields("x0"));
-   gamma.Fields().AddTargetField("k(T)", kap_gamma.Fields("x1"));
+   kappa.Edges().Get("k(T)")->AddTarget(kap_gamma.Fields().Get("x0"));
+   gamma.Edges().Get("k(T)")->AddTarget(kap_gamma.Fields().Get("x1"));
 
    if(ctx.coupled)
    {
-      kap_gamma.Fields().AddTargetField("prod(x)", diffusion_op.Fields("k"));
-      kap_gamma.Fields().AddTargetField("prod(x)", diffusion_op2.Fields("k"));
+      kap_gamma.Edges().Get("prod(x)")->AddTarget(diffusion_op.Fields().Get("k"));
+      kap_gamma.Edges().Get("prod(x)")->AddTarget(diffusion_op2.Fields().Get("k"));
    }
    else
    {
-      kappa.Fields().AddTargetField("k(T)", diffusion_op.Fields("k"));
-      gamma.Fields().AddTargetField("k(T)", diffusion_op2.Fields("k"));
+      kappa.Edges().Get("k(T)")->AddTarget(diffusion_op.Fields().Get("k"));
+      gamma.Edges().Get("k(T)")->AddTarget(diffusion_op2.Fields().Get("k"));
    }
 
    std::string output_prefix = ctx.coupled ? "Coupled_Diffusion" : "Uncoupled_Diffusion";
@@ -819,6 +822,7 @@ int main(int argc, char *argv[])
       delete pv;
    }
 
+   std::cout << "Finished solving the coupled diffusion problem." << std::endl;
    return 0;
 }
 

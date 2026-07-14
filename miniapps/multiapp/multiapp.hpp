@@ -368,6 +368,9 @@ public:
         fields.Register(src_name, edge->SourceField(), false);
     }
 
+    void AddInput(Field *field, bool own = false)
+    { AddInput(field->Name(), field, own); }
+    
     void AddInput(const std::string &field_name,
                   Field *field, bool own = false)
     {
@@ -375,34 +378,36 @@ public:
         input_fields.push_back(field);
     }
 
+    void AddOutput(Field *field, bool own = false)
+    { AddOutput(field->Name(), field, own); }
+
     void AddOutput(const std::string &field_name,
                    Field *field, bool own = false)
     {
-        AddSourceField(field_name, field, own);
         output_fields.push_back(field);
+
+        // Register the field
+        fields.Register(field_name, field, false);
+        if(field->Node() == nullptr)
+        {
+            field->SetNode(src_op);
+        }
+
+        // Create/update the FieldEdge for this source/output field
+        FieldEdge *edge = edges.Get(field_name);
+        if(!edge)
+        {
+            edge = new FieldEdge(field, own);
+            edges.Register(field_name, edge, true);
+            return;
+        }
+        edge->SetSource(field, own);
     }
 
     std::vector<Field*>& InputFields() { return input_fields; }
     std::vector<Field*>& OutputFields() { return output_fields; }
     Field* InputField(int i) const { return input_fields[i]; }
     Field* OutputField(int i) const { return output_fields[i]; }
-
-    void AddSourceField(const std::string &src_name, Field *src, bool own=false)
-    {
-        fields.Register(src_name, src, false);
-        if(src->Node() == nullptr)
-        {
-            src->SetNode(src_op);
-        }
-        FieldEdge *edge = edges.Get(src_name);
-        if(!edge)
-        {
-            edge = new FieldEdge(src, own);
-            edges.Register(src_name, edge, true);
-            return;
-        }
-        edge->SetSource(src, own);
-    }
 
     void AddTargetField(const std::string &src_name, Field *tar,
                         bool own = false)
@@ -422,7 +427,9 @@ public:
     }
 
     NamedFieldsMap<Field> &GetFields() { return fields; }
+    NamedFieldsMap<Field> GetFields() const { return fields; }
     NamedFieldsMap<FieldEdge> &GetEdges() { return edges; }
+    NamedFieldsMap<FieldEdge> GetEdges() const { return edges; }
 
     virtual void Save (std::ostream &out) const
     {
@@ -542,20 +549,17 @@ public:
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
 
-    FieldCollection& Fields() { return fields; }
-    const FieldCollection& Fields() const { return fields; }
+    NamedFieldsMap<Field>& Fields() { return fields.GetFields(); }
+    Field* Fields(const std::string &f) { return fields.GetField(f); }
 
-    Field* Fields(const std::string &field_name) const
-    { return fields.GetField(field_name); }
+    NamedFieldsMap<Field> Fields() const { return fields.GetFields(); }
+    Field* Fields(const std::string &f) const { return fields.GetField(f); }
 
-    Field* Fields(const std::string &field_name)
-    { return fields.GetField(field_name); }
+    NamedFieldsMap<FieldEdge>& Edges() { return fields.GetEdges(); }
+    FieldEdge* Edges(const std::string &e) { return fields.GetFieldEdge(e); }
 
-    FieldEdge* Edge(const std::string &src_name) const
-    { return fields.GetFieldEdge(src_name); }
-
-    FieldEdge* Edge(const std::string &src_name)
-    { return fields.GetFieldEdge(src_name); }
+    NamedFieldsMap<FieldEdge> Edges() const { return fields.GetEdges(); }
+    FieldEdge* Edges(const std::string &e) const { return fields.GetFieldEdge(e); }
 
     std::vector<Field*>& InputFields() { return fields.InputFields(); }
     std::vector<Field*>& OutputFields() { return fields.OutputFields(); }
@@ -773,7 +777,7 @@ public:
         data.SetSize(sz);
         adjoint.SetSize(sz);
         field = new Field(&data, &adjoint, Field::Type::SOURCE);
-        fields.AddSourceField(name, field, true); // transfer ownership
+        AddOutput(name, field, true); // transfer ownership
     }
 
     void AddTargetField(Field *target, bool own=false)
@@ -950,7 +954,7 @@ public:
         in_offsets.Append(in_offsets.Last() + node->Width());
         width += node->Width();
 
-        auto edge = node->Edge(node->Name());
+        auto edge = node->Edges().Get(node->Name());
         if(edge)
         {   // Add the node's linkefield to the DAG's
             fields.AddFieldEdge(node->Name(), edge, false);
@@ -968,7 +972,7 @@ public:
         out_offsets.Append(out_offsets.Last() + node->Height());
         height += node->Height();
 
-        auto field = node->Fields(name);
+        auto field = node->Fields().Get(name);
         if(field)
         {   // Add the node's target field to the DAG's
             fields.AddField(name, field, false);
