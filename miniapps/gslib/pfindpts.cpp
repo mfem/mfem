@@ -48,7 +48,7 @@
 // Device runs:
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
-//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug -ft 1
 // Surface meshes:
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
