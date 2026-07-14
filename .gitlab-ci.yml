@@ -379,92 +379,14 @@
 #       └── uberenv  [cloned by tests/gitlab/get_mfem_uberenv]
 #            └── uberenv.py
 #
-# <root of radiuss/radiuss-shared-ci, ref: '2026.6.0'>
-#  └── templates
-#       ├── base-pipeline/template.yml
-#       │    └── <jobs>
-#       │         ├── .machine-check
-#       │         ├── .build-and-test
-#       │         ├── .dane
-#       │         ├── .matrix
-#       │         └── .tioga
-#       ├── matrix-pipeline/template.yml
-#       │    ├── <jobs>
-#       │    │    ├── .on_matrix
-#       │    │    ├── .matrix_reproducer_init
-#       │    │    ├── .matrix_reproducer_vars
-#       │    │    ├── .matrix_reproducer_job
-#       │    │    ├── .matrix_job_command
-#       │    │    └── .job_on_matrix
-#       │    ├── <used jobs>
-#       │    │    └── .custom_job  [from .gitlab/custom-jobs.yml]
-#       │    └── <used variables>
-#       │         ├── ON_MATRIX
-#       │         ├── ADVANCED_JOB
-#       │         ├── ALL_TARGETS
-#       │         ├── SYS_TYPE
-#       │         ├── LLNL_SERVICE_USER
-#       │         ├── USER
-#       │         ├── GITHUB_PROJECT_NAME
-#       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── RSCI_MATRIX_JOB_ALLOC
-#       │         └── RSCI_JOB_CMD
-#       ├── dane-pipeline/template.yml
-#       │    ├── <jobs>
-#       │    │    ├── .on_dane
-#       │    │    ├── .dane_reproducer_init
-#       │    │    ├── .dane_reproducer_vars
-#       │    │    ├── .dane_reproducer_job
-#       │    │    ├── .dane_job_command
-#       │    │    ├── .job_on_dane
-#       │    │    ├── allocate_resources
-#       │    │    └── release_resources
-#       │    ├── <used jobs>
-#       │    │    └── .custom_job  [from .gitlab/custom-jobs.yml]
-#       │    ├── <defined variables>
-#       │    │    └── export JOBID
-#       │    └── <used variables>
-#       │         ├── ON_DANE
-#       │         ├── ADVANCED_JOB
-#       │         ├── ALL_TARGETS
-#       │         ├── SYS_TYPE
-#       │         ├── LLNL_SERVICE_USER
-#       │         ├── USER
-#       │         ├── GITHUB_PROJECT_NAME
-#       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── RSCI_DANE_JOB_ALLOC
-#       │         ├── RSCI_JOB_CMD
-#       │         ├── JOBID
-#       │         ├── RSCI_ALLOC_NAME
-#       │         └── RSCI_DANE_SHARED_ALLOC
-#       └── tioga-pipeline/template.yml
-#            ├── <jobs>
-#            │    ├── .on_tioga
-#            │    ├── .tioga_reproducer_init
-#            │    ├── .tioga_reproducer_vars
-#            │    ├── .tioga_reproducer_job
-#            │    ├── .tioga_job_command
-#            │    ├── .job_on_tioga
-#            │    ├── allocate_resources
-#            │    └── release_resources
-#            ├── <used jobs>
-#            │    └── .custom_job  [from .gitlab/custom-jobs.yml]
-#            ├── <defined variables>
-#            │    └── PROXY
-#            └── <used variables>
-#                 ├── ON_TIOGA
-#                 ├── ADVANCED_JOB
-#                 ├── ALL_TARGETS
-#                 ├── SYS_TYPE
-#                 ├── LLNL_SERVICE_USER
-#                 ├── USER
-#                 ├── GITHUB_PROJECT_NAME
-#                 ├── GITHUB_PROJECT_ORG
-#                 ├── RSCI_TIOGA_JOB_ALLOC
-#                 ├── RSCI_JOB_CMD
-#                 ├── PROXY
-#                 ├── RSCI_ALLOC_NAME
-#                 └── RSCI_TIOGA_SHARED_ALLOC
+# <radiuss/radiuss-shared-ci components, ref: '2026.6.0'>
+#  Included as GitLab CI components (see 'include:' blocks below).
+#  Pipelines: base-pipeline, dane-pipeline, tioga-pipeline,
+#             matrix-pipeline. MFEM interacts via the 'inputs:'
+#             passed in each include; machine on/off and force-all
+#             behavior come from project CI/CD variables
+#             (ON_DANE/ON_MATRIX/ON_TIOGA, ALL_TARGETS).
+#  Source/inputs: https://github.com/LLNL/radiuss-shared-ci
 
 ###############################################################################
 # We define the following GitLab pipeline variables:
