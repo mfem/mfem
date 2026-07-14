@@ -23,19 +23,6 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
 
    if (dim == 2)
    {
-      static const auto specializations =
-         (GradDiagPA2D::Specialization<2, 2>::Add(),
-          GradDiagPA2D::Specialization<2, 3>::Add(),
-          GradDiagPA2D::Specialization<3, 4>::Add(),
-          GradDiagPA2D::Specialization<3, 5>::Add(),
-          GradDiagPA2D::Specialization<4, 5>::Add(),
-          GradDiagPA2D::Specialization<4, 6>::Add(),
-          GradDiagPA2D::Specialization<5, 7>::Add(),
-          GradDiagPA2D::Specialization<5, 8>::Add(),
-          GradDiagPA2D::Specialization<6, 8>::Add(),
-          true);
-      MFEM_CONTRACT_VAR(specializations);
-
       GradDiagPA2D::Run(d1d, q1d, ne,
                         maps->B.Read(),
                         maps->G.Read(),
@@ -46,23 +33,6 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
    }
    else if (dim == 3)
    {
-      static const auto specializations =
-         (GradDiagPA3D::Specialization<2, 3>::Add(),
-          GradDiagPA3D::Specialization<2, 4>::Add(),
-          GradDiagPA3D::Specialization<2, 5>::Add(),
-          GradDiagPA3D::Specialization<3, 4>::Add(),
-          GradDiagPA3D::Specialization<3, 5>::Add(),
-          GradDiagPA3D::Specialization<3, 6>::Add(),
-          GradDiagPA3D::Specialization<4, 5>::Add(),
-          GradDiagPA3D::Specialization<4, 6>::Add(),
-          GradDiagPA3D::Specialization<4, 7>::Add(),
-          GradDiagPA3D::Specialization<4, 8>::Add(),
-          GradDiagPA3D::Specialization<5, 6>::Add(),
-          GradDiagPA3D::Specialization<5, 7>::Add(),
-          GradDiagPA3D::Specialization<5, 8>::Add(),
-          true);
-      MFEM_CONTRACT_VAR(specializations);
-
       GradDiagPA3D::Run(d1d, q1d, ne,
                         maps->B.Read(),
                         maps->G.Read(),

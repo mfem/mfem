@@ -391,9 +391,11 @@ private:
    const GeometricFactors *geom;  ///< Not owned
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   struct Kernels { Kernels(); };
 
-   VectorConvectionNLFIntegrator() = default;
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { static Kernels kernels; }
+
+   VectorConvectionNLFIntegrator() { static Kernels kernels; }
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
                                          const ElementTransformation &T);
@@ -441,6 +443,22 @@ public:
 
    MFEM_REGISTER_KERNELS(GradDiagPA2D, GradDiagPAType, (int, int));
    MFEM_REGISTER_KERNELS(GradDiagPA3D, GradDiagPAType, (int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AddMultPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      if constexpr (DIM == 2)
+      {
+         AddMultGradPA2D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA2D::Specialization<D1D, Q1D>::Add();
+      }
+      else if constexpr (DIM == 3)
+      {
+         AddMultGradPA3D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA3D::Specialization<D1D, Q1D>::Add();
+      }
+   }
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 

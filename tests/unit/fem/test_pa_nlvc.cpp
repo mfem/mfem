@@ -103,9 +103,7 @@ TEST_CASE("NL Convection PA Gradient",
        Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 5>::Add(),
        Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 4, 9>::Add(),
        // User specialization example for p=4 (D1D=5, Q1D=9) in 3D
-       NLVC::AddMultPAKernels::Specialization<3, 5, 9>::Add(),
-       NLVC::AddMultGradPA3D::Specialization<5, 9>::Add(),
-       NLVC::GradDiagPA3D::Specialization<5, 9>::Add(),
+       NLVC::AddSpecialization<3, 5, 9>(),
        true);
    MFEM_CONTRACT_VAR(specializations);
 

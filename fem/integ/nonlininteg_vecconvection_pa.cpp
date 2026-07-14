@@ -11,9 +11,39 @@
 
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
 #include "./nonlininteg_vecconvection_pa.hpp" // IWYU pragma: keep
+#include "./nonlininteg_vecconvection_pa_grad.hpp" // IWYU pragma: keep
+#include "./nonlininteg_vecconvection_pa_diag.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
+
+VectorConvectionNLFIntegrator::Kernels::Kernels()
+{
+   // 2D
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 2, 2>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 2, 3>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 3, 4>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 3, 5>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 4, 5>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 4, 6>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 5, 7>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 5, 8>();
+   VectorConvectionNLFIntegrator::AddSpecialization<2, 6, 8>();
+   // 3D
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 2, 3>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 2, 4>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 2, 5>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 3, 4>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 3, 5>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 3, 6>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 4, 5>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 4, 6>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 4, 7>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 4, 8>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 5, 6>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 5, 7>();
+   VectorConvectionNLFIntegrator::AddSpecialization<3, 5, 8>();
+}
 
 void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -167,33 +197,6 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      static const auto specializations =
-         (AddMultPAKernels::Specialization<2, 2,2>::Add(),
-          AddMultPAKernels::Specialization<2, 2,3>::Add(),
-          AddMultPAKernels::Specialization<2, 3,4>::Add(),
-          AddMultPAKernels::Specialization<2, 3,5>::Add(),
-          AddMultPAKernels::Specialization<2, 4,5>::Add(),
-          AddMultPAKernels::Specialization<2, 4,6>::Add(),
-          AddMultPAKernels::Specialization<2, 5,7>::Add(),
-          AddMultPAKernels::Specialization<2, 5,8>::Add(),
-          AddMultPAKernels::Specialization<2, 6,8>::Add(),
-          // 3D
-          AddMultPAKernels::Specialization<3, 2,3>::Add(),
-          AddMultPAKernels::Specialization<3, 2,4>::Add(),
-          AddMultPAKernels::Specialization<3, 2,5>::Add(),
-          AddMultPAKernels::Specialization<3, 3,4>::Add(),
-          AddMultPAKernels::Specialization<3, 3,5>::Add(),
-          AddMultPAKernels::Specialization<3, 3,6>::Add(),
-          AddMultPAKernels::Specialization<3, 4,5>::Add(),
-          AddMultPAKernels::Specialization<3, 4,6>::Add(),
-          AddMultPAKernels::Specialization<3, 4,7>::Add(),
-          AddMultPAKernels::Specialization<3, 4,8>::Add(),
-          AddMultPAKernels::Specialization<3, 5,6>::Add(),
-          AddMultPAKernels::Specialization<3, 5,7>::Add(),
-          AddMultPAKernels::Specialization<3, 5,8>::Add(),
-          true);
-      MFEM_CONTRACT_VAR(specializations);
-
       AddMultPAKernels::Run(dim, d1d, q1d, ne,
                             maps->B.Read(),
                             maps->G.Read(),

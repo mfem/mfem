@@ -227,8 +227,7 @@ VectorConvectionNLFIntegrator::AddMultGradPA2D::Kernel()
 }
 
 inline VectorConvectionNLFIntegrator::AddMultGradPAType
-VectorConvectionNLFIntegrator::AddMultGradPA2D::Fallback
-(int d1d, int q1d)
+VectorConvectionNLFIntegrator::AddMultGradPA2D::Fallback(int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
    MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -245,8 +244,7 @@ VectorConvectionNLFIntegrator::AddMultGradPA3D::Kernel()
 }
 
 inline VectorConvectionNLFIntegrator::AddMultGradPAType
-VectorConvectionNLFIntegrator::AddMultGradPA3D::Fallback
-(int d1d, int q1d)
+VectorConvectionNLFIntegrator::AddMultGradPA3D::Fallback(int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d, "d1d > q1d is not supported");
    MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
