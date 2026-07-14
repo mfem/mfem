@@ -1,0 +1,118 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_UMANSKY_HPP
+#define MFEM_UMANSKY_HPP
+
+#include "mfem.hpp"
+
+using namespace mfem;
+
+namespace umansky
+{
+
+/** The boundary values for the test problem defined in the Umansky
+    paper are set to one on the y=0 and x=w sides of the rectangular
+    domain and to zero on the x=0 and y=h sides. In order to improve
+    the symmetry of solutions we also define boundary values at the
+    points (0,0) and (w,h) to be equal to 0.5.
+ */
+class BoundaryCoefficient : public Coefficient
+{
+public:
+   BoundaryCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      const real_t tol = std::numeric_limits<real_t>::epsilon();
+
+      real_t x[2];
+      Vector transip(x, 2);
+
+      T.Transform(ip, transip);
+
+      if (fabs(w_ * x[1] - h_ * x[0]) < w_ * h_ * tol)
+      {
+         return 0.5;
+      }
+      else if (w_ * x[1] > h_ * x[0])
+      {
+         return 0.0;
+      }
+      else
+      {
+         return 1.0;
+      }
+   }
+
+private:
+   real_t w_, h_;
+};
+
+/** In section 2.2 of the Umansky paper the anisotropic diffusion
+    coefficient is defined to be
+
+        / A C \
+    K = |     |
+        \ C B /
+
+    Where
+     A = K_xi cos^2(theta_m) + K_eta sin^2(theta_m)
+     B = K_xi sin^2(theta_m) + K_eta cos^2(theta_m)
+     C = (K_eta - K_xi) sin(theta_m) cos(theta_m)
+
+    The misalignment angle, theta_m, is defined as theta_m =
+    arctan(h/w) where h is the height of the domain and w is the
+    width.
+
+    We make use of the definition of theta_m to eliminate the
+    trigonometric functions from this coefficient. We also make the
+    simplifying assumption that K_eta=1 so that A_k, the anisotropy
+    ratio, is equal to K_xi.
+
+    With these changes the components of the diffusion coefficient can
+    be written as
+     A = 1 + (A_k - 1) w^2 / d^2
+     B = 1 + (A_k - 1) h^2 / d^2
+     C = (A_k - 1) w h / d^2
+
+    Where d^2 = w^2 + h^2, the squared length of the diagonal.
+ */
+class AnisotropicDiffusionCoefficient : public MatrixCoefficient
+{
+public:
+   AnisotropicDiffusionCoefficient(real_t w, real_t h, real_t Ak)
+      : MatrixCoefficient(2), w_(w), h_(h), Ak_(Ak)
+   { d2_ = w_ * w_ + h_ * h_; }
+
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      M.SetSize(2);
+
+      M(0,0) = 1.0 + (Ak_ - 1.0) * w_ * w_ / d2_;
+      M(0,1) = (Ak_ - 1.0) * w_ * h_ / d2_;
+      M(1,0) = M(0,1);
+      M(1,1) = 1.0 + (Ak_ - 1.0) * h_ * h_ / d2_;
+   }
+
+private:
+   real_t w_, h_, Ak_, d2_;
+};
+
+real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
+                real_t y0, real_t y1);
+real_t CalcWidth(ParGridFunction &u);
+
+} // namespace umansky
+
+#endif // MFEM_UMANSKY_HPP
