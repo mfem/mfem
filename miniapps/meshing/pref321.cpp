@@ -336,8 +336,8 @@ real_t CheckH1Continuity(ParGridFunction &x)
       }
    }
 
-   MPI_Allreduce(MPI_IN_PLACE, &errorMax, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_MAX, pmesh->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &errorMax, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 pmesh->GetComm());
 
    return errorMax;
 }

@@ -28,9 +28,9 @@ namespace mfem
 
 using namespace bin_io;
 
-int GetHexEdgeSplit(const int* nodes, int v1, int v2);
+static int GetHexEdgeSplit(const int* nodes, int v1, int v2);
 
-bool SameSplitScale(real_t a, real_t b)
+static bool SameSplitScale(real_t a, real_t b)
 {
 #ifdef MFEM_USE_DOUBLE
    constexpr real_t rel_tol = 1.0e-8;
@@ -41,8 +41,8 @@ bool SameSplitScale(real_t a, real_t b)
           std::max(real_t(1.0), std::max(std::abs(a), std::abs(b)));
 }
 
-real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
-                            int v0, int v1)
+static real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
+                                   int v0, int v1)
 {
    const int dir = GetHexEdgeSplit(nodes, v0, v1);
    static const int split_edges[3][4][2] =
@@ -67,6 +67,7 @@ real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
    }
 
    MFEM_ABORT("Shared face edge does not match the refinement direction.");
+   return 0.0;
 }
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
@@ -1792,7 +1793,7 @@ int FindHexFace(const int* no, int vn1, int vn2, int vn3, int vn4)
 
 // Assumption: v1 and v2 are indices of hex vertices connected by an edge.
 // The return value is {0,1,2} denoting split {X,Y,Z}.
-int GetHexEdgeSplit(const int* nodes, int v1, int v2)
+static int GetHexEdgeSplit(const int* nodes, int v1, int v2)
 {
    Array<int> v(2);
    v[0] = v1;
