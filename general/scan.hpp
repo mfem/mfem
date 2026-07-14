@@ -17,9 +17,7 @@
 
 #if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
 #error "This header requires compilation with CUDA/HIP language!"
-#endif
-
-#ifdef MFEM_USE_CUDA_OR_HIP_LANG
+#else
 
 #ifdef MFEM_USE_CUDA
 #include <cub/device/device_scan.cuh>
@@ -412,6 +410,6 @@ void CopyUnique(bool use_dev, InputIt d_in, OutputIt d_out,
 
 #undef MFEM_CUB_NAMESPACE
 
-#endif // #ifdef MFEM_USE_CUDA_OR_HIP_LANG
+#endif // defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
 
-#endif
+#endif // MFEM_SCAN_HPP
