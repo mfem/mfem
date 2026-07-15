@@ -471,6 +471,13 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+VectorFEDomainLFIntegrator::VectorFEDomainLFIntegrator(
+   VectorCoefficient &F, const IntegrationRule *ir)
+   : DeltaLFIntegrator(F, ir), QF(F)
+{
+   static Kernels kernels{};
+}
+
 void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {

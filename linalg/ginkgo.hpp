@@ -39,6 +39,7 @@ namespace Ginkgo
 {
 
 template <typename T> using gko_array = gko::array<T>;
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
 // for inter-operability with hypre integer types
 using gko_hypre_int =
    std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int32_t), std::int32_t,
@@ -50,6 +51,7 @@ static_assert(!std::is_void_v<gko_hypre_int>,
               "HYPRE_Int type is incompatible with Ginkgo");
 static_assert(!std::is_void_v<gko_hypre_bigint>,
               "HYPRE_BigInt type is incompatible with Ginkgo");
+#endif
 
 /**
 * Helper class for a case where a wrapped MFEM Vector
