@@ -771,11 +771,9 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 bool
 MixedSesquilinearForm::RealInteg()
 {
-   int nint = mblfr->GetFBFI()->Size() + mblfr->GetDBFI()->Size() +
-              mblfr->GetBBFI()->Size() +
-              mblfr->GetBFBFI()->Size() +
-              mblfr->GetTFBFI()->Size() +
-              mblfr->GetBTFBFI()->Size();
+   int nint = mblfr->GetDBFI()->Size() + mblfr->GetBBFI()->Size() +
+              mblfr->GetFBFI()->Size() + mblfr->GetBFBFI()->Size() +
+              mblfr->GetTFBFI()->Size() + mblfr->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
@@ -1113,7 +1111,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
+   if (A_r.Type() == Operator::MFEM_SPARSEMAT &&
        A_i.Type() == Operator::MFEM_SPARSEMAT)
    {
       ComplexSparseMatrix * A_hyp =
@@ -1161,7 +1159,7 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
+   if (A_r.Type() == Operator::MFEM_SPARSEMAT &&
        A_i.Type() == Operator::MFEM_SPARSEMAT)
    {
       ComplexSparseMatrix * A_hyp =
@@ -2441,7 +2439,7 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
+   if (A_r.Type() == Operator::Hypre_ParCSR &&
        A_i.Type() == Operator::Hypre_ParCSR)
    {
       ComplexHypreParMatrix * A_hyp =
@@ -2489,7 +2487,7 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
+   if (A_r.Type() == Operator::Hypre_ParCSR &&
        A_i.Type() == Operator::Hypre_ParCSR)
    {
       ComplexHypreParMatrix * A_hyp =
