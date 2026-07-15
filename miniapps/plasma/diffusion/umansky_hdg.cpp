@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
 
    Array<int> bdr_is_dirichlet(pmesh.bdr_attributes.Size() > 0 ?
-                            pmesh.bdr_attributes.Max() : 1);
+                               pmesh.bdr_attributes.Max() : 1);
    bdr_is_dirichlet = -1;
 
    // Set up the parallel Darcy form on the finite element space
@@ -439,7 +439,8 @@ int main(int argc, char *argv[])
          X.SetSize(trace_space->GetTrueVSize());
          that_h.MakeTRef(trace_space, X, 0);
          that_h = 0.;
-         that_h.ProjectBdrCoefficient(unitStepCoef, bdr_is_dirichlet); // essential Dirichlet BC
+         that_h.ProjectBdrCoefficient(unitStepCoef,
+                                      bdr_is_dirichlet); // essential Dirichlet BC
          that_h.SetTrueVector();
       }
 
