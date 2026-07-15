@@ -10,8 +10,9 @@
 // CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------
-//       Umansky_DG Miniapp:  Anisotropic Diffusion Test
-//                            Using Discontinuous Galerkin Method
+//       Umansky_HDG Miniapp:  Anisotropic Diffusion Test
+//                             Using Hybridizable Discontinuous
+//                             Galerkin Method
 //       --------------------------------------------------------
 //
 // This miniapp implements an H(B)RT/HDG solver for the test problem
