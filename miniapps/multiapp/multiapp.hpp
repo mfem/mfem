@@ -70,7 +70,7 @@ public:
     ///@brief Constructor for a Field of type Type with optional ID
     Field(Vector *field, Vector *adjoint, Type type, int id_ = -1) :
           type(type), data(field), adjoint(adjoint), id(GetValidID(id_)),
-          name("Field_" + std::to_string(id_)) { }
+          name("Field_" + std::to_string(id)) { }
 
     ///@brief Constructor for a Source field
     Field(Vector *field, int id_ = -1) :
@@ -342,11 +342,12 @@ public:
     /// @brief Add a ParGridFunction as a field (does not specify source or target)
     void AddField(const std::string &field_name, Field *field, bool own = false)
     {
-        fields.Register(field_name, field, own);
-        if(field->Node() == nullptr)
+        if(fields.Has(field_name))
         {
-            field->SetNode(src_op);
+            MFEM_WARNING("FieldCollection::AddField: Field with name "
+                         << field_name << " already exists. Replacing existing field.");
         }
+        fields.Register(field_name, field, own);
     }
 
     /// @brief Add a FieldEdge to the collection with name src_name
@@ -368,18 +369,12 @@ public:
         fields.Register(src_name, edge->SourceField(), false);
     }
 
-    void AddInput(Field *field, bool own = false)
-    { AddInput(field->Name(), field, own); }
-    
     void AddInput(const std::string &field_name,
                   Field *field, bool own = false)
     {
         AddField(field_name, field, own);
         input_fields.push_back(field);
     }
-
-    void AddOutput(Field *field, bool own = false)
-    { AddOutput(field->Name(), field, own); }
 
     void AddOutput(const std::string &field_name,
                    Field *field, bool own = false)
@@ -521,11 +516,10 @@ protected:
 
 public:
 
-    GraphNode(int s = 0) : Operator(s), id(GetValidID(-1)), fields(this)
-    { }
+    GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1)),
+                              name("Node_" + std::to_string(id)), fields(this) { }
 
-    GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1)), fields(this)
-    { }
+    GraphNode(int s = 0) : GraphNode(s, s) { }
 
     virtual void Execute(const Vector &x, Vector &y)
     {
@@ -566,17 +560,39 @@ public:
     Field* InputField(int i) const { return fields.InputField(i); }
     Field* OutputField(int i) const { return fields.OutputField(i); }
 
+
     virtual void AddInput(const std::string &field_name,
                           Field *field, bool own = false)
+    { fields.AddInput(field_name, field, own); }
+
+    void AddInput(Field *field, bool own = false)
+    { AddInput(field->Name(), field, own); }
+
+    template<bool OwnInputs = false,
+             typename... Args,
+             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
+             typename std::enable_if<AreFields, bool>::type = true >
+    void AddInputs(Args... args)
     {
-        fields.AddInput(field_name, field, own);
+        ((AddInput(std::forward<Args>(args), OwnInputs)), ...);
     }
 
     virtual void AddOutput(const std::string &field_name,
                            Field *field, bool own = false)
+    { fields.AddOutput(field_name, field, own); }
+
+    void AddOutput(Field *field, bool own = false)
+    { AddOutput(field->Name(), field, own); }
+
+    template<bool OwnOutputs = false,
+             typename... Args,
+             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
+             typename std::enable_if<AreFields, bool>::type = true >
+    void AddOutputs(Args... args)
     {
-        fields.AddOutput(field_name, field, own);
+        ((AddOutput(std::forward<Args>(args), OwnOutputs)), ...);
     }
+
 
     virtual void Save (std::ostream &out) const
     {
@@ -724,42 +740,48 @@ public:
 class DataNode : public GraphNode
 {
 protected:
-    Vector data, adjoint;
     Field *field = nullptr;
 
 public:
 
-    DataNode(std::string name, int sz) : GraphNode(sz)
+    DataNode(Field &f, int sz, std::string name = "") : GraphNode(sz), field(&f)
     {
-        SetName(name);
-    }
-
-    DataNode(std::string name, int sz, Field::Type type) : DataNode(name, sz)
-    {
-        field = new Field(&data, &adjoint, type);
-        fields.AddField(name, field, true); // transfer ownership
+        if(!name.empty()) SetName(name);
+        // fields.AddField(name, field, false);
     }
 
     Field* GetField() const { return field; }
 
     virtual void SetData(const Vector &v)
     {
-        MFEM_ABORT("DataNode::SetData() not implemented.");
+        Vector *vec = field->Data();
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        MFEM_ASSERT(vec != nullptr, "Input field data is not set.");
+        *vec = v;
     }
 
     virtual void GetData(Vector &v) const
     {
-        MFEM_ABORT("DataNode::GetData() not implemented.");
+        Vector *vec = field->Data();
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        MFEM_ASSERT(vec != nullptr, "Input field data is not set.");
+        v = *vec;
     }
 
     virtual void SetAdjoint(const Vector &v)
     {
-        MFEM_ABORT("DataNode::SetAdjoint() not implemented.");
+        Vector *vec = field->Adjoint();
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        MFEM_ASSERT(vec != nullptr, "Input field adjoint is not set.");
+        *vec = v;
     }
 
     virtual void GetAdjoint(Vector &v) const
     {
-        MFEM_ABORT("DataNode::GetAdjoint() not implemented.");
+        Vector *vec = field->Adjoint();
+        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
+        MFEM_ASSERT(vec != nullptr, "Input field adjoint is not set.");
+        v = *vec;
     }
 
 private: // Hide all other functions from user
@@ -767,83 +789,16 @@ private: // Hide all other functions from user
     using GraphNode::Mult;
     using GraphNode::JVP;
     using GraphNode::VJP;
-};
-
-class InputNode : public DataNode
-{
-public:
-    InputNode(std::string name, int sz) : DataNode(name, sz)
-    {
-        data.SetSize(sz);
-        adjoint.SetSize(sz);
-        field = new Field(&data, &adjoint, Field::Type::SOURCE);
-        AddOutput(name, field, true); // transfer ownership
-    }
-
-    void AddTargetField(Field *target, bool own=false)
-    {
-        fields.AddTargetField(Name(), target, own);
-    }
-
-    void SetData(const Vector &v) override
-    {
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        data = v; 
-    }
-
-    void GetData(Vector &v) const override
-    {
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        v = data;
-    }
-
-    void SetAdjoint(const Vector &v) override
-    {
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        adjoint = v; 
-    }
-
-    void GetAdjoint(Vector &v) const override
-    {
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        v = adjoint;
-    }
-};
-
-class OutputNode : public DataNode
-{
-public:
-    OutputNode(std::string name, int sz) : DataNode(name, sz)
-    {
-        data.SetSize(sz);
-        adjoint.SetSize(sz);
-        field = new Field(&data, &adjoint, Field::Type::TARGET);
-        fields.AddField(name, field, true); // transfer ownership
-    }
-
-    void SetData(const Vector &v) override
-    {
-        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
-        data = v;
-    }
-
-    void GetData(Vector &v) const override
-    {
-        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
-        v = data;
-    }
-
-    void SetAdjoint(const Vector &v) override
-    {
-        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
-        adjoint = v;
-    }
-
-    void GetAdjoint(Vector &v) const override
-    {
-        MFEM_ASSERT(v.Size() == Height(), "Vector size does not match node size.");
-        v = adjoint;
-    }
+    using GraphNode::GetJacobian;
+    using GraphNode::AddInput;
+    using GraphNode::AddOutput;
+    using GraphNode::AddInputs;
+    using GraphNode::AddOutputs;
+    using GraphNode::InputFields;
+    using GraphNode::OutputFields;
+    using GraphNode::InputField;
+    using GraphNode::OutputField;
+    using GraphNode::Fields;
 };
 
 /**
@@ -954,10 +909,10 @@ public:
         in_offsets.Append(in_offsets.Last() + node->Width());
         width += node->Width();
 
-        auto edge = node->Edges().Get(node->Name());
-        if(edge)
-        {   // Add the node's linkefield to the DAG's
-            fields.AddFieldEdge(node->Name(), edge, false);
+        auto field = node->GetField();
+        if(field)
+        {   // Add the node's field to the DAG's
+            fields.AddField(node->Name(), field, false);
         }
 
         input_nodes.push_back(node);
@@ -972,10 +927,10 @@ public:
         out_offsets.Append(out_offsets.Last() + node->Height());
         height += node->Height();
 
-        auto field = node->Fields().Get(name);
+        auto field = node->GetField();
         if(field)
-        {   // Add the node's target field to the DAG's
-            fields.AddField(name, field, false);
+        {   // Add the node's field to the DAG's
+            fields.AddField(node->Name(), field, false);
         }
 
         output_nodes.push_back(node);
@@ -1084,72 +1039,6 @@ public:
 
     ~GraphGradient() = default;
 };
-
-
-
-
-
-
-
-/**
-   @brief MFEM SubMesh transfer between two FiniteElementSpaces 
-   using ParTransferMap.
-   NOT USED YET
-
-class SubMeshTransfer : public GraphNode
-{
-protected:
-    ParFiniteElementSpace *src_fes = nullptr, *tar_fes = nullptr;
-    ParTransferMap *transfer_map = nullptr;
-    bool own_map = false;
-
-public:
-
-    SubMeshTransfer(ParFiniteElementSpace *src,
-                    ParFiniteElementSpace *tar) : GraphNode(),
-                    src_fes(src), tar_fes(tar),
-                    transfer_map(new ParTransferMap(src_fes, tar_fes)), own_map(true) {}
-
-    SubMeshTransfer(ParGridFunction *src, ParGridFunction *tar) :
-                    SubMeshTransfer(src->ParFESpace(), tar->ParFESpace()) {}
-
-    void SetTransferMap(ParTransferMap *map, bool own=false)
-    {
-        if(own_map && transfer_map) delete transfer_map;
-        transfer_map = map;
-        own_map = own;
-    }
-
-    void Execute(const Vector &src, Vector &tar) override
-    {
-        MFEM_ASSERT(transfer_map != nullptr, "SubMeshTransfer::Execute: transfer map not set!");
-
-        // Loop through all the edges and perform the operator
-        NamedFieldsMap<FieldEdge> &edges = Fields().GetEdges();
-        for (auto edge_pair = edges.begin(); edge_pair != edges.end(); ++edge_pair)
-        {
-            std::string edge_name = edge_pair->first;
-            FieldEdge *edge = edge_pair->second;
-            ParGridFunction &src_gf = dynamic_cast<ParGridFunction&>(*edge->SourceField()->Data());
-
-            // Loop through all the targets for this source field and perform the transfer
-            auto &targets = edge->GetTargets();
-            for (auto &target : targets)
-            {
-                ParGridFunction &tar_gf = dynamic_cast<ParGridFunction&>(*target->Data());
-                transfer_map->Transfer(src_gf, tar_gf);
-            }
-        }
-    }
-
-    ~SubMeshTransfer()
-    {
-        if(own_map && transfer_map) delete transfer_map;
-    }
-};
- */
-
-
 
 
 } //mfem namespace
