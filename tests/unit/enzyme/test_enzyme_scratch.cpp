@@ -98,64 +98,6 @@ struct LinearQFunctionWithExternalScratch
    }
 };
 
-struct ReverseTapeQFunction
-{
-   const dscalar_t *coef = nullptr;
-   dscalar_t *tape = nullptr;
-
-   MFEM_HOST_DEVICE
-   void SetCoef(const dscalar_t *coef_)
-   {
-      coef = coef_;
-   }
-
-   MFEM_HOST_DEVICE
-   void SetTape(dscalar_t *tape_)
-   {
-      tape = tape_;
-   }
-
-   void operator()(tensor_array<const dscalar_t> &x,
-                   tensor_array<dscalar_t> &y) const
-   {
-      auto coef_t = make_tensor_array(coef, x.size());
-      auto tape_t = make_tensor_array(tape, x.size());
-
-      mfem::forall<UseEnzyme>(x.size(), [=] MFEM_HOST_DEVICE(int q)
-      {
-         tape_t(q) = x(q) * x(q);
-      });
-
-      mfem::forall<UseEnzyme>(x.size(), [=] MFEM_HOST_DEVICE(int q)
-      {
-         y(q) = coef_t(q) * tape_t(q) * x(q);
-      });
-   }
-};
-
-template <int N>
-void reverse_tape_qfunction(const dscalar_t *x, dscalar_t *y,
-                            const dscalar_t *coef, dscalar_t *tape)
-{
-   auto x_t = make_tensor_array(x, N);
-   auto y_t = make_tensor_array(y, N);
-
-   ReverseTapeQFunction qf;
-   qf.SetCoef(coef);
-   qf.SetTape(tape);
-   qf(x_t, y_t);
-}
-
-template <int N>
-void reverse_tape_qfunction_apply(const ReverseTapeQFunction &qf,
-                                  const dscalar_t *x, dscalar_t *y)
-{
-   auto x_t = make_tensor_array(x, N);
-   auto y_t = make_tensor_array(y, N);
-
-   qf(x_t, y_t);
-}
-
 template <int N>
 void qfunction_wrapper(const dscalar_t *x, dscalar_t *y,
                       const dscalar_t *coef, dscalar_t *scratch)
@@ -247,26 +189,6 @@ inline void print_qdata_results(const char *label,
                   q, y[q], yd[q], exact_yd, qdata[q]);
    }
 }
-
-inline void print_reverse_tape_results(const char *label,
-                                       const mfem::Vector &x,
-                                       const mfem::Vector &coef,
-                                       const mfem::Vector &tape,
-                                       const mfem::Vector &y,
-                                       const mfem::Vector &yd)
-{
-   std::printf("%s\n", label);
-   std::printf("%3s %10s %10s %10s %10s\n",
-               "q", "y", "yd", "tape", "yd_ex");
-
-   for (int q = 0; q < x.Size(); q++)
-   {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      std::printf("%3d %10.4g %10.4g %10.4g %10.4g\n",
-                  q, y[q], yd[q], tape[q], exact_yd);
-   }
-}
-
 
 } // namespace enzyme_test_setscratch
 
