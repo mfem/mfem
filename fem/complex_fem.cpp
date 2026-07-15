@@ -780,11 +780,9 @@ MixedSesquilinearForm::RealInteg()
 bool
 MixedSesquilinearForm::ImagInteg()
 {
-   int nint = mblfi->GetFBFI()->Size() + mblfi->GetDBFI()->Size() +
-              mblfi->GetBBFI()->Size() +
-              mblfi->GetBFBFI()->Size() +
-              mblfi->GetTFBFI()->Size() +
-              mblfi->GetBTFBFI()->Size();
+   int nint = mblfi->GetDBFI()->Size() + mblfi->GetBBFI()->Size() +
+              mblfi->GetFBFI()->Size() + mblfi->GetBFBFI()->Size() +
+              mblfi->GetTFBFI()->Size() + mblfi->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
@@ -2091,22 +2089,18 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
 bool
 ParMixedSesquilinearForm::RealInteg()
 {
-   int nint = pmblfr->GetFBFI()->Size() + pmblfr->GetDBFI()->Size() +
-              pmblfr->GetBBFI()->Size() +
-              pmblfr->GetBFBFI()->Size() +
-              pmblfr->GetTFBFI()->Size() +
-              pmblfr->GetBTFBFI()->Size();
+   int nint = pmblfr->GetDBFI()->Size() + pmblfr->GetBBFI()->Size() +
+              pmblfr->GetFBFI()->Size() + pmblfr->GetBFBFI()->Size() +
+              pmblfr->GetTFBFI()->Size() + pmblfr->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
 bool
 ParMixedSesquilinearForm::ImagInteg()
 {
-   int nint = pmblfi->GetFBFI()->Size() + pmblfi->GetDBFI()->Size() +
-              pmblfi->GetBBFI()->Size() +
-              pmblfi->GetBFBFI()->Size() +
-              pmblfi->GetTFBFI()->Size() +
-              pmblfi->GetBTFBFI()->Size();
+   int nint = pmblfi->GetDBFI()->Size() + pmblfi->GetBBFI()->Size() +
+              pmblfi->GetFBFI()->Size() + pmblfi->GetBFBFI()->Size() +
+              pmblfi->GetTFBFI()->Size() + pmblfi->GetBTFBFI()->Size();
    return (nint != 0);
 }
 
