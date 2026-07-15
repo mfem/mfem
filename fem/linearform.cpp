@@ -507,10 +507,14 @@ void LinearForm::ComputeDeltaLocations(
          entity_verts.SetSize(0);
          for (int a : active_local) { entity_verts.Append(anchor_verts[a]); }
 
-         // Interior point (entity == whole element) or unsupported geometry:
-         // only the anchor contains the center.
-         if (entity_verts.Size() != 0 &&
-             entity_verts.Size() < anchor_verts.Size())
+         MFEM_VERIFY(entity_verts.Size() > 0,
+                     "could not identify delta center entity");
+
+         // If the active entity is the whole element, the center is an
+         // interior point and the anchor is the only containing element.
+         // Otherwise, inspect neighbors sharing all vertices of the
+         // lower-dimensional active entity.
+         if (entity_verts.Size() < anchor_verts.Size())
          {
             // Candidates: elements incident to the first entity vertex.
             const int v0 = entity_verts[0];

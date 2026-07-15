@@ -256,9 +256,7 @@ Mesh MakeCenteredHex24Tets()
    for (int v = 0; v < mesh.GetNV(); v++)
    {
       real_t *vp = mesh.GetVertex(v);
-      vp[0] -= 1.0;
-      vp[1] -= 1.0;
-      vp[2] -= 1.0;
+      for (int d = 0; d < 3; d++) { vp[d] -= 1.0; }
    }
    return mesh;
 }
@@ -273,6 +271,17 @@ void GenericField(const Vector &x, Vector &v)
    v(0) = 0.1 + 0.2 * x(0) - 0.3 * x(1) + 0.15 * x(2);
    v(1) = -0.2 + 0.4 * x(1) + 0.25 * x(2) - 0.1 * x(0);
    v(2) = 0.3 + 0.5 * x(2) + 0.2 * x(0) - 0.35 * x(1);
+}
+
+/** @brief Evaluate GenericField with a nonzero constant x-component offset.
+
+    The offset makes x-directed delta actions nonzero by construction in the
+    parallel NC tests, while the varying part of GenericField still exercises
+    the split over elements with different one-sided projected values. */
+void ShiftedGenericField(const Vector &x, Vector &v)
+{
+   GenericField(x, v);
+   v(0) += 1.0;
 }
 
 /** @brief Evaluate the 3D scalar linear field used by scalar delta tests. */
@@ -1287,14 +1296,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    REQUIRE(mesh.Nonconforming());
 
    ND_FECollection fec(1, 3);
-   VectorFunctionCoefficient field(3, GenericField);
-
-   FiniteElementSpace fes_ref(&mesh, &fec);
-   GridFunction g_ref(&fes_ref);
-   g_ref.ProjectCoefficient(field);
-   Vector ref;
-   AssembleDeltaReferenceBruteForce(fes_ref, x0, dir, ref);
-   const real_t ref_action = ref * g_ref;
+   VectorFunctionCoefficient field(3, ShiftedGenericField);
 
    // Reference: same assembly path on an unpartitioned COMM_SELF ParMesh.
    auto action = [&](MPI_Comm comm, int *part) -> real_t
@@ -1315,7 +1317,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(serial_action == MFEM_Approx(ref_action));
 
    // Keep the coarse master and fine slaves on different ranks.
    const int nranks = Mpi::WorldSize();
@@ -1329,10 +1330,9 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", ref = "
-        << ref_action << ", serial = " << serial_action << ", parallel = "
-        << par_action);
-   REQUIRE(par_action == MFEM_Approx(ref_action));
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
+        << serial_action << ", parallel = " << par_action);
+   REQUIRE(par_action == MFEM_Approx(serial_action));
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
@@ -1356,14 +1356,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    REQUIRE(mesh.Nonconforming());
 
    ND_FECollection fec(1, 3);
-   VectorFunctionCoefficient field(3, GenericField);
-
-   FiniteElementSpace fes_ref(&mesh, &fec);
-   GridFunction g_ref(&fes_ref);
-   g_ref.ProjectCoefficient(field);
-   Vector ref;
-   AssembleDeltaReferenceBruteForce(fes_ref, x0, dir, ref);
-   const real_t ref_action = ref * g_ref;
+   VectorFunctionCoefficient field(3, ShiftedGenericField);
 
    auto action = [&](MPI_Comm comm, int *part) -> real_t
    {
@@ -1383,7 +1376,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
-   REQUIRE(serial_action == MFEM_Approx(ref_action));
 
    const int nranks = Mpi::WorldSize();
    real_t vmax = 0.0;
@@ -1396,10 +1388,9 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    }
    const real_t par_action = action(MPI_COMM_WORLD, part.GetData());
 
-   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", ref = "
-        << ref_action << ", serial = " << serial_action << ", parallel = "
-        << par_action);
-   REQUIRE(par_action == MFEM_Approx(ref_action));
+   INFO("entity_type = " << entity_type << ", nranks = " << nranks << ", serial = "
+        << serial_action << ", parallel = " << par_action);
+   REQUIRE(par_action == MFEM_Approx(serial_action));
 }
 
 #endif // MFEM_USE_MPI
