@@ -14,15 +14,95 @@
 #include "../qfunction.hpp"
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
+#include "../fe/fe_h1.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices.hpp"
+#include "bilininteg_diffusion_pa_simplices_mma.hpp"
+#include "bilininteg_pa_simplices_mma.hpp"
 
 namespace mfem
 {
 
+void DiffusionIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
+{
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   MFEM_VERIFY(!fes.UsesRaggedTensorBasis(), "");
+   MFEM_VERIFY(mesh->SpaceDimension() == dim, "");
+
+   const FiniteElement &el = *fes.GetTypicalFE();
+   const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
+                                            : Geometry::TETRAHEDRON;
+   MFEM_VERIFY(el.GetGeomType() == geom_t, "");
+   if (dim == 2)
+   {
+      MFEM_VERIFY(dynamic_cast<const H1_TriangleElement *>(&el), "");
+   }
+   else
+   {
+      MFEM_VERIFY(dynamic_cast<const H1_TetrahedronElement *>(&el), "");
+   }
+
+   const int dims = el.GetDim();
+   const int symmDims = (dims * (dims + 1)) / 2;
+   const int p = el.GetOrder();
+   dofs1D = p + 1;
+   const int ndof = el.GetDof();
+
+   const IntegrationRule &ir = IntRule ? *IntRule : GetRule(el, el);
+   const int nq1 = ir.GetNPoints();
+   quad1D = nq1;
+   ne = mesh->GetNE();
+   pa_simplex_mma = true;
+   maps = nullptr;
+
+   simplex_mma_G.SetSize(nq1 * ndof * dim, mt);
+   {
+      real_t *Gh = simplex_mma_G.HostWrite();
+      DenseMatrix dshape(ndof, dim);
+      for (int q = 0; q < nq1; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         el.CalcDShape(ip, dshape);
+         for (int d = 0; d < dim; d++)
+         {
+            for (int i = 0; i < ndof; i++)
+            {
+               Gh[q + nq1 * (i + ndof * d)] = dshape(i, d);
+            }
+         }
+      }
+   }
+
+   geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mt);
+
+   QuadratureSpace qs(*mesh, ir);
+   CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (VQ) { coeff.Project(*VQ); }
+   else if (Q) { coeff.Project(*Q); }
+   else { coeff.SetConstant(1.0); }
+
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dims * dims);
+   const int pa_size = symmetric ? symmDims : dims * dims;
+   pa_data.SetSize(pa_size * nq1 * ne, mt);
+   internal::PADiffusionSetupSimplexMma(dim, coeff_dim, ne, nq1,
+                                        ir.GetWeights(), geom->J, coeff, pa_data);
+}
+
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (DeviceCanUseCeed())
+   if (pa_simplex_mma)
+   {
+      MFEM_ABORT("AssembleDiagonalPA not implemented for simplex MMA PA");
+   }
+   else if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
    }
@@ -40,7 +120,13 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (DeviceCanUseCeed())
+   if (pa_simplex_mma)
+   {
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                    simplex_mma_G, pa_data, x, y,
+                                    dofs1D, quad1D);
+   }
+   else if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
@@ -107,6 +193,15 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   pa_simplex_mma = false;
+   simplex_mma_G.DeleteAll();
+
+   if (!fes.UsesRaggedTensorBasis() && CanUseSimplexMmaPA(fes))
+   {
+      AssemblePA_SimplexMma(fes);
+      return;
+   }
+
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
@@ -199,6 +294,7 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
+   MFEM_VERIFY(!pa_simplex_mma, "AbsMultPA not implemented for simplex MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
    auto abs_maps = maps->Abs();

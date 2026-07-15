@@ -2193,6 +2193,12 @@ public:
                                           const Vector&, const Vector&,
                                           Vector&, const int, const int);
 
+   /// Simplex MMA apply: (NE, GradP, D, x, y, d1d, nq)
+   using ApplySimplexMmaKernelType = void(*)(const int, const bool,
+                                             const Array<real_t>&,
+                                             const Vector&, const Vector&, Vector&,
+                                             const int, const int);
+
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
@@ -2200,6 +2206,8 @@ public:
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
                                                                          int));
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2223,6 +2231,10 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   /// True when using CUDA simplex MMA diffusion PA (dense GradP + DMMA apply).
+   bool pa_simplex_mma = false;
+   /// Dense reference gradients at quads: nq × ndof × dim.
+   Array<real_t> simplex_mma_G;
 
    // Data for NURBS patch PA
 
@@ -2278,6 +2290,9 @@ private:
                                               SparseMatrix*& smat);
 
 public:
+   /// Assemble PA data for GLL H1 simplex diffusion via DMMA (CUDA).
+   void AssemblePA_SimplexMma(const FiniteElementSpace &fes);
+
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
@@ -2365,12 +2380,23 @@ public:
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       AddSimplexSpecialization<DIM,D1D,Q1D>();
+      AddSimplexMmaSpecialization<DIM,D1D,Q1D>();
    }
 
    template <int DIM, int D1D, int Q1D>
    static void AddSimplexSpecialization()
    {
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+
+   /// @param Q1D Number of simplex quadrature points (not a 1D count).
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

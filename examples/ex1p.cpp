@@ -47,6 +47,9 @@
 // Device simplices sample runs:
 //               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tet.mesh
 //               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tri.mesh
+//               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tet.mesh -b P
+//               mpirun -np 4 ex1p -pa -d cuda -m ../data/inline-tet.mesh -b G
+//               mpirun -np 4 ex1p -pa -d cuda -m ../data/inline-tri.mesh -b G
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
@@ -85,6 +88,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool fa = false;
    const char *device_config = "cpu";
+   const char *basis_type = "auto";
    bool visualization = true;
    bool algebraic_ceed = false;
 #ifdef MFEM_USE_CUDSS
@@ -105,6 +109,9 @@ int main(int argc, char *argv[])
                   "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&basis_type, "-b", "--basis-type",
+                  "Basis: auto | G (Gauss-Lobatto) | P (Positive). "
+                  "auto: Positive if -pa and simplex mesh, else Gauss-Lobatto.");
 #ifdef MFEM_USE_CEED
    args.AddOption(&algebraic_ceed, "-a", "--algebraic",
                   "-no-a", "--no-algebraic",
@@ -171,14 +178,26 @@ int main(int argc, char *argv[])
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order.
    //    - If order < 1, we instead use an isoparametric/isogeometric space.
-   //    - If the mesh is simplicial and partial assembly is requested,
-   //      we use the positive basis (Bernstein) for device simplex PA.
+   //    - With -b auto (default): Positive basis if -pa and simplex mesh,
+   //      else Gauss-Lobatto. Use -b G / -b P to force a basis.
    FiniteElementCollection *fec;
-   auto basis_type = (pa && pmesh.IsSimplexMesh()) ?
-                     BasisType::Positive : BasisType::GaussLobatto;
+   int basis;
+   if (!strcmp(basis_type, "auto"))
+   {
+      basis = (pa && pmesh.IsSimplexMesh()) ?
+              BasisType::Positive : BasisType::GaussLobatto;
+   }
+   else
+   {
+      basis = BasisType::GetType(basis_type[0]);
+   }
+   if (myid == 0)
+   {
+      cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
+   }
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim, basis_type);
+      fec = new H1_FECollection(order, dim, basis);
    }
    else if (pmesh.GetNodes())
    {
@@ -190,7 +209,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim, basis_type);
+      fec = new H1_FECollection(order = 1, dim, basis);
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();

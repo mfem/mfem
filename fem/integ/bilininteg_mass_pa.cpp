@@ -23,42 +23,6 @@
 namespace mfem
 {
 
-namespace
-{
-
-bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
-{
-#if defined(MFEM_USE_CUDA) && !defined(MFEM_USE_SINGLE)
-   if (!Device::Allows(Backend::CUDA)) { return false; }
-   if (fes.UsesRaggedTensorBasis()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
-
-   Mesh *mesh = fes.GetMesh();
-   const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
-   {
-      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
-      if (!dynamic_cast<const H1_TriangleElement *>(&el)) { return false; }
-   }
-   else
-   {
-      if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
-      if (!dynamic_cast<const H1_TetrahedronElement *>(&el)) { return false; }
-   }
-   return true;
-#else
-   MFEM_CONTRACT_VAR(fes);
-   return false;
-#endif
-}
-
-} // namespace
-
 // PA Mass Integrator
 
 void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
