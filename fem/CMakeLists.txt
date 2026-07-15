@@ -133,7 +133,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
@@ -311,6 +311,7 @@ set(HDRS
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
+  gslib/gslib_kernel_helpers.hpp
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
