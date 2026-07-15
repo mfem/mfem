@@ -435,8 +435,9 @@ int main(int argc, char *argv[])
 
       if (trace_ess_bc)
       {
-         X.SetSize(trace_space->GetTrueVSize()); X = 0.;
+         X.SetSize(trace_space->GetTrueVSize());
          that_h.MakeTRef(trace_space, X, 0);
+         that_h = 0.;
          that_h.ProjectBdrCoefficient(unitStepCoef, bdr_is_dirichlet); // essential Dirichlet BC
          that_h.SetTrueVector();
       }
