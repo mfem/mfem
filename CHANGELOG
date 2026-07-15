@@ -15,6 +15,10 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Improved FindPointsGSLIB surface mesh capability with support for simplices
+  and an option to specify axis-aligned bounding box padding for near-surface
+  point queries.
+
 - Added GPU-enabled partial assembly for simplicial Bernstein H1 basis based on
   ragged tensor algorithms (see DOI: 10.1137/11082539X) for mass and diffusion
   integrators.
@@ -66,6 +70,8 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
