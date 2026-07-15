@@ -72,22 +72,15 @@ void Refine31(Mesh &mesh, int elem, char type)
    mesh.GeneralRefinement(refs);
 }
 
-// Deterministic, somewhat random integer generator.
-int MyRand(int &s)
-{
-   s++;
-   const double a = 1000 * sin(s * 1.1234 * M_PI);
-   return int(std::abs(a));
-}
-
 // Randomly select elements for 3:1 refinements in random directions.
-void TestAnisoRefRandom(int iter, int dim, ParMesh &mesh, int myid,
+void TestAnisoRefRandom(int num_refs, int dim, ParMesh &mesh, int myid,
                         int seed = 0)
 {
-   for (int i = 0; i < iter; i++)
+   std::mt19937 gen(seed);
+   for (int i = 0; i < num_refs; i++)
    {
-      const int elem = MyRand(seed) % mesh.GetNE();
-      const int t = MyRand(seed) % dim;
+      const int elem = gen() % mesh.GetNE();
+      const int t = gen() % dim;
       auto type = t == 0 ? Refinement::X :
                   (t == 1 ? Refinement::Y : Refinement::Z);
 
