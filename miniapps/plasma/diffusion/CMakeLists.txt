@@ -22,6 +22,12 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS umansky.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
 
+  add_mfem_miniapp(umansky_hdg
+    MAIN umansky_hdg.cpp
+    umansky.cpp
+    EXTRA_HEADERS umansky.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+
 # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     add_test(NAME umansky_cg_np=4
