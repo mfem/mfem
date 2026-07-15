@@ -278,7 +278,7 @@ ComplexGridFunction::ComputeLpError(const real_t p,
          T->SetIntPoint(&ip);
          real_t diffr = valsr(j) - exsolr.Eval(*T, ip);
          real_t diffi = valsi(j) - exsoli.Eval(*T, ip);
-         real_t diff = sqrt(diffr * diffr + diffi * diffi);
+         real_t diff = hypot(diffr, diffi);
          if (p < infinity())
          {
             diff = pow(diff, p);
