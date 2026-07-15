@@ -1056,7 +1056,7 @@ private:
    ParMixedBilinearForm * pmblfr;
    ParMixedBilinearForm * pmblfi;
 
-   /* These methods check if the real/imag parts of the sesqulinear form are 
+   /* These methods check if the real/imag parts of the sesqulinear form are
     not empty */
    bool RealInteg();
    bool ImagInteg();
