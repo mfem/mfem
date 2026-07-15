@@ -346,12 +346,12 @@ public:
    // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Aspect ratio metric.
@@ -1682,6 +1682,27 @@ public:
        physical node coordinates provided by the parameters 'elfun', or 'xe'. */
    bool UsesPhysicalCoordinates() const { return uses_phys_coords; }
 
+   /** @brief Return true if target data has to be updated when the mesh
+       position changes. */
+   virtual bool NeedsTargetUpdate() const { return false; }
+
+   /// Reset cached target-update flags.
+   virtual void ResetUpdateFlags() { }
+
+   /** @brief Update target data after the mesh has changed.
+
+       This hook is used by target constructors whose target specification is
+       evaluated at current physical coordinates. If @a reuse_flag is true,
+       repeated calls may be skipped until ResetUpdateFlags() is called. */
+   virtual void UpdateTargetSpecification(const Vector &new_x,
+                                          bool reuse_flag = false,
+                                          int new_x_ordering = Ordering::byNODES)
+   {
+      MFEM_CONTRACT_VAR(new_x);
+      MFEM_CONTRACT_VAR(reuse_flag);
+      MFEM_CONTRACT_VAR(new_x_ordering);
+   }
+
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
 
@@ -1867,8 +1888,10 @@ public:
 #endif
    ///@}
 
+   bool NeedsTargetUpdate() const override { return true; }
+
    /// Used in combination with the Update methods to avoid extra computations.
-   void ResetUpdateFlags()
+   void ResetUpdateFlags() override
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
    /// Get one of the discrete fields from tspec.
@@ -1889,7 +1912,7 @@ public:
        new mesh positions are given by new_x. If @a reuse_flag is true,
        repeated calls won't do anything until ResetUpdateFlags() is called. */
    void UpdateTargetSpecification(const Vector &new_x, bool reuse_flag = false,
-                                  int new_x_ordering=Ordering::byNODES);
+                                  int new_x_ordering=Ordering::byNODES) override;
 
    void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
                                   int new_x_ordering=Ordering::byNODES);
@@ -1982,6 +2005,226 @@ public:
    void SetRefinementSubElement(int amr_el_) { amr_el = amr_el_; }
 };
 
+/** @brief Target constructor whose size, aspect-ratio, skew, and orientation
+    can each be specified from a separate source (e.g., Constant, Analytic, Discrete).
+
+    The constructor assumes ownership of source pointers passed to SetTarget*(). */
+class ModularTargetConstructor : public TargetConstructor
+{
+public:
+   enum TargetParameter
+   {
+      TARGET_SIZE,
+      TARGET_ASPECT_RATIO,
+      TARGET_SKEW,
+      TARGET_ORIENTATION
+   };
+
+   /** @brief Base class for one target-parameter source. */
+   class TargetParameterSource
+   {
+   public:
+      virtual ~TargetParameterSource() { }
+
+      /** @brief Number of components produced for @a param in @a dim
+          dimensions. Return 0 when the source does not support @a param. */
+      virtual int NumComponents(int dim, TargetParameter param) const = 0;
+
+      /** @brief True when Eval() uses current physical coordinates from
+          @a elfun. */
+      virtual bool UsesPhysicalCoordinates() const { return false; }
+
+      /** @brief True when UpdateTargetSpecification() must be called after a
+          mesh-position change before Eval() can be used. */
+      virtual bool NeedsTargetUpdate() const { return false; }
+
+      /// Reset cached target-update flags.
+      virtual void ResetUpdateFlags() { }
+
+      /** @brief Update source data after mesh-position changes. */
+      virtual void UpdateTargetSpecification(const Vector &new_x,
+                                             bool reuse_flag = false,
+                                             int new_x_ordering = Ordering::byNODES)
+      {
+         MFEM_CONTRACT_VAR(new_x);
+         MFEM_CONTRACT_VAR(reuse_flag);
+         MFEM_CONTRACT_VAR(new_x_ordering);
+      }
+
+      /** @brief Evaluate this source on element @a e_id for all points in
+          @a ir. The output is component-by-quadrature-point. */
+      virtual void Eval(TargetParameter param, int e_id,
+                        const FiniteElement &fe,
+                        const IntegrationRule &ir,
+                        const Vector &elfun,
+                        const DenseMatrix &Wideal,
+                        DenseMatrix &values) const = 0;
+   };
+
+   /** @brief Constant target-parameter source.
+
+       A single value is broadcast to all expected components. A vector value
+       must match the expected component count exactly. */
+   class ConstantSource : public TargetParameterSource
+   {
+   private:
+      Vector value;
+
+   public:
+      ConstantSource(real_t v);
+      ConstantSource(const Vector &v);
+
+      int NumComponents(int dim, TargetParameter param) const override;
+      void Eval(TargetParameter param, int e_id,
+                const FiniteElement &fe, const IntegrationRule &ir,
+                const Vector &elfun, const DenseMatrix &Wideal,
+                DenseMatrix &values) const override;
+   };
+
+   /** @brief Analytic coefficient source evaluated at current physical
+       quadrature coordinates. The coefficient is not owned. */
+   class AnalyticSource : public TargetParameterSource
+   {
+   private:
+      Coefficient *scalar_coeff;
+      VectorCoefficient *vector_coeff;
+
+   public:
+      AnalyticSource(Coefficient &coeff);
+      AnalyticSource(VectorCoefficient &coeff);
+
+      int NumComponents(int dim, TargetParameter param) const override;
+      bool UsesPhysicalCoordinates() const override { return true; }
+      void Eval(TargetParameter param, int e_id,
+                const FiniteElement &fe, const IntegrationRule &ir,
+                const Vector &elfun, const DenseMatrix &Wideal,
+                DenseMatrix &values) const override;
+   };
+
+   /** @brief Discrete source remapped to current physical coordinates.
+
+       The AdaptivityEvaluator pointer is owned by this source. */
+   class DiscreteSource : public TargetParameterSource
+   {
+   private:
+      int ncomp;
+      Vector tspec;
+      FiniteElementSpace *tspec_fesv;
+      GridFunction *tspec_gf;
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *ptspec_fesv;
+      ParGridFunction *tspec_pgf;
+#endif
+      AdaptivityEvaluator *adapt_eval;
+      bool good_tspec;
+
+      // Workspace to avoid per-element allocations
+      mutable Array<int> dofs_ws;
+      mutable Vector shape_ws, tspec_vals_ws;
+
+      void FinalizeSerialSource(const GridFunction &tspec_);
+#ifdef MFEM_USE_MPI
+      void FinalizeParSource(const ParGridFunction &tspec_);
+#endif
+
+   public:
+      DiscreteSource(const GridFunction &tspec_, AdaptivityEvaluator *ae);
+#ifdef MFEM_USE_MPI
+      DiscreteSource(const ParGridFunction &tspec_, AdaptivityEvaluator *ae);
+#endif
+      ~DiscreteSource();
+
+      int NumComponents(int dim, TargetParameter param) const override;
+      bool NeedsTargetUpdate() const override { return true; }
+      void ResetUpdateFlags() override { good_tspec = false; }
+      void UpdateTargetSpecification(const Vector &new_x,
+                                     bool reuse_flag = false,
+                                     int new_x_ordering = Ordering::byNODES) override;
+      void Eval(TargetParameter param, int e_id,
+                const FiniteElement &fe, const IntegrationRule &ir,
+                const Vector &elfun, const DenseMatrix &Wideal,
+                DenseMatrix &values) const override;
+   };
+
+   /** @brief Source based on the initial mesh.
+
+       Values are evaluated from the provided mesh nodes using reference
+       coordinates, not current physical coordinates.
+
+       Supported parameters:
+       - 2D: size, aspect-ratio, skew, orientation (all 1 component each)
+       - 3D: size only (1 component)
+       - 3D shape parameters (aspect-ratio, skew, orientation) are not yet
+         implemented. Use ConstantSource or AnalyticSource for 3D shape control.
+
+       The nodes are not owned. */
+   class InitialMeshSource : public TargetParameterSource
+   {
+   private:
+      const GridFunction *nodes0;
+      mutable DenseMatrix Winv_cache;
+      mutable Geometry::Type cached_geom;
+
+   public:
+      InitialMeshSource(const GridFunction &nodes);
+
+      int NumComponents(int dim, TargetParameter param) const override;
+      void Eval(TargetParameter param, int e_id,
+                const FiniteElement &fe, const IntegrationRule &ir,
+                const Vector &elfun, const DenseMatrix &Wideal,
+                DenseMatrix &values) const override;
+   };
+
+private:
+   TargetParameterSource *size_source;
+   TargetParameterSource *aspect_ratio_source;
+   TargetParameterSource *skew_source;
+   TargetParameterSource *orientation_source;
+
+   static int ExpectedComponents(int dim, TargetParameter param);
+   TargetParameterSource *GetSource(TargetParameter param) const;
+   void ValidateSource(int dim, TargetParameter param,
+                       TargetParameterSource *source) const;
+   void SetSource(TargetParameter param, TargetParameterSource *source);
+   void UpdateUsesPhysicalCoordinates();
+
+public:
+   ModularTargetConstructor();
+#ifdef MFEM_USE_MPI
+   ModularTargetConstructor(MPI_Comm mpicomm);
+#endif
+   ModularTargetConstructor(const ModularTargetConstructor &) = delete;
+   ModularTargetConstructor &operator=(const ModularTargetConstructor &) = delete;
+   ~ModularTargetConstructor();
+
+   /** @brief Set target size source. Takes ownership of @a source. */
+   void SetTargetSize(TargetParameterSource *source);
+   /** @brief Set target aspect-ratio source. Takes ownership of @a source. */
+   void SetTargetAspectRatio(TargetParameterSource *source);
+   /** @brief Set target skew source. Takes ownership of @a source. */
+   void SetTargetSkew(TargetParameterSource *source);
+   /** @brief Set target orientation source. Takes ownership of @a source. */
+   void SetTargetOrientation(TargetParameterSource *source);
+
+   bool NeedsTargetUpdate() const override;
+   void ResetUpdateFlags() override;
+   void UpdateTargetSpecification(const Vector &new_x,
+                                  bool reuse_flag = false,
+                                  int new_x_ordering = Ordering::byNODES) override;
+
+   bool ContainsVolumeInfo() const override;
+
+   void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                              const IntegrationRule &ir,
+                              const Vector &elfun,
+                              DenseTensor &Jtr) const override;
+
+   void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 const Vector &xe,
+                                 DenseTensor &Jtr) const override;
+};
+
 class TMOPNewtonSolver;
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
@@ -2013,7 +2256,7 @@ protected:
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
-   const TargetConstructor *targetC;  // not owned
+   TargetConstructor *targetC;  // not owned
 
    // Custom integration rules.
    IntegrationRules *IntegRules;
@@ -2565,6 +2808,8 @@ public:
    void AddMultGradPA(const Vector&, Vector&) const override;
 
    void AssembleGradDiagonalPA(Vector&) const override;
+
+   TargetConstructor *GetTargetConstructor() const { return targetC; }
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

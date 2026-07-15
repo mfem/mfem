@@ -131,6 +131,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
+  add_mfem_miniapp(pmesh-opt-bl
+    MAIN pmesh-opt-bl.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(pmesh-opt-bl copy_miniapps_meshing_data)
+
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -156,6 +162,7 @@ if (MFEM_USE_MPI)
     set(PARALLEL_TESTS
       mesh-bounding-boxes
       pmesh-optimizer
+      pmesh-opt-bl
       pmesh-fitting
       fit-node-position
       pminimal-surface

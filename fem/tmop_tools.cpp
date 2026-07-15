@@ -878,14 +878,12 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    // repeated updates of shared TargetConstructors.
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
-   DiscreteAdaptTC *dtc = NULL;
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         dtc = ti->GetDiscreteAdaptTC();
-         if (dtc) { dtc->ResetUpdateFlags(); }
+         ti->GetTargetConstructor()->ResetUpdateFlags();
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co)
@@ -893,8 +891,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            dtc = ati[j]->GetDiscreteAdaptTC();
-            if (dtc) { dtc->ResetUpdateFlags(); }
+            ati[j]->GetTargetConstructor()->ResetUpdateFlags();
          }
       }
    }

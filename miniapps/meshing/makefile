@@ -23,8 +23,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref mesh-bounding-boxes
+PAR_MINIAPPS = pmesh-optimizer pmesh-opt-bl pminimal-surface pmesh-fitting\
+	fit-node-position phpref mesh-bounding-boxes
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -61,7 +61,7 @@ MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
 jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh stretched3D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-opt-bl pmesh-fitting fit-node-position: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif
@@ -83,6 +83,8 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+pmesh-opt-bl-test-par: pmesh-opt-bl
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel boundary-Laplace meshing miniapp)
 mesh-quality-test-seq: mesh-quality
 	@$(call mfem-test,$<,, Mesh quality miniapp)
 pmesh-fitting-test-par: pmesh-fitting
@@ -126,7 +128,8 @@ clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
-	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -f optimized* perturbed* deformed* boundary-layer*
+	@rm -f boundary-distance* aspect-ratio-weight* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
 	@rm -f mesh.* order.* sol.* refined.mesh
 	@rm -rf jacobian-determinant-bounds* bounding-box*

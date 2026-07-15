@@ -404,6 +404,24 @@ type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
    return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
 };
 
+// 0.5 (ar_A/ar_W + ar_W/ar_A) - 1, where A = T W.
+template <typename type>
+type aspratio2D_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto ar_A = l2_A/l1_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto ar_W = l2_W/l1_W;
+
+   return 0.5*(ar_A/ar_W + ar_W/ar_A) - 1.0;
+};
+
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
 // computing dmu/dX.
 void ADGrad(std::function<AD1Type(std::vector<AD1Type>&,
@@ -931,6 +949,29 @@ real_t TMOP_Metric_aspratio2D::EvalW(const DenseMatrix &Jpt) const
    const real_t ratio_Jtr = col2.Norml2() / col1.Norml2();
 
    return 0.5 * (ratio_Jpr / ratio_Jtr + ratio_Jtr / ratio_Jpr) - 1.0;
+}
+
+void TMOP_Metric_aspratio2D::EvalP(const DenseMatrix &Jpt,
+                                   DenseMatrix &P) const
+{
+   ADGrad(aspratio2D_ad<AD1Type>, P, Jpt, Jtr);
+}
+
+void TMOP_Metric_aspratio2D::EvalPW(const DenseMatrix &Jpt,
+                                    DenseMatrix &PW) const
+{
+   ADGrad(aspratio2D_ad<AD1Type>, PW, Jpt, Jtr, false);
+}
+
+void TMOP_Metric_aspratio2D::AssembleH(const DenseMatrix &Jpt,
+                                       const DenseMatrix &DS,
+                                       const real_t weight,
+                                       DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(aspratio2D_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
@@ -2688,6 +2729,671 @@ static inline void device_copy(real_t *d_dest, const real_t *d_src, int size)
 }
 
 } // namespace internal
+
+int ModularTargetConstructor::ExpectedComponents(int dim, TargetParameter param)
+{
+   switch (param)
+   {
+      case TARGET_SIZE: return 1;
+      case TARGET_ASPECT_RATIO:
+      case TARGET_SKEW:
+      case TARGET_ORIENTATION:
+         return (dim == 2) ? 1 : 3;
+      default:
+         MFEM_ABORT("Unknown modular target parameter.");
+   }
+   return 0;
+}
+
+ModularTargetConstructor::TargetParameterSource *
+ModularTargetConstructor::GetSource(TargetParameter param) const
+{
+   switch (param)
+   {
+      case TARGET_SIZE: return size_source;
+      case TARGET_ASPECT_RATIO: return aspect_ratio_source;
+      case TARGET_SKEW: return skew_source;
+      case TARGET_ORIENTATION: return orientation_source;
+      default:
+         MFEM_ABORT("Unknown modular target parameter.");
+   }
+   return NULL;
+}
+
+void ModularTargetConstructor::ValidateSource(
+   int dim, TargetParameter param, TargetParameterSource *source) const
+{
+   const int ncomp = source->NumComponents(dim, param);
+   MFEM_VERIFY(ncomp > 0,
+               "Target-parameter source does not support this parameter in "
+               << dim << "D.");
+
+   const int expected = ExpectedComponents(dim, param);
+   MFEM_VERIFY(ncomp == expected,
+               "Source NumComponents(" << dim << "D) returned " << ncomp
+               << " but expected " << expected << " for this parameter.");
+}
+
+void ModularTargetConstructor::SetSource(TargetParameter param,
+                                         TargetParameterSource *source)
+{
+   MFEM_VERIFY(source, "Invalid NULL target-parameter source.");
+
+   TargetParameterSource **target = NULL;
+   switch (param)
+   {
+      case TARGET_SIZE: target = &size_source; break;
+      case TARGET_ASPECT_RATIO: target = &aspect_ratio_source; break;
+      case TARGET_SKEW: target = &skew_source; break;
+      case TARGET_ORIENTATION: target = &orientation_source; break;
+      default:
+         MFEM_ABORT("Unknown modular target parameter.");
+   }
+
+   if (*target == source) { return; }
+   delete *target;
+   *target = source;
+   UpdateUsesPhysicalCoordinates();
+}
+
+void ModularTargetConstructor::UpdateUsesPhysicalCoordinates()
+{
+   uses_phys_coords =
+      (size_source && size_source->UsesPhysicalCoordinates()) ||
+      (aspect_ratio_source && aspect_ratio_source->UsesPhysicalCoordinates()) ||
+      (skew_source && skew_source->UsesPhysicalCoordinates()) ||
+      (orientation_source && orientation_source->UsesPhysicalCoordinates());
+}
+
+ModularTargetConstructor::ModularTargetConstructor()
+   : TargetConstructor(GIVEN_SHAPE_AND_SIZE),
+     size_source(NULL), aspect_ratio_source(NULL),
+     skew_source(NULL), orientation_source(NULL)
+{
+   // No restrictions - users specify target type by which sources they set.
+   // The target_type is set to GIVEN_SHAPE_AND_SIZE as a default, but the
+   // actual behavior is determined by the presence/absence of sources.
+}
+
+#ifdef MFEM_USE_MPI
+ModularTargetConstructor::ModularTargetConstructor(MPI_Comm mpicomm)
+   : TargetConstructor(GIVEN_SHAPE_AND_SIZE, mpicomm),
+     size_source(NULL), aspect_ratio_source(NULL),
+     skew_source(NULL), orientation_source(NULL)
+{
+   // No restrictions - users specify target type by which sources they set.
+}
+#endif
+
+ModularTargetConstructor::~ModularTargetConstructor()
+{
+   delete size_source;
+   delete aspect_ratio_source;
+   delete skew_source;
+   delete orientation_source;
+}
+
+void ModularTargetConstructor::SetTargetSize(TargetParameterSource *source)
+{
+   SetSource(TARGET_SIZE, source);
+}
+
+void ModularTargetConstructor::SetTargetAspectRatio(
+   TargetParameterSource *source)
+{
+   SetSource(TARGET_ASPECT_RATIO, source);
+}
+
+void ModularTargetConstructor::SetTargetSkew(TargetParameterSource *source)
+{
+   SetSource(TARGET_SKEW, source);
+}
+
+void ModularTargetConstructor::SetTargetOrientation(
+   TargetParameterSource *source)
+{
+   SetSource(TARGET_ORIENTATION, source);
+}
+
+bool ModularTargetConstructor::NeedsTargetUpdate() const
+{
+   return (size_source && size_source->NeedsTargetUpdate()) ||
+          (aspect_ratio_source && aspect_ratio_source->NeedsTargetUpdate()) ||
+          (skew_source && skew_source->NeedsTargetUpdate()) ||
+          (orientation_source && orientation_source->NeedsTargetUpdate());
+}
+
+void ModularTargetConstructor::ResetUpdateFlags()
+{
+   if (size_source) { size_source->ResetUpdateFlags(); }
+   if (aspect_ratio_source) { aspect_ratio_source->ResetUpdateFlags(); }
+   if (skew_source) { skew_source->ResetUpdateFlags(); }
+   if (orientation_source) { orientation_source->ResetUpdateFlags(); }
+}
+
+void ModularTargetConstructor::UpdateTargetSpecification(
+   const Vector &new_x, bool reuse_flag, int new_x_ordering)
+{
+   if (size_source && size_source->NeedsTargetUpdate())
+   {
+      size_source->UpdateTargetSpecification(new_x, reuse_flag, new_x_ordering);
+   }
+   if (aspect_ratio_source && aspect_ratio_source->NeedsTargetUpdate())
+   {
+      aspect_ratio_source->UpdateTargetSpecification(new_x, reuse_flag,
+                                                     new_x_ordering);
+   }
+   if (skew_source && skew_source->NeedsTargetUpdate())
+   {
+      skew_source->UpdateTargetSpecification(new_x, reuse_flag, new_x_ordering);
+   }
+   if (orientation_source && orientation_source->NeedsTargetUpdate())
+   {
+      orientation_source->UpdateTargetSpecification(new_x, reuse_flag,
+                                                    new_x_ordering);
+   }
+}
+
+bool ModularTargetConstructor::ContainsVolumeInfo() const
+{
+   // Aspect-ratio and skew sources can change det(Jtr) in 3D/general cases.
+   return size_source || aspect_ratio_source || skew_source;
+}
+
+ModularTargetConstructor::ConstantSource::ConstantSource(real_t v)
+{
+   value.SetSize(1);
+   value(0) = v;
+}
+
+ModularTargetConstructor::ConstantSource::ConstantSource(const Vector &v)
+   : value(v)
+{
+   MFEM_VERIFY(value.Size() > 0, "Constant target source cannot be empty.");
+}
+
+int ModularTargetConstructor::ConstantSource::NumComponents(
+   int dim, TargetParameter param) const
+{
+   return (value.Size() == 1) ? ExpectedComponents(dim, param) : value.Size();
+}
+
+void ModularTargetConstructor::ConstantSource::Eval(
+   TargetParameter param, int e_id, const FiniteElement &fe,
+   const IntegrationRule &ir, const Vector &elfun,
+   const DenseMatrix &Wideal, DenseMatrix &values) const
+{
+   MFEM_CONTRACT_VAR(e_id);
+   MFEM_CONTRACT_VAR(elfun);
+   MFEM_CONTRACT_VAR(Wideal);
+   const int expected = ExpectedComponents(fe.GetDim(), param);
+   MFEM_VERIFY(value.Size() == 1 || value.Size() == expected,
+               "Constant target source has the wrong number of components.");
+
+   values.SetSize(expected, ir.GetNPoints());
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      for (int c = 0; c < expected; c++)
+      {
+         values(c,q) = (value.Size() == 1) ? value(0) : value(c);
+      }
+   }
+}
+
+ModularTargetConstructor::AnalyticSource::AnalyticSource(Coefficient &coeff)
+   : scalar_coeff(&coeff), vector_coeff(NULL) { }
+
+ModularTargetConstructor::AnalyticSource::AnalyticSource(
+   VectorCoefficient &coeff)
+   : scalar_coeff(NULL), vector_coeff(&coeff) { }
+
+int ModularTargetConstructor::AnalyticSource::NumComponents(
+   int dim, TargetParameter param) const
+{
+   MFEM_CONTRACT_VAR(dim);
+   MFEM_CONTRACT_VAR(param);
+   return scalar_coeff ? 1 : vector_coeff->GetVDim();
+}
+
+void ModularTargetConstructor::AnalyticSource::Eval(
+   TargetParameter param, int e_id, const FiniteElement &fe,
+   const IntegrationRule &ir, const Vector &elfun,
+   const DenseMatrix &Wideal, DenseMatrix &values) const
+{
+   MFEM_CONTRACT_VAR(Wideal);
+   const int dim = fe.GetDim();
+   const int expected = ExpectedComponents(dim, param);
+   MFEM_VERIFY(elfun.Size() == fe.GetDof()*dim,
+               "Analytic target source requires current element coordinates.");
+
+   DenseMatrix point_mat;
+   point_mat.UseExternalData(elfun.GetData(), fe.GetDof(), dim);
+
+   IsoparametricTransformation Tpr;
+   Tpr.SetFE(&fe);
+   Tpr.ElementNo = e_id;
+   Tpr.ElementType = ElementTransformation::ELEMENT;
+   Tpr.GetPointMat().Transpose(point_mat);
+
+   values.SetSize(expected, ir.GetNPoints());
+   if (scalar_coeff)
+   {
+      MFEM_VERIFY(expected == 1,
+                  "Scalar analytic target source is valid only for scalar "
+                  "target parameters.");
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tpr.SetIntPoint(&ip);
+         values(0,q) = scalar_coeff->Eval(Tpr, ip);
+      }
+   }
+   else
+   {
+      MFEM_VERIFY(vector_coeff && vector_coeff->GetVDim() == expected,
+                  "Vector analytic target source has the wrong dimension.");
+      Vector v(expected);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tpr.SetIntPoint(&ip);
+         vector_coeff->Eval(v, Tpr, ip);
+         for (int c = 0; c < expected; c++) { values(c,q) = v(c); }
+      }
+   }
+}
+
+ModularTargetConstructor::DiscreteSource::DiscreteSource(
+   const GridFunction &tspec_, AdaptivityEvaluator *ae)
+   : ncomp(tspec_.FESpace()->GetVDim()), tspec(),
+     tspec_fesv(NULL), tspec_gf(NULL),
+#ifdef MFEM_USE_MPI
+     ptspec_fesv(NULL), tspec_pgf(NULL),
+#endif
+     adapt_eval(ae), good_tspec(false)
+{
+   MFEM_VERIFY(adapt_eval,
+               "Discrete target source requires an AdaptivityEvaluator.");
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target source must be ordered by nodes.");
+   MFEM_VERIFY(ncomp > 0, "Discrete target source has no components.");
+   tspec = tspec_;
+   tspec.UseDevice(true);
+   FinalizeSerialSource(tspec_);
+}
+
+#ifdef MFEM_USE_MPI
+ModularTargetConstructor::DiscreteSource::DiscreteSource(
+   const ParGridFunction &tspec_, AdaptivityEvaluator *ae)
+   : ncomp(tspec_.FESpace()->GetVDim()), tspec(),
+     tspec_fesv(NULL), tspec_gf(NULL),
+     ptspec_fesv(NULL), tspec_pgf(NULL),
+     adapt_eval(ae), good_tspec(false)
+{
+   MFEM_VERIFY(adapt_eval,
+               "Discrete target source requires an AdaptivityEvaluator.");
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target source must be ordered by nodes.");
+   MFEM_VERIFY(ncomp > 0, "Discrete target source has no components.");
+   tspec = tspec_;
+   tspec.UseDevice(true);
+   FinalizeParSource(tspec_);
+}
+#endif
+
+ModularTargetConstructor::DiscreteSource::~DiscreteSource()
+{
+   delete tspec_gf;
+   delete adapt_eval;
+   delete tspec_fesv;
+#ifdef MFEM_USE_MPI
+   delete ptspec_fesv;
+#endif
+}
+
+void ModularTargetConstructor::DiscreteSource::FinalizeSerialSource(
+   const GridFunction &tspec_)
+{
+   const FiniteElementSpace *tspec_fes = tspec_.FESpace();
+
+   delete tspec_fesv;
+   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
+                                       tspec_fes->FEColl(), ncomp,
+                                       Ordering::byNODES);
+
+   delete tspec_gf;
+   tspec_gf = new GridFunction(tspec_fesv, tspec);
+
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(), *tspec_fesv);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
+}
+
+#ifdef MFEM_USE_MPI
+void ModularTargetConstructor::DiscreteSource::FinalizeParSource(
+   const ParGridFunction &tspec_)
+{
+   ParFiniteElementSpace *ptspec_fes = tspec_.ParFESpace();
+
+   delete tspec_fesv;
+   tspec_fesv = new FiniteElementSpace(ptspec_fes->GetMesh(),
+                                       ptspec_fes->FEColl(), ncomp,
+                                       Ordering::byNODES);
+
+   delete ptspec_fesv;
+   ptspec_fesv = new ParFiniteElementSpace(ptspec_fes->GetParMesh(),
+                                           ptspec_fes->FEColl(), ncomp,
+                                           Ordering::byNODES);
+
+   delete tspec_gf;
+   tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
+   tspec_gf = tspec_pgf;
+
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(), *ptspec_fesv);
+   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
+}
+#endif
+
+int ModularTargetConstructor::DiscreteSource::NumComponents(
+   int dim, TargetParameter param) const
+{
+   MFEM_CONTRACT_VAR(dim);
+   MFEM_CONTRACT_VAR(param);
+   return ncomp;
+}
+
+void ModularTargetConstructor::DiscreteSource::UpdateTargetSpecification(
+   const Vector &new_x, bool reuse_flag, int new_x_ordering)
+{
+   if (reuse_flag && good_tspec) { return; }
+
+   MFEM_VERIFY(tspec.Size() > 0, "Discrete target source is not set.");
+   adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
+   good_tspec = reuse_flag;
+}
+
+void ModularTargetConstructor::DiscreteSource::Eval(
+   TargetParameter param, int e_id, const FiniteElement &fe,
+   const IntegrationRule &ir, const Vector &elfun,
+   const DenseMatrix &Wideal, DenseMatrix &values) const
+{
+   MFEM_CONTRACT_VAR(fe);
+   MFEM_CONTRACT_VAR(elfun);
+   MFEM_CONTRACT_VAR(Wideal);
+   MFEM_VERIFY(tspec_fesv && tspec_gf, "Discrete target source is not set.");
+
+   const int expected = ExpectedComponents(tspec_fesv->GetMesh()->Dimension(),
+                                           param);
+   MFEM_VERIFY(ncomp == expected,
+               "Discrete target source has the wrong number of components.");
+
+   const FiniteElement *sfe = tspec_fesv->GetFE(e_id);
+   const int ndofs = sfe->GetDof();
+
+   // Use workspace members to avoid per-element allocations
+   tspec_fesv->GetElementVDofs(e_id, dofs_ws);
+   tspec.GetSubVector(dofs_ws, tspec_vals_ws);
+   shape_ws.SetSize(ndofs);
+
+   values.SetSize(ncomp, ir.GetNPoints());
+   Vector vals_c;  // Reuse across loop iterations
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      sfe->CalcShape(ir.IntPoint(q), shape_ws);
+      for (int c = 0; c < ncomp; c++)
+      {
+         vals_c.SetDataAndSize(tspec_vals_ws.GetData() + c*ndofs, ndofs);
+         values(c,q) = shape_ws * vals_c;
+      }
+   }
+}
+
+ModularTargetConstructor::InitialMeshSource::InitialMeshSource(
+   const GridFunction &nodes)
+   : nodes0(&nodes), cached_geom(Geometry::INVALID) { }
+
+int ModularTargetConstructor::InitialMeshSource::NumComponents(
+   int dim, TargetParameter param) const
+{
+   if (dim == 2) { return 1; }
+   if (dim == 3 && param == TARGET_SIZE)
+   {
+      return 1;
+   }
+   if (dim == 3) { return 0; }
+   MFEM_ABORT("Unsupported dimension in InitialMeshSource.");
+   return 0;
+}
+
+void ModularTargetConstructor::InitialMeshSource::Eval(
+   TargetParameter param, int e_id, const FiniteElement &fe,
+   const IntegrationRule &ir, const Vector &elfun,
+   const DenseMatrix &Wideal, DenseMatrix &values) const
+{
+   MFEM_CONTRACT_VAR(fe);
+   MFEM_CONTRACT_VAR(elfun);
+   MFEM_VERIFY(nodes0, "Initial mesh source is not set.");
+
+   const FiniteElement *nfe = nodes0->FESpace()->GetFE(e_id);
+   const int dim = nfe->GetDim();
+   const int dof = nfe->GetDof();
+   MFEM_VERIFY(nodes0->FESpace()->GetVDim() == dim,
+               "Initial mesh source must be a mesh-nodes GridFunction.");
+
+   DenseMatrix dshape(dof, dim), pos(dof, dim), J0(dim), A(dim);
+   Vector posV(pos.Data(), dof * dim);
+   Array<int> xdofs(dof * dim);
+   nodes0->FESpace()->GetElementVDofs(e_id, xdofs);
+   nodes0->GetSubVector(xdofs, posV);
+
+   // Cache Wideal inverse per geometry type (avoids redundant inversions)
+   const Geometry::Type geom_type = nfe->GetGeomType();
+   if (cached_geom != geom_type)
+   {
+      Winv_cache.SetSize(dim, dim);
+      CalcInverse(Wideal, Winv_cache);
+      cached_geom = geom_type;
+   }
+   const DenseMatrix &Winv = Winv_cache;
+
+   if (dim == 3)
+   {
+      MFEM_VERIFY(param == TARGET_SIZE,
+                  "InitialMeshSource supports only target size in 3D.");
+   }
+   const int ncomp = (param == TARGET_SIZE) ? 1 : ((dim == 2) ? 1 : 3);
+   values.SetSize(ncomp, ir.GetNPoints());
+
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      nfe->CalcDShape(ir.IntPoint(q), dshape);
+      MultAtB(pos, dshape, J0);
+      Mult(J0, Winv, A);
+      const real_t detA = A.Det();
+      MFEM_VERIFY(detA > 0.0, "The initial mesh is inverted.");
+
+      if (dim == 2)
+      {
+         const real_t a0 = A(0,0), a1 = A(1,0);
+         const real_t b0 = A(0,1), b1 = A(1,1);
+         const real_t len_a = std::sqrt(a0*a0 + a1*a1);
+         const real_t len_b = std::sqrt(b0*b0 + b1*b1);
+         MFEM_VERIFY(len_a > 0.0 && len_b > 0.0,
+                     "Degenerate initial mesh target parameter.");
+
+         switch (param)
+         {
+            case TARGET_SIZE:
+               values(0,q) = detA;
+               break;
+            case TARGET_ASPECT_RATIO:
+               values(0,q) = len_b / len_a;
+               break;
+            case TARGET_SKEW:
+            {
+               real_t cos_phi = (a0*b0 + a1*b1) / (len_a * len_b);
+               if (cos_phi < -1.0) { cos_phi = -1.0; }
+               if (cos_phi >  1.0) { cos_phi =  1.0; }
+               const real_t sin_phi = detA / (len_a * len_b);
+               values(0,q) = std::atan2(sin_phi, cos_phi);
+               break;
+            }
+            case TARGET_ORIENTATION:
+               values(0,q) = std::atan2(a1, a0);
+               break;
+            default:
+               MFEM_ABORT("Unknown initial mesh target parameter.");
+         }
+      }
+      else // dim == 3
+      {
+         values(0,q) = detA;
+      }
+   }
+}
+
+void ModularTargetConstructor::ComputeElementTargets(
+   int e_id, const FiniteElement &fe, const IntegrationRule &ir,
+   const Vector &elfun, DenseTensor &Jtr) const
+{
+   const int dim = fe.GetDim();
+   const int nqp = ir.GetNPoints();
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+   MFEM_ASSERT(Wideal.Height() == Jtr.SizeI(), "");
+   MFEM_ASSERT(Wideal.Width() == Jtr.SizeJ(), "");
+
+   DenseMatrix size_vals, aspect_vals, skew_vals, orientation_vals;
+   auto eval_source = [&](TargetParameter param,
+                          DenseMatrix &values) -> bool
+   {
+      TargetParameterSource *source = GetSource(param);
+      if (!source) { return false; }
+
+      ValidateSource(dim, param, source);
+      source->Eval(param, e_id, fe, ir, elfun, Wideal, values);
+      return true;
+   };
+
+   // Evaluate all sources that are present - no restrictions
+   const bool have_size = eval_source(TARGET_SIZE, size_vals);
+   const bool have_aspect = eval_source(TARGET_ASPECT_RATIO, aspect_vals);
+   const bool have_skew = eval_source(TARGET_SKEW, skew_vals);
+   const bool have_orientation = eval_source(TARGET_ORIENTATION,
+                                             orientation_vals);
+
+   DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim), Temp(dim);
+
+   for (int q = 0; q < nqp; q++)
+   {
+      Jtr(q) = Wideal;
+
+      if (have_size)
+      {
+         const real_t size = size_vals(0,q);
+         MFEM_VERIFY(size > 0.0,
+                     "Non-positive size in modular target definition.");
+         Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
+      }
+
+      if (have_aspect)
+      {
+         if (dim == 2)
+         {
+            const real_t aspectratio = aspect_vals(0,q);
+            MFEM_VERIFY(aspectratio > 0.0,
+                        "Non-positive aspect ratio in modular target definition.");
+            D_rho = 0.;
+            D_rho(0,0) = 1./std::pow(aspectratio, 0.5);
+            D_rho(1,1) = std::pow(aspectratio, 0.5);
+         }
+         else
+         {
+            const real_t rho1 = aspect_vals(0,q);
+            const real_t rho2 = aspect_vals(1,q);
+            const real_t rho3 = aspect_vals(2,q);
+            MFEM_VERIFY(rho1 > 0.0 && rho2 > 0.0 && rho3 > 0.0,
+                        "Non-positive aspect ratio in modular target definition.");
+            D_rho = 0.;
+            D_rho(0,0) = std::pow(rho1, 2./3.);
+            D_rho(1,1) = std::pow(rho2, 2./3.);
+            D_rho(2,2) = std::pow(rho3, 2./3.);
+         }
+         Temp = Jtr(q);
+         Mult(D_rho, Temp, Jtr(q));
+      }
+
+      if (have_skew)
+      {
+         if (dim == 2)
+         {
+            const real_t skew = skew_vals(0,q);
+            Q_phi = 0.;
+            Q_phi(0,0) = 1.;
+            Q_phi(0,1) = cos(skew);
+            Q_phi(1,1) = sin(skew);
+         }
+         else
+         {
+            const real_t phi12 = skew_vals(0,q);
+            const real_t phi13 = skew_vals(1,q);
+            const real_t chi = skew_vals(2,q);
+            Q_phi = 0.;
+            Q_phi(0,0) = 1.;
+            Q_phi(0,1) = cos(phi12);
+            Q_phi(0,2) = cos(phi13);
+            Q_phi(1,1) = sin(phi12);
+            Q_phi(1,2) = sin(phi13)*cos(chi);
+            Q_phi(2,2) = sin(phi13)*sin(chi);
+         }
+         Temp = Jtr(q);
+         Mult(Q_phi, Temp, Jtr(q));
+      }
+
+      if (have_orientation)
+      {
+         if (dim == 2)
+         {
+            const real_t theta = orientation_vals(0,q);
+            R_theta(0,0) =  cos(theta);
+            R_theta(0,1) = -sin(theta);
+            R_theta(1,0) =  sin(theta);
+            R_theta(1,1) =  cos(theta);
+         }
+         else
+         {
+            const real_t theta = orientation_vals(0,q);
+            const real_t psi   = orientation_vals(1,q);
+            const real_t beta  = orientation_vals(2,q);
+
+            const real_t ct = cos(theta), st = sin(theta);
+            const real_t cp = cos(psi),   sp = sin(psi);
+            const real_t cb = cos(beta),  sb = sin(beta);
+
+            R_theta = 0.;
+            R_theta(0,0) = ct*sp;
+            R_theta(1,0) = st*sp;
+            R_theta(2,0) = cp;
+
+            R_theta(0,1) = -st*cb + ct*cp*sb;
+            R_theta(1,1) =  ct*cb + st*cp*sb;
+            R_theta(2,1) = -sp*sb;
+
+            R_theta(0,2) = -st*sb - ct*cp*cb;
+            R_theta(1,2) =  ct*sb - st*cp*cb;
+            R_theta(2,2) =  sp*cb;
+         }
+         Temp = Jtr(q);
+         Mult(R_theta, Temp, Jtr(q));
+      }
+   }
+}
+
+void ModularTargetConstructor::ComputeAllElementTargets(
+   const FiniteElementSpace &fes, const IntegrationRule &ir,
+   const Vector &xe, DenseTensor &Jtr) const
+{
+   ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr);
+}
 
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
@@ -5802,7 +6508,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 void TMOP_Integrator::
 UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 {
-   if (discr_tc) { PA.Jtr_needs_update = true; }
+   if (targetC->NeedsTargetUpdate()) { PA.Jtr_needs_update = true; }
 
    if (PA.enabled) { UpdateCoefficientsPA(d); }
 
@@ -5822,16 +6528,18 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       add(*x_0, d, x_loc);
    }
 
-   // Update the target constructor if it's a discrete one.
-   if (discr_tc)
+   // Update target constructors that depend on current physical coordinates.
+   if (targetC->NeedsTargetUpdate())
    {
-      discr_tc->UpdateTargetSpecification(x_loc, true, ordering);
-      if (fdflag)
-      {
-         if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
-         discr_tc->UpdateGradientTargetSpecification(x_loc, fd_h, true, ordering);
-         discr_tc->UpdateHessianTargetSpecification(x_loc, fd_h, true, ordering);
-      }
+      targetC->UpdateTargetSpecification(x_loc, true, ordering);
+   }
+
+   // Update finite-difference data when using the existing discrete target.
+   if (discr_tc && fdflag)
+   {
+      if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+      discr_tc->UpdateGradientTargetSpecification(x_loc, fd_h, true, ordering);
+      discr_tc->UpdateHessianTargetSpecification(x_loc, fd_h, true, ordering);
    }
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
@@ -5914,6 +6622,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 
    const bool per = fes->IsDGSpace();
    MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
+   MFEM_VERIFY(discr_tc || !targetC->NeedsTargetUpdate(),
+               "Finite differences for this target constructor are not "
+               "implemented.");
 
    if (discr_tc)
    {
@@ -5941,6 +6652,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 
    const bool per = pfes->IsDGSpace();
    MFEM_VERIFY(per == false, "FD is not supported for periodic meshes.");
+   MFEM_VERIFY(discr_tc || !targetC->NeedsTargetUpdate(),
+               "Finite differences for this target constructor are not "
+               "implemented.");
 
    if (discr_tc)
    {
