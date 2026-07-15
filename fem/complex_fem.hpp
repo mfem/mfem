@@ -438,9 +438,10 @@ public:
 
 /** Class for a mixed sesquilinear form
 
-    A mixed sesquilinear form is a generalization of a mixed bilinear form to complex-valued
-    fields. Mixed sesquilinear forms are linear in the second argument but the
-    first argument involves a complex conjugate in the sense that:
+    A mixed sesquilinear form is a generalization of a mixed bilinear form to
+    complex-valued fields. Mixed sesquilinear forms are linear in the second
+    argument but the first argument involves a complex conjugate in the sense
+    that:
 
                 a(alpha u, beta v) = conj(alpha) beta a(u, v)
 
@@ -454,7 +455,7 @@ public:
 class MixedSesquilinearForm
 {
 private:
-   ComplexOperator::Convention _conv;
+   ComplexOperator::Convention conv;
 
    MixedBilinearForm * mblfr;
    MixedBilinearForm * mblfi;
@@ -486,8 +487,8 @@ public:
       MixedBilinearForm * bfi,
       ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
 
-   ComplexOperator::Convention GetConvention() const { return _conv; }
-   void SetConvention(const ComplexOperator::Convention & convention) { _conv = convention; }
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention & convention) { conv = convention; }
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -1033,29 +1034,30 @@ public:
 
 /** Class for a parallel mixed sesquilinear form
 
-    A mixed sesquilinear form is a generalization of a mixed bilinear form to complex-valued
-    fields. Mixed sesquilinear forms are linear in the second argument but the
-    first argument involves a complex conjugate in the sense that:
+    A mixed sesquilinear form is a generalization of a mixed bilinear form to
+    complex-valued fields. Mixed sesquilinear forms are linear in the second
+    argument but the first argument involves a complex conjugate in the sense
+    that:
 
                 a(alpha u, beta v) = conj(alpha) beta a(u, v)
 
     The @a convention argument in the class's constructor is documented in the
     mfem::ComplexOperator class found in linalg/complex_operator.hpp.
 
-    When supplying integrators to the ParMixedSesquilinearForm either the real or
-    imaginary integrator can be NULL. This indicates that the corresponding
+    When supplying integrators to the ParMixedSesquilinearForm either the real
+    or imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
 */
 class ParMixedSesquilinearForm
 {
 private:
-   ComplexOperator::Convention _conv;
+   ComplexOperator::Convention conv;
 
    ParMixedBilinearForm * pmblfr;
    ParMixedBilinearForm * pmblfi;
 
-   /* These methods check if the real/imag parts of the sesqulinear form are not
-      empty */
+   /* These methods check if the real/imag parts of the sesqulinear form are 
+    not empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -1081,8 +1083,8 @@ public:
       ParMixedBilinearForm * pbfi,
       ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
 
-   ComplexOperator::Convention GetConvention() const { return _conv; }
-   void SetConvention(const ComplexOperator::Convention & convention) { _conv = convention; }
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention & convention) { conv = convention; }
 
    /// Set the desired assembly level.
    /** Valid choices are:

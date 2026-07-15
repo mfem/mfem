@@ -791,7 +791,7 @@ MixedSesquilinearForm::ImagInteg()
 MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
                                              FiniteElementSpace * test_fes,
                                              ComplexOperator::Convention convention)
-   : _conv(convention),
+   : conv(convention),
      mblfr(new mfem::MixedBilinearForm(trial_fes, test_fes)),
      mblfi(new mfem::MixedBilinearForm(trial_fes, test_fes))
 {
@@ -802,7 +802,7 @@ MixedSesquilinearForm::MixedSesquilinearForm(FiniteElementSpace * trial_fes,
                                              MixedBilinearForm * bfr,
                                              MixedBilinearForm * bfi,
                                              ComplexOperator::Convention convention)
-   : _conv(convention),
+   : conv(convention),
      mblfr(new MixedBilinearForm(trial_fes, test_fes, bfr)),
      mblfi(new MixedBilinearForm(trial_fes, test_fes, bfi))
 {
@@ -977,7 +977,7 @@ ComplexSparseMatrix *
 MixedSesquilinearForm::AssembleComplexSparseMatrix()
 {
    return new mfem::ComplexSparseMatrix(
-             &mblfr->SpMat(), &mblfi->SpMat(), false, false, _conv);
+             &mblfr->SpMat(), &mblfi->SpMat(), false, false, conv);
 }
 
 void
@@ -995,13 +995,13 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    const int vsize_trial = fes_trial->GetVSize();
    const int vsize_test = fes_test->GetVSize();
 
-   // Allocate temporary mfem::vector
+   // Allocate temporary Vector
    Vector b_0;
    b_0.UseDevice(true);
    b_0.SetSize(vsize_test);
    b_0 = 0.0;
 
-   // Extract the real and imaginary parts of the input mfem::vectors
+   // Extract the real and imaginary parts of the input Vectors
    MFEM_ASSERT(x.Size() == 2 * vsize_trial,
                "Input GridFunction of incorrect size!");
    x.Read();
@@ -1017,7 +1017,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    Vector b_i;
    b_i.MakeRef(b, vsize_test, vsize_test);
 
-   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       b_i *= -1.0;
    }
@@ -1093,7 +1093,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
    }
 
-   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       B_i *= -1.0;
       b_i *= -1.0;
@@ -1119,7 +1119,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                  A_i.As<SparseMatrix>(),
                                  A_r.OwnsOperator(),
                                  A_i.OwnsOperator(),
-                                 _conv);
+                                 conv);
       A.Reset<ComplexSparseMatrix>(A_hyp, true);
    }
    else
@@ -1128,7 +1128,7 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                                    A_i.As<Operator>(),
                                                    A_r.OwnsOperator(),
                                                    A_i.OwnsOperator(),
-                                                   _conv);
+                                                   conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
    A_r.SetOperatorOwner(false);
@@ -1167,7 +1167,7 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
                                  A_i.As<SparseMatrix>(),
                                  A_r.OwnsOperator(),
                                  A_i.OwnsOperator(),
-                                 _conv);
+                                 conv);
       A.Reset<ComplexSparseMatrix>(A_hyp, true);
    }
    else
@@ -1176,7 +1176,7 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
                                                    A_i.As<Operator>(),
                                                    A_r.OwnsOperator(),
                                                    A_i.OwnsOperator(),
-                                                   _conv);
+                                                   conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
    A_r.SetOperatorOwner(false);
@@ -1186,8 +1186,8 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
 void
 MixedSesquilinearForm::Update()
 {
-   if ( mblfr ) { mblfr->Update(); }
-   if ( mblfi ) { mblfi->Update(); }
+   mblfr->Update();
+   mblfi->Update();
 }
 
 
@@ -2114,7 +2114,7 @@ ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
                                                    trial_fes,
                                                    ParFiniteElementSpace * test_fes,
                                                    ComplexOperator::Convention convention)
-   : _conv(convention),
+   : conv(convention),
      pmblfr(new ParMixedBilinearForm(trial_fes, test_fes)),
      pmblfi(new ParMixedBilinearForm(trial_fes, test_fes))
 {
@@ -2126,7 +2126,7 @@ ParMixedSesquilinearForm::ParMixedSesquilinearForm(ParFiniteElementSpace *
                                                    ParMixedBilinearForm * pbfr,
                                                    ParMixedBilinearForm * pbfi,
                                                    ComplexOperator::Convention convention)
-   : _conv(convention),
+   : conv(convention),
      pmblfr(new ParMixedBilinearForm(trial_fes, test_fes, pbfr)),
      pmblfi(new ParMixedBilinearForm(trial_fes, test_fes, pbfi))
 {
@@ -2305,7 +2305,7 @@ ComplexHypreParMatrix *
 ParMixedSesquilinearForm::ParallelAssemble()
 {
    return new ComplexHypreParMatrix(
-             pmblfr->ParallelAssemble(), pmblfi->ParallelAssemble(), true, true, _conv);
+             pmblfr->ParallelAssemble(), pmblfi->ParallelAssemble(), true, true, conv);
 }
 
 void
@@ -2323,13 +2323,13 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    const int vsize_trial = pfes_trial->GetVSize();
    const int vsize_test = pfes_test->GetVSize();
 
-   // Allocate temporary mfem::vector
+   // Allocate temporary Vector
    Vector b_0;
    b_0.UseDevice(true);
    b_0.SetSize(vsize_test);
    b_0 = 0.0;
 
-   // Extract the real and imaginary parts of the input mfem::vectors
+   // Extract the real and imaginary parts of the input Vectors
    MFEM_ASSERT(x.Size() == 2 * vsize_trial,
                "Input GridFunction of incorrect size!");
    x.Read();
@@ -2345,7 +2345,7 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
    Vector b_i;
    b_i.MakeRef(b, vsize_test, vsize_test);
 
-   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       b_i *= -1.0;
    }
@@ -2421,7 +2421,7 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
       MFEM_ABORT("Real and Imaginary part of the Mixed Sesquilinear form are empty");
    }
 
-   if (_conv == ComplexOperator::BLOCK_SYMMETRIC)
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       B_i *= -1.0;
       b_i *= -1.0;
@@ -2447,7 +2447,7 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                    A_i.As<HypreParMatrix>(),
                                    A_r.OwnsOperator(),
                                    A_i.OwnsOperator(),
-                                   _conv);
+                                   conv);
       A.Reset<ComplexHypreParMatrix>(A_hyp, true);
    }
    else
@@ -2456,7 +2456,7 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
                                                    A_i.As<Operator>(),
                                                    A_r.OwnsOperator(),
                                                    A_i.OwnsOperator(),
-                                                   _conv);
+                                                   conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
    A_r.SetOperatorOwner(false);
@@ -2495,7 +2495,7 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
                                    A_i.As<HypreParMatrix>(),
                                    A_r.OwnsOperator(),
                                    A_i.OwnsOperator(),
-                                   _conv);
+                                   conv);
       A.Reset<ComplexHypreParMatrix>(A_hyp, true);
    }
    else
@@ -2504,7 +2504,7 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
                                                    A_i.As<Operator>(),
                                                    A_r.OwnsOperator(),
                                                    A_i.OwnsOperator(),
-                                                   _conv);
+                                                   conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
    A_r.SetOperatorOwner(false);
@@ -2514,8 +2514,8 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
 void
 ParMixedSesquilinearForm::Update()
 {
-   if ( pmblfr ) { pmblfr->Update(); }
-   if ( pmblfi ) { pmblfi->Update(); }
+   pmblfr->Update();
+   pmblfi->Update();
 }
 
 
