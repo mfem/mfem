@@ -168,7 +168,7 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
                   res += fmat(d_size+j, i) * p(i);
                }
 
-            for (int i = 0; i < d_size; i++)
+            for (int i = 0; i < x_size; i++)
                for (int j = 0; j < x_size; j++)
                {
                   res += fmat(d_size+j, d_size+i) * x(i);

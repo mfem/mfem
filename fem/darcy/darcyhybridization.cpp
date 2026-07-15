@@ -1975,7 +1975,7 @@ void DarcyHybridization::ReconstructTotalFlux(
             b(j) += s * fmat(d_size+j, i) * p(i);
          }
 
-      for (int i = 0; i < d_size; i++)
+      for (int i = 0; i < tr_size; i++)
          for (int j = 0; j < tr_size; j++)
          {
             b(j) += s * fmat(d_size+j, d_size+i) * tr(i);
