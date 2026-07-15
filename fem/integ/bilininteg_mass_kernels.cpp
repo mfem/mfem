@@ -11,7 +11,7 @@
 
 #include "bilininteg_mass_kernels.hpp"
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
-#include "bilininteg_mass_pa_tmo.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_simplices_mma.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -44,8 +44,7 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,2,5>();
    MassIntegrator::AddSpecialization<2,3,6>();
    MassIntegrator::AddSpecialization<2,4,6>();
-   // TMO Duffy / Composite / Bernstein (Stroud 1D Q1D), p ≤ 6: pairs not
-   // already covered above. Order 2p+4 ⇒ Q1D = D1D+2; also D1D+1 / D1D+3.
+   // Stroud / simplex PA extras (pairs not covered above)
    MassIntegrator::AddSpecialization<2,3,5>();
    MassIntegrator::AddSpecialization<2,4,7>();
    MassIntegrator::AddSpecialization<2,5,7>();
@@ -54,61 +53,47 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,6,9>();
    MassIntegrator::AddSpecialization<2,7,9>();
    MassIntegrator::AddSpecialization<2,7,10>();
-   // TMO Tensor / BernsteinDense: key is (D1D, triangle nq1), not 1D Q1D.
-   // IntRules TRIANGLE counts for order 2p and 2p+4, p = 1..6.
-   MassIntegrator::AddTmoTensorSpecialization<2,2,3>();
-   MassIntegrator::AddTmoTensorSpecialization<2,2,12>();
-   MassIntegrator::AddTmoTensorSpecialization<2,3,6>();
-   MassIntegrator::AddTmoTensorSpecialization<2,3,16>();
-   MassIntegrator::AddTmoTensorSpecialization<2,4,12>();
-   MassIntegrator::AddTmoTensorSpecialization<2,4,25>();
-   MassIntegrator::AddTmoTensorSpecialization<2,5,16>();
-   MassIntegrator::AddTmoTensorSpecialization<2,5,28>();
-   MassIntegrator::AddTmoTensorSpecialization<2,5,33>();
-   MassIntegrator::AddTmoTensorSpecialization<2,6,25>();
-   MassIntegrator::AddTmoTensorSpecialization<2,6,42>();
-   MassIntegrator::AddTmoTensorSpecialization<2,7,33>();
-   MassIntegrator::AddTmoTensorSpecialization<2,7,49>();
-   MassIntegrator::AddTmoTensorSpecialization<2,7,55>();
-   MassIntegrator::AddTmoTensorSpecialization<2,8,60>();
-   // TMO MMA: same (D1D, nq1) keys as Tensor
-   MassIntegrator::AddTmoMmaSpecialization<2,2,3>();
-   MassIntegrator::AddTmoMmaSpecialization<2,2,12>();
-   MassIntegrator::AddTmoMmaSpecialization<2,3,6>();
-   MassIntegrator::AddTmoMmaSpecialization<2,3,15>(); // GLL BP1tri p=2
-   MassIntegrator::AddTmoMmaSpecialization<2,3,16>();
-   MassIntegrator::AddTmoMmaSpecialization<2,4,12>();
-   MassIntegrator::AddTmoMmaSpecialization<2,4,19>(); // GLL BP1tri p=3
-   MassIntegrator::AddTmoMmaSpecialization<2,4,25>();
-   MassIntegrator::AddTmoMmaSpecialization<2,5,16>();
-   MassIntegrator::AddTmoMmaSpecialization<2,5,28>(); // GLL BP1tri p=4
-   MassIntegrator::AddTmoMmaSpecialization<2,5,33>();
-   MassIntegrator::AddTmoMmaSpecialization<2,6,25>();
-   MassIntegrator::AddTmoMmaSpecialization<2,6,37>(); // GLL BP1tri p=5
-   MassIntegrator::AddTmoMmaSpecialization<2,6,42>();
-   MassIntegrator::AddTmoMmaSpecialization<2,7,33>();
-   MassIntegrator::AddTmoMmaSpecialization<2,7,49>(); // GLL BP1tri p=6
-   MassIntegrator::AddTmoMmaSpecialization<2,7,55>();
-   MassIntegrator::AddTmoMmaSpecialization<2,8,60>(); // GLL BP1tri p=7
 
-   // TMO MMA_1 3D (GLL tet): key is (D1D, tet nq1).
+   // Simplex MMA: key is (D1D, simplex nq), not 1D Q1D.
+   // IntRules TRIANGLE counts for order 2p and 2p+4, p = 1..7.
+   MassIntegrator::AddSimplexMmaSpecialization<2,2,3>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,2,12>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,3,6>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,3,15>(); // GLL BP1tri p=2
+   MassIntegrator::AddSimplexMmaSpecialization<2,3,16>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,4,12>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,4,19>(); // GLL BP1tri p=3
+   MassIntegrator::AddSimplexMmaSpecialization<2,4,25>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,5,16>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,5,28>(); // GLL BP1tri p=4
+   MassIntegrator::AddSimplexMmaSpecialization<2,5,33>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,6,25>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,6,37>(); // GLL BP1tri p=5
+   MassIntegrator::AddSimplexMmaSpecialization<2,6,42>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,7,33>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,7,49>(); // GLL BP1tri p=6
+   MassIntegrator::AddSimplexMmaSpecialization<2,7,55>();
+   MassIntegrator::AddSimplexMmaSpecialization<2,8,60>(); // GLL BP1tri p=7
+
+   // Simplex MMA 3D (GLL tet): key is (D1D, tet nq).
    // BP1tet GLL uses IntRules order 2p; unit tests use order 2p+4.
-   MassIntegrator::AddTmoMmaSpecialization<3,2,4>();   // BP p=1 order 2
-   MassIntegrator::AddTmoMmaSpecialization<3,2,24>();  // test p=1 order 6
-   MassIntegrator::AddTmoMmaSpecialization<3,3,14>();  // BP p=2 order 4
-   MassIntegrator::AddTmoMmaSpecialization<3,3,35>();
-   MassIntegrator::AddTmoMmaSpecialization<3,3,46>();  // test p=2 order 8
-   MassIntegrator::AddTmoMmaSpecialization<3,4,24>();  // BP p=3 order 6
-   MassIntegrator::AddTmoMmaSpecialization<3,4,81>();  // test p=3 order 10
-   MassIntegrator::AddTmoMmaSpecialization<3,5,46>();  // BP p=4 order 8
-   MassIntegrator::AddTmoMmaSpecialization<3,5,96>();
-   MassIntegrator::AddTmoMmaSpecialization<3,5,123>(); // test p=4 order 12
-   MassIntegrator::AddTmoMmaSpecialization<3,6,81>();  // BP p=5 order 10
-   MassIntegrator::AddTmoMmaSpecialization<3,6,175>(); // test p=5 order 14
-   MassIntegrator::AddTmoMmaSpecialization<3,7,123>(); // BP p=6 order 12
-   MassIntegrator::AddTmoMmaSpecialization<3,7,209>();
-   MassIntegrator::AddTmoMmaSpecialization<3,7,248>(); // test p=6 order 16
-   MassIntegrator::AddTmoMmaSpecialization<3,8,175>(); // BP p=7 order 14
+   MassIntegrator::AddSimplexMmaSpecialization<3,2,4>();   // BP p=1 order 2
+   MassIntegrator::AddSimplexMmaSpecialization<3,2,24>();  // test p=1 order 6
+   MassIntegrator::AddSimplexMmaSpecialization<3,3,14>();  // BP p=2 order 4
+   MassIntegrator::AddSimplexMmaSpecialization<3,3,35>();
+   MassIntegrator::AddSimplexMmaSpecialization<3,3,46>();  // test p=2 order 8
+   MassIntegrator::AddSimplexMmaSpecialization<3,4,24>();  // BP p=3 order 6
+   MassIntegrator::AddSimplexMmaSpecialization<3,4,81>();  // test p=3 order 10
+   MassIntegrator::AddSimplexMmaSpecialization<3,5,46>();  // BP p=4 order 8
+   MassIntegrator::AddSimplexMmaSpecialization<3,5,96>();
+   MassIntegrator::AddSimplexMmaSpecialization<3,5,123>(); // test p=4 order 12
+   MassIntegrator::AddSimplexMmaSpecialization<3,6,81>();  // BP p=5 order 10
+   MassIntegrator::AddSimplexMmaSpecialization<3,6,175>(); // test p=5 order 14
+   MassIntegrator::AddSimplexMmaSpecialization<3,7,123>(); // BP p=6 order 12
+   MassIntegrator::AddSimplexMmaSpecialization<3,7,209>();
+   MassIntegrator::AddSimplexMmaSpecialization<3,7,248>(); // test p=6 order 16
+   MassIntegrator::AddSimplexMmaSpecialization<3,8,175>(); // BP p=7 order 14
+   MassIntegrator::AddSimplexMmaSpecialization<3,8,284>();
 
    // 3D
    // Q=P+1

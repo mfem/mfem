@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(5000000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -146,13 +146,9 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order.
    //    - If order < 1, we instead use an isoparametric/isogeometric space.
    //    - If the mesh is simplicial and partial assembly is requested,
-   //      we use the positive basis (Bernstein), which supports device
-   //      Duffy/Bernstein TMO or simplex PA — unless MFEM_USE_TMO_TENSOR is set,
-   //      which needs standard H1 (Gauss-Lobatto).
+   //      we use the positive basis (Bernstein) for device simplex PA.
    FiniteElementCollection *fec;
-   const char *tmo_tensor = GetEnv("MFEM_USE_TMO_TENSOR");
-   const bool use_tmo_tensor = tmo_tensor && tmo_tensor[0] && tmo_tensor[0] != '0';
-   auto basis_type = (pa && mesh.IsSimplexMesh() && !use_tmo_tensor) ?
+   auto basis_type = (pa && mesh.IsSimplexMesh()) ?
                      BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {

@@ -2398,22 +2398,16 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   /// TMO PA mode: 0=off, 1=Duffy, 2=Tensor/GLL, 3=Bernstein parallelogram,
-   /// 4=Bernstein dense P, 5=Composite sum-fac halves, 6=MMA (Tensor assemble +
-   /// DMMA apply)
-   int pa_tmo = 0;
-   /// TENSOR / BERNSTEIN_DENSE: P at chart pts. BERNSTEIN: prolong P + 1D B
-   Array<real_t> tmo_P, tmo_B;
+   /// True when using CUDA simplex MMA mass PA (dense P + DMMA apply).
+   bool pa_simplex_mma = false;
+   /// Dense basis evaluation at quadrature points (nq × ndof).
+   Array<real_t> simplex_mma_P;
 
    void AssembleEA_(Vector &ea, const bool add);
 
 public:
-   void AssemblePA_TMO_Duffy(const FiniteElementSpace &fes);
-   /// @param nmirrors Number of parallelogram charts (3 = full TMO, 1 = k=0 only).
-   void AssemblePA_TMO_Tensor(const FiniteElementSpace &fes, int nmirrors = 3);
-   void AssemblePA_TMO_Bernstein(const FiniteElementSpace &fes);
-   void AssemblePA_TMO_BernsteinDense(const FiniteElementSpace &fes);
-   void AssemblePA_TMO_Composite(const FiniteElementSpace &fes);
+   /// Assemble PA data for GLL H1 simplex mass via DMMA (CUDA).
+   void AssemblePA_SimplexMma(const FiniteElementSpace &fes);
 
 public:
 
@@ -2430,19 +2424,10 @@ public:
                                           const Vector&, const Vector&, Vector&,
                                           const int, const int);
 
-   /// Duffy TMO apply: same signature as simplex PA; D has 3 mirrors
-   using ApplyTmoKernelType = ApplySimplexKernelType;
-
-   /// Tensor TMO apply: (NE, P, D, x, y, d1d, q1d)
-   using ApplyTmoTensorKernelType = void(*)(const int, const Array<real_t>&,
-                                            const Vector&, const Vector&, Vector&,
-                                            const int, const int);
-
-   /// Bernstein parallelogram TMO: (NE, B, P, D, x, y, d1d, q1d)
-   using ApplyTmoBernsteinKernelType = void(*)(const int, const Array<real_t>&,
-                                               const Array<real_t>&, const Vector&,
-                                               const Vector&, Vector&,
-                                               const int, const int);
+   /// Simplex MMA apply: (NE, P, D, x, y, d1d, nq)
+   using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
+                                             const Vector&, const Vector&, Vector&,
+                                             const int, const int);
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
@@ -2451,14 +2436,7 @@ public:
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
                                                                          int));
-   MFEM_REGISTER_KERNELS(ApplyTmoPAKernels, ApplyTmoKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTmoCompositePAKernels, ApplyTmoKernelType,
-                         (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTmoTensorPAKernels, ApplyTmoTensorKernelType,
-                         (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTmoMmaPAKernels, ApplyTmoTensorKernelType,
-                         (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTmoBernsteinPAKernels, ApplyTmoBernsteinKernelType,
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2521,11 +2499,7 @@ public:
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       AddSimplexSpecialization<DIM,D1D,Q1D>();
-      AddTmoSpecialization<DIM,D1D,Q1D>();
-      AddTmoCompositeSpecialization<DIM,D1D,Q1D>();
-      AddTmoTensorSpecialization<DIM,D1D,Q1D>();
-      AddTmoMmaSpecialization<DIM,D1D,Q1D>();
-      AddTmoBernsteinSpecialization<DIM,D1D,Q1D>();
+      AddSimplexMmaSpecialization<DIM,D1D,Q1D>();
    }
 
    template <int DIM, int D1D, int Q1D>
@@ -2534,48 +2508,13 @@ public:
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
+   /// @param Q1D Number of simplex quadrature points (not a 1D count).
    template <int DIM, int D1D, int Q1D>
-   static void AddTmoSpecialization()
-   {
-      if constexpr (DIM == 2)
-      {
-         ApplyTmoPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      }
-   }
-
-   template <int DIM, int D1D, int Q1D>
-   static void AddTmoCompositeSpecialization()
-   {
-      if constexpr (DIM == 2)
-      {
-         ApplyTmoCompositePAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      }
-   }
-
-   template <int DIM, int D1D, int Q1D>
-   static void AddTmoTensorSpecialization()
-   {
-      if constexpr (DIM == 2)
-      {
-         ApplyTmoTensorPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      }
-   }
-
-   template <int DIM, int D1D, int Q1D>
-   static void AddTmoMmaSpecialization()
+   static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplyTmoMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      }
-   }
-
-   template <int DIM, int D1D, int Q1D>
-   static void AddTmoBernsteinSpecialization()
-   {
-      if constexpr (DIM == 2)
-      {
-         ApplyTmoBernsteinPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
