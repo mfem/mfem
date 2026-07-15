@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
    bool brt = false;
    real_t td = 0.5;
    bool trace_h1 = false;
-   bool trace_ess_bc = false;
+   bool trace_ess_bc = true;
    const char *device_config = "cpu";
 
    bool visualization = true;
