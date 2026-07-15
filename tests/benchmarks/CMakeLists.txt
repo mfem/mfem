@@ -56,21 +56,3 @@ add_benchmark(elasticity)
 add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
-
-# Spatial dimension for CEED bake-off benchmarks (2 or 3; default 3)
-set(MFEM_BENCH_CEED_DIM "3" CACHE STRING "Spatial dimension for bench_ceed (2 or 3)")
-set_property(CACHE MFEM_BENCH_CEED_DIM PROPERTY STRINGS 2 3)
-
-# Simplex FE basis: 1 = Positive/Bernstein (default), 0 = Gauss-Lobatto H1
-set(MFEM_BENCH_CEED_SIMPLEX_POSITIVE "1" CACHE STRING
-    "bench_ceed simplex basis: 1=Positive/Bernstein, 0=Gauss-Lobatto")
-set_property(CACHE MFEM_BENCH_CEED_SIMPLEX_POSITIVE PROPERTY STRINGS 0 1)
-
-if (TARGET bench_ceed)
-   target_compile_definitions(bench_ceed PRIVATE
-      MFEM_BENCH_CEED_DIM=${MFEM_BENCH_CEED_DIM}
-      MFEM_BENCH_CEED_SIMPLEX_POSITIVE=${MFEM_BENCH_CEED_SIMPLEX_POSITIVE})
-   message(STATUS
-      "bench_ceed: MFEM_BENCH_CEED_DIM=${MFEM_BENCH_CEED_DIM}, "
-      "MFEM_BENCH_CEED_SIMPLEX_POSITIVE=${MFEM_BENCH_CEED_SIMPLEX_POSITIVE}")
-endif()
