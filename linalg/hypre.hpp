@@ -41,12 +41,21 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+// Note: in mixed-precision builds of hypre (HYPRE_MIXED_PRECISION), MFEM is
+// an ordinary hypre client bound to the *default* precision of the hypre
+// build: HYPRE_SINGLE and HYPRE_LONG_DOUBLE below then refer to that default,
+// so the checks below also apply to mixed-precision builds.
 #if defined(MFEM_USE_DOUBLE) && defined(HYPRE_SINGLE)
 #error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-single!"
 #elif defined(MFEM_USE_DOUBLE) && defined(HYPRE_LONG_DOUBLE)
 #error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-longdouble!"
 #elif defined(MFEM_USE_SINGLE) && !defined(HYPRE_SINGLE)
 #error "MFEM_USE_SINGLE=YES requires HYPRE build with --enable-single!"
+#endif
+
+#if defined(HYPRE_MIXED_PRECISION) && !defined(MFEM_USE_DOUBLE)
+#error "Mixed-precision HYPRE builds are only supported with double-precision"\
+       " MFEM (MFEM_PRECISION=double)."
 #endif
 
 #if defined(HYPRE_USING_GPU) && \
@@ -1848,6 +1857,19 @@ private:
    void ResetAMGPrecond();
 
 public:
+   /** @brief The default, generally robust, BoomerAMG options set by
+       SetDefaultOptions() (also used by
+       HypreBoomerAMGMixedPrecision::SetDefaultOptions()). */
+   struct DefaultOptions
+   {
+      int coarsen_type, agg_levels, interp_type, Pmax, relax_type,
+          relax_sweeps, print_level, max_levels;
+      real_t theta;
+   };
+
+   /// Return the default BoomerAMG options; they depend on HypreUsingGPU().
+   static DefaultOptions GetDefaultOptions();
+
    HypreBoomerAMG();
 
    HypreBoomerAMG(const HypreParMatrix &A);
@@ -1976,6 +1998,74 @@ public:
 
    virtual ~HypreBoomerAMG();
 };
+
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+/** @brief BoomerAMG preconditioner stored and applied in single precision,
+    for use with double-precision MFEM operators and Krylov solvers.
+
+    Requires hypre configured with --enable-mixed-precision (autotools) or
+    HYPRE_ENABLE_MIXED_PRECISION=ON (CMake). The input matrix is deep-copied
+    and converted to single precision at construction. On every application,
+    the (double-precision) input vectors are converted into persistent
+    single-precision buffers, one AMG V-cycle is applied in single precision,
+    and the result is converted back to double precision.
+
+    @warning This class must be used as a preconditioner for MFEM's iterative
+    solvers (e.g. CGSolver, GMRESSolver). It cannot be used with the hypre
+    Krylov wrappers (HyprePCG, HypreGMRES, etc.): SetupFcn() and SolveFcn()
+    abort. */
+class HypreBoomerAMGMixedPrecision : public HypreSolver
+{
+private:
+   /// Single-precision BoomerAMG solver
+   HYPRE_Solver amg_precond;
+   /// Single-precision deep copy of the system matrix
+   hypre_ParCSRMatrix *A_flt = nullptr;
+   /// Persistent single-precision work vectors (avoid per-Mult allocation)
+   mutable hypre_ParVector *b_flt = nullptr, *x_flt = nullptr;
+   /// Print level, kept to survive resets in SetOperator()
+   int print_level = 1;
+
+   /** @brief Mirrors HypreBoomerAMG::SetDefaultOptions() using hypre's
+       single-precision ('_flt') interface. */
+   void SetDefaultOptions();
+
+   /// Clone @a A_ into the single-precision A_flt and create b_flt and x_flt.
+   void CloneOperator(const HypreParMatrix &A_);
+
+   /// Destroy A_flt, b_flt, and x_flt.
+   void DestroyOperator();
+
+public:
+   HypreBoomerAMGMixedPrecision();
+
+   explicit HypreBoomerAMGMixedPrecision(const HypreParMatrix &A);
+
+   void SetPrintLevel(int print_level);
+
+   /** @brief Set/update the associated operator; @a op must be a
+       HypreParMatrix. Discards any previous setup and resets the AMG options
+       to their defaults, except for the print level. */
+   void SetOperator(const Operator &op) override;
+
+   void Setup(const HypreParVector &b, HypreParVector &x) const override;
+   using HypreSolver::Setup;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
+   using HypreSolver::Mult;
+
+   /** @brief The typecast to HYPRE_Solver returns the internal
+       (single-precision) amg_precond. Note the warning in the class
+       documentation. */
+   operator HYPRE_Solver() const override { return amg_precond; }
+
+   /// Not supported: aborts. See the warning in the class documentation.
+   HYPRE_PtrToParSolverFcn SetupFcn() const override;
+   /// Not supported: aborts. See the warning in the class documentation.
+   HYPRE_PtrToParSolverFcn SolveFcn() const override;
+
+   virtual ~HypreBoomerAMGMixedPrecision();
+};
+#endif // HYPRE_MIXED_PRECISION && MFEM_USE_DOUBLE
 
 /// Compute the discrete gradient matrix between the nodal linear and ND1 spaces
 HypreParMatrix* DiscreteGrad(ParFiniteElementSpace *edge_fespace,

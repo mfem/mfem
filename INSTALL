@@ -655,6 +655,8 @@ The specific libraries and their options are:
             HYPRE >= 2.22.1   (HYPRE built with CUDA)
             HYPRE >= 2.23.0   (HYPRE built with HIP)
             HYPRE >= 2.31.0   (runtime selectable HYPRE execution on CPU/GPU)
+            HYPRE >= 3.1.0    (HYPRE built with '--enable-mixed-precision',
+                               enables mfem::HypreBoomerAMGMixedPrecision)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4). For building instructions,
@@ -1213,6 +1215,18 @@ larger problems, there are two options:
 2. Building hypre with '--enable-mixedint' defines the local indices to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
+
+Starting with version 3.1.0, hypre can be built with '--enable-mixed-precision'
+(autotools) or '-DHYPRE_ENABLE_MIXED_PRECISION=ON' (CMake), which compiles all
+hypre functions in single, double, and long double precision. MFEM supports
+such hypre builds transparently, as an ordinary hypre client, with two
+requirements (enforced at compile time): the hypre build must use the default
+(double) base precision, i.e. WITHOUT '--enable-single'/'--enable-longdouble',
+and MFEM must be built with MFEM_PRECISION=double. All standard MFEM-hypre
+functionality then uses hypre's double precision. In addition, such hypre
+builds enable the class mfem::HypreBoomerAMGMixedPrecision: a single-precision
+BoomerAMG preconditioner for use with MFEM's double-precision iterative
+solvers.
 
 Specific options for HIP
 ========================

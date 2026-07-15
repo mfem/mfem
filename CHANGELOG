@@ -64,6 +64,14 @@ Linear and nonlinear solvers
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
 
+- Added support for mixed-precision builds of hypre >= 3.1 (configured with
+  '--enable-mixed-precision', with the default double base precision; requires
+  double-precision MFEM). MFEM compiles against such builds as an ordinary
+  hypre client and enables the new class HypreBoomerAMGMixedPrecision: a
+  BoomerAMG preconditioner stored and applied in single precision, for use with
+  MFEM's double-precision iterative solvers, with double<->single conversion
+  performed internally on each application.
+
 GPU computing
 -------------
 - Added NVIDIA cuDSS library interface. Implementation examples have been

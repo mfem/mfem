@@ -24,6 +24,12 @@
 
 using namespace std;
 
+// Note: in mixed-precision hypre builds, the fixed-precision ('_flt') and
+// cross-precision ('_mp') function prototypes used by class
+// HypreBoomerAMGMixedPrecision are provided by hypre's client headers:
+// the '*_mup.h' headers (included at the end of the regular hypre headers)
+// and <_hypre_parcsr_mv.h>, respectively.
+
 namespace mfem
 {
 
@@ -36,6 +42,14 @@ void Hypre::Init()
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Init();
+#endif
+#ifdef HYPRE_MIXED_PRECISION
+      // MFEM is bound to the double-precision hypre functions and objects
+      // (the default precision of the hypre build, see the checks in
+      // hypre.hpp). Pin hypre's runtime-dispatch precision to double too, so
+      // that unsuffixed HYPRE_* calls (from MFEM or any other hypre client in
+      // this process) match the precision of the objects MFEM creates.
+      HYPRE_SetGlobalPrecision(HYPRE_REAL_DOUBLE);
 #endif
       SetDefaultOptions();
       // Apply the setting of 'configure_runtime_policy_from_mfem' according to
@@ -5234,63 +5248,67 @@ HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
    SetDefaultOptions();
 }
 
-void HypreBoomerAMG::SetDefaultOptions()
+HypreBoomerAMG::DefaultOptions HypreBoomerAMG::GetDefaultOptions()
 {
-   // AMG interpolation options:
-   int coarsen_type, agg_levels, interp_type, Pmax, relax_type, relax_sweeps,
-       print_level, max_levels;
-   real_t theta;
+   DefaultOptions o;
 
    if (!HypreUsingGPU())
    {
       // AMG coarsening options:
-      coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-      agg_levels   = 1;    // number of aggressive coarsening levels
-      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+      o.coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      o.agg_levels   = 1;    // number of aggressive coarsening levels
+      o.theta        = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
       // AMG interpolation options:
-      interp_type  = 6;    // 6 = extended+i, 0 = classical
-      Pmax         = 4;    // max number of elements per row in P
+      o.interp_type  = 6;    // 6 = extended+i, 0 = classical
+      o.Pmax         = 4;    // max number of elements per row in P
 
       // AMG relaxation options:
-      relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
-      relax_sweeps = 1;    // relaxation sweeps on each level
+      o.relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
+      o.relax_sweeps = 1;    // relaxation sweeps on each level
 
       // Additional options:
-      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-      max_levels   = 25;   // max number of levels in AMG hierarchy
+      o.print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      o.max_levels   = 25;   // max number of levels in AMG hierarchy
    }
    else
    {
       // AMG coarsening options:
-      coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-      agg_levels   = 0;    // number of aggressive coarsening levels
-      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+      o.coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      o.agg_levels   = 0;    // number of aggressive coarsening levels
+      o.theta        = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
       // AMG interpolation options:
-      interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
-      Pmax         = 4;    // max number of elements per row in P
+      o.interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
+      o.Pmax         = 4;    // max number of elements per row in P
 
       // AMG relaxation options:
-      relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
-      relax_sweeps = 1;    // relaxation sweeps on each level
+      o.relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
+      o.relax_sweeps = 1;    // relaxation sweeps on each level
 
       // Additional options:
-      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-      max_levels   = 25;   // max number of levels in AMG hierarchy
+      o.print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      o.max_levels   = 25;   // max number of levels in AMG hierarchy
    }
 
-   HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
-   HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
-   HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+   return o;
+}
+
+void HypreBoomerAMG::SetDefaultOptions()
+{
+   const DefaultOptions o = GetDefaultOptions();
+
+   HYPRE_BoomerAMGSetCoarsenType(amg_precond, o.coarsen_type);
+   HYPRE_BoomerAMGSetAggNumLevels(amg_precond, o.agg_levels);
+   HYPRE_BoomerAMGSetRelaxType(amg_precond, o.relax_type);
    // default in hypre is 1.0 with some exceptions, e.g. for relax_type = 7
    // HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0);
-   HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
-   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
-   HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
-   HYPRE_BoomerAMGSetPMaxElmts(amg_precond, Pmax);
-   HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level);
-   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
+   HYPRE_BoomerAMGSetNumSweeps(amg_precond, o.relax_sweeps);
+   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, o.theta);
+   HYPRE_BoomerAMGSetInterpType(amg_precond, o.interp_type);
+   HYPRE_BoomerAMGSetPMaxElmts(amg_precond, o.Pmax);
+   HYPRE_BoomerAMGSetPrintLevel(amg_precond, o.print_level);
+   HYPRE_BoomerAMGSetMaxLevels(amg_precond, o.max_levels);
 
    // Use as a preconditioner (one V-cycle, zero tolerance)
    HYPRE_BoomerAMGSetMaxIter(amg_precond, 1);
@@ -5696,6 +5714,205 @@ HypreBoomerAMG::~HypreBoomerAMG()
 
    HYPRE_BoomerAMGDestroy(amg_precond);
 }
+
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+
+HypreBoomerAMGMixedPrecision::HypreBoomerAMGMixedPrecision()
+{
+   HYPRE_BoomerAMGCreate_flt(&amg_precond);
+   SetDefaultOptions();
+}
+
+HypreBoomerAMGMixedPrecision::HypreBoomerAMGMixedPrecision(
+   const HypreParMatrix &A_) : HypreSolver(&A_)
+{
+   HYPRE_BoomerAMGCreate_flt(&amg_precond);
+   SetDefaultOptions();
+   CloneOperator(A_);
+}
+
+void HypreBoomerAMGMixedPrecision::CloneOperator(const HypreParMatrix &A_)
+{
+   // Ensure the matrix data is in hypre's memory space, then deep-copy and
+   // convert it to single precision (same memory location as A_).
+   A_.HypreRead();
+   A_flt = hypre_ParCSRMatrixClone_mp(A_, HYPRE_REAL_SINGLE);
+
+   // Persistent single-precision work vectors, allocated in hypre's memory
+   // location (matching A_flt).
+   HYPRE_ParVector v;
+   HYPRE_ParVectorCreate_flt(hypre_ParCSRMatrixComm(A_flt),
+                             hypre_ParCSRMatrixGlobalNumRows(A_flt),
+                             hypre_ParCSRMatrixRowStarts(A_flt), &v);
+   HYPRE_ParVectorInitialize_flt(v);
+   b_flt = (hypre_ParVector*) v;
+   HYPRE_ParVectorCreate_flt(hypre_ParCSRMatrixComm(A_flt),
+                             hypre_ParCSRMatrixGlobalNumRows(A_flt),
+                             hypre_ParCSRMatrixRowStarts(A_flt), &v);
+   HYPRE_ParVectorInitialize_flt(v);
+   x_flt = (hypre_ParVector*) v;
+}
+
+void HypreBoomerAMGMixedPrecision::DestroyOperator()
+{
+   if (A_flt == NULL) { return; }
+   hypre_ParCSRMatrixDestroy_flt(A_flt);
+   HYPRE_ParVectorDestroy_flt((HYPRE_ParVector) b_flt);
+   HYPRE_ParVectorDestroy_flt((HYPRE_ParVector) x_flt);
+   A_flt = NULL;
+   b_flt = x_flt = NULL;
+}
+
+void HypreBoomerAMGMixedPrecision::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // Recreate the single-precision AMG solver with default options (this
+   // includes the current print level, see SetDefaultOptions())
+   HYPRE_BoomerAMGDestroy_flt(amg_precond);
+   HYPRE_BoomerAMGCreate_flt(&amg_precond);
+   SetDefaultOptions();
+
+   DestroyOperator();
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+   auxB.Delete(); auxB.Reset();
+   auxX.Delete(); auxX.Reset();
+
+   CloneOperator(*new_A);
+}
+
+void HypreBoomerAMGMixedPrecision::SetDefaultOptions()
+{
+   // Same options as HypreBoomerAMG::SetDefaultOptions(), applied through
+   // hypre's single-precision interface: the setters must match the precision
+   // of the solver, since they write into its precision-specific data
+   // structure. Note: 'print_level' is applied from the class member, so that
+   // it survives the solver reset in SetOperator().
+   const HypreBoomerAMG::DefaultOptions o = HypreBoomerAMG::GetDefaultOptions();
+
+   HYPRE_BoomerAMGSetCoarsenType_flt(amg_precond, o.coarsen_type);
+   HYPRE_BoomerAMGSetAggNumLevels_flt(amg_precond, o.agg_levels);
+   HYPRE_BoomerAMGSetRelaxType_flt(amg_precond, o.relax_type);
+   HYPRE_BoomerAMGSetNumSweeps_flt(amg_precond, o.relax_sweeps);
+   HYPRE_BoomerAMGSetStrongThreshold_flt(amg_precond, float(o.theta));
+   HYPRE_BoomerAMGSetInterpType_flt(amg_precond, o.interp_type);
+   HYPRE_BoomerAMGSetPMaxElmts_flt(amg_precond, o.Pmax);
+   HYPRE_BoomerAMGSetPrintLevel_flt(amg_precond, print_level);
+   HYPRE_BoomerAMGSetMaxLevels_flt(amg_precond, o.max_levels);
+
+   // Use as a preconditioner (one V-cycle, zero tolerance)
+   HYPRE_BoomerAMGSetMaxIter_flt(amg_precond, 1);
+   HYPRE_BoomerAMGSetTol_flt(amg_precond, 0.0f);
+}
+
+void HypreBoomerAMGMixedPrecision::SetPrintLevel(int print_level_)
+{
+   print_level = print_level_;
+   HYPRE_BoomerAMGSetPrintLevel_flt(amg_precond, print_level);
+}
+
+void HypreBoomerAMGMixedPrecision::Setup(const HypreParVector &b,
+                                         HypreParVector &x) const
+{
+   if (setup_called) { return; }
+
+   MFEM_VERIFY(A_flt != NULL, "HypreParMatrix A is missing");
+
+   b.HypreRead();
+   x.HypreRead();
+   // double -> single conversion into the persistent buffers; the setup
+   // vectors are only used by hypre to size internal data structures, and are
+   // never copied back to b and x
+   hypre_ParVectorCopy_mp(b, b_flt);
+   hypre_ParVectorCopy_mp(x, x_flt);
+
+   HYPRE_Int err_flag =
+      HYPRE_BoomerAMGSetup_flt(amg_precond, (HYPRE_ParCSRMatrix) A_flt,
+                               (HYPRE_ParVector) b_flt,
+                               (HYPRE_ParVector) x_flt);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err_flag)
+      { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
+   }
+   hypre_error_flag = 0;
+   setup_called = 1;
+}
+
+void HypreBoomerAMGMixedPrecision::Mult(const HypreParVector &b,
+                                        HypreParVector &x) const
+{
+   MFEM_VERIFY(A_flt != NULL, "HypreParMatrix A is missing");
+
+   if (!iterative_mode)
+   {
+      x.HypreWrite();
+      hypre_ParVectorSetConstantValues(x, 0.0);
+   }
+
+   b.HypreRead();
+   x.HypreReadWrite();
+
+   Setup(b, x);
+
+   // double -> single conversion into the persistent buffers, apply the AMG
+   // V-cycle in single precision, then convert the result back (x only: the
+   // truncated rhs is never copied back into b)
+   hypre_ParVectorCopy_mp(b, b_flt);
+   hypre_ParVectorCopy_mp(x, x_flt);
+   HYPRE_Int err_flag =
+      HYPRE_BoomerAMGSolve_flt(amg_precond, (HYPRE_ParCSRMatrix) A_flt,
+                               (HYPRE_ParVector) b_flt,
+                               (HYPRE_ParVector) x_flt);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err_flag)
+      { MFEM_WARNING("Error during solve! Error code: " << err_flag); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err_flag, "Error during solve! Error code: " << err_flag);
+   }
+   hypre_error_flag = 0;
+   hypre_ParVectorCopy_mp(x_flt, x);
+}
+
+HYPRE_PtrToParSolverFcn HypreBoomerAMGMixedPrecision::SetupFcn() const
+{
+   MFEM_ABORT("HypreBoomerAMGMixedPrecision cannot be used with hypre Krylov"
+              " solvers (HyprePCG, HypreGMRES, ...); use MFEM's iterative"
+              " solvers, e.g. CGSolver, instead.");
+   return NULL;
+}
+
+HYPRE_PtrToParSolverFcn HypreBoomerAMGMixedPrecision::SolveFcn() const
+{
+   MFEM_ABORT("HypreBoomerAMGMixedPrecision cannot be used with hypre Krylov"
+              " solvers (HyprePCG, HypreGMRES, ...); use MFEM's iterative"
+              " solvers, e.g. CGSolver, instead.");
+   return NULL;
+}
+
+HypreBoomerAMGMixedPrecision::~HypreBoomerAMGMixedPrecision()
+{
+   HYPRE_BoomerAMGDestroy_flt(amg_precond);
+   DestroyOperator();
+}
+
+#endif // HYPRE_MIXED_PRECISION && MFEM_USE_DOUBLE
 
 HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)
 {
