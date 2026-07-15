@@ -237,6 +237,81 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->SyncAliasMemory(*this);
 }
 
+real_t
+ComplexGridFunction::ComputeLpError(const real_t p,
+                                    Coefficient &exsolr,
+                                    Coefficient &exsoli,
+                                    Coefficient *weight,
+                                    const IntegrationRule *irs[],
+                                    const Array<int> *elems) const
+{
+   real_t error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector valsr;
+   Vector valsi;
+
+   const GridFunction& gf_r = real();
+   const GridFunction& gf_i = imag();
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 3;
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      real_t elem_error = 0.0;
+      gf_r.GetValues(i, *ir, valsr);
+      gf_i.GetValues(i, *ir, valsi);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         real_t diffr = valsr(j) - exsolr.Eval(*T, ip);
+         real_t diffi = valsi(j) - exsoli.Eval(*T, ip);
+         real_t diff = sqrt(diffr * diffr + diffi * diffi);
+         if (p < infinity())
+         {
+            diff = pow(diff, p);
+            if (weight)
+            {
+               diff *= weight->Eval(*T, ip);
+            }
+            elem_error += ip.weight * T->Weight() * diff;
+         }
+         else
+         {
+            if (weight)
+            {
+               diff *= weight->Eval(*T, ip);
+            }
+            error = std::max(error, diff);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         error += fabs(elem_error);
+      }
+   }
+
+   if (p < infinity())
+   {
+      error = pow(error, 1./p);
+   }
+
+   return error;
+}
+
 void ComplexGridFunction::Save(std::ostream &os) const
 {
    os << "ComplexGridFunction\n";
