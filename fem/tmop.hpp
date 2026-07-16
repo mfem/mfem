@@ -1440,6 +1440,7 @@ public:
    void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
                 DenseMatrix &d2) const override
    {
+      MFEM_CONTRACT_VAR(x0);
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       d2.Diag(1.0 / (dist * dist), x.Size());
@@ -2037,13 +2038,17 @@ protected:
    real_t lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *adapt_lim_gf0;    // Not owned.
-#ifdef MFEM_USE_MPI
-   const ParGridFunction *adapt_lim_pgf0;
-#endif
-   GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
-   Coefficient *adapt_lim_coeff;         // Not owned.
-   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
+   // Adaptive limiting fields. Each field adds a term to the integral:
+   //   int [ c_k (z_k(x) - z_k0(x0))^2 / delta_max_k^2 ] dx
+   // with one Coefficient per field. The fields z_k(x) are remapped from their
+   // initial values z_k0(x0) through a single AdaptivityEvaluator instance.
+   // All GridFunctions must use the same FE space.
+   Array<GridFunction *> adapt_lim_gf0;   // Owned. Initial fields z_k0(x0).
+   Array<GridFunction *> adapt_lim_gf;    // Owned. Remapped fields z_k(x).
+   Vector adapt_lim_init_nodes;           // Owned. Initial mesh nodes (ldofs).
+   Array<Coefficient *> adapt_lim_coeff;  // Not owned, one per field.
+   AdaptivityEvaluator *adapt_lim_eval;   // Not owned. Used for all fields.
+   Array<real_t> adapt_lim_delta_max;     // Per-field delta_max_k (>0).
 
    // Surface fitting.
    const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
@@ -2110,9 +2115,20 @@ protected:
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
+   // ALC:  Q-Vector for spatial weight used for the adaptive limiting term.
+   //       Updated when the mesh nodes change.
+   // ALF: E-Vector constructed using adaptive limiting GF zeta.
+   //      The zeta is remapped when the mesh nodes change.
+   // ALFmF0: E-Vector constructed using adaptive limiting GF zeta.
+   //         It stores difference zeta-zeta0, as all computations use this.
+   // ALFG: Q-Vector for gradient of ALF at quadrature points.
+   //       Updated by every call to PANonlinearFormExtension::GetGradient().
+   // ALFH: Q-Vector for Hessian of ALF at quadrature points.
+   //       Updated by every call to PANonlinearFormExtension::GetGradient().
    //
-   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
-   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
+   // maps:       Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim:   Dof2Quad map for fes associated with the limiting dist GF.
+   // maps_nodes: like maps, but the quad points are the FE nodes.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -2128,12 +2144,16 @@ protected:
    {
       bool enabled;
       int dim, ne, nq;
+      int nal = 0; // number of adaptive limiting fields
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
+              ALF, ALFmF0, ALFG, ALFH, ALD;
+      mutable bool AL_grads_assembled;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
+      const DofToQuad *maps_nodes = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
@@ -2216,16 +2236,25 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
+   //
    // Auxiliary PA methods
+   //
+
+   // PA quadrature data computation - metric term / limiting / adapt limiting.
    void AssembleGradPA_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   void AssembleGradPA_AdaptLim_2D(const Vector&) const;
+   void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
+   // PA energy computation - metric term / limiting / adaptive limiting.
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
-   void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
+   void GetLocalStateEnergyPA_3D(const Vector &x, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_AdaptLim_2D() const;
+   real_t GetLocalStateEnergyPA_AdaptLim_3D() const;
    void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
                                            real_t &met_energy,
                                            real_t &lim_energy) const;
@@ -2233,22 +2262,35 @@ protected:
                                            real_t &met_energy,
                                            real_t &lim_energy) const;
 
+   // PA gradient computation - metric term / limiting / adaptive limiting.
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
+   void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
 
+   // PA Hessian AddMult - metric term / limiting / adaptive limiting.
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
 
+   // PA diagonal assemblies - metric term / limiting / adaptive limiting.
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
+   void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
+   void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
 
+   // Setup of PA data structures related to the limiting term.
    void AssemblePA_Limiting();
+   // Setup of PA data structures related to the adaptive limiting term.
+   void AssemblePA_AdaptLim();
+   // Compute reference->target Jacobians for all quad points.
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
@@ -2275,7 +2317,6 @@ public:
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
         surf_fit_marker(NULL), surf_fit_coeff(NULL),
         surf_fit_gf(NULL), surf_fit_eval(NULL),
@@ -2351,21 +2392,34 @@ public:
 
    /** @brief Restriction of the node positions to certain regions.
 
-       Adds the term $ \int c (z(x) - z_0(x_0))^2 $, where z0(x0) is a given
-       function on the starting mesh, and z(x) is its image on the new mesh.
-       Minimizing this term means that a node at x0 is allowed to move to a
-       position x(x0) only if z(x) ~ z0(x0).
+       Adds the term $ \int c (z(x) - z_0(x_0))^2 / delta_max^2 $, where z0(x0)
+       is a given function on the starting mesh, and z(x) is its image on the
+       new mesh. Minimizing this term means that a node at x0 is allowed to
+       move to a position x(x0) only if z(x) ~ z0(x0).
        Such term can be used for tangential mesh relaxation.
 
        @param[in] z0     Function z0 that controls the adaptive limiting.
        @param[in] coeff  Coefficient c for the above integral.
-       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
+       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0).
+       @param[in] delta_max Controls the allowable deviation from z0.
+                            Smaller values activate the term faster. */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae);
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+   /// Multi-field adaptive limiting with per-field delta_max values. All
+   /// GridFunctions must be on the same FiniteElementSpace.
+   void EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae);
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+   /// Multi-field parallel adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
 #endif
 
    /** @brief Fitting of certain DOFs to the zero level set of a function.
@@ -2587,6 +2641,26 @@ public:
        the rest (@a dist in the general version of the method) equal to 1. */
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
+
+   /// Adds the adaptive limiting term to the first integrator.
+   void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+   /// Multi-field adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const GridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
+#ifdef MFEM_USE_MPI
+   /// Parallel support for adaptive limiting.
+   void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+   /// Multi-field parallel adaptive limiting with per-field delta_max values.
+   void EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
+                               const Array<Coefficient *> &coeff,
+                               AdaptivityEvaluator &ae,
+                               const Array<real_t> &delta_max);
+#endif
+
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0);

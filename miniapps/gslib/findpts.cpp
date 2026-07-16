@@ -45,6 +45,10 @@
 //    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    findpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
+// Surface meshes:
+//    findpts -m ../../data/ref-square.mesh -o 2 -mo 1 -random 1 -surf
+//    findpts -m ../../data/ref-cube.mesh -o 2 -mo 1 -random 1 -surf
+//    findpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -random 1 -surf
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -102,6 +106,9 @@ int main (int argc, char *argv[])
    int point_ordering    = 0;
    int gf_ordering       = 0;
    bool mesh_prefinement = false;
+   int randomization     = 0;
+   int npt               = 100;
+   bool surface          = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -135,6 +142,14 @@ int main (int argc, char *argv[])
    args.AddOption(&mesh_prefinement, "-mpr", "--mesh-p-refinement", "-no-mpr",
                   "--no-mesh-p-refinement",
                   "Do random p refinements to mesh Nodes.");
+   args.AddOption(&randomization, "-random", "--random",
+                  "0: generate points randomly in the bounding box of domain, "
+                  "1: generate points randomly inside each element in mesh.");
+   args.AddOption(&npt, "-npt", "--npt",
+                  "Number of points per element when -random 1 is used.");
+   args.AddOption(&surface, "-surf", "--surface", "-no-surf",
+                  "--no-surface",
+                  "Extract surface mesh from volume mesh.");
 
    args.Parse();
    if (!args.Good())
@@ -146,49 +161,72 @@ int main (int argc, char *argv[])
 
    func_order = std::min(order, 2);
 
-   // Initialize and refine the starting mesh.
-   Mesh mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
-   const int dim = mesh.Dimension();
+   // Initialize and optionally extract the surface mesh.
+   Mesh input_mesh(mesh_file, 1, 1, false);
+   Mesh *mesh = surface ? nullptr : &input_mesh;
+   if (surface)
+   {
+      MFEM_VERIFY(input_mesh.bdr_attributes.Size() > 0,
+                  "--surface requires a mesh with boundary attributes.");
+      mesh = new Mesh(SubMesh::CreateFromBoundary(input_mesh,
+                                                  input_mesh.bdr_attributes));
+   }
+
+   MFEM_VERIFY(!(surface && prefinement),
+               "Surface interpolation does not support variable-order "
+               "solution spaces; use -no-pr with --surface.");
+
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int dim = mesh->Dimension(),
+             sdim = mesh->SpaceDimension();
    cout << "Mesh curvature of the original mesh: ";
-   if (mesh.GetNodes()) { cout << mesh.GetNodes()->OwnFEC()->Name(); }
+   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
    else { cout << "(NONE)"; }
    cout << endl;
 
    // Mesh bounding box.
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
-   mesh.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
-   if (hrefinement || prefinement || mesh_prefinement) { mesh.EnsureNCMesh(true); }
-   cout << "--- Generating equidistant point for:\n"
-        << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-        << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
-   if (dim == 3)
+   mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
+   if (hrefinement || prefinement || mesh_prefinement)
+   {
+      mesh->EnsureNCMesh(true);
+   }
+
+   cout << "--- Generating points for:\n"
+        << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
+   if (sdim >= 2)
+   {
+      cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
+   }
+   if (sdim == 3)
    {
       cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
    }
 
    // Random h-refinements to mesh
-   if (hrefinement) { mesh.RandomRefinement(0.5); }
+   if (hrefinement) { mesh->RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(&mesh, &fecm, dim);
-   mesh.SetNodalFESpace(&fespace);
+   FiniteElementSpace fespace(mesh, &fecm, sdim);
+   mesh->SetNodalFESpace(&fespace);
    GridFunction Nodes(&fespace);
-   mesh.SetNodalGridFunction(&Nodes);
+   mesh->SetNodalGridFunction(&Nodes);
    cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
    if (mesh_prefinement)
    {
       Array<pRefinement> refs;
-      for (int e = 0; e < mesh.GetNE(); e++)
+      for (int e = 0; e < mesh->GetNE(); e++)
       {
          if ((double) rand() / RAND_MAX < 0.2)
          {
             refs.Append(pRefinement(e,1));
          }
       }
+      std::cout << refs.Size() << " elements will be p-refined for the mesh." <<
+                std::endl;
       fespace.PRefineAndUpdate(refs);
       Nodes.Update();
    }
@@ -210,28 +248,28 @@ int main (int argc, char *argv[])
    {
       fec = new RT_FECollection(order, dim);
       ncomp = 1;
-      vec_dim = dim;
+      vec_dim = sdim;
       cout << "H(div)-GridFunction\n";
    }
    else if (fieldtype == 3)
    {
       fec = new ND_FECollection(order, dim);
       ncomp = 1;
-      vec_dim = dim;
+      vec_dim = sdim;
       cout << "H(curl)-GridFunction\n";
    }
    else
    {
       MFEM_ABORT("Invalid field type.");
    }
-   FiniteElementSpace sc_fes(&mesh, fec, ncomp, gf_ordering);
+   FiniteElementSpace sc_fes(mesh, fec, ncomp, gf_ordering);
    GridFunction field_vals(&sc_fes);
 
    // Random p-refinements to the solution field
    if (prefinement)
    {
       Array<pRefinement> refs;
-      for (int e = 0; e < mesh.GetNE(); e++)
+      for (int e = 0; e < mesh->GetNE(); e++)
       {
          if ((double) rand() / RAND_MAX < 0.5)
          {
@@ -249,16 +287,16 @@ int main (int argc, char *argv[])
 
    if (mesh_prefinement && visualization)
    {
-      mesh.SetNodalGridFunction(mesh_nodes_pref);
+      mesh->SetNodalGridFunction(mesh_nodes_pref);
       VisualizeFESpacePolynomialOrder(fespace, "Mesh Polynomial Order", 400);
-      mesh.SetNodalGridFunction(&Nodes);
+      mesh->SetNodalGridFunction(&Nodes);
    }
 
    if (prefinement && visualization)
    {
-      mesh.SetNodalGridFunction(mesh_nodes_pref);
+      mesh->SetNodalGridFunction(mesh_nodes_pref);
       VisualizeFESpacePolynomialOrder(sc_fes, "Solution Polynomial Order", 800);
-      mesh.SetNodalGridFunction(&Nodes);
+      mesh->SetNodalGridFunction(&Nodes);
    }
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -273,64 +311,81 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-      if (mesh_prefinement) { mesh.SetNodalGridFunction(mesh_nodes_pref); }
+      if (mesh_prefinement) { mesh->SetNodalGridFunction(mesh_nodes_pref); }
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, *field_vals_pref,
                              "Solution",
                              0, 0, 400, 400, "RmjA*****");
-      if (mesh_prefinement) { mesh.SetNodalGridFunction(&Nodes); }
+      if (mesh_prefinement) { mesh->SetNodalGridFunction(&Nodes); }
    }
 
-   // Generate equidistant points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box. Note
-   // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 25;
-   int pts_cnt = pow(pts_cnt_1D, dim);
-   Vector vxyz(pts_cnt * dim);
-   if (dim == 2)
+   // Generate random points in physical coordinates over the whole mesh.
+   // Note that some points might be outside if the mesh is not a box.
+   int pts_cnt = npt;
+   Vector vxyz;
+   int npt_face_per_elem = 4; // number of pts on faces when randomization != 0
+   int npt_total_face = 0;
+   if (randomization == 0)
    {
-      L2_QuadrilateralElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
+      vxyz.SetSize(pts_cnt * sdim);
+      vxyz.Randomize(1);
+
+      // Scale based on min/max dimensions
+      for (int i = 0; i < pts_cnt; i++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
+         for (int d = 0; d < sdim; d++)
          {
-            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         }
-         else
-         {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            if (point_ordering == Ordering::byNODES)
+            {
+               vxyz(i + d*pts_cnt) =
+                  pos_min(d) + vxyz(i + d*pts_cnt) * (pos_max(d) - pos_min(d));
+            }
+            else
+            {
+               vxyz(i*sdim + d) =
+                  pos_min(d) + vxyz(i*sdim + d) * (pos_max(d) - pos_min(d));
+            }
          }
       }
    }
-   else
+   else // randomization == 1
    {
-      L2_HexahedronElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
+      pts_cnt = npt * mesh->GetNE();
+      vxyz.SetSize(pts_cnt * sdim);
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         const Geometry::Type geom = mesh->GetElementGeometry(i);
+         for (int j = 0; j < npt; j++)
          {
-            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
-         }
-         else
-         {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+            IntegrationPoint ip;
+            Geometry::GetRandomPoint(geom, ip);
+            if (j < npt_face_per_elem)
+            {
+               ip.x = 0.0; // force point to be on the face
+               npt_total_face++;
+            }
+            Vector pos_i(sdim);
+            transf->Transform(ip, pos_i);
+            for (int d = 0; d < sdim; d++)
+            {
+               if (point_ordering == Ordering::byNODES)
+               {
+                  vxyz(j + npt*i + d*pts_cnt) = pos_i(d);
+               }
+               else
+               {
+                  vxyz((j + npt*i)*sdim + d) = pos_i(d);
+               }
+            }
          }
       }
    }
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(mesh);
+   FindPointsGSLIB finder(*mesh);
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
    finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
@@ -338,7 +393,7 @@ int main (int argc, char *argv[])
 
    int face_pts = 0, not_found = 0, found = 0;
    double error = 0.0, max_err = 0.0, max_dist = 0.0;
-   Vector pos(dim);
+   Vector pos(sdim);
    for (int j = 0; j < vec_dim; j++)
    {
       for (int i = 0; i < pts_cnt; i++)
@@ -346,11 +401,11 @@ int main (int argc, char *argv[])
          if (code_out[i] < 2)
          {
             if (j == 0) { found++; }
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < sdim; d++)
             {
                pos(d) = point_ordering == Ordering::byNODES ?
                         vxyz(d*pts_cnt + i) :
-                        vxyz(i*dim + d);
+                        vxyz(i*sdim + d);
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
@@ -370,10 +425,19 @@ int main (int argc, char *argv[])
         << "\nFound points:        " << found
         << "\nMax interp error:    " << max_err
         << "\nMax dist (of found): " << max_dist
-        << "\nPoints not found:    " << not_found
-        << "\nPoints on faces:     " << face_pts << endl;
+        << "\nPoints not found:    " << not_found;
+   if (randomization == 1)
+   {
+      cout << "\nPoints on faces:     " << face_pts << " out of "
+           << npt_total_face << endl;
+   }
+   else
+   {
+      cout << "\nPoints on faces:     " << face_pts << endl;
+   }
 
    delete fec;
+   if (surface) { delete mesh; }
 
    return 0;
 }
