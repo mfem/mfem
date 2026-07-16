@@ -374,19 +374,24 @@ void PseudoTransientSolver::ASolve()
 
    ParGridFunction lam_gf(dgfes);
    lam_gf.SetFromTrueDofs(lambda);
+   GridFunctionCoefficient lam_cf(&lam_gf);
 
-   const ParGridFunction *lam_on_design = &lam_gf;
-   if (!same_mesh)
-   {
-      eval_to_filter->Transfer(lam_gf, lambda_design);
-      lam_on_design = &lambda_design;
-   }
-   GridFunctionCoefficient lam_cf(lam_on_design);
-
-   ParLinearForm lf(rho_filter->ParFESpace());
+   ParLinearForm lf(rho_p.ParFESpace());
    lf.AddDomainIntegrator(new DomainLFIntegrator(lam_cf));
    lf.Assemble();
    std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
    filter_sensitivity = *v;
    filter_sensitivity.Neg();
+
+   if (!same_mesh)
+   {
+      ParGridFunction r_full(rho_p.ParFESpace());
+      r_full.SetFromTrueDofs(filter_sensitivity);
+      ParGridFunction r_design(rho_filter->ParFESpace());
+      r_design = 0.0;
+
+      eval_to_filter->Transfer(r_full, r_design);
+      Vector rhs_design;  r_design.GetTrueDofs(rhs_design);
+      filter_sensitivity = rhs_design;
+   }
 }

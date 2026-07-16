@@ -131,7 +131,7 @@ Plane Surface(5) = {5};
 // boundary attribute 107: hole_bottom_left
 // boundary attribute 108: hole_bottom_right
 
-Physical Surface("matrix", 1) = {1};
+Physical Surface("domain", 1) = {1};
 Physical Surface("hole_top_left", 2) = {2};
 Physical Surface("hole_top_right", 3) = {3};
 Physical Surface("hole_bottom_left", 4) = {4};

@@ -11,7 +11,7 @@ $PhysicalNames
 1 6 "hole_top_right"
 1 7 "hole_bottom_left"
 1 8 "hole_bottom_right"
-2 1 "matrix"
+2 1 "domain"
 2 2 "hole_top_left"
 2 3 "hole_top_right"
 2 4 "hole_bottom_left"
