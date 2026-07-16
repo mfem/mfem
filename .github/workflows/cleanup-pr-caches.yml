@@ -31,9 +31,12 @@ jobs:
           PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
         run: |
           echo "Deleting caches for $PR_REF"
-          gh cache list --ref "$PR_REF" --limit 100 --json id --jq '.[].id' \
-            | while read -r id; do
-                [ -n "$id" ] || continue
-                echo "Deleting cache $id"
-                gh cache delete "$id" || echo "  (already gone)"
-              done
+          while :; do
+            ids=$(gh cache list --ref "$PR_REF" --limit 100 --json id --jq '.[].id')
+            [ -n "$ids" ] || break
+            echo "$ids" | while read -r id; do
+              [ -n "$id" ] || continue
+              echo "Deleting cache $id"
+              gh cache delete "$id" || echo "  (already gone)"
+            done
+          done
