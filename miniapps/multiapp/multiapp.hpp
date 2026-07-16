@@ -22,7 +22,6 @@ namespace mfem
 
 /// Forward declarations needed below
 class Field;
-class FieldEdge;
 class FieldCollection;
 class GraphNode;
 class DAGraph;
@@ -44,7 +43,6 @@ public:
     };
 
     friend class GraphNode;
-    friend class FieldEdge;
 
 private:
     Type type = Type::DEFAULT;
@@ -57,7 +55,6 @@ protected:
 
     std::string name; // Optional name for the field
     Operator *node  = nullptr; // Node that owns this field
-    FieldEdge *edge = nullptr; // Edge for this source field, if applicable
     Field *source = nullptr; // source field for this target field, if applicable
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
@@ -85,14 +82,12 @@ public:
     Vector* Adjoint() const { return adjoint; }
     Operator* Node() const { return node; }
     Field* SourceField() const { return source; }
-    FieldEdge* GetEdge() const { return edge; }
 
     ///@brief Set the internally stored data pointer
     virtual void SetData(Vector *field) { data = field; }
     virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
     virtual void SetNode(Operator *op) { node = op; }
     void SetSource(Field *src) { source = src; }
-    void SetEdge(FieldEdge *fe) { edge = fe; }
 
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
@@ -124,13 +119,6 @@ public:
         return node;
     }
 
-    void SetFieldEdge(FieldEdge *fe)
-    {
-        MFEM_ASSERT(IsSource(), "FieldEdge only associated with source fields. "
-                    << "Field ID: " << id << " is not a source field.");
-        edge = fe;
-    }
-
     bool IsSource() const {return (type == Type::SOURCE);}
     bool IsTarget() const {return (type == Type::TARGET); }
     bool IsSourceOrTarget() const { return (type != Type::DEFAULT); }
@@ -149,148 +137,19 @@ protected:
                          << " to " << (t == Type::SOURCE ? "SOURCE" : (t == Type::TARGET ? "TARGET" : "DEFAULT"))
                          << " for field ID: " << ID());
         }
-        // TODO: If SOURCE -> else; nullify field edge; if else -> SOURCE, nullify source field.
+        // TODO: if else -> SOURCE, nullify source field.
         type = t;
     }
 };
 
-
-/**
-   @brief A class for edges from sources to multiple target fields.
- */
-class FieldEdge
-{
-private:
-    inline static int next_id = 0;
-
-protected:
-    int id = -1;
-
-    Field *source = nullptr;
-    bool own_source = false;
-    std::vector<Field*> targets;
-    std::vector<bool> targets_owned;
-
-    int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
-    {
-        return (id_ >= lb && id_ <= ub) ? id_ : next_id++;
-    }
-
-public:
-
-    FieldEdge(int id_ = -1) : id(GetValidID(id_)) { }
-
-    /**
-     * @brief Construct a new FieldEdge with only a source and empty target
-     */
-    FieldEdge(Field *src, bool own=false, int id_ = -1) :
-              id(GetValidID(id_)), source(src), own_source(own)
-    {
-        if(source)
-        {
-            source->SetFieldEdge(this);
-            source->SetType(Field::Type::SOURCE);
-        }
-    }
-
-    FieldEdge(Field *src, Field *tar, bool own_src=false, bool own_tar=false, int id_ = -1) :
-              FieldEdge(src, own_src, id_)
-    {
-        AddTarget(tar, own_tar);
-    }
-
-    virtual void Execute(const Vector &x, Vector &y) 
-    {
-        MFEM_ABORT("FieldEdge::Execute() not implemented");
-    }
-
-    int ID() const { return id; }
-
-    void SetID(int id_)
-    {
-        MFEM_ASSERT(id_ >= 0, "FieldEdge::SetID: ID must be non-negative.");
-        id = id_;
-    }
-
-    /**
-       @brief Set the source @a Field.
-       @param src Source  @a Field
-     */
-    void SetSource(Field *src, bool own=false)
-    {
-        if(own_source && source) delete source;
-        source = src;
-        own_source = own;
-        if(source)
-        {
-            source->SetFieldEdge(this);
-            source->SetType(Field::Type::SOURCE);
-        }
-    }
-
-    ///@brief Get the source @a Field
-    Field* SourceField() const { return source; }
-
-    ///@brief Adds the target @a Field, @a tar, to the list of targets
-    virtual void AddTarget(Field *tar, bool own=false)
-    {
-        tar->SetType(Field::Type::TARGET);
-        targets.push_back(tar);
-        targets_owned.push_back(own);
-        if(source)
-        {
-            tar->SetID(source->ID());
-            tar->SetSource(source);
-            Vector *srcv = source->Data();
-            Vector *tarv = tar->Data();
-            if(srcv && tarv)
-            {
-                // Make target data a reference to source data
-                tarv->SetSize(srcv->Size());
-                tarv->MakeRef(*srcv,0);
-            }
-
-            // Make target adjoint a reference to source adjoint if it exists
-            Vector *src_adj = source->Adjoint();
-            Vector *tar_adj = tar->Adjoint();
-            if(src_adj && tar_adj)
-            {
-                tar_adj->SetSize(src_adj->Size());
-                tar_adj->MakeRef(*src_adj,0);
-            }
-        }
-    }
-
-    ///@brief Get all target fields
-    std::vector<Field*>& Targets() { return targets; }
-
-    bool HasTargets() const { return !targets.empty(); }
-
-    virtual ~FieldEdge()
-    {
-        for (size_t i=0; i < targets.size(); i++)
-        {
-            if(targets_owned[i] && targets[i]) delete targets[i];
-        }
-        if(own_source && source) delete source;
-    }
-};
-
-
-
-/// @brief A collection of Fields and FieldEdge, each identified by a name
+/// @brief A collection of Fields, each identified by a name
 class FieldCollection
 {
 private:
     std::string name; /// Name of the collection
     Operator *src_op = nullptr; /// Source operator (not owned)
-
-    /// Fields for source operator. Contains all source fields and fields that
-    /// may be targets of other operator.
     NamedFieldsMap<Field> fields;
-
-    /// FieldEdge for source operator.
-    NamedFieldsMap<FieldEdge> edges;
+    NamedFieldsMap<int> index_map; /// Map from field name to index in input/output vectors
 
     std::vector<Field*> input_fields;  // Input fields for this node
     std::vector<Field*> output_fields; // Output fields for this node
@@ -306,8 +165,8 @@ public:
     /// @brief Constructor with source operator
     FieldCollection(Operator *src) : name("FieldCollection"), src_op(src) {}
 
-    /// @brief Get the number of linked fields in the collection
-    int Size() const { return edges.NumFields(); }
+    /// @brief Get the number of fields in the collection
+    int Size() const { return fields.NumFields(); }
 
     /// @brief Set the name of the collection
     void SetName(const std::string &collection_name) { name = collection_name;}
@@ -321,22 +180,10 @@ public:
     /// @brief Get the source operator
     const Operator* GetOperator() const { return src_op; }
 
-    /// @brief Get the ParGridFunction for a given source name
-    Field *GetSourceField(const std::string &src_name) const
-    {
-        FieldEdge *edge = edges.Get(src_name);
-        return edge ? edge->SourceField() : nullptr;
-    }
-
     /// @brief Get the ParGridFunction for a given field name
     Field* GetField(const std::string &field_name) const
     {
         return fields.Get(field_name);
-    }
-
-    FieldEdge* GetFieldEdge(const std::string &src_name) const
-    {
-        return edges.Get(src_name);
     }
 
     /// @brief Add a ParGridFunction as a field (does not specify source or target)
@@ -350,81 +197,87 @@ public:
         fields.Register(field_name, field, own);
     }
 
-    /// @brief Add a FieldEdge to the collection with name src_name
-    void AddFieldEdge(const std::string &src_name,
-                      FieldEdge *edge, bool own = false)
-    {
-        FieldEdge *edge_exist = edges.Get(src_name);
-        if(edge_exist)
-        {
-            auto targets = edge->Targets();
-            for (auto &dest : targets) {
-                // auto [target, owned] = dest;
-                // edge_exist->AddTarget(target, owned);
-                MFEM_ABORT("TO DO")
-            }
-            return;
-        }
-        edges.Register(src_name, edge, own);
-        fields.Register(src_name, edge->SourceField(), false);
-    }
-
     void AddInput(const std::string &field_name,
                   Field *field, bool own = false)
     {
+        bool has_field = fields.Has(field_name);
+        if(has_field)
+        {
+            auto i = index_map.Get(field_name);
+            input_fields[*i] = field;
+        }
+        else
+        {
+            input_fields.push_back(field);
+            index_map.Register(field_name, new int(input_fields.size() - 1), true);
+        }
         AddField(field_name, field, own);
-        input_fields.push_back(field);
     }
 
     void AddOutput(const std::string &field_name,
                    Field *field, bool own = false)
     {
-        output_fields.push_back(field);
+        bool has_field = fields.Has(field_name);
+        if(has_field)
+        {
+            auto i = index_map.Get(field_name);
+            output_fields[*i] = field;
+        }
+        else
+        {
+            output_fields.push_back(field);
+            index_map.Register(field_name, new int(output_fields.size() - 1), true);
+        }
 
-        // Register the field
-        fields.Register(field_name, field, false);
+        AddField(field_name, field, own);
         if(field->Node() == nullptr)
         {
             field->SetNode(src_op);
         }
-
-        // Create/update the FieldEdge for this source/output field
-        FieldEdge *edge = edges.Get(field_name);
-        if(!edge)
-        {
-            edge = new FieldEdge(field, own);
-            edges.Register(field_name, edge, true);
-            return;
-        }
-        edge->SetSource(field, own);
     }
 
     std::vector<Field*>& InputFields() { return input_fields; }
     std::vector<Field*>& OutputFields() { return output_fields; }
+    
     Field* InputField(int i) const { return input_fields[i]; }
-    Field* OutputField(int i) const { return output_fields[i]; }
 
-    void AddTargetField(const std::string &src_name, Field *tar,
-                        bool own = false)
+    Field *InputField(const std::string &field_name) const
     {
-        FieldEdge *edge = edges.Get(src_name);
-        if(!edge)
+        auto idx = index_map.Get(field_name);
+        if(!idx)
         {
-            edge = new FieldEdge();
-            edges.Register(src_name, edge, true);
+            MFEM_WARNING("FieldCollection::InputField: Field with name "
+                         << field_name << " does not exist in the collection.");
+            return nullptr;
         }
-        edge->AddTarget(tar, own);
+
+        int index = *idx;
+        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.size()),
+                    "FieldCollection::InputField: Invalid index for field name: "
+                    << field_name << ".");
+        return input_fields[index];
     }
 
-    Field* operator[](const std::string &field_name) const
+    Field* OutputField(int i) const { return output_fields[i]; }
+    Field *OutputField(const std::string &field_name) const
     {
-        return GetField(field_name);
+        auto idx = index_map.Get(field_name);
+        if(!idx)
+        {
+            MFEM_WARNING("FieldCollection::OutputField: Field with name "
+                         << field_name << " does not exist in the collection.");
+            return nullptr;
+        }
+
+        int index = *idx;
+        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.size()),
+                    "FieldCollection::OutputField: Invalid index for field name: "
+                    << field_name << ".");
+        return output_fields[index];
     }
 
     NamedFieldsMap<Field> &GetFields() { return fields; }
     NamedFieldsMap<Field> GetFields() const { return fields; }
-    NamedFieldsMap<FieldEdge> &GetEdges() { return edges; }
-    NamedFieldsMap<FieldEdge> GetEdges() const { return edges; }
 
     virtual void Save (std::ostream &out) const
     {
@@ -441,17 +294,29 @@ public:
             out << "\n";
         }
         out << "},\n";
-        out << "\"FieldEdge\":\n";
+
+        out << "\"Inputs\":\n";
         out << "{\n";
-        for (auto edge_pair = edges.begin(); edge_pair != edges.end(); ++edge_pair)
+        for (size_t i = 0; i < input_fields.size(); ++i)
         {
-            std::string edge_name = edge_pair->first;
-            FieldEdge *edge = edge_pair->second;
-            // out << "  " << lf_name << ": ID " << lf_obj->ID() << ",\n";
-            out << '\"' << edge->SourceField()->ID() << "\": \"" << edge_name << "\"";
-            if(edge_pair != std::prev(edges.end())) out << ",";
+            Field *f_obj = input_fields[i];
+            out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
+            if(i != input_fields.size() - 1) out << ",";
             out << "\n";
         }
+        out << "},\n";
+
+        out << "\"Outputs\":\n";
+        out << "{\n";
+        for (size_t i = 0; i < output_fields.size(); ++i)
+        {
+            Field *f_obj = output_fields[i];
+            out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
+            if(i != output_fields.size() - 1) out << ",";
+            out << "\n";
+        }
+
+
         out << "}\n";
     }
 
@@ -548,12 +413,6 @@ public:
 
     NamedFieldsMap<Field> Fields() const { return fields.GetFields(); }
     Field* Fields(const std::string &f) const { return fields.GetField(f); }
-
-    NamedFieldsMap<FieldEdge>& Edges() { return fields.GetEdges(); }
-    FieldEdge* Edges(const std::string &e) { return fields.GetFieldEdge(e); }
-
-    NamedFieldsMap<FieldEdge> Edges() const { return fields.GetEdges(); }
-    FieldEdge* Edges(const std::string &e) const { return fields.GetFieldEdge(e); }
 
     std::vector<Field*>& InputFields() { return fields.InputFields(); }
     std::vector<Field*>& OutputFields() { return fields.OutputFields(); }
