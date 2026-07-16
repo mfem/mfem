@@ -146,6 +146,49 @@ public:
    }
 };
 
+// Monopole source coefficient for 3D spherical wave generation.
+// Radial body force f = amplitude * r_hat within source sphere,
+// where r_hat = x / |x| is the outward unit radial vector.
+class MonopoleSourceCoefficient : public VectorCoefficient
+{
+private:
+   real_t radius;
+   real_t amplitude;
+   Vector center;
+
+public:
+   MonopoleSourceCoefficient(real_t r, real_t amp = 1.0,
+                             const Vector *ctr = nullptr)
+      : VectorCoefficient(3), radius(r), amplitude(amp)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      V.SetSize(vdim);
+      V = 0.0;
+
+      Vector x(vdim);
+      T.Transform(ip, x);
+      x -= center;
+
+      real_t r = x.Norml2();
+
+      // Inside source sphere and not at singularity
+      if (r < radius && r > 1e-12)
+      {
+         // Radial direction: f = amp * x / |x|
+         real_t scale = amplitude / r;
+         V = x;
+         V *= scale;
+      }
+   }
+};
+
 // A rectangular body force: `direction` inside the box
 // [x_min, x_max] x [y_min, y_max], zero elsewhere.
 class RectangularLoadCoefficient : public VectorCoefficient
@@ -196,7 +239,16 @@ struct DampingParameters
    bool damp_top = false;
 };
 
-class DampingProfile : public Coefficient
+// Base interface for damping profile coefficients
+// Provides phi(x) spatial function and phi_max for normalization
+class DampingProfileBase : public Coefficient
+{
+public:
+   virtual ~DampingProfileBase() = default;
+   virtual real_t GetPhiMax() const = 0;
+};
+
+class DampingProfile : public DampingProfileBase
 {
 private:
    real_t thickness;
@@ -215,9 +267,9 @@ public:
       phi_max = thickness * thickness / 2.0;
    }
 
-   real_t GetPhiMax() const { return phi_max; }
+   real_t GetPhiMax() const override { return phi_max; }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector x(2);
       T.Transform(ip, x);
@@ -261,10 +313,53 @@ public:
    }
 };
 
+// Spherical damping profile for 3D radial geometry
+// Applies sponge damping in outer spherical shell (r_inner < r < r_outer)
+class SphericalDampingProfile : public DampingProfileBase
+{
+private:
+   real_t r_inner;     // Inner radius where damping starts
+   real_t r_outer;     // Outer radius (maximum damping)
+   real_t thickness;   // Damping layer thickness
+   real_t phi_max;
+
+public:
+   SphericalDampingProfile(real_t r_in, real_t r_out)
+      : r_inner(r_in), r_outer(r_out)
+   {
+      thickness = r_outer - r_inner;
+      phi_max = thickness * thickness / 2.0;
+   }
+
+   real_t GetPhiMax() const override { return phi_max; }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      real_t r = x.Norml2();
+
+      if (r < r_inner)
+      {
+         return 0.0;  // No damping inside
+      }
+      else if (r > r_outer)
+      {
+         return phi_max;  // Full damping outside (shouldn't happen in mesh)
+      }
+      else
+      {
+         // Parabolic ramp: phi(r) increases from 0 at r_inner to phi_max at r_outer
+         real_t s = r - r_inner;
+         return thickness * s - 0.5 * s * s;
+      }
+   }
+};
+
 class SpatialDampingCoefficient : public Coefficient
 {
 private:
-   DampingProfile *phi_coef;
+   DampingProfileBase *phi_coef;
    real_t phi_max;
    real_t gamma_max;
    real_t rho;
@@ -272,7 +367,7 @@ private:
    int m;
 
 public:
-   SpatialDampingCoefficient(DampingProfile *phi, real_t gmax,
+   SpatialDampingCoefficient(DampingProfileBase *phi, real_t gmax,
                               real_t density, real_t b = 2.0, int mp = 2)
       : phi_coef(phi), gamma_max(gmax), rho(density), beta(b), m(mp)
    {
@@ -295,12 +390,23 @@ public:
    }
 };
 
+// Base interface for damping fields
+// Provides gamma(x) coefficient and absorbing-boundary impedance
+class DampingFieldBase
+{
+public:
+   virtual ~DampingFieldBase() = default;
+   virtual Coefficient &GetCoefficient() = 0;
+   virtual real_t GetImpedance() const = 0;
+   virtual real_t GetPWaveSpeed() const = 0;
+};
+
 // Owns the damping field gamma(x) supplied to the operator, and derives the
 // absorbing-boundary impedance rho0*c_p from the material. The field is the
 // boundary sponge SpatialDampingCoefficient, optionally plus a uniform bulk term
 // alpha (gamma = sponge + alpha) for dynamic relaxation toward a static solution.
 // Owns every piece so the coefficient returned by GetCoefficient() stays valid.
-class DampingField
+class DampingField : public DampingFieldBase
 {
 private:
    std::unique_ptr<DampingProfile> profile;
@@ -354,9 +460,42 @@ public:
       }
    }
 
-   Coefficient &GetCoefficient() { return *effective; }
-   real_t GetImpedance() const { return impedance_; }
-   real_t GetPWaveSpeed() const { return p_wave_speed; }
+   Coefficient &GetCoefficient() override { return *effective; }
+   real_t GetImpedance() const override { return impedance_; }
+   real_t GetPWaveSpeed() const override { return p_wave_speed; }
+};
+
+// Spherical damping field - radial sponge layer for 3D spherical geometry
+// Same ownership pattern as DampingField, but uses SphericalDampingProfile
+class SphericalDampingField : public DampingFieldBase
+{
+private:
+   std::unique_ptr<SphericalDampingProfile> profile;
+   std::unique_ptr<SpatialDampingCoefficient> sponge;
+   Coefficient *effective;
+   real_t p_wave_speed;
+   real_t impedance_;
+
+public:
+   SphericalDampingField(const MaterialParams &mat, real_t r_inner, real_t r_outer,
+                         real_t scale_length, real_t reflection,
+                         real_t beta = 2.0, int exponent = 2)
+   {
+      p_wave_speed = std::sqrt((mat.lambda0 + 2.0 * mat.mu0) / mat.rho0);
+      impedance_ = mat.rho0 * p_wave_speed;
+
+      const real_t gamma_max = (2.0 * p_wave_speed / scale_length)
+                               * std::log(1.0 / reflection);
+
+      profile = std::make_unique<SphericalDampingProfile>(r_inner, r_outer);
+      sponge = std::make_unique<SpatialDampingCoefficient>(
+                  profile.get(), gamma_max, mat.rho0, beta, exponent);
+      effective = sponge.get();
+   }
+
+   Coefficient &GetCoefficient() override { return *effective; }
+   real_t GetImpedance() const override { return impedance_; }
+   real_t GetPWaveSpeed() const override { return p_wave_speed; }
 };
 
 // =============================================================================
@@ -487,7 +626,7 @@ public:
    /// impedance from the material and damping parameters. With enabled=false all
    /// dissipation is removed (gamma=0, impedance=0 -> Neumann boundaries). The
    /// returned object owns its coefficients, so keep it alive while in use.
-   virtual std::unique_ptr<DampingField>
+   virtual std::unique_ptr<DampingFieldBase>
    CreateDampingField(bool enabled = true) const
    {
       return std::make_unique<DampingField>(GetMaterialParams(),
@@ -898,6 +1037,173 @@ public:
       // the same body force that drives the forward problem.
       return std::make_unique<ComplianceObjective>(
          state_fes, MakeLoadCoefficient(), comm);
+   }
+};
+
+// =============================================================================
+// SPHERICAL BAND-GAP PROBLEM: 3D spherical wave shielding
+// =============================================================================
+class SphericalBandGapProblem final : public TransientTopOptProblem
+{
+private:
+   // Geometry constants (matching user requirements)
+   static constexpr real_t r_source_outer_ = 0.5;
+   static constexpr real_t r_design_inner_ = 0.5;
+   static constexpr real_t r_design_outer_ = 6.0;
+   static constexpr real_t r_receiver_inner_ = 6.0;
+   static constexpr real_t r_receiver_outer_ = 7.0;
+   static constexpr real_t r_gap_outer_ = 7.5;
+   static constexpr real_t r_damping_inner_ = 7.5;
+   static constexpr real_t r_damping_outer_ = 10.0;
+
+   static constexpr int outer_boundary_attr_ = 100;  // From gmsh Physical Surface
+
+   TransientTopOptConfig cfg;
+   std::string mesh_file_ = "spherical_bandgap.msh";
+
+   static void CopyAttributes(const Array<int> &src, Array<int> &dst)
+   {
+      dst.SetSize(src.Size());
+      for (int i = 0; i < src.Size(); i++) { dst[i] = src[i]; }
+   }
+
+public:
+   explicit SphericalBandGapProblem(const TransientTopOptConfig &base)
+      : cfg(base)
+   {
+      // Override base config with problem-specific settings
+      cfg.mesh_file = mesh_file_;
+
+      // Material properties (same as BandWaveguideProblem)
+      cfg.material.rho0 = 1.0;
+      cfg.material.lambda0 = 2.0;
+      cfg.material.mu0 = 1.0;
+      cfg.material.r_min = 0.10;    // Finite contrast, avoid complete voids
+      cfg.material.r_max = 1.0;
+      cfg.material.simp_p = 3.0;
+
+      // Source: Modulated Gaussian monopole at center
+      cfg.boundary_load.domain_load = true;  // Body force, not boundary traction
+      cfg.boundary_load.time_profile = LoadTimeProfile::MODULATED_GAUSSIAN;
+      cfg.boundary_load.amplitude = 30.0;
+      cfg.boundary_load.duration = 0.80;
+      cfg.boundary_load.frequency = 5.0;     // Carrier frequency
+      cfg.boundary_load.phase = 0.0;
+      cfg.boundary_load.bdr_attributes.SetSize(0);  // Not used (domain load)
+      cfg.boundary_load.direction.SetSize(3);       // Placeholder (monopole overrides)
+      cfg.boundary_load.direction = 0.0;
+
+      // No clamped boundaries (free-floating sphere)
+      cfg.essential_bdr_attributes.SetSize(0);
+
+      // Absorbing boundary on outer surface
+      cfg.absorbing_bdr_attributes.SetSize(1);
+      cfg.absorbing_bdr_attributes[0] = outer_boundary_attr_;
+
+      // Damping: Will use spherical sponge layer via CreateDampingField() override
+      // This configuration is for the base damping parameters that get passed to
+      // the spherical damping field constructor
+      cfg.damping_thickness = r_damping_outer_ - r_damping_inner_;  // 2.5 units
+      cfg.damping_scale_length = 0.2136;     // Same as BandWaveguideProblem
+      cfg.damping_reflection = 1e-4;         // Target reflection coefficient
+      cfg.damping_beta = 2.0;
+      cfg.damping_exponent = 2;
+      cfg.damping_uniform = 0.0;             // No uniform damping - use spherical sponge only
+      cfg.damping_left = false;
+      cfg.damping_right = false;
+      cfg.damping_bottom = false;
+      cfg.damping_top = false;
+   }
+
+   const TransientTopOptConfig &GetConfig() const override { return cfg; }
+
+   const std::string &GetMeshFile() const override { return mesh_file_; }
+
+   // Use default CreateMesh() - reads mesh_file_ via ifstream
+
+   bool Validate(std::ostream &err) const override
+   {
+      const TransientTopOptConfig &c = GetConfig();
+      if (c.order < 1) { err << "Error: order must be >= 1.\n"; return false; }
+      if (c.dt <= 0.0 || c.t_final <= 0.0)
+      {
+         err << "Error: dt and t_final must be positive.\n"; return false;
+      }
+      if (c.vol_frac <= 0.0 || c.vol_frac > 1.0)
+      {
+         err << "Error: vol_frac must be in (0, 1].\n"; return false;
+      }
+      if (c.max_it < 1) { err << "Error: max_it must be >= 1.\n"; return false; }
+      return true;
+   }
+
+   void GetEssentialBoundaryAttributes(Array<int> &attrs) const override
+   {
+      CopyAttributes(cfg.essential_bdr_attributes, attrs);
+   }
+
+   void GetAbsorbingBoundaryAttributes(Array<int> &attrs) const override
+   {
+      CopyAttributes(cfg.absorbing_bdr_attributes, attrs);
+   }
+
+   std::unique_ptr<VectorCoefficient>
+   CreateBoundaryLoadCoefficient() const override
+   {
+      // Monopole source in central sphere
+      return std::make_unique<MonopoleSourceCoefficient>(
+         r_source_outer_, cfg.boundary_load.amplitude);
+   }
+
+   std::unique_ptr<TimeIntegratedObjective>
+   CreateObjective(ParFiniteElementSpace *state_fes, MPI_Comm comm) const override
+   {
+      // Minimize displacement energy in receiver shell (6.0 < r < 7.0)
+      auto indicator = std::make_unique<SphericalShellIndicator>(
+         r_receiver_inner_, r_receiver_outer_);
+
+      return std::make_unique<DisplacementL2Objective>(
+         state_fes, std::move(indicator), comm);
+   }
+
+   std::unique_ptr<Coefficient> CreatePassiveRegionCoefficient() const override
+   {
+      // Passive (fixed ρ = 0.5): source + receiver + gap + damping
+      // Active (designable): design region only (0.5 < r < 6.0)
+
+      auto passive = std::make_unique<MultiSphericalShellIndicator>();
+      passive->AddShell(0.0, r_source_outer_);              // Source sphere
+      passive->AddShell(r_receiver_inner_, r_receiver_outer_);  // Receiver shell
+      passive->AddShell(r_receiver_outer_, r_gap_outer_);       // Gap shell
+      passive->AddShell(r_damping_inner_, r_damping_outer_);    // Damping shell
+
+      return passive;
+   }
+
+   std::unique_ptr<DampingFieldBase> CreateDampingField(bool enabled = true) const override
+   {
+      // Override to use spherical damping instead of Cartesian damping
+      // This demonstrates the modularity of the problem-agnostic framework:
+      // by extending DampingFieldBase, we can plug in radial damping for spherical geometry
+
+      if (!enabled)
+      {
+         // Return a standard DampingField with damping disabled
+         return std::make_unique<DampingField>(GetMaterialParams(),
+                                               GetDampingParameters(), false);
+      }
+
+      // Create spherical damping field for outer shell (7.5 < r < 10.0)
+      // No damping in source, design, receiver, or gap regions
+      return std::make_unique<SphericalDampingField>(
+         GetMaterialParams(),
+         r_damping_inner_,  // 7.5
+         r_damping_outer_,  // 10.0
+         cfg.damping_scale_length,
+         cfg.damping_reflection,
+         cfg.damping_beta,
+         cfg.damping_exponent
+      );
    }
 };
 

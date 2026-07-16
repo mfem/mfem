@@ -591,6 +591,15 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    load_form.Assemble();
    load_form.ParallelAssemble(load_base_vector);
 
+   // DIAGNOSTIC: Check load vector
+   real_t load_norm = load_base_vector.Norml2();
+   real_t load_min = load_base_vector.Min();
+   real_t load_max = load_base_vector.Max();
+   if (myid == 0 && print_banner)
+   {
+      std::cout << "  Load vector: norm=" << load_norm << ", range=[" << load_min << ", " << load_max << "]" << std::endl;
+   }
+
    if (myid == 0 && print_banner)
    {
       std::cout << "\nTime-dependent loading:" << std::endl;
@@ -1256,11 +1265,22 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
       if (report && ((i + 1) % report_every == 0 || i + 1 == nsteps))
       {
+         // DIAGNOSTIC: Compute max displacement
+         const int n_disp = x.Size() / 2;
+         real_t local_max_u = 0.0;
+         for (int j = 0; j < n_disp; j++)
+         {
+            local_max_u = std::max(local_max_u, std::abs(x[j]));
+         }
+         real_t global_max_u = 0.0;
+         MPI_Allreduce(&local_max_u, &global_max_u, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
+
          std::cout << "      " << progress_label << ' '
                    << std::setw(6) << (i + 1) << '/' << nsteps
                    << "  (" << std::setw(3) << (100 * (i + 1) / nsteps) << "%)"
                    << "   " << std::fixed << std::setprecision(2)
-                   << (MPI_Wtime() - phase_t0) << " s\n";
+                   << (MPI_Wtime() - phase_t0) << " s"
+                   << "   max|u| = " << std::scientific << std::setprecision(3) << global_max_u << "\n";
       }
    }
 
@@ -1495,6 +1515,7 @@ private:
    // Trajectory checkpointing (replaces full storage of states_/times_)
    std::unique_ptr<TrajectoryCheckpointing<>> checkpoint_;
    int num_checkpoints_;
+   Vector checkpoint_state_;  // Persistent state vector for checkpointing (survives forward->adjoint)
 
    Vector dJ_drho_tilde_;
    int outer_it_ = -1;
@@ -1504,7 +1525,7 @@ private:
    real_t RolloutObjectiveCheckpointed()
    {
       const int n = x0_.Size();
-      Vector x(x0_);
+      checkpoint_state_ = x0_;  // Use persistent member variable
       real_t t = 0.0;
       const int total_steps = nsteps_ + 1;
 
@@ -1523,16 +1544,16 @@ private:
 
       // Add initial objective contribution
       AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
-                               objective_, x, h_, 0, total_steps);
+                               objective_, checkpoint_state_, h_, 0, total_steps);
 
       // Forward loop with checkpointing
       for (int i = 0; i < nsteps_; i++)
       {
-         checkpoint_->ForwardStep(i, x, t, primal_step);
+         checkpoint_->ForwardStep(i, checkpoint_state_, t, primal_step);
          t = (i + 1) * h_;
 
          AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
-                                  objective_, x, h_, i + 1, total_steps);
+                                  objective_, checkpoint_state_, h_, i + 1, total_steps);
       }
 
       return objective_.GetObjective();

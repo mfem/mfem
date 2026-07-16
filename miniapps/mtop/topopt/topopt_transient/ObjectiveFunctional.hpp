@@ -113,6 +113,97 @@ public:
 };
 
 // =============================================================================
+// 3D SPHERICAL INDICATOR COEFFICIENTS
+// =============================================================================
+
+// Indicator for a solid sphere (r < radius)
+class SphericalIndicator : public Coefficient
+{
+private:
+   real_t radius;
+   Vector center;
+
+public:
+   SphericalIndicator(real_t r, const Vector *ctr = nullptr)
+      : radius(r)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+      return (r < radius) ? 1.0 : 0.0;
+   }
+};
+
+// Indicator for a spherical shell (r_inner < r < r_outer)
+class SphericalShellIndicator : public Coefficient
+{
+private:
+   real_t r_inner, r_outer;
+   Vector center;
+
+public:
+   SphericalShellIndicator(real_t r_in, real_t r_out, const Vector *ctr = nullptr)
+      : r_inner(r_in), r_outer(r_out)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+      return (r > r_inner && r < r_outer) ? 1.0 : 0.0;
+   }
+};
+
+// Indicator for union of multiple spherical shells
+class MultiSphericalShellIndicator : public Coefficient
+{
+private:
+   std::vector<std::pair<real_t, real_t>> shell_ranges;
+   Vector center;
+
+public:
+   MultiSphericalShellIndicator(const Vector *ctr = nullptr)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   void AddShell(real_t r_in, real_t r_out)
+   {
+      shell_ranges.push_back({r_in, r_out});
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+
+      for (const auto &range : shell_ranges)
+      {
+         if (r > range.first && r < range.second) return 1.0;
+      }
+      return 0.0;
+   }
+};
+
+// =============================================================================
 // ABSTRACT BASE CLASS: TimeIntegratedObjective
 // =============================================================================
 // Interface for time-integrated objective functionals J = ∫_0^T ∫_Ω j(u,t) dx dt

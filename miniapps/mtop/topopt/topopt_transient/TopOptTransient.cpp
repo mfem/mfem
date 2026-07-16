@@ -325,8 +325,8 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&problem_name, "-problem", "--problem",
-                  "Forward problem: wave, cantilever-compliance, or "
-                  "band-waveguide");
+                  "Forward problem: wave, cantilever-compliance, "
+                  "band-waveguide, or spherical-bandgap");
    args.AddOption(&damping, "-damp", "--damp", "-no-damp", "--no-damp",
                   "Apply the problem's damping (bulk + absorbing). -no-damp zeroes "
                   "all dissipation: free (Neumann) boundaries, conservative system.");
@@ -411,12 +411,16 @@ int main(int argc, char *argv[])
    {
       problem_owner = make_unique<WaveShieldingProblem>(cfg);
    }
+   else if (problem_sel == "spherical-bandgap")
+   {
+      problem_owner = make_unique<SphericalBandGapProblem>(cfg);
+   }
    else
    {
       if (myid == 0)
       {
          cerr << "Error: unknown -problem '" << problem_name
-              << "'. Use wave, cantilever-compliance, or band-waveguide.\n";
+              << "'. Use wave, cantilever-compliance, band-waveguide, or spherical-bandgap.\n";
       }
       return 1;
    }
@@ -709,7 +713,7 @@ int main(int argc, char *argv[])
 
    // Sponge-layer damping coefficient + absorbing-boundary impedance, assembled
    // by the problem from the material and damping parameters.
-   unique_ptr<DampingField> damping_field = problem.CreateDampingField(damping);
+   unique_ptr<DampingFieldBase> damping_field = problem.CreateDampingField(damping);
    Coefficient &gamma_coef = damping_field->GetCoefficient();
    const real_t impedance = damping_field->GetImpedance();
 
@@ -769,14 +773,10 @@ int main(int argc, char *argv[])
       rho_active = rho_tv_full;
    }
 
-   // If restarting, load MMA state from checkpoint
+   // If restarting, load MMA design from checkpoint
    if (restarting)
    {
       rho_active = mma_ckpt.xval;
-      if (myid == 0)
-      {
-         cout << "MMA design state restored from checkpoint.\n";
-      }
    }
 
    Vector dJ_drho_full(n_full);
@@ -801,6 +801,19 @@ int main(int argc, char *argv[])
 
    mfem_mma::MMAOptimizerParallel mma(comm, n_active, num_con, rho_active);
    mma.SetAsymptotes(0.5, 0.7, 1.2);
+
+   // If restarting, restore MMA internal state (asymptotes and design history)
+   if (restarting)
+   {
+      // Checkpoint MMA state already stores active DOFs only (see Save section)
+      // Just restore them directly
+      mma.RestoreState(mma_ckpt.xold1, mma_ckpt.xold2, mma_ckpt.low, mma_ckpt.upp);
+
+      if (myid == 0)
+      {
+         cout << "MMA optimizer state fully restored (design history + asymptotes).\n";
+      }
+   }
 
    Vector rho_active_min(n_active), rho_active_max(n_active);
 
@@ -1020,47 +1033,58 @@ int main(int argc, char *argv[])
             design_solver.ForwardVisualizationSweep(rho_tv_full, viz_states, viz_times);
 
             // Save wave propagation to ParaView
-            string wave_dir = output_parent_dir + "/wave_iter" + to_string(k);
+            string wave_collection_name = "wave_iter" + to_string(k);
+            string wave_full_dir = output_parent_dir + "/ParaView/" + wave_collection_name;
             if (myid == 0)
             {
-               system(("mkdir -p " + wave_dir).c_str());
+               system(("mkdir -p " + wave_full_dir).c_str());
             }
             MPI_Barrier(MPI_COMM_WORLD);
 
-            ParaViewDataCollection wave_dc(wave_dir.c_str(), &pmesh);
+            ParaViewDataCollection wave_dc(wave_collection_name.c_str(), &pmesh);
             wave_dc.SetLevelsOfDetail(problem.GetOrder());
             wave_dc.SetDataFormat(VTKFormat::BINARY);
             wave_dc.SetHighOrderOutput(true);
-            wave_dc.SetPrefixPath("ParaView");
+            wave_dc.SetPrefixPath((output_parent_dir + "/ParaView").c_str());
 
-            // Create grid functions for displacement and velocity
+            // Create grid function for displacement only (not velocity to save space)
             ParGridFunction u_gf(&state_fes);
-            ParGridFunction v_gf(&state_fes);
             wave_dc.RegisterField("displacement", &u_gf);
-            wave_dc.RegisterField("velocity", &v_gf);
 
-            // Save all timesteps
+            // Save sampled timesteps (not all, to avoid millions of files)
             const int nsteps = design_solver.GetNumSteps();
+            const int wave_viz_freq = max(1, nsteps / 20);  // Save ~20 frames total (5x reduction)
+            int frames_saved = 0;
+
             for (int step = 0; step <= nsteps; step++)
             {
-               const Vector &state = viz_states[step];
-               const int half_size = state.Size() / 2;
+               // Save first, last, and every Nth step
+               if (step == 0 || step == nsteps || step % wave_viz_freq == 0)
+               {
+                  const Vector &state = viz_states[step];
+                  const int half_size = state.Size() / 2;
 
-               // Extract u and v
-               Vector u_vec(state.GetData(), half_size);
-               Vector v_vec(state.GetData() + half_size, half_size);
+                  // Extract u (displacement) only
+                  Vector u_vec(state.GetData(), half_size);
 
-               u_gf.SetFromTrueDofs(u_vec);
-               v_gf.SetFromTrueDofs(v_vec);
+                  u_gf.SetFromTrueDofs(u_vec);
 
-               wave_dc.SetCycle(step);
-               wave_dc.SetTime(viz_times[step]);
-               wave_dc.Save();
+                  wave_dc.SetCycle(step);
+                  wave_dc.SetTime(viz_times[step]);
+                  wave_dc.Save();
+                  frames_saved++;
+               }
             }
 
             if (myid == 0)
             {
-               cout << "    Wave visualization saved to: " << wave_dir << "/\n";
+               cout << "    Saved " << frames_saved << " frames (every " << wave_viz_freq
+                    << " steps from " << nsteps << " total)\n";
+            }
+
+            if (myid == 0)
+            {
+               cout << "    Wave visualization saved to: " << wave_full_dir << "/\n";
             }
          }
       }
