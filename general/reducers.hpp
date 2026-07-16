@@ -19,6 +19,10 @@
 #include <limits>
 #include <type_traits>
 
+#ifdef _MSC_VER
+#include <intrin.h> // Required for _BitScanReverse
+#endif
+
 namespace mfem
 {
 
@@ -466,10 +470,15 @@ template<class B, class R> struct reduction_kernel
    /// helper for computing the reduction block size
    static int block_log2(unsigned N)
    {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__CUDA_ARCH__)
+      return N ? (int)(sizeof(unsigned) * 8 - __clz(N)) : 0;
+#elif defined(__GNUC__) || defined(__clang__)
       return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
-      return sizeof(unsigned) * 8 - __lzclz(N);
+      if (N == 0) { return 0; }
+      unsigned long index;
+      _BitScanReverse(&index, (unsigned long)N);
+      return (int)(index + 1);
 #else
       int res = 0;
       while (N)
