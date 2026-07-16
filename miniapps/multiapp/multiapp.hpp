@@ -37,8 +37,8 @@ class Field
 public:
     enum Type
     {
-        SOURCE, ///< Source field
-        TARGET, ///< Target field
+        INPUT , ///< Input field
+        OUTPUT, ///< Output field
         DEFAULT ///< Any field
     };
 
@@ -54,8 +54,7 @@ protected:
     int id = -1; // initialized to invalid id
 
     std::string name; // Optional name for the field
-    Operator *node  = nullptr; // Node that owns this field
-    Field *source = nullptr; // source field for this target field, if applicable
+    Operator *oper  = nullptr; // Operator that outputs this field
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -69,9 +68,13 @@ public:
           type(type), data(field), adjoint(adjoint), id(GetValidID(id_)),
           name("Field_" + std::to_string(id)) { }
 
-    ///@brief Constructor for a Source field
+    ///@brief Constructor for a Field of Default type with optional ID
+    Field(Vector *field, Vector *adjoint, int id_ = -1) : 
+          Field(field, adjoint, Type::DEFAULT, id_) { }
+
+    ///@brief Constructor for an input field
     Field(Vector *field, int id_ = -1) :
-          Field(field, nullptr, Type::SOURCE, id_) { }
+          Field(field, nullptr, Type::DEFAULT, id_) { }
 
     ///@brief Constructor for a Field of type Type
     Field(Vector *field, Type type, int id_ = -1) :
@@ -80,14 +83,12 @@ public:
     ///@brief Get the stored internally stored data pointer
     Vector* Data() const { return data; }
     Vector* Adjoint() const { return adjoint; }
-    Operator* Node() const { return node; }
-    Field* SourceField() const { return source; }
+    Operator* GetOperator() const { return oper; }
 
     ///@brief Set the internally stored data pointer
     virtual void SetData(Vector *field) { data = field; }
     virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
-    virtual void SetNode(Operator *op) { node = op; }
-    void SetSource(Field *src) { source = src; }
+    virtual void SetOperator(Operator *op) { oper = op; }
 
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
@@ -99,45 +100,19 @@ public:
         id = id_;
     }
 
-    virtual Operator* SourceNode() const
-    {
-        if(IsSource())
-        {
-            MFEM_VERIFY(node != nullptr, "Source field: " << ID()
-                        << " does not have an associated GraphNode.");
-            return node;
-        }
-        else
-        {
-            MFEM_VERIFY(source != nullptr, "Field: " << ID()
-                        << " does not have an associated source field.");
-            MFEM_VERIFY(source->Node() != nullptr, "Source field: "
-                        << source->ID() << " for field: " << ID()
-                        << " does not have an associated GraphNode.");
-            return source->Node();
-        }
-        return node;
-    }
-
-    bool IsSource() const {return (type == Type::SOURCE);}
-    bool IsTarget() const {return (type == Type::TARGET); }
-    bool IsSourceOrTarget() const { return (type != Type::DEFAULT); }
+    bool IsInput() const {return (type == Type::INPUT);}
+    bool IsOutput() const {return (type == Type::OUTPUT);}
+    bool IsDefault() const {return (type == Type::DEFAULT);}
 
     virtual ~Field() = default;
 
 protected:
-    virtual void MakeSource() { type = Type::SOURCE; }
-    virtual void MakeTarget() { type = Type::TARGET; }
+    void MakeInput() { type = Type::INPUT; }
+    void MakeOutput() { type = Type::OUTPUT; }
 
+    ///@brief Set the type of the field (prevents changing type of input/output fields)
     void SetType(Type t)
     {
-        if (type != t && (IsSourceOrTarget()))
-        { // Warn changing source/target to other or default
-            MFEM_WARNING("Changing field type from " << (IsSource() ? "SOURCE" : "TARGET")
-                         << " to " << (t == Type::SOURCE ? "SOURCE" : (t == Type::TARGET ? "TARGET" : "DEFAULT"))
-                         << " for field ID: " << ID());
-        }
-        // TODO: if else -> SOURCE, nullify source field.
         type = t;
     }
 };
@@ -230,9 +205,9 @@ public:
         }
 
         AddField(field_name, field, own);
-        if(field->Node() == nullptr)
+        if(field->GetOperator() == nullptr)
         {
-            field->SetNode(oper);
+            field->SetOperator(oper);
         }
     }
 
