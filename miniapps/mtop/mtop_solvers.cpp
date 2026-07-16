@@ -55,7 +55,7 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
    vfec(new H1_FECollection(vorder, dim)),
    vfes(new ParFiniteElementSpace(pmesh, vfec, dim,
                                   // PA Elasticity only implemented for byNODES ordering
-                                  pa||dfem ? Ordering::byNODES : Ordering::byVDIM)),
+                                  pa||dfem ? Ordering::byNODES : Ordering::byNODES)),
    sol(vfes->GetTrueVSize()),
    adj(vfes->GetTrueVSize()),
    rhs(vfes->GetTrueVSize()),
@@ -120,13 +120,13 @@ IsoLinElasticSolver::~IsoLinElasticSolver()
 
    delete lvforce;
 
-   for (auto it = load_coeff.begin(); it != load_coeff.end(); it++)
-   {
-      delete it->second;
-   }
+   // for (auto it = load_coeff.begin(); it != load_coeff.end(); it++)
+   // {
+   //    delete it->second;
+   // }
 
-   delete lambda;
-   delete mu;
+   // delete lambda;
+   // delete mu;
 }
 
 void IsoLinElasticSolver::SetLinearSolver(real_t rtol,

@@ -70,88 +70,29 @@ template <int DIM> struct QFunction
 
    struct Elasticity_dDdrho
    {
-      MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi, const vecd_t &u, const real_t &rho,
-                                              const real_t &L, const real_t &M,
-                                              const matd_t &J,
-                                              const real_t &w) const
-      {
-         constexpr real_t exponent = 3.0;
-         constexpr real_t rho_min = 1e-6;
-
-         const auto val = -exponent * pow(rho, exponent-1.0) * (1-rho_min);
- 
-         const matd_t JxW = transpose(inv(J)) * det(J) * w;
-         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
-         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
-         const auto scalarVal = u*(L * tr(eps) * I + 2.0 * M * eps);
-
-
-
-         return mfem::future::tuple{ val* scalarVal * JxW};
-      }
-   };
-
-      struct Elasticity_dDdrho1
-   {
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi, const matd_t &dadjdxi, const real_t &rho,
                                               const real_t &L, const real_t &M,
                                               const matd_t &J,
                                               const real_t &w) const
       {
          constexpr real_t exponent = 3.0;
-         constexpr real_t rho_min = 1e-6;
+         constexpr real_t rho_min = 1e-3;
+         const auto val = -exponent * mfem::future::pow(rho, exponent-1.0) * (1-rho_min);
 
-         const auto JxW =  det(J) * w;
+
+         const auto JxW = det(J) * w;
+
          const auto Jinv =  mfem::future::inv(J);
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
+                  const auto eps_1 = dadjdxi * mfem::future::inv(J);
          const auto eps = mfem::future::sym(dudxi * Jinv);
-         const auto dadjdx = dudxi ;
-         // const auto scalarVal =L * tr(eps) * tr(dadjdxi);
-         // const auto scalarVal1 = mfem::future::inner(mfem::future::transpose(dadjdx),(2.0 * M * eps));
-         const auto density = mfem::future::inner(mfem::future::transpose(dadjdx),(L * tr(eps) * I + 2.0 * M * eps));
-         const auto val = -exponent * mfem::future::pow(rho, exponent-1.0) * (1-rho_min);
+         const auto eps_adj = mfem::future::sym(dadjdxi * Jinv);
+         const auto density = mfem::future::inner(transpose(eps_adj),
+                                                  (L * tr(eps) * I + 2.0 * M * eps));
 
          return mfem::future::tuple{ val * density* JxW} ;
       }
    };
-
-
-
-   //    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
-   // {
-   //    real_t L = lambda->Eval(T, ip);
-   //    real_t M = mu->Eval(T, ip);
-   //    u->GetVectorGradient(T, grad);
-   //    real_t div_u = grad.Trace();
-   //    real_t density = L*div_u*div_u;
-   //    int dim = T.GetSpaceDim();
-   //    for (int i=0; i<dim; i++)
-   //    {
-   //       for (int j=0; j<dim; j++)
-   //       {
-   //          density += M*grad(i,j)*(grad(i,j)+grad(j,i));
-   //       }
-   //    }
-   //    real_t val = rho_filter->GetValue(T,ip);
-
-   //    return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
-   // }
-
-   // struct Elasticity_dDdrho
-   // {
-   //    MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi, const real_t &rho,
-   //                                            const real_t &L, const real_t &M,
-   //                                            const matd_t &J,
-   //                                            const real_t &w) const
-   //    {
-   //       constexpr real_t exponent = 3.0;
-   //       constexpr real_t rho_min = 1e-9;
-   //       const matd_t JxW = transpose(inv(J)) * det(J) * w;
-   //       const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));   //dudx
-   //       const auto val = -exponent * pow(rho, exponent-1.0) * (1-rho_min);
-   //       return tuple{(L * tr(eps) * tr(eps) + 2.0 * M * eps * dudxi) * JxW * val};
-   //    }
-   // };
 };
 
    void GetQuadPointsPositions(const mfem::ParMesh & pmesh_init, const QuadratureSpace &qspace,
@@ -184,35 +125,7 @@ template <int DIM> struct QFunction
    }
 }
 
-//(-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
-// template <int DIM> struct QFunction_dDdrho
-// {
-//    using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
-
-//    struct Elasticity_dDdrho
-//    {
-//       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi, const real_t &rho,
-//                                               const real_t &L, const real_t &M,
-//                                               const matd_t &J,
-//                                               const real_t &w) const
-//       {
-//          constexpr real_t exponent = 3.0;
-//          constexpr real_t rho_min = 1e-9;
-//          const matd_t JxW = transpose(inv(J)) * det(J) * w;
-//          const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
-//          const auto val = -exponent * pow(rho, exponent-1.0) * (1-rho_min);
-//          return tuple{(L * tr(eps) * tr(eps) + M * eps * dudxi) * JxW * val};
-//       }
-//    };
-// };
-
-   //  auto lambda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu));  // Lame's first parameter
-   //  auto mu = E / (2.0 * (1.0 + nu));                        // Lame's second parameter
-   //  const auto I = ::smith::Identity<dim>();
-   //  auto strain = ::smith::sym(du_dX);                            // small strain tensor
-   //  return lambda * ::smith::tr(strain) * I + 2.0 * mu * strain;  // Cauchy stress
-
-   /// @brief Inverse sigmoid function
+/// @brief Inverse sigmoid function
 real_t inv_sigmoid(real_t x)
 {
    real_t tol = 1e-12;
@@ -350,6 +263,7 @@ protected:
    GridFunction *u = nullptr; // displacement
    GridFunction *rho_filter = nullptr; // filter density
    DenseMatrix grad; // auxiliary matrix, used in Eval
+      Vector vec; // auxiliary matrix, used in Eval
    real_t exponent;
    real_t rho_min;
 
@@ -371,6 +285,7 @@ public:
       real_t L = lambda->Eval(T, ip);
       real_t M = mu->Eval(T, ip);
       u->GetVectorGradient(T, grad);
+      u->GetVectorValue(T, ip, vec);
       real_t div_u = grad.Trace();
       real_t density = L*div_u*div_u;
       int dim = T.GetSpaceDim();
@@ -458,7 +373,7 @@ int main(int argc, char *argv[])
    const int ref_levels = 5;
 
    int neumannBCIndex = 2;  // 1 based
-   double neumannLoad = -5.0e-3;
+   double neumannLoad = -5.0e-1;
 
    double weight_1 = -1e03;
    double weight_tmop = 1e-2;
@@ -513,14 +428,8 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    constexpr int DIM = 2;
 
-   // Refine the serial mesh on all processors to increase the resolution. In
-   // this example we do 'ref_levels' of uniform refinement. We choose
-   // 'ref_levels' to be the largest number that gives a final mesh with no
-   // more than 1000 elements.
-   {
-         //(int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
-      for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
-   }
+   for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
+
    if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
@@ -532,16 +441,10 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
-   // mfem::ParGridFunction * nodes((pmesh.EnsureNodes(),
-   //        static_cast<mfem::ParGridFunction *>(pmesh.GetNodes())));
-   // mfem::ParFiniteElementSpace *nodes_fes(nodes->ParFESpace());
-
-   //nodes->Print();
-
 
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace state_fes(&pmesh, &fec,dim);
-   ParFiniteElementSpace coord_fes(&pmesh, &fec,dim);
+   ParFiniteElementSpace state_fes(&pmesh, &fec,dim, Ordering::byNODES);
+   ParFiniteElementSpace coord_fes(&pmesh, &fec,dim, Ordering::byNODES);
    ParFiniteElementSpace filter_fes(&pmesh, &fec);
    ParFiniteElementSpace control_fes(&pmesh, &fec);
 
@@ -568,7 +471,7 @@ int main(int argc, char *argv[])
    ParGridFunction grad(&control_fes);
    ParGridFunction w_filter(&filter_fes);
 
-      // 9. Define some tools for later.
+   // 9. Define some tools for later.
    ConstantCoefficient zero(0.0);
    ParGridFunction onegf(&control_fes);
    onegf = 1.0;
@@ -597,7 +500,6 @@ int main(int argc, char *argv[])
 
    bool isConverged = true;
 
-
    ParaViewDataCollection paraview_dc("isoel", &pmesh);
    paraview_dc.SetPrefixPath("ParaView_Rref_TO");
    paraview_dc.SetLevelsOfDetail(order);
@@ -610,17 +512,19 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("filtered_design", &rho_filter);   
    paraview_dc.Save();
 
-     // set esing variable bounds
+   // set esing variable bounds
    int numOptVars = state_fes.GetTrueVSize();
-  Vector objgrad(numOptVars); objgrad=0.0;
-  Vector volgrad(numOptVars); volgrad=1.0;
-  Vector xxmax(numOptVars);   xxmax=  0.001;
-  Vector xxmin(numOptVars);   xxmin= -0.001;
+   Vector objgrad(numOptVars); objgrad=0.0;
+   Vector volgrad(numOptVars); volgrad=1.0;
+   Vector xxmax(numOptVars);   xxmax=  0.001;
+   Vector xxmin(numOptVars);   xxmin= -0.001;
 
+   VectorArrayCoefficient tractionLoad(dim);
+   tractionLoad.Set(0, new ConstantCoefficient( 0.0));
+   tractionLoad.Set(1, new ConstantCoefficient(neumannLoad));
 
    while(isConverged)
    {
-
       // ==========================================================================================
       //                       Topology Optimization
       // ==========================================================================================
@@ -651,18 +555,9 @@ int main(int argc, char *argv[])
 
       const auto ir = IntRules.Get(state_fes.GetFE(0)->GetGeomType(), state_fes.GetFE(0)->GetOrder() + state_fes.GetFE(0)->GetOrder() + state_fes.GetFE(0)->GetDim() - 1);
 
-      // set boundary conditions
       elsolver.AddDispBC(4, -1, 0.0);
-
-      VectorArrayCoefficient tractionLoad(dim);
-      tractionLoad.Set(0, new ConstantCoefficient( 0.0));
-      tractionLoad.Set(1, new ConstantCoefficient(neumannLoad));
-
-      // set surface load
       elsolver.AddSurfLoad(neumannBCIndex, 0.0, neumannLoad);
-
-      // set convergence tolerances and max iterations
-      elsolver.SetLinearSolver(1e-6,1e-8,100);
+      elsolver.SetLinearSolver(1e-6,1e-8,1000);
 
       int numTOit = 40;
       for( int ik = 0; ik < numTOit; ik++)
@@ -673,29 +568,21 @@ int main(int argc, char *argv[])
          FilterSolver->Solve();
          rho_filter = *FilterSolver->GetFEMSolution();
 
-                  std::cout<<"filter solve done"<<std::endl;
-
          SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0, 3.0);
          ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
          ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
 
-         // set material properties
          elsolver.SetMaterialLame(lambda_SIMP_cf, mu_SIMP_cf);
-
-         // assemble the discrete system
          elsolver.Assemble();
-
-         // solve the system
          elsolver.FSolve();
-
-         // extract the solution
          elsolver.GetSol(u);
 
-         // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
-
          mfem::Coefficient *rhs_cf = nullptr;
+
+         bool useOldDerivative = false;
+         mfem::ParGridFunction adjTimesdRdrho(&filter_fes); adjTimesdRdrho = 0.0;
          
-         if(true)
+         if(useOldDerivative)
          {
             rhs_cf = new StrainEnergyDensityCoefficient(&lambda_cf,&mu_cf,&u, &rho_filter, rho_min);
          }
@@ -735,36 +622,94 @@ int main(int argc, char *argv[])
 
          if (2 == DIM)
          {
-            typename QFunction<2>::Elasticity_dDdrho1 e2qf;
-            dopdRds->AddDomainIntegrator(e2qf, inputs, output, ir, all_domain_attr);           
+            typename QFunction<2>::Elasticity_dDdrho e2qf;
+            dopdRds->AddDomainIntegrator(e2qf, inputs, output, ir, all_domain_attr);
          }
          else if (3 == DIM)
          {
              typename QFunction<3>::Elasticity_dDdrho e3qf;
             dopdRds->AddDomainIntegrator(e3qf, inputs, output, ir, all_domain_attr);
          }
-         mfem::ParGridFunction adjTimesdRdrho(&filter_fes); adjTimesdRdrho = 0.0;
+
          dopdRds->SetParameters({ &u, &rho_filter, &Lambda_cv, &Mu_cv, &coords_ });
+         dopdRds->SetMultLevel(mfem::future::DifferentiableOperator::MultLevel::LVECTOR);
          dopdRds->Mult( u, adjTimesdRdrho);
 
          //adjTimesdRdrho.Print();
-                 // u.Print();
 
-         mfem::GridFunctionCoefficient rhs_cf1(&adjTimesdRdrho);
+         rhs_cf = new mfem::GridFunctionCoefficient(&adjTimesdRdrho);
       }
 
+         //mfem::ParGridFunction outputAA(&filter_fes);
+         //outputAA.ProjectCoefficient(*rhs_cf);
+         //outputAA.Print();
 
-        // std::cout<<"========================================================================"<<std::endl;
-         // mfem::ParGridFunction outputAA(&filter_fes);
-         // outputAA.ProjectCoefficient(rhs_cf);
-         // outputAA.Print();
+      if(dQdxFD_global)
+      {
+         double epsilon = 1.0e-8;
+        ParGridFunction tFD_sens(&filter_fes); tFD_sens = 0.0;
+        ParGridFunction filteredNodePos(&coord_fes); filteredNodePos = 0.0;
+        for( int Ia = 0; Ia<rho_filter.Size(); Ia++)
+        {
+            Array<int> neumannBdr(pmesh.bdr_attributes.Max());
+            neumannBdr = 0; neumannBdr[neumannBCIndex-1] = 1;
 
+            QuantityOfInterest QoIEvaluator_FD1(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
+            QuantityOfInterest QoIEvaluator_FD2(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
+            QoIEvaluator_FD1.setTractionCoeff(&tractionLoad);
+            QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
 
+            rho_filter[Ia] +=epsilon;
+          
+            SIMPInterpolationCoefficient SIMP_cf_1(&rho_filter,rho_min, 1.0, 3.0);
+            ProductCoefficient lambda_SIMP_cf_1(lambda_cf,SIMP_cf_1);
+            ProductCoefficient mu_SIMP_cf_1(mu_cf,SIMP_cf_1);
 
+            elsolver.SetMaterialLame(lambda_SIMP_cf_1, mu_SIMP_cf_1);
+            elsolver.Assemble();
+            elsolver.FSolve();
+            elsolver.GetSol(u);
+
+            QoIEvaluator_FD1.SetDiscreteSol( u );            
+            QoIEvaluator_FD1.SetDesign( filteredNodePos );
+            QoIEvaluator_FD1.SetNodes(x0);
+
+            double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
+
+            rho_filter[Ia] -= 2.0 * epsilon;
+          
+            SIMPInterpolationCoefficient SIMP_cf_2(&rho_filter,rho_min, 1.0, 3.0);
+            ProductCoefficient lambda_SIMP_cf_2(lambda_cf,SIMP_cf_2);
+            ProductCoefficient mu_SIMP_cf_2(mu_cf,SIMP_cf_2);
+
+            elsolver.SetMaterialLame(lambda_SIMP_cf_2, mu_SIMP_cf_2);
+            elsolver.Assemble();
+            elsolver.FSolve();
+            elsolver.GetSol(u);
+
+            QoIEvaluator_FD2.SetDiscreteSol( u );
+            QoIEvaluator_FD2.SetDesign( filteredNodePos );
+            QoIEvaluator_FD2.SetNodes(x0);
+            double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
+
+            rho_filter[Ia] +=  epsilon;
+
+            tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
+        }
+
+        //dQdx.Print();
+        std::cout<<"  ----------  FD Diff - Global ------------"<<std::endl;
+        tFD_sens.Print();
+      }
 
          FilterSolver->SetRHSCoefficient(rhs_cf);
          FilterSolver->Solve();
          w_filter = *FilterSolver->GetFEMSolution();
+
+         // mfem::mfem_error("aaaaaaaaaaaaaaaaaaaaaa");
+
+
+         delete rhs_cf;
 
          // Solve G = M⁻¹w̃
          GridFunctionCoefficient w_cf(&w_filter);
@@ -782,11 +727,6 @@ int main(int argc, char *argv[])
          real_t norm_reduced_gradient = norm_increment/alpha;
          psi_old = psi;
 
-      // real_t compliance = (*(ElasticitySolver->GetLinearForm()))(u);
-      // MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
-      //               MPI_SUM, MPI_COMM_WORLD);
-
-        // mfem::mfem_error("end of forward solve");
 
          //====================== QoI ==================================
 
@@ -862,10 +802,8 @@ int main(int argc, char *argv[])
       essentialBCfilter[2] = {3, 1};
       essentialBCfilter[3] = {4, 0};
 
-
       ConstantCoefficient filterRadiusCoeff(filterRadius);
       VectorHelmholtz  filterSolver(&pmesh, essentialBCfilter, filterRadius, order, order);
-
 
       int cycle_count = 1;
       double final_strain_energy = 0.0;
@@ -888,7 +826,7 @@ int main(int argc, char *argv[])
       MMA* mma=new MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 
       ParaViewDataCollection paraview_dc_morph("isoel_morph", &pmesh);
-      paraview_dc_morph.SetPrefixPath("ParaView_Rref_TO");
+      paraview_dc_morph.SetPrefixPath("ParaView_Rref_TOaa");
       paraview_dc_morph.SetLevelsOfDetail(order);
       paraview_dc_morph.SetDataFormat(VTKFormat::BINARY);
       paraview_dc_morph.SetHighOrderOutput(true);
@@ -896,7 +834,6 @@ int main(int argc, char *argv[])
       paraview_dc_morph.SetTime(0.0);
       paraview_dc_morph.RegisterField("disp", &u_morph);
       paraview_dc_morph.RegisterField("mesh_disp", &mesh_disp);
-      //paraview_dc_morph.RegisterField("design", &test_design_filter);
       paraview_dc_morph.RegisterField("design", &rho_filter);
       paraview_dc_morph.RegisterQField("designQuadrature", &dens_interp);
       paraview_dc_morph.RegisterField("sensitivity", &sensitivity_GF);
@@ -967,12 +904,6 @@ int main(int argc, char *argv[])
     gridfuncBoundfunc_Max.SetTrueVector();
     gridfuncBoundfunc_Min.SetTrueVector();
 
-    std::vector<std::pair<int, double>> essentialBC(pmesh.bdr_attributes.Max());
-    essentialBC.resize(1);   essentialBC[0] = {4, 0};
-    Elasticity_Solver * elasticitysolver_old = new Elasticity_Solver(&pmesh, essentialBC, neumannBdr, order);
-    elasticitysolver_old->SetLoad(&tractionLoad);
-
-
       for(int i=1;i<100;i++)
       {
          filterSolver.setLoadGridFunction(gridfuncOptVar);
@@ -1010,37 +941,19 @@ int main(int argc, char *argv[])
          ProductCoefficient lambda_SIMP_cf_morph(lambda_cf,SIMP_cf_morph);
          ProductCoefficient mu_SIMP_cf_morph(mu_cf,SIMP_cf_morph);
 
-
-
-         // set material properties
-         elsolver.SetMaterialLame(lambda_SIMP_cf_morph, mu_SIMP_cf_morph);
-
-         // assemble the discrete system
-         elsolver.Assemble();
-
-         // solve the system
-         elsolver.FSolve();
-
-//==============================
-            elasticitysolver_old->setMaterial( &lambda_SIMP_cf_morph, &mu_SIMP_cf_morph);
-            elasticitysolver_old->SetDesign( filteredNodePos );
-            elasticitysolver_old->FSolve();
-            ParGridFunction & u_morphold = elasticitysolver_old->GetSolution();
-   
-
-
-         std::cout<<"f solve"<<std::endl;
-
-         // extract the solution
          u_morph = 0.0;
-         elsolver.GetSol(u_morph);
-
-
-
+         IsoLinElasticSolver elsolver_morph(&pmesh, order, pa, dfem);
+         elsolver_morph.AddDispBC(4, -1, 0.0);
+         elsolver_morph.AddSurfLoad(neumannBCIndex, 0.0, neumannLoad);
+         elsolver_morph.SetLinearSolver(1e-6,1e-8,1000);
+         elsolver_morph.SetMaterialLame(lambda_SIMP_cf_morph, mu_SIMP_cf_morph);
+         elsolver_morph.Assemble();
+         elsolver_morph.FSolve();
+         elsolver_morph.GetSol(u_morph);
+   
          MeshQualityEvaluator.SetDesign( filteredNodePos );
          QoIEvaluator.SetDesign( filteredNodePos );
-         QoIEvaluator.SetDiscreteSol( u_morphold );                       //fix
-         //QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
+         QoIEvaluator.SetDiscreteSol( u_morph );                       //fix
 
          double ObjVal = QoIEvaluator.EvalQoI();
          double meshQualityVal = MeshQualityEvaluator.EvalQoI();
@@ -1055,31 +968,22 @@ int main(int argc, char *argv[])
          ParLinearForm * dQdxExpl = QoIEvaluator.GetDQDx();
          ParLinearForm * dMeshQdxExpl = MeshQualityEvaluator.GetDQDx();
 
-         elsolver.ASolve( *dQdu );
-
-//====================================
-            elasticitysolver_old->ASolve( *dQdu );
-            ParLinearForm * dQdxImplold = elasticitysolver_old->GetImplicitDqDx();
+         elsolver_morph.ASolve( *dQdu );
+         mfem::ParGridFunction & adj_sol = elsolver_morph.GetADisplacements();
 
 
-         std::cout<<"a solve"<<std::endl;
-
-         mfem::ParGridFunction & adj_sol = elsolver.GetADisplacements();
-
-         // get adjoint
-
-                  std::cout<<"+++++++++++++++++++++++++++++"<<std::endl;
-                  //u_morph.Print();
-
-         const IntegrationRule &ir = constrolQuadSpace.GetIntRule(0);
+         // const IntegrationRule &ir = constrolQuadSpace.GetIntRule(0);
          ParLinearForm LHS_sensitivity(&coord_fes);
          LinearFormIntegrator *lfi = new ElasticityStiffnessShapeSensitivityIntegrator(
                                             lambda_SIMP_cf_morph, mu_SIMP_cf_morph, u_morph, adj_sol);
-         lfi->SetIntRule(&ir);
+         //lfi->SetIntRule(&ir);
          LHS_sensitivity.AddDomainIntegrator(lfi);
 
          LHS_sensitivity.Assemble();
-         //LHS_sensitivity.Print();
+
+         if(i==40){
+            mfem::mfem_error("aaaaaaaaaaaaaaaaaaaaaa");
+         }
 
          MFEM_VERIFY( !static_cast<bool>(LHS_sensitivity.CheckFinite()), "LHS_sensitivity before filter is NAN.");
 
@@ -1088,15 +992,12 @@ int main(int argc, char *argv[])
          // RHS_sensitivity.Assemble();
 
          ParLinearForm dQdxImpl(&coord_fes); dQdxImpl = 0.0;
-         //dQdxImpl.Add(-1.0, LHS_sensitivity);
-         dQdxImpl.Add(1.0, *dQdxImplold);
+         dQdxImpl.Add(-1.0, LHS_sensitivity);
+         //dQdxImpl.Add(1.0, *dQdxImplold);
          //dQdx_->Add( 1.0, RHS_sensitivity);
 
-
-//          ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
          ParLinearForm dQdx_filtered(&coord_fes); dQdx_filtered = 0.0;
-         // dQdx_physics.Add(1.0, *dQdxExpl);
-         // dQdx_physics.Add(1.0, *dQdxImpl);
+
          MFEM_VERIFY( !static_cast<bool>(dQdxExpl->CheckFinite()), "dQdxExpl before filter is NAN.");
          MFEM_VERIFY( !static_cast<bool>(dQdxImpl.CheckFinite()), "dQdxImpl before filter is NAN.");
 
@@ -1122,9 +1023,6 @@ int main(int argc, char *argv[])
                            std::cout<<"a filter"<<std::endl;
          ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
 
-             //dQdxImplfilter->Print();
-
-
          ParLinearForm dQdx(&coord_fes); dQdx = 0.0;
          dQdx.Add(1.0, *dQdxImplfilter);
          //dQdx.Add(1.0, dQdx_filtered);
@@ -1135,49 +1033,9 @@ int main(int argc, char *argv[])
 
          objgrad *= 1e-0;
 
-          //objgrad.Print();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
       double epsilon = 1e-8;
-
-
 
        if(dQduFD)
       {
@@ -1187,31 +1045,27 @@ int main(int argc, char *argv[])
          QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
 
         ParGridFunction tFD_sens(&state_fes); tFD_sens = 0.0;
-        for( int Ia = 0; Ia<u_morphold.Size(); Ia++)
+        for( int Ia = 0; Ia<u_morph.Size(); Ia++)
         {
-         //  if (myid == 0)
-         //  {
-           // std::cout<<"iter: "<< Ia<< " out of: "<<u_morphold.Size() <<std::endl;
-         // }
-          u_morphold[Ia] +=epsilon;
+          u_morph[Ia] +=epsilon;
 
           QoIEvaluator_FD1.SetDesign( filteredNodePos );
-          QoIEvaluator_FD1.SetDiscreteSol( u_morphold );
+          QoIEvaluator_FD1.SetDiscreteSol( u_morph);
           QoIEvaluator_FD1.SetNodes(x0);
           //QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
-          u_morphold[Ia] -=2.0*epsilon;
+          u_morph[Ia] -=2.0*epsilon;
 
           QoIEvaluator_FD2.SetDesign( filteredNodePos );
-          QoIEvaluator_FD2.SetDiscreteSol( u_morphold );
+          QoIEvaluator_FD2.SetDiscreteSol( u_morph );
           QoIEvaluator_FD2.SetNodes(x0);
           //QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
-          u_morphold[Ia] +=epsilon;
+          u_morph[Ia] +=epsilon;
 
           tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
         }
@@ -1229,31 +1083,7 @@ int main(int argc, char *argv[])
 
       if(dQdxFD)
       {
-        // nodes are p
-        // det(J) is order d*p-1
-
         ParGridFunction tFD_sens(&coord_fes); tFD_sens = 0.0;
-      //   Array<double> GLLVec;
-      //   int nqpts;
-      //   {
-      //     const IntegrationRule *ir = &IntRulesLo.Get(Geometry::SQUARE, 8);
-      //     nqpts = ir->GetNPoints();
-      //     // std::cout << nqpts << " k10c\n";
-      //     for (int e = 0; e < PMesh->GetNE(); e++)
-      //     {
-      //       ElementTransformation *T = PMesh->GetElementTransformation(e);
-      //       for (int q = 0; q < ir->GetNPoints(); q++)
-      //       {
-      //         const IntegrationPoint &ip = ir->IntPoint(q);
-      //         T->SetIntPoint(&ip);
-      //         double disc_val = discreteSol.GetValue(e, ip);
-      //         double exact_val = trueSolution->Eval( *T, ip );
-      //         GLLVec.Append(disc_val-exact_val);
-      //       }
-      //     }
-      //   }
-      //   std::cout << nqpts << " " << GLLVec.Size() << " k10c\n";
-        // MFEM_ABORT(" ");
 
         for( int Ia = 0; Ia<filteredNodePos.Size(); Ia++)
         {
@@ -1264,14 +1094,13 @@ int main(int argc, char *argv[])
             continue;
           }
 
-          //std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
           double fac = 1.0-gridfuncBoundIndicator[Ia];
           filteredNodePos[Ia] +=(fac)*epsilon;
 
           QuantityOfInterest QoIEvaluator_FD1(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
           QoIEvaluator_FD1.setTractionCoeff(&tractionLoad);
           QoIEvaluator_FD1.SetDesign( filteredNodePos );
-          QoIEvaluator_FD1.SetDiscreteSol( u_morphold );
+          QoIEvaluator_FD1.SetDiscreteSol( u_morph );
           QoIEvaluator_FD1.SetNodes(x0);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
@@ -1281,7 +1110,7 @@ int main(int argc, char *argv[])
           QuantityOfInterest QoIEvaluator_FD2(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
           QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
           QoIEvaluator_FD2.SetDesign( filteredNodePos );
-          QoIEvaluator_FD2.SetDiscreteSol( u_morphold );
+          QoIEvaluator_FD2.SetDiscreteSol( u_morph );
           QoIEvaluator_FD2.SetNodes(x0);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
@@ -1408,21 +1237,6 @@ int main(int argc, char *argv[])
       //   }
       //   // tFD_diff.Print();
       //   std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
-
-      //   paraview_dc.SetCycle(i);
-      //   paraview_dc.SetTime(i*1.0);
-      //   //paraview_dc.RegisterField("ObjGrad",&objGradGF);
-      //   paraview_dc.RegisterField("Solution",&x_gf);
-      //   paraview_dc.RegisterField("SolutionD",&discreteSol   );
-      //   paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
-      //   paraview_dc.RegisterField("SensitivityFD",&tFD_sens);
-      //   paraview_dc.RegisterField("SensitivityDiff",&tFD_diff);
-      //   paraview_dc.RegisterField("SensitivityExpl",&dQdx_ExplGF);
-      //   paraview_dc.RegisterField("SensitivityImpl",&dQdx_ImplGF);
-      //   paraview_dc.Save();
-
-      //   std::cout<<"expl: "<<dQdxExpl->Norml2()<<std::endl;
-      //   std::cout<<"impl: "<<dQdxImpl->Norml2()<<std::endl;
       }
 
       if( BreakAfterFirstIt )
