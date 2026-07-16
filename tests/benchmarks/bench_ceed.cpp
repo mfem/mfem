@@ -286,7 +286,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE>
       cg.SetOperator(*A);
       cg.SetAbsTol(0.0);
       cg.iterative_mode = false;
-      if (dofs < 16 * 1024)
+      if (dofs < 128 * 1024)
       {
          cg.SetPrintLevel(-1); 
          cg.SetMaxIter(1000);

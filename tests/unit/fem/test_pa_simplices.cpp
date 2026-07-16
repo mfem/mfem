@@ -80,13 +80,22 @@ void test_pa_simplices(const char *filename, int p)
    fa.Mult(x, y_fa);
    pa.Mult(x, y_pa);
    y_fa -= y_pa;
-   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   // High-order FA vs PA can be ~1e-12 abs on some curved meshes
+   if (p >= 5)
+   {
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
+   }
+   else
+   {
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
 }
 
 TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(1, 2, 3, 4);
+   const auto p = !all_tests ? GENERATE(1, 2, 3, 4, 5, 6) : 
+                               GENERATE(1, 2, 3, 4, 5, 6, 7, 8);
 
    const auto GenMesh = [&](const auto &meshs, const auto &extra)
    {

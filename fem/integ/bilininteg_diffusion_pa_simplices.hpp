@@ -81,12 +81,14 @@ inline void PADiffusionApplyTriangle(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
 
+      // Layouts (work for any Q1D, including Q1D > D1D-1):
+      //   dof pair (a1,a2): idx = a2 + (D1D-1)*a1   (a2 fastest)
+      //   (a1,i2) / (i1,i2): idx = i2 + Q1D*a1 / i2 + Q1D*i1
       real_t cin[2 * (max_D1D-1) * (max_D1D-1)];
       real_t C1[2 * (max_D1D-1) * max_Q1D];
       real_t C2[2 * max_Q1D * max_Q1D];
-      real_t fin[2 * max_Q1D * max_Q1D];
-      real_t F1[2 * (max_D1D-1) * max_Q1D];
-      real_t F2[2 * (max_D1D-1) * (max_D1D-1)];
+      // Buffer reuse: cin→F2, C1→F1, C2→fin
+      real_t *F2 = cin, *F1 = C1, *fin = C2;
 
       for (int a1 = 0; a1 < D1D-1; ++a1)
       {
@@ -95,16 +97,12 @@ inline void PADiffusionApplyTriangle(const int NE,
             const int q = 2*(a2 + (D1D-1)*a1);
             cin[q] = 0.0;
             cin[1+q] = 0.0;
-            F2[q] = 0.0;
-            F2[1+q] = 0.0;
          }
          for (int i2 = 0; i2 < Q1D; ++i2)
          {
             const int q = 2*(i2 + Q1D*a1);
             C1[q] = 0.0;
             C1[1+q] = 0.0;
-            F1[q] = 0.0;
-            F1[1+q] = 0.0;
          }
       }
       for (int i1 = 0; i1 < Q1D; ++i1)
@@ -129,22 +127,15 @@ inline void PADiffusionApplyTriangle(const int NE,
       {
          for (int a2 = 0; a2 < D1D-a1-1; ++a2)
          {
+            const int a1a2 = 2*(a2 + (D1D-1)*a1);
+
             // k=0, component 0
             int idx = lex_map[a2 + D1D*(a1+1)];
-            const int a1a2 = 2*(a1 + (D1D-1)*a2);
             cin[a1a2] += X(idx, e);
-
-            // // k=1, component 0
-            // idx = lex_map[(a2+1) + D1D*a1];
-            // cin[a1a2] += X(idx, e) * 0.0;
 
             // k=2, component 0
             idx = lex_map[a2 + D1D*a1];
             cin[a1a2] -= X(idx, e);
-
-            // // k=0, component 1
-            // idx = lex_map[a2 + D1D*(a1+1)];
-            // cin[1 + a1a2] += X(idx, e) * 0.0;
 
             // k=1, component 1
             idx = lex_map[(a2+1) + D1D*a1];
@@ -165,7 +156,7 @@ inline void PADiffusionApplyTriangle(const int NE,
             const int a1i2 = 2*(i2 + Q1D*a1);
             for (int a2 = 0; a2 < D1D-a1-1; a2++)
             {
-               const int a1a2 = 2*(a1 + (D1D-1)*a2);
+               const int a1a2 = 2*(a2 + (D1D-1)*a1);
                const real_t Gai = Ga2t(i2, a1, a2);
                C1[a1i2] += cin[a1a2] * Gai;
                C1[1 + a1i2] += cin[1 + a1a2] * Gai;
@@ -206,12 +197,24 @@ inline void PADiffusionApplyTriangle(const int NE,
             const real_t O22 = symmetric ? D(i1, i2, 2, e) : D(i1, i2, 3, e);
 
             const int i1i2 = 2*(i2 + Q1D*i1);
-            fin[i1i2] = O11 * C2[i1i2] + O12 * C2[1 + i1i2];
-            fin[1 + i1i2] = O21 * C2[i1i2] + O22 * C2[1 + i1i2];
+            const real_t c0 = C2[i1i2];
+            const real_t c1 = C2[1 + i1i2];
+            fin[i1i2] = O11 * c0 + O12 * c1;
+            fin[1 + i1i2] = O21 * c0 + O22 * c1;
          }
       }
 
       // F1 computes the Bernstein moment over the first ragged tensor dimension.
+      // F1 reuses C1 (quad→dof in the first ragged dimension).
+      for (int a1 = 0; a1 < D1D-1; a1++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            const int a1i2 = 2*(i2 + Q1D*a1);
+            F1[a1i2] = 0.0;
+            F1[1 + a1i2] = 0.0;
+         }
+      }
       for (int i1 = 0; i1 < Q1D; i1++)
       {
          for (int a1 = 0; a1 < D1D-1; a1++)
@@ -228,6 +231,16 @@ inline void PADiffusionApplyTriangle(const int NE,
       }
 
       // F2 computes the Bernstein moment over the second/last ragged tensor dimension.
+      // F2 reuses cin (quad→dof in the second ragged dimension).
+      for (int a1 = 0; a1 < D1D-1; ++a1)
+      {
+         for (int a2 = 0; a2 < D1D-1-a1; ++a2)
+         {
+            const int q = 2*(a2 + (D1D-1)*a1);
+            F2[q] = 0.0;
+            F2[1+q] = 0.0;
+         }
+      }
       for (int i2 = 0; i2 < Q1D; i2++)
       {
          for (int a1 = 0; a1 < D1D-1; a1++)
@@ -251,9 +264,10 @@ inline void PADiffusionApplyTriangle(const int NE,
       {
          for (int a2 = 0; a2 < D1D-a1-1; ++a2)
          {
+            const int a2a1 = 2*(a2 + (D1D-1)*a1);
+
             // k=0
             int idx = lex_map[a2 + D1D*(a1+1)];
-            const int a2a1 = 2*(a2 + (D1D-1)*a1);
             Y(idx,e) += p2 * F2[a2a1];
 
             // k=1
@@ -456,6 +470,8 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
       // compute F2 from AAD algorithm and add contributions to RHS
+      auto F2u = (real_t (*)[MD1])(GQ[0]);
+      auto F2v = (real_t (*)[MD1])(GQ[1]);
       MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
       {
          MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
@@ -466,17 +482,41 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
                u += QD0[a1][i2] * Ga2t[a2][a1][i2];
                v += QD1[a1][i2] * Ga2t[a2][a1][i2];
             }
-            // k=0
-            int idx = lex_map[a1+1][a2];
-            Y(idx,e) += p2 * u;
+            F2u[a1][a2] = u;
+            F2v[a1][a2] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            // k=1
-            idx = lex_map[a1][a2+1];
-            Y(idx,e) += p2 * v;
+      // k=2: Y(a1,a2) -= p^2 (u+v)
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
+         {
+            const int idx = lex_map[a1][a2];
+            Y(idx,e) -= p2 * (F2u[a1][a2] + F2v[a1][a2]);
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-            // k=2
-            idx = lex_map[a1][a2];
-            Y(idx,e) -= p2 * (u + v);
+      // k=0: Y(a1+1,a2) += p^2 u
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
+         {
+            const int idx = lex_map[a1+1][a2];
+            Y(idx,e) += p2 * F2u[a1][a2];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // k=1: Y(a1,a2+1) += p^2 v
+      MFEM_FOREACH_THREAD_DIRECT(a1,y,D1D-1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(a2,x,D1D-a1-1)
+         {
+            const int idx = lex_map[a1][a2+1];
+            Y(idx,e) += p2 * F2v[a1][a2];
          }
       }
    });
