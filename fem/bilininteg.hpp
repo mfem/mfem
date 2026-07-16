@@ -2380,7 +2380,6 @@ public:
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       AddSimplexSpecialization<DIM,D1D,Q1D>();
-      AddSimplexMmaSpecialization<DIM,D1D,Q1D>();
    }
 
    template <int DIM, int D1D, int Q1D>
@@ -2398,6 +2397,9 @@ public:
          ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
+
+   /// Register specialized simplex MMA apply kernels (separate TU).
+   static void RegisterSimplexMmaKernels();
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
       const FiniteElement& trial_fe,
@@ -2525,7 +2527,6 @@ public:
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       AddSimplexSpecialization<DIM,D1D,Q1D>();
-      AddSimplexMmaSpecialization<DIM,D1D,Q1D>();
    }
 
    template <int DIM, int D1D, int Q1D>
@@ -2543,6 +2544,9 @@ public:
          ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
+
+   /// Register specialized simplex MMA apply kernels (separate TU).
+   static void RegisterSimplexMmaKernels();
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

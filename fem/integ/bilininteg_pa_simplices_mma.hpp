@@ -18,6 +18,9 @@
 #include "../../linalg/vector.hpp"
 #include "../fespace.hpp"
 #include "../fe/fe_h1.hpp"
+#include "../gridfunc.hpp"
+#include "../restriction.hpp"
+#include "../../mesh/mesh.hpp"
 
 namespace mfem
 {
@@ -59,6 +62,90 @@ inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
 
 namespace internal
 {
+
+/** Restrict mesh nodes to a NATIVE E-vector: layout (ndof x sdim x NE). */
+inline void GetSimplexMeshNodesE(Mesh &mesh, MemoryType mt, Vector &nodes_e,
+                                 int &nd_n, int &sdim)
+{
+   mesh.EnsureNodes();
+   const GridFunction *nodes = mesh.GetNodes();
+   MFEM_VERIFY(nodes, "Mesh has no nodes");
+   const FiniteElementSpace *nfes = nodes->FESpace();
+   sdim = nfes->GetVDim();
+   nd_n = nfes->GetTypicalFE()->GetDof();
+   const Operator *nR =
+      nfes->GetElementRestriction(ElementDofOrdering::NATIVE);
+   MFEM_VERIFY(nR, "Missing mesh ElementRestriction");
+   nodes_e.SetSize(nR->Height(), mt);
+   nodes_e.UseDevice(true);
+   nR->Mult(*nodes, nodes_e);
+}
+
+/** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ. */
+inline void PAMassSetupSimplexMmaFromNodes(const int dim,
+                                           const int NE,
+                                           const int NQ,
+                                           const int ND,
+                                           const bool by_val,
+                                           const Array<real_t> &w,
+                                           const Array<real_t> &g,
+                                           const Vector &nodes_e,
+                                           const Vector &c,
+                                           Vector &d)
+{
+   const bool const_c = c.Size() == 1;
+   const auto W = Reshape(w.Read(), NQ);
+   // DofToQuad::FULL G layout: (nq x dim x ndof), matches QI Eval*.
+   const auto G = Reshape(g.Read(), NQ, dim, ND);
+   const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
+   const auto C = const_c ? Reshape(c.Read(), 1, 1)
+                  : Reshape(c.Read(), NQ, NE);
+   auto D = Reshape(d.Write(), NQ, NE);
+
+   if (dim == 2)
+   {
+      mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / NQ;
+         const int q = idx - NQ * e;
+         real_t J11 = 0.0, J21 = 0.0, J12 = 0.0, J22 = 0.0;
+         for (int i = 0; i < ND; i++)
+         {
+            const real_t x = E(i, 0, e), y = E(i, 1, e);
+            const real_t gx = G(q, 0, i), gy = G(q, 1, i);
+            J11 += x * gx; J21 += y * gx;
+            J12 += x * gy; J22 += y * gy;
+         }
+         const real_t detJ = J11 * J22 - J21 * J12;
+         const real_t coeff = const_c ? C(0, 0) : C(q, e);
+         D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
+      });
+      return;
+   }
+
+   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexMmaFromNodes only supports dim 2/3");
+   mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int e = idx / NQ;
+      const int q = idx - NQ * e;
+      real_t J11 = 0.0, J21 = 0.0, J31 = 0.0;
+      real_t J12 = 0.0, J22 = 0.0, J32 = 0.0;
+      real_t J13 = 0.0, J23 = 0.0, J33 = 0.0;
+      for (int i = 0; i < ND; i++)
+      {
+         const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
+         const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
+         J11 += x * gx; J21 += y * gx; J31 += z * gx;
+         J12 += x * gy; J22 += y * gy; J32 += z * gy;
+         J13 += x * gz; J23 += y * gz; J33 += z * gz;
+      }
+      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+                          J21 * (J12 * J33 - J32 * J13) +
+                          J31 * (J12 * J23 - J22 * J13);
+      const real_t coeff = const_c ? C(0, 0) : C(q, e);
+      D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
+   });
+}
 
 /** Shared CUDA DMMA (m8n8k4) helpers for simplex PA mass/diffusion. */
 namespace simplex_mma

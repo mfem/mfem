@@ -42,13 +42,15 @@ constexpr int DiffusionMmaNB()
    return max_nb > 0 ? max_nb : 1;
 }
 
-/** Flat-nq PA diffusion metric for simplex MMA (sdim == dim). */
+/** One-kernel diffusion PA data: J from (nodes_e, Gn), then metric into D. */
 inline void PADiffusionSetupSimplexMma(const int dim,
                                        const int coeffDim,
                                        const int NE,
                                        const int NQ,
+                                       const int ND,
                                        const Array<real_t> &w,
-                                       const Vector &j,
+                                       const Array<real_t> &g,
+                                       const Vector &nodes_e,
                                        const Vector &c,
                                        Vector &d)
 {
@@ -56,7 +58,8 @@ inline void PADiffusionSetupSimplexMma(const int dim,
    const bool const_c = c.Size() == coeffDim;
    const int pa_size = symmetric ? (dim * (dim + 1)) / 2 : dim * dim;
    const auto W = Reshape(w.Read(), NQ);
-   const auto J = Reshape(j.Read(), NQ, dim, dim, NE);
+   const auto G = Reshape(g.Read(), NQ, dim, ND);
+   const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
    auto D = Reshape(d.Write(), NQ, pa_size, NE);
 
    if (dim == 2)
@@ -72,10 +75,14 @@ inline void PADiffusionSetupSimplexMma(const int dim,
       {
          const int e = idx / NQ;
          const int q = idx - NQ * e;
-         const real_t J11 = J(q, 0, 0, e);
-         const real_t J21 = J(q, 1, 0, e);
-         const real_t J12 = J(q, 0, 1, e);
-         const real_t J22 = J(q, 1, 1, e);
+         real_t J11 = 0.0, J21 = 0.0, J12 = 0.0, J22 = 0.0;
+         for (int i = 0; i < ND; i++)
+         {
+            const real_t x = E(i, 0, e), y = E(i, 1, e);
+            const real_t gx = G(q, 0, i), gy = G(q, 1, i);
+            J11 += x * gx; J21 += y * gx;
+            J12 += x * gy; J22 += y * gy;
+         }
          const real_t w_detJ = W(q) / ((J11 * J22) - (J21 * J12));
          if (coeffDim == 3 || coeffDim == 4)
          {
@@ -121,15 +128,17 @@ inline void PADiffusionSetupSimplexMma(const int dim,
    {
       const int e = idx / NQ;
       const int q = idx - NQ * e;
-      const real_t J11 = J(q, 0, 0, e);
-      const real_t J21 = J(q, 1, 0, e);
-      const real_t J31 = J(q, 2, 0, e);
-      const real_t J12 = J(q, 0, 1, e);
-      const real_t J22 = J(q, 1, 1, e);
-      const real_t J32 = J(q, 2, 1, e);
-      const real_t J13 = J(q, 0, 2, e);
-      const real_t J23 = J(q, 1, 2, e);
-      const real_t J33 = J(q, 2, 2, e);
+      real_t J11 = 0.0, J21 = 0.0, J31 = 0.0;
+      real_t J12 = 0.0, J22 = 0.0, J32 = 0.0;
+      real_t J13 = 0.0, J23 = 0.0, J33 = 0.0;
+      for (int i = 0; i < ND; i++)
+      {
+         const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
+         const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
+         J11 += x * gx; J21 += y * gx; J31 += z * gx;
+         J12 += x * gy; J22 += y * gy; J32 += z * gy;
+         J13 += x * gz; J23 += y * gz; J33 += z * gz;
+      }
       const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                           J21 * (J12 * J33 - J32 * J13) +
                           J31 * (J12 * J23 - J22 * J13);
@@ -256,7 +265,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
 #ifdef __CUDA_ARCH__
    const int nthreads = blockDim.x * blockDim.y * blockDim.z;
 #else
-   const int nthreads = 1;
+   [[maybe_unused]] const int nthreads = 1;
 #endif
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)

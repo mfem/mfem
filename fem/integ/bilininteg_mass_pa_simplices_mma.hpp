@@ -68,7 +68,7 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
 #ifdef __CUDA_ARCH__
    const int nthreads = blockDim.x * blockDim.y * blockDim.z;
 #else
-   const int nthreads = 1;
+   [[maybe_unused]] const int nthreads = 1;
 #endif
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)

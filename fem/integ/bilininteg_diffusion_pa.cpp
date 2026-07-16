@@ -79,7 +79,16 @@ void DiffusionIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
       }
    }
 
-   geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mt);
+   // Assemble geometry directly from restricted mesh nodes (no QI /
+   // GetGeometricFactors). Mult only reads the resulting pa_data.
+   geom = nullptr;
+   Vector nodes_e;
+   int nd_n = 0, sdim = 0;
+   internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, sdim);
+   MFEM_VERIFY(sdim == dim, "");
+   const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
+   const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
+   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq1, "");
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
@@ -92,8 +101,9 @@ void DiffusionIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
    symmetric = (coeff_dim != dims * dims);
    const int pa_size = symmetric ? symmDims : dims * dims;
    pa_data.SetSize(pa_size * nq1 * ne, mt);
-   internal::PADiffusionSetupSimplexMma(dim, coeff_dim, ne, nq1,
-                                        ir.GetWeights(), geom->J, coeff, pa_data);
+   internal::PADiffusionSetupSimplexMma(dim, coeff_dim, ne, nq1, nd_n,
+                                        ir.GetWeights(), nmaps.G, nodes_e,
+                                        coeff, pa_data);
 }
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)

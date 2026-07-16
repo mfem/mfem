@@ -82,29 +82,26 @@ void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
       }
    }
 
-   geom = mesh->GetGeometricFactors(ir, GeometricFactors::DETERMINANTS, mt);
+   // Assemble geometry directly from restricted mesh nodes (no QI /
+   // GetGeometricFactors). Mult only reads the resulting pa_data.
+   geom = nullptr;
+   Vector nodes_e;
+   int nd_n = 0, sdim = 0;
+   internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, sdim);
+   MFEM_VERIFY(sdim == dim, "");
+   const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
+   const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
+   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq1, "");
+
    pa_data.SetSize(nq1 * ne, mt);
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   const int NE = ne;
-   const int NQ = nq1;
-   const bool const_c = coeff.Size() == 1;
    const bool by_val = map_type == FiniteElement::VALUE;
-   {
-      const auto W = Reshape(ir.GetWeights().Read(), NQ);
-      const auto J = Reshape(geom->detJ.Read(), NQ, NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
-                     : Reshape(coeff.Read(), NQ, NE);
-      auto v = Reshape(pa_data.Write(), NQ, NE);
-      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE (int q, int e)
-      {
-         const real_t detJ = J(q, e);
-         const real_t c = const_c ? C(0, 0) : C(q, e);
-         v(q, e) = W(q) * c * (by_val ? detJ : real_t(1) / detJ);
-      });
-   }
+   internal::PAMassSetupSimplexMmaFromNodes(
+      dim, ne, nq1, nd_n, by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff,
+      pa_data);
 }
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)

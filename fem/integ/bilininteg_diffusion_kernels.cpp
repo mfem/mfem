@@ -11,7 +11,6 @@
 
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices.hpp" // IWYU pragma: keep
-#include "bilininteg_diffusion_pa_simplices_mma.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -52,32 +51,6 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSimplexSpecialization<2,2,5>();
    DiffusionIntegrator::AddSimplexSpecialization<2,3,6>();
 
-   // Simplex MMA: key is (D1D, simplex nq). Same GLL keys as mass + GetRule 2p-2.
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,2,1>();  // GetRule p=1
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,2,3>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,2,12>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,3,3>();  // GetRule p=2
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,3,6>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,3,15>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,3,16>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,4,6>();  // GetRule p=3
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,4,12>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,4,19>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,4,25>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,5,12>(); // GetRule p=4
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,5,16>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,5,28>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,5,33>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,6,16>(); // GetRule p=5
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,6,25>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,6,37>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,6,42>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,7,25>(); // GetRule p=6
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,7,33>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,7,49>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,7,55>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<2,8,60>();
-
    // 3D
    // Q = P, only for simplex
    DiffusionIntegrator::AddSimplexSpecialization<3,2,1>();
@@ -109,30 +82,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,8>();
 
-   // Simplex MMA 3D (GLL tet)
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,2,1>();   // GetRule p=1
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,2,4>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,2,24>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,3,4>();   // GetRule p=2
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,3,14>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,3,35>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,3,46>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,4,11>();  // GetRule p=3 approx
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,4,24>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,4,81>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,5,24>();  // GetRule p=4
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,5,46>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,5,96>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,5,123>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,6,45>();  // GetRule p=5
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,6,81>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,6,175>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,7,74>();  // GetRule p=6
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,7,123>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,7,209>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,7,248>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,8,175>();
-   DiffusionIntegrator::AddSimplexMmaSpecialization<3,8,284>();
+   // Simplex MMA specs: bilininteg_diffusion_pa_simplices_mma.cpp
+   RegisterSimplexMmaKernels();
 }
 
 namespace internal
