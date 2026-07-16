@@ -868,9 +868,11 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                         findptsElementGEdge_t edge;
                         for (int d=0; d<sDIM; ++d)
                         {
-                           edge.x[d]     = constraint_workspace             + d*D1D;
-                           edge.dxdn[d]  = constraint_workspace +   sDIM*D1D + d*D1D;
-                           edge.d2xdn[d] = constraint_workspace + 2*sDIM*D1D + d*D1D;
+                           edge.x[d]     = constraint_workspace + d*D1D;
+                           edge.dxdn[d]  = constraint_workspace + d*D1D
+                                           + sDIM*D1D;
+                           edge.d2xdn[d] = constraint_workspace + d*D1D
+                                           + 2*sDIM*D1D;
                         }
 
                         MFEM_FOREACH_THREAD(j,x,D1D*sDIM)
