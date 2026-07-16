@@ -1109,8 +1109,17 @@ void TMOPNewtonSolver::EnableTangentialRelaxation(
       MFEM_VERIFY(fdofs_arr_[i] != nullptr,
                   "TangentialRelaxation: fdofs_arr["<< i <<"] is null.");
 
-      // Create and setup FindPointsGSLIB for this reference mesh
-      FindPointsGSLIB *finder = new FindPointsGSLIB();
+      FindPointsGSLIB *finder = nullptr;
+#ifdef MFEM_USE_MPI
+      if (ParMesh *pmesh = dynamic_cast<ParMesh *>(ref_mesh_arr_[i]))
+      {
+         finder = new FindPointsGSLIB(pmesh->GetComm());
+      }
+      else
+#endif
+      {
+         finder = new FindPointsGSLIB();
+      }
       Vector aabb_sz_inc_vec({aabb_sz_inc});
       finder->SetupSurfWithAABBExpansion(*ref_mesh_arr_[i], aabb_sz_inc_vec);
       finder_arr.Append(finder);
