@@ -432,10 +432,11 @@ private:
    // and A->col_map_offd.
    // The possible values for diagOwner are:
    //  -1: no special treatment of A->diag (default)
-   //      when hypre is built with CUDA support, A->diag owns the "host"
-   //      pointers (according to A->diag->owns_data)
-   //  -2: used when hypre is built with CUDA support, A->diag owns the "hypre"
-   //      pointers (according to A->diag->owns_data)
+   //      when hypre is using GPU, A->diag owns the "host" pointers (according
+   //      to A->diag->owns_data); these host pointers are freed by MFEM using
+   //      hypre's host deallocation macros
+   //  -2: used when hypre is using GPU, A->diag owns the "hypre" pointers
+   //      (according to A->diag->owns_data)
    //   0: prevent hypre from destroying A->diag->{i,j,data}
    //   1: same as 0, plus own the "host" A->diag->{i,j}
    //   2: same as 0, plus own the "host" A->diag->data
@@ -1860,8 +1861,11 @@ public:
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       The optional argument @ interp_refine is used to enable/disable pre-processing
-       of the interpolation matrix through iterative weight refinement */
+       The optional argument @a interp_refine is used to enable/disable internal
+       pre-processing of the interpolation matrix through iterative weight
+       refinement, which could perform better but is more expensive.
+       @warning This solver assumes Ordering::byVDIM in the FiniteElementSpace
+       used to construct A.*/
    void SetElasticityOptions(ParFiniteElementSpace *fespace,
                              bool interp_refine = true);
 

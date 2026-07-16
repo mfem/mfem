@@ -73,12 +73,15 @@
 //   * mesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
 //
 //   Adaptive limiting:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//     mesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0
+//     mesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -nor -vl 1 -alc 2.0 -pa
 //   Adaptive limiting through the L-BFGS solver:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape + bounded Jacobian determinant:
+//     * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db
 //   Blade shape (AD):
 //     mesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -160,6 +163,7 @@ int main(int argc, char *argv[])
    int mesh_node_order   = 0;
    int barrier_type      = 0;
    int worst_case_type   = 0;
+   bool detj_bound       = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -316,6 +320,10 @@ int main(int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&detj_bound, "-db", "--detj-bound",
+                  "-no-db", "--no-detj-bound",
+                  "Enable or disable strict enforcement of positive Jacobian "
+                  "determinants to guarantee mesh validity for tensor-product " "elements.");
    args.Parse();
    if (!args.Good())
    {
@@ -871,15 +879,18 @@ int main(int argc, char *argv[])
    if (lim_const != 0.0) { tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
-   GridFunction adapt_lim_gf0(&ind_fes);
-   ConstantCoefficient adapt_lim_coeff(adapt_lim_const);
+   GridFunction adapt_lim_gf0_1(&ind_fes);
+   GridFunction adapt_lim_gf0_2(&ind_fes);
+   ConstantCoefficient adapt_lim_coeff_1(adapt_lim_const);
+   const real_t adapt_lim_const_2 = 0.5 * adapt_lim_const;
+   ConstantCoefficient adapt_lim_coeff_2(adapt_lim_const_2);
    AdaptivityEvaluator *adapt_lim_eval = NULL;
    if (adapt_lim_const > 0.0)
    {
-      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
-
-      FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
-      adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
+      FunctionCoefficient adapt_lim_gf0_coeff_1(adapt_lim_fun);
+      FunctionCoefficient adapt_lim_gf0_coeff_2(adapt_lim_fun2);
+      adapt_lim_gf0_1.ProjectCoefficient(adapt_lim_gf0_coeff_1);
+      adapt_lim_gf0_2.ProjectCoefficient(adapt_lim_gf0_coeff_2);
 
       if (adapt_eval == 0) { adapt_lim_eval = new AdvectorCG(al); }
       else if (adapt_eval == 1)
@@ -892,13 +903,23 @@ int main(int argc, char *argv[])
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      tmop_integ->EnableAdaptiveLimiting(adapt_lim_gf0, adapt_lim_coeff,
-                                         *adapt_lim_eval);
+      Array<const GridFunction *> z0(2);
+      Array<Coefficient *> coeff(2);
+      Array<real_t> delta_max(2);
+      z0[0] = &adapt_lim_gf0_1;
+      z0[1] = &adapt_lim_gf0_2;
+      coeff[0] = &adapt_lim_coeff_1;
+      coeff[1] = &adapt_lim_coeff_2;
+      delta_max[0] = 1.0;
+      delta_max[1] = 0.5;
+      tmop_integ->EnableAdaptiveLimiting(z0, coeff, *adapt_lim_eval, delta_max);
       if (visualization)
       {
-         socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0, "Zeta 0",
-                                300, 600, 300, 300);
+         socketstream vis1, vis2;
+         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
+                                "Zeta0(1) - initial mesh", 300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, adapt_lim_gf0_2,
+                                "Zeta0(2) - initial mesh", 300, 900, 300, 300);
       }
    }
 
@@ -1006,11 +1027,13 @@ int main(int argc, char *argv[])
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      adapt_lim_coeff.constant = 0.0;
+      adapt_lim_coeff_1.constant = 0.0;
+      adapt_lim_coeff_2.constant = 0.0;
       init_metric_energy = a.GetGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
-      adapt_lim_coeff.constant = adapt_lim_const;
+      adapt_lim_coeff_1.constant = adapt_lim_const;
+      adapt_lim_coeff_2.constant = adapt_lim_const_2;
    }
 
    // Visualize the starting mesh and metric values.
@@ -1150,6 +1173,12 @@ int main(int argc, char *argv[])
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
+   if (detj_bound)
+   {
+      const int bound_refs = 4; // number of refinements to compute bounds
+      const int bound_recs = 4; // number of recursions for the bound search
+      solver.EnsurePositiveDeterminantBound(*mesh, bound_refs, bound_recs);
+   }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
    if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
@@ -1170,7 +1199,8 @@ int main(int argc, char *argv[])
    hr_solver.AddFESpaceForUpdate(&fes_h1);
    if (adapt_lim_const > 0.)
    {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0_1);
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0_2);
       hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
    hr_solver.Mult();
@@ -1197,11 +1227,13 @@ int main(int argc, char *argv[])
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      adapt_lim_coeff.constant = 0.0;
+      adapt_lim_coeff_1.constant = 0.0;
+      adapt_lim_coeff_2.constant = 0.0;
       fin_metric_energy = a.GetGridFunctionEnergy(periodic ? dx : x) /
                           (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
-      adapt_lim_coeff.constant = adapt_lim_const;
+      adapt_lim_coeff_1.constant = adapt_lim_const;
+      adapt_lim_coeff_2.constant = adapt_lim_const_2;
    }
    std::cout << std::scientific << std::setprecision(4);
    cout << "Initial strain energy: " << init_energy
@@ -1222,9 +1254,11 @@ int main(int argc, char *argv[])
 
    if (adapt_lim_const > 0.0 && visualization)
    {
-      socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0, "Xi 0",
-                             600, 600, 300, 300);
+      socketstream vis1, vis2;
+      common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0_1,
+                             "Zeta0(1) - final mesh", 600, 600, 300, 300);
+      common::VisualizeField(vis2, "localhost", 19916, adapt_lim_gf0_2,
+                             "Zeta0(2) - final mesh", 600, 900, 300, 300);
    }
 
    // Visualize the mesh displacement.
