@@ -28,6 +28,7 @@
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Argument sweep is always the 3D-hex reference
@@ -255,6 +256,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE>
    using base::fes;
    using base::x;
    using base::y;
+   using base::dofs;
    using base::mdofs;
    using base::unit_vec;
    using base::bfi;
@@ -284,11 +286,16 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE>
       cg.SetOperator(*A);
       cg.SetAbsTol(0.0);
       cg.iterative_mode = false;
+      if (dofs < 16 * 1024)
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(-1); 
          cg.SetMaxIter(1000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
+         if (!cg.GetConverged()) {
+            cg.SetPrintLevel(3);
+            cg.Mult(B, X);
+         }
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge!");
          if constexpr (base::visualization)
          {

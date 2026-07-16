@@ -115,7 +115,9 @@ void LinearFormExtension::Update()
 {
    const FiniteElementSpace &fes = *lf->FESpace();
    const Mesh &mesh = *fes.GetMesh();
-   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   // Match PA bilinear forms: LEXICOGRAPHIC for tensor/ragged, NATIVE for
+   // GLL H1 simplices (CalcShape / DofToQuad::FULL layout).
+   const ElementDofOrdering ordering = GetEVectorOrdering(fes);
 
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 

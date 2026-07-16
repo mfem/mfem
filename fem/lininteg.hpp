@@ -144,14 +144,37 @@ public:
                                        const real_t *, const Vector &coeff,
                                        real_t *y);
 
+   /// Simplex MMA assemble: (NE, P, D, y, vdim, vc, d1d, nq)
+   using AssembleSimplexMmaKernelType = void (*)(const int,
+                                                 const Array<real_t> &,
+                                                 const Vector &,
+                                                 real_t *,
+                                                 const int, const int,
+                                                 const int, const int);
+
    /// parameters: use DIM, T_D1D, T_Q1D
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels, AssembleSimplexMmaKernelType,
+                         (int, int, int));
    struct Kernels { Kernels(); };
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
       AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
+
+   /// @param Q1D Number of simplex quadrature points (not a 1D count).
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, Q1D>::Add();
+      }
+   }
+
+   /// Register specialized simplex MMA DomainLF kernels (separate TU).
+   static void RegisterSimplexMmaKernels();
 };
 
 /// Class for domain integrator $ L(v) := (f, \nabla v) $

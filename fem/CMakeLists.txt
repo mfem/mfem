@@ -56,6 +56,7 @@ set(SRCS
   integ/lininteg_boundary.cpp
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp
+  integ/lininteg_domain_simplices_mma.cpp
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_pa.cpp
@@ -193,6 +194,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   integ/lininteg_domain_kernels.hpp
+  integ/lininteg_domain_simplices_mma.hpp
   integ/bilininteg_dgdiffusion_kernels.hpp
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
