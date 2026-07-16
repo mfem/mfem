@@ -432,10 +432,11 @@ private:
    // and A->col_map_offd.
    // The possible values for diagOwner are:
    //  -1: no special treatment of A->diag (default)
-   //      when hypre is built with CUDA support, A->diag owns the "host"
-   //      pointers (according to A->diag->owns_data)
-   //  -2: used when hypre is built with CUDA support, A->diag owns the "hypre"
-   //      pointers (according to A->diag->owns_data)
+   //      when hypre is using GPU, A->diag owns the "host" pointers (according
+   //      to A->diag->owns_data); these host pointers are freed by MFEM using
+   //      hypre's host deallocation macros
+   //  -2: used when hypre is using GPU, A->diag owns the "hypre" pointers
+   //      (according to A->diag->owns_data)
    //   0: prevent hypre from destroying A->diag->{i,j,data}
    //   1: same as 0, plus own the "host" A->diag->{i,j}
    //   2: same as 0, plus own the "host" A->diag->data
