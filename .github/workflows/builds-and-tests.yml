@@ -307,7 +307,8 @@ jobs:
             ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-
 
       # Configure ccache and select how it is injected into the MFEM build:
-      # - make:  set CXX/MPICXX so MFEM_CXX becomes "ccache <compiler>".
+      # - make:  set CXX="ccache g++"; for MPI, OMPI_CXX="ccache g++" so mpicxx
+      #          runs ccache around g++ (not ccache around the mpicxx wrapper).
       # - cmake: set CMAKE_<LANG>_COMPILER_LAUNCHER=ccache.
       # The chosen options are passed through build-mfem's 'config-options'
       # input (see the build step below).
@@ -331,7 +332,8 @@ jobs:
           if [[ "${{ matrix.build-system }}" == "cmake" ]]; then
             echo 'CCACHE_CONFIG_OPTS=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' >> $GITHUB_ENV
           else
-            echo 'CCACHE_CONFIG_OPTS=CXX="ccache g++" MPICXX="ccache mpicxx"' >> $GITHUB_ENV
+            echo "OMPI_CXX=ccache g++" >> $GITHUB_ENV
+            echo 'CCACHE_CONFIG_OPTS=CXX="ccache g++" MPICXX="mpicxx"' >> $GITHUB_ENV
           fi
         shell: bash
 
