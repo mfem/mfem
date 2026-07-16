@@ -147,7 +147,7 @@ class FieldCollection
 {
 private:
     std::string name; /// Name of the collection
-    Operator *src_op = nullptr; /// Source operator (not owned)
+    Operator *oper = nullptr; /// Operator associated with this collection (not owned)
     NamedFieldsMap<Field> fields;
     NamedFieldsMap<int> index_map; /// Map from field name to index in input/output vectors
 
@@ -158,12 +158,12 @@ public:
 
     FieldCollection() = default;
 
-    /// @brief Constructor with collection name and optional source operator
+    /// @brief Constructor with collection name and optional associated operator
     FieldCollection(std::string collection_name, Operator *op = nullptr):
-                    name(collection_name), src_op(op) {}
+                    name(collection_name), oper(op) {}
 
-    /// @brief Constructor with source operator
-    FieldCollection(Operator *src) : name("FieldCollection"), src_op(src) {}
+    /// @brief Constructor with associated operator and default collection name
+    FieldCollection(Operator *op) : name("FieldCollection"), oper(op) {}
 
     /// @brief Get the number of fields in the collection
     int Size() const { return fields.NumFields(); }
@@ -174,11 +174,11 @@ public:
     /// @brief Get the name of the collection
     std::string Name() const { return name; }
 
-    /// @brief Set the source operator
-    void SetOperator(Operator *op){ src_op = op; }
+    /// @brief Set the operator associated with this collection
+    void SetOperator(Operator *op){ oper = op; }
 
-    /// @brief Get the source operator
-    const Operator* GetOperator() const { return src_op; }
+    /// @brief Get the operator associated with this collection
+    const Operator* GetOperator() const { return oper; }
 
     /// @brief Get the ParGridFunction for a given field name
     Field* GetField(const std::string &field_name) const
@@ -186,7 +186,7 @@ public:
         return fields.Get(field_name);
     }
 
-    /// @brief Add a ParGridFunction as a field (does not specify source or target)
+    /// @brief Add a field to the collection with a given name and ownership flag
     void AddField(const std::string &field_name, Field *field, bool own = false)
     {
         if(fields.Has(field_name))
@@ -201,9 +201,9 @@ public:
                   Field *field, bool own = false)
     {
         bool has_field = fields.Has(field_name);
-        if(has_field)
+        auto i = index_map.Get(field_name);
+        if(has_field && i != nullptr)
         {
-            auto i = index_map.Get(field_name);
             input_fields[*i] = field;
         }
         else
@@ -218,9 +218,9 @@ public:
                    Field *field, bool own = false)
     {
         bool has_field = fields.Has(field_name);
-        if(has_field)
+        auto i = index_map.Get(field_name);
+        if(has_field && i != nullptr)
         {
-            auto i = index_map.Get(field_name);
             output_fields[*i] = field;
         }
         else
@@ -232,7 +232,7 @@ public:
         AddField(field_name, field, own);
         if(field->Node() == nullptr)
         {
-            field->SetNode(src_op);
+            field->SetNode(oper);
         }
     }
 
