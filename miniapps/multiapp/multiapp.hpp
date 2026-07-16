@@ -276,8 +276,8 @@ public:
         return output_fields[index];
     }
 
-    NamedFieldsMap<Field> &GetFields() { return fields; }
-    NamedFieldsMap<Field> GetFields() const { return fields; }
+    NamedFieldsMap<Field> &Fields() { return fields; }
+    NamedFieldsMap<Field> Fields() const { return fields; }
 
     virtual void Save (std::ostream &out) const
     {
@@ -372,7 +372,7 @@ protected:
     mutable ExecutionMode exec_mode = DEFAULT_MODE;
 
     std::string name;
-    FieldCollection fields; // Collection of fields associated with this node
+    FieldCollection field_collection; // Collection of fields associated with this node
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -382,7 +382,8 @@ protected:
 public:
 
     GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1)),
-                              name("Node_" + std::to_string(id)), fields(this) { }
+                              name("Node_" + std::to_string(id)),
+                              field_collection(this) { }
 
     GraphNode(int s = 0) : GraphNode(s, s) { }
 
@@ -408,21 +409,21 @@ public:
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
 
-    NamedFieldsMap<Field>& Fields() { return fields.GetFields(); }
-    Field* Fields(const std::string &f) { return fields.GetField(f); }
+    NamedFieldsMap<Field>& Fields() { return field_collection.Fields(); }
+    Field* Fields(const std::string &f) { return field_collection.GetField(f); }
 
-    NamedFieldsMap<Field> Fields() const { return fields.GetFields(); }
-    Field* Fields(const std::string &f) const { return fields.GetField(f); }
+    NamedFieldsMap<Field> Fields() const { return field_collection.Fields(); }
+    Field* Fields(const std::string &f) const { return field_collection.GetField(f); }
 
-    std::vector<Field*>& InputFields() { return fields.InputFields(); }
-    std::vector<Field*>& OutputFields() { return fields.OutputFields(); }
-    Field* InputField(int i) const { return fields.InputField(i); }
-    Field* OutputField(int i) const { return fields.OutputField(i); }
+    std::vector<Field*>& InputFields() { return field_collection.InputFields(); }
+    std::vector<Field*>& OutputFields() { return field_collection.OutputFields(); }
+    Field* InputField(int i) const { return field_collection.InputField(i); }
+    Field* OutputField(int i) const { return field_collection.OutputField(i); }
 
 
     virtual void AddInput(const std::string &field_name,
                           Field *field, bool own = false)
-    { fields.AddInput(field_name, field, own); }
+    { field_collection.AddInput(field_name, field, own); }
 
     void AddInput(Field *field, bool own = false)
     { AddInput(field->Name(), field, own); }
@@ -438,7 +439,7 @@ public:
 
     virtual void AddOutput(const std::string &field_name,
                            Field *field, bool own = false)
-    { fields.AddOutput(field_name, field, own); }
+    { field_collection.AddOutput(field_name, field, own); }
 
     void AddOutput(Field *field, bool own = false)
     { AddOutput(field->Name(), field, own); }
@@ -458,7 +459,7 @@ public:
         out << "\"Node-" << id << "\" : " << std::endl;
         out << "{\n";
         out << "\"Name\": \"" << name << "\",\n";
-        fields.Save(out);
+        field_collection.Save(out);
         out << "}";
     }
 
@@ -606,7 +607,7 @@ public:
     DataNode(Field &f, int sz, std::string name = "") : GraphNode(sz), field(&f)
     {
         if(!name.empty()) SetName(name);
-        // fields.AddField(name, field, false);
+        // field_collection.AddField(name, field, false);
     }
 
     Field* GetField() const { return field; }
@@ -771,7 +772,7 @@ public:
         auto field = node->GetField();
         if(field)
         {   // Add the node's field to the DAG's
-            fields.AddField(node->Name(), field, false);
+            field_collection.AddField(node->Name(), field, false);
         }
 
         input_nodes.push_back(node);
@@ -789,7 +790,7 @@ public:
         auto field = node->GetField();
         if(field)
         {   // Add the node's field to the DAG's
-            fields.AddField(node->Name(), field, false);
+            field_collection.AddField(node->Name(), field, false);
         }
 
         output_nodes.push_back(node);
@@ -858,7 +859,7 @@ public:
             out << "\n";
         }
         out << "},\n"; // End of Nodes
-        fields.Save(out);
+        field_collection.Save(out);
         out << "}\n";
     }
 
