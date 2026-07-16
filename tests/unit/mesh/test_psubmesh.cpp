@@ -1130,10 +1130,350 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
          }
       }
    }
-
-
 }
 
+/// Smooth scalar coefficient for projection tests.
+static real_t SmoothScalar(const Vector &c)
+{
+   return 1.0 + 0.3*sin(c(0)*M_PI) + 0.5*cos(c(1)*M_PI);
+}
+
+/// Smooth vector coefficient (3-component) for projection tests.
+static void SmoothVector(const Vector &c, Vector &v)
+{
+   v.SetSize(c.Size());
+   v(0) = 1.0 + 0.3*sin(c(0)*M_PI) + 0.5*cos(c(1)*M_PI);
+   v(1) = 0.7 + 0.4*cos(c(0)*M_PI) + 0.2*sin(c(1)*M_PI);
+   if (c.Size() > 2) { v(2) = 0.5 + 0.3*sin(c(2)*M_PI); }
+}
+
+/// Project the right coefficient type for the given FEC onto @a gf.
+static void ParProjectSmoothCoeff(ParGridFunction &gf, int sdim)
+{
+   if (gf.VectorDim() == 1)
+   {
+      FunctionCoefficient coeff(SmoothScalar);
+      gf.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      VectorFunctionCoefficient vcoeff(sdim, SmoothVector);
+      gf.ProjectCoefficient(vcoeff);
+   }
+}
+
+/// Verify that every local submesh vertex sits at the same coordinates as its
+/// corresponding parent vertex (uses the ParentVertexIDMap).
+static void CheckParVertexCoordinates(const ParSubMesh &sm,
+                                      const ParMesh &parent)
+{
+   const auto &vtx_map = sm.GetParentVertexIDMap();
+   const int sdim = parent.SpaceDimension();
+   bool ok = true;
+   for (int sv = 0; sv < sm.GetNV(); sv++)
+   {
+      const real_t *sub_c    = sm.GetVertex(sv);
+      const real_t *par_c    = parent.GetVertex(vtx_map[sv]);
+      for (int d = 0; d < sdim; d++)
+      {
+         if (sub_c[d] != Approx(par_c[d]).epsilon(1e-14))
+         {
+            ok = false;
+            break;
+         }
+      }
+      if (!ok) { break; }
+   }
+   REQUIRE(ok);
+}
+
+/// Build local element-id lists: elements whose z-centroid falls below @a lo
+/// or above @a hi (two disconnected slabs).
+static void CollectDisconnectedSlabs(const ParMesh &pmesh, real_t lo,
+                                     real_t hi,
+                                     Array<int> &bottom_ids,
+                                     Array<int> &top_ids,
+                                     Array<int> &combined_ids)
+{
+   bottom_ids.DeleteAll();
+   top_ids.DeleteAll();
+   combined_ids.DeleteAll();
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      Array<int> verts;
+      pmesh.GetElementVertices(i, verts);
+      real_t z = 0.0;
+      for (int v : verts) { z += pmesh.GetVertex(v)[2]; }
+      z /= verts.Size();
+      if      (z < lo) { bottom_ids.Append(i); combined_ids.Append(i); }
+      else if (z > hi) { top_ids.Append(i);    combined_ids.Append(i); }
+   }
+}
+
+/// Analogous helper for boundary elements (z=0 and z=1 faces).
+static void CollectDisconnectedBdrFaces(const ParMesh &pmesh,
+                                        Array<int> &combined_bdr)
+{
+   combined_bdr.DeleteAll();
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      Array<int> verts;
+      pmesh.GetBdrElementVertices(i, verts);
+      real_t z = 0.0;
+      for (int v : verts) { z += pmesh.GetVertex(v)[2]; }
+      z /= verts.Size();
+      if (z < 1e-10 || z > 1.0 - 1e-10) { combined_bdr.Append(i); }
+   }
+}
+
+TEST_CASE("ParSubMesh from elements matches domain", "[Parallel],[SubMesh]")
+{
+   // 2-attribute DividingPlane mesh: attr 1 on left half, attr 2 on right half
+   Mesh smesh = DividingPlaneMesh(false, true);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   auto fec_type = GENERATE(FECType::H1, FECType::L2, FECType::ND, FECType::RT);
+   int attr = GENERATE(1, 2);
+
+   // Attribute-based submesh
+   Array<int> attrs{attr};
+   auto sm_attr = ParSubMesh::CreateFromDomain(pmesh, attrs);
+
+   // Element-list based submesh (same elements, selected by attribute locally)
+   Array<int> ids;
+   for (int i = 0; i < pmesh.GetNE(); i++)
+      if (pmesh.GetAttribute(i) == attr) { ids.Append(i); }
+   auto sm_ids = ParSubMesh::CreateFromElements(pmesh, ids);
+
+   // Global element counts must agree
+   int local_ne_attr = sm_attr.GetNE(), local_ne_ids = sm_ids.GetNE();
+   int global_ne_attr = 0, global_ne_ids = 0;
+   MPI_Allreduce(&local_ne_attr, &global_ne_attr, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&local_ne_ids, &global_ne_ids, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(global_ne_ids == global_ne_attr);
+
+   // Vertex coordinates must be consistent with the parent on every rank
+   CheckParVertexCoordinates(sm_ids, pmesh);
+
+   // Field transfer: project onto parent, transfer to both submeshes,
+   // compare global norms
+   auto vol_fec  = std::unique_ptr<FiniteElementCollection>(
+                      create_fec(fec_type, 2, pmesh.Dimension()));
+   auto sub_fec  = std::unique_ptr<FiniteElementCollection>(
+                      create_fec(fec_type, 2, sm_attr.Dimension()));
+
+   ParFiniteElementSpace fes_p(&pmesh,   vol_fec.get());
+   ParFiniteElementSpace fes_a(&sm_attr, sub_fec.get());
+   ParFiniteElementSpace fes_i(&sm_ids,  sub_fec.get());
+
+   ParGridFunction gf_p(&fes_p), gf_a(&fes_a), gf_i(&fes_i);
+   ParProjectSmoothCoeff(gf_p, pmesh.SpaceDimension());
+
+   gf_a = 0.0;  ParSubMesh::Transfer(gf_p, gf_a);
+   gf_i = 0.0;  ParSubMesh::Transfer(gf_p, gf_i);
+
+   // Global L2 norms must be equal
+   real_t norm_a_sq = gf_a * gf_a, norm_i_sq = gf_i * gf_i;
+   real_t gnorm_a = 0.0, gnorm_i = 0.0;
+   MPI_Allreduce(&norm_a_sq, &gnorm_a, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&norm_i_sq, &gnorm_i, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(gnorm_i == Approx(gnorm_a).epsilon(1e-10));
+}
+
+TEST_CASE("ParSubMesh from bdr elements matches boundary",
+          "[Parallel],[SubMesh]")
+{
+   Mesh smesh = DividingPlaneMesh(false, true);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   auto fec_type = GENERATE(FECType::H1, FECType::L2);
+   int max_battr = pmesh.bdr_attributes.Max();
+   int battr = GENERATE_COPY(range(1, max_battr + 1));
+
+   Array<int> battrs{battr};
+   auto sm_attr = ParSubMesh::CreateFromBoundary(pmesh, battrs);
+
+   Array<int> ids;
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+      if (pmesh.GetBdrAttribute(i) == battr) { ids.Append(i); }
+   auto sm_ids = ParSubMesh::CreateFromBdrElements(pmesh, ids);
+
+   int local_ne_attr = sm_attr.GetNE(), local_ne_ids = sm_ids.GetNE();
+   int global_ne_attr = 0, global_ne_ids = 0;
+   MPI_Allreduce(&local_ne_attr, &global_ne_attr, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&local_ne_ids, &global_ne_ids, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(global_ne_ids == global_ne_attr);
+
+   CheckParVertexCoordinates(sm_ids, pmesh);
+
+   auto vol_fec = std::unique_ptr<FiniteElementCollection>(
+                     create_fec(fec_type, 2, pmesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(
+                     create_fec(fec_type, 2, sm_attr.Dimension()));
+
+   ParFiniteElementSpace fes_p(&pmesh,   vol_fec.get());
+   ParFiniteElementSpace fes_a(&sm_attr, sub_fec.get());
+   ParFiniteElementSpace fes_i(&sm_ids,  sub_fec.get());
+
+   ParGridFunction gf_p(&fes_p), gf_a(&fes_a), gf_i(&fes_i);
+   ParProjectSmoothCoeff(gf_p, pmesh.SpaceDimension());
+
+   gf_a = 0.0;  ParSubMesh::Transfer(gf_p, gf_a);
+   gf_i = 0.0;  ParSubMesh::Transfer(gf_p, gf_i);
+
+   real_t norm_a_sq = gf_a * gf_a, norm_i_sq = gf_i * gf_i;
+   real_t gnorm_a = 0.0, gnorm_i = 0.0;
+   MPI_Allreduce(&norm_a_sq, &gnorm_a, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&norm_i_sq, &gnorm_i, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(gnorm_i == Approx(gnorm_a).epsilon(1e-10));
+}
+
+TEST_CASE("ParSubMesh from elements disconnected", "[Parallel],[SubMesh]")
+{
+   // 4x4x4 hex mesh — two disconnected z-slabs per rank
+   Mesh smesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
+                                      1.0, 1.0, 1.0, false);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   Array<int> bottom_ids, top_ids, combined_ids;
+   CollectDisconnectedSlabs(pmesh, 0.25, 0.75, bottom_ids, top_ids,
+                            combined_ids);
+
+   // At least one rank must contribute to each slab (globally)
+   int n_bottom = bottom_ids.Size(), n_top = top_ids.Size();
+   int gn_bottom = 0, gn_top = 0;
+   MPI_Allreduce(&n_bottom, &gn_bottom, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&n_top,    &gn_top,    1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(gn_bottom > 0);
+   REQUIRE(gn_top    > 0);
+
+   auto sm = ParSubMesh::CreateFromElements(pmesh, combined_ids);
+
+   // Global element count must equal total requested
+   int local_ne = sm.GetNE(), local_req = combined_ids.Size();
+   int global_ne = 0, global_req = 0;
+   MPI_Allreduce(&local_ne,  &global_ne,  1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_req, &global_req, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(global_ne == global_req);
+
+   // Every local parent element ID in the map must come from the requested set
+   const auto &pids = sm.GetParentElementIDMap();
+   bool all_found = true;
+   for (int i = 0; i < pids.Size(); i++)
+   {
+      bool found = bottom_ids.Find(pids[i]) >= 0 || top_ids.Find(pids[i]) >= 0;
+      if (!found)
+      {
+         all_found = false;
+         break;
+      }
+   }
+   REQUIRE(all_found);
+
+   // Vertex coordinates must be consistent with parent on every rank
+   CheckParVertexCoordinates(sm, pmesh);
+
+   FunctionCoefficient coeff([](const Vector &c)
+   { return c(2) + 0.1*sin(c(0)*M_PI); });
+
+   SECTION("H1 parent-to-sub transfer")
+   {
+      H1_FECollection fec(2, pmesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      ParFiniteElementSpace fes(&pmesh, &fec);
+      ParFiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      ParGridFunction gf(&fes), sub_gf(&sub_fes), sub_ex(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      sub_ex.ProjectCoefficient(coeff);
+
+      sub_gf = 0.0;
+      ParSubMesh::Transfer(gf, sub_gf);
+
+      Vector diff = sub_gf;
+      diff -= sub_ex;
+      CHECK_GLOBAL_NORM(diff);
+   }
+
+   SECTION("H1 sub-to-parent transfer")
+   {
+      H1_FECollection fec(2, pmesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      ParFiniteElementSpace fes(&pmesh, &fec);
+      ParFiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      // Initialize parent with the exact projection so that DOFs outside the
+      // submesh already hold the correct value.  Transfer overwrites only the
+      // submesh DOFs, so the full parent should still match the exact projection.
+      ParGridFunction gf(&fes), gf_ex(&fes), sub_gf(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      gf_ex = gf;
+      sub_gf.ProjectCoefficient(coeff);
+
+      ParSubMesh::Transfer(sub_gf, gf);
+
+      Vector diff = gf;
+      diff -= gf_ex;
+      CHECK_GLOBAL_NORM(diff);
+   }
+}
+
+TEST_CASE("ParSubMesh from bdr elements disconnected", "[Parallel],[SubMesh]")
+{
+   Mesh smesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON,
+                                      1.0, 1.0, 1.0, false);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   Array<int> combined_bdr;
+   CollectDisconnectedBdrFaces(pmesh, combined_bdr);
+
+   int local_req = combined_bdr.Size(), global_req = 0;
+   MPI_Allreduce(&local_req, &global_req, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(global_req > 0);
+
+   auto sm = ParSubMesh::CreateFromBdrElements(pmesh, combined_bdr);
+
+   REQUIRE(sm.Dimension() == pmesh.Dimension() - 1);
+
+   // Global element count must equal total requested
+   int local_ne = sm.GetNE(), global_ne = 0;
+   MPI_Allreduce(&local_ne,  &global_ne,  1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_req, &global_req, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(global_ne == global_req);
+
+   // Vertex coordinates must be consistent with parent on every rank
+   CheckParVertexCoordinates(sm, pmesh);
+
+   FunctionCoefficient coeff([](const Vector &c)
+   { return 1.0 + 0.5*c(0) + 0.3*c(1); });
+
+   SECTION("H1 transfer to disconnected surface submesh")
+   {
+      H1_FECollection fec(2, pmesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      ParFiniteElementSpace fes(&pmesh, &fec);
+      ParFiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      ParGridFunction gf(&fes), sub_gf(&sub_fes), sub_ex(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      sub_ex.ProjectCoefficient(coeff);
+
+      sub_gf = 0.0;
+      ParSubMesh::Transfer(gf, sub_gf);
+
+      Vector diff = sub_gf;
+      diff -= sub_ex;
+      CHECK_GLOBAL_NORM(diff);
+   }
+}
 
 } // namespace ParSubMeshTests
 
