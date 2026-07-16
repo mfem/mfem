@@ -16,9 +16,11 @@
 #include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "../fe/fe_h1.hpp"
+#include "../fe/fe_pos.hpp"
 #include "bilininteg_mass_kernels.hpp"
 #include "bilininteg_mass_pa_simplices.hpp"
 #include "bilininteg_mass_pa_simplices_mma.hpp"
+#include "bilininteg_pa_simplices_mma.hpp"
 
 namespace mfem
 {
@@ -34,21 +36,13 @@ void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(!fes.UsesRaggedTensorBasis(), "");
    MFEM_VERIFY(mesh->SpaceDimension() == dim, "");
 
    const FiniteElement &el = *fes.GetTypicalFE();
    const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
                                             : Geometry::TETRAHEDRON;
    MFEM_VERIFY(el.GetGeomType() == geom_t, "");
-   if (dim == 2)
-   {
-      MFEM_VERIFY(dynamic_cast<const H1_TriangleElement *>(&el), "");
-   }
-   else
-   {
-      MFEM_VERIFY(dynamic_cast<const H1_TetrahedronElement *>(&el), "");
-   }
+   MFEM_VERIFY(IsSimplexMmaH1Element(el, dim), "");
 
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const int map_type = el.GetMapType();
@@ -109,7 +103,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_simplex_mma = false;
    simplex_mma_P.DeleteAll();
 
-   if (!fes.UsesRaggedTensorBasis() && CanUseSimplexMmaPA(fes))
+   if (CanUseSimplexMmaPA(fes))
    {
       AssemblePA_SimplexMma(fes);
       return;

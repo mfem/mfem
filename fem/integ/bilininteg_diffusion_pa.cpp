@@ -15,6 +15,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "../fe/fe_h1.hpp"
+#include "../fe/fe_pos.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
@@ -32,21 +33,13 @@ void DiffusionIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(!fes.UsesRaggedTensorBasis(), "");
    MFEM_VERIFY(mesh->SpaceDimension() == dim, "");
 
    const FiniteElement &el = *fes.GetTypicalFE();
    const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
                                             : Geometry::TETRAHEDRON;
    MFEM_VERIFY(el.GetGeomType() == geom_t, "");
-   if (dim == 2)
-   {
-      MFEM_VERIFY(dynamic_cast<const H1_TriangleElement *>(&el), "");
-   }
-   else
-   {
-      MFEM_VERIFY(dynamic_cast<const H1_TetrahedronElement *>(&el), "");
-   }
+   MFEM_VERIFY(IsSimplexMmaH1Element(el, dim), "");
 
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2;
@@ -206,7 +199,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_simplex_mma = false;
    simplex_mma_G.DeleteAll();
 
-   if (!fes.UsesRaggedTensorBasis() && CanUseSimplexMmaPA(fes))
+   if (CanUseSimplexMmaPA(fes))
    {
       AssemblePA_SimplexMma(fes);
       return;

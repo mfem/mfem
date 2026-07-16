@@ -18,6 +18,7 @@
 #include "../../linalg/vector.hpp"
 #include "../fespace.hpp"
 #include "../fe/fe_h1.hpp"
+#include "../fe/fe_pos.hpp"
 #include "../gridfunc.hpp"
 #include "../restriction.hpp"
 #include "../../mesh/mesh.hpp"
@@ -25,18 +26,45 @@
 namespace mfem
 {
 
+/** @brief Force Positive/Bernstein simplex PA to use CUDA MMA instead of the
+    default Stroud AAD path. Useful for benchmarking. Does not affect GLL MMA.
+    Default: false.
+
+    Also enabled when the environment variable MFEM_SIMPLEX_POSITIVE_MMA is set
+    to any value other than "0". Must be configured before restriction / PA
+    assemble. */
+void ForceSimplexPositiveMMA(bool enable = true);
+
+/// @brief True if Positive simplex PA is forced onto the CUDA MMA path.
+bool GetForceSimplexPositiveMMA();
+
 /// \cond DO_NOT_DOCUMENT
 
-/** True if dense simplex PA (DMMA on CUDA, scalar fallback on CPU/HIP) can
-    be used for this GLL H1 triangle/tet space. Positive/Bernstein spaces use
-    the separate ragged Stroud path instead. */
+/** True if the typical FE is a nodal H1 or Positive H1 triangle/tet of the
+    given mesh dimension (used by simplex MMA assemble asserts). */
+inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const H1_TriangleElement *>(&el) ||
+             dynamic_cast<const H1Pos_TriangleElement *>(&el);
+   }
+   return dynamic_cast<const H1_TetrahedronElement *>(&el) ||
+          dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
+}
+
+/** True if dense simplex PA (DMMA on CUDA, scalar fallback on CPU/HIP for GLL)
+    can be used for this H1 triangle/tet space.
+
+    - GLL (`H1_*`): eligible on CUDA/HIP/CPU (DMMA vs scalar fallback).
+    - Positive (`H1Pos_*`): eligible only when explicitly forced with
+      ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA, and only on CUDA. */
 inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
 {
 #if defined(MFEM_USE_SINGLE)
    MFEM_CONTRACT_VAR(fes);
    return false;
 #else
-   if (fes.UsesRaggedTensorBasis()) { return false; }
    if (fes.IsVariableOrder()) { return false; }
 
    Mesh *mesh = fes.GetMesh();
@@ -49,12 +77,20 @@ inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
    if (dim == 2)
    {
       if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
-      if (!dynamic_cast<const H1_TriangleElement *>(&el)) { return false; }
    }
    else
    {
       if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
-      if (!dynamic_cast<const H1_TetrahedronElement *>(&el)) { return false; }
+   }
+   if (!IsSimplexMmaH1Element(el, dim)) { return false; }
+
+   const bool positive =
+      dynamic_cast<const H1Pos_TriangleElement *>(&el) ||
+      dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
+   if (positive)
+   {
+      if (!GetForceSimplexPositiveMMA()) { return false; }
+      if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
    }
    return true;
 #endif

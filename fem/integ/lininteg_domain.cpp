@@ -55,7 +55,8 @@ static void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
    const DofToQuad &nmaps = nfe.GetDofToQuad(*ir, DofToQuad::FULL);
    MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
 
-   // H1 GLL simplices (CanUseSimplexMmaPA) use VALUE map type: D = w*c*detJ.
+   // H1 GLL / Positive-CUDA simplices (CanUseSimplexMmaPA) use VALUE map type:
+   // D = w*c*detJ.
    const bool by_val = true;
    MFEM_VERIFY(map_type == FiniteElement::VALUE,
                "Simplex MMA DomainLF requires VALUE map type");

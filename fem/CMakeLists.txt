@@ -51,6 +51,7 @@ set(SRCS
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
   integ/bilininteg_mass_kernels.cpp
+  integ/bilininteg_pa_simplices_mma.cpp
   integ/bilininteg_mass_pa_simplices_mma.cpp
   integ/bilininteg_diffusion_pa_simplices_mma.cpp
   integ/lininteg_boundary.cpp

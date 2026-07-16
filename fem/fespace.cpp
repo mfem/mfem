@@ -16,6 +16,7 @@
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
+#include "integ/bilininteg_pa_simplices_mma.hpp"
 
 #include "derefmat_op.hpp"
 
@@ -4631,6 +4632,9 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
 {
+   // Dense simplex MMA builds P/G from CalcShape (NATIVE dof order), including
+   // Positive H1 on CUDA. Positive AAD (HIP/CPU / force-AAD) stays LEX.
+   if (CanUseSimplexMmaPA(fes)) { return ElementDofOrdering::NATIVE; }
    return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
           ElementDofOrdering::LEXICOGRAPHIC:
           ElementDofOrdering::NATIVE;
