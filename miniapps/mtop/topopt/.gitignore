@@ -5,6 +5,7 @@ ElastTopOpt
 ElastTopOpt_maxlen
 ElastTopOpt_maxthick
 ElastTopOpt_adv
+ElastTopOpt_ct
 ElastTopOpt_transient
 ElastTopOpt_static
 ForwardElastodynamics
