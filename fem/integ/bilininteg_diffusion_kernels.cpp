@@ -59,6 +59,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSimplexSpecialization<2,7,8>();
    DiffusionIntegrator::AddSimplexSpecialization<2,8,9>();
    DiffusionIntegrator::AddSimplexSpecialization<2,9,10>();
+   // BP7tri_pos: GLL-style q=2p-1 → Q1D = p = D1D-1
+   DiffusionIntegrator::AddSimplexSpecialization<2,8,7>();
 
    // 3D
    // Q = P, only for simplex

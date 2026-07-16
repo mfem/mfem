@@ -95,13 +95,18 @@ static void AddKernelSpecializations()
    DET::Specialization<3, 3, 2, 3>::Add();
    DET::Specialization<3, 3, 2, 5>::Add();
    DET::Specialization<3, 3, 2, 6>::Add();
+   DET::Specialization<3, 3, 2, 7>::Add();
+   DET::Specialization<3, 3, 2, 8>::Add();
+   DET::Specialization<3, 3, 2, 9>::Add();
    DET::Specialization<3, 3, 5, 5>::Add();
    DET::Specialization<2, 2, 2, 2>::Add();
    DET::Specialization<2, 2, 2, 3>::Add();
    DET::Specialization<2, 2, 2, 5>::Add();
    DET::Specialization<2, 2, 2, 6>::Add();
+   DET::Specialization<2, 2, 2, 7>::Add();
+   DET::Specialization<2, 2, 2, 8>::Add();
+   DET::Specialization<2, 2, 2, 9>::Add();
    DET::Specialization<2, 2, 5, 5>::Add();
-   // Others might exceed memory limits
 
    using GRAD = QuadratureInterpolator::GradKernels;
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
@@ -134,6 +139,14 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<2, 2, 6, 6>::Add();
    VDIFF::Specialization<2, 2, 7, 7>::Add();
    VDIFF::Specialization<2, 2, 8, 8>::Add();
+   // BP4quad: q = p+2 → (D1D, Q1D) = (p+1, p+2)
+   VDIFF::Specialization<2, 2, 2, 3>::Add();
+   VDIFF::Specialization<2, 2, 3, 4>::Add();
+   VDIFF::Specialization<2, 2, 4, 5>::Add();
+   VDIFF::Specialization<2, 2, 5, 6>::Add();
+   VDIFF::Specialization<2, 2, 6, 7>::Add();
+   VDIFF::Specialization<2, 2, 7, 8>::Add();
+   VDIFF::Specialization<2, 2, 8, 9>::Add();
 }
 
 // Bake-off base class, POSITIVE only matters when SIMPLICES == true

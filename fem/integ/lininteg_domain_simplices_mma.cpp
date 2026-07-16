@@ -35,6 +35,7 @@ void DomainLFIntegrator::RegisterSimplexMmaKernels()
    AddSimplexMmaSpecialization<2,7,33>();
    AddSimplexMmaSpecialization<2,7,49>(); // GLL BP1tri p=6
    AddSimplexMmaSpecialization<2,7,55>();
+   AddSimplexMmaSpecialization<2,8,42>(); // BP1tri RHS / BP5tri p=7
    AddSimplexMmaSpecialization<2,8,60>(); // GLL BP1tri p=7
 
    // 3D (GLL tet): BP1tet uses IntRules order 2p; tests use 2p+4.

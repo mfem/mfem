@@ -342,7 +342,12 @@ QuadratureInterpolator::DetKernels::Kernel()
    }
    else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
    else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
+   else if constexpr (DIM == 3)
+   {
+      // Shared-memory Det3D is limited to MAX_DET_1D (== 6 on CUDA/HIP).
+      constexpr bool SMEM = (D1D <= 6 && Q1D <= 6);
+      return internal::quadrature_interpolator::Det3D<D1D, Q1D, SMEM>;
+   }
    MFEM_ABORT("");
 }
 
