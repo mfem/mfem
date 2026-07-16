@@ -41,7 +41,8 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
     Vector xtmp, ytmp;
     for (int i=0; i < nnodes; i++)
     {
-        nodes[i]->Mult(xtmp, ytmp);
+        auto node = nodes[i];
+        node->Mult(xtmp, ytmp);
     }
 
     int noutputs = output_nodes.size();

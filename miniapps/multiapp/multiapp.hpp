@@ -155,7 +155,7 @@ public:
     /// @brief Get the operator associated with this collection
     const Operator* GetOperator() const { return oper; }
 
-    /// @brief Get the ParGridFunction for a given field name
+    /// @brief Get the field associated with the given name, or nullptr if not found
     Field* GetField(const std::string &field_name) const
     {
         return fields.Get(field_name);
@@ -453,6 +453,16 @@ public:
         MFEM_ABORT("GraphNode::GetJacobian() not implemented");
     }
 
+    virtual void operator()(const Vector &x, Vector &y) const
+    {
+        Mult(x, y);
+    }
+
+    virtual void operator()(const Vector &x0, const Vector &x, Vector &y) const
+    {
+        MFEM_ABORT("GraphNode::operator()(const Vector&, const Vector&, Vector&) not implemented");
+    }
+
     virtual ~GraphNode() = default;
 };
 
@@ -620,20 +630,20 @@ public:
     }
 
 private: // Hide all other functions from user
+    using GraphNode::Fields;
+    using GraphNode::AddInput;
+    using GraphNode::AddOutput;
+    using GraphNode::AddInputs;
+    using GraphNode::AddOutputs;
+    using GraphNode::InputField;
+    using GraphNode::OutputField;
+    using GraphNode::InputFields;
+    using GraphNode::OutputFields;
     using GraphNode::Execute;
     using GraphNode::Mult;
     using GraphNode::JVP;
     using GraphNode::VJP;
     using GraphNode::GetJacobian;
-    using GraphNode::AddInput;
-    using GraphNode::AddOutput;
-    using GraphNode::AddInputs;
-    using GraphNode::AddOutputs;
-    using GraphNode::InputFields;
-    using GraphNode::OutputFields;
-    using GraphNode::InputField;
-    using GraphNode::OutputField;
-    using GraphNode::Fields;
 };
 
 /**
