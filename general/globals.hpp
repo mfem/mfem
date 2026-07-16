@@ -113,6 +113,10 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 /// to suppress the warning.
 const char* GetEnv(const char* name);
 
+/// Signed indices i -> -1 - i are used as a convention to encode orientation.
+inline MFEM_HOST_DEVICE int FlipIndexSign(int i) { return -1 - i; }
+inline MFEM_HOST_DEVICE int UnsignIndex(int i) { return i < 0 ? -1 - i : i; }
+
 } // namespace mfem
 
 #endif

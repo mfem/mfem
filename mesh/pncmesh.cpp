@@ -400,7 +400,7 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
          }
          else // special case: prism edge-face constraint
          {
-            if (entity_owner[1][-1-si] != MyRank)
+            if (entity_owner[1][FlipIndexSign(si)] != MyRank)
             {
                master_flag |= 0x2;
             }
@@ -571,9 +571,10 @@ void ParNCMesh::CalculatePMatrixGroups()
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
-         int si = face_list.slaves[j].index;
-         int owner = (si >= 0) ? entity_owner[2][si] // standard face dependency
-                     /*     */ : entity_owner[1][-1 - si]; // prism edge-face dep
+         const int si = face_list.slaves[j].index;
+         const int owner =
+            (si >= 0) ? entity_owner[2][si] : // standard face dependency
+            entity_owner[1][FlipIndexSign(si)]; // prism edge-face dep
          ranks.Append(groups[owner][0]);
       }
       ranks.Sort();
@@ -1181,7 +1182,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
 
       Mesh::FaceInfo &fi = pmesh.faces_info[cf.index];
-      fi.Elem2No = -1 - fnbr_index[e[0]->index - NElements];
+      fi.Elem2No = FlipIndexSign(fnbr_index[e[0]->index - NElements]);
 
       if (Dim == 3)
       {
@@ -1270,7 +1271,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // In other words, side 1 IS the side that generated the face.
             }
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
-            fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
+            fi.Elem2No = FlipIndexSign(fnbr_index[fi.Elem2No - NElements]);
 
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
@@ -2286,7 +2287,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
       if (element_type[index] == 0)
       {
          // this coarse element will get pruned, encode who owns it now
-         index = -1 - elements[coarse[i]].rank;
+         index = FlipIndexSign(elements[coarse[i]].rank);
       }
       transforms.embeddings[i].parent = index;
    }

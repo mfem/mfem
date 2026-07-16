@@ -227,13 +227,27 @@ public:
                                            const ParGridFunction &dst);
 
    /**
-   * @brief Check if ParMesh @a m is a ParSubMesh.
+   * @brief Check if Mesh @a m is a ParSubMesh.
    *
-   * @param m The input ParMesh
+   * @param m The input Mesh
    */
-   static bool IsParSubMesh(const ParMesh *m)
+   static bool IsParSubMesh(const Mesh *m)
    {
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
+   }
+
+   /**
+   * @brief Check if Mesh @a sub is a ParSubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsParSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsParSubMesh(sub) &&
+             (sub = static_cast<const ParSubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
    }
 
 private:
