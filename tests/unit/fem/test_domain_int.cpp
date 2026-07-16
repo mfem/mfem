@@ -391,7 +391,7 @@ TEST_CASE("Domain Integration (Vector Delta on Shared Vertex)",
 }
 
 // A vector delta on a face shared by two elements, oriented along the face
-// NORMAL. The Nedelec tangential trace is continuous across the face so only
+// normal. The Nedelec tangential trace is continuous across the face so only
 // the normal component is discontinuous: the assembled functional applied to a
 // field with a discontinuous normal trace must equal the symmetric average of
 // the two one-sided values.
