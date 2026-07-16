@@ -98,7 +98,7 @@ inline void PADiffusionSetupSimplexMma(const int dim,
             D(q, 0, e) = w_detJ * (J22 * R11 - J12 * R21);
             D(q, 1, e) = w_detJ * (-J21 * R11 + J11 * R21);
             D(q, 2, e) = w_detJ * (symmetric ? (-J21 * R12 + J11 * R22)
-                                    : (J22 * R12 - J12 * R22));
+                                   : (J22 * R12 - J12 * R22));
             if (!symmetric)
             {
                D(q, 3, e) = w_detJ * (-J21 * R12 + J11 * R22);
@@ -232,12 +232,13 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    constexpr int X_LD = simplex_mma::PadLdBank<MAGIC>(BASIS_DIM);
    constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
    constexpr int NB = DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
-   constexpr int PA_SIZE = (DIM * (DIM + 1)) / 2; // applied path uses symmetric layout
+   constexpr int PA_SIZE = (DIM * (DIM + 1)) /
+                           2; // applied path uses symmetric layout
    static_assert(sizeof(real_t) * (X_LD + DIM * U_LD) * NB <= 48 * 1024,
                  "Diffusion simplex MMA shared memory exceeds 48 KiB");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
+                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int pa_size = symmetric ? PA_SIZE : (DIM * DIM);
 
@@ -269,7 +270,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
 #endif
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   simplex_mma::SmemMatAcc<X_LD> Xacc{sm.XY};
+   simplex_mma::SmemMatAcc<X_LD> Xacc {sm.XY};
    simplex_mma::YBatchAcc Yacc{y_, ndof, e0};
    simplex_mma::NullDAcc nullD;
 
@@ -425,7 +426,7 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
+                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
    const int max_d1d = T_D1D ? T_D1D
                        : ((DIM == 3) ? simplex_mma::FallbackMaxD1D3
                           : DeviceDofQuadLimits::Get().MAX_D1D);
@@ -444,7 +445,7 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    const int mPassQ = (NQ1 + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
    const int mPassD = (ndof + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
    const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
-                                        : (mPassD > 1 ? mPassD : 1);
+                      : (mPassD > 1 ? mPassD : 1);
    const int nthreads = nWarps * 32;
    const int nbatches = (NE + NB - 1) / NB;
 

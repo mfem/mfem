@@ -69,7 +69,7 @@ static MeshExtents MeshExtentsFromHexRef(int p, int side) noexcept
    {
       // (s+1)^2 ≈ (side+1)^3  =>  s+1 ≈ (side+1)^{3/2}
       s = static_cast<int>(std::lround(
-             std::pow(static_cast<double>(side + 1), 1.5))) - 1;
+                              std::pow(static_cast<double>(side + 1), 1.5))) - 1;
       if (s < p) { s = p; }
    }
    MFEM_ASSERT(s >= p, "hex-reference side too small for order p");
@@ -208,25 +208,25 @@ struct BakeOff
                                       : Element::HEXAHEDRON);
       }
    }()),
-      fec(p, DIM,
-          SIMPLICES
-          ? (POSITIVE ? BasisType::Positive : BasisType::GaussLobatto)
-          : BasisType::GaussLobatto),
-      fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
-      geom_type(mesh.GetTypicalElementGeometry()),
-      irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      // pos_sum uses Stroud AAD; gll_mma / pos_mma use a standard simplex rule
-      ir((SIMPLICES && POSITIVE && !FORCE_MMA)
-         ? &StroudIntRules.Get(geom_type, q)
-         : &irs.Get(geom_type, q)),
-      ir_rhs(&IntRules.Get(geom_type, 2*p)),
-      one(1.0),
-      uvec(DIM),
-      unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
-      dofs(fes.GetTrueVSize()),
-      x(&fes),
-      y(&fes),
-      a(&fes)
+   fec(p, DIM,
+       SIMPLICES
+       ? (POSITIVE ? BasisType::Positive : BasisType::GaussLobatto)
+       : BasisType::GaussLobatto),
+   fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
+   geom_type(mesh.GetTypicalElementGeometry()),
+   irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
+   // pos_sum uses Stroud AAD; gll_mma / pos_mma use a standard simplex rule
+   ir((SIMPLICES && POSITIVE && !FORCE_MMA)
+      ? &StroudIntRules.Get(geom_type, q)
+      : &irs.Get(geom_type, q)),
+   ir_rhs(&IntRules.Get(geom_type, 2*p)),
+   one(1.0),
+   uvec(DIM),
+   unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
+   dofs(fes.GetTrueVSize()),
+   x(&fes),
+   y(&fes),
+   a(&fes)
    {
       x = 0.0;
       if constexpr (BFI == 1)
@@ -313,11 +313,12 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024)
       {
-         cg.SetPrintLevel(-1); 
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(1000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
-         if (!cg.GetConverged()) {
+         if (!cg.GetConverged())
+         {
             cg.SetPrintLevel(3);
             cg.Mult(B, X);
          }

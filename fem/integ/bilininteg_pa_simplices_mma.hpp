@@ -238,7 +238,7 @@ constexpr int SimplexNdof()
    if constexpr (DIM == 2)
    {
       return D1D ? (D1D * (D1D + 1) / 2)
-                 : (FallbackMaxD1D2 * (FallbackMaxD1D2 + 1) / 2);
+             : (FallbackMaxD1D2 * (FallbackMaxD1D2 + 1) / 2);
    }
    else
    {

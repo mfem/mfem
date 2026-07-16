@@ -94,8 +94,8 @@ void test_pa_simplices(const char *filename, int p)
 TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2, 3, 4, 5, 6) : 
-                               GENERATE(1, 2, 3, 4, 5, 6, 7, 8);
+   const auto p = !all_tests ? GENERATE(1, 2, 3, 4, 5, 6) :
+                  GENERATE(1, 2, 3, 4, 5, 6, 7, 8);
 
    const auto GenMesh = [&](const auto &meshs, const auto &extra)
    {

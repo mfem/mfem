@@ -43,7 +43,7 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
                       ? simplex_mma::NBATCH : simplex_mma::mmaN;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
+                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
 
    const auto D = ConstDeviceMatrix(d_, NQ1, NE);
@@ -82,7 +82,7 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
 #endif
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   simplex_mma::SmemMatAcc<U_LD> Uacc{sm.Us};
+   simplex_mma::SmemMatAcc<U_LD> Uacc {sm.Us};
    YVdimAcc Yacc{y_, ndof, vdim, vc, e0};
 
    for (int i = tid; i < U_LD * NB; i += nthreads)
@@ -137,7 +137,7 @@ inline void SmemDLFAssembleSimplexMma(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                               : (D1D * (D1D + 1) * (D1D + 2) / 6);
+                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
    const int max_d1d = T_D1D ? T_D1D
                        : ((DIM == 3) ? simplex_mma::FallbackMaxD1D3
                           : DeviceDofQuadLimits::Get().MAX_D1D);
@@ -154,7 +154,7 @@ inline void SmemDLFAssembleSimplexMma(const int NE,
    const int mPassQ = (NQ1 + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
    const int mPassD = (ndof + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
    const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
-                                        : (mPassD > 1 ? mPassD : 1);
+                      : (mPassD > 1 ? mPassD : 1);
    const int nthreads = nWarps * 32;
    const int nbatches = (NE + NB - 1) / NB;
 

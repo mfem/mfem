@@ -42,7 +42,7 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const int order = use_2p_ir ? (2 * p)
-                    : (2 * fe.GetOrder() + Tr.OrderW() + 4);
+                     : (2 * fe.GetOrder() + Tr.OrderW() + 4);
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
 
    const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;

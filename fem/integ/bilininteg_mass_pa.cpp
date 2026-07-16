@@ -40,7 +40,7 @@ void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
 
    const FiniteElement &el = *fes.GetTypicalFE();
    const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
-                                            : Geometry::TETRAHEDRON;
+                                 : Geometry::TETRAHEDRON;
    MFEM_VERIFY(el.GetGeomType() == geom_t, "");
    MFEM_VERIFY(IsSimplexMmaH1Element(el, dim), "");
 
