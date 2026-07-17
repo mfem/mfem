@@ -23,7 +23,7 @@ process.
 * The best starting point for new users interested in MFEM's features is to
   review the examples and miniapps at https://mfem.org/examples.
 
-* Instructions for learning with Docker are in [config/docker](config/docker).
+* MFEM's Docker containers are maintained in the [mfem/containers](https://github.com/mfem/containers) repository.
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
