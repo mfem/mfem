@@ -201,12 +201,14 @@ set(HDRS
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_convection_kernels.hpp
+  integ/bilininteg_diffusion_pa_simplices.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
+  integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
   coefficient.hpp
@@ -335,6 +337,7 @@ set(HDRS
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
+  gslib/gslib_kernel_helpers.hpp
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
