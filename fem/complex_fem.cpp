@@ -1109,8 +1109,8 @@ MixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
-       A_i.Type() == Operator::MFEM_SPARSEMAT)
+   if ((!A_r.Ptr() || A_r.Type() == Operator::MFEM_SPARSEMAT) &&
+       (!A_i.Ptr() || A_i.Type() == Operator::MFEM_SPARSEMAT))
    {
       ComplexSparseMatrix * A_hyp =
          new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
@@ -1157,8 +1157,8 @@ MixedSesquilinearForm::FormRectangularSystemMatrix(const mfem::Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::MFEM_SPARSEMAT ||
-       A_i.Type() == Operator::MFEM_SPARSEMAT)
+   if ((!A_r.Ptr() || A_r.Type() == Operator::MFEM_SPARSEMAT) &&
+       (!A_i.Ptr() || A_i.Type() == Operator::MFEM_SPARSEMAT))
    {
       ComplexSparseMatrix * A_hyp =
          new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
@@ -2433,8 +2433,8 @@ ParMixedSesquilinearForm::FormRectangularLinearSystem(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
-       A_i.Type() == Operator::Hypre_ParCSR)
+   if ((!A_r.Ptr() || A_r.Type() == Operator::Hypre_ParCSR) &&
+       (!A_i.Ptr() || A_i.Type() == Operator::Hypre_ParCSR))
    {
       ComplexHypreParMatrix * A_hyp =
          new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
@@ -2481,8 +2481,8 @@ ParMixedSesquilinearForm::FormRectangularSystemMatrix(const Array<int> &
 
    // A = A_r + i A_i
    A.Clear();
-   if (A_r.Type() == Operator::Hypre_ParCSR ||
-       A_i.Type() == Operator::Hypre_ParCSR)
+   if ((!A_r.Ptr() || A_r.Type() == Operator::Hypre_ParCSR) &&
+       (!A_i.Ptr() || A_i.Type() == Operator::Hypre_ParCSR))
    {
       ComplexHypreParMatrix * A_hyp =
          new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
