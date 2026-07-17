@@ -89,13 +89,13 @@ static void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
          Vector c1(1);
          c1.HostWrite()[0] = coeff.HostRead()[cc];
          c1.UseDevice(true);
-         internal::PAMassSetupSimplexMmaFromNodes(
+         internal::PAMassSetupSimplexFromNodes(
             dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e, c1,
             D);
       }
       else if (coeff_vdim == 1)
       {
-         internal::PAMassSetupSimplexMmaFromNodes(
+         internal::PAMassSetupSimplexFromNodes(
             dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e,
             coeff, D);
       }
@@ -112,7 +112,7 @@ static void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
             const int q = idx - nq * e;
             Ce(q, e) = C(cc, q, e);
          });
-         internal::PAMassSetupSimplexMmaFromNodes(
+         internal::PAMassSetupSimplexFromNodes(
             dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e, c_e,
             D);
       }

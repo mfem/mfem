@@ -43,7 +43,7 @@ constexpr int DiffusionMmaNB()
 }
 
 /** One-kernel diffusion PA data: J from (nodes_e, Gn), then metric into D. */
-inline void PADiffusionSetupSimplexMma(const int dim,
+inline void PADiffusionSetupSimplexFromNodes(const int dim,
                                        const int coeffDim,
                                        const int NE,
                                        const int NQ,
@@ -116,7 +116,7 @@ inline void PADiffusionSetupSimplexMma(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PADiffusionSetupSimplexMma only supports dim 2 or 3");
+   MFEM_VERIFY(dim == 3, "PADiffusionSetupSimplexFromNodes only supports dim 2 or 3");
    const auto C = const_c ? Reshape(c.Read(), coeffDim, 1, 1)
                   : Reshape(c.Read(), coeffDim, NQ, NE);
    auto get_coeff = [const_c] MFEM_HOST_DEVICE

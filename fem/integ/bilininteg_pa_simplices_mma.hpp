@@ -118,7 +118,7 @@ inline void GetSimplexMeshNodesE(Mesh &mesh, MemoryType mt, Vector &nodes_e,
 }
 
 /** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ. */
-inline void PAMassSetupSimplexMmaFromNodes(const int dim,
+inline void PAMassSetupSimplexFromNodes(const int dim,
                                            const int NE,
                                            const int NQ,
                                            const int ND,
@@ -159,7 +159,7 @@ inline void PAMassSetupSimplexMmaFromNodes(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexMmaFromNodes only supports dim 2/3");
+   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexFromNodes only supports dim 2/3");
    mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int e = idx / NQ;

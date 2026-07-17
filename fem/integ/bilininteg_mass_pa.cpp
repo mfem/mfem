@@ -93,7 +93,7 @@ void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const bool by_val = map_type == FiniteElement::VALUE;
-   internal::PAMassSetupSimplexMmaFromNodes(
+   internal::PAMassSetupSimplexFromNodes(
       dim, ne, nq1, nd_n, by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff,
       pa_data);
 }
@@ -137,7 +137,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    if (stroud)
    {
       maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
@@ -152,11 +151,31 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   const bool by_val = map_type == FiniteElement::VALUE;
+
+   // Volumetric Stroud (Positive AAD): assemble detJ from restricted mesh
+   // nodes instead of GetGeometricFactors / QI EvalKernels (large NQ fallback).
+   if (stroud && mesh->SpaceDimension() == dim)
+   {
+      geom = nullptr;
+      Vector nodes_e;
+      int nd_n = 0, sdim = 0;
+      internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, sdim);
+      MFEM_VERIFY(sdim == dim, "");
+      const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
+      const DofToQuad &nmaps = nfe.GetDofToQuad(*ir, DofToQuad::FULL);
+      MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
+      internal::PAMassSetupSimplexFromNodes(
+         dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e, coeff,
+         pa_data);
+      return;
+   }
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    {
       const int NE = ne;
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), NQ);
       const auto J = Reshape(geom->detJ.Read(), NQ, NE);
       const auto C =

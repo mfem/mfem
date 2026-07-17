@@ -94,9 +94,9 @@ void DiffusionIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
    symmetric = (coeff_dim != dims * dims);
    const int pa_size = symmetric ? symmDims : dims * dims;
    pa_data.SetSize(pa_size * nq1 * ne, mt);
-   internal::PADiffusionSetupSimplexMma(dim, coeff_dim, ne, nq1, nd_n,
-                                        ir.GetWeights(), nmaps.G, nodes_e,
-                                        coeff, pa_data);
+   internal::PADiffusionSetupSimplexFromNodes(dim, coeff_dim, ne, nq1, nd_n,
+                                              ir.GetWeights(), nmaps.G, nodes_e,
+                                              coeff, pa_data);
 }
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
@@ -236,7 +236,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    if (stroud)
    {
       maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
@@ -264,6 +263,26 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int pa_size = symmetric ? symmDims : dims*dims;
 
    pa_data.SetSize(pa_size * nq * ne, mt);
+
+   // Volumetric Stroud (Positive AAD): assemble metric from restricted mesh
+   // nodes instead of GetGeometricFactors / QI EvalKernels (large NQ fallback).
+   if (stroud && sdim == dim)
+   {
+      geom = nullptr;
+      Vector nodes_e;
+      int nd_n = 0, nodes_sdim = 0;
+      internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, nodes_sdim);
+      MFEM_VERIFY(nodes_sdim == dim, "");
+      const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
+      const DofToQuad &nmaps = nfe.GetDofToQuad(*ir, DofToQuad::FULL);
+      MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
+      internal::PADiffusionSetupSimplexFromNodes(
+         dim, coeff_dim, ne, nq, nd_n, ir->GetWeights(), nmaps.G, nodes_e,
+         coeff, pa_data);
+      return;
+   }
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
 }
