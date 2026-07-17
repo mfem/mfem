@@ -758,9 +758,9 @@ public:
       A->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
 
       const auto *test_restr = dynamic_cast<const ElementRestriction *>(
-         test_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+                                  test_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
       const auto *trial_restr = dynamic_cast<const ElementRestriction *>(
-         trial_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+                                   trial_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
       MFEM_VERIFY(test_restr != nullptr && trial_restr != nullptr,
                   "DerivativeAssemble SparseMatrix assembly requires "
                   "H1/conforming ElementRestriction spaces");
