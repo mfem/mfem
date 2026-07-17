@@ -150,24 +150,25 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<2, 2, 8, 9>::Add();
 }
 
-// Bake-off base class. POSITIVE / FORCE_MMA only matter when SIMPLICES == true:
-//   GLL MMA:     POSITIVE=false
-//   Positive AAD: POSITIVE=true,  FORCE_MMA=false (Stroud sum-factorized)
-//   Positive MMA: POSITIVE=true,  FORCE_MMA=true  (dense MMA, CUDA)
-template <int BFI, int DIM, int VDIM, bool GLL, bool SIMPLICES, bool POSITIVE,
-          bool FORCE_MMA>
+// Bake-off base class.
+// POS / MMA only matter when SIMPLEX == true:
+//   GLL MMA:     POS=false
+//   Positive AAD: POS=true,  MMA=false (Stroud sum-factorized)
+//   Positive MMA: POS=true,  MMA=true  (dense MMA, CUDA)
+template <int BFI, int DIM, int VDIM, bool GLL,
+          bool SIMPLEX, bool POS, bool MMA>
 struct BakeOff
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
-   static_assert(!FORCE_MMA || (SIMPLICES && POSITIVE),
-                 "FORCE_MMA only applies to Positive simplices");
+   static_assert(!MMA || (SIMPLEX && POS),
+                 "MMA only applies to Positive simplex");
    static constexpr bool visualization = false;
 
-   static constexpr bool Simplices = SIMPLICES;
-   static constexpr bool simplices = SIMPLICES;
-   static constexpr bool positive = POSITIVE;
-   static constexpr bool force_mma = FORCE_MMA;
-   static constexpr bool requires_cuda_mma = SIMPLICES && POSITIVE && FORCE_MMA;
+   static constexpr bool Simplex = SIMPLEX;
+   static constexpr bool simplex = SIMPLEX;
+   static constexpr bool pos = POS;
+   static constexpr bool mma = MMA;
+   static constexpr bool requires_cuda_mma = SIMPLEX && POS && MMA;
 
    const int p, c, q, n, nx, ny, nz;
 
@@ -191,32 +192,32 @@ struct BakeOff
 
    BakeOff(int p, int side, MeshExtents e):
       p(p), c(side), // hex-reference 1D size; NDOf target ≈ (side+1)^3
-      q(2 * p + (GLL ? (SIMPLICES && BFI != 7) ? 0 : -1 : 3)),
+      q(2 * p + (GLL ? (SIMPLEX ? 0 : -1) : 3)),
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
    {
       if constexpr (DIM == 2)
       {
          return Mesh::MakeCartesian2D(e.nx, e.ny,
-                                      SIMPLICES ? Element::TRIANGLE
+                                      SIMPLEX ? Element::TRIANGLE
                                       : Element::QUADRILATERAL);
       }
       else
       {
          return Mesh::MakeCartesian3D(e.nx, e.ny, e.nz,
-                                      SIMPLICES ? Element::TETRAHEDRON
+                                      SIMPLEX ? Element::TETRAHEDRON
                                       : Element::HEXAHEDRON);
       }
    }()),
    fec(p, DIM,
-       SIMPLICES
-       ? (POSITIVE ? BasisType::Positive : BasisType::GaussLobatto)
+       SIMPLEX
+       ? (POS ? BasisType::Positive : BasisType::GaussLobatto)
        : BasisType::GaussLobatto),
    fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
    geom_type(mesh.GetTypicalElementGeometry()),
    irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
    // pos_sum uses Stroud AAD; gll_mma / pos_mma use a standard simplex rule
-   ir((SIMPLICES && POSITIVE && !FORCE_MMA)
+   ir((SIMPLEX && POS && !MMA)
       ? &StroudIntRules.Get(geom_type, q)
       : &irs.Get(geom_type, q)),
    ir_rhs(&IntRules.Get(geom_type, 2*p)),
@@ -237,7 +238,7 @@ struct BakeOff
       {
          bfi = new VectorMassIntegrator(one, ir);
       }
-      else if constexpr (BFI == 3 || BFI == 5 || BFI == 7)
+      else if constexpr (BFI == 3 || BFI == 5)
       {
          bfi = new DiffusionIntegrator(one, ir);
       }
@@ -247,7 +248,7 @@ struct BakeOff
       }
       else
       {
-         static_assert(BFI >= 1 && BFI <= 7, "Invalid BilinearFormIntegrator");
+         static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
       }
       a.AddDomainIntegrator(bfi);
    }
@@ -260,9 +261,9 @@ struct BakeOff
 };
 
 // Bake-off Problems (BPs)
-template <int BFI, int DIM, int VDIM, bool GLL, bool SIMPLICES, bool POSITIVE,
-          bool FORCE_MMA>
-struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
+template
+<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
+struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 {
    const int max_it = 32, print_lvl = -1;
 
@@ -273,7 +274,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
    Vector B, X;
    CGSolver cg;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
    using base::a;
    using base::ir_rhs;
    using base::one;
@@ -347,13 +348,13 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
 };
 
 // Bake-off Kernels (BKs)
-template <int BFI, int DIM, int VDIM, bool GLL, bool SIMPLICES, bool POSITIVE,
-          bool FORCE_MMA>
-struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
+template
+<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
+struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 {
    Vector xe, ye;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
    using base::ir;
    using base::one;
    using base::bfi;
@@ -394,9 +395,9 @@ struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
-   if constexpr (T::simplices && T::positive)
+   if constexpr (T::simplex && T::pos)
    {
-      ForceSimplexPositiveMMA(T::force_mma);
+      ForceSimplexPositiveMMA(T::mma);
    }
    else
    {
@@ -416,101 +417,127 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["Dofs"] = bm::Counter(run.dofs);
    state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Order"] = bm::Counter(state.range(0));
-   state.counters["Simplices"] = bm::Counter(run.Simplices);
+   state.counters["Simplex"] = bm::Counter(run.Simplex);
 }
 
-// Geometry suffix for benchmark names (DIM, SIMPLICES, POSITIVE, FORCE_MMA)
-#define GEOM_NAME_2_false_false_false "quad"
-#define GEOM_NAME_3_false_false_false "hex"
-#define GEOM_NAME_2_true_false_false  "tri_gll_mma"
-#define GEOM_NAME_3_true_false_false  "tet_gll_mma"
-#define GEOM_NAME_2_true_true_false   "tri_pos_sum"
-#define GEOM_NAME_3_true_true_false   "tet_pos_sum"
-#define GEOM_NAME_2_true_true_true    "tri_pos_mma"
-#define GEOM_NAME_3_true_true_true    "tet_pos_mma"
-#define GEOM_NAME(DIM, SIMPLICES, POSITIVE, FORCE_MMA) \
-   GEOM_NAME_ ## DIM ## _ ## SIMPLICES ## _ ## POSITIVE ## _ ## FORCE_MMA
+// Named geometry / simplex-backend policies for registration (no bool soup).
+namespace ceed_bench
+{
 
-#define MAKE_NAME(PK, BFI, DIM, SIMPLICES, POSITIVE, FORCE_MMA) \
-   #PK #BFI GEOM_NAME(DIM, SIMPLICES, POSITIVE, FORCE_MMA)
+template <int Dim, bool Simplex, bool Pos, bool Mma, const char *Suffix>
+struct Geom
+{
+   static constexpr int dim = Dim;
+   static constexpr bool simplex = Simplex, pos = Pos, mma = Mma;
+   static constexpr const char *suffix = Suffix;
+};
 
-#define REGISTER(PK, BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA) \
+inline constexpr char s_hex[] = "hex";
+inline constexpr char s_quad[] = "quad";
+inline constexpr char s_tet_gll_mma[] = "tet_gll_mma";
+inline constexpr char s_tet_pos_sum[] = "tet_pos_sum";
+inline constexpr char s_tet_pos_mma[] = "tet_pos_mma";
+inline constexpr char s_tri_gll_mma[] = "tri_gll_mma";
+inline constexpr char s_tri_pos_sum[] = "tri_pos_sum";
+inline constexpr char s_tri_pos_mma[] = "tri_pos_mma";
+
+using Hex       = Geom<3, false, false, false, s_hex>;
+using Quad      = Geom<2, false, false, false, s_quad>;
+using TetGllMma = Geom<3, true,  false, false, s_tet_gll_mma>;
+using TetPosSum = Geom<3, true,  true,  false, s_tet_pos_sum>;
+using TetPosMma = Geom<3, true,  true,  true,  s_tet_pos_mma>;
+using TriGllMma = Geom<2, true,  false, false, s_tri_gll_mma>;
+using TriPosSum = Geom<2, true,  true,  false, s_tri_pos_sum>;
+using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
+
+} // namespace ceed_bench
+
+using ceed_bench::Hex;
+using ceed_bench::Quad;
+using ceed_bench::TetGllMma;
+using ceed_bench::TetPosSum;
+using ceed_bench::TetPosMma;
+using ceed_bench::TriGllMma;
+using ceed_bench::TriPosSum;
+using ceed_bench::TriPosMma;
+
+// Geom / *gll* / *pos* → FE basis + simplex PA backend.
+// Odd BFI → scalar (VDIM=1); even BFI → vector (VDIM=dim).
+// BFI >= 5 → bake-off collocated quadrature (GLL, q≈p+1).
+#define REGISTER(PK, BFI, GEOM) \
    BENCHMARK_TEMPLATE(Benchmark, \
-      PK<BFI, DIM, VDIM, GLL, SIMPLICES, POSITIVE, FORCE_MMA>) \
-   ->Name(MAKE_NAME(PK, BFI, DIM, SIMPLICES, POSITIVE, FORCE_MMA)) \
+      PK<BFI, GEOM::dim, \
+         ((BFI) % 2 ? 1 : GEOM::dim), \
+         ((BFI) >= 5), \
+         GEOM::simplex, GEOM::pos, GEOM::mma>) \
+   ->Name(std::string(#PK #BFI) + GEOM::suffix) \
    ->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
-// BP1: scalar PCG with mass matrix, q=p+2
-REGISTER(BP, 1, 3, 1, false, false, false, false);  // BP1hex
-REGISTER(BP, 1, 2, 1, false, false, false, false);  // BP1quad
-REGISTER(BP, 1, 3, 1, false, true,  false, false);  // BP1tet_gll_mma
-REGISTER(BP, 1, 3, 1, false, true,  true,  false);  // BP1tet_pos_sum
-REGISTER(BP, 1, 3, 1, false, true,  true,  true);   // BP1tet_pos_mma
-REGISTER(BP, 1, 2, 1, false, true,  false, false);  // BP1tri_gll_mma
-REGISTER(BP, 1, 2, 1, false, true,  true,  false);  // BP1tri_pos_sum
-REGISTER(BP, 1, 2, 1, false, true,  true,  true);   // BP1tri_pos_mma
+// BP1: scalar CG with mass matrix, q=p+2
+REGISTER(BP, 1, Hex);
+REGISTER(BP, 1, Quad);
+REGISTER(BP, 1, TetGllMma);
+REGISTER(BP, 1, TetPosSum);
+REGISTER(BP, 1, TetPosMma);
+REGISTER(BP, 1, TriGllMma);
+REGISTER(BP, 1, TriPosSum);
+REGISTER(BP, 1, TriPosMma);
 
-// BP2: vector PCG with mass matrix, q=p+2
-// REGISTER(BP, 2, 3, 3, false, false, false, false);  // BP2hex
-// REGISTER(BP, 2, 2, 2, false, false, false, false);  // BP2quad
+// BP2: vector CG with mass matrix, q=p+2
+REGISTER(BP, 2, Hex);
+REGISTER(BP, 2, Quad);
 
-// BP3: scalar PCG with stiffness matrix, q=p+2
-REGISTER(BP, 3, 3, 1, false, false, false, false);  // BP3hex
-REGISTER(BP, 3, 2, 1, false, false, false, false);  // BP3quad
-REGISTER(BP, 3, 3, 1, false, true,  false, false);  // BP3tet_gll_mma
-REGISTER(BP, 3, 3, 1, false, true,  true,  false);  // BP3tet_pos_sum
-REGISTER(BP, 3, 3, 1, false, true,  true,  true);   // BP3tet_pos_mma
-REGISTER(BP, 3, 2, 1, false, true,  false, false);  // BP3tri_gll_mma
-REGISTER(BP, 3, 2, 1, false, true,  true,  false);  // BP3tri_pos_sum
-REGISTER(BP, 3, 2, 1, false, true,  true,  true);   // BP3tri_pos_mma
+// BP3: scalar CG with stiffness matrix, q=p+2
+REGISTER(BP, 3, Hex);
+REGISTER(BP, 3, Quad);
+REGISTER(BP, 3, TetGllMma);
+REGISTER(BP, 3, TetPosSum);
+REGISTER(BP, 3, TetPosMma);
+REGISTER(BP, 3, TriGllMma);
+REGISTER(BP, 3, TriPosSum);
+REGISTER(BP, 3, TriPosMma);
 
-// BP4: vector PCG with stiffness matrix, q=p+2
-REGISTER(BP, 4, 3, 3, false, false, false, false);  // BP4hex
-REGISTER(BP, 4, 2, 2, false, false, false, false);  // BP4quad
+// BP4: vector CG with stiffness matrix, q=p+2
+REGISTER(BP, 4, Hex);
+REGISTER(BP, 4, Quad);
 
-// BP5: scalar PCG with stiffness matrix, q=p+1
-REGISTER(BP, 5, 3, 1, true, false, false, false);   // BP5hex
-REGISTER(BP, 5, 2, 1, true, false, false, false);   // BP5quad
-REGISTER(BP, 5, 3, 1, true, true,  false, false);   // BP5tet_gll_mma
-REGISTER(BP, 5, 3, 1, true, true,  true,  false);   // BP5tet_pos_sum
-REGISTER(BP, 5, 3, 1, true, true,  true,  true);    // BP5tet_pos_mma
-REGISTER(BP, 5, 2, 1, true, true,  false, false);   // BP5tri_gll_mma
-REGISTER(BP, 5, 2, 1, true, true,  true,  false);   // BP5tri_pos_sum
-REGISTER(BP, 5, 2, 1, true, true,  true,  true);    // BP5tri_pos_mma
-REGISTER(BP, 7, 3, 1, true, true,  false, false);   // BP7tet_gll_mma
-REGISTER(BP, 7, 3, 1, true, true,  true,  false);   // BP7tet_pos_sum
-REGISTER(BP, 7, 3, 1, true, true,  true,  true);    // BP7tet_pos_mma
-REGISTER(BP, 7, 2, 1, true, true,  false, false);   // BP7tri_gll_mma
-REGISTER(BP, 7, 2, 1, true, true,  true,  false);   // BP7tri_pos_sum
-REGISTER(BP, 7, 2, 1, true, true,  true,  true);    // BP7tri_pos_mma
+// BP5: scalar CG with stiffness matrix, q=p+1
+REGISTER(BP, 5, Hex);
+REGISTER(BP, 5, Quad);
+REGISTER(BP, 5, TetGllMma);
+REGISTER(BP, 5, TetPosSum);
+REGISTER(BP, 5, TetPosMma);
+REGISTER(BP, 5, TriGllMma);
+REGISTER(BP, 5, TriPosSum);
+REGISTER(BP, 5, TriPosMma);
 
-// BP6: vector PCG with stiffness matrix, q=p+1
-REGISTER(BP, 6, 3, 3, true, false, false, false);   // BP6hex
-REGISTER(BP, 6, 2, 2, true, false, false, false);   // BP6quad
+// BP6: vector CG with stiffness matrix, q=p+1
+REGISTER(BP, 6, Hex);
+REGISTER(BP, 6, Quad);
 
 // BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
-REGISTER(BK, 1, 3, 1, false, false, false, false);  // BK1hex
-REGISTER(BK, 1, 2, 1, false, false, false, false);  // BK1quad
+REGISTER(BK, 1, Hex);
+REGISTER(BK, 1, Quad);
 
 // BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-REGISTER(BK, 2, 3, 3, false, false, false, false);  // BK2hex
-REGISTER(BK, 2, 2, 2, false, false, false, false);  // BK2quad
+REGISTER(BK, 2, Hex);
+REGISTER(BK, 2, Quad);
 
 // BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-REGISTER(BK, 3, 3, 1, false, false, false, false);  // BK3hex
-REGISTER(BK, 3, 2, 1, false, false, false, false);  // BK3quad
+REGISTER(BK, 3, Hex);
+REGISTER(BK, 3, Quad);
 
 // BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-REGISTER(BK, 4, 3, 3, false, false, false, false);  // BK4hex
-REGISTER(BK, 4, 2, 2, false, false, false, false);  // BK4quad
+REGISTER(BK, 4, Hex);
+REGISTER(BK, 4, Quad);
 
 // BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-REGISTER(BK, 5, 3, 1, true, false, false, false);   // BK5hex
-REGISTER(BK, 5, 2, 1, true, false, false, false);   // BK5quad
+REGISTER(BK, 5, Hex);
+REGISTER(BK, 5, Quad);
 
 // BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-REGISTER(BK, 6, 3, 3, true, false, false, false);   // BK6hex
-REGISTER(BK, 6, 2, 2, true, false, false, false);   // BK6quad
+REGISTER(BK, 6, Hex);
+REGISTER(BK, 6, Quad);
 
 /**
  * @brief CEED Bake-off Problems main entry point
