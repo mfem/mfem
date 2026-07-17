@@ -142,9 +142,9 @@ jobs:
 
     continue-on-error: ${{ matrix.enzyme && true || false }}
 
-    # Enable ccache for all jobs except Windows and macOS enzyme
+    # Enable ccache for all jobs except Windows (would need sccache).
     env:
-      USE_CCACHE: ${{ matrix.os != 'windows-latest' && !matrix.enzyme }}
+      USE_CCACHE: ${{ matrix.os != 'windows-latest' }}
 
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
@@ -302,14 +302,15 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .ccache
-          key: ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-${{ github.run_id }}
+          key: ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}-${{ github.run_id }}
           restore-keys: |
-            ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-
+            ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}-
 
       # Configure ccache and select how it is injected into the MFEM build:
       # - make:  set CXX="ccache g++"; for MPI, OMPI_CXX="ccache g++" so mpicxx
       #          runs ccache around g++ (not ccache around the mpicxx wrapper).
       # - cmake: set CMAKE_<LANG>_COMPILER_LAUNCHER=ccache.
+      # - enzyme: wrap the brew clang++ via OMPI_CXX.
       # The chosen options are passed through build-mfem's 'config-options'
       # input (see the build step below).
       - name: configure ccache
@@ -329,7 +330,9 @@ jobs:
           echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros" >> $GITHUB_ENV
           # Hash absolute paths relative to the workspace.
           echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
-          if [[ "${{ matrix.build-system }}" == "cmake" ]]; then
+          if [[ "${{ matrix.enzyme }}" == "true" ]]; then
+            echo "OMPI_CXX=ccache $LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
+          elif [[ "${{ matrix.build-system }}" == "cmake" ]]; then
             echo 'CCACHE_CONFIG_OPTS=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' >> $GITHUB_ENV
           else
             echo "OMPI_CXX=ccache g++" >> $GITHUB_ENV
