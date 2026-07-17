@@ -758,7 +758,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    EF.UseExternalData(elfun.GetData(), nd, dim);
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
-   Vector vec1(dim), vec2(dim);
+   Vector vec1(dim), vec2(dim), vecvq(dim);
    const IntegrationRule *ir = GetIntegrationRule(el, T);
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -772,6 +772,11 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
 
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
+      if (VQ)
+      {
+         VQ->Eval(vecvq, T, ip);
+         vec1 += vecvq;
+      }
       gradEF.Mult(vec1, vec2);
       vec2 *= w;
       AddMultVWt(shape, vec2, ELV);
@@ -797,7 +802,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
    real_t w;
-   Vector vec1(dim), vec2(dim), vec3(nd);
+   Vector vec1(dim), vec2(dim), vec3(nd), vecvq(dim);
 
    const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
@@ -821,6 +826,12 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 
       MultAtB(EF, dshapex, gradEF);
       EF.MultTranspose(shape, vec1);
+
+      if (VQ)
+      {
+         VQ->Eval(vecvq, trans, ip);
+         vec1 += vecvq;
+      }
 
       trans.AdjugateJacobian().Mult(vec1, vec2);
 
