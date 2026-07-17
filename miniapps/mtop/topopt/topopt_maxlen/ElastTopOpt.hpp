@@ -349,9 +349,8 @@ void PseudoTransientSolver::FSolve()
    real_t eps = 1e-10;            // steady-state stop tolerance
    real_t res = 2.0 * eps;
 
-   const int max_steps = 10000;  // safety cap
    int step = 0;
-   while (res > eps && step < max_steps && t < Tt)
+   while (res > eps && t < Tt)
    {
       adv->Mult(r_a, rate);                       // rate = M^{-1}(K rho + b)
       res = std::sqrt(InnerProduct(comm, rate, rate));
