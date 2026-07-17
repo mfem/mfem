@@ -98,6 +98,56 @@ mpirun -np 8 ./TopOptTransient -problem cantilever-compliance -lumped-mass -damp
 For this problem, `-lumped-mass` is the preferred path right now because the
 current essential-boundary projection is exact for the diagonal row-lumped mass.
 
+### `spherical-bandgap`
+
+3D spherical wave-shielding problem on concentric spherical shells.
+
+- Mesh: `spherical_bandgap.msh`, generated from `spherical_bandgap.geo`
+  (see Meshes below). Element attributes: 1 source, 2 design, 3 receiver,
+  4 gap, 5 damping; boundary attribute 100 is the outer r = 10 sphere.
+- Load: unit-amplitude radial monopole body force in the central sphere
+  (r < 0.5) with a modulated-Gaussian tone burst. Default carrier frequency
+  `1.0` (lambda_p = 2.0 at c_p = 2, ~6-7 linear elements per wavelength on
+  the lc = 0.3 mesh); the burst keeps ~3 carrier cycles (duration = 3/f).
+  Higher carriers pack more Bragg bands into the design shell and give a
+  richer band-gap result - override with `-freq`, but pair it with a finer
+  mesh (`-freq 5` needs lc ~= 0.06, HPC scale). The default is the cheap
+  local operating point.
+- Damping: radial sponge in the outer shell (7.5 < r < 10) via
+  `SphericalDampingField`, plus absorbing impedance on boundary 100.
+- Objective: `DisplacementL2Objective` over the receiver shell (6 < r < 7).
+- Passive regions: source, receiver, gap, and damping shells are frozen at
+  the volume-fraction density; only the design shell (0.5 < r < 6) is
+  optimized.
+- Timing: P-arrival at the receiver is t ~= 3, so `-tf` must cover pulse
+  center + travel + tail. `Validate()` warns when `-tf` is too short (the
+  objective would be identically zero).
+
+Example (cluster-scale; use the coarse mesh for local wiring tests):
+
+```bash
+mpirun -np 8 ./TopOptTransient -problem spherical-bandgap -lumped-mass -damp -tf 7.0 -dt 1e-3 -vf 0.5 -fr 0.3 -mi 100 -mv 0.2 -pv
+```
+
+## Meshes
+
+Meshes are generated artifacts (gitignored); regenerate them from the tracked
+`.geo` sources:
+
+```bash
+# production spherical mesh (~250k tets, ~43k nodes)
+gmsh -3 -format msh2 spherical_bandgap.geo -o spherical_bandgap.msh
+# coarse variant for local smoke tests (pass it with -mesh)
+gmsh -3 -format msh2 -clscale 2 spherical_bandgap.geo -o spherical_bandgap_coarse.msh
+```
+
+The spherical `.geo` builds the concentric shells with a single
+`BooleanFragments` and classifies volumes/surfaces geometrically. Do not
+replace this with chained `BooleanDifference` calls: OCC tags of disconnected
+boolean results are unpredictable, which previously dropped the receiver
+shell from the mesh entirely (objective identically zero) and put the
+absorbing boundary on an interior surface.
+
 ## Build
 
 From this directory in WSL:
@@ -117,7 +167,8 @@ wsl make -C /mnt/c/Users/cortescastil1/Desktop/mfem/miniapps/mtop/topopt/topopt_
 Common options:
 
 ```text
--problem <name>              wave, band-waveguide, or cantilever-compliance
+-problem <name>              wave, band-waveguide, cantilever-compliance,
+                             or spherical-bandgap
 -r,  --refine <int>          uniform refinement levels
 -o,  --order <int>           H1 finite element order
 -tf, --t-final <real>        final simulation time
@@ -133,7 +184,14 @@ Common options:
 -damp / -no-damp             enable or disable problem damping
 -iterative-mass              consistent mass solve with CG+AMG
 -lumped-mass                 row-sum diagonal mass solve
+-freq <real>                 carrier frequency override (0 = problem default)
+-dur <real>                  pulse duration override (0 = problem default)
+-nchk <int>                  REVOLVE checkpoints per sweep (-1 = auto)
 ```
+
+The driver prints a carrier-resolution report (elements per P-wavelength) and
+warns when the mesh cannot resolve the requested frequency. Rule of thumb:
+resolving a carrier at frequency `f` needs mesh size `h <~ c_p / (7 f)`.
 
 The default mass path is `-iterative-mass`. For larger explicit runs,
 `-lumped-mass` is usually much faster.
@@ -177,17 +235,19 @@ TopOptTransient.cpp
 ProblemSpecification.hpp
    MaterialParams
    BoundaryLoadSpec
-   load coefficients
-   DampingParameters / DampingField
+   load coefficients (directional, concentrated, rectangular, monopole)
+   DampingParameters / DampingField / SphericalDampingField
    TransientTopOptConfig
    TransientTopOptProblem interface
    WaveShieldingProblem
+   BandWaveguideProblem
    CantileverComplianceProblem
+   SphericalBandGapProblem
 
 ObjectiveFunctional.hpp
    TimeIntegratedObjective interface
-   RectangularIndicator / SubdomainIndicator
-   DisplacementL2Objective
+   rectangular / circular / spherical-shell indicators
+   DisplacementL2Objective (warns when the region has zero measure)
    ComplianceObjective
 
 ElastodynamicsSolver.hpp
@@ -196,7 +256,13 @@ ElastodynamicsSolver.hpp
    RK4 rollout helpers
    discrete adjoint helpers
    design-gradient integrators
-   TransientDesignSolver
+   TransientDesignSolver (REVOLVE-checkpointed forward/adjoint)
+
+TrajectoryCheckpointing.hpp
+   REVOLVE wrapper used by TransientDesignSolver (state checkpoint/restore)
+
+OptimizationCheckpoint.hpp
+   MMA design/state checkpointing for restartable optimization runs
 
 test_adjoint_verification.cpp
    Jacobian transpose checks
@@ -329,12 +395,55 @@ The verification executable checks:
 - clamped-BC projection consistency for lumped mass
 - compliance-objective gradient path
 
+## Checkpoint / Restart
+
+With `-ckpt` (default on), the driver saves a minimal checkpoint at the end of
+every MMA iteration into `<out>/optimization_checkpoint/`:
+
+```text
+metadata.txt      iteration, J, volume fraction, ranks, refinement, order
+design.NNNNNN     per-rank binary control-density true-dof vector
+```
+
+Restart with the SAME rank count, mesh refinement, and FE order:
+
+```bash
+srun -n <same N> ./TopOptTransient ... -out <same dir> -restart
+```
+
+Only the density is restored - it becomes the initial guess of a fresh MMA
+run (asymptotes rebuild within a couple of iterations); the iteration counter
+continues for history/budget bookkeeping. Every checkpoint file is written to
+`.tmp` and atomically renamed with the metadata committed last, so a job
+killed at the wall-clock limit mid-save cannot corrupt the previous
+checkpoint.
+
+## TODO / Planned Work
+
+- **Two-material (convex-combination) interpolation.** Mass and stiffness
+  currently share one SIMP law, so the local wave speed is design-independent
+  and the optimizer can only exploit impedance contrast. The band-gap
+  reference formulation interpolates between two materials,
+  `K(a) = a K_1 + (1-a) K_2` and `M(a) = a M_1 + (1-a) M_2`, giving velocity
+  contrast as well. Requires extending `StageMassDesignLFIntegrator` /
+  `StageStiffnessDesignLFIntegrator` and re-running the Taylor verification.
+- **Receiver-restricted objective assembly.** `AccumulateTimestep` and the
+  adjoint objective-gradient linear form sweep ALL elements every step even
+  though the indicator is nonzero only in the receiver (~15% of elements in
+  the spherical mesh). Precomputing the supported-element list (or using mesh
+  attributes - the spherical mesh carries region attributes 1-5) is an exact
+  optimization with large 3D savings on both the forward and adjoint sweeps.
+
 ## Known Limitations
 
-- 2D workflows are the current focus.
-- Full forward trajectory storage is used; checkpointing is not integrated yet.
-- Damping sponge geometry is still rectangular/profile based, not a general
-  signed-distance field from arbitrary mesh attributes.
+- Trajectory checkpointing (REVOLVE) is integrated in `TransientDesignSolver`
+  and is the path the driver uses for every problem; the
+  forward-visualization sweep still stores all states (first/last iteration
+  only). Tune the memory/recompute trade-off with `-nchk`.
+- Damping sponge geometry is rectangular-profile or radial-profile based, not
+  a general signed-distance field from arbitrary mesh attributes.
+- Spatial indicators (receivers, passive regions) are geometric (coordinates),
+  not mesh-attribute based, even where the mesh carries region attributes.
 - Consistent-mass Dirichlet enforcement is not fully eliminated.
 - New problems are currently registered manually in `TopOptTransient.cpp`.
 
@@ -356,6 +465,13 @@ Band waveguide:
 
 ```bash
 mpirun -np 4 ./TopOptTransient -problem band-waveguide -lumped-mass -damp -tf 0.01 -dt 1e-4 -mi 1 -no-pv
+```
+
+Spherical band-gap (coarse mesh; expects a near-zero J warning since tf is
+far below the receiver travel time):
+
+```bash
+mpirun -np 4 ./TopOptTransient -problem spherical-bandgap -mesh spherical_bandgap_coarse.msh -lumped-mass -damp -tf 0.01 -dt 1e-3 -mi 1 -no-pv
 ```
 
 These are wiring checks, not production-quality optimization runs.

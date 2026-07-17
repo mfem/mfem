@@ -258,13 +258,52 @@ private:
    Coefficient *subdomain_indicator; // non-owning view used in hot paths
    std::unique_ptr<Coefficient> owned_indicator;
 
+   // One-time setup check: measure of the region the indicator selects. A zero
+   // measure means the objective can only ever be zero (e.g. the measurement
+   // region is missing from the mesh), which should fail loudly, not silently.
+   void CheckIndicatorCoverage()
+   {
+      real_t local_measure = 0.0;
+      for (int e = 0; e < fespace->GetNE(); e++)
+      {
+         const FiniteElement *el = fespace->GetFE(e);
+         ElementTransformation *T = fespace->GetElementTransformation(e);
+         const IntegrationRule &ir =
+            IntRules.Get(el->GetGeomType(), 2 * el->GetOrder() + 2);
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            T->SetIntPoint(&ip);
+            local_measure += ip.weight * T->Weight()
+                             * subdomain_indicator->Eval(*T, ip);
+         }
+      }
+      real_t measure = 0.0;
+      MPI_Allreduce(&local_measure, &measure, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      if (myid == 0)
+      {
+         mfem::out << "DisplacementL2Objective: measurement region measure = "
+                   << measure << "\n";
+         if (measure <= 0.0)
+         {
+            MFEM_WARNING("DisplacementL2Objective: the indicator selects a "
+                         "region of ZERO measure - the objective will be "
+                         "identically zero. Check the mesh/indicator.");
+         }
+      }
+   }
+
 public:
    /// Borrow an externally-owned indicator coefficient.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
                            Coefficient &indicator,
                            MPI_Comm comm_)
       : TimeIntegratedObjective(fes, comm_),
-        subdomain_indicator(&indicator) {}
+        subdomain_indicator(&indicator)
+   {
+      CheckIndicatorCoverage();
+   }
 
    /// Take ownership of an indicator coefficient.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
@@ -272,7 +311,10 @@ public:
                            MPI_Comm comm_)
       : TimeIntegratedObjective(fes, comm_),
         subdomain_indicator(indicator.get()),
-        owned_indicator(std::move(indicator)) {}
+        owned_indicator(std::move(indicator))
+   {
+      CheckIndicatorCoverage();
+   }
 
    /// Backward-compatible constructor for legacy call sites.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
@@ -281,7 +323,10 @@ public:
                            bool own_indicator = true)
       : TimeIntegratedObjective(fes, comm_),
         subdomain_indicator(indicator),
-        owned_indicator(own_indicator ? indicator : nullptr) {}
+        owned_indicator(own_indicator ? indicator : nullptr)
+   {
+      CheckIndicatorCoverage();
+   }
 
    virtual ~DisplacementL2Objective() = default;
 

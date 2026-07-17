@@ -114,62 +114,8 @@ public:
    }
 };
 
-// DampingProfile / SpatialDampingCoefficient: promoted to DampingSpec.hpp
+// DampingProfile / SpatialDampingCoefficient: promoted to ProblemSpecification.hpp
 // (shared with the problem layer, which assembles them via DampingField).
-
-// =============================================================================
-// FORWARD TRAJECTORY STORAGE
-// =============================================================================
-// Storage for forward state needed by adjoint solver
-struct ForwardTrajectoryStorage
-{
-   Array<Vector*> u_traj;       // Displacement at each timestep
-   Array<Vector*> v_traj;       // Velocity at each timestep
-   Array<HypreParMatrix*> K_traj;  // Tangent stiffness at each timestep
-
-   int num_steps;
-   bool storage_enabled;
-
-   ForwardTrajectoryStorage(int n) : num_steps(n), storage_enabled(false)
-   {
-      u_traj.SetSize(n);
-      v_traj.SetSize(n);
-      K_traj.SetSize(n);
-
-      for (int i = 0; i < n; i++)
-      {
-         u_traj[i] = nullptr;
-         v_traj[i] = nullptr;
-         K_traj[i] = nullptr;
-      }
-   }
-
-   void EnableStorage() { storage_enabled = true; }
-
-   void Store(int step, const Vector &u, const Vector &v, HypreParMatrix *K)
-   {
-      if (!storage_enabled) return;
-
-      if (step >= num_steps) return;
-
-      if (u_traj[step]) delete u_traj[step];
-      if (v_traj[step]) delete v_traj[step];
-
-      u_traj[step] = new Vector(u);
-      v_traj[step] = new Vector(v);
-      K_traj[step] = K;  // Store pointer only (managed by operator)
-   }
-
-   ~ForwardTrajectoryStorage()
-   {
-      for (int i = 0; i < num_steps; i++)
-      {
-         delete u_traj[i];
-         delete v_traj[i];
-         // Don't delete K_traj[i] - managed by operator
-      }
-   }
-};
 
 // =============================================================================
 // MASS SOLVER STRATEGIES
@@ -207,9 +153,6 @@ private:
    HypreBoomerAMG *M_prec;
    CGSolver *M_solver;
 
-   mutable ParGridFunction u_gf;  // For visualization
-   mutable ParGridFunction v_gf;  // For visualization
-
    Array<int> ess_tdof_list;
    Array<int> block_true_offsets;
    int true_size;
@@ -217,19 +160,13 @@ private:
    mutable Vector res;
    mutable Vector tmp;
 
-   // Precomputed load vector (optimization B)
+   // Precomputed base load vector: load(t) = load_base_vector * amplitude *
+   // time_profile(t), assembled once so the inner loop never re-assembles.
    Vector load_base_vector;
    real_t load_duration, load_amplitude, load_phase, load_frequency;
    LoadTimeProfile load_time_profile;
    bool load_on_domain;   // true: body force over Omega; false: boundary traction
    Array<int> load_bdr_markers;
-
-   // Trajectory storage for adjoint
-   ForwardTrajectoryStorage *trajectory;
-   TimeIntegratedObjective *objective;
-
-   // Current timestep for adjoint evaluation (mutable for use in const methods)
-   mutable int current_adjoint_step;
 
 public:
    ElastodynamicsOperator(
@@ -249,9 +186,7 @@ public:
       Array<int> &exterior_bdr_attr,
       Array<int> &ess_bdr_attr,
       MassSolverType mass_type = MassSolverType::LUMPED,
-      bool print_banner = true,
-      ForwardTrajectoryStorage *traj = nullptr,
-      TimeIntegratedObjective *obj = nullptr);
+      bool print_banner = true);
 
    void SetTime(real_t t) override { TimeDependentOperator::SetTime(t); }
 
@@ -266,9 +201,6 @@ public:
                                        Vector &eta_rhs) const;
 
    const Array<int>& GetEssentialTrueDofs() const { return ess_tdof_list; }
-
-   ParGridFunction& GetDisplacement() { return u_gf; }
-   ParGridFunction& GetVelocity() { return v_gf; }
 
    Array<int>& GetBlockOffsets() { return block_true_offsets; }
 
@@ -319,74 +251,6 @@ public:
       }
    }
 
-   void SetTrajectory(ForwardTrajectoryStorage *traj) { trajectory = traj; }
-   void SetObjective(TimeIntegratedObjective *obj) { objective = obj; }
-
-   void SetAdjointTimestep(int step) { current_adjoint_step = step; }
-
-   /// Store current state in trajectory (call during forward march)
-   void StoreTrajectoryStep(int step, const Vector &state) const
-   {
-      if (!trajectory) return;
-
-      BlockVector bstate(const_cast<Vector&>(state), block_true_offsets);
-      Vector u_true(bstate.GetBlock(0).GetData(), true_size);
-      Vector v_true(bstate.GetBlock(1).GetData(), true_size);
-
-      trajectory->Store(step, u_true, v_true, Kmat);
-   }
-
-   /// Accumulate objective functional during forward march
-   real_t AccumulateObjective(const Vector &state, real_t dt, int step, int total_steps) const
-   {
-      if (!objective) return 0.0;
-
-      BlockVector bstate(const_cast<Vector&>(state), block_true_offsets);
-      Vector u_true(bstate.GetBlock(0).GetData(), true_size);
-
-      u_gf.SetFromTrueDofs(u_true);
-      return objective->AccumulateTimestep(u_gf, dt, step, total_steps);
-   }
-
-   /// Initialize terminal condition for adjoint solve
-   /// From paper eq. 996-997: (A_N^+)^T η^N = q^N
-   /// For J_T = 0 (no terminal objective), η^N = 0
-   void InitializeTerminalAdjoint(Vector &eta_final) const
-   {
-      eta_final = 0.0;
-
-      // If terminal objective exists: η^N = ∂J_T/∂z^N
-      // For our case J_T = 0, so terminal adjoint is zero
-      // This would be modified if we have a terminal cost
-   }
-
-   /// Compute objective gradient at current timestep
-   /// Returns q^n = [∂J_Ω/∂u^n, ∂J_Ω/∂v^n]
-   void ComputeObjectiveGradient(int step, int total_steps, real_t dt,
-                                  Vector &q_u, Vector &q_v) const
-   {
-      q_u = 0.0;
-      q_v = 0.0;
-
-      if (!objective || !trajectory) return;
-      if (step >= trajectory->num_steps) return;
-
-      // Get forward state at this step
-      Vector *u_n = trajectory->u_traj[step];
-      if (!u_n) return;
-
-      // Set grid function from stored state
-      u_gf.SetFromTrueDofs(*u_n);
-
-      // Compute ∂J_Ω/∂u = 2 χ_Ω̃ u (from ObjectiveFunctional)
-      ParLinearForm grad_form(&fespace);
-      objective->ComputeObjectiveGradient(u_gf, dt, step, total_steps, grad_form);
-      grad_form.ParallelAssemble(q_u);
-
-      // For J = ∫∫ |u|² dx dt, we have ∂J_Ω/∂v = 0
-      // q_v already set to zero
-   }
-
    virtual ~ElastodynamicsOperator();
 };
 
@@ -407,16 +271,12 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    Array<int> &exterior_bdr_attr,
    Array<int> &ess_bdr_attr,
    MassSolverType mass_type,
-   bool print_banner,
-   ForwardTrajectoryStorage *traj,
-   TimeIntegratedObjective *obj)
+   bool print_banner)
    : TimeDependentOperator(2 * f.GetTrueVSize(), 0.0),
      fespace(f),
      mass_solver_type(mass_type),
      M_prec(nullptr),
      M_solver(nullptr),
-     u_gf(&fespace),
-     v_gf(&fespace),
      true_size(f.GetTrueVSize()),
      res(true_size),
      tmp(true_size),
@@ -426,10 +286,7 @@ ElastodynamicsOperator::ElastodynamicsOperator(
      load_phase(phase),
      load_frequency(frequency),
      load_time_profile(load_profile),
-     load_on_domain(domain_load),
-     trajectory(traj),
-     objective(obj),
-     current_adjoint_step(-1)
+     load_on_domain(domain_load)
 {
    int myid = Mpi::WorldRank();
 
@@ -439,8 +296,6 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    block_true_offsets[1] = true_size;
    block_true_offsets[2] = 2 * true_size;
 
-   u_gf = 0.0;
-   v_gf = 0.0;
    res = 0.0;
    tmp = 0.0;
    load_base_vector = 0.0;
@@ -591,15 +446,6 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    load_form.Assemble();
    load_form.ParallelAssemble(load_base_vector);
 
-   // DIAGNOSTIC: Check load vector
-   real_t load_norm = load_base_vector.Norml2();
-   real_t load_min = load_base_vector.Min();
-   real_t load_max = load_base_vector.Max();
-   if (myid == 0 && print_banner)
-   {
-      std::cout << "  Load vector: norm=" << load_norm << ", range=[" << load_min << ", " << load_max << "]" << std::endl;
-   }
-
    if (myid == 0 && print_banner)
    {
       std::cout << "\nTime-dependent loading:" << std::endl;
@@ -736,66 +582,6 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
 
    Cabs_mat->MultTranspose(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
-
-   return;
-
-   // Adjoint RHS evaluation for discrete adjoint (DO) via RK4 transpose
-   // Following the pattern from tst_rk4_adj.cpp (lines 108-121)
-   //
-   // Forward system:
-   //   u̇ = v
-   //   v̇ = M^{-1}(-K u - C_vol v - C_abs v)
-   //
-   // Let F(z) = [v, M^{-1}(-K u - C v)] where z = [u, v]
-   //
-   // Jacobian transpose:
-   //   ∂F/∂z = [ 0           I           ]
-   //           [ -M^{-1}K   -M^{-1}C     ]
-   //
-   //   (∂F/∂z)^T = [ 0          -K^T M^{-T}      ]
-   //                [ I          -C^T M^{-T}     ]
-   //
-   // Adjoint equation: η̇ = -(∂F/∂z)^T η + q
-   // where η = [μ, λ], q = objective gradient
-
-   eta_rhs = 0.0;
-
-   BlockVector b_eta(const_cast<Vector&>(eta), block_true_offsets);
-   BlockVector b_eta_rhs(eta_rhs, block_true_offsets);
-
-   Vector mu(b_eta.GetBlock(0).GetData(), true_size);
-   Vector lambda(b_eta.GetBlock(1).GetData(), true_size);
-
-   // First adjoint equation: μ̇ = -0 * μ - I * λ + q_u
-   //                             = -λ + q_u
-   b_eta_rhs.GetBlock(0).Set(-1.0, lambda);
-
-   // Second adjoint equation: λ̇ = K^T M^{-T} μ + C^T M^{-T} λ + q_v
-   //
-   // Step 1: Compute rhs = K^T μ + C^T λ
-   Vector rhs(true_size);
-   rhs = 0.0;
-
-   // Add K^T μ
-   Kmat->MultTranspose(mu, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Add C_vol^T λ
-   Cvol_mat->MultTranspose(lambda, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Add C_abs^T λ
-   Cabs_mat->MultTranspose(lambda, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Step 2: Solve M^T λ̇ = rhs  (since M is symmetric: M^T = M)
-   b_eta_rhs.GetBlock(1) = 0.0;
-   M_solver->Mult(rhs, b_eta_rhs.GetBlock(1));
-
-   // Note: Objective gradient q = [q_u, q_v] will be added separately
-   // during the adjoint RK4 march. The RK4 transpose will call this
-   // function at intermediate stages, and we'll add q at the full timestep.
-   // For J = ∫∫ |u|² dx dt, we have ∂J/∂v = 0, so q_v = 0
 }
 
 ElastodynamicsOperator::~ElastodynamicsOperator()
@@ -1227,8 +1013,11 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
    real_t t = t_init;
    const int total_steps = nsteps + 1;
 
-   // Progress monitoring (rank 0 only, throttled to ~10 lines per sweep).
-   const bool report = (progress_label != nullptr) && (Mpi::WorldRank() == 0);
+   // Progress monitoring, throttled to ~10 lines per sweep. NOTE: the report
+   // branch below contains an MPI_Allreduce, so ALL ranks must take it
+   // identically (guarding it with WorldRank()==0 deadlocks: rank 0 waits in
+   // the Allreduce while the others run ahead into the next step's matvec).
+   const bool report = (progress_label != nullptr);
    const double phase_t0 = MPI_Wtime();
    const int report_every = std::max(1, nsteps / 10);
 
@@ -1265,7 +1054,8 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
       if (report && ((i + 1) % report_every == 0 || i + 1 == nsteps))
       {
-         // DIAGNOSTIC: Compute max displacement
+         // max|u| tracks pulse growth/decay and flags instability at a glance.
+         // Collective on all ranks; only root prints.
          const int n_disp = x.Size() / 2;
          real_t local_max_u = 0.0;
          for (int j = 0; j < n_disp; j++)
@@ -1273,14 +1063,20 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
             local_max_u = std::max(local_max_u, std::abs(x[j]));
          }
          real_t global_max_u = 0.0;
-         MPI_Allreduce(&local_max_u, &global_max_u, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
+         MPI_Allreduce(&local_max_u, &global_max_u, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                       state_fes.GetComm());
 
-         std::cout << "      " << progress_label << ' '
-                   << std::setw(6) << (i + 1) << '/' << nsteps
-                   << "  (" << std::setw(3) << (100 * (i + 1) / nsteps) << "%)"
-                   << "   " << std::fixed << std::setprecision(2)
-                   << (MPI_Wtime() - phase_t0) << " s"
-                   << "   max|u| = " << std::scientific << std::setprecision(3) << global_max_u << "\n";
+         if (Mpi::Root())
+         {
+            std::cout << "      " << progress_label << ' '
+                      << std::setw(6) << (i + 1) << '/' << nsteps
+                      << "  (" << std::setw(3) << (100 * (i + 1) / nsteps)
+                      << "%)   " << std::fixed << std::setprecision(2)
+                      << (MPI_Wtime() - phase_t0) << " s"
+                      << "   max|u| = " << std::scientific
+                      << std::setprecision(3) << global_max_u << "\n";
+         }
       }
    }
 
@@ -1524,7 +1320,6 @@ private:
    // Checkpointed forward sweep (returns J, checkpoints trajectory)
    real_t RolloutObjectiveCheckpointed()
    {
-      const int n = x0_.Size();
       checkpoint_state_ = x0_;  // Use persistent member variable
       real_t t = 0.0;
       const int total_steps = nsteps_ + 1;
@@ -1546,6 +1341,10 @@ private:
       AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
                                objective_, checkpoint_state_, h_, 0, total_steps);
 
+      // Progress reporting (throttled to ~10 lines; max|u| flags instability).
+      const double phase_t0 = MPI_Wtime();
+      const int report_every = std::max(1, nsteps_ / 10);
+
       // Forward loop with checkpointing
       for (int i = 0; i < nsteps_; i++)
       {
@@ -1554,6 +1353,31 @@ private:
 
          AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
                                   objective_, checkpoint_state_, h_, i + 1, total_steps);
+
+         if ((i + 1) % report_every == 0 || i + 1 == nsteps_)
+         {
+            const int n_disp = checkpoint_state_.Size() / 2;
+            real_t local_max_u = 0.0;
+            for (int j = 0; j < n_disp; j++)
+            {
+               local_max_u = std::max(local_max_u,
+                                      std::abs(checkpoint_state_[j]));
+            }
+            real_t global_max_u = 0.0;
+            MPI_Allreduce(&local_max_u, &global_max_u, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                          state_fes_.GetComm());
+            if (Mpi::Root())
+            {
+               std::cout << "      forward " << std::setw(6) << (i + 1)
+                         << '/' << nsteps_
+                         << "  (" << std::setw(3) << (100 * (i + 1) / nsteps_)
+                         << "%)   " << std::fixed << std::setprecision(2)
+                         << (MPI_Wtime() - phase_t0) << " s"
+                         << "   max|u| = " << std::scientific
+                         << std::setprecision(3) << global_max_u << "\n";
+            }
+         }
       }
 
       return objective_.GetObjective();
@@ -1570,18 +1394,13 @@ private:
 
       Vector q(n), lambda(n), lambda_prev(n), u_work(n);
 
-      // Initialize adjoint at final time
-      // (need to recompute final state first)
-      u_work = x0_;
-      RK4Solver solver;
-      solver.Init(*oper_);
-      for (int i = 0; i < nsteps_; i++)
-      {
-         real_t dt = h_;
-         real_t ti = i * h_;
-         solver.Step(u_work, ti, dt);
-      }
-
+      // Terminal adjoint seed from the final forward state. checkpoint_state_
+      // still holds x(t_final) from the preceding RolloutObjectiveCheckpointed,
+      // so no forward re-run is needed here.
+      MFEM_VERIFY(checkpoint_state_.Size() == n,
+                  "AdjointDesignSweepCheckpointed: missing forward final state; "
+                  "call PhysicsFSolve first.");
+      u_work = checkpoint_state_;
       ObjectiveGradientAtState(state_fes_, oper_->GetBlockOffsets(),
                                objective_, u_work, h_, nsteps_, total_steps, lambda);
 
@@ -1609,10 +1428,22 @@ private:
          lambda_current += q;
       };
 
-      // Backward loop with checkpointing
+      // Backward loop with checkpointing (throttled progress, ~10 lines)
+      const double adj_t0 = MPI_Wtime();
+      const int adj_report_every = std::max(1, nsteps_ / 10);
       for (int i = nsteps_ - 1; i >= 0; i--)
       {
          checkpoint_->BackwardStep(i, lambda, u_work, primal_step, adjoint_step);
+
+         const int done = nsteps_ - i;
+         if (Mpi::Root() && (done % adj_report_every == 0 || done == nsteps_))
+         {
+            std::cout << "      adjoint " << std::setw(6) << done
+                      << '/' << nsteps_
+                      << "  (" << std::setw(3) << (100 * done / nsteps_)
+                      << "%)   " << std::fixed << std::setprecision(2)
+                      << (MPI_Wtime() - adj_t0) << " s\n";
+         }
       }
    }
 

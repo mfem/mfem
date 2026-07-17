@@ -504,6 +504,14 @@ public:
 struct TransientTopOptConfig
 {
    std::string mesh_file = "lamb-problem-damping-mesh-triangs.msh";
+   // Set by the driver when -mesh was given explicitly; problems with their own
+   // default mesh (e.g. spherical-bandgap) only override mesh_file when false.
+   bool mesh_file_is_user = false;
+   // Same pattern for -freq / -dur: when true, the user's carrier frequency /
+   // pulse duration win over the problem's defaults. Lets the same problem run
+   // cheap (low f, coarse mesh) locally and rich (high f, fine mesh) on HPC.
+   bool load_frequency_is_user = false;
+   bool load_duration_is_user = false;
    int ref_levels = 0;
    int order = 1;
 
@@ -649,6 +657,12 @@ public:
    {
       return nullptr;
    }
+
+   /// Density at which passive regions are frozen. Default keeps the
+   /// historical behavior (the target volume fraction). Problems whose
+   /// reference medium must stay fixed while -vf is swept should return a
+   /// constant instead.
+   virtual real_t GetPassiveDensity() const { return GetVolumeFraction(); }
 
    virtual bool Validate(std::ostream &err) const
    {
@@ -811,12 +825,12 @@ public:
       // Narrow center strip body force with a Gaussian-modulated carrier. With
       // c_p ~= 2, frequency 5 gives lambda_p ~= 0.4, so Bragg spacing
       // lambda/2 ~= 0.2 encourages more visible repeated interfaces along
-      // each side of the longer waveguide.
+      // each side of the longer waveguide. -freq / -dur override these.
       cfg.boundary_load.domain_load = true;
       cfg.boundary_load.time_profile = LoadTimeProfile::MODULATED_GAUSSIAN;
       cfg.boundary_load.amplitude = 30.0;
-      cfg.boundary_load.duration = 0.80;
-      cfg.boundary_load.frequency = 5.0;
+      if (!cfg.load_duration_is_user) { cfg.boundary_load.duration = 0.80; }
+      if (!cfg.load_frequency_is_user) { cfg.boundary_load.frequency = 5.0; }
       cfg.boundary_load.phase = 0.0;
       cfg.boundary_load.bdr_attributes.SetSize(0);
       cfg.boundary_load.direction.SetSize(2);
@@ -1043,10 +1057,26 @@ public:
 // =============================================================================
 // SPHERICAL BAND-GAP PROBLEM: 3D spherical wave shielding
 // =============================================================================
+// A radial (monopole) tone burst is emitted from a small central sphere. The
+// design shell between source and receiver is optimized to minimize the
+// time-integrated displacement energy in the receiver shell. An outer sponge
+// shell plus absorbing boundary emulate an unbounded medium.
+//
+// Mesh: spherical_bandgap.msh, generated from spherical_bandgap.geo:
+//   gmsh -3 -format msh2 spherical_bandgap.geo -o spherical_bandgap.msh
+// Element attributes: 1 source, 2 design, 3 receiver, 4 gap, 5 damping.
+// Boundary attribute 100 = outer r=10 sphere (absorbing).
+//
+// OPERATING POINT (kept consistent with the mesh resolution lc ~= 0.3):
+//   c_p = sqrt((lambda0 + 2 mu0)/rho0) = 2, carrier f = 1.0 -> lambda_p = 2.0,
+//   i.e. ~6-7 linear elements per P-wavelength. The design shell is 5.5 units
+//   thick ~= 2.75 lambda_p. P-arrival at the receiver (r = 6) is t ~= 3, so
+//   t_final must cover pulse center + travel + pulse tail: use -tf ~= 7.
+//   Recommended: -tf 7 -dt 1e-3 (dt limited by the sponge gamma_max ~= 170:
+//   explicit RK4 needs dt < 2.78 * SIMP_mass / gamma_max ~= 3e-3).
 class SphericalBandGapProblem final : public TransientTopOptProblem
 {
 private:
-   // Geometry constants (matching user requirements)
    static constexpr real_t r_source_outer_ = 0.5;
    static constexpr real_t r_design_inner_ = 0.5;
    static constexpr real_t r_design_outer_ = 6.0;
@@ -1056,10 +1086,9 @@ private:
    static constexpr real_t r_damping_inner_ = 7.5;
    static constexpr real_t r_damping_outer_ = 10.0;
 
-   static constexpr int outer_boundary_attr_ = 100;  // From gmsh Physical Surface
+   static constexpr int outer_boundary_attr_ = 100;  // gmsh Physical Surface
 
    TransientTopOptConfig cfg;
-   std::string mesh_file_ = "spherical_bandgap.msh";
 
    static void CopyAttributes(const Array<int> &src, Array<int> &dst)
    {
@@ -1071,10 +1100,11 @@ public:
    explicit SphericalBandGapProblem(const TransientTopOptConfig &base)
       : cfg(base)
    {
-      // Override base config with problem-specific settings
-      cfg.mesh_file = mesh_file_;
+      // Default mesh for this problem; an explicit -mesh (e.g. the coarse
+      // variant spherical_bandgap_coarse.msh) wins.
+      if (!cfg.mesh_file_is_user) { cfg.mesh_file = "spherical_bandgap.msh"; }
 
-      // Material properties (same as BandWaveguideProblem)
+      // Material (same reference material as BandWaveguideProblem): c_p = 2.
       cfg.material.rho0 = 1.0;
       cfg.material.lambda0 = 2.0;
       cfg.material.mu0 = 1.0;
@@ -1082,12 +1112,25 @@ public:
       cfg.material.r_max = 1.0;
       cfg.material.simp_p = 3.0;
 
-      // Source: Modulated Gaussian monopole at center
+      // Source: narrowband radial tone burst (modulated Gaussian) in the
+      // central sphere. The spatial monopole coefficient is unit-amplitude;
+      // amplitude enters ONCE through the time profile.
+      //
+      // Carrier frequency vs mesh: resolving the carrier needs
+      // lc <~ lambda_p/7 = c_p/(7 f). The shipped lc ~= 0.3 mesh supports
+      // f = 1.0 (lambda_p = 2.0, ~6-7 elem/lambda) - the cheap local default.
+      // Higher f packs more Bragg bands into the design shell (more
+      // attractive band-gap physics) but requires a finer (HPC-scale) mesh:
+      // e.g. -freq 5 needs lc ~= 0.06. Override with -freq; unless -dur is
+      // also given, the burst keeps ~3 carrier cycles (duration = 3/f).
       cfg.boundary_load.domain_load = true;  // Body force, not boundary traction
       cfg.boundary_load.time_profile = LoadTimeProfile::MODULATED_GAUSSIAN;
       cfg.boundary_load.amplitude = 30.0;
-      cfg.boundary_load.duration = 0.80;
-      cfg.boundary_load.frequency = 5.0;     // Carrier frequency
+      if (!cfg.load_frequency_is_user) { cfg.boundary_load.frequency = 1.0; }
+      if (!cfg.load_duration_is_user)
+      {
+         cfg.boundary_load.duration = 3.0 / cfg.boundary_load.frequency;
+      }
       cfg.boundary_load.phase = 0.0;
       cfg.boundary_load.bdr_attributes.SetSize(0);  // Not used (domain load)
       cfg.boundary_load.direction.SetSize(3);       // Placeholder (monopole overrides)
@@ -1100,15 +1143,14 @@ public:
       cfg.absorbing_bdr_attributes.SetSize(1);
       cfg.absorbing_bdr_attributes[0] = outer_boundary_attr_;
 
-      // Damping: Will use spherical sponge layer via CreateDampingField() override
-      // This configuration is for the base damping parameters that get passed to
-      // the spherical damping field constructor
+      // Damping parameters consumed by the CreateDampingField() override below
+      // (radial sponge in the outer shell; no Cartesian sides).
       cfg.damping_thickness = r_damping_outer_ - r_damping_inner_;  // 2.5 units
-      cfg.damping_scale_length = 0.2136;     // Same as BandWaveguideProblem
+      cfg.damping_scale_length = 0.2136;
       cfg.damping_reflection = 1e-4;         // Target reflection coefficient
       cfg.damping_beta = 2.0;
       cfg.damping_exponent = 2;
-      cfg.damping_uniform = 0.0;             // No uniform damping - use spherical sponge only
+      cfg.damping_uniform = 0.0;
       cfg.damping_left = false;
       cfg.damping_right = false;
       cfg.damping_bottom = false;
@@ -1117,9 +1159,7 @@ public:
 
    const TransientTopOptConfig &GetConfig() const override { return cfg; }
 
-   const std::string &GetMeshFile() const override { return mesh_file_; }
-
-   // Use default CreateMesh() - reads mesh_file_ via ifstream
+   // Use default CreateMesh() - reads cfg.mesh_file via ifstream
 
    bool Validate(std::ostream &err) const override
    {
@@ -1134,6 +1174,19 @@ public:
          err << "Error: vol_frac must be in (0, 1].\n"; return false;
       }
       if (c.max_it < 1) { err << "Error: max_it must be >= 1.\n"; return false; }
+
+      // Guardrail for the bug class where J stays identically zero because the
+      // simulation ends before the pulse can reach the receiver shell.
+      const real_t c_p = std::sqrt((c.material.lambda0 + 2.0 * c.material.mu0)
+                                   / c.material.rho0);
+      const real_t t_needed = 0.5 * c.boundary_load.duration
+                              + r_receiver_inner_ / c_p;
+      if (c.t_final < t_needed)
+      {
+         err << "WARNING: -tf " << c.t_final << " is shorter than the pulse "
+             << "travel time to the receiver shell (~" << t_needed << "). "
+             << "The objective will be (near) zero.\n";
+      }
       return true;
    }
 
@@ -1150,9 +1203,11 @@ public:
    std::unique_ptr<VectorCoefficient>
    CreateBoundaryLoadCoefficient() const override
    {
-      // Monopole source in central sphere
+      // Unit-amplitude monopole in the central sphere. The operator scales the
+      // assembled base load by amplitude * time_profile(t); putting the
+      // amplitude here as well would apply it twice.
       return std::make_unique<MonopoleSourceCoefficient>(
-         r_source_outer_, cfg.boundary_load.amplitude);
+         r_source_outer_, /*amp=*/1.0);
    }
 
    std::unique_ptr<TimeIntegratedObjective>
@@ -1165,6 +1220,11 @@ public:
       return std::make_unique<DisplacementL2Objective>(
          state_fes, std::move(indicator), comm);
    }
+
+   // The reference medium of the experiment (source/receiver/gap/damping
+   // shells) is rho = 0.5 by definition, independent of the -vf budget for
+   // the design shell.
+   real_t GetPassiveDensity() const override { return 0.5; }
 
    std::unique_ptr<Coefficient> CreatePassiveRegionCoefficient() const override
    {

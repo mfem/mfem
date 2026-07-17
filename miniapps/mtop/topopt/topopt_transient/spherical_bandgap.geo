@@ -1,126 +1,106 @@
 // spherical_bandgap.geo
-// 3D spherical geometry for band-gap topology optimization
+// 3D concentric-sphere geometry for the spherical band-gap topology
+// optimization problem (SphericalBandGapProblem in ProblemSpecification.hpp).
 //
-// Concentric spherical shells:
-//   - Source sphere: r < 0.5 (wave generation, passive)
-//   - Design region: 0.5 < r < 6.0 (optimize material distribution)
-//   - Receiver shell: 6.0 < r < 7.0 (measure wave energy, passive)
-//   - Gap shell: 7.0 < r < 7.5 (fixed material, passive)
-//   - Damping shell: 7.5 < r < 10.0 (sponge layer, passive)
+// Regions (MFEM element attributes = physical volume tags):
+//   1: source    r in [0.0, 0.5]   wave generation (passive)
+//   2: design    r in [0.5, 6.0]   designable material (active)
+//   3: receiver  r in [6.0, 7.0]   objective measurement shell (passive)
+//   4: gap       r in [7.0, 7.5]   fixed buffer (passive)
+//   5: damping   r in [7.5, 10.0]  sponge layer (passive)
 //
-// PHYSICAL VOLUMES:
-//   1: source
-//   2: design
-//   3: receiver
-//   4: gap
-//   5: damping
+// Boundary (MFEM boundary attribute = physical surface tag):
+//   100: outer_boundary, the r = 10 sphere (absorbing BC)
 //
-// PHYSICAL SURFACE:
-//   100: outer_boundary (for absorbing BC)
+// MESH COMMANDS:
+//   production:  gmsh -3 -format msh2 spherical_bandgap.geo -o spherical_bandgap.msh
+//   coarse test: gmsh -3 -format msh2 -clscale 2 spherical_bandgap.geo -o spherical_bandgap_coarse.msh
 //
-// MESH COMMAND:
-//   gmsh -3 -format msh2 spherical_bandgap.geo -o spherical_bandgap.msh
+// CONSTRUCTION NOTES (why fragments, not chained differences):
+// Chained BooleanDifference of nested balls creates disconnected results whose
+// OCC tags are NOT predictable (this silently dropped the receiver shell in an
+// earlier version of this file -> objective was identically zero).
+// BooleanFragments of all balls at once yields non-overlapping, conformally
+// glued regions; volumes and the outer surface are then identified
+// geometrically (bounding box), never by guessed tags.
 
-SetFactory("OpenCASCADE");  // Required for sphere operations
+SetFactory("OpenCASCADE");
 
-// Radii definitions (matching user requirements)
-r_source = 0.5;
-r_design = 6.0;
+// Radii
+r_source   = 0.5;
+r_design   = 6.0;
 r_receiver = 7.0;
-r_gap = 7.5;
-r_outer = 10.0;
+r_gap      = 7.5;
+r_outer    = 10.0;
 
-// Mesh size control (coarser in outer regions, finer in design)
-lc_source = 0.3;
-lc_design = 0.3;      // ~20 elements per diameter in design region
+// Target element sizes per region
+lc_inner   = 0.3;   // source + design
 lc_receiver = 0.4;
-lc_gap = 0.5;
+lc_gap     = 0.5;
 lc_damping = 0.6;
 
-// Create concentric spheres
+// Nested balls; fragments split them into disjoint conformal shells.
 Sphere(1) = {0, 0, 0, r_source};
 Sphere(2) = {0, 0, 0, r_design};
 Sphere(3) = {0, 0, 0, r_receiver};
 Sphere(4) = {0, 0, 0, r_gap};
 Sphere(5) = {0, 0, 0, r_outer};
 
-// Get volume IDs (OpenCASCADE creates volumes automatically)
-v_source = 1;
-v_to_design = 2;
-v_to_receiver = 3;
-v_to_gap = 4;
-v_to_outer = 5;
+vols() = BooleanFragments{ Volume{1, 2, 3, 4, 5}; Delete; }{};
 
-// Create shells via boolean difference
-// Note: After each operation, volume IDs may change
-// We'll use the resulting volume tags explicitly
+// Classify the resulting volumes by bounding-box extent (each region has a
+// unique outer radius, so xmax identifies it regardless of tag numbering).
+eps = 1e-3;
+For i In {0 : #vols()-1}
+   bb() = BoundingBox Volume{vols(i)};
+   xmax = bb(3);
+   If (Fabs(xmax - r_source) < eps)
+      src_vol = vols(i);
+   ElseIf (Fabs(xmax - r_design) < eps)
+      design_vol = vols(i);
+   ElseIf (Fabs(xmax - r_receiver) < eps)
+      receiver_vol = vols(i);
+   ElseIf (Fabs(xmax - r_gap) < eps)
+      gap_vol = vols(i);
+   ElseIf (Fabs(xmax - r_outer) < eps)
+      damping_vol = vols(i);
+   EndIf
+EndFor
 
-// Design shell = sphere(r_design) - sphere(r_source)
-BooleanDifference{Volume{v_to_design}; Delete;}{Volume{v_source};}
+Physical Volume("source",   1) = {src_vol};
+Physical Volume("design",   2) = {design_vol};
+Physical Volume("receiver", 3) = {receiver_vol};
+Physical Volume("gap",      4) = {gap_vol};
+Physical Volume("damping",  5) = {damping_vol};
 
-// After this operation:
-// - Volume 1 = source (unchanged)
-// - Volume 2 = design shell (result of difference)
+// Outer boundary = the only surface that does not fit inside r < 9.
+s_all()   = Surface In BoundingBox{-r_outer-1, -r_outer-1, -r_outer-1,
+                                    r_outer+1,  r_outer+1,  r_outer+1};
+s_inner() = Surface In BoundingBox{-9, -9, -9, 9, 9, 9};
+s_all() -= s_inner();
+Physical Surface("outer_boundary", 100) = {s_all()};
 
-// Receiver shell = sphere(r_receiver) - sphere(r_design)
-// Need to reference the newly created volumes
-BooleanDifference{Volume{v_to_receiver}; Delete;}{Volume{v_to_design};}
+// Radially graded mesh size: min over per-region Ball fields.
+Field[1] = Ball;
+Field[1].XCenter = 0; Field[1].YCenter = 0; Field[1].ZCenter = 0;
+Field[1].Radius = r_design;   Field[1].VIn = lc_inner;    Field[1].VOut = lc_damping;
+Field[2] = Ball;
+Field[2].XCenter = 0; Field[2].YCenter = 0; Field[2].ZCenter = 0;
+Field[2].Radius = r_receiver; Field[2].VIn = lc_receiver; Field[2].VOut = lc_damping;
+Field[3] = Ball;
+Field[3].XCenter = 0; Field[3].YCenter = 0; Field[3].ZCenter = 0;
+Field[3].Radius = r_gap;      Field[3].VIn = lc_gap;      Field[3].VOut = lc_damping;
+Field[4] = Min;
+Field[4].FieldsList = {1, 2, 3};
+Background Field = 4;
 
-// After this operation:
-// - Volume 1 = source
-// - Volume 2 = design shell
-// - Volume 3 = receiver shell
+// The background field is the single source of mesh size.
+Mesh.MeshSizeFromPoints = 0;
+Mesh.MeshSizeFromCurvature = 0;
+Mesh.MeshSizeExtendFromBoundary = 0;
 
-// Gap shell = sphere(r_gap) - sphere(r_receiver)
-BooleanDifference{Volume{v_to_gap}; Delete;}{Volume{v_to_receiver};}
-
-// After this operation:
-// - Volume 1 = source
-// - Volume 2 = design shell
-// - Volume 3 = receiver shell
-// - Volume 4 = gap shell
-
-// Damping shell = sphere(r_outer) - sphere(r_gap)
-BooleanDifference{Volume{v_to_outer}; Delete;}{Volume{v_to_gap};}
-
-// Final volumes:
-// - Volume 1 = source
-// - Volume 2 = design shell
-// - Volume 3 = receiver shell
-// - Volume 4 = gap shell
-// - Volume 5 = damping shell
-
-// Physical Volumes (MFEM element attributes)
-Physical Volume("source", 1) = {1};
-Physical Volume("design", 2) = {2};
-Physical Volume("receiver", 3) = {3};
-Physical Volume("gap", 4) = {4};
-Physical Volume("damping", 5) = {5};
-
-// Physical Surface (outer boundary for absorbing BC)
-// The outer surface of volume 5 (damping shell)
-// OpenCASCADE creates surfaces automatically, we need to find the outermost
-Physical Surface("outer_boundary", 100) = {6};  // Surface 6 is typically the outer surface
-
-// Mesh size fields for different regions
-Field[1] = MathEval;
-Field[1].F = Sprintf("(x^2 + y^2 + z^2 < %g^2) ? %g : "
-                     "(x^2 + y^2 + z^2 < %g^2) ? %g : "
-                     "(x^2 + y^2 + z^2 < %g^2) ? %g : "
-                     "(x^2 + y^2 + z^2 < %g^2) ? %g : %g",
-                     r_source, lc_source,
-                     r_design, lc_design,
-                     r_receiver, lc_receiver,
-                     r_gap, lc_gap,
-                     lc_damping);
-Background Field = 1;
-
-// Mesh algorithm settings
-Mesh.Algorithm3D = 4;           // Frontal algorithm (good quality)
-Mesh.ElementOrder = 1;          // Linear elements
-Mesh.OptimizeThreshold = 0.3;   // Optimize mesh quality
-Mesh.MshFileVersion = 2.2;      // MFEM-compatible format
-
-// Additional mesh quality controls
-Mesh.Optimize = 1;              // Enable optimization
-Mesh.OptimizeNetgen = 1;        // Use Netgen optimizer
+// Delaunay 3D (no external dependencies) + optimization.
+Mesh.Algorithm3D = 1;
+Mesh.Optimize = 1;
+Mesh.ElementOrder = 1;
+Mesh.MshFileVersion = 2.2;

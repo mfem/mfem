@@ -1,0 +1,27 @@
+# Built executables and objects
+*.o
+TopOptTransient
+test_adjoint_verification
+ForwardElastodynamics
+ElastTopOpt_static
+
+# Generated meshes - regenerate from the .geo sources:
+#   gmsh -3 -format msh2 <name>.geo -o <name>.msh
+*.msh
+
+# Run outputs
+ParaView/
+optimization_history.txt
+optimization_checkpoint/
+[0-9]*_job*/
+*.out
+*.err
+
+# SLURM logs / jobs
+logs/*
+!logs/.gitkeep
+jobs/*
+!jobs/.gitkeep
+
+# Paper working copy (separate git repository)
+6a0d1d2ed0a8576233e59255/

@@ -1,17 +1,24 @@
 // =============================================================================
-// Optimization Checkpoint System for Transient Topology Optimization
+// Minimal Optimization Checkpoint for Transient Topology Optimization
 // =============================================================================
 //
-// Saves/loads MMA outer-loop state at each iteration for:
-//   1. Restart after HPC time limit (24h jobs)
-//   2. Recovery from job cancellation (lose only current incomplete iteration)
+// Purpose: survive HPC wall-clock limits. Saves ONLY the raw control density
+// (true-dof vector, one binary file per MPI rank) plus a small human-readable
+// metadata file. On restart the density is used as the initial guess for a
+// fresh MMA run - no optimizer internals (asymptotes, design history) are
+// saved; MMA rebuilds them within a couple of iterations.
 //
-// DISTINCT FROM trajectory checkpointing (mtop-chkpt/) which handles RK4 states.
+// Crash safety: every file is written to "<name>.tmp" and atomically renamed;
+// metadata is written LAST, so a job killed mid-save leaves either the
+// previous consistent checkpoint or the new one. (Worst case a kill between
+// the rank renames mixes two consecutive designs - harmless, since the
+// payload is only an initial guess.)
 //
-// Strategy: Fixed filenames (3 files), overwritten each iteration to respect
-//           HPC filesystem inode limits.
+// Constraints (validated on load): same MPI rank count, same mesh refinement
+// and FE order as the run that wrote the checkpoint.
 //
-// MPI Compatibility: MUST restart with same number of MPI ranks.
+// DISTINCT FROM trajectory checkpointing (TrajectoryCheckpointing.hpp), which
+// handles RK4 states inside one forward/adjoint sweep.
 //
 // =============================================================================
 
@@ -19,325 +26,148 @@
 #define OPTIMIZATION_CHECKPOINT_HPP
 
 #include "mfem.hpp"
+#include <cstdint>
+#include <cstdio>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <sys/stat.h>
 
 namespace mfem
 {
 
-// =============================================================================
-// OPTIMIZATION CHECKPOINT METADATA
-// =============================================================================
 struct OptimizationCheckpointMetadata
 {
-   // Iteration state
-   int iteration;                // Last completed MMA iteration
-   real_t objective;             // J(rho) at this iteration
-   real_t volume_fraction;       // Current volume fraction
-   real_t convergence_error;     // L1 design change ||rho - rho_old||
-
-   // Problem configuration (must match on restart)
-   int n_active_dofs;            // Size of active design vector
-   int n_mpi_ranks;              // CRITICAL: Must match when restarting
-   int refinement_level;         // Mesh refinement level
-   int fe_order;                 // Finite element order
-
-   // Output directory tracking (for ParaView continuity)
-   char output_dir_path[256];    // ParaView output directory used in this run
-
-   OptimizationCheckpointMetadata()
-      : iteration(0), objective(0.0), volume_fraction(0.0),
-        convergence_error(1e10), n_active_dofs(0), n_mpi_ranks(1),
-        refinement_level(0), fe_order(1)
-   {
-      std::strncpy(output_dir_path, "ParaView", 255);
-      output_dir_path[255] = '\0';
-   }
-
-   void SetOutputDir(const char* dir)
-   {
-      std::strncpy(output_dir_path, dir, 255);
-      output_dir_path[255] = '\0';
-   }
-
-   std::string GetOutputDir() const
-   {
-      return std::string(output_dir_path);
-   }
+   int iteration = 0;             // Last completed MMA iteration
+   real_t objective = 0.0;        // J at that iteration (informational)
+   real_t volume_fraction = 0.0;  // Volume fraction at that iteration
+   int n_mpi_ranks = 1;           // Must match on restart
+   int refinement_level = 0;      // Must match on restart
+   int fe_order = 1;              // Must match on restart
 };
 
-// =============================================================================
-// MMA OPTIMIZER STATE (what's needed for restart)
-// =============================================================================
-// The MMA algorithm needs design history to compute asymptotes.
-// If we don't save this, restart would reset asymptotes → poor convergence.
-struct MMACheckpointState
-{
-   Vector xval;      // Current design (active DOFs only)
-   Vector xold1;     // Design from previous iteration
-   Vector xold2;     // Design from 2 iterations ago
-   Vector low;       // Lower asymptotes
-   Vector upp;       // Upper asymptotes
-
-   void SetSize(int n)
-   {
-      xval.SetSize(n);
-      xold1.SetSize(n);
-      xold2.SetSize(n);
-      low.SetSize(n);
-      upp.SetSize(n);
-   }
-
-   // Initialize for first iteration (no history yet)
-   void InitializeFromDesign(const Vector& rho_initial)
-   {
-      int n = rho_initial.Size();
-      SetSize(n);
-      xval = rho_initial;
-      xold1 = rho_initial;
-      xold2 = rho_initial;
-      low = 0.0;
-      upp = 1.0;
-   }
-};
-
-// =============================================================================
-// OPTIMIZATION CHECKPOINT MANAGER
-// =============================================================================
 class OptimizationCheckpoint
 {
 private:
-   std::string checkpoint_dir_;
+   static constexpr int32_t design_magic_ = 0x52484F31;   // "RHO1"
+
+   std::string dir_;
    MPI_Comm comm_;
    int myid_;
 
-   std::string MetadataPath() const { return checkpoint_dir_ + "/metadata.bin"; }
-   std::string DesignPath() const { return checkpoint_dir_ + "/design.gf"; }
-   std::string MMAPath() const { return checkpoint_dir_ + "/mma_state.bin"; }
+   std::string MetadataPath() const { return dir_ + "/metadata.txt"; }
 
-   bool CreateDirectoryIfNeeded()
+   std::string DesignPath(int rank) const
    {
+      std::ostringstream name;
+      name << dir_ << "/design." << std::setfill('0') << std::setw(6) << rank;
+      return name.str();
+   }
+
+   bool CreateDirectoryIfNeeded() const
+   {
+      bool ok = true;
       if (myid_ == 0)
       {
          struct stat st;
-         if (stat(checkpoint_dir_.c_str(), &st) != 0)
+         if (stat(dir_.c_str(), &st) != 0)
          {
-            // Directory doesn't exist, create it
-            if (mkdir(checkpoint_dir_.c_str(), 0755) != 0)
+            ok = (mkdir(dir_.c_str(), 0755) == 0);
+            if (!ok)
             {
-               std::cerr << "Failed to create checkpoint directory: "
-                         << checkpoint_dir_ << std::endl;
-               return false;
+               std::cerr << "Checkpoint: failed to create directory: "
+                         << dir_ << std::endl;
             }
          }
       }
-      MPI_Barrier(comm_);
-      return true;
+      MPI_Bcast(&ok, 1, MPI_C_BOOL, 0, comm_);
+      return ok;
+   }
+
+   // Reduce a local success flag to a global all-ranks-succeeded flag.
+   bool AllOk(bool local_ok) const
+   {
+      int loc = local_ok ? 1 : 0, glob = 0;
+      MPI_Allreduce(&loc, &glob, 1, MPI_INT, MPI_MIN, comm_);
+      return glob == 1;
    }
 
 public:
-   OptimizationCheckpoint(const std::string& dir, MPI_Comm comm)
-      : checkpoint_dir_(dir), comm_(comm)
+   OptimizationCheckpoint(const std::string &dir, MPI_Comm comm)
+      : dir_(dir), comm_(comm)
    {
-      myid_ = Mpi::WorldRank();
+      MPI_Comm_rank(comm_, &myid_);
    }
 
-   // =========================================================================
-   // SAVE CHECKPOINT (overwrites previous)
-   // =========================================================================
-   // Call this at the END of each successful MMA iteration (after MMA update).
-   // If job crashes during save, the .tmp file is incomplete and we restart
-   // from the previous complete checkpoint.
-   bool Save(const OptimizationCheckpointMetadata& meta,
-             const ParGridFunction& rho,
-             const MMACheckpointState& mma_state)
+   /// Save the local control-density true-dof vector + metadata.
+   /// Call at the end of each completed MMA iteration; overwrites in place
+   /// (atomic per file, metadata last).
+   bool Save(const OptimizationCheckpointMetadata &meta, const Vector &rho_tv)
    {
-      if (!CreateDirectoryIfNeeded()) return false;
+      if (!CreateDirectoryIfNeeded()) { return false; }
 
-      // 1. Save metadata (rank 0 only)
-      if (myid_ == 0)
+      // 1. Every rank: write its design piece to .tmp and rename.
+      bool ok = true;
       {
-         std::ofstream meta_file(MetadataPath(), std::ios::binary | std::ios::trunc);
-         if (!meta_file)
+         const std::string path = DesignPath(myid_);
+         const std::string tmp = path + ".tmp";
+         std::ofstream ofs(tmp, std::ios::binary | std::ios::trunc);
+         const int64_t n = rho_tv.Size();
+         ok = ofs.good();
+         if (ok)
          {
-            std::cerr << "Failed to open metadata file for writing\n";
-            return false;
+            ofs.write(reinterpret_cast<const char *>(&design_magic_),
+                      sizeof(design_magic_));
+            ofs.write(reinterpret_cast<const char *>(&meta.iteration),
+                      sizeof(meta.iteration));
+            ofs.write(reinterpret_cast<const char *>(&n), sizeof(n));
+            ofs.write(reinterpret_cast<const char *>(rho_tv.GetData()),
+                      n * sizeof(real_t));
+            ofs.close();
+            ok = ofs.good() && (std::rename(tmp.c_str(), path.c_str()) == 0);
          }
-
-         meta_file.write(reinterpret_cast<const char*>(&meta.iteration), sizeof(int));
-         meta_file.write(reinterpret_cast<const char*>(&meta.objective), sizeof(real_t));
-         meta_file.write(reinterpret_cast<const char*>(&meta.volume_fraction), sizeof(real_t));
-         meta_file.write(reinterpret_cast<const char*>(&meta.convergence_error), sizeof(real_t));
-         meta_file.write(reinterpret_cast<const char*>(&meta.n_active_dofs), sizeof(int));
-         meta_file.write(reinterpret_cast<const char*>(&meta.n_mpi_ranks), sizeof(int));
-         meta_file.write(reinterpret_cast<const char*>(&meta.refinement_level), sizeof(int));
-         meta_file.write(reinterpret_cast<const char*>(&meta.fe_order), sizeof(int));
-         meta_file.write(meta.output_dir_path, 256);  // Save output directory path
-         meta_file.close();
       }
-
-      // 2. Save density field (MPI-parallel, atomic via temp file)
-      //    Each rank writes its local portion to the file.
-      std::string design_temp = DesignPath() + ".tmp";
-      std::ofstream rho_ofs(design_temp, std::ios::binary);
-      if (!rho_ofs)
+      if (!AllOk(ok))
       {
          if (myid_ == 0)
          {
-            std::cerr << "Failed to open design file for writing\n";
-         }
-         return false;
-      }
-      rho.Save(rho_ofs);
-      rho_ofs.close();
-
-      // Atomic rename (only rank 0, after all ranks finished writing)
-      MPI_Barrier(comm_);
-      if (myid_ == 0)
-      {
-         std::rename(design_temp.c_str(), DesignPath().c_str());
-      }
-      MPI_Barrier(comm_);
-
-      // 3. Save MMA state (rank 0 only, these vectors are replicated)
-      if (myid_ == 0)
-      {
-         std::ofstream mma_file(MMAPath(), std::ios::binary | std::ios::trunc);
-         if (!mma_file)
-         {
-            std::cerr << "Failed to open MMA state file for writing\n";
-            return false;
-         }
-
-         int n = mma_state.xval.Size();
-         mma_file.write(reinterpret_cast<const char*>(&n), sizeof(int));
-         mma_file.write(reinterpret_cast<const char*>(mma_state.xval.GetData()), n * sizeof(real_t));
-         mma_file.write(reinterpret_cast<const char*>(mma_state.xold1.GetData()), n * sizeof(real_t));
-         mma_file.write(reinterpret_cast<const char*>(mma_state.xold2.GetData()), n * sizeof(real_t));
-         mma_file.write(reinterpret_cast<const char*>(mma_state.low.GetData()), n * sizeof(real_t));
-         mma_file.write(reinterpret_cast<const char*>(mma_state.upp.GetData()), n * sizeof(real_t));
-         mma_file.close();
-      }
-
-      MPI_Barrier(comm_);
-      return true;
-   }
-
-   // =========================================================================
-   // LOAD CHECKPOINT
-   // =========================================================================
-   // Returns false if checkpoint doesn't exist or is incompatible.
-   // If incompatible (wrong #ranks, refinement, etc), prints error and fails.
-   bool Load(OptimizationCheckpointMetadata& meta,
-             ParGridFunction& rho,
-             MMACheckpointState& mma_state)
-   {
-      // 1. Load metadata (rank 0 reads, broadcasts)
-      if (myid_ == 0)
-      {
-         std::ifstream meta_file(MetadataPath(), std::ios::binary);
-         if (!meta_file)
-         {
-            std::cerr << "Checkpoint metadata not found: " << MetadataPath() << std::endl;
-            return false;
-         }
-
-         meta_file.read(reinterpret_cast<char*>(&meta.iteration), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.objective), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.volume_fraction), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.convergence_error), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.n_active_dofs), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.n_mpi_ranks), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.refinement_level), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.fe_order), sizeof(int));
-         meta_file.read(meta.output_dir_path, 256);  // Load output directory path
-         meta_file.close();
-      }
-
-      // Broadcast metadata to all ranks
-      MPI_Bcast(&meta.iteration, 1, MPI_INT, 0, comm_);
-      MPI_Bcast(&meta.objective, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(&meta.volume_fraction, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(&meta.convergence_error, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(&meta.n_active_dofs, 1, MPI_INT, 0, comm_);
-      MPI_Bcast(&meta.n_mpi_ranks, 1, MPI_INT, 0, comm_);
-      MPI_Bcast(&meta.refinement_level, 1, MPI_INT, 0, comm_);
-      MPI_Bcast(&meta.fe_order, 1, MPI_INT, 0, comm_);
-
-      // CRITICAL SAFETY CHECKS
-      int current_ranks = Mpi::WorldSize();
-      if (meta.n_mpi_ranks != current_ranks)
-      {
-         if (myid_ == 0)
-         {
-            std::cerr << "\n*** CHECKPOINT ERROR: MPI rank mismatch ***\n"
-                      << "Checkpoint was created with " << meta.n_mpi_ranks << " ranks\n"
-                      << "Current job is using " << current_ranks << " ranks\n"
-                      << "Cannot restart with different number of MPI ranks!\n"
-                      << "Please resubmit with: mpirun -np " << meta.n_mpi_ranks << " ...\n"
-                      << std::endl;
+            std::cerr << "Checkpoint: design write failed on some rank; "
+                      << "keeping previous metadata." << std::endl;
          }
          return false;
       }
 
-      // 2. Load density field (MPI-parallel)
-      //    Each rank reads its local portion from the file.
-      std::ifstream rho_ifs(DesignPath(), std::ios::binary);
-      if (!rho_ifs)
-      {
-         if (myid_ == 0)
-         {
-            std::cerr << "Checkpoint design file not found: " << DesignPath() << std::endl;
-         }
-         return false;
-      }
-      rho.Load(rho_ifs, rho.Size());
-      rho_ifs.close();
-
-      // 3. Load MMA state (rank 0 reads, broadcasts)
-      int n = meta.n_active_dofs;
-      mma_state.SetSize(n);
-
+      // 2. Rank 0: metadata last (acts as the commit marker), atomically.
+      bool meta_ok = true;
       if (myid_ == 0)
       {
-         std::ifstream mma_file(MMAPath(), std::ios::binary);
-         if (!mma_file)
+         int nranks = 1;
+         MPI_Comm_size(comm_, &nranks);
+         const std::string tmp = MetadataPath() + ".tmp";
+         std::ofstream ofs(tmp, std::ios::trunc);
+         meta_ok = ofs.good();
+         if (meta_ok)
          {
-            std::cerr << "Checkpoint MMA state not found: " << MMAPath() << std::endl;
-            return false;
+            ofs << "iteration " << meta.iteration << "\n"
+                << "objective " << std::setprecision(17) << meta.objective << "\n"
+                << "volume_fraction " << meta.volume_fraction << "\n"
+                << "n_mpi_ranks " << nranks << "\n"
+                << "refinement_level " << meta.refinement_level << "\n"
+                << "fe_order " << meta.fe_order << "\n";
+            ofs.close();
+            meta_ok = ofs.good() &&
+                      (std::rename(tmp.c_str(), MetadataPath().c_str()) == 0);
          }
-
-         int n_read;
-         mma_file.read(reinterpret_cast<char*>(&n_read), sizeof(int));
-         if (n_read != n)
+         if (!meta_ok)
          {
-            std::cerr << "MMA state size mismatch: expected " << n
-                      << ", got " << n_read << std::endl;
-            return false;
+            std::cerr << "Checkpoint: metadata write failed." << std::endl;
          }
-
-         mma_file.read(reinterpret_cast<char*>(mma_state.xval.GetData()), n * sizeof(real_t));
-         mma_file.read(reinterpret_cast<char*>(mma_state.xold1.GetData()), n * sizeof(real_t));
-         mma_file.read(reinterpret_cast<char*>(mma_state.xold2.GetData()), n * sizeof(real_t));
-         mma_file.read(reinterpret_cast<char*>(mma_state.low.GetData()), n * sizeof(real_t));
-         mma_file.read(reinterpret_cast<char*>(mma_state.upp.GetData()), n * sizeof(real_t));
-         mma_file.close();
       }
-
-      // Broadcast MMA state to all ranks
-      MPI_Bcast(mma_state.xval.GetData(), n, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(mma_state.xold1.GetData(), n, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(mma_state.xold2.GetData(), n, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(mma_state.low.GetData(), n, MPITypeMap<real_t>::mpi_type, 0, comm_);
-      MPI_Bcast(mma_state.upp.GetData(), n, MPITypeMap<real_t>::mpi_type, 0, comm_);
-
-      return true;
+      MPI_Bcast(&meta_ok, 1, MPI_C_BOOL, 0, comm_);
+      return meta_ok;
    }
 
-   // =========================================================================
-   // CHECK IF CHECKPOINT EXISTS
-   // =========================================================================
    bool Exists() const
    {
       bool exists = false;
@@ -345,79 +175,117 @@ public:
       {
          std::ifstream test(MetadataPath());
          exists = test.good();
-         test.close();
       }
       MPI_Bcast(&exists, 1, MPI_C_BOOL, 0, comm_);
       return exists;
    }
 
-   // =========================================================================
-   // VALIDATE COMPATIBILITY (before attempting load)
-   // =========================================================================
-   // Quick check if checkpoint is compatible with current run configuration.
-   // Returns true + fills meta if compatible, false otherwise.
+   /// Read + broadcast the metadata and check it matches this run.
    bool ValidateCompatibility(int expected_ref_level, int expected_order,
-                              OptimizationCheckpointMetadata& meta) const
+                              OptimizationCheckpointMetadata &meta) const
    {
-      if (!Exists()) return false;
-
-      // Load metadata to check compatibility
+      bool read_ok = true;
       if (myid_ == 0)
       {
-         std::ifstream meta_file(MetadataPath(), std::ios::binary);
-         if (!meta_file) return false;
-
-         meta_file.read(reinterpret_cast<char*>(&meta.iteration), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.objective), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.volume_fraction), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.convergence_error), sizeof(real_t));
-         meta_file.read(reinterpret_cast<char*>(&meta.n_active_dofs), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.n_mpi_ranks), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.refinement_level), sizeof(int));
-         meta_file.read(reinterpret_cast<char*>(&meta.fe_order), sizeof(int));
-         meta_file.read(meta.output_dir_path, 256);  // Load output directory path
-         meta_file.close();
+         std::ifstream ifs(MetadataPath());
+         read_ok = ifs.good();
+         std::string key;
+         while (read_ok && ifs >> key)
+         {
+            if (key == "iteration")             { ifs >> meta.iteration; }
+            else if (key == "objective")        { ifs >> meta.objective; }
+            else if (key == "volume_fraction")  { ifs >> meta.volume_fraction; }
+            else if (key == "n_mpi_ranks")      { ifs >> meta.n_mpi_ranks; }
+            else if (key == "refinement_level") { ifs >> meta.refinement_level; }
+            else if (key == "fe_order")         { ifs >> meta.fe_order; }
+            else { std::string skip; ifs >> skip; }
+            read_ok = !ifs.fail();
+         }
       }
-
+      MPI_Bcast(&read_ok, 1, MPI_C_BOOL, 0, comm_);
+      if (!read_ok)
+      {
+         if (myid_ == 0)
+         {
+            std::cerr << "Checkpoint: cannot parse " << MetadataPath()
+                      << std::endl;
+         }
+         return false;
+      }
       MPI_Bcast(&meta.iteration, 1, MPI_INT, 0, comm_);
+      MPI_Bcast(&meta.objective, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
+      MPI_Bcast(&meta.volume_fraction, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
       MPI_Bcast(&meta.n_mpi_ranks, 1, MPI_INT, 0, comm_);
       MPI_Bcast(&meta.refinement_level, 1, MPI_INT, 0, comm_);
       MPI_Bcast(&meta.fe_order, 1, MPI_INT, 0, comm_);
 
+      int nranks = 1;
+      MPI_Comm_size(comm_, &nranks);
       bool compatible = true;
-      int current_ranks = Mpi::WorldSize();
-
-      if (meta.n_mpi_ranks != current_ranks)
+      if (meta.n_mpi_ranks != nranks)
       {
          if (myid_ == 0)
          {
-            std::cerr << "Checkpoint incompatible: MPI ranks mismatch ("
-                      << meta.n_mpi_ranks << " vs " << current_ranks << ")\n";
+            std::cerr << "Checkpoint incompatible: written with "
+                      << meta.n_mpi_ranks << " ranks, running with "
+                      << nranks << ". Resubmit with the original count.\n";
          }
          compatible = false;
       }
-
       if (meta.refinement_level != expected_ref_level)
       {
          if (myid_ == 0)
          {
-            std::cerr << "Checkpoint incompatible: refinement level mismatch ("
-                      << meta.refinement_level << " vs " << expected_ref_level << ")\n";
+            std::cerr << "Checkpoint incompatible: refinement level "
+                      << meta.refinement_level << " vs " << expected_ref_level
+                      << ".\n";
          }
          compatible = false;
       }
-
       if (meta.fe_order != expected_order)
       {
          if (myid_ == 0)
          {
-            std::cerr << "Checkpoint incompatible: FE order mismatch ("
-                      << meta.fe_order << " vs " << expected_order << ")\n";
+            std::cerr << "Checkpoint incompatible: FE order "
+                      << meta.fe_order << " vs " << expected_order << ".\n";
          }
          compatible = false;
       }
-
       return compatible;
+   }
+
+   /// Load this rank's design piece into rho_tv (must be pre-sized to the
+   /// local control true-dof count). Call after ValidateCompatibility.
+   bool Load(Vector &rho_tv) const
+   {
+      bool ok = true;
+      {
+         std::ifstream ifs(DesignPath(myid_), std::ios::binary);
+         ok = ifs.good();
+         int32_t magic = 0;
+         int iteration = 0;
+         int64_t n = 0;
+         if (ok)
+         {
+            ifs.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+            ifs.read(reinterpret_cast<char *>(&iteration), sizeof(iteration));
+            ifs.read(reinterpret_cast<char *>(&n), sizeof(n));
+            ok = ifs.good() && magic == design_magic_ && n == rho_tv.Size();
+         }
+         if (ok)
+         {
+            ifs.read(reinterpret_cast<char *>(rho_tv.GetData()),
+                     n * sizeof(real_t));
+            ok = ifs.good();
+         }
+         if (!ok)
+         {
+            std::cerr << "Checkpoint: rank " << myid_
+                      << " failed to load " << DesignPath(myid_)
+                      << " (magic/size mismatch or read error)." << std::endl;
+         }
+      }
+      return AllOk(ok);
    }
 };
 

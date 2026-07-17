@@ -313,10 +313,16 @@ int main(int argc, char *argv[])
    // by test_adjoint_verification). Consistent (CG+AMG) is the default reference;
    // lumped (diagonal, row-sum) is faster for explicit RK4. User's choice via flag.
    bool use_iterative_mass = true;
-   const char *mesh_file = cfg.mesh_file.c_str();
+   const string default_mesh_file = cfg.mesh_file;
+   const char *mesh_file = default_mesh_file.c_str();
    const char *design_init = "uniform";
    const char *problem_name = "wave";
    bool damping = true;   // -damp / -no-damp: apply the problem's damping
+   // Carrier/pulse overrides (0 = keep the problem's default). Same problem can
+   // then run cheap (low f, coarse mesh) locally and rich (high f) on HPC.
+   real_t load_frequency = 0.0;
+   real_t load_duration = 0.0;
+   int num_checkpoints = -1;   // REVOLVE snapshot count; -1 = auto-size
 
    // === Checkpoint and output directory options ===
    const char *output_parent = nullptr;  // Parent directory for all outputs
@@ -361,6 +367,17 @@ int main(int argc, char *argv[])
                   "-lumped-mass", "--lumped-mass",
                   "Mass solver: consistent CG+AMG (default) or faster lumped. "
                   "Both are gradient-consistent (verified).");
+   args.AddOption(&load_frequency, "-freq", "--load-frequency",
+                  "Carrier frequency override for modulated/harmonic loads "
+                  "(0 = problem default). Resolving the carrier needs "
+                  "mesh size <~ c_p/(7 f).");
+   args.AddOption(&load_duration, "-dur", "--load-duration",
+                  "Pulse duration override (0 = problem default; the "
+                  "spherical problem otherwise keeps ~3 carrier cycles).");
+   args.AddOption(&num_checkpoints, "-nchk", "--num-checkpoints",
+                  "REVOLVE trajectory checkpoints per forward sweep "
+                  "(-1 = auto). More checkpoints = more memory, fewer "
+                  "forward recomputations in the adjoint.");
    args.Parse();
 
    if (!args.Good())
@@ -369,6 +386,17 @@ int main(int argc, char *argv[])
       return 1;
    }
    cfg.mesh_file = mesh_file;
+   cfg.mesh_file_is_user = (cfg.mesh_file != default_mesh_file);
+   if (load_frequency > 0.0)
+   {
+      cfg.boundary_load.frequency = load_frequency;
+      cfg.load_frequency_is_user = true;
+   }
+   if (load_duration > 0.0)
+   {
+      cfg.boundary_load.duration = load_duration;
+      cfg.load_duration_is_user = true;
+   }
 
    if (cfg.order < 1)
    {
@@ -427,11 +455,15 @@ int main(int argc, char *argv[])
    TransientTopOptProblem &problem = *problem_owner;
 
    ostringstream problem_errors;
-   if (!problem.Validate(problem_errors))
+   const bool problem_valid = problem.Validate(problem_errors);
+   // Print whatever the problem reported: hard errors on failure, but also
+   // non-fatal warnings (e.g. -tf too short for the pulse to reach the
+   // objective region) when validation succeeds.
+   if (myid == 0 && !problem_errors.str().empty())
    {
-      if (myid == 0) { cerr << problem_errors.str(); }
-      return 1;
+      cerr << problem_errors.str();
    }
+   if (!problem_valid) { return 1; }
 
    if (myid == 0) { args.PrintOptions(cout); }
 
@@ -464,17 +496,21 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Create parent directory (rank 0 only)
+   // Create the output directory (rank 0 acts; the verdict is broadcast so a
+   // failure exits ALL ranks - a rank-0-only return here would leave the
+   // other ranks hanging in a barrier).
+   bool outdir_ok = true;
    if (myid == 0)
    {
       struct stat st;
       if (stat(output_parent_dir.c_str(), &st) != 0)
       {
-         if (mkdir(output_parent_dir.c_str(), 0755) != 0 && !restart)
+         outdir_ok = (mkdir(output_parent_dir.c_str(), 0755) == 0);
+         if (!outdir_ok)
          {
             cerr << "ERROR: Failed to create output directory: "
-                 << output_parent_dir << endl;
-            return 1;
+                 << output_parent_dir << "\n"
+                 << "       (parent directories must already exist)\n";
          }
       }
       else if (!restart)
@@ -484,7 +520,8 @@ int main(int argc, char *argv[])
               << "         Use -restart to continue from checkpoint, or specify different -out\n";
       }
    }
-   MPI_Barrier(comm);
+   MPI_Bcast(&outdir_ok, 1, MPI_C_BOOL, 0, comm);
+   if (!outdir_ok) { return 1; }
 
    // Subdirectories
    string paraview_dir = output_parent_dir + "/ParaView";
@@ -568,48 +605,18 @@ int main(int argc, char *argv[])
    // =========================================================================
    // CHECKPOINT LOAD (if restarting)
    // =========================================================================
+   // Minimal restart: only the control density is restored and used as the
+   // initial guess for a fresh MMA run (no optimizer internals - MMA rebuilds
+   // its asymptotes within a couple of iterations). The iteration counter
+   // continues so -mi budgets and the history file stay meaningful.
    OptimizationCheckpoint checkpoint(checkpoint_dir, comm);
    OptimizationCheckpointMetadata ckpt_meta;
-   MMACheckpointState mma_ckpt;
    bool restarting = false;
    int start_iteration = 0;
 
    if (restart && checkpoint.Exists())
    {
-      if (checkpoint.ValidateCompatibility(cfg.ref_levels, cfg.order, ckpt_meta))
-      {
-         if (myid == 0)
-         {
-            cout << "\n=== RESTARTING FROM CHECKPOINT ===\n";
-            cout << "Previous run stopped at iteration: " << ckpt_meta.iteration << "\n";
-            cout << "Objective value: " << scientific << ckpt_meta.objective << "\n";
-            cout << "Volume fraction: " << fixed << ckpt_meta.volume_fraction << "\n";
-            cout << "Convergence error: " << scientific << ckpt_meta.convergence_error << "\n";
-            cout << "Original ParaView dir: " << ckpt_meta.GetOutputDir() << "\n";
-         }
-
-         if (checkpoint.Load(ckpt_meta, rho, mma_ckpt))
-         {
-            restarting = true;
-            start_iteration = ckpt_meta.iteration + 1;
-
-            if (myid == 0)
-            {
-               cout << "Checkpoint loaded successfully.\n";
-               cout << "Resuming from iteration " << start_iteration << "\n";
-               cout << "==================================\n\n";
-            }
-         }
-         else
-         {
-            if (myid == 0)
-            {
-               cerr << "ERROR: Failed to load checkpoint. Exiting.\n";
-            }
-            return 1;
-         }
-      }
-      else
+      if (!checkpoint.ValidateCompatibility(cfg.ref_levels, cfg.order, ckpt_meta))
       {
          if (myid == 0)
          {
@@ -617,6 +624,30 @@ int main(int argc, char *argv[])
             cerr << "       Remove -restart flag to start fresh run.\n";
          }
          return 1;
+      }
+
+      Vector rho_tv_restart(control_fes.GetTrueVSize());
+      if (!checkpoint.Load(rho_tv_restart))
+      {
+         if (myid == 0)
+         {
+            cerr << "ERROR: Failed to load checkpoint design. Exiting.\n";
+         }
+         return 1;
+      }
+      rho.SetFromTrueDofs(rho_tv_restart);
+      restarting = true;
+      start_iteration = ckpt_meta.iteration + 1;
+
+      if (myid == 0)
+      {
+         cout << "\n=== RESTARTING FROM CHECKPOINT ===\n";
+         cout << "Previous run stopped at iteration: " << ckpt_meta.iteration << "\n";
+         cout << "Objective value: " << scientific << ckpt_meta.objective << "\n";
+         cout << "Volume fraction: " << fixed << ckpt_meta.volume_fraction << "\n";
+         cout << "Design restored as initial guess; MMA restarts fresh.\n";
+         cout << "Resuming from iteration " << start_iteration << "\n";
+         cout << "==================================\n\n";
       }
    }
    else if (restart && !checkpoint.Exists())
@@ -663,8 +694,9 @@ int main(int argc, char *argv[])
    unique_ptr<Coefficient> active_region_coef;
    Array<int> active_tdof_list, passive_tdof_list;
    ParGridFunction passive_marker(&control_fes);
-   // Passive regions fixed at the initial uniform value (volume fraction)
-   const real_t passive_rho_value = problem.GetVolumeFraction();
+   // Passive regions frozen at the problem's reference density (default:
+   // the volume fraction; the spherical problem pins 0.5 regardless of -vf).
+   const real_t passive_rho_value = problem.GetPassiveDensity();
 
    if (passive_region_coef)
    {
@@ -710,6 +742,33 @@ int main(int argc, char *argv[])
 
    // Material and problem constants (match test_adjoint_verification).
    const MaterialParams &mat = problem.GetMaterialParams();
+
+   // Carrier-resolution report: an under-resolved carrier wave silently turns
+   // the forward physics into numerical dispersion, so make the elements-per-
+   // wavelength budget visible up front. (Collective: GetCharacteristics.)
+   if (load_spec.time_profile == LoadTimeProfile::MODULATED_GAUSSIAN ||
+       load_spec.time_profile == LoadTimeProfile::HARMONIC)
+   {
+      real_t h_min, h_max, kappa_min, kappa_max;
+      pmesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+      const real_t c_p = sqrt((mat.lambda0 + 2.0 * mat.mu0) / mat.rho0);
+      const real_t lambda_p = c_p / load_spec.frequency;
+      if (myid == 0)
+      {
+         cout << "Carrier: f = " << load_spec.frequency
+              << ", c_p = " << c_p << ", lambda_p = " << lambda_p
+              << ", mesh h = [" << h_min << ", " << h_max << "]"
+              << " -> elements/wavelength = [" << lambda_p / h_max
+              << ", " << lambda_p / h_min << "]\n";
+         if (lambda_p < 4.0 * h_max)
+         {
+            cerr << "WARNING: fewer than ~4 elements per P-wavelength in the "
+                 << "coarsest cells - the carrier will be strongly dispersed. "
+                 << "Refine the mesh or lower -freq (need h <~ lambda_p/7 = "
+                 << lambda_p / 7.0 << " where the wave must propagate).\n";
+         }
+      }
+   }
 
    // Sponge-layer damping coefficient + absorbing-boundary impedance, assembled
    // by the problem from the material and damping parameters.
@@ -773,11 +832,8 @@ int main(int argc, char *argv[])
       rho_active = rho_tv_full;
    }
 
-   // If restarting, load MMA design from checkpoint
-   if (restarting)
-   {
-      rho_active = mma_ckpt.xval;
-   }
+   // (When restarting, rho already holds the checkpointed design, so
+   // rho_active was just filled from it above - nothing more to restore.)
 
    Vector dJ_drho_full(n_full);
    Vector dJ_drho_active(n_active);
@@ -801,19 +857,6 @@ int main(int argc, char *argv[])
 
    mfem_mma::MMAOptimizerParallel mma(comm, n_active, num_con, rho_active);
    mma.SetAsymptotes(0.5, 0.7, 1.2);
-
-   // If restarting, restore MMA internal state (asymptotes and design history)
-   if (restarting)
-   {
-      // Checkpoint MMA state already stores active DOFs only (see Save section)
-      // Just restore them directly
-      mma.RestoreState(mma_ckpt.xold1, mma_ckpt.xold2, mma_ckpt.low, mma_ckpt.upp);
-
-      if (myid == 0)
-      {
-         cout << "MMA optimizer state fully restored (design history + asymptotes).\n";
-      }
-   }
 
    Vector rho_active_min(n_active), rho_active_max(n_active);
 
@@ -861,11 +904,12 @@ int main(int argc, char *argv[])
    TransientDesignSolver design_solver(
       state_fes, filter_fes, control_fes, filter, gamma_coef,
       exterior_bdr_attr, essential_bdr_attr, *objective, mat, load_spec,
-      *load_coef, impedance, num_steps, dt_eff, mass_solver, rho, rho_tilde);
+      *load_coef, impedance, num_steps, dt_eff, mass_solver, rho, rho_tilde,
+      num_checkpoints);
 
    GridFunctionCoefficient rho_cf(&rho);
    int k = start_iteration;  // Start from checkpoint iteration (or 0 if fresh)
-   real_t iterationError = restarting ? ckpt_meta.convergence_error : 1.0;
+   real_t iterationError = 1.0;   // fresh MMA on restart -> fresh stop test
 
    // ParaView design snapshots: cap the number of files written to the shared
    // filesystem. Saving every iteration exhausts the inode quota (each Save is
@@ -921,17 +965,17 @@ int main(int argc, char *argv[])
       mma.Update(rho_active, dJ_drho_active, J, fival, dfidx,
                 rho_active_min, rho_active_max);
 
-      // Update full grid function for visualization
+      // Refresh the full design (visualization + checkpoint) from the update
       if (passive_region_coef)
       {
          MapActiveToFull(rho_active, active_tdof_list, passive_tdof_list,
                         passive_rho_value, rho_tv_full);
-         rho.SetFromTrueDofs(rho_tv_full);
       }
       else
       {
-         rho.SetFromTrueDofs(rho_active);
+         rho_tv_full = rho_active;
       }
+      rho.SetFromTrueDofs(rho_tv_full);
 
       // Design change (L1 norm, matches ElastTopOpt_static) for the
       // early-stop test and progress monitoring: iterationError = int |dRho|.
@@ -961,41 +1005,18 @@ int main(int argc, char *argv[])
       // ======================================================================
       // SAVE CHECKPOINT (at end of each successful iteration)
       // ======================================================================
+      // Only the post-update control density (rho_tv_full, already refreshed
+      // above) plus small metadata. Atomic per file; safe against wall-clock
+      // kills mid-save.
       if (auto_checkpoint)
       {
-         // Update full rho for saving
-         if (passive_region_coef)
-         {
-            MapActiveToFull(rho_active, active_tdof_list, passive_tdof_list,
-                           passive_rho_value, rho_tv_full);
-            rho.SetFromTrueDofs(rho_tv_full);
-         }
-         else
-         {
-            rho.SetFromTrueDofs(rho_active);
-         }
-
-         // Fill checkpoint metadata
          ckpt_meta.iteration = k;
          ckpt_meta.objective = J;
          ckpt_meta.volume_fraction = cur_vol_frac;
-         ckpt_meta.convergence_error = iterationError;
-         ckpt_meta.n_active_dofs = n_active;
-         ckpt_meta.n_mpi_ranks = Mpi::WorldSize();
          ckpt_meta.refinement_level = cfg.ref_levels;
          ckpt_meta.fe_order = cfg.order;
-         ckpt_meta.SetOutputDir(paraview_dir.c_str());
 
-         // Fill MMA state from MMA optimizer internal state
-         mma_ckpt.SetSize(n_active);
-         mma_ckpt.xval = rho_active;
-         mma_ckpt.xold1 = mma.GetXOld1();
-         mma_ckpt.xold2 = mma.GetXOld2();
-         mma_ckpt.low = mma.GetLowerAsymptotes();
-         mma_ckpt.upp = mma.GetUpperAsymptotes();
-
-         // Save checkpoint (overwrites previous)
-         if (!checkpoint.Save(ckpt_meta, rho, mma_ckpt))
+         if (!checkpoint.Save(ckpt_meta, rho_tv_full))
          {
             if (myid == 0)
             {
@@ -1032,14 +1053,10 @@ int main(int argc, char *argv[])
             std::vector<real_t> viz_times;
             design_solver.ForwardVisualizationSweep(rho_tv_full, viz_states, viz_times);
 
-            // Save wave propagation to ParaView
+            // Save wave propagation to ParaView (the data collection creates
+            // its own directories under the prefix path).
             string wave_collection_name = "wave_iter" + to_string(k);
             string wave_full_dir = output_parent_dir + "/ParaView/" + wave_collection_name;
-            if (myid == 0)
-            {
-               system(("mkdir -p " + wave_full_dir).c_str());
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
 
             ParaViewDataCollection wave_dc(wave_collection_name.c_str(), &pmesh);
             wave_dc.SetLevelsOfDetail(problem.GetOrder());
