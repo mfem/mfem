@@ -292,6 +292,17 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    FillJAndData(mat_ea, mat);
 }
 
+void ElementRestriction::FillSparseMatrix(
+   const Vector &mat_ea, SparseMatrix &mat,
+   const ElementRestriction &trial_restr) const
+{
+   mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
+   const int nnz = FillI(mat, trial_restr);
+   mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
+   mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
+   FillJAndData(mat_ea, mat, trial_restr);
+}
+
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
@@ -319,6 +330,23 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 {
    int ind = AtomicAdd(I[i_L],1);
    return ind;
+}
+
+static MFEM_HOST_DEVICE int DofToVDof(const int dof, const int c,
+                                      const int ndofs, const int vdim,
+                                      const bool byvdim)
+{
+   return byvdim ? dof*vdim + c : c*ndofs + dof;
+}
+
+static MFEM_HOST_DEVICE int SignedIndexAbs(const int i)
+{
+   return (i >= 0) ? i : -1 - i;
+}
+
+static MFEM_HOST_DEVICE int SignedIndexSign(const int i)
+{
+   return (i >= 0) ? 1 : -1;
 }
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
@@ -395,6 +423,100 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    }
    h_I[nTdofs] = sum;
    // We return the number of nnz
+   return h_I[nTdofs];
+}
+
+int ElementRestriction::FillI(SparseMatrix &mat,
+                              const ElementRestriction &trial_restr) const
+{
+   MFEM_VERIFY(ne == trial_restr.ne,
+               "ElementRestriction::FillI: test/trial NE mismatch");
+   const int test_all_dofs = ndofs;
+   const int trial_all_dofs = trial_restr.ndofs;
+   const int test_vd = vdim;
+   const int trial_vd = trial_restr.vdim;
+   const int test_elt_dofs = dof;
+   const int trial_elt_dofs = trial_restr.dof;
+   const bool test_byvdim = byvdim;
+   const bool trial_byvdim = trial_restr.byvdim;
+   auto I = mat.ReadWriteI();
+   auto test_offsets = offsets.Read();
+   auto test_indices = indices.Read();
+   auto test_gather_map = gather_map.Read();
+   auto trial_offsets = trial_restr.offsets.Read();
+   auto trial_indices = trial_restr.indices.Read();
+   auto trial_gather_map = trial_restr.gather_map.Read();
+
+   Array<int> test_elts(indices.Size());
+   Array<int> trial_elts(trial_restr.indices.Size());
+   auto d_test_elts = test_elts.Write();
+   auto d_trial_elts = trial_elts.Write();
+
+   mfem::forall(test_vd*test_all_dofs+1, [=] MFEM_HOST_DEVICE (int i_L)
+   {
+      I[i_L] = 0;
+   });
+   mfem::forall(ne*test_elt_dofs*test_vd, [=] MFEM_HOST_DEVICE (int iE)
+   {
+      const int e = iE/(test_elt_dofs*test_vd);
+      const int it = iE%(test_elt_dofs*test_vd);
+      const int i = it%test_elt_dofs;
+      const int test_c = it/test_elt_dofs;
+
+      const int i_gm = e*test_elt_dofs + i;
+      const int i_dof = SignedIndexAbs(test_gather_map[i_gm]);
+      const int i_L = DofToVDof(i_dof, test_c, test_all_dofs, test_vd,
+                                test_byvdim);
+      const int i_offset = test_offsets[i_dof];
+      const int i_next_offset = test_offsets[i_dof+1];
+      const int i_nbElts = i_next_offset - i_offset;
+
+      int *i_elts = &d_test_elts[i_offset];
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
+      {
+         const int i_loc = SignedIndexAbs(test_indices[i_offset+e_i]);
+         i_elts[e_i] = i_loc/test_elt_dofs;
+      }
+      for (int trial_c = 0; trial_c < trial_vd; ++trial_c)
+      {
+         MFEM_CONTRACT_VAR(trial_c);
+         for (int j = 0; j < trial_elt_dofs; j++)
+         {
+            const int j_gm = e*trial_elt_dofs + j;
+            const int j_dof = SignedIndexAbs(trial_gather_map[j_gm]);
+            const int j_offset = trial_offsets[j_dof];
+            const int j_next_offset = trial_offsets[j_dof+1];
+            const int j_nbElts = j_next_offset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1)
+            {
+               GetAndIncrementNnzIndex(i_L, I);
+            }
+            else
+            {
+               int *j_elts = &d_trial_elts[j_offset];
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_loc = SignedIndexAbs(trial_indices[j_offset+e_j]);
+                  j_elts[e_j] = j_loc/trial_elt_dofs;
+               }
+               const int min_e = GetMinElt(i_elts, i_nbElts,
+                                           j_elts, j_nbElts);
+               if (e == min_e) { GetAndIncrementNnzIndex(i_L, I); }
+            }
+         }
+      }
+   });
+
+   auto h_I = mat.HostReadWriteI();
+   const int nTdofs = test_vd*test_all_dofs;
+   int sum = 0;
+   for (int i = 0; i < nTdofs; i++)
+   {
+      const int nnz = h_I[i];
+      h_I[i] = sum;
+      sum += nnz;
+   }
+   h_I[nTdofs] = sum;
    return h_I[nTdofs];
 }
 
@@ -487,6 +609,135 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    // sequential.
    auto h_I = mat.HostReadWriteI();
    const int size = vd*all_dofs;
+   for (int i = 0; i < size; i++)
+   {
+      h_I[size-i] = h_I[size-(i+1)];
+   }
+   h_I[0] = 0;
+}
+
+void ElementRestriction::FillJAndData(
+   const Vector &ea_data, SparseMatrix &mat,
+   const ElementRestriction &trial_restr) const
+{
+   MFEM_VERIFY(ne == trial_restr.ne,
+               "ElementRestriction::FillJAndData: test/trial NE mismatch");
+   const int test_all_dofs = ndofs;
+   const int trial_all_dofs = trial_restr.ndofs;
+   const int test_vd = vdim;
+   const int trial_vd = trial_restr.vdim;
+   const int test_elt_dofs = dof;
+   const int trial_elt_dofs = trial_restr.dof;
+   const bool test_byvdim = byvdim;
+   const bool trial_byvdim = trial_restr.byvdim;
+   auto I = mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   auto test_offsets = offsets.Read();
+   auto test_indices = indices.Read();
+   auto test_gather_map = gather_map.Read();
+   auto trial_offsets = trial_restr.offsets.Read();
+   auto trial_indices = trial_restr.indices.Read();
+   auto trial_gather_map = trial_restr.gather_map.Read();
+   auto mat_ea = Reshape(ea_data.Read(), test_elt_dofs, test_vd,
+                         trial_elt_dofs, trial_vd, ne);
+
+   Array<int> test_el(indices.Size() * 3);
+   Array<int> trial_el(trial_restr.indices.Size() * 3);
+   auto d_test_el = Reshape(test_el.Write(), indices.Size(), 3);
+   auto d_trial_el = Reshape(trial_el.Write(), trial_restr.indices.Size(), 3);
+
+   mfem::forall(ne*test_elt_dofs*test_vd, [=] MFEM_HOST_DEVICE (int iE)
+   {
+      const int e = iE/(test_elt_dofs*test_vd);
+      const int it = iE%(test_elt_dofs*test_vd);
+      const int i = it%test_elt_dofs;
+      const int test_c = it/test_elt_dofs;
+
+      const int i_gm = e*test_elt_dofs + i;
+      const int i_gm_s = test_gather_map[i_gm];
+      const int i_dof = SignedIndexAbs(i_gm_s);
+      const int i_sgn = SignedIndexSign(i_gm_s);
+      const int i_L = DofToVDof(i_dof, test_c, test_all_dofs, test_vd,
+                                test_byvdim);
+      const int i_offset = test_offsets[i_dof];
+      const int i_next_offset = test_offsets[i_dof+1];
+      const int i_nbElts = i_next_offset - i_offset;
+
+      int *i_elts = &d_test_el(i_offset, 0);
+      int *i_B = &d_test_el(i_offset, 1);
+      int *i_sgns = &d_test_el(i_offset, 2);
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
+      {
+         const int i_idx_s = test_indices[i_offset+e_i];
+         const int i_idx = SignedIndexAbs(i_idx_s);
+         i_elts[e_i] = i_idx/test_elt_dofs;
+         i_B[e_i] = i_idx%test_elt_dofs;
+         i_sgns[e_i] = SignedIndexSign(i_idx_s);
+      }
+      for (int trial_c = 0; trial_c < trial_vd; ++trial_c)
+      {
+         for (int j = 0; j < trial_elt_dofs; j++)
+         {
+            const int j_gm = e*trial_elt_dofs + j;
+            const int j_gm_s = trial_gather_map[j_gm];
+            const int j_dof = SignedIndexAbs(j_gm_s);
+            const int j_sgn = SignedIndexSign(j_gm_s);
+            const int j_L = DofToVDof(j_dof, trial_c, trial_all_dofs,
+                                      trial_vd, trial_byvdim);
+            const int j_offset = trial_offsets[j_dof];
+            const int j_next_offset = trial_offsets[j_dof+1];
+            const int j_nbElts = j_next_offset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1)
+            {
+               const int nnz = GetAndIncrementNnzIndex(i_L, I);
+               J[nnz] = j_L;
+               Data[nnz] = i_sgn*j_sgn*mat_ea(i, test_c, j, trial_c, e);
+            }
+            else
+            {
+               int *j_elts = &d_trial_el(j_offset, 0);
+               int *j_B = &d_trial_el(j_offset, 1);
+               int *j_sgns = &d_trial_el(j_offset, 2);
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_idx_s = trial_indices[j_offset+e_j];
+                  const int j_idx = SignedIndexAbs(j_idx_s);
+                  j_elts[e_j] = j_idx/trial_elt_dofs;
+                  j_B[e_j] = j_idx%trial_elt_dofs;
+                  j_sgns[e_j] = SignedIndexSign(j_idx_s);
+               }
+               const int min_e = GetMinElt(i_elts, i_nbElts,
+                                           j_elts, j_nbElts);
+               if (e == min_e)
+               {
+                  real_t val = 0.0;
+                  for (int k = 0; k < i_nbElts; k++)
+                  {
+                     const int e_i = i_elts[k];
+                     const int i_Bloc = i_B[k];
+                     for (int l = 0; l < j_nbElts; l++)
+                     {
+                        const int e_j = j_elts[l];
+                        const int j_Bloc = j_B[l];
+                        if (e_i == e_j)
+                        {
+                           val += i_sgns[k]*j_sgns[l]*
+                                  mat_ea(i_Bloc, test_c, j_Bloc, trial_c, e_i);
+                        }
+                     }
+                  }
+                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
+                  J[nnz] = j_L;
+                  Data[nnz] = val;
+               }
+            }
+         }
+      }
+   });
+
+   auto h_I = mat.HostReadWriteI();
+   const int size = test_vd*test_all_dofs;
    for (int i = 0; i < size; i++)
    {
       h_I[size-i] = h_I[size-(i+1)];
