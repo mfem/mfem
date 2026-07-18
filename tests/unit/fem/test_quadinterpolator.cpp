@@ -14,16 +14,16 @@
 
 using namespace mfem;
 
-static bool testQuadratureInterpolator(const int dim,
-                                       const int p,
-                                       const int qpts,
-                                       const QVectorLayout q_layout,
-                                       const int nx, const int ny, const int nz)
+static bool H1testQuadratureInterpolator(const int dim, const int p,
+                                         const int qpts,
+                                         const QVectorLayout q_layout,
+                                         const int nx, const int ny,
+                                         const int nz)
 {
    // Keep for debugging purposes:
    if (verbose_tests)
    {
-      std::cout << "testQuadratureInterpolator(dim=" << dim
+      std::cout << "H1testQuadratureInterpolator(dim=" << dim
                 << ",p=" << p
                 << ",q=" << qpts
                 << ",l=" << (q_layout == QVectorLayout::byNODES ?
@@ -236,6 +236,230 @@ static bool testQuadratureInterpolator(const int dim,
    return true;
 }
 
+static bool L2testQuadratureInterpolator(const int dim, const int p,
+                                         const int qpts,
+                                         const QVectorLayout q_layout,
+                                         const int nx, const int ny,
+                                         const int nz)
+{
+   // Keep for debugging purposes:
+   if (verbose_tests)
+   {
+      std::cout << "L2testQuadratureInterpolator(dim=" << dim
+                << ",p=" << p
+                << ",q=" << qpts
+                << ",l=" << (q_layout == QVectorLayout::byNODES ?
+                             "by_nodes" : "by_vdim")
+                << ",nx=" << nx
+                << ",ny=" << ny
+                << ",nz=" << nz
+                << ")" << std::endl;
+   }
+
+   const int vdim = dim;
+   const int ordering = Ordering::byNODES;
+
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
+               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
+
+   const L2_FECollection fec(p, dim);
+   const L2_FECollection ifec(p, dim, BasisType::GaussLegendre,
+                              FiniteElement::INTEGRAL);
+   FiniteElementSpace sfes(&mesh, &fec, 1, ordering);
+   FiniteElementSpace vfes(&mesh, &fec, vdim, ordering);
+   FiniteElementSpace isfes(&mesh, &ifec, 1, ordering);
+   FiniteElementSpace ivfes(&mesh, &ifec, vdim, ordering);
+
+   FunctionCoefficient coeff([](const Vector &x)
+   {
+      real_t res = 0;
+      for (int dim = 0; dim < x.Size(); ++dim)
+      {
+         res += cos(x[dim]);
+      }
+      return res;
+   });
+
+   VectorFunctionCoefficient vcoeff(vdim, [vdim](const Vector &x, Vector &y)
+   {
+      y.SetSize(vdim);
+      for (int v = 0; v < vdim; ++v)
+      {
+         real_t res = 0;
+         for (int dim = 0; dim < x.Size(); ++dim)
+         {
+            res += cos(x[dim] * (v + 1));
+         }
+         y[v] = res;
+      }
+   });
+
+   GridFunction x(&sfes);
+
+   GridFunction ix(&isfes);
+   x.ProjectCoefficient(coeff);
+   ix.ProjectCoefficient(coeff);
+
+   GridFunction nodes(&vfes);
+   GridFunction inodes(&ivfes);
+   nodes.ProjectCoefficient(vcoeff);
+   inodes.ProjectCoefficient(vcoeff);
+
+   const Geometry::Type GeomType = mesh.GetTypicalElementGeometry();
+   const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
+   const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
+   const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
+   const QuadratureInterpolator *isqi(isfes.GetQuadratureInterpolator(ir));
+   const QuadratureInterpolator *ivqi(ivfes.GetQuadratureInterpolator(ir));
+
+   const int NE(mesh.GetNE());
+   const int NQ(ir.GetNPoints());
+   const int ND(sfes.GetTypicalFE()->GetDof());
+   REQUIRE(ND == vfes.GetTypicalFE()->GetDof());
+
+   const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
+   const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *SRN(sfes.GetElementRestriction(nat_ordering));
+   const Operator *SRL(sfes.GetElementRestriction(lex_ordering));
+   const Operator *VRN(vfes.GetElementRestriction(nat_ordering));
+   const Operator *VRL(vfes.GetElementRestriction(lex_ordering));
+   const Operator *iSRN(isfes.GetElementRestriction(nat_ordering));
+   const Operator *iSRL(isfes.GetElementRestriction(lex_ordering));
+   const Operator *iVRN(ivfes.GetElementRestriction(nat_ordering));
+   const Operator *iVRL(ivfes.GetElementRestriction(lex_ordering));
+   MFEM_VERIFY(SRN, "No element sn-restriction operator found!");
+   MFEM_VERIFY(SRL, "No element sl-restriction operator found!");
+   MFEM_VERIFY(VRN, "No element vn-restriction operator found!");
+   MFEM_VERIFY(VRL, "No element vl-restriction operator found!");
+   MFEM_VERIFY(iSRN, "No element sn-restriction operator found!");
+   MFEM_VERIFY(iSRL, "No element sl-restriction operator found!");
+   MFEM_VERIFY(iVRN, "No element vn-restriction operator found!");
+   MFEM_VERIFY(iVRL, "No element vl-restriction operator found!");
+
+   const real_t rel_tol = 1e-12;
+
+   {
+      // Scalar
+      sqi->SetOutputLayout(q_layout);
+      isqi->SetOutputLayout(q_layout);
+      Vector xe(1*ND*NE);
+      REQUIRE(xe.Size() == SRN->Height());
+      REQUIRE(SRN->Height() == SRL->Height());
+      // Full results
+      Vector sq_val_f(NQ*NE);
+      // Tensor results
+      Vector sq_val_t(NQ*NE);
+
+      // Full results
+      Vector isq_val_f(NQ*NE);
+      // Tensor results
+      Vector isq_val_t(NQ*NE);
+      {
+         // Full
+         SRN->Mult(x, xe);
+         sqi->DisableTensorProducts();
+
+         sqi->Values(xe, sq_val_f);
+
+         iSRN->Mult(ix, xe);
+         isqi->DisableTensorProducts();
+
+         isqi->Values(xe, isq_val_f);
+      }
+      {
+         // Tensor
+         SRL->Mult(x, xe);
+         sqi->EnableTensorProducts();
+
+         sqi->Values(xe, sq_val_t);
+
+         iSRL->Mult(ix, xe);
+         isqi->EnableTensorProducts();
+
+         isqi->Values(xe, isq_val_t);
+      }
+      real_t norm, rel_error;
+
+      norm = sq_val_f.Normlinf();
+      isq_val_f -= sq_val_f;
+      rel_error = isq_val_f.Normlinf()/norm;
+      if (verbose_tests)
+      { std::cout << "isq_val_f rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = sq_val_t.Normlinf();
+      isq_val_t -= sq_val_t;
+      rel_error = isq_val_t.Normlinf() / norm;
+      if (verbose_tests)
+      { std::cout << "isq_val_t rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+   }
+
+   {
+      // Vector
+      vqi->SetOutputLayout(q_layout);
+      ivqi->SetOutputLayout(q_layout);
+      Vector ne(vdim*ND*NE);
+      REQUIRE(ne.Size() == VRN->Height());
+      REQUIRE(VRN->Height() == VRL->Height());
+      // Full results
+      Vector vq_val_f(dim*NQ*NE), vq_der_f(vdim*dim*NQ*NE),
+             vq_det_f(NQ*NE),
+             vq_pdr_f(vdim*dim*NQ*NE);
+      // Tensor results
+      Vector vq_val_t(dim*NQ*NE), vq_der_t(vdim*dim*NQ*NE),
+             vq_det_t(NQ*NE),
+             vq_pdr_t(vdim*dim*NQ*NE);
+
+      // Full results
+      Vector ivq_val_f(dim*NQ*NE);
+      // Tensor results
+      Vector ivq_val_t(dim*NQ*NE);
+      {
+         // Full
+         VRN->Mult(nodes, ne);
+         vqi->DisableTensorProducts();
+
+         vqi->Values(ne, vq_val_f);
+
+         iVRN->Mult(inodes, ne);
+         ivqi->DisableTensorProducts();
+
+         ivqi->Values(ne, ivq_val_f);
+      }
+      {
+         // Tensor
+         VRL->Mult(nodes, ne);
+         vqi->EnableTensorProducts();
+
+         vqi->Values(ne, vq_val_t);
+
+         iVRL->Mult(inodes, ne);
+         ivqi->EnableTensorProducts();
+
+         ivqi->Values(ne, ivq_val_t);
+      }
+      real_t norm, rel_error;
+
+      norm = vq_val_f.Normlinf();
+      ivq_val_f -= vq_val_f;
+      rel_error = ivq_val_f.Normlinf()/norm;
+      if (verbose_tests)
+      { std::cout << "ivq_val_f rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+
+      norm = vq_val_t.Normlinf();
+      ivq_val_t -= vq_val_t;
+      rel_error = ivq_val_t.Normlinf()/norm;
+      if (verbose_tests)
+      { std::cout << "ivq_val_t rel. error = " << rel_error << std::endl; }
+      REQUIRE(rel_error <= rel_tol);
+   }
+
+   return true;
+}
+
 TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
 {
    SECTION("H1 tensor elements: compare tensor and non-tensor evaluations")
@@ -247,7 +471,21 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       const auto nx = 3; // number of element in x
       const auto ny = 3; // number of element in y
       const auto nz = 3; // number of element in z
-      testQuadratureInterpolator(dim, p, q, l, nx, ny, nz);
+      CAPTURE(dim, p, q, l);
+      H1testQuadratureInterpolator(dim, p, q, l, nx, ny, nz);
+   }
+
+   SECTION("L2 tensor elements: compare tensor and non-tensor evaluations")
+   {
+      const auto dim = GENERATE(1,2,3); // dimension
+      const auto p = GENERATE(range(1,7)); // element order, 1 <= p < 7
+      const auto q = GENERATE_COPY(p+1,p+2); // 1D quadrature points
+      const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+      const auto nx = 3; // number of element in x
+      const auto ny = 3; // number of element in y
+      const auto nz = 3; // number of element in z
+      CAPTURE(dim, p, q, l);
+      L2testQuadratureInterpolator(dim, p, q, l, nx, ny, nz);
    }
 
    SECTION("H1 elements: values and physical derivatives")

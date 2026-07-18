@@ -165,6 +165,20 @@ set(UNIT_TESTS_SRCS
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
+  fem/specializations/test_diffusion_integ.cpp
+  fem/specializations/test_mass_integ.cpp
+  fem/specializations/test_convection_integ.cpp
+  fem/specializations/test_vecmass_integ.cpp
+  fem/specializations/test_curlcurl_integ.cpp
+  fem/specializations/test_vecdiffusion_integ.cpp
+  fem/specializations/test_dgtrace_integ.cpp
+  fem/specializations/test_dgdiffusion_integ.cpp
+  fem/specializations/test_dgmassinv.cpp
+  fem/specializations/test_qinterp_det.cpp
+  fem/specializations/test_qinterp_eval.cpp
+  fem/specializations/test_qinterp_grad.cpp
+  fem/specializations/test_qinterp_tensoreval.cpp
+  fem/specializations/test_qinterp_eval_hdiv.cpp
   enzyme/compatibility.cpp
   # The following are tested separately (keep the comment as a reminder).
   # This list can be updated using (in bash):
