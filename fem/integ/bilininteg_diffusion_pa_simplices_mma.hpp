@@ -285,6 +285,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    // Keep a compact Q-loop for the metric — fusing into MMA stores was slower.
    if constexpr (DIM == 2)
    {
+      MFEM_UNROLL(2)
       for (int d = 0; d < 2; ++d)
       {
          GAcc A{g_, NQ1, ndof, d};
@@ -318,6 +319,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
          }
       }
       MFEM_SYNC_THREAD;
+      MFEM_UNROLL(2)
       for (int d = 0; d < 2; ++d)
       {
          GAcc A{g_, NQ1, ndof, d};

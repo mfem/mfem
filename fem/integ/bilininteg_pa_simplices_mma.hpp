@@ -393,6 +393,7 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
          aReg[0] = (aRow < M && aColumn < K)
                    ? static_cast<double>(A(aRow, aColumn)) : 0.0;
 
+         MFEM_UNROLL(2)
          for (int nt = 0; nt < nTiles; ++nt)
          {
             const int n0 = nt * mmaN;
@@ -405,10 +406,12 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
             dmmaSync(aReg, bReg, cReg[nt]);
          }
       }
+      MFEM_UNROLL(2)
       for (int nt = 0; nt < nTiles; ++nt)
       {
          const int n0 = nt * mmaN;
          const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         MFEM_UNROLL(2)
          for (int i = 0; i < 2; i++)
          {
             const int cRow = row0 + groupId;
@@ -455,6 +458,7 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
          aReg[0] = (aT_row < K && aT_col < M)
                    ? static_cast<double>(A(aT_col, aT_row)) : 0.0;
 
+         MFEM_UNROLL(2)
          for (int nt = 0; nt < nTiles; ++nt)
          {
             const int n0 = nt * mmaN;
@@ -467,10 +471,12 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
             dmmaSync(aReg, bReg, cReg[nt]);
          }
       }
+      MFEM_UNROLL(2)
       for (int nt = 0; nt < nTiles; ++nt)
       {
          const int n0 = nt * mmaN;
          const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         MFEM_UNROLL(2)
          for (int i = 0; i < 2; i++)
          {
             const int cRow = row0 + groupId;
