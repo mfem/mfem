@@ -37,11 +37,9 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
    constexpr int MAGIC = simplex_mma::MagicFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = simplex_mma::PadLdBank<MAGIC>(BASIS_DIM);
    constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
-   constexpr int NB = (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160))
-                      ? simplex_mma::NBATCH : simplex_mma::mmaN;
+   constexpr int NB = simplex_mma::MassLikeNB<DIM, T_D1D, T_Q1D>();
    const int D1D = T_D1D ? T_D1D : d1d;
-   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
 
    const auto D = ConstDeviceMatrix(d_, NQ1, NE);
@@ -54,42 +52,22 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
    };
    MFEM_SHARED Smem sm;
 
-   struct PAcc
-   {
-      const real_t *p;
-      int nq1_, ndof_;
-      MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-      {
-         return p[row + nq1_ * col];
-      }
-   };
-
    const int tid = simplex_mma::getThreadIdx();
-#ifdef __CUDA_ARCH__
-   const int nthreads = blockDim.x * blockDim.y * blockDim.z;
-#else
-   [[maybe_unused]] const int nthreads = 1;
-#endif
+   const int nthreads = simplex_mma::getBlockNthreads();
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    simplex_mma::SmemMatAcc<X_LD> Xacc {sm.XY};
    simplex_mma::SmemMatAcc<U_LD> Uacc{sm.Us};
    simplex_mma::YBatchAcc Yacc{y_, ndof, e0};
 
-   for (int i = tid; i < X_LD * NB; i += nthreads)
-   {
-      const int b = i / X_LD;
-      const int r = i - b * X_LD;
-      const int e = e0 + b;
-      sm.XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
-   }
+   simplex_mma::LoadXToSmem(sm.XY, x, e0, NE, ndof, X_LD, NB, tid, nthreads);
    MFEM_SYNC_THREAD;
 
-   PAcc A{p_, NQ1, ndof};
-   simplex_mma::dmma_Gemm<MAGIC, true>(NQ1, ndof, NB, A, Xacc, Uacc,
-                                       D, e0, NE);
+   simplex_mma::PAcc A{p_, NQ1, ndof};
+   simplex_mma::BasisGemmForward<MAGIC, true>(NQ1, ndof, NB, A, Xacc, Uacc,
+                                              D, e0, NE);
    MFEM_SYNC_THREAD;
-   simplex_mma::dmma_GemmT<MAGIC>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
+   simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
 #else
    auto Y = DeviceMatrix(y_, ndof, NE);
    if (tid == 0)
@@ -135,12 +113,10 @@ inline void SmemPAMassApplySimplexMma(const int NE,
                                       const int d1d = 0,
                                       const int nq1 = 0)
 {
-   constexpr int NB = (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160))
-                      ? simplex_mma::NBATCH : simplex_mma::mmaN;
+   constexpr int NB = simplex_mma::MassLikeNB<DIM, T_D1D, T_Q1D>();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
-   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
    const int max_d1d = T_D1D ? T_D1D
                        : ((DIM == 3) ? simplex_mma::FallbackMaxD1D3
                           : DeviceDofQuadLimits::Get().MAX_D1D);
@@ -155,13 +131,8 @@ inline void SmemPAMassApplySimplexMma(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   const int mPassQ = (NQ1 + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
-   const int mPassD = (ndof + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
-   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
-                      : (mPassD > 1 ? mPassD : 1);
-   const int nthreads = nWarps * 32;
+   const int nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);
    const int nbatches = (NE + NB - 1) / NB;
-
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPAMassApplySimplexMma_Batch<DIM, T_D1D, T_Q1D>(

@@ -518,6 +518,147 @@ struct YBatchAcc
    }
 };
 
+/** Basis B (nq x ndof): row-major B(q,i) = p[q + nq*i]. */
+struct PAcc
+{
+   const real_t *p;
+   int nq1_, ndof_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return p[row + nq1_ * col];
+   }
+};
+
+/** Dense GradP slice for component d: G(q,i,d) layout (nq x ndof x dim). */
+struct GAcc
+{
+   const real_t *g;
+   int nq1_, ndof_, d_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return g[row + nq1_ * (col + ndof_ * d_)];
+   }
+};
+
+/** DomainLF E-vector write: layout (ndof x vdim x NE), one component vc. */
+struct YVdimAcc
+{
+   real_t *y;
+   int ndof_, vdim_, vc_, e0_;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
+   {
+      return y[r + ndof_ * (vc_ + vdim_ * (e0_ + b))];
+   }
+};
+
+MFEM_HOST_DEVICE inline int SimplexNdofFromD1D(const int dim, const int d1d)
+{
+   return (dim == 2) ? (d1d * (d1d + 1) / 2)
+          : (d1d * (d1d + 1) * (d1d + 2) / 6);
+}
+
+/** Mass / DomainLF batch width: NBATCH when specialized (except large 3D Q). */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int MassLikeNB()
+{
+   return (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160)) ? NBATCH : mmaN;
+}
+
+/** Diffusion NB so X + DIM*U shared buffers stay within 48 KiB. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionMmaNB()
+{
+   constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
+   constexpr int MAGIC = MagicFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = PadLdBank<MAGIC>(BASIS);
+   constexpr int U_LD = PadLdBank<MAGIC>(MQ);
+   constexpr int per_batch_col = X_LD + DIM * U_LD;
+   constexpr int max_nb =
+      (48 * 1024) / (int(sizeof(real_t)) * per_batch_col);
+   if (T_D1D && T_Q1D)
+   {
+      if (NBATCH <= max_nb) { return NBATCH; }
+      return max_nb > 0 ? max_nb : 1;
+   }
+   if (mmaN <= max_nb) { return mmaN; }
+   return max_nb > 0 ? max_nb : 1;
+}
+
+/** Thread count for forall_3D: enough warps for max(mPassQ, mPassD) tiles. */
+inline int LaunchNthreads(const int nq, const int ndof)
+{
+   const int mPassQ = (nq + mmaM - 1) / mmaM;
+   const int mPassD = (ndof + mmaM - 1) / mmaM;
+   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
+                      : (mPassD > 1 ? mPassD : 1);
+   return nWarps * 32;
+}
+
+MFEM_HOST_DEVICE inline int getBlockNthreads()
+{
+#ifdef __CUDA_ARCH__
+   return blockDim.x * blockDim.y * blockDim.z;
+#else
+   return 1;
+#endif
+}
+
+/** Cooperative load of X E-vector tiles into smem XY[X_LD * NB]. */
+template <typename XAcc>
+MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, XAcc x,
+                                         const int e0, const int NE,
+                                         const int ndof, const int X_LD,
+                                         const int NB, const int tid,
+                                         const int nthreads)
+{
+   for (int i = tid; i < X_LD * NB; i += nthreads)
+   {
+      const int b = i / X_LD;
+      const int r = i - b * X_LD;
+      const int e = e0 + b;
+      XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
+   }
+}
+
+/** Cooperative load of PA quad data D into smem U[U_LD * NB] (DomainLF). */
+template <typename DAcc>
+MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, DAcc D,
+                                         const int e0, const int NE,
+                                         const int NQ1, const int U_LD,
+                                         const int NB, const int tid,
+                                         const int nthreads)
+{
+   for (int i = tid; i < U_LD * NB; i += nthreads)
+   {
+      const int b = i / U_LD;
+      const int r = i - b * U_LD;
+      const int e = e0 + b;
+      U[i] = (e < NE && r < NQ1) ? D(r, e) : real_t(0);
+   }
+}
+
+/** One-component forward: U = B * X [, * D if SCALE]. */
+template <int MAGIC, bool SCALE, typename BasisAcc, typename XAcc,
+          typename UAcc, typename DAcc>
+MFEM_HOST_DEVICE inline void BasisGemmForward(const int NQ1, const int ndof,
+                                              const int NB, BasisAcc B,
+                                              XAcc X, UAcc U, DAcc D,
+                                              const int e0, const int NE)
+{
+   dmma_Gemm<MAGIC, SCALE>(NQ1, ndof, NB, B, X, U, D, e0, NE);
+}
+
+/** One-component transpose accumulate: Y += B^T * U. */
+template <int MAGIC, typename BasisAcc, typename UAcc, typename YAcc>
+MFEM_HOST_DEVICE inline void BasisGemmT(const int NQ1, const int ndof,
+                                        const int NB, BasisAcc B,
+                                        UAcc U, YAcc Y,
+                                        const int e0, const int NE)
+{
+   dmma_GemmT<MAGIC>(NQ1, ndof, NB, B, U, Y, e0, NE);
+}
+
 } // namespace simplex_mma
 
 } // namespace internal

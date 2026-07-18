@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
+#include "simplex_mma_keys.hxx"
 
 namespace mfem
 {
@@ -17,71 +18,40 @@ namespace mfem
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
    // Key is (D1D, simplex nq). BP3tri q=2p+3 → NQ in {7,15,19,28,37,49,60}.
+#define MFEM_SIMPLEX_MMA_ADD(DIM, D1D, NQ) \
+   AddSimplexMmaSpecialization<DIM, D1D, NQ>();
+   MFEM_SIMPLEX_MMA_FOR_EACH_COMMON_KEY(MFEM_SIMPLEX_MMA_ADD)
+#undef MFEM_SIMPLEX_MMA_ADD
+
+   // Diffusion-only extras: GetRule orders, BP3/BP5/BP7, tet q=2p+3.
    AddSimplexMmaSpecialization<2,2,1>();  // GetRule p=1
-   AddSimplexMmaSpecialization<2,2,3>();
    AddSimplexMmaSpecialization<2,2,7>();   // BP3tri p=1, q=2p+3
-   AddSimplexMmaSpecialization<2,2,12>();
    AddSimplexMmaSpecialization<2,3,3>();  // GetRule p=2
-   AddSimplexMmaSpecialization<2,3,6>();
-   AddSimplexMmaSpecialization<2,3,15>(); // BP3tri p=2
-   AddSimplexMmaSpecialization<2,3,16>();
    AddSimplexMmaSpecialization<2,4,6>();  // GetRule p=3
    AddSimplexMmaSpecialization<2,4,7>();   // BP7tri p=3
-   AddSimplexMmaSpecialization<2,4,12>();
-   AddSimplexMmaSpecialization<2,4,19>(); // BP3tri p=3
-   AddSimplexMmaSpecialization<2,4,25>();
    AddSimplexMmaSpecialization<2,5,12>(); // GetRule p=4
    AddSimplexMmaSpecialization<2,5,15>();  // BP7tri p=4
-   AddSimplexMmaSpecialization<2,5,16>();
-   AddSimplexMmaSpecialization<2,5,28>(); // BP3tri p=4
-   AddSimplexMmaSpecialization<2,5,33>();
    AddSimplexMmaSpecialization<2,6,16>(); // GetRule p=5
    AddSimplexMmaSpecialization<2,6,19>();  // BP7tri p=5
-   AddSimplexMmaSpecialization<2,6,25>();
-   AddSimplexMmaSpecialization<2,6,37>(); // BP3tri p=5
-   AddSimplexMmaSpecialization<2,6,42>();
    AddSimplexMmaSpecialization<2,7,25>(); // GetRule p=6
    AddSimplexMmaSpecialization<2,7,28>();  // BP7tri p=6
-   AddSimplexMmaSpecialization<2,7,33>();
-   AddSimplexMmaSpecialization<2,7,49>(); // BP3tri p=6
-   AddSimplexMmaSpecialization<2,7,55>();
    AddSimplexMmaSpecialization<2,8,37>();  // BP7tri p=7
-   AddSimplexMmaSpecialization<2,8,42>();  // BP5tri p=7
-   AddSimplexMmaSpecialization<2,8,60>(); // BP3tri p=7
 
-   // 3D (GLL tet)
    AddSimplexMmaSpecialization<3,2,1>();   // GetRule p=1
-   AddSimplexMmaSpecialization<3,2,4>();
    AddSimplexMmaSpecialization<3,2,14>();  // BP3tet p=1, q=2p+3
-   AddSimplexMmaSpecialization<3,2,24>();
    AddSimplexMmaSpecialization<3,3,4>();   // GetRule p=2
    AddSimplexMmaSpecialization<3,3,8>();   // BP7tet p=2
-   AddSimplexMmaSpecialization<3,3,14>();
-   AddSimplexMmaSpecialization<3,3,35>();
-   AddSimplexMmaSpecialization<3,3,46>();
    AddSimplexMmaSpecialization<3,4,11>();  // GetRule p=3 approx
    AddSimplexMmaSpecialization<3,4,14>();  // BP7tet p=3
-   AddSimplexMmaSpecialization<3,4,24>();
    AddSimplexMmaSpecialization<3,4,59>();  // BP3tet p=3, q=2p+3
-   AddSimplexMmaSpecialization<3,4,81>();
    AddSimplexMmaSpecialization<3,5,24>();  // GetRule p=4
    AddSimplexMmaSpecialization<3,5,35>();  // BP7tet p=4
-   AddSimplexMmaSpecialization<3,5,46>();
-   AddSimplexMmaSpecialization<3,5,96>();
-   AddSimplexMmaSpecialization<3,5,123>();
    AddSimplexMmaSpecialization<3,6,45>();  // GetRule p=5
    AddSimplexMmaSpecialization<3,6,59>();  // BP7tet p=5
-   AddSimplexMmaSpecialization<3,6,81>();
    AddSimplexMmaSpecialization<3,6,145>(); // BP3tet p=5, q=2p+3
-   AddSimplexMmaSpecialization<3,6,175>();
    AddSimplexMmaSpecialization<3,7,74>();  // GetRule p=6
    AddSimplexMmaSpecialization<3,7,96>();  // BP7tet p=6
-   AddSimplexMmaSpecialization<3,7,123>();
-   AddSimplexMmaSpecialization<3,7,209>(); // BP3tet p=6, q=2p+3
-   AddSimplexMmaSpecialization<3,7,248>();
    AddSimplexMmaSpecialization<3,8,145>(); // BP7tet p=7
-   AddSimplexMmaSpecialization<3,8,175>();
-   AddSimplexMmaSpecialization<3,8,284>();
 }
 
 } // namespace mfem

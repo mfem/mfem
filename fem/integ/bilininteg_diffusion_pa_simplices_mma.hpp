@@ -21,28 +21,6 @@ namespace mfem
 namespace internal
 {
 
-/** Choose NB so X + DIM*U shared buffers stay within 48 KiB. */
-template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionMmaNB()
-{
-   constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-   constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
-   constexpr int MAGIC = simplex_mma::MagicFor<DIM, T_D1D, T_Q1D>();
-   constexpr int X_LD = simplex_mma::PadLdBank<MAGIC>(BASIS);
-   constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
-   constexpr int per_batch_col = X_LD + DIM * U_LD;
-   constexpr int max_nb =
-      (48 * 1024) / (int(sizeof(real_t)) * per_batch_col);
-   // Specialized: NBATCH if it fits, else largest NB in budget. Fallback: mmaN.
-   if (T_D1D && T_Q1D)
-   {
-      if (simplex_mma::NBATCH <= max_nb) { return simplex_mma::NBATCH; }
-      return max_nb > 0 ? max_nb : 1;
-   }
-   if (simplex_mma::mmaN <= max_nb) { return simplex_mma::mmaN; }
-   return max_nb > 0 ? max_nb : 1;
-}
-
 /** One-kernel diffusion PA data: J from (nodes_e, Gn), then metric into D. */
 inline void PADiffusionSetupSimplexFromNodes(const int dim,
                                        const int coeffDim,
@@ -215,6 +193,72 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
    });
 }
 
+/** Cooperative Q-point metric apply (keeps compact loop; not fused into MMA). */
+template <int DIM, int U_LD, int NB, bool SYM, typename DAcc>
+MFEM_HOST_DEVICE inline void ApplyDiffusionMetric(real_t *UV, DAcc D,
+                                                  const int e0, const int NE,
+                                                  const int NQ1, const int tid,
+                                                  const int nthreads)
+{
+   for (int i = tid; i < NQ1 * NB; i += nthreads)
+   {
+      const int b = i / NQ1;
+      const int q = i - b * NQ1;
+      const int e = e0 + b;
+      if (e >= NE || q >= NQ1) { continue; }
+      if constexpr (DIM == 2)
+      {
+         const real_t u1 = UV[0 * U_LD * NB + q + U_LD * b];
+         const real_t u2 = UV[1 * U_LD * NB + q + U_LD * b];
+         const real_t O11 = D(q, 0, e);
+         const real_t O21 = D(q, 1, e);
+         if constexpr (SYM)
+         {
+            const real_t O22 = D(q, 2, e);
+            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O21 * u2;
+            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
+         }
+         else
+         {
+            const real_t O12 = D(q, 2, e);
+            const real_t O22 = D(q, 3, e);
+            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2;
+            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
+         }
+      }
+      else
+      {
+         const real_t u1 = UV[0 * U_LD * NB + q + U_LD * b];
+         const real_t u2 = UV[1 * U_LD * NB + q + U_LD * b];
+         const real_t u3 = UV[2 * U_LD * NB + q + U_LD * b];
+         const real_t O11 = D(q, 0, e);
+         const real_t O12 = D(q, 1, e);
+         const real_t O13 = D(q, 2, e);
+         if constexpr (SYM)
+         {
+            const real_t O22 = D(q, 3, e);
+            const real_t O23 = D(q, 4, e);
+            const real_t O33 = D(q, 5, e);
+            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * U_LD * NB + q + U_LD * b] = O12 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * U_LD * NB + q + U_LD * b] = O13 * u1 + O23 * u2 + O33 * u3;
+         }
+         else
+         {
+            const real_t O21 = D(q, 3, e);
+            const real_t O22 = D(q, 4, e);
+            const real_t O23 = D(q, 5, e);
+            const real_t O31 = D(q, 6, e);
+            const real_t O32 = D(q, 7, e);
+            const real_t O33 = D(q, 8, e);
+            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * U_LD * NB + q + U_LD * b] = O31 * u1 + O32 * u2 + O33 * u3;
+         }
+      }
+   }
+}
+
 template<int DIM, int T_D1D, int T_Q1D, bool SYM>
 MFEM_HOST_DEVICE inline
 void SmemPADiffusionApplySimplexMma_Batch(const int e0,
@@ -231,13 +275,12 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    constexpr int MAGIC = simplex_mma::MagicFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = simplex_mma::PadLdBank<MAGIC>(BASIS_DIM);
    constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
-   constexpr int NB = DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
+   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    static_assert(sizeof(real_t) * (X_LD + DIM * U_LD) * NB <= 48 * 1024,
                  "Diffusion simplex MMA shared memory exceeds 48 KiB");
    const int D1D = T_D1D ? T_D1D : d1d;
-   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
 
    const auto D = Reshape(d_, NQ1, PA_SIZE, NE);
@@ -250,35 +293,15 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    };
    MFEM_SHARED Smem sm;
 
-   struct GAcc
-   {
-      const real_t *g;
-      int nq1_, ndof_, d_;
-      MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-      {
-         return g[row + nq1_ * (col + ndof_ * d_)];
-      }
-   };
-
    const int tid = simplex_mma::getThreadIdx();
-#ifdef __CUDA_ARCH__
-   const int nthreads = blockDim.x * blockDim.y * blockDim.z;
-#else
-   [[maybe_unused]] const int nthreads = 1;
-#endif
+   const int nthreads = simplex_mma::getBlockNthreads();
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    simplex_mma::SmemMatAcc<X_LD> Xacc {sm.XY};
    simplex_mma::YBatchAcc Yacc{y_, ndof, e0};
    simplex_mma::NullDAcc nullD;
 
-   for (int i = tid; i < X_LD * NB; i += nthreads)
-   {
-      const int b = i / X_LD;
-      const int r = i - b * X_LD;
-      const int e = e0 + b;
-      sm.XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
-   }
+   simplex_mma::LoadXToSmem(sm.XY, x, e0, NE, ndof, X_LD, NB, tid, nthreads);
    MFEM_SYNC_THREAD;
 
    // Forward GEMMs, coalesced metric (SYM vs full), then GemmT.
@@ -288,101 +311,41 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       MFEM_UNROLL(2)
       for (int d = 0; d < 2; ++d)
       {
-         GAcc A{g_, NQ1, ndof, d};
+         simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-         simplex_mma::dmma_Gemm<MAGIC, false>(NQ1, ndof, NB, A, Xacc, Uacc,
-                                              nullD, e0, NE);
+         simplex_mma::BasisGemmForward<MAGIC, false>(NQ1, ndof, NB, A, Xacc,
+                                                      Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
-      for (int i = tid; i < NQ1 * NB; i += nthreads)
-      {
-         const int b = i / NQ1;
-         const int q = i - b * NQ1;
-         const int e = e0 + b;
-         if (e >= NE || q >= NQ1) { continue; }
-         const real_t u1 = sm.UV[0 * U_LD * NB + q + U_LD * b];
-         const real_t u2 = sm.UV[1 * U_LD * NB + q + U_LD * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O21 = D(q, 1, e);
-         if constexpr (SYM)
-         {
-            const real_t O22 = D(q, 2, e);
-            sm.UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O21 * u2;
-            sm.UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
-         }
-         else
-         {
-            const real_t O12 = D(q, 2, e);
-            const real_t O22 = D(q, 3, e);
-            sm.UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2;
-            sm.UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
-         }
-      }
+      ApplyDiffusionMetric<2, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
+                                             nthreads);
       MFEM_SYNC_THREAD;
       MFEM_UNROLL(2)
       for (int d = 0; d < 2; ++d)
       {
-         GAcc A{g_, NQ1, ndof, d};
+         simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-         simplex_mma::dmma_GemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+         simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
       }
    }
    else if constexpr (DIM == 3)
    {
       for (int d = 0; d < 3; ++d)
       {
-         GAcc A{g_, NQ1, ndof, d};
+         simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-         simplex_mma::dmma_Gemm<MAGIC, false>(NQ1, ndof, NB, A, Xacc, Uacc,
-                                              nullD, e0, NE);
+         simplex_mma::BasisGemmForward<MAGIC, false>(NQ1, ndof, NB, A, Xacc,
+                                                      Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
-      for (int i = tid; i < NQ1 * NB; i += nthreads)
-      {
-         const int b = i / NQ1;
-         const int q = i - b * NQ1;
-         const int e = e0 + b;
-         if (e >= NE || q >= NQ1) { continue; }
-         const real_t u1 = sm.UV[0 * U_LD * NB + q + U_LD * b];
-         const real_t u2 = sm.UV[1 * U_LD * NB + q + U_LD * b];
-         const real_t u3 = sm.UV[2 * U_LD * NB + q + U_LD * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O12 = D(q, 1, e);
-         const real_t O13 = D(q, 2, e);
-         if constexpr (SYM)
-         {
-            const real_t O22 = D(q, 3, e);
-            const real_t O23 = D(q, 4, e);
-            const real_t O33 = D(q, 5, e);
-            sm.UV[0 * U_LD * NB + q + U_LD * b] =
-               O11 * u1 + O12 * u2 + O13 * u3;
-            sm.UV[1 * U_LD * NB + q + U_LD * b] =
-               O12 * u1 + O22 * u2 + O23 * u3;
-            sm.UV[2 * U_LD * NB + q + U_LD * b] =
-               O13 * u1 + O23 * u2 + O33 * u3;
-         }
-         else
-         {
-            const real_t O21 = D(q, 3, e);
-            const real_t O22 = D(q, 4, e);
-            const real_t O23 = D(q, 5, e);
-            const real_t O31 = D(q, 6, e);
-            const real_t O32 = D(q, 7, e);
-            const real_t O33 = D(q, 8, e);
-            sm.UV[0 * U_LD * NB + q + U_LD * b] =
-               O11 * u1 + O12 * u2 + O13 * u3;
-            sm.UV[1 * U_LD * NB + q + U_LD * b] =
-               O21 * u1 + O22 * u2 + O23 * u3;
-            sm.UV[2 * U_LD * NB + q + U_LD * b] =
-               O31 * u1 + O32 * u2 + O33 * u3;
-         }
-      }
+      ApplyDiffusionMetric<3, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
+                                             nthreads);
       MFEM_SYNC_THREAD;
       for (int d = 0; d < 3; ++d)
       {
-         GAcc A{g_, NQ1, ndof, d};
+         simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-         simplex_mma::dmma_GemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+         simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
       }
    }
 #else
@@ -494,12 +457,11 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
                                            const int d1d = 0,
                                            const int nq1 = 0)
 {
-   constexpr int NB = DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
+   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
-   const int ndof = (DIM == 2) ? (D1D * (D1D + 1) / 2)
-                    : (D1D * (D1D + 1) * (D1D + 2) / 6);
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
    const int max_d1d = T_D1D ? T_D1D
                        : ((DIM == 3) ? simplex_mma::FallbackMaxD1D3
                           : DeviceDofQuadLimits::Get().MAX_D1D);
@@ -514,13 +476,8 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   const int mPassQ = (NQ1 + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
-   const int mPassD = (ndof + simplex_mma::mmaM - 1) / simplex_mma::mmaM;
-   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
-                      : (mPassD > 1 ? mPassD : 1);
-   const int nthreads = nWarps * 32;
+   const int nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);
    const int nbatches = (NE + NB - 1) / NB;
-
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPADiffusionApplySimplexMma_Batch<DIM, T_D1D, T_Q1D, SYM>(
