@@ -206,14 +206,26 @@ constexpr int mmaM = 8, mmaN = 8, mmaK = 4;
 // Default packed column map for m8n8k4.row.col: [0,5,1,6,2,7,3,4].
 constexpr int MagicDefault = 0b100011111010110001101000; // 0x8fac68
 
-/** Effective column map for known (ndof,nq1) BP1tri GLL shapes. */
+/** Effective column map for known (ndof,nq1) simplex shapes (tri/tet).
+    Shared by mass and diffusion MMA: tunes m8n8k4 fragment columns / bank
+    conflicts for the GEMM smem layout, not the bilinear form. Chosen to
+    minimize PadLdBank padding. */
 constexpr int MagicForDims(int ndof, int nq1)
 {
+   // Triangles (BP1 GLL / BP3 q=2p+3)
+   if (ndof == 3 && nq1 == 7) { return 0xaf9ca0; }   // BP3tri p=1
    if (ndof == 6 && nq1 == 15) { return 0xaf9ca0; } // [0,4,2,6,1,7,3,5]
    if (ndof == 10 && nq1 == 19) { return 0xceae60; } // [0,4,1,7,2,5,3,6]
    if (ndof == 15 && nq1 == 28) { return 0xcd7328; } // [0,5,4,1,7,2,3,6]
    if (ndof == 21 && nq1 == 37) { return 0xcfa868; } // [0,5,1,4,2,7,3,6]
    if (ndof == 28 && nq1 == 49) { return 0xcd7328; } // [0,5,4,1,7,2,3,6]
+   // (36,60) BP3tri p=7: MagicDefault already zero-pad
+
+   // Tetrahedra (BP3tet q=2p+3 and nearby)
+   if (ndof == 20 && nq1 == 59) { return 0xcfa868; }  // BP3tet p=3
+   if (ndof == 56 && nq1 == 145) { return 0xfa54c8; } // BP3tet p=5
+   if (ndof == 84 && nq1 == 209) { return 0xcd7328; } // BP3tet p=6
+   if (ndof == 120 && nq1 == 284) { return 0xde5688; } // BP3tet p=7
    return MagicDefault;
 }
 
