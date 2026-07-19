@@ -54,15 +54,9 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
       {
          const int e = idx / NQ;
          const int q = idx - NQ * e;
-         real_t J11 = 0.0, J21 = 0.0, J12 = 0.0, J22 = 0.0;
-         for (int i = 0; i < ND; i++)
-         {
-            const real_t x = E(i, 0, e), y = E(i, 1, e);
-            const real_t gx = G(q, 0, i), gy = G(q, 1, i);
-            J11 += x * gx; J21 += y * gx;
-            J12 += x * gy; J22 += y * gy;
-         }
-         const real_t w_detJ = W(q) / ((J11 * J22) - (J21 * J12));
+         real_t J11, J21, J12, J22;
+         EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
+         const real_t w_detJ = W(q) / DetJ2(J11, J21, J12, J22);
          if (coeffDim == 3 || coeffDim == 4)
          {
             const real_t M11 = get_coeff(C, 0, q, e);
@@ -107,30 +101,13 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
    {
       const int e = idx / NQ;
       const int q = idx - NQ * e;
-      real_t J11 = 0.0, J21 = 0.0, J31 = 0.0;
-      real_t J12 = 0.0, J22 = 0.0, J32 = 0.0;
-      real_t J13 = 0.0, J23 = 0.0, J33 = 0.0;
-      for (int i = 0; i < ND; i++)
-      {
-         const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
-         const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
-         J11 += x * gx; J21 += y * gx; J31 += z * gx;
-         J12 += x * gy; J22 += y * gy; J32 += z * gy;
-         J13 += x * gz; J23 += y * gz; J33 += z * gz;
-      }
-      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
-                          J21 * (J12 * J33 - J32 * J13) +
-                          J31 * (J12 * J23 - J22 * J13);
-      const real_t w_detJ = W(q) / detJ;
-      const real_t A11 = (J22 * J33) - (J23 * J32);
-      const real_t A12 = (J32 * J13) - (J12 * J33);
-      const real_t A13 = (J12 * J23) - (J22 * J13);
-      const real_t A21 = (J31 * J23) - (J21 * J33);
-      const real_t A22 = (J11 * J33) - (J13 * J31);
-      const real_t A23 = (J21 * J13) - (J11 * J23);
-      const real_t A31 = (J21 * J32) - (J31 * J22);
-      const real_t A32 = (J31 * J12) - (J11 * J32);
-      const real_t A33 = (J11 * J22) - (J12 * J21);
+      real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
+      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t w_detJ = W(q) / DetJ3(J11, J21, J31, J12, J22, J32,
+                                          J13, J23, J33);
+      real_t A11, A12, A13, A21, A22, A23, A31, A32, A33;
+      CofactorsJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33,
+                  A11, A12, A13, A21, A22, A23, A31, A32, A33);
 
       if (coeffDim == 6 || coeffDim == 9)
       {

@@ -117,6 +117,80 @@ inline void GetSimplexMeshNodesE(Mesh &mesh, MemoryType mt, Vector &nodes_e,
    nR->Mult(*nodes, nodes_e);
 }
 
+/** Build 2D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
+template <typename EAcc, typename GAcc>
+MFEM_HOST_DEVICE inline void EvalSimplexJ2(EAcc E, GAcc G, const int q,
+                                           const int e, const int ND,
+                                           real_t &J11, real_t &J21,
+                                           real_t &J12, real_t &J22)
+{
+   J11 = J21 = J12 = J22 = 0.0;
+   for (int i = 0; i < ND; i++)
+   {
+      const real_t x = E(i, 0, e), y = E(i, 1, e);
+      const real_t gx = G(q, 0, i), gy = G(q, 1, i);
+      J11 += x * gx; J21 += y * gx;
+      J12 += x * gy; J22 += y * gy;
+   }
+}
+
+/** Build 3D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
+template <typename EAcc, typename GAcc>
+MFEM_HOST_DEVICE inline void EvalSimplexJ3(EAcc E, GAcc G, const int q,
+                                           const int e, const int ND,
+                                           real_t &J11, real_t &J21, real_t &J31,
+                                           real_t &J12, real_t &J22, real_t &J32,
+                                           real_t &J13, real_t &J23, real_t &J33)
+{
+   J11 = J21 = J31 = J12 = J22 = J32 = J13 = J23 = J33 = 0.0;
+   for (int i = 0; i < ND; i++)
+   {
+      const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
+      const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
+      J11 += x * gx; J21 += y * gx; J31 += z * gx;
+      J12 += x * gy; J22 += y * gy; J32 += z * gy;
+      J13 += x * gz; J23 += y * gz; J33 += z * gz;
+   }
+}
+
+MFEM_HOST_DEVICE inline real_t DetJ2(const real_t J11, const real_t J21,
+                                     const real_t J12, const real_t J22)
+{
+   return J11 * J22 - J21 * J12;
+}
+
+MFEM_HOST_DEVICE inline real_t DetJ3(const real_t J11, const real_t J21,
+                                     const real_t J31, const real_t J12,
+                                     const real_t J22, const real_t J32,
+                                     const real_t J13, const real_t J23,
+                                     const real_t J33)
+{
+   return J11 * (J22 * J33 - J32 * J23) -
+          J21 * (J12 * J33 - J32 * J13) +
+          J31 * (J12 * J23 - J22 * J13);
+}
+
+/** Cofactor matrix of J (transpose of adjugate / used by diffusion PA). */
+MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
+                                         const real_t J31, const real_t J12,
+                                         const real_t J22, const real_t J32,
+                                         const real_t J13, const real_t J23,
+                                         const real_t J33,
+                                         real_t &A11, real_t &A12, real_t &A13,
+                                         real_t &A21, real_t &A22, real_t &A23,
+                                         real_t &A31, real_t &A32, real_t &A33)
+{
+   A11 = (J22 * J33) - (J23 * J32);
+   A12 = (J32 * J13) - (J12 * J33);
+   A13 = (J12 * J23) - (J22 * J13);
+   A21 = (J31 * J23) - (J21 * J33);
+   A22 = (J11 * J33) - (J13 * J31);
+   A23 = (J21 * J13) - (J11 * J23);
+   A31 = (J21 * J32) - (J31 * J22);
+   A32 = (J31 * J12) - (J11 * J32);
+   A33 = (J11 * J22) - (J12 * J21);
+}
+
 /** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ. */
 inline void PAMassSetupSimplexFromNodes(const int dim,
                                            const int NE,
@@ -144,15 +218,9 @@ inline void PAMassSetupSimplexFromNodes(const int dim,
       {
          const int e = idx / NQ;
          const int q = idx - NQ * e;
-         real_t J11 = 0.0, J21 = 0.0, J12 = 0.0, J22 = 0.0;
-         for (int i = 0; i < ND; i++)
-         {
-            const real_t x = E(i, 0, e), y = E(i, 1, e);
-            const real_t gx = G(q, 0, i), gy = G(q, 1, i);
-            J11 += x * gx; J21 += y * gx;
-            J12 += x * gy; J22 += y * gy;
-         }
-         const real_t detJ = J11 * J22 - J21 * J12;
+         real_t J11, J21, J12, J22;
+         EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
+         const real_t detJ = DetJ2(J11, J21, J12, J22);
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
          D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
       });
@@ -164,20 +232,9 @@ inline void PAMassSetupSimplexFromNodes(const int dim,
    {
       const int e = idx / NQ;
       const int q = idx - NQ * e;
-      real_t J11 = 0.0, J21 = 0.0, J31 = 0.0;
-      real_t J12 = 0.0, J22 = 0.0, J32 = 0.0;
-      real_t J13 = 0.0, J23 = 0.0, J33 = 0.0;
-      for (int i = 0; i < ND; i++)
-      {
-         const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
-         const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
-         J11 += x * gx; J21 += y * gx; J31 += z * gx;
-         J12 += x * gy; J22 += y * gy; J32 += z * gy;
-         J13 += x * gz; J23 += y * gz; J33 += z * gz;
-      }
-      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
-                          J21 * (J12 * J33 - J32 * J13) +
-                          J31 * (J12 * J23 - J22 * J13);
+      real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
+      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t detJ = DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
       const real_t coeff = const_c ? C(0, 0) : C(q, e);
       D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
    });
