@@ -153,7 +153,7 @@ static void AddKernelSpecializations()
 // Bake-off base class.
 // POS / MMA only matter when SIMPLEX == true:
 //   GLL MMA:     POS=false
-//   Positive AAD: POS=true,  MMA=false (Stroud sum-factorized)
+//   Positive SUM: POS=true,  MMA=false
 //   Positive MMA: POS=true,  MMA=true  (dense MMA, CUDA)
 template <int BFI, int DIM, int VDIM, bool GLL,
           bool SIMPLEX, bool POS, bool MMA>
@@ -216,7 +216,7 @@ struct BakeOff
    fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
    geom_type(mesh.GetTypicalElementGeometry()),
    irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-   // pos_sum uses Stroud AAD; gll_mma / pos_mma use a standard simplex rule
+   // pos_sum uses Stroud sum-factorized; gll_mma / pos_mma use a standard simplex rule
    ir((SIMPLEX && POS && !MMA)
       ? &StroudIntRules.Get(geom_type, q)
       : &irs.Get(geom_type, q)),
@@ -552,7 +552,7 @@ REGISTER(BK, 6, Quad);
  * Names encode geometry and simplex PA backend:
  *    hex / quad       — tensor-product (3D / 2D)
  *    tet_gll_mma / tri_gll_mma — simplex Gauss-Lobatto, dense MMA
- *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud AAD
+ *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
  *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA (CUDA)
  *
  * Positive MMA (`*_pos_mma`) requires CUDA, e.g.:

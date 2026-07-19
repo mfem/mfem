@@ -4632,8 +4632,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
 {
-   // Dense simplex MMA builds P/G from CalcShape (NATIVE dof order), including
-   // Positive H1 on CUDA. Positive AAD (HIP/CPU / force-AAD) stays LEX.
+   // Dense simplex MMA builds P/G from CalcShape (NATIVE dof order)
    if (CanUseSimplexMmaPA(fes)) { return ElementDofOrdering::NATIVE; }
    return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
           ElementDofOrdering::LEXICOGRAPHIC:

@@ -27,8 +27,7 @@ namespace mfem
 {
 
 /** @brief Force Positive/Bernstein simplex PA to use CUDA MMA instead of the
-    default Stroud AAD path. Useful for benchmarking. Does not affect GLL MMA.
-    Default: false.
+    default Stroud sum-factorized path. Default: false.
 
     Also enabled when the environment variable MFEM_SIMPLEX_POSITIVE_MMA is set
     to any value other than "0". Must be configured before restriction / PA
@@ -193,15 +192,15 @@ MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
 
 /** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ. */
 inline void PAMassSetupSimplexFromNodes(const int dim,
-                                           const int NE,
-                                           const int NQ,
-                                           const int ND,
-                                           const bool by_val,
-                                           const Array<real_t> &w,
-                                           const Array<real_t> &g,
-                                           const Vector &nodes_e,
-                                           const Vector &c,
-                                           Vector &d)
+                                        const int NE,
+                                        const int NQ,
+                                        const int ND,
+                                        const bool by_val,
+                                        const Array<real_t> &w,
+                                        const Array<real_t> &g,
+                                        const Vector &nodes_e,
+                                        const Vector &c,
+                                        Vector &d)
 {
    const bool const_c = c.Size() == 1;
    const auto W = Reshape(w.Read(), NQ);

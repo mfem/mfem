@@ -18,6 +18,12 @@ namespace mfem
 
 /// \cond DO_NOT_DOCUMENT
 
+void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
+                               const IntegrationRule *ir,
+                               const Array<int> &markers,
+                               const Vector &coeff,
+                               Vector &y);
+
 namespace internal
 {
 

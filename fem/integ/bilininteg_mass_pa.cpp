@@ -27,77 +27,6 @@ namespace mfem
 
 // PA Mass Integrator
 
-void MassIntegrator::AssemblePA_SimplexMma(const FiniteElementSpace &fes)
-{
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
-
-   fespace = &fes;
-   Mesh *mesh = fes.GetMesh();
-   dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(mesh->SpaceDimension() == dim, "");
-
-   const FiniteElement &el = *fes.GetTypicalFE();
-   const Geometry::Type geom_t = (dim == 2) ? Geometry::TRIANGLE
-                                 : Geometry::TETRAHEDRON;
-   MFEM_VERIFY(el.GetGeomType() == geom_t, "");
-   MFEM_VERIFY(IsSimplexMmaH1Element(el, dim), "");
-
-   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
-   const int map_type = el.GetMapType();
-   const int p = el.GetOrder();
-   dofs1D = p + 1;
-   const int ndof = el.GetDof();
-
-   const int q_order = IntRule ? IntRule->GetOrder()
-                       : 2 * p + T0->OrderW() + 4;
-   const IntegrationRule &ir =
-      IntRule ? *IntRule : IntRules.Get(geom_t, q_order);
-   const int nq1 = ir.GetNPoints();
-   quad1D = nq1;
-   this->nq = nq1;
-   ne = mesh->GetNE();
-   pa_simplex_mma = true;
-   maps = nullptr;
-
-   simplex_mma_P.SetSize(nq1 * ndof, mt);
-   {
-      real_t *Ph = simplex_mma_P.HostWrite();
-      Vector shape_ref(ndof);
-      for (int q = 0; q < nq1; q++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         el.CalcShape(ip, shape_ref);
-         for (int i = 0; i < ndof; i++)
-         {
-            Ph[q + nq1 * i] = shape_ref(i);
-         }
-      }
-   }
-
-   // Assemble geometry directly from restricted mesh nodes (no QI /
-   // GetGeometricFactors). Mult only reads the resulting pa_data.
-   geom = nullptr;
-   Vector nodes_e;
-   int nd_n = 0, sdim = 0;
-   internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, sdim);
-   MFEM_VERIFY(sdim == dim, "");
-   const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
-   const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
-   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq1, "");
-
-   pa_data.SetSize(nq1 * ne, mt);
-
-   QuadratureSpace qs(*mesh, ir);
-   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-
-   const bool by_val = map_type == FiniteElement::VALUE;
-   internal::PAMassSetupSimplexFromNodes(
-      dim, ne, nq1, nd_n, by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff,
-      pa_data);
-}
-
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    pa_simplex_mma = false;
@@ -153,8 +82,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    const bool by_val = map_type == FiniteElement::VALUE;
 
-   // Volumetric Stroud (Positive AAD): assemble detJ from restricted mesh
-   // nodes instead of GetGeometricFactors / QI EvalKernels (large NQ fallback).
+   // Assemble from restricted mesh nodes
    if (stroud && mesh->SpaceDimension() == dim)
    {
       geom = nullptr;
