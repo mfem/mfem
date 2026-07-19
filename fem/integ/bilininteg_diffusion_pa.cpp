@@ -11,13 +11,9 @@
 
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
-#include "../qfunction.hpp"
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
-#include "../fe/fe_h1.hpp"
-#include "../fe/fe_pos.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
-#include "bilininteg_diffusion_pa_simplices.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
 
@@ -126,7 +122,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (CanUseSimplexMmaPA(fes))
    {
-      AssemblePA_SimplexMma(fes);
+      AssembleSimplexMmaPA(fes);
       return;
    }
 

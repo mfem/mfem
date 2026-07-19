@@ -9,10 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../fem/kernels.hpp"
-#include "../../general/forall.hpp"
-#include "../fem.hpp"
-
 #include "lininteg_domain_kernels.hpp"
 #include "lininteg_domain_simplices_mma.hpp"
 
@@ -85,12 +81,9 @@ DomainLFIntegrator::AssembleKernels::Fallback(int DIM, int, int)
 {
    switch (DIM)
    {
-      case 1:
-         return DLFEvalAssemble1D<0, 0>;
-      case 2:
-         return DLFEvalAssemble2D<0, 0>;
-      case 3:
-         return DLFEvalAssemble3D<0, 0>;
+      case 1: return DLFEvalAssemble1D<0, 0>;
+      case 2: return DLFEvalAssemble2D<0, 0>;
+      case 3: return DLFEvalAssemble3D<0, 0>;
    }
    MFEM_ABORT("");
 }

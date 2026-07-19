@@ -882,16 +882,6 @@ void InitEvalKernels()
    k::Specialization<2,2,25,36>::Add();
    k::Specialization<2,2,25,49>::Add();
    k::Specialization<2,2,25,64>::Add();
-   // Linear triangle mesh geometry (ndof=3) for Positive CEED BPs
-   k::Specialization<2,2,3,1>::Add();
-   k::Specialization<2,2,3,4>::Add();
-   k::Specialization<2,2,3,9>::Add();
-   k::Specialization<2,2,3,16>::Add();
-   k::Specialization<2,2,3,25>::Add();
-   k::Specialization<2,2,3,36>::Add();
-   k::Specialization<2,2,3,49>::Add();
-   k::Specialization<2,2,3,64>::Add();
-   k::Specialization<2,2,3,81>::Add();
 
    // 3D, VDIM = 3
    // Q1
@@ -908,15 +898,6 @@ void InitEvalKernels()
    // Q4
    k::Specialization<3,3,125,125>::Add();
    k::Specialization<3,3,125,216>::Add();
-   // Linear tet mesh geometry (ndof=4) for Positive CEED BPs.
-   // NQ > 216 is left on the runtime fallback: specialized Eval3D with
-   // large constexpr NQ exceeds CUDA launch resources (regs / threads).
-   k::Specialization<3,3,4,1>::Add();
-   k::Specialization<3,3,4,8>::Add();
-   k::Specialization<3,3,4,27>::Add();
-   k::Specialization<3,3,4,64>::Add();
-   k::Specialization<3,3,4,125>::Add();
-   k::Specialization<3,3,4,216>::Add();
 }
 
 } // namespace quadrature_Interpolator

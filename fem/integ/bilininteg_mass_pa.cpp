@@ -10,17 +10,14 @@
 // CONTRIBUTING.md for details.
 
 #include "../../general/forall.hpp"
-#include "../../general/globals.hpp"
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
-#include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
-#include "../fe/fe_h1.hpp"
-#include "../fe/fe_pos.hpp"
-#include "bilininteg_mass_kernels.hpp"
-#include "bilininteg_mass_pa_simplices.hpp"
-#include "bilininteg_mass_pa_simplices_mma.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
+
+#include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_simplices_mma.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -34,7 +31,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (CanUseSimplexMmaPA(fes))
    {
-      AssemblePA_SimplexMma(fes);
+      AssembleSimplexMmaPA(fes);
       return;
    }
 

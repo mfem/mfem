@@ -144,7 +144,6 @@ public:
                                        const real_t *, const Vector &coeff,
                                        real_t *y);
 
-   /// Simplex MMA assemble: (NE, P, D, y, vdim, vc, d1d, nq)
    using AssembleSimplexMmaKernelType = void (*)(const int,
                                                  const Array<real_t> &,
                                                  const Vector &,
@@ -163,7 +162,6 @@ public:
       AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 
-   /// @param Q1D Number of simplex quadrature points (not a 1D count).
    template <int DIM, int D1D, int Q1D>
    static void AddSimplexMmaSpecialization()
    {
@@ -173,7 +171,7 @@ public:
       }
    }
 
-   /// Register specialized simplex MMA DomainLF kernels (separate TU).
+   /// Register specialized simplex MMA DomainLF kernels
    static void RegisterSimplexMmaKernels();
 };
 

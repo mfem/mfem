@@ -32,7 +32,7 @@ bool GetForceSimplexPositiveMMA()
 {
    if (force_simplex_positive_mma) { return true; }
 
-   // Cached env lookup: MFEM_SIMPLEX_POSITIVE_MMA set (and not "0") forces MMA.
+   // Cached env lookup: MFEM_SIMPLEX_POSITIVE_MMA set (and not "0") forces MMA
    static int env_mma = -1; // -1 unset, 0 no, 1 yes
    if (env_mma < 0)
    {

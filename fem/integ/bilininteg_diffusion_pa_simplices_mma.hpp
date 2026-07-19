@@ -21,17 +21,16 @@ namespace mfem
 namespace internal
 {
 
-/** One-kernel diffusion PA data: J from (nodes_e, Gn), then metric into D. */
 inline void PADiffusionSetupSimplexFromNodes(const int dim,
-                                       const int coeffDim,
-                                       const int NE,
-                                       const int NQ,
-                                       const int ND,
-                                       const Array<real_t> &w,
-                                       const Array<real_t> &g,
-                                       const Vector &nodes_e,
-                                       const Vector &c,
-                                       Vector &d)
+                                             const int coeffDim,
+                                             const int NE,
+                                             const int NQ,
+                                             const int ND,
+                                             const Array<real_t> &w,
+                                             const Array<real_t> &g,
+                                             const Vector &nodes_e,
+                                             const Vector &c,
+                                             Vector &d)
 {
    const bool symmetric = (coeffDim != dim * dim);
    const bool const_c = c.Size() == coeffDim;
@@ -43,17 +42,19 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
 
    if (dim == 2)
    {
-      const auto C = const_c ? Reshape(c.Read(), coeffDim, 1, 1)
+      const auto C = const_c
+                     ? Reshape(c.Read(), coeffDim, 1, 1)
                      : Reshape(c.Read(), coeffDim, NQ, NE);
-      auto get_coeff = [const_c] MFEM_HOST_DEVICE
-                       (const decltype(C) &C, int i, int q, int e)
+      const auto get_coeff =
+         [const_c] MFEM_HOST_DEVICE
+         (const decltype(C) &C, int i, int q, int e)
       {
          return const_c ? C(i, 0, 0) : C(i, q, e);
       };
+
       mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
       {
-         const int e = idx / NQ;
-         const int q = idx - NQ * e;
+         const int e = idx / NQ, q = idx - NQ * e;
          real_t J11, J21, J12, J22;
          EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
          const real_t w_detJ = W(q) / DetJ2(J11, J21, J12, J22);
@@ -62,7 +63,8 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
             const real_t M11 = get_coeff(C, 0, q, e);
             const real_t M12 = get_coeff(C, 1, q, e);
             const real_t M21 = symmetric ? M12 : get_coeff(C, 2, q, e);
-            const real_t M22 = symmetric ? get_coeff(C, 2, q, e)
+            const real_t M22 = symmetric
+                               ? get_coeff(C, 2, q, e)
                                : get_coeff(C, 3, q, e);
             const real_t R11 = M11 * J22 - M12 * J12;
             const real_t R21 = M21 * J22 - M22 * J12;
@@ -70,7 +72,8 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
             const real_t R22 = -M21 * J21 + M22 * J11;
             D(q, 0, e) = w_detJ * (J22 * R11 - J12 * R21);
             D(q, 1, e) = w_detJ * (-J21 * R11 + J11 * R21);
-            D(q, 2, e) = w_detJ * (symmetric ? (-J21 * R12 + J11 * R22)
+            D(q, 2, e) = w_detJ * (symmetric
+                                   ? (-J21 * R12 + J11 * R22)
                                    : (J22 * R12 - J12 * R22));
             if (!symmetric)
             {
@@ -89,22 +92,26 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PADiffusionSetupSimplexFromNodes only supports dim 2 or 3");
-   const auto C = const_c ? Reshape(c.Read(), coeffDim, 1, 1)
+   MFEM_VERIFY(dim == 3,
+               "PADiffusionSetupSimplexFromNodes only supports dim 2 or 3");
+   const auto C = const_c
+                  ? Reshape(c.Read(), coeffDim, 1, 1)
                   : Reshape(c.Read(), coeffDim, NQ, NE);
-   auto get_coeff = [const_c] MFEM_HOST_DEVICE
-                    (const decltype(C) &C, int i, int q, int e)
+   const auto get_coeff =
+      [const_c] MFEM_HOST_DEVICE
+      (const decltype(C) &C, int i, int q, int e)
    {
       return const_c ? C(i, 0, 0) : C(i, q, e);
    };
+
    mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
    {
-      const int e = idx / NQ;
-      const int q = idx - NQ * e;
+      const int e = idx / NQ, q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
-      const real_t w_detJ = W(q) / DetJ3(J11, J21, J31, J12, J22, J32,
-                                          J13, J23, J33);
+      EvalSimplexJ3(E, G, q, e, ND,
+                    J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t w_detJ =
+         W(q) / DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
       real_t A11, A12, A13, A21, A22, A23, A31, A32, A33;
       CofactorsJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33,
                   A11, A12, A13, A21, A22, A23, A31, A32, A33);
@@ -143,10 +150,7 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
          const real_t D33 = w_detJ * (A31 * R13 + A32 * R23 + A33 * R33);
          D(q, 4, e) = symmetric ? D23 : D22;
          D(q, 5, e) = symmetric ? D33 : D23;
-         if (symmetric)
-         {
-            D(q, 3, e) = D22;
-         }
+         if (symmetric) { D(q, 3, e) = D22; }
          else
          {
             D(q, 3, e) = w_detJ * (A21 * R11 + A22 * R21 + A23 * R31);
@@ -170,12 +174,12 @@ inline void PADiffusionSetupSimplexFromNodes(const int dim,
    });
 }
 
-/** Cooperative Q-point metric apply (keeps compact loop; not fused into MMA). */
-template <int DIM, int U_LD, int NB, bool SYM, typename DAcc>
-MFEM_HOST_DEVICE inline void ApplyDiffusionMetric(real_t *UV, DAcc D,
-                                                  const int e0, const int NE,
-                                                  const int NQ1, const int tid,
-                                                  const int nthreads)
+template <int DIM, int U_LD, int NB, bool SYM, typename TD>
+MFEM_HOST_DEVICE inline
+void ApplyDiffusionMetric(real_t *UV, TD D,
+                          const int e0, const int NE,
+                          const int NQ1, const int tid,
+                          const int nthreads)
 {
    for (int i = tid; i < NQ1 * NB; i += nthreads)
    {
@@ -249,9 +253,9 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
 {
    constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
    constexpr int BASIS_DIM = simplex_mma::SimplexNdof<DIM, T_D1D>();
-   constexpr int MAGIC = simplex_mma::MagicFor<DIM, T_D1D, T_Q1D>();
-   constexpr int X_LD = simplex_mma::PadLdBank<MAGIC>(BASIS_DIM);
-   constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
+   constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS_DIM);
+   constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
    constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    static_assert(sizeof(real_t) * (X_LD + DIM * U_LD) * NB <= 48 * 1024,
@@ -271,7 +275,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    MFEM_SHARED Smem sm;
 
    const int tid = simplex_mma::getThreadIdx();
-   const int nthreads = simplex_mma::getBlockNthreads();
+   [[maybe_unused]]const int nthreads = simplex_mma::getBlockNthreads();
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    simplex_mma::SmemMatAcc<X_LD> Xacc {sm.XY};
@@ -281,8 +285,6 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    simplex_mma::LoadXToSmem(sm.XY, x, e0, NE, ndof, X_LD, NB, tid, nthreads);
    MFEM_SYNC_THREAD;
 
-   // Forward GEMMs, coalesced metric (SYM vs full), then GemmT.
-   // Keep a compact Q-loop for the metric — fusing into MMA stores was slower.
    if constexpr (DIM == 2)
    {
       MFEM_UNROLL(2)
@@ -290,8 +292,8 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       {
          simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-         simplex_mma::BasisGemmForward<MAGIC, false>(NQ1, ndof, NB, A, Xacc,
-                                                      Uacc, nullD, e0, NE);
+         simplex_mma::BasisGemmForward<MAP, false>(NQ1, ndof, NB, A, Xacc,
+                                                   Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
       ApplyDiffusionMetric<2, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
@@ -302,7 +304,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       {
          simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-         simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+         simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
       }
    }
    else if constexpr (DIM == 3)
@@ -311,8 +313,8 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       {
          simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-         simplex_mma::BasisGemmForward<MAGIC, false>(NQ1, ndof, NB, A, Xacc,
-                                                      Uacc, nullD, e0, NE);
+         simplex_mma::BasisGemmForward<MAP, false>(NQ1, ndof, NB, A, Xacc,
+                                                   Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
       ApplyDiffusionMetric<3, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
@@ -322,7 +324,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       {
          simplex_mma::GAcc A{g_, NQ1, ndof, d};
          simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-         simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+         simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
       }
    }
 #else
@@ -440,7 +442,8 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    const int NQ1 = T_Q1D ? T_Q1D : nq1;
    const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
    const int max_d1d = T_D1D ? T_D1D
-                       : ((DIM == 3) ? simplex_mma::FallbackMaxD1D3
+                       : ((DIM == 3)
+                          ? simplex_mma::FallbackMaxD1D3
                           : DeviceDofQuadLimits::Get().MAX_D1D);
    const int max_nq = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
    MFEM_VERIFY(D1D <= max_d1d, "");
@@ -448,9 +451,7 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() == PA_SIZE * NQ1 * NE, "");
    MFEM_VERIFY(g_.Size() == NQ1 * ndof * DIM, "");
 
-   const auto G = g_.Read();
-   const auto D = d_.Read();
-   const auto X = x_.Read();
+   const auto G = g_.Read(), D = d_.Read(), X = x_.Read();
    auto Y = y_.ReadWrite();
 
    const int nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);

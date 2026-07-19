@@ -81,13 +81,9 @@ inline void PADiffusionApplyTriangle(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
 
-      // Layouts (work for any Q1D, including Q1D > D1D-1):
-      //   dof pair (a1,a2): idx = a2 + (D1D-1)*a1   (a2 fastest)
-      //   (a1,i2) / (i1,i2): idx = i2 + Q1D*a1 / i2 + Q1D*i1
       real_t cin[2 * (max_D1D-1) * (max_D1D-1)];
       real_t C1[2 * (max_D1D-1) * max_Q1D];
       real_t C2[2 * max_Q1D * max_Q1D];
-      // Buffer reuse: cin→F2, C1→F1, C2→fin
       real_t *F2 = cin, *F1 = C1, *fin = C2;
 
       for (int a1 = 0; a1 < D1D-1; ++a1)
@@ -205,7 +201,6 @@ inline void PADiffusionApplyTriangle(const int NE,
       }
 
       // F1 computes the Bernstein moment over the first ragged tensor dimension.
-      // F1 reuses C1 (quad→dof in the first ragged dimension).
       for (int a1 = 0; a1 < D1D-1; a1++)
       {
          for (int i2 = 0; i2 < Q1D; i2++)
@@ -231,7 +226,6 @@ inline void PADiffusionApplyTriangle(const int NE,
       }
 
       // F2 computes the Bernstein moment over the second/last ragged tensor dimension.
-      // F2 reuses cin (quad→dof in the second ragged dimension).
       for (int a1 = 0; a1 < D1D-1; ++a1)
       {
          for (int a2 = 0; a2 < D1D-1-a1; ++a2)

@@ -11,7 +11,7 @@
 
 // Implementation of class LinearForm
 
-#include "fem.hpp"
+#include "linearform.hpp"
 #include "integ/bilininteg_pa_simplices_mma.hpp"
 
 namespace mfem
@@ -154,10 +154,10 @@ bool LinearForm::SupportsDevice() const
    const int mesh_dim = mesh.Dimension();
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
-   // Tensor-product FE spaces use the existing device kernels. GLL H1 and
-   // Positive (CUDA) triangle/tet spaces use the simplex MMA DomainLF path
-   // (no boundary LF).
+   // Tensor-product FE spaces use the existing device kernels
    if (UsesTensorBasis(*fes)) { return true; }
+
+   // Simplices with no boundary linear form can use MMA
    if (CanUseSimplexMmaPA(*fes) && boundary_integs.Size() == 0)
    {
       return true;

@@ -2193,7 +2193,6 @@ public:
                                           const Vector&, const Vector&,
                                           Vector&, const int, const int);
 
-   /// Simplex MMA apply: (NE, GradP, D, x, y, d1d, nq)
    using ApplySimplexMmaKernelType = void(*)(const int, const bool,
                                              const Array<real_t>&,
                                              const Vector&, const Vector&, Vector&,
@@ -2204,8 +2203,8 @@ public:
                                       const int, const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
-                                                                         int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
@@ -2231,9 +2230,9 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   /// True when using CUDA simplex MMA diffusion PA (dense GradP + DMMA apply).
+   /// True when using CUDA simplex MMA diffusion PA (dense GradP + DMMA apply)
    bool pa_simplex_mma = false;
-   /// Dense reference gradients at quads: nq × ndof × dim.
+   /// Dense reference gradients at quads: nq × ndof × dim
    Array<real_t> simplex_mma_G;
 
    // Data for NURBS patch PA
@@ -2290,9 +2289,6 @@ private:
                                               SparseMatrix*& smat);
 
 public:
-   /// Assemble PA data for GLL H1 simplex diffusion via DMMA (CUDA).
-   void AssemblePA_SimplexMma(const FiniteElementSpace &fes);
-
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
@@ -2344,6 +2340,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
@@ -2434,10 +2432,6 @@ protected:
    void AssembleEA_(Vector &ea, const bool add);
 
 public:
-   /// Assemble PA data for GLL H1 simplex mass via DMMA (CUDA).
-   void AssemblePA_SimplexMma(const FiniteElementSpace &fes);
-
-public:
 
    using ApplyKernelType = void(*)(const int, const Array<real_t>&,
                                    const Array<real_t>&, const Vector&,
@@ -2452,7 +2446,6 @@ public:
                                           const Vector&, const Vector&, Vector&,
                                           const int, const int);
 
-   /// Simplex MMA apply: (NE, P, D, x, y, d1d, nq)
    using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
@@ -2462,8 +2455,8 @@ public:
                                        const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
-                                                                         int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
@@ -2489,6 +2482,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
    void AssemblePABoundary(const FiniteElementSpace &fes) override;
 

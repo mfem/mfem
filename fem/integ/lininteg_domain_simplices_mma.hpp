@@ -42,9 +42,8 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
                                      const int nq1)
 {
    constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-   constexpr int BASIS_DIM = simplex_mma::SimplexNdof<DIM, T_D1D>();
-   constexpr int MAGIC = simplex_mma::MagicFor<DIM, T_D1D, T_Q1D>();
-   constexpr int U_LD = simplex_mma::PadLdBank<MAGIC>(MQ);
+   constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
    constexpr int NB = simplex_mma::MassLikeNB<DIM, T_D1D, T_Q1D>();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
@@ -59,7 +58,7 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
    MFEM_SHARED Smem sm;
 
    const int tid = simplex_mma::getThreadIdx();
-   const int nthreads = simplex_mma::getBlockNthreads();
+   [[maybe_unused]]const int nthreads = simplex_mma::getBlockNthreads();
 
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    simplex_mma::SmemMatAcc<U_LD> Uacc {sm.Us};
@@ -69,7 +68,7 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
    MFEM_SYNC_THREAD;
 
    simplex_mma::PAcc A{p_, NQ1, ndof};
-   simplex_mma::BasisGemmT<MAGIC>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
+   simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
 #else
    if (tid == 0)
    {

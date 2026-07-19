@@ -35,7 +35,7 @@ void InitDetKernels()
    k::Specialization<2,2,4,4>::Add();
    k::Specialization<2,2,4,6>::Add();
    k::Specialization<2,2,5,6>::Add();
-   // 3D (Q1D > 6 uses non-SMEM Det3D)
+   // 3D
    k::Specialization<3,3,2,4>::Add();
    k::Specialization<3,3,2,7>::Add();
    k::Specialization<3,3,2,8>::Add();

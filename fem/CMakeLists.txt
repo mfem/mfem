@@ -21,18 +21,22 @@ set(SRCS
   integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
+  integ/bilininteg_diffusion_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
-  integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_diffusion_pa_simplices_mma.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
   integ/bilininteg_elasticity_pa.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
+  integ/bilininteg_mass_ea.cpp
   integ/bilininteg_mass_mf.cpp
   integ/bilininteg_mass_pa.cpp
-  integ/bilininteg_mass_ea.cpp
+  integ/bilininteg_mass_kernels.cpp
+  integ/bilininteg_mass_pa_simplices_mma.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
   integ/bilininteg_trace_jump_ea.cpp
@@ -44,16 +48,12 @@ set(SRCS
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
-  integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
   integ/bilininteg_hdiv_ea.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
-  integ/bilininteg_mass_kernels.cpp
   integ/bilininteg_pa_simplices_mma.cpp
-  integ/bilininteg_mass_pa_simplices_mma.cpp
-  integ/bilininteg_diffusion_pa_simplices_mma.cpp
   integ/lininteg_boundary.cpp
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp

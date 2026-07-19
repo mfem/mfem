@@ -27,11 +27,10 @@ namespace mfem
 {
 
 /** @brief Force Positive/Bernstein simplex PA to use CUDA MMA instead of the
-    default Stroud sum-factorized path. Default: false.
+    default Stroud sum-factorized path.
 
     Also enabled when the environment variable MFEM_SIMPLEX_POSITIVE_MMA is set
-    to any value other than "0". Must be configured before restriction / PA
-    assemble. */
+    to any value other than "0". */
 void ForceSimplexPositiveMMA(bool enable = true);
 
 /// @brief True if Positive simplex PA is forced onto the CUDA MMA path.
@@ -60,10 +59,6 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
       ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA, and only on CUDA. */
 inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
 {
-#if defined(MFEM_USE_SINGLE)
-   MFEM_CONTRACT_VAR(fes);
-   return false;
-#else
    if (fes.IsVariableOrder()) { return false; }
 
    Mesh *mesh = fes.GetMesh();
@@ -92,7 +87,6 @@ inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
       if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
    }
    return true;
-#endif
 }
 
 namespace internal
@@ -239,7 +233,7 @@ inline void PAMassSetupSimplexFromNodes(const int dim,
    });
 }
 
-/** Shared CUDA DMMA (m8n8k4) helpers for simplex PA mass/diffusion. */
+/** CUDA DMMA (m8n8k4) helpers for simplex PA mass/diffusion. */
 namespace simplex_mma
 {
 
@@ -260,39 +254,35 @@ MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId) { return laneId % 4; 
 constexpr int mmaM = 8, mmaN = 8, mmaK = 4;
 
 // Default packed column map for m8n8k4.row.col: [0,5,1,6,2,7,3,4].
-constexpr int MagicDefault = 0b100011111010110001101000; // 0x8fac68
+constexpr int MmaMapDefault = 0x8fac68;
 
-/** Effective column map for known (ndof,nq1) simplex shapes (tri/tet).
-    Shared by mass and diffusion MMA: tunes m8n8k4 fragment columns / bank
-    conflicts for the GEMM smem layout, not the bilinear form. Chosen to
-    minimize PadLdBank padding. */
-constexpr int MagicForDims(int ndof, int nq1)
+/** Effective column map for known (ndof,nq1) simplex shapes (tri/tet) */
+constexpr int MmaMapForDims(int ndof, int nq1)
 {
    // Triangles (BP1 GLL / BP3 q=2p+3)
-   if (ndof == 3 && nq1 == 7) { return 0xaf9ca0; }   // BP3tri p=1
-   if (ndof == 6 && nq1 == 15) { return 0xaf9ca0; } // [0,4,2,6,1,7,3,5]
-   if (ndof == 10 && nq1 == 19) { return 0xceae60; } // [0,4,1,7,2,5,3,6]
-   if (ndof == 15 && nq1 == 28) { return 0xcd7328; } // [0,5,4,1,7,2,3,6]
-   if (ndof == 21 && nq1 == 37) { return 0xcfa868; } // [0,5,1,4,2,7,3,6]
-   if (ndof == 28 && nq1 == 49) { return 0xcd7328; } // [0,5,4,1,7,2,3,6]
-   // (36,60) BP3tri p=7: MagicDefault already zero-pad
+   if (ndof == 3 && nq1 == 7) { return 0xaf9ca0; }
+   if (ndof == 6 && nq1 == 15) { return 0xaf9ca0; }
+   if (ndof == 10 && nq1 == 19) { return 0xceae60; }
+   if (ndof == 15 && nq1 == 28) { return 0xcd7328; }
+   if (ndof == 21 && nq1 == 37) { return 0xcfa868; }
+   if (ndof == 28 && nq1 == 49) { return 0xcd7328; }
 
    // Tetrahedra (BP3tet q=2p+3 and nearby)
-   if (ndof == 20 && nq1 == 59) { return 0xcfa868; }  // BP3tet p=3
-   if (ndof == 56 && nq1 == 145) { return 0xfa54c8; } // BP3tet p=5
-   if (ndof == 84 && nq1 == 209) { return 0xcd7328; } // BP3tet p=6
-   if (ndof == 120 && nq1 == 284) { return 0xde5688; } // BP3tet p=7
-   return MagicDefault;
+   if (ndof == 20 && nq1 == 59) { return 0xcfa868; }
+   if (ndof == 56 && nq1 == 145) { return 0xfa54c8; }
+   if (ndof == 84 && nq1 == 209) { return 0xcd7328; }
+   if (ndof == 120 && nq1 == 284) { return 0xde5688; }
+   return MmaMapDefault;
 }
 
 template <int DIM, int D1D, int Q1D>
-constexpr int MagicFor()
+constexpr int MmaMapFor()
 {
-   if (D1D == 0 || Q1D == 0) { return MagicDefault; }
+   if (D1D == 0 || Q1D == 0) { return MmaMapDefault; }
    constexpr int ndof = (DIM == 2)
                         ? (D1D * (D1D + 1) / 2)
                         : (D1D * (D1D + 1) * (D1D + 2) / 6);
-   return MagicForDims(ndof, Q1D);
+   return MmaMapForDims(ndof, Q1D);
 }
 
 constexpr int FallbackMaxD1D2 = DofQuadLimits::MAX_D1D;
@@ -322,10 +312,10 @@ constexpr int SimplexMaxNq()
    return (DIM == 2) ? FallbackMaxNq2 : FallbackMaxNq3;
 }
 
-template <int MAGIC>
+template <int MAP>
 constexpr int MagicCol(int slot)
 {
-   return (MAGIC >> (3 * slot)) & 0b111;
+   return (MAP >> (3 * slot)) & 0b111;
 }
 
 /** Unused when SCALE=false in dmma_Gemm. */
@@ -334,13 +324,13 @@ struct NullDAcc
    MFEM_HOST_DEVICE inline real_t operator()(int, int) const { return 0; }
 };
 
-template <int MAGIC>
+template <int MAP>
 constexpr bool LdBankOkM8(int ld)
 {
    constexpr int cog[8] =
    {
-      MagicCol<MAGIC>(0), MagicCol<MAGIC>(1), MagicCol<MAGIC>(2), MagicCol<MAGIC>(3),
-      MagicCol<MAGIC>(4), MagicCol<MAGIC>(5), MagicCol<MAGIC>(6), MagicCol<MAGIC>(7)
+      MagicCol<MAP>(0), MagicCol<MAP>(1), MagicCol<MAP>(2), MagicCol<MAP>(3),
+      MagicCol<MAP>(4), MagicCol<MAP>(5), MagicCol<MAP>(6), MagicCol<MAP>(7)
    };
    for (int phase = 0; phase < 2; ++phase)
    {
@@ -366,8 +356,8 @@ constexpr bool LdBankOkM8(int ld)
             const int row = phase * 4 + g;
             for (int tinG = 0; tinG < 4; ++tinG)
             {
-               const int col = MagicCol<MAGIC>(tinG * 2 + i);
-               const unsigned b = (unsigned)((row + ld * col) & 31);
+               const int col = MagicCol<MAP>(tinG * 2 + i);
+               const auto b = (unsigned)((row + ld * col) & 31);
                if (used & (1u << b)) { return false; }
                used |= (1u << b);
             }
@@ -377,12 +367,12 @@ constexpr bool LdBankOkM8(int ld)
    return true;
 }
 
-template <int MAGIC>
+template <int MAP>
 constexpr int PadLdBank(int n)
 {
    for (int ld = n; ld < n + 48; ++ld)
    {
-      if (LdBankOkM8<MAGIC>(ld)) { return ld; }
+      if (LdBankOkM8<MAP>(ld)) { return ld; }
    }
    return n;
 }
@@ -421,11 +411,11 @@ MFEM_HOST_DEVICE inline int getNumWarps()
 }
 
 /** C = A * B with fused D-scale on the C store (U *= D from registers). */
-template <int MAGIC, bool SCALE, typename AAcc, typename BAcc, typename CAcc,
-          typename DAcc>
+template
+<int MAP, bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
-                                        AAcc A, BAcc B, CAcc C,
-                                        DAcc D, const int e0, const int NE)
+                                        TA A, TB B, TC C, TD D,
+                                        const int e0, const int NE)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -456,7 +446,7 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
             const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
             double bReg[1];
             const int bRow = threadIdInGroup + mK * mmaK;
-            const int bColumn = MagicCol<MAGIC>(groupId);
+            const int bColumn = MagicCol<MAP>(groupId);
             bReg[0] = (bRow < K && bColumn < nTile)
                       ? static_cast<double>(B(bRow, n0 + bColumn)) : 0.0;
             dmmaSync(aReg, bReg, cReg[nt]);
@@ -471,7 +461,7 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
          for (int i = 0; i < 2; i++)
          {
             const int cRow = row0 + groupId;
-            const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
+            const int cColumn = MagicCol<MAP>(threadIdInGroup * 2 + i);
             if (cRow < M && cColumn < nTile)
             {
                real_t v = static_cast<real_t>(cReg[nt][i]);
@@ -487,9 +477,9 @@ MFEM_HOST_DEVICE inline void dmma_Gemm8(const int M, const int K, const int N,
    }
 }
 
-template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
+template <int MAP, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
-                                         AAcc A, BAcc B, CAcc C,
+                                         TA A, TB B, TC C,
                                          const int e0, const int NE)
 {
    const int thread = getThreadIdx();
@@ -521,7 +511,7 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
             const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
             double bReg[1];
             const int bRow = threadIdInGroup + mK * mmaK;
-            const int bColumn = MagicCol<MAGIC>(groupId);
+            const int bColumn = MagicCol<MAP>(groupId);
             bReg[0] = (bRow < M && bColumn < nTile)
                       ? static_cast<double>(B(bRow, n0 + bColumn)) : 0.0;
             dmmaSync(aReg, bReg, cReg[nt]);
@@ -536,7 +526,7 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
          for (int i = 0; i < 2; i++)
          {
             const int cRow = row0 + groupId;
-            const int cColumn = MagicCol<MAGIC>(threadIdInGroup * 2 + i);
+            const int cColumn = MagicCol<MAP>(threadIdInGroup * 2 + i);
             const int e = e0 + n0 + cColumn;
             if (cRow < K && cColumn < nTile && e < NE)
             {
@@ -547,21 +537,21 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
    }
 }
 
-template <int MAGIC, bool SCALE, typename AAcc, typename BAcc, typename CAcc,
-          typename DAcc>
+template
+<int MAP, bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void dmma_Gemm(const int M, const int K, const int N,
-                                       AAcc A, BAcc B, CAcc C,
-                                       DAcc D, const int e0, const int NE)
+                                       TA A, TB B, TC C, TD D,
+                                       const int e0, const int NE)
 {
-   dmma_Gemm8<MAGIC, SCALE>(M, K, N, A, B, C, D, e0, NE);
+   dmma_Gemm8<MAP, SCALE>(M, K, N, A, B, C, D, e0, NE);
 }
 
-template <int MAGIC, typename AAcc, typename BAcc, typename CAcc>
+template <int MAP, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void dmma_GemmT(const int M, const int K, const int N,
-                                        AAcc A, BAcc B, CAcc C,
+                                        TA A, TB B, TC C,
                                         const int e0, const int NE)
 {
-   dmma_GemmT8<MAGIC>(M, K, N, A, B, C, e0, NE);
+   dmma_GemmT8<MAP>(M, K, N, A, B, C, e0, NE);
 }
 
 struct YBatchAcc
@@ -626,9 +616,9 @@ constexpr int DiffusionMmaNB()
 {
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
-   constexpr int MAGIC = MagicFor<DIM, T_D1D, T_Q1D>();
-   constexpr int X_LD = PadLdBank<MAGIC>(BASIS);
-   constexpr int U_LD = PadLdBank<MAGIC>(MQ);
+   constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int U_LD = PadLdBank<MAP>(MQ);
    constexpr int per_batch_col = X_LD + DIM * U_LD;
    constexpr int max_nb =
       (48 * 1024) / (int(sizeof(real_t)) * per_batch_col);
@@ -661,8 +651,8 @@ MFEM_HOST_DEVICE inline int getBlockNthreads()
 }
 
 /** Cooperative load of X E-vector tiles into smem XY[X_LD * NB]. */
-template <typename XAcc>
-MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, XAcc x,
+template <typename TX>
+MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, TX x,
                                          const int e0, const int NE,
                                          const int ndof, const int X_LD,
                                          const int NB, const int tid,
@@ -678,8 +668,8 @@ MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, XAcc x,
 }
 
 /** Cooperative load of PA quad data D into smem U[U_LD * NB] (DomainLF). */
-template <typename DAcc>
-MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, DAcc D,
+template <typename TD>
+MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, TD D,
                                          const int e0, const int NE,
                                          const int NQ1, const int U_LD,
                                          const int NB, const int tid,
@@ -695,24 +685,24 @@ MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, DAcc D,
 }
 
 /** One-component forward: U = B * X [, * D if SCALE]. */
-template <int MAGIC, bool SCALE, typename BasisAcc, typename XAcc,
+template <int MAP, bool SCALE, typename BasisAcc, typename XAcc,
           typename UAcc, typename DAcc>
 MFEM_HOST_DEVICE inline void BasisGemmForward(const int NQ1, const int ndof,
                                               const int NB, BasisAcc B,
                                               XAcc X, UAcc U, DAcc D,
                                               const int e0, const int NE)
 {
-   dmma_Gemm<MAGIC, SCALE>(NQ1, ndof, NB, B, X, U, D, e0, NE);
+   dmma_Gemm<MAP, SCALE>(NQ1, ndof, NB, B, X, U, D, e0, NE);
 }
 
 /** One-component transpose accumulate: Y += B^T * U. */
-template <int MAGIC, typename BasisAcc, typename UAcc, typename YAcc>
+template <int MAP, typename BasisAcc, typename UAcc, typename YAcc>
 MFEM_HOST_DEVICE inline void BasisGemmT(const int NQ1, const int ndof,
                                         const int NB, BasisAcc B,
                                         UAcc U, YAcc Y,
                                         const int e0, const int NE)
 {
-   dmma_GemmT<MAGIC>(NQ1, ndof, NB, B, U, Y, e0, NE);
+   dmma_GemmT<MAP>(NQ1, ndof, NB, B, U, Y, e0, NE);
 }
 
 } // namespace simplex_mma
