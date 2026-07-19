@@ -193,6 +193,67 @@ public:
    }
 };
 
+/**
+ * @brief Nonlinear residual/Jacobian operator for a single Bregman proximal
+ *        step of the Signorini problem, for use with mfem::NewtonSolver.
+ *
+ * For a fixed previous iterate uᵏ⁻¹ and proximal parameter αₖ, this operator
+ * evaluates the residual Fₖ (Mult),
+ *
+ *   <Fₖ(u),v> = αₖ(σ(u),ε(v)) - (R_N'(ϕ - u·ñ), v·ñ)_{Γ_T}
+ *               - αₖ(f,v) + (R_N'(ϕ - uᵏ⁻¹·ñ), v·ñ)_{Γ_T},
+ *
+ * and assembles the tangent Fₖ' (GetGradient),
+ *
+ *   <Fₖ'(u) w,v> = αₖ(σ(w),ε(v)) + (R_N''(ϕ - u·ñ) w·ñ, v·ñ)_{Γ_T}.
+ *
+ * These are exactly the linear form b(⋅) and bilinear form a(⋅,⋅) of the
+ * original inner Newton loop, with the residual sign flipped (NewtonSolver
+ * solves Fₖ(u) = 0 via u ← u - Fₖ'⁻¹Fₖ(u), whereas the original assembled
+ * b = -Fₖ(u) and did u += δu).
+ *
+ * A fresh operator is built for each proximal step, since uᵏ⁻¹ and αₖ change.
+ * The x/y Dirichlet dofs (ess_tdof_list) are held fixed: the residual is zeroed
+ * there and the matching Jacobian rows/columns are eliminated. The contact
+ * boundary marker (contact_bdr = Γ_T) selects the faces for the projection
+ * (penalty) integrators, exactly as in the original assembly.
+ */
+class SignoriniStepOperator : public Operator
+{
+private:
+   ParFiniteElementSpace &fespace;
+   real_t alpha, lambda, mu, N;
+   VectorCoefficient &f_coeff;
+   VectorCoefficient &n_tilde_coeff;
+   ParGridFunction &u_previous;       // uᵏ⁻¹, fixed during this proximal step
+   Array<int> &contact_bdr;           // Γ_T marker for the boundary integrators
+   const Array<int> &ess_tdof_list;   // x/y Dirichlet dofs
+
+   mutable ParGridFunction u_gf;      // current iterate as a grid function
+   mutable HypreParMatrix *Jacobian;  // owned; rebuilt each GetGradient() call
+
+public:
+   SignoriniStepOperator(ParFiniteElementSpace &fespace_, real_t alpha_,
+                         real_t lambda_, real_t mu_, real_t N_,
+                         VectorCoefficient &f_coeff_,
+                         VectorCoefficient &n_tilde_coeff_,
+                         ParGridFunction &u_previous_, Array<int> &contact_bdr_,
+                         const Array<int> &ess_tdof_list_)
+      : Operator(fespace_.GetTrueVSize()),
+        fespace(fespace_), alpha(alpha_), lambda(lambda_), mu(mu_), N(N_),
+        f_coeff(f_coeff_), n_tilde_coeff(n_tilde_coeff_),
+        u_previous(u_previous_), contact_bdr(contact_bdr_),
+        ess_tdof_list(ess_tdof_list_), u_gf(&fespace_), Jacobian(nullptr) {}
+
+   /// Evaluate the residual: y = Fₖ(x).
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /// Assemble and return the Jacobian Fₖ'(x).
+   Operator &GetGradient(const Vector &x) const override;
+
+   ~SignoriniStepOperator() override { delete Jacobian; }
+};
+
 // We take the plane to be z = plane_g and the force to be a constant downward
 // force of magnitude force_g.
 real_t plane_g = -0.5;
@@ -352,12 +413,10 @@ int main(int argc, char *argv[])
    //    u(x,y,z) = (0,0,plane_g), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
-   ParGridFunction delta_u(fespace);
    VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
    u_current = u_previous;
-   delta_u = 0.0;
 
    // 8A. Determine the list of true (i.e. parallel conforming) essential
    //     boundary dofs.
@@ -421,13 +480,13 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   real_t newton_error, iter_error;
+   real_t iter_error;
 
    if (myid == 0)
    {
-      mfem::out << "\nk" << setw(3) << "j" << setw(14) << "newton_error"
-                << setw(14) << "iter_error" << std::endl;
-      mfem::out << "--------------------------------" << std::endl;
+      mfem::out << "\n" << setw(3) << "k" << setw(10) << "newton"
+                << setw(16) << "iter_error" << std::endl;
+      mfem::out << std::string(29, '-') << std::endl;
    }
 
    // 10. Iterate:
@@ -437,79 +496,46 @@ int main(int argc, char *argv[])
       alpha = 2 * k;
       u_current = u_previous;
 
-      // Newton loop
-      for (int j = 0; j <= max_newton_iter; j++)
+      // Inner nonlinear solve for uᵏ (fixed uᵏ⁻¹ = u_previous, αₖ = alpha) by
+      // Newton's method, driven by mfem::NewtonSolver.
+      SignoriniStepOperator op(*fespace, alpha, lambda, mu, N, f_coeff,
+                               n_tilde_coeff, u_previous, ess_bdr_z,
+                               ess_tdof_list);
+
+      // Linear solver for the Jacobian: PCG + elasticity BoomerAMG. NewtonSolver
+      // re-points pcg (and hence amg) at the current Jacobian each iteration;
+      // HyprePCG::SetOperator forwards to its preconditioner and AMG re-applies
+      // its saved elasticity options on rebuild.
+      HypreBoomerAMG amg;
+      amg.SetElasticityOptions(fespace);
+      amg.SetPrintLevel(0);
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(500);
+      pcg.SetPrintLevel(0);
+      pcg.SetPreconditioner(amg);
+      pcg.iterative_mode = false;        // zero initial guess for each correction
+
+      NewtonSolver newton(MPI_COMM_WORLD);
+      newton.SetOperator(op);
+      newton.SetSolver(pcg);
+      newton.SetPrintLevel(-1);          // silent: keep the outer table clean
+      newton.SetRelTol(ntol);            // residual-norm tolerance (see note)
+      newton.SetAbsTol(0.0);
+      newton.SetMaxIter(max_newton_iter);
+      newton.iterative_mode = true;      // start from u_current (= u_previous)
+
+      Vector X;
+      u_current.GetTrueDofs(X);
+      Vector zero_rhs;                   // empty => interpreted as the zero RHS
+      newton.Mult(zero_rhs, X);
+      u_current.SetFromTrueDofs(X);
+
+      int newton_its = newton.GetNumIterations();
+      if (myid == 0 && !newton.GetConverged())
       {
-         ConstantCoefficient alpha_coeff(alpha);
-         ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
-
-         RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, &n_tilde_coeff, N);
-         RegLogCoefficient reg_log_curr_coeff(&u_current, &n_tilde_coeff, N);
-         RegLogCoefficient nreg_log_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
-         StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
-         FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
-
-         // Step 1: Set up the bilinear form a(⋅,⋅) on the finite element space.
-         ParBilinearForm *a = new ParBilinearForm(fespace);
-         a->AddDomainIntegrator(new ElasticityIntegrator(alpha_coeff,lambda,mu));
-         a->AddBdrFaceIntegrator(
-            new BoundaryProjectionIntegrator(reg_log_p_curr_coeff,
-            n_tilde_coeff), ess_bdr_z);
-         a->Assemble();
-
-         // Step 2: Set up the linear form b(⋅) on the finite element space.
-         ParLinearForm *b = new ParLinearForm(fespace);
-         b->AddDomainIntegrator(new VectorDomainLFStrainIntegrator(nalpha_vstress_u_curr_coeff));
-         b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(reg_log_curr_coeff, &n_tilde_coeff),
-            ess_bdr_z);
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(alpha_f_coeff));
-         b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(nreg_log_prev_coeff, &n_tilde_coeff),
-            ess_bdr_z);
-         b->Assemble();
-
-         // Step 3: Form the linear system A X = B. This includes eliminating boundary
-         // conditions, applying AMR constraints, and other transformations.
-         HypreParMatrix A;
-         Vector B, X;
-         a->FormLinearSystem(ess_tdof_list, delta_u, *b, A, X, B);
-
-         // Step 4: Solve the linear system.
-         HypreBoomerAMG *amg = new HypreBoomerAMG(A);
-         amg->SetElasticityOptions(fespace);
-         amg->SetPrintLevel(0);
-         HyprePCG *pcg = new HyprePCG(A);
-         pcg->SetTol(1e-12);
-         pcg->SetMaxIter(500);
-         pcg->SetPrintLevel(0);
-         pcg->SetPreconditioner(*amg);
-         pcg->Mult(B, X);
-
-         // Step 5: Recover the solution.
-         a->RecoverFEMSolution(X, *b, delta_u);
-
-         // Step 6: Update u_current.
-         u_current += delta_u;
-
-         // Step 7: Check for convergence.
-         newton_error = delta_u.ComputeL2Error(zero);
-
-         if (myid == 0)
-         {
-            mfem::out << setw(4) << j << setw(14) << newton_error << std::endl;
-         }
-
-         // Step 8: Free used memory.
-         delete amg;
-         delete pcg;
-         delete a;
-         delete b;
-
-         if (newton_error < ntol)
-         {
-            break;
-         }
+         mfem::out << "  (warning: inner Newton did not converge at k = "
+                   << k << ")" << std::endl;
       }
 
       // Step 9: Compute difference between current and previous solutions.
@@ -517,8 +543,8 @@ int main(int argc, char *argv[])
 
       if (myid == 0)
       {
-         mfem::out << k << setw(4) << " " << setw(13) << " " << setw(14)
-                   << iter_error << setw(14) << std::endl;
+         mfem::out << setw(3) << k << setw(10) << newton_its
+                   << setw(16) << iter_error << std::endl;
       }
 
       if (visualization)
@@ -606,4 +632,62 @@ real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a,
    {
       return 1.0 / a;
    }
+}
+
+void SignoriniStepOperator::Mult(const Vector &x, Vector &y) const
+{
+   u_gf.SetFromTrueDofs(x);
+
+   // Residual  Fₖ(u) = αₖ(σ(u),ε(v)) - (R_N'(ϕ - u·ñ), v·ñ)
+   //                   - αₖ(f,v) + (R_N'(ϕ - uᵏ⁻¹·ñ), v·ñ).
+   StressGridFunctionCoefficient  stress_u_coeff(lambda, mu, &u_gf);
+   FlatVectorCoefficient          alpha_vstress_u_coeff(stress_u_coeff, alpha);
+   RegLogCoefficient              nreg_log_curr_coeff(&u_gf, &n_tilde_coeff,
+                                                      N, -1.0);
+   ScalarVectorProductCoefficient nalpha_f_coeff(-alpha, f_coeff);
+   RegLogCoefficient              reg_log_prev_coeff(&u_previous, &n_tilde_coeff,
+                                                     N, 1.0);
+
+   ParLinearForm b(&fespace);
+   b.AddDomainIntegrator(
+      new VectorDomainLFStrainIntegrator(alpha_vstress_u_coeff));
+   b.AddBdrFaceIntegrator(
+      new BoundaryProjectionLFIntegrator(nreg_log_curr_coeff, &n_tilde_coeff),
+      contact_bdr);
+   b.AddDomainIntegrator(new VectorDomainLFIntegrator(nalpha_f_coeff));
+   b.AddBdrFaceIntegrator(
+      new BoundaryProjectionLFIntegrator(reg_log_prev_coeff, &n_tilde_coeff),
+      contact_bdr);
+   b.Assemble();
+   b.ParallelAssemble(y);
+
+   // Hold the x/y Dirichlet dofs fixed (zero residual there).
+   y.SetSubVector(ess_tdof_list, 0.0);
+}
+
+Operator &SignoriniStepOperator::GetGradient(const Vector &x) const
+{
+   u_gf.SetFromTrueDofs(x);
+
+   // Jacobian  Fₖ'(u) = αₖ(σ(w),ε(v)) + (R_N''(ϕ - u·ñ) w·ñ, v·ñ).
+   ConstantCoefficient    alpha_coeff(alpha);
+   RegLogPrimeCoefficient reg_log_p_coeff(&u_gf, &n_tilde_coeff, N);
+
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new ElasticityIntegrator(alpha_coeff, lambda, mu));
+   a.AddBdrFaceIntegrator(
+      new BoundaryProjectionIntegrator(reg_log_p_coeff, n_tilde_coeff),
+      contact_bdr);
+   a.Assemble();
+   a.Finalize();
+
+   delete Jacobian;
+   Jacobian = a.ParallelAssemble();
+
+   // Eliminate essential rows/columns. The eliminated part is discarded
+   // because the Newton correction is zero on the essential dofs.
+   HypreParMatrix *Je = Jacobian->EliminateRowsCols(ess_tdof_list);
+   delete Je;
+
+   return *Jacobian;
 }
