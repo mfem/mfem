@@ -7,6 +7,8 @@
 //               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 15 -n 10 -m ../../data/wheel.msh -pv
 //               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -m ../../data/hemisphere.msh -vis
 //               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -m ../../data/hemisphere.msh -pv
+//               mpirun -np 8 regularp -f 0.5 -p 0 -i 15 -n 10 -m ../../data/pipe.msh -vis
+//               mpirun -np 8 regularp -r 1 -f 0.5 -p 0 -i 15 -n 10 -m ../../data/pipe.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -259,6 +261,10 @@ public:
 real_t plane_g = -0.5;
 real_t force_g = 2.0;
 
+// Selects mesh-dependent problem data (initial displacement and forcing).
+// Set in main() from the mesh file name; read by InitDisplacement/ForceFunction.
+bool pipe_mesh = false;
+
 int main(int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -338,6 +344,11 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
+
+   // Determine the mesh name.
+   filesystem::path mesh_path(mesh_file);
+   string mesh_stem = mesh_path.stem().string();
+   pipe_mesh = (mesh_stem == "pipe");
 
    // 3. Postprocess the mesh.
    // 3A. Refine the serial mesh on all processors to increase the resolution. In
@@ -426,8 +437,6 @@ int main(int argc, char *argv[])
    ess_bdr_x = 0; ess_bdr_y = 0; ess_bdr_z = 0;
 
    // 8B. Apply boundary conditions for each mesh.
-   filesystem::path mesh_path(mesh_file);
-   string mesh_stem = mesh_path.stem().string();
    if (mesh_stem == "ref-cube")
    {
       ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
@@ -445,6 +454,12 @@ int main(int argc, char *argv[])
       ess_bdr_x[1] = 1;
       ess_bdr_y[1] = 1;
       ess_bdr_z[0] = 1;
+   }
+   else if (mesh_stem == "pipe")
+   {
+      ess_bdr_x = 1;
+      ess_bdr_y = 1;
+      ess_bdr_z[0] = 1; ess_bdr_z[2] = 1; ess_bdr_z[3] = 1;
    }
    else
    {
@@ -587,13 +602,26 @@ int main(int argc, char *argv[])
 void InitDisplacement(const Vector &x, Vector &u)
 {
    u = 0.0;
-   u(x.Size() - 1) = plane_g;
+   if (!pipe_mesh)
+   {
+      u(x.Size() - 1) = plane_g;
+   }
 }
 
 void ForceFunction(const Vector &x, Vector &f)
 {
    f = 0.0;
-   f(x.Size() - 1) = -force_g;
+   if (pipe_mesh)
+   {
+      if (x(0) > 8.0)
+      {
+         f(x.Size() - 1) = -force_g;
+      }
+   }
+   else
+   {
+      f(x.Size() - 1) = -force_g;
+   }
 }
 
 real_t GapFunction(const Vector &x)
