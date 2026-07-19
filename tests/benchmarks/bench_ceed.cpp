@@ -96,17 +96,12 @@ static void AddKernelSpecializations()
    DET::Specialization<3, 3, 2, 3>::Add();
    DET::Specialization<3, 3, 2, 5>::Add();
    DET::Specialization<3, 3, 2, 6>::Add();
-   DET::Specialization<3, 3, 2, 7>::Add();
-   DET::Specialization<3, 3, 2, 8>::Add();
-   DET::Specialization<3, 3, 2, 9>::Add();
    DET::Specialization<3, 3, 5, 5>::Add();
+   // Others might exceed memory limits
    DET::Specialization<2, 2, 2, 2>::Add();
    DET::Specialization<2, 2, 2, 3>::Add();
    DET::Specialization<2, 2, 2, 5>::Add();
    DET::Specialization<2, 2, 2, 6>::Add();
-   DET::Specialization<2, 2, 2, 7>::Add();
-   DET::Specialization<2, 2, 2, 8>::Add();
-   DET::Specialization<2, 2, 2, 9>::Add();
    DET::Specialization<2, 2, 5, 5>::Add();
 
    using GRAD = QuadratureInterpolator::GradKernels;
@@ -152,9 +147,9 @@ static void AddKernelSpecializations()
 
 // Bake-off base class.
 // POS / MMA only matter when SIMPLEX == true:
-//   GLL MMA:     POS=false
+//   GLL MMA:      POS=false
 //   Positive SUM: POS=true,  MMA=false
-//   Positive MMA: POS=true,  MMA=true  (dense MMA, CUDA)
+//   Positive MMA: POS=true,  MMA=true
 template <int BFI, int DIM, int VDIM, bool GLL,
           bool SIMPLEX, bool POS, bool MMA>
 struct BakeOff
@@ -216,7 +211,7 @@ struct BakeOff
    fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
    geom_type(mesh.GetTypicalElementGeometry()),
    irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-   // pos_sum uses Stroud sum-factorized; gll_mma / pos_mma use a standard simplex rule
+   // pos_sum uses Stroud; gll_mma / pos_mma use standard simplex rules
    ir((SIMPLEX && POS && !MMA)
       ? &StroudIntRules.Get(geom_type, q)
       : &irs.Get(geom_type, q)),
@@ -420,7 +415,6 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["Simplex"] = bm::Counter(run.Simplex);
 }
 
-// Named geometry / simplex-backend policies for registration (no bool soup).
 namespace ceed_bench
 {
 
@@ -461,9 +455,6 @@ using ceed_bench::TriGllMma;
 using ceed_bench::TriPosSum;
 using ceed_bench::TriPosMma;
 
-// Geom / *gll* / *pos* → FE basis + simplex PA backend.
-// Odd BFI → scalar (VDIM=1); even BFI → vector (VDIM=dim).
-// BFI >= 5 → bake-off collocated quadrature (GLL, q≈p+1).
 #define REGISTER(PK, BFI, GEOM) \
    BENCHMARK_TEMPLATE(Benchmark, \
       PK<BFI, GEOM::dim, \
@@ -515,27 +506,27 @@ REGISTER(BP, 5, TriPosMma);
 REGISTER(BP, 6, Hex);
 REGISTER(BP, 6, Quad);
 
-// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
+// BK1: scalar E-to-E evaluation of mass matrix, q=p+2
 REGISTER(BK, 1, Hex);
 REGISTER(BK, 1, Quad);
 
-// BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
+// BK2: vector E-to-E evaluation of mass matrix, q=p+2
 REGISTER(BK, 2, Hex);
 REGISTER(BK, 2, Quad);
 
-// BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
+// BK3: scalar E-to-E evaluation of stiffness matrix, q=p+2
 REGISTER(BK, 3, Hex);
 REGISTER(BK, 3, Quad);
 
-// BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
+// BK4: vector E-to-E evaluation of stiffness matrix, q=p+2
 REGISTER(BK, 4, Hex);
 REGISTER(BK, 4, Quad);
 
-// BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
+// BK5: scalar E-to-E evaluation of stiffness matrix, q=p+1
 REGISTER(BK, 5, Hex);
 REGISTER(BK, 5, Quad);
 
-// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
+// BK6: vector E-to-E evaluation of stiffness matrix, q=p+1
 REGISTER(BK, 6, Hex);
 REGISTER(BK, 6, Quad);
 
