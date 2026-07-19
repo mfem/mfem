@@ -271,7 +271,7 @@ matd_t<DIM> qdata_setup(
    const matd invJ = inv(J);
    matd stress{{{0.0}}};
    const real_t rho = rho0 * det(J0) / detJ;
-   const real_t Ez = smoothmax(0.0, E);
+   const real_t Ez = smoothmax(0.0, E, 1e-6);
    real_t dt_visc_coeff = 0.0;
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
