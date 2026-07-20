@@ -571,11 +571,13 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
       auto mt = workspace.GetMemory().GetHostMemoryType();
-      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
+      if ((int)mt < (int)MemoryType::HOST_PINNED ||
+          (int)mt >= (int)MemoryType::DEVICE)
       {
          mt = MemoryType::HOST_PINNED;
       }
       workspace.SetSize(nblocks, mt);
+      // By design allow reduce kernel use the "host" pointer.
       auto work = workspace.HostWrite();
       red.work = work;
       forall_2D(nblocks, block_size, 1, std::move(red));
@@ -641,8 +643,9 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = MemoryManager::Instance().GetHostPinnedMemoryType();
-      Array<T> workspace(nblocks, mt, mt, true);
+      auto mt = MemoryManager::Instance().GetTempHostPinnedMemoryType();
+      Array<T> workspace(nblocks, mt);
+      // By design allow reduce kernel use the "host" pointer.
       auto work = workspace.HostWrite();
       red.work = work;
       forall_2D(nblocks, block_size, 1, std::move(red));

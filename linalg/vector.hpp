@@ -144,15 +144,6 @@ public:
       Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
 
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   Vector(int size_, MemoryType mt, bool temporary)
-      : data(size_, mt, temporary), size(size_)
-   {}
-   Vector(int size_, MemoryType h_mt, MemoryType d_mt, bool temporary)
-      : data(size_, h_mt, d_mt, temporary), size(size_)
-   {}
-#endif
-
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
        regardless of the mfem::Device configuration.
@@ -636,14 +627,8 @@ inline void Vector::SetSize(int s)
    // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
    const bool use_dev = data.UseDevice();
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   bool temporary = data.IsTemporary();
-   data.Delete();
-   data.New(s, mt, temporary);
-#else
    data.Delete();
    data.New(s, mt);
-#endif
    size = s;
    data.UseDevice(use_dev);
 }
@@ -663,18 +648,6 @@ inline void Vector::SetSize(int s, MemoryType mt)
       }
    }
    const bool use_dev = data.UseDevice();
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   bool temporary = data.IsTemporary();
-   data.Delete();
-   if (s > 0 || temporary)
-   {
-      data.New(s, mt, temporary);
-   }
-   else
-   {
-      data.Reset();
-   }
-#else
    data.Delete();
    if (s > 0)
    {
@@ -684,7 +657,6 @@ inline void Vector::SetSize(int s, MemoryType mt)
    {
       data.Reset();
    }
-#endif
    size = s;
    data.UseDevice(use_dev);
 }

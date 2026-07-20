@@ -87,6 +87,43 @@ namespace mfem
 /// Memory types supported by MFEM.
 enum class MemoryType
 {
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   HOST,           ///< Host memory; using new[] and delete[]
+   TEMP_HOST,
+   HOST_32,        ///< Host memory; aligned at 32 bytes
+   TEMP_HOST_32,
+   HOST_64,        ///< Host memory; aligned at 64 bytes
+   TEMP_HOST_64,
+   HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
+   TEMP_HOST_DEBUG,
+   HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
+                        with MemoryManager::SetUmpireHostAllocatorName */
+   TEMP_HOST_UMPIRE, /** Currently maps to HOST_UMPIRE */
+   HOST_PINNED,    ///< Host memory: pinned (page-locked)
+   TEMP_HOST_PINNED,
+   MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
+                        and *Free */
+   TEMP_MANAGED,
+   DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
+   TEMP_DEVICE,
+   DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
+                        "device-debug" pool */
+   TEMP_DEVICE_DEBUG,
+   DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
+                        set with MemoryManager::SetUmpireDeviceAllocatorName */
+   TEMP_DEVICE_UMPIRE, /** Currently maps to DEVICE_UMPIRE_2 */
+   DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator
+            settable with MemoryManager::SetUmpireDevice2AllocatorName */
+   TEMP_DEVICE_UMPIRE_2, /** Currently maps to DEVICE_UMPIRE_2 */
+   SIZE,           ///< Number of host and device memory types
+
+   PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType
+                        parameters to request preservation of existing
+                        MemoryType, e.g. in copy constructors. */
+   DEFAULT         /**< Pseudo-MemoryType used as default value for MemoryType
+                        parameters to request the use of the default host or
+                        device MemoryType. */
+#else
    HOST,           ///< Host memory; using new[] and delete[]
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
@@ -111,6 +148,7 @@ enum class MemoryType
    DEFAULT         /**< Pseudo-MemoryType used as default value for MemoryType
                         parameters to request the use of the default host or
                         device MemoryType. */
+#endif
 };
 
 #ifdef MFEM_ENABLE_MEM_BENCH
@@ -223,12 +261,23 @@ enum class MemoryClass
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
-inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::MANAGED; }
+inline bool IsHostMemory(MemoryType mt)
+{
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   return mt <= MemoryType::TEMP_MANAGED;
+#else
+   return mt <= MemoryType::MANAGED;
+#endif
+}
 
 /// Return true if the given memory type is in MemoryClass::DEVICE
 inline bool IsDeviceMemory(MemoryType mt)
 {
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   return mt >= MemoryType::TEMP_MANAGED && mt < MemoryType::SIZE;
+#else
    return mt >= MemoryType::MANAGED && mt < MemoryType::SIZE;
+#endif
 }
 
 /// Return a suitable MemoryType for a given MemoryClass.
@@ -1036,7 +1085,7 @@ public:
 
 #if MFEM_HYPRE_VERSION < 21400
 #define HYPRE_MEMORY_DEVICE (0)
-#define HYPRE_MEMORY_HOST   (1)
+#define HYPRE_MEMORY_HOST (1)
 #endif
 #if MFEM_HYPRE_VERSION < 21900
 typedef int HYPRE_MemoryLocation;

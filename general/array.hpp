@@ -75,6 +75,11 @@ public:
    inline Array(int asize, MemoryType mt)
       : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
+   /// Creates array of @a asize elements with a given @a h_mt host MemoryType
+   /// and @a d_mt device MemoryType
+   inline Array(int asize, MemoryType h_mt, MemoryType d_mt)
+      : data(h_mt, d_mt), size(asize) { if (asize > 0) { data.New(asize, h_mt, d_mt); } }
+
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
        of the pointer.
@@ -106,16 +111,6 @@ public:
    {
       src.size = 0;
    }
-
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   Array(int size_, bool temporary) : data(size_, temporary), size(size_) {}
-   Array(int size_, MemoryType mt, bool temporary)
-      : data(size_, mt, temporary), size(size_)
-   {}
-   Array(int size_, MemoryType h_mt, MemoryType d_mt, bool temporary)
-      : data(size_, h_mt, d_mt, temporary), size(size_)
-   {}
-#endif
 
    /// Destructor
    inline ~Array() { data.Delete(); }
@@ -820,11 +815,7 @@ template <class T>
 inline void Array<T>::GrowSize(int minsize)
 {
    const int nsize = std::max(minsize, 2 * data.Capacity());
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   Memory<T> p(nsize, data.GetMemoryType(), data.IsTemporary());
-#else
    Memory<T> p(nsize, data.GetMemoryType());
-#endif
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
@@ -835,11 +826,7 @@ template <typename T>
 inline void Array<T>::ShrinkToFit()
 {
    if (Capacity() == size) { return; }
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   Memory<T> p(size, data.GetMemoryType(), data.IsTemporary());
-#else
    Memory<T> p(size, data.GetMemoryType());
-#endif
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
@@ -918,18 +905,6 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
       }
    }
    const bool use_dev = data.UseDevice();
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   bool temporary = data.IsTemporary();
-   data.Delete();
-   if (nsize > 0 || temporary)
-   {
-      data.New(nsize, mt, temporary);
-   }
-   else
-   {
-      data.Reset();
-   }
-#else
    data.Delete();
    if (nsize > 0)
    {
@@ -939,7 +914,6 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
    {
       data.Reset();
    }
-#endif
    size = nsize;
    data.UseDevice(use_dev);
 }

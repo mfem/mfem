@@ -20,7 +20,7 @@ using namespace mfem;
 
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
-   Memory<int> tmp(100, MemoryType::HOST, false);
+   Memory<int> tmp(100, MemoryType::HOST);
    auto hptr = tmp.HostWrite();
    REQUIRE(hptr != nullptr);
    for (int i = 0; i < 100; ++i)
@@ -81,8 +81,8 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 
 TEST_CASE("Resource Copy 1", "[Resource Manager][GPU]")
 {
-   Memory<char> tmp0(30, MemoryType::HOST, false);
-   Memory<char> tmp1(30, MemoryType::HOST, false);
+   Memory<char> tmp0(30, MemoryType::HOST);
+   Memory<char> tmp1(30, MemoryType::HOST);
 
    for (int i = 0; i < tmp0.Capacity(); ++i)
    {
@@ -129,7 +129,7 @@ TEST_CASE("Resource Copy 1", "[Resource Manager][GPU]")
 
 TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
 {
-   Memory<char> src(7, MemoryType::HOST, false);
+   Memory<char> src(7, MemoryType::HOST);
    for (int i = 0; i < src.Capacity(); ++i)
    {
       src[i] = i;
@@ -157,7 +157,7 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
 
    mfem::out << "src flags:" << std::endl;
    src.PrintFlags();
-   Memory<char> dst(5, MemoryManager::Instance().GetDeviceMemoryType(), false);
+   Memory<char> dst(5, MemoryManager::Instance().GetDeviceMemoryType());
    mfem::out << "dst flags:" << std::endl;
    dst.PrintFlags();
    {
@@ -165,7 +165,7 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
       dst.CopyFrom(tmp, dst.Capacity());
 
       src.Read(MemoryClass::HOST, src.Capacity());
-      Memory<char> cmp(dst.Capacity(), MemoryType::HOST, false);
+      Memory<char> cmp(dst.Capacity(), MemoryType::HOST);
       dst.CopyTo(cmp, dst.Capacity());
       for (int i = 0; i < dst.Capacity(); ++i)
       {

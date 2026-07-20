@@ -64,7 +64,7 @@ template <class Op> void DoDeviceScan(Op &&op)
    // Workspace buffers queues all memory operations on queue 0, op must only queue work in queue 0.
    // This is generally assumed/required by MFEM.
    Array<std::byte> workspace(
-      bytes, MemoryManager::Instance().GetDeviceMemoryType(), true);
+      bytes, MemoryManager::Instance().GetTempDeviceMemoryType());
 #else
    workspace.SetSize(bytes, MemoryManager::Instance().GetDeviceMemoryType());
 #endif

@@ -1234,7 +1234,8 @@ void Vector::DeleteAt(const Array<int> &indices)
 
       // extra entry for number of selected out
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-      Array<int> workspace(size + 1, true);
+      Array<int> workspace(size + 1,
+                           MemoryManager::Instance().GetTempHostMemoryType());
 #else
       Array<int> workspace(size + 1);
 #endif

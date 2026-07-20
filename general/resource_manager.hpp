@@ -90,11 +90,6 @@ private:
          size_t roots[2] = {0, 0};
          MemoryType mtypes[2] = {MemoryType::DEFAULT, MemoryType::DEFAULT};
          size_t ref_count = 1;
-         bool temporary = false;
-
-         void SetTemporary() { temporary = true; }
-         void ResetTemporary() { temporary = false; }
-         bool IsTemporary() const { return temporary; }
       };
       internal::ReusableStorage<Node> nodes;
       internal::ReusableStorage<Segment> segments;
@@ -138,27 +133,42 @@ private:
 
    RBase storage;
    void EraseNode(size_t &root, size_t idx);
-   std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
-   std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
+   std::array<std::unique_ptr<Allocator>, MemoryTypeSize> allocs_storage;
+   std::array<Allocator *, MemoryTypeSize> allocs = {nullptr};
    // host, device, host-pinned, managed
    std::array<MemoryType, 4> memory_types =
    {
       MemoryType::HOST, MemoryType::HOST, MemoryType::HOST, MemoryType::HOST
    };
+   std::array<MemoryType, 4> temp_memory_types =
+   {
+      MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST
+   };
 
    std::array<MemoryType, MemoryTypeSize> dual_map =
    {
-      /* HOST            */ MemoryType::DEVICE,
-      /* HOST_32         */ MemoryType::DEVICE,
-      /* HOST_64         */ MemoryType::DEVICE,
-      /* HOST_DEBUG      */ MemoryType::DEVICE_DEBUG,
-      /* HOST_UMPIRE     */ MemoryType::DEVICE_UMPIRE,
-      /* HOST_PINNED     */ MemoryType::HOST_PINNED,
-      /* MANAGED         */ MemoryType::MANAGED,
-      /* DEVICE          */ MemoryType::HOST,
-      /* DEVICE_DEBUG    */ MemoryType::HOST_DEBUG,
-      /* DEVICE_UMPIRE   */ MemoryType::HOST_UMPIRE,
-      /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
+      /* HOST                 */ MemoryType::DEVICE,
+      /* TEMP_HOST            */ MemoryType::TEMP_DEVICE,
+      /* HOST_32              */ MemoryType::DEVICE,
+      /* TEMP_HOST_32         */ MemoryType::TEMP_DEVICE,
+      /* HOST_64              */ MemoryType::DEVICE,
+      /* TEMP_HOST_64         */ MemoryType::TEMP_DEVICE,
+      /* HOST_DEBUG           */ MemoryType::DEVICE_DEBUG,
+      /* TEMP_HOST_DEBUG      */ MemoryType::TEMP_DEVICE_DEBUG,
+      /* HOST_UMPIRE          */ MemoryType::DEVICE_UMPIRE,
+      /* TEMP_HOST_UMPIRE     */ MemoryType::TEMP_DEVICE_UMPIRE,
+      /* HOST_PINNED          */ MemoryType::HOST_PINNED,
+      /* TEMP_HOST_PINNED     */ MemoryType::TEMP_HOST_PINNED,
+      /* MANAGED              */ MemoryType::MANAGED,
+      /* TEMP_MANAGED         */ MemoryType::TEMP_MANAGED,
+      /* DEVICE               */ MemoryType::HOST,
+      /* TEMP_DEVICE          */ MemoryType::TEMP_HOST,
+      /* DEVICE_DEBUG         */ MemoryType::HOST_DEBUG,
+      /* TEMP_DEVICE_DEBUG    */ MemoryType::TEMP_HOST_DEBUG,
+      /* DEVICE_UMPIRE        */ MemoryType::HOST_UMPIRE,
+      /* TEMP_DEVICE_UMPIRE   */ MemoryType::TEMP_HOST_UMPIRE,
+      /* DEVICE_UMPIRE_2      */ MemoryType::HOST_UMPIRE,
+      /* TEMP_DEVICE_UMPIRE_2 */ MemoryType::TEMP_HOST_UMPIRE,
    };
 
    // 0 holds host, host-pinned, and managed memory spaces
@@ -193,8 +203,7 @@ private:
                     ptrdiff_t stop, F &&func);
 
    size_t Insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
-                 MemoryType dloc, bool valid_host, bool valid_device,
-                 bool temporary);
+                 MemoryType dloc, bool valid_host, bool valid_device);
 
    /// Decreases reference count on @a segment
    void Erase(size_t segment);
@@ -232,10 +241,8 @@ private:
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
              size_t src_offset, size_t nbytes);
 
-   void Unprotect(char *ptr, MemoryType loc, size_t offset, size_t nbytes,
-                  bool temporary);
-   void Protect(char *ptr, MemoryType loc, size_t offset, size_t nbytes,
-                bool temporary);
+   void Unprotect(char *ptr, MemoryType loc, size_t offset, size_t nbytes);
+   void Protect(char *ptr, MemoryType loc, size_t offset, size_t nbytes);
 
    void CopyFromHost(size_t segment, size_t offset, const char *src,
                      size_t nbytes);
@@ -297,6 +304,12 @@ public:
    MemoryType GetHostPinnedMemoryType() const { return memory_types[2]; }
    MemoryType GetManagedMemoryType() const { return memory_types[3]; }
 
+   MemoryType GetTempHostMemoryType() const { return temp_memory_types[0]; }
+   MemoryType GetTempDeviceMemoryType() const { return temp_memory_types[1]; }
+
+   MemoryType GetTempHostPinnedMemoryType() const { return temp_memory_types[2]; }
+   MemoryType GetTempManagedMemoryType() const { return temp_memory_types[3]; }
+
    static MemoryType GetDualMemoryType(MemoryType mt);
    static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
@@ -318,11 +331,11 @@ public:
                      MemoryType dst_loc, MemoryType src_loc);
 
    /// raw deallocation of a buffer
-   /// @a nbytes, @a type, and @a temporary must be the same as passed to the
-   /// original call to @sa Alloc
-   void Dealloc(char *ptr, size_t nbytes, MemoryType type, bool temporary);
+   /// @a nbytes and @a type must be the same as passed to the original call to
+   /// @sa Alloc
+   void Dealloc(char *ptr, size_t nbytes, MemoryType type);
    /// Raw unregistered allocation of a buffer
-   char *Alloc(size_t nbytes, MemoryType type, bool temporary);
+   char *Alloc(size_t nbytes, MemoryType type);
 
    /// Prints all pointers known by the memory manager,
    /// returning the number of printed pointers
@@ -381,10 +394,9 @@ public:
    using difference_type = ptrdiff_t;
    using propagate_on_container_move_assignment = std::true_type;
 
-   AllocatorAdaptor(MemoryType loc = MemoryType::HOST, bool temporary = false)
+   AllocatorAdaptor(MemoryType loc = MemoryType::HOST)
    {
-      idx = temporary ? MemoryTypeSize : 0;
-      idx += static_cast<int>(loc);
+      idx = static_cast<int>(loc);
    }
 
    AllocatorAdaptor(const AllocatorAdaptor &) = default;
@@ -438,7 +450,6 @@ protected:
       OWNS_HOST = 1 << 1,
       OWNS_DEVICE = 1 << 2,
       USE_DEVICE = 1 << 3,
-      TEMPORARY = 1 << 4,
    };
    MemoryType h_mt = MemoryManager::Instance().GetHostMemoryType();
    mutable Flags flags = NONE;
@@ -447,20 +458,18 @@ protected:
 
    void EnsureRegistered() const;
 
-   void New_(size_t size, MemoryType hloc, MemoryType dloc, bool temporary,
-             bool valid_host);
+   void New_(size_t size, MemoryType hloc, MemoryType dloc, bool valid_host);
 
 public:
    Memory() { MemoryManager::Instance(); };
-   explicit Memory(int size, bool temporary = false);
-   Memory(size_t count, MemoryType loc, bool temporary = false);
-   Memory(size_t count, MemoryType hloc, MemoryType dloc,
-          bool temporary = false);
+   explicit Memory(int size);
+   Memory(size_t count, MemoryType loc);
+   Memory(size_t count, MemoryType hloc, MemoryType dloc);
    explicit Memory(MemoryType mt);
+   Memory(MemoryType h_mt, MemoryType d_mt);
 
    Memory(T *ptr, size_t count, bool own);
    Memory(T *ptr, size_t count, MemoryType loc, bool own);
-   Memory(T *ptr, size_t count, MemoryType loc, bool own, bool temporary);
    Memory(const Memory &base, int offset, int size);
 
    Memory(const Memory &r);
@@ -551,9 +560,8 @@ public:
          }
          else
          {
-            segment =
-               inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
-                           size_ * sizeof(T), h_mt, loc, true, false, false);
+            segment = inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                                  size_ * sizeof(T), h_mt, loc, true, false);
             flags = static_cast<Flags>(flags | OWNS_DEVICE);
          }
       }
@@ -570,38 +578,25 @@ public:
    bool Empty() const { return h_ptr == nullptr; }
 
    void New(size_t size);
-   void New(size_t size, bool temporary);
 
-   void New(size_t size, MemoryType loc, bool temporary = false);
+   void New(size_t size, MemoryType loc);
 
-   void New(size_t size, MemoryType hloc, MemoryType dloc,
-            bool temporary = false);
+   void New(size_t size, MemoryType hloc, MemoryType dloc);
 
    void Delete();
 
    /// These functions should not be called if the pointer(s) being wrapped are
    /// already registered.
    void Wrap(T *ptr, size_t size, bool own);
-   void Wrap(T *ptr, size_t size, MemoryType loc, bool own,
-             bool temporary = false);
+   void Wrap(T *ptr, size_t size, MemoryType loc, bool own);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
-             bool own_host, bool own_device, bool valid_host, bool valid_device,
-             bool temporary = false);
+             bool own_host, bool own_device, bool valid_host, bool valid_device);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
-             bool own, bool valid_host = false, bool valid_device = true,
-             bool temporary = false);
+             bool own, bool valid_host = false, bool valid_device = true);
 
    /// These functions can be called if the pointer(s) being wrapped are
    /// already registered.
    void CheckedWrap(T *ptr, size_t size, bool own);
-   // void CheckedWrap(T *ptr, size_t size, MemoryType loc, bool own,
-   //                  bool temporary = false);
-   // void CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
-   //                  MemoryType dloc, bool own_host, bool own_device,
-   //                  bool valid_host, bool valid_device, bool temporary = false);
-   // void CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
-   //                  MemoryType dloc, bool own, bool valid_host = false,
-   //                  bool valid_device = true, bool temporary = false);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
@@ -675,10 +670,8 @@ public:
             {
                MFEM_MEM_OP_DEBUG_REMOVE2(
                   1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
-                  "dealloc " << (int)seg.mtypes[1] << ", "
-                  << seg.IsTemporary());
-               inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
-                            seg.IsTemporary());
+                  "dealloc " << (int)seg.mtypes[1]);
+               inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1]);
                inst.segment_maps[1].erase(seg.lowers[1]);
                seg.lowers[1] = nullptr;
                inst.SetValidity(segment, 0, seg.nbytes, true, false);
@@ -777,8 +770,6 @@ public:
       return inst.CompareHostDevice(segment, offset_ * sizeof(T),
                                     size * sizeof(T));
    }
-
-   bool IsTemporary() const { return flags & TEMPORARY; }
 };
 
 template <class T> void Memory<T>::New(size_t size)
@@ -800,7 +791,7 @@ template <class T> void Memory<T>::New(size_t size)
    else
    {
       h_ptr =
-         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, false));
+         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt));
       MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
                             "alloc " << (int)h_mt << ", " << false);
    }
@@ -808,39 +799,8 @@ template <class T> void Memory<T>::New(size_t size)
    size_ = size;
 }
 
-template <class T> void Memory<T>::New(size_t size, bool temporary)
-{
-   auto &inst = MemoryManager::Instance();
-   if (segment)
-   {
-      inst.Erase(segment);
-      segment = 0;
-      offset_ = 0;
-   }
-   h_mt = inst.GetHostMemoryType();
-   if (h_mt == MemoryType::HOST && !temporary)
-   {
-      h_ptr = new T[size];
-      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt << ", " << temporary);
-   }
-   else
-   {
-      h_ptr =
-         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, temporary));
-      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt << ", " << temporary);
-   }
-   flags = OWNS_HOST;
-   if (temporary)
-   {
-      flags = static_cast<Flags>(flags | TEMPORARY);
-   }
-   size_ = size;
-}
-
 template <class T>
-void Memory<T>::New(size_t size, MemoryType loc, bool temporary)
+void Memory<T>::New(size_t size, MemoryType loc)
 {
    auto &inst = MemoryManager::Instance();
    MemoryType hloc;
@@ -848,26 +808,25 @@ void Memory<T>::New(size_t size, MemoryType loc, bool temporary)
    if (IsHostMemory(loc))
    {
       hloc = loc;
-      New_(size, hloc, dloc, temporary, true);
+      New_(size, hloc, dloc, true);
    }
    else
    {
       hloc = inst.GetDualMemoryType(loc);
       dloc = loc;
-      New_(size, hloc, dloc, temporary, false);
+      New_(size, hloc, dloc, false);
    }
 }
 
 template <class T>
-void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc,
-                    bool temporary)
+void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc)
 {
-   New_(size, hloc, dloc, temporary, true);
+   New_(size, hloc, dloc, true);
 }
 
 template <class T>
 void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
-                     bool temporary, bool valid_host)
+                     bool valid_host)
 {
    auto &inst = MemoryManager::Instance();
    if (segment)
@@ -877,31 +836,27 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
       offset_ = 0;
    }
    h_mt = hloc;
-   if (hloc == MemoryType::HOST && !temporary)
+   if (hloc == MemoryType::HOST)
    {
       h_ptr = new T[size];
       MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt << ", " << temporary);
+                            "alloc " << (int)h_mt);
    }
    else
    {
       h_ptr =
-         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc, temporary));
+         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
       MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt << ", " << temporary);
+                            "alloc " << (int)h_mt);
    }
    flags = OWNS_HOST;
-   if (temporary)
-   {
-      flags = static_cast<Flags>(flags | TEMPORARY);
-   }
    if (hloc == dloc || (dloc == MemoryType::DEFAULT &&
                         hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(h_ptr), size * sizeof(T),
-                            h_mt, dloc, valid_host, !valid_host, temporary);
+                            h_mt, dloc, valid_host, !valid_host);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
    else if (dloc != MemoryType::DEFAULT)
@@ -909,7 +864,7 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment =
          inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
-                     h_mt, dloc, valid_host, !valid_host, temporary);
+                     h_mt, dloc, valid_host, !valid_host);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
    size_ = size;
@@ -928,11 +883,10 @@ template <class T> void Memory<T>::Delete()
                      "should not refer to a subsection");
          if (seg.lowers[0] != seg.lowers[1])
          {
-            MFEM_MEM_OP_DEBUG_REMOVE2(
-               1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
-               "dealloc " << (int)seg.mtypes[1] << ", " << seg.IsTemporary());
-            inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
-                         seg.IsTemporary());
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1],
+                                      seg.lowers[1] + seg.nbytes,
+                                      "dealloc " << (int)seg.mtypes[1]);
+            inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1]);
             inst.segment_maps[1].erase(seg.lowers[1]);
          }
          seg.lowers[1] = nullptr;
@@ -941,7 +895,6 @@ template <class T> void Memory<T>::Delete()
       {
          MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
 
-         bool temporary = IsTemporary();
          auto &seg = inst.storage.GetSegment(segment);
          if (seg.lowers[0] == nullptr)
          {
@@ -957,20 +910,18 @@ template <class T> void Memory<T>::Delete()
                      "should not refer to a subsection");
          inst.segment_maps[0].erase(seg.lowers[0]);
          seg.lowers[0] = nullptr;
-         if (!temporary && h_mt == MemoryType::HOST)
+         if (h_mt == MemoryType::HOST)
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                      "dealloc " << (int)h_mt << ", "
-                                      << temporary);
+                                      "dealloc " << (int)h_mt);
             delete[] h_ptr;
          }
          else
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                      "dealloc " << (int)h_mt << ", "
-                                      << temporary);
+                                      "dealloc " << (int)h_mt);
             inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
-                         h_mt, temporary);
+                         h_mt);
          }
       }
       Reset(h_mt);
@@ -979,22 +930,19 @@ template <class T> void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST)
       {
-         bool temporary = IsTemporary();
-         if (h_mt == MemoryType::HOST && !temporary)
+         if (h_mt == MemoryType::HOST)
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                      "dealloc " << (int)h_mt << ", "
-                                      << temporary);
+                                      "dealloc " << (int)h_mt);
             delete[] h_ptr;
          }
          else
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
-                                      "dealloc " << (int)h_mt << ", "
-                                      << temporary);
+                                      "dealloc " << (int)h_mt);
             auto& inst = MemoryManager::Instance();
             inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
-                         h_mt, temporary);
+                         h_mt);
          }
          h_ptr = nullptr;
       }
@@ -1054,9 +1002,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
       auto& seg = inst.storage.GetSegment(segment);
       h_mt = seg.mtypes[0];
       ++seg.ref_count;
-      flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE |
-                                       (seg.temporary ? TEMPORARY : NONE))
-              : NONE;
+      flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
    }
    else
    {
@@ -1071,9 +1017,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
          h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
          h_mt = seg.mtypes[0];
          ++seg.ref_count;
-         flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE |
-                                          (seg.temporary ? TEMPORARY : NONE))
-                 : NONE;
+         flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
       }
       else
       {
@@ -1112,8 +1056,7 @@ template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
 }
 
 template <class T>
-void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own,
-                     bool temporary)
+void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
 {
    auto &inst = MemoryManager::Instance();
    T *h_ptr_ = nullptr;
@@ -1152,7 +1095,7 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own,
          else
          {
             h_ptr_ =
-               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc, false));
+               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
             MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
                                   "wrap own " << (int)hloc << ", " << false);
          }
@@ -1164,22 +1107,21 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own,
    }
 
    Wrap(h_ptr_, d_ptr_, size, hloc, dloc, own_host, own_device, valid_host,
-        valid_device, temporary);
+        valid_device);
 }
 
 template <class T>
 void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                      MemoryType dloc, bool own, bool valid_host,
-                     bool valid_device, bool temporary)
+                     bool valid_device)
 {
-   Wrap(h_ptr_, d_ptr, size, hloc, dloc, own, own, valid_host, valid_device,
-        temporary);
+   Wrap(h_ptr_, d_ptr, size, hloc, dloc, own, own, valid_host, valid_device);
 }
 
 template <class T>
 void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                      MemoryType dloc, bool own_host, bool own_device,
-                     bool valid_host, bool valid_device, bool temporary)
+                     bool valid_host, bool valid_device)
 {
    auto &inst = MemoryManager::Instance();
    if (segment)
@@ -1212,7 +1154,7 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
                   "Cannot wrap d_ptr != nullptr with h_ptr == nullptr");
       segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(d_ptr), size * sizeof(T),
-                            hloc, dloc, valid_host, valid_device, false);
+                            hloc, dloc, valid_host, valid_device);
    }
    if (own_host)
    {
@@ -1225,10 +1167,6 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
       MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
                             "wrap own " << (int)dloc << ", " << false);
-   }
-   if (temporary)
-   {
-      flags = static_cast<Flags>(flags | TEMPORARY);
    }
 }
 
@@ -1274,7 +1212,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       {
          base.segment = inst.Insert(reinterpret_cast<char *>(base.h_ptr),
                                     nullptr, base.size_ * sizeof(T), base.h_mt,
-                                    MemoryType::DEFAULT, true, false, false);
+                                    MemoryType::DEFAULT, true, false);
          if (base.flags & OWNS_HOST)
          {
             base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
@@ -1289,22 +1227,21 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    }
 }
 
-template <class T> Memory<T>::Memory(int count, bool temporary)
+template <class T> Memory<T>::Memory(int count)
 {
-   New(count, temporary);
+   New(count);
 }
 
 template <class T>
-Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
+Memory<T>::Memory(size_t count, MemoryType loc)
 {
-   New(count, loc, temporary);
+   New(count, loc);
 }
 
 template <class T>
-Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
-                  bool temporary)
+Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc)
 {
-   New(count, hloc, dloc, temporary);
+   New(count, hloc, dloc);
 }
 
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
@@ -1323,7 +1260,17 @@ template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
    if (dloc != MemoryType::DEFAULT)
    {
       segment =
-         inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false, false);
+         inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
+   }
+}
+
+template <class T> Memory<T>::Memory(MemoryType h_mt,
+                                     MemoryType d_mt) : Memory()
+{
+   if (d_mt != MemoryType::DEFAULT)
+   {
+      auto &inst = MemoryManager::Instance();
+      segment = inst.Insert(nullptr, nullptr, 0, h_mt, d_mt, false, false);
    }
 }
 
@@ -1464,7 +1411,7 @@ template <class T> void Memory<T>::EnsureRegistered() const
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment = inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
                             size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true,
-                            false, false);
+                            false);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
 }
