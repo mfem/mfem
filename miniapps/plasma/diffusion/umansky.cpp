@@ -58,7 +58,7 @@ real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
       }
       else
       {
-         uc = -DBL_MAX;
+         uc = -std::numeric_limits<real_t>::max();
       }
 
       MPI_Allgather(&uc, 1, MFEM_MPI_REAL_T, ucVec.GetData(), 1,
@@ -66,7 +66,7 @@ real_t FindYVal(ParGridFunction &u, real_t u_target, real_t x,
 
       for (int i=0; i<nranks; i++)
       {
-         if (ucVec[i] > -0.5 * DBL_MAX)
+         if (ucVec[i] > -0.5 * std::numeric_limits<real_t>::max())
          {
             uc = ucVec[i];
             break;

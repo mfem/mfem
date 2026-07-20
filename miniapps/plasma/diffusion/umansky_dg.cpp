@@ -106,8 +106,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&el_type_arg, "-e", "--element-type",
                   "Element type: 0 - Triangle, 1 - Quadrilateral.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
@@ -438,13 +437,17 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       {
          if (Mpi::Root()) { cout << "Estimating error..." << endl; }
+         MFEM_VERIFY(order >= 1,
+                     "ZZ error estimation with AMR requires order >= 1, "
+                     "because the smoothed flux space uses RT(order-1).");
+
          DiffusionIntegrator flux_integrator(anisoDiffCoef);
          L2_FECollection flux_fec(order, dim);
          ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, 2);
 
          // Space for the smoothed (conforming) flux
          int norm_p = 1;
-         RT_FECollection smooth_flux_fec(order-1, dim);
+         RT_FECollection smooth_flux_fec(order, dim);
          ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
 
          L2ZZErrorEstimator(flux_integrator, x,

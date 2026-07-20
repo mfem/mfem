@@ -24,13 +24,13 @@ if (MFEM_USE_MPI)
 
 # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME umansky_cg_np=4
+    add_test(NAME umansky_cg_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:umansky_cg> -no-vis -maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2
       ${MPIEXEC_POSTFLAGS})
 
-    add_test(NAME umansky_dg_np=4
+    add_test(NAME umansky_dg_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:umansky_dg> -no-vis -maxit 2 -rs 1 -rp 1 -hgt 0.8 -wth 1.2 -Ak 1e2 -k 5
