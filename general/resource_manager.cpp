@@ -40,9 +40,20 @@
 #define MFEM_MMU_CPP
 #include "internal/mmu.cpp"
 
+#ifndef _WIN32
+#include <unistd.h>
+#include <signal.h>
+#include <sys/mman.h>
+// can't use the recommended C11 aligned_alloc because this requires s % a == 0
+#define mfem_memalign(p,a,s) posix_memalign(p,a,s)
+#define mfem_aligned_free free
+#else
+#define mfem_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
+#define mfem_aligned_free _aligned_free
+#endif
+
 namespace mfem
 {
-
 #ifdef MFEM_USE_UMPIRE
 struct UmpireAllocator : public Allocator
 {
@@ -124,12 +135,7 @@ struct StdAlignedAllocator : public Allocator
    StdAlignedAllocator(size_t align) : alignment(align) {}
    void Alloc(void **ptr, size_t nbytes) override
    {
-#ifdef _WIN32
-      *ptr = _aligned_malloc(nbytes, alignment);
-#else
-      *ptr = aligned_alloc(alignment, nbytes);
-#endif
-      if (*ptr == nullptr)
+      if (mfem_memalign(ptr, alignment, nbytes) != 0)
       {
          throw std::bad_alloc();
       }
@@ -137,11 +143,7 @@ struct StdAlignedAllocator : public Allocator
 
    void Dealloc(void *ptr, size_t) override
    {
-#ifdef _WIN32
-      _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
+      mfem_aligned_free(ptr);
    }
    virtual ~StdAlignedAllocator() = default;
 };
@@ -865,20 +867,6 @@ size_t MemoryManager::RBase::InsertMarker(size_t segment, ptrdiff_t offset,
 
    return Insert(GetSegment(segment).roots[on_device], idx);
 }
-size_t MemoryManager::RBase::InsertMarker(size_t segment, size_t node,
-                                          ptrdiff_t offset, bool on_device,
-                                          bool valid)
-{
-   size_t idx = nodes.CreateNext();
-   auto &n = nodes.Get(idx);
-   n.offset = offset;
-   if (valid)
-   {
-      n.SetValid();
-   }
-
-   return Insert(GetSegment(segment).roots[on_device], node, idx);
-}
 
 void MemoryManager::RBase::InsertDuplicate(size_t a, size_t b)
 {
@@ -947,10 +935,8 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
                }
                else
                {
-                  storage.InsertMarker(
-                     segment,
-                     storage.InsertMarker(segment, curr, pos, on_device, true),
-                     stop, on_device, false);
+                  storage.InsertMarker(segment, pos, on_device, true);
+                  storage.InsertMarker(segment, stop, on_device, false);
                }
                break;
             }
@@ -971,10 +957,10 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
             }
             else
             {
-               auto tmp = storage.InsertMarker(segment, curr, pos, on_device, true);
+               storage.InsertMarker(segment, pos, on_device, true);
                if (stop < seg.nbytes)
                {
-                  storage.InsertMarker(segment, tmp, stop, on_device, false);
+                  storage.InsertMarker(segment, stop, on_device, false);
                }
             }
             break;
@@ -1035,10 +1021,8 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
          {
             func(start, stop);
             // need new start and stop markers
-            storage.InsertMarker(
-               segment,
-               storage.InsertMarker(segment, curr, start, on_device, false),
-               stop, on_device, true);
+            storage.InsertMarker(segment, start, on_device, false);
+            storage.InsertMarker(segment, stop, on_device, true);
             return;
          }
       }
@@ -1088,10 +1072,8 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.InsertMarker(
-                     segment,
-                     storage.InsertMarker(segment, curr, pos, on_device, false),
-                     stop, on_device, true);
+                  storage.InsertMarker(segment, pos, on_device, false);
+                  storage.InsertMarker(segment, stop, on_device, true);
                }
                break;
             }
@@ -1112,11 +1094,10 @@ void MemoryManager::MarkInvalid(size_t segment, bool on_device,
             }
             else
             {
-               auto tmp =
-                  storage.InsertMarker(segment, curr, pos, on_device, false);
+               storage.InsertMarker(segment, pos, on_device, false);
                if (stop < seg.nbytes)
                {
-                  storage.InsertMarker(segment, tmp, stop, on_device, true);
+                  storage.InsertMarker(segment, stop, on_device, true);
                }
             }
             break;

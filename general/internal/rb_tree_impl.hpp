@@ -183,8 +183,7 @@ void RBTree<ChildType>::RightRotate(size_t &root, size_t curr)
 }
 
 template <class ChildType>
-size_t RBTree<ChildType>::InsertImpl(size_t &root, size_t pos, size_t curr,
-                                     bool check_hint)
+size_t RBTree<ChildType>::InsertImpl(size_t &root, size_t pos, size_t curr)
 {
    ChildType &self = static_cast<ChildType &>(*this);
    auto &z = self.GetNode(curr);
@@ -198,70 +197,10 @@ size_t RBTree<ChildType>::InsertImpl(size_t &root, size_t pos, size_t curr,
       auto cmp = self.CompareNodes(x, curr);
       if (cmp < 0)
       {
-         if (check_hint)
-         {
-            if (nx.parent)
-            {
-               auto &np = self.GetNode(nx.parent);
-               if (np.child[1] == x)
-               {
-                  // x is a right child, ensure c is between p and x
-                  // p
-                  //     x
-                  //  c?
-                  auto cmp2 = self.CompareNodes(nx.parent, curr);
-                  if (cmp2 < 0)
-                  {
-                     // curr is to the left of parent, bad hint. Try parent.
-                     x = nx.parent;
-                     continue;
-                  }
-                  else if (cmp2 == 0)
-                  {
-                     // duplicate with parent
-                     self.InsertDuplicate(nx.parent, curr);
-                     return nx.parent;
-                  }
-               }
-            }
-            // don't need to check for a valid hint anymore
-            check_hint = false;
-            continue;
-         }
          x = nx.child[0];
       }
       else if (cmp > 0)
       {
-         if (check_hint)
-         {
-            if (nx.parent)
-            {
-               auto &np = self.GetNode(nx.parent);
-               if (np.child[0] == x)
-               {
-                  // x is a left child, ensure c is between x and p
-                  //     p
-                  // x
-                  //   c?
-                  auto cmp2 = self.CompareNodes(nx.parent, curr);
-                  if (cmp2 > 0)
-                  {
-                     // curr is to the left of parent, bad hint. Try parent.
-                     x = nx.parent;
-                     continue;
-                  }
-                  else if (cmp2 == 0)
-                  {
-                     // duplicate with parent
-                     self.InsertDuplicate(nx.parent, curr);
-                     return nx.parent;
-                  }
-               }
-            }
-            // don't need to check for a valid hint anymore
-            check_hint = false;
-            continue;
-         }
          x = nx.child[1];
       }
       else

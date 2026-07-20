@@ -25,8 +25,7 @@ template <class ChildType> class RBTree
    void InsertFixup(size_t &root, size_t curr);
    void LeftRotate(size_t &root, size_t curr);
    void RightRotate(size_t &root, size_t curr);
-   size_t InsertImpl(size_t &root, size_t pos, size_t curr,
-                     bool check_hint = false);
+   size_t InsertImpl(size_t &root, size_t pos, size_t curr);
    void EraseSimpleOne(size_t &root, size_t idx, int child);
 
 public:
@@ -34,15 +33,8 @@ public:
    // idx has the largest value.
    size_t Next(size_t idx);
 
-   /// insert node @a curr into tree, modifying @a root as needed. Uses @a pos
-   /// as a hint for a node in the tree to start the BSP search from.
-   size_t Insert(size_t &root, size_t pos, size_t curr)
-   {
-      return InsertImpl(root, pos, curr, true);
-   }
-
    /// insert node @a curr into tree, modifying @a root as needed
-   size_t Insert(size_t &root, size_t curr) { return InsertImpl(root, root, curr, false); }
+   size_t Insert(size_t &root, size_t curr) { return InsertImpl(root, root, curr); }
 
    /// erases node @a idx into tree, modifying @a root as needed.
    void Erase(size_t &root, size_t idx);

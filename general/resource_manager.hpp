@@ -126,12 +126,6 @@ private:
       /// Insert a validity transition marker for a given @a segment
       size_t InsertMarker(size_t segment, ptrdiff_t offset, bool on_device,
                           bool valid);
-
-      /// Insert a validity transition marker for a given @a segment, using
-      /// @node as a hint for where to start the BSP insertion. @sa Insert for
-      /// how the hint works.
-      size_t InsertMarker(size_t segment, size_t node, ptrdiff_t offset,
-                          bool on_device, bool valid);
    };
 
    void PrintSegment(size_t segment);

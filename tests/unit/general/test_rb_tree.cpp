@@ -83,14 +83,6 @@ struct RBTreeFixture : RBTree<RBTreeFixture>
       return Insert(root, idx);
    }
 
-   size_t AddNode(ptrdiff_t val, size_t hint)
-   {
-      auto idx = nodes.CreateNext();
-      auto &n = nodes.Get(idx);
-      n.offset = val;
-      return Insert(root, hint, idx);
-   }
-
    void EraseNode(size_t idx)
    {
       Erase(root, idx);
@@ -238,43 +230,6 @@ struct RBTreeFixture : RBTree<RBTreeFixture>
       return res;
    }
 };
-
-TEST_CASE("RB Tree Insert", "[RB Tree]")
-{
-   // special configurations of Insert to test
-   SECTION("hint violation")
-   {
-      RBTreeFixture tree;
-      REQUIRE(tree.AddNode(30) == 1);
-      REQUIRE(tree.AddNode(10) == 2);
-      REQUIRE(tree.AddNode(20) == 3);
-      tree.ValidateTree();
-      // tree:
-      //    20
-      // 10    30
-      auto idx = tree.AddNode(40, 2);
-      tree.ValidateTree();
-      REQUIRE(idx == 4);
-
-      // tree:
-      //    20
-      // 10    30
-      //          40
-      idx = tree.AddNode(5, 4);
-      tree.ValidateTree();
-      REQUIRE(idx == 5);
-
-      // tree:
-      //      20
-      //   10    30
-      // 5          40
-      // duplicate with hint
-      REQUIRE(tree.AddNode(10, 5) == 2);
-      tree.ValidateTree();
-      REQUIRE(tree.AddNode(20, 4) == 3);
-      tree.ValidateTree();
-   }
-}
 
 TEST_CASE("RB Tree Next", "[RB Tree]")
 {
