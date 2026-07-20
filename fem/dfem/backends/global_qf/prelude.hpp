@@ -20,6 +20,8 @@
 #include "../local_qf/derivative_assemble.hpp"
 #include "../local_qf/derivative_assemble_diagonal.hpp"
 
+#include "scratch_bank.hpp"
+
 namespace mfem::future
 {
 

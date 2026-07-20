@@ -832,10 +832,12 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
 
 } // namespace enzyme_detail
 
-template <size_t derivative_id, typename qfunc_t, typename inputs_t, typename outputs_t,
+template <size_t derivative_id, typename qfunc_t, typename qfunc_shadow_t,
+          typename inputs_t, typename outputs_t,
           std::size_t... Is, std::size_t... Os>
 inline void enzyme_fwddiff(
    qfunc_t &qfunc,
+   qfunc_shadow_t &qfunc_shadow,
    const BlockVector &xq,
    const BlockVector &shadow_xq,
    BlockVector &yq,
@@ -890,8 +892,6 @@ inline void enzyme_fwddiff(
       std::remove_reference_t<decltype(std::get<Is>(inputs))>...,
       std::remove_reference_t<decltype(std::get<Os>(primals_out))>...>;
 
-   auto qfunc_shadow = enzyme_detail::MakeQFunctionShadow(qfunc);
-
    // wrapper_fn travels as a non-type template parameter throughout without
    // being stored.
    enzyme_detail::process_inputs<
@@ -906,7 +906,76 @@ inline void enzyme_fwddiff(
     );
 }
 
+template <size_t derivative_id, typename qfunc_t, typename inputs_t, typename outputs_t,
+          std::size_t... Is, std::size_t... Os>
+inline void enzyme_fwddiff(
+   qfunc_t &qfunc,
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   BlockVector &yq,
+   const int &gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+   std::index_sequence<Is...> is,
+   std::index_sequence<Os...> os)
+{
+   auto qfunc_shadow = enzyme_detail::MakeQFunctionShadow(qfunc);
+   enzyme_fwddiff<derivative_id, qfunc_t, decltype(qfunc_shadow), inputs_t,
+                  outputs_t>(qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
+                             in_layouts, out_layouts, is, os);
+}
+
 #endif // MFEM_USE_ENZYME
+
+template <typename qfunc_t>
+using qfunc_shadow_t =
+#ifdef MFEM_USE_ENZYME
+   decltype(enzyme_detail::MakeQFunctionShadow(std::declval<qfunc_t &>()));
+#else
+   qfunc_t;
+#endif
+
+template <typename qfunc_t>
+inline qfunc_shadow_t<qfunc_t> MakePersistentQFunctionShadow(
+   const qfunc_t &qfunc)
+{
+#ifdef MFEM_USE_ENZYME
+   return enzyme_detail::MakeQFunctionShadow(qfunc);
+#else
+   return qfunc;
+#endif
+}
+
+template <
+   size_t derivative_id,
+   typename qfunc_t,
+   typename qfunc_shadow_t,
+   typename inputs_t,
+   typename outputs_t,
+   std::size_t... Is,
+   std::size_t... Os>
+inline void fwddiff(
+   qfunc_t &qfunc,
+   qfunc_shadow_t &qfunc_shadow,
+   const BlockVector &xq,
+   const BlockVector &shadow_xq,
+   BlockVector &yq,
+   const int &gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::index_sequence<Is...> is,
+   std::index_sequence<Os...> os)
+{
+#ifdef MFEM_USE_ENZYME
+   enzyme_fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t, outputs_t>(
+      qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      is, os);
+#else
+   MFEM_CONTRACT_VAR(qfunc_shadow);
+   native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+#endif
+}
 
 template <
    size_t derivative_id,
@@ -927,8 +996,10 @@ inline void fwddiff(
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
-   enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+   auto qfunc_shadow = enzyme_detail::MakeQFunctionShadow(qfunc);
+   fwddiff<derivative_id, qfunc_t, decltype(qfunc_shadow), inputs_t, outputs_t>(
+      qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      is, os);
 #else
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
       qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
