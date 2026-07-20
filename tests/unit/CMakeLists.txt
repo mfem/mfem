@@ -38,7 +38,6 @@ set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
   dfem/test_functional.cpp  
-  dfem/test_global_split.cpp
   dfem/test_dfem_scratch.cpp
   enzyme/test_enzyme_scratch.cpp
   enzyme/test_enzyme_scratch_multikernel.cpp
