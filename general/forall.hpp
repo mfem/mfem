@@ -1372,9 +1372,9 @@ template<typename lambda>
 inline void hypre_forall_gpu(int N, lambda &&body)
 {
 #if defined(HYPRE_USING_CUDA)
-   CuWrap1D(N, body);
+   CuWrap1D<MFEM_CUDA_BLOCKS>(N, body);
 #elif defined(HYPRE_USING_HIP)
-   HipWrap1D(N, body);
+   HipWrap1D<MFEM_HIP_BLOCKS>(N, body);
 #else
 #error Unknown HYPRE GPU backend!
 #endif
