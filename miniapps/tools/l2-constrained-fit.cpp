@@ -38,9 +38,11 @@
 //
 // Sample runs:
 //   mpirun -np 4 l2-constrained-fit
-//   mpirun -np 4 l2-constrained-fit -o 4 -r 2 -no-vis
+//   mpirun -np 4 l2-constrained-fit -o 4 -r 2 -no-vis -ncp 20 -ms 10000
 //   mpirun -np 4 l2-constrained-fit -no-plb
 //   mpirun -np 4 l2-constrained-fit -m ../../data/periodic-square.mesh -no-vis
+
+// remember to increase ncp and ms as polynomial order increases to get a feasible solution
 
 #include "mfem.hpp"
 
