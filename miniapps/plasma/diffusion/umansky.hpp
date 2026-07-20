@@ -31,7 +31,7 @@ public:
    BoundaryCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
 
    real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+               const IntegrationPoint &ip) override
    {
       const real_t tol = std::numeric_limits<real_t>::epsilon();
 
