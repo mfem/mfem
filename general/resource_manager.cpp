@@ -54,6 +54,21 @@
 
 namespace mfem
 {
+
+bool IsTemporaryMemorySpace(MemoryType mt)
+{
+   if (mt < MemoryType::SIZE)
+   {
+      return ((int)mt) & 1;
+   }
+   return false;
+}
+
+MemoryType GetTemporaryMemoryType(MemoryType mt)
+{
+   return static_cast<MemoryType>((int)mt | 1);
+}
+
 #ifdef MFEM_USE_UMPIRE
 struct UmpireAllocator : public Allocator
 {
@@ -1514,8 +1529,7 @@ char *MemoryManager::Write(size_t segment, size_t offset, size_t nbytes,
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
-            seg.mtypes[on_device] =
-               on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device]);
@@ -1737,8 +1751,7 @@ char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
-            seg.mtypes[on_device] =
-               on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device]);
@@ -1769,7 +1782,7 @@ char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
                 seg.mtypes[!on_device] == MemoryType::PRESERVE)
             {
                seg.mtypes[!on_device] =
-                  !on_device ? memory_types[1] : memory_types[0];
+                  GetDualMemoryType(seg.mtypes[on_device]);
             }
             seg.lowers[!on_device] =
                Alloc(seg.nbytes, seg.mtypes[!on_device]);
@@ -1823,8 +1836,7 @@ const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
-            seg.mtypes[on_device] =
-               on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device]);
@@ -1855,8 +1867,7 @@ const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
             if (seg.mtypes[!on_device] == MemoryType::DEFAULT ||
                 seg.mtypes[!on_device] == MemoryType::PRESERVE)
             {
-               seg.mtypes[!on_device] =
-                  !on_device ? memory_types[1] : memory_types[0];
+               seg.mtypes[!on_device] = GetDualMemoryType(seg.mtypes[on_device]);
             }
             seg.lowers[!on_device] =
                Alloc(seg.nbytes, seg.mtypes[!on_device]);

@@ -33,6 +33,12 @@
 namespace mfem
 {
 
+/// @return true if mt is a temporary memory type
+bool IsTemporaryMemorySpace(MemoryType mt);
+
+/// Gets the the temporary memory type associated with the non-temporary type mt
+MemoryType GetTemporaryMemorySpace(MemoryType mt);
+
 struct Allocator
 {
    virtual void Alloc(void **ptr, size_t nbytes) = 0;
