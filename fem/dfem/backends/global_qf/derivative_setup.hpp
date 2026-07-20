@@ -148,11 +148,11 @@ struct DerivativeSetup
                yq = 0.0;
 
                detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t,
-                               inputs_t, outputs_t>(
-                  qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
-                  input_qlayouts, output_qlayouts,
-                  std::make_index_sequence<ninputs> {},
-                  std::make_index_sequence<noutputs> {});
+                      inputs_t, outputs_t>(
+                         qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
+                         input_qlayouts, output_qlayouts,
+                         std::make_index_sequence<ninputs> {},
+                         std::make_index_sequence<noutputs> {});
 
                yq.SyncToBlocks();
                real_t *cache_d = qp_cache.ReadWrite();

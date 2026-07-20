@@ -43,8 +43,8 @@ struct derivative_setup_t
 
    template <typename func_t,
              typename = std::enable_if_t<!std::is_same_v<
-                std::decay_t<func_t>, derivative_setup_t>>>
-   derivative_setup_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+                                            std::decay_t<func_t>, derivative_setup_t>>>
+                                         derivative_setup_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
 
    void operator()(const std::vector<Vector *> &xe) const { apply(xe); }
 
@@ -58,7 +58,7 @@ struct derivative_setup_t
    detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
    {
       return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
-                qfunc_shadow()) : nullptr;
+         qfunc_shadow()) : nullptr;
    }
 
    apply_t apply;
@@ -79,8 +79,8 @@ struct derivative_action_t
 
    template <typename func_t,
              typename = std::enable_if_t<!std::is_same_v<
-                std::decay_t<func_t>, derivative_action_t>>>
-   derivative_action_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+                                            std::decay_t<func_t>, derivative_action_t>>>
+                                         derivative_action_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
 
    void operator()(const std::vector<Vector *> &xe,
                    const Vector *de,
@@ -99,7 +99,7 @@ struct derivative_action_t
    detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
    {
       return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
-                qfunc_shadow()) : nullptr;
+         qfunc_shadow()) : nullptr;
    }
 
    apply_t apply;
@@ -133,15 +133,15 @@ struct has_qfunc_member : std::false_type { };
 
 template <typename T>
 struct has_qfunc_member<T, std::void_t<decltype(std::declval<T &>().qfunc)>>
-   : std::true_type { };
+: std::true_type { };
 
 template <typename T, typename = void>
 struct has_qfunc_shadow_member : std::false_type { };
 
 template <typename T>
 struct has_qfunc_shadow_member<T,
-       std::void_t<decltype(std::declval<T &>().qfunc_shadow)>>
-   : std::true_type { };
+                               std::void_t<decltype(std::declval<T &>().qfunc_shadow)>>
+: std::true_type { };
 }
 
 template <typename derivative_action_impl_t>

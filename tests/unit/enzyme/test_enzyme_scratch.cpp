@@ -100,7 +100,7 @@ struct LinearQFunctionWithExternalScratch
 
 template <int N>
 void qfunction_wrapper(const dscalar_t *x, dscalar_t *y,
-                      const dscalar_t *coef, dscalar_t *scratch)
+                       const dscalar_t *coef, dscalar_t *scratch)
 {
    auto x_t = make_tensor_array(x, N);
    auto y_t = make_tensor_array(y, N);
@@ -113,7 +113,7 @@ void qfunction_wrapper(const dscalar_t *x, dscalar_t *y,
 
 template <int N>
 void qfunction_apply(const CubicQFunctionWithMemberScratch &qf,
-                           const dscalar_t *x, dscalar_t *y)
+                     const dscalar_t *x, dscalar_t *y)
 {
    auto x_t = make_tensor_array(x, N);
    auto y_t = make_tensor_array(y, N);
@@ -192,7 +192,8 @@ inline void print_qdata_results(const char *label,
 
 } // namespace enzyme_test_setscratch
 
-TEST_CASE("Enzyme qfunction with SetScratch member", "[Enzyme][GPU][Global-SetScratch]")
+TEST_CASE("Enzyme qfunction with SetScratch member",
+          "[Enzyme][GPU][Global-SetScratch]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
@@ -248,10 +249,12 @@ TEST_CASE("Enzyme qfunction with SetScratch member", "[Enzyme][GPU][Global-SetSc
                                          x, coef, y, yd, scratch, scratchd);
 }
 
-TEST_CASE("Enzyme qfunction with SetScratch member and qf dup", "[Enzyme][GPU][Global-SetScratch-QFDup]")
+TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
+          "[Enzyme][GPU][Global-SetScratch-QFDup]")
 {
    constexpr int N = 100;
-   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N), scratchd(N);
+   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N),
+        scratchd(N);
    x.UseDevice(true);
    xd.UseDevice(true);
    y.UseDevice(true);
@@ -380,7 +383,8 @@ TEST_CASE("Enzyme qfunction with external qdata-like scratch and qf const",
           "[Enzyme][GPU][Global-SetScratch-ExtQData]")
 {
    constexpr int N = 100;
-   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), qdata_seed(N), qdata(N), qdatad(N);
+   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), qdata_seed(N), qdata(N),
+        qdatad(N);
    x.UseDevice(true);
    xd.UseDevice(true);
    y.UseDevice(true);

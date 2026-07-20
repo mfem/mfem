@@ -936,7 +936,8 @@ using qfunc_shadow_t =
 #endif
 
 template <typename qfunc_t>
-inline qfunc_shadow_t<qfunc_t> MakePersistentQFunctionShadow(const qfunc_t &qfunc)
+inline qfunc_shadow_t<qfunc_t> MakePersistentQFunctionShadow(
+   const qfunc_t &qfunc)
 {
 #ifdef MFEM_USE_ENZYME
    return enzyme_detail::MakeQFunctionShadow(qfunc);

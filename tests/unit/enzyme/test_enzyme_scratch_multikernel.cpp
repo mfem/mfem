@@ -133,7 +133,7 @@ void kernel2_member(const CubicQFunctionThreeKernels &qf, const dscalar_t *x)
 
 template <int N>
 void kernel3_member(const CubicQFunctionThreeKernels &qf, const dscalar_t *x,
-                     dscalar_t *y)
+                    dscalar_t *y)
 {
    auto x_t = make_tensor_array(x, N);
    auto y_t = make_tensor_array(y, N);
@@ -142,7 +142,7 @@ void kernel3_member(const CubicQFunctionThreeKernels &qf, const dscalar_t *x,
 
 template <int N>
 void kernel1_explicit(const CubicQFunctionThreeKernelsExplicitScratch &qf,
-                       const dscalar_t *x, dscalar_t *scratch)
+                      const dscalar_t *x, dscalar_t *scratch)
 {
    auto x_t = make_tensor_array(x, N);
    auto s_t = make_tensor_array(scratch, N);
@@ -151,7 +151,7 @@ void kernel1_explicit(const CubicQFunctionThreeKernelsExplicitScratch &qf,
 
 template <int N>
 void kernel2_explicit(const CubicQFunctionThreeKernelsExplicitScratch &qf,
-                       const dscalar_t *x, dscalar_t *scratch)
+                      const dscalar_t *x, dscalar_t *scratch)
 {
    auto x_t = make_tensor_array(x, N);
    auto s_t = make_tensor_array(scratch, N);
@@ -160,8 +160,8 @@ void kernel2_explicit(const CubicQFunctionThreeKernelsExplicitScratch &qf,
 
 template <int N>
 void kernel3_explicit(const CubicQFunctionThreeKernelsExplicitScratch &qf,
-                       const dscalar_t *x, const dscalar_t *scratch,
-                       dscalar_t *y)
+                      const dscalar_t *x, const dscalar_t *scratch,
+                      dscalar_t *y)
 {
    auto x_t = make_tensor_array(x, N);
    auto s_t = make_tensor_array(scratch, N);
@@ -387,7 +387,8 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
           "[Enzyme][MultiKernel][QFDup]")
 {
    constexpr int N = 100;
-   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N), scratchd(N);
+   mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N),
+        scratchd(N);
    x.UseDevice(true);
    xd.UseDevice(true);
    y.UseDevice(true);
@@ -423,7 +424,8 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
    qf.SetCoef(coef_d);
    qf.SetScratch(scratch_d);
    qf_d.SetCoef(coefd_d);
-   qf_d.SetScratch(scratchd_d);   // real shadow memory -- required for this to work
+   qf_d.SetScratch(
+      scratchd_d);   // real shadow memory -- required for this to work
 
    __enzyme_fwddiff<void>(
       (void *)enzyme_test_multikernel::kernel1_member<N>,

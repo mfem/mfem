@@ -97,7 +97,8 @@ TEST_CASE("Enzyme split reverse mode wrapped point qfunction VJP",
    real_t y[2] = {x[0], x[1]};
    real_t y_bar[2] = {x_bar[0], x_bar[1]};
 
-   void *tape = __enzyme_augmentfwd<void *>((void *)qfunction_wrapper<2>, x, x_bar);
+   void *tape = __enzyme_augmentfwd<void *>((void *)qfunction_wrapper<2>, x,
+                                            x_bar);
    __enzyme_reverse<void>((void *)qfunction_wrapper<2>, x, x_bar, tape);
 
    __enzyme_autodiff<void>((void *)qfunction_wrapper<2>, y, y_bar);

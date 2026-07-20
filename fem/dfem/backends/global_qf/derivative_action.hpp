@@ -124,17 +124,17 @@ struct DerivativeAction
       // Q -> Q
       yq = 0.0;
       detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
-                outputs_t>(
-         qfunc,
-         qfunc_shadow,
-         xq,
-         shadow_xq,
-         yq,
-         gnqp,
-         input_qlayouts,
-         output_qlayouts,
-         std::make_index_sequence<ninputs> {},
-         std::make_index_sequence<noutputs> {});
+             outputs_t>(
+                qfunc,
+                qfunc_shadow,
+                xq,
+                shadow_xq,
+                yq,
+                gnqp,
+                input_qlayouts,
+                output_qlayouts,
+                std::make_index_sequence<ninputs> {},
+                std::make_index_sequence<noutputs> {});
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
