@@ -16,7 +16,8 @@
 // This is a standalone Enzyme/dFEM TMOP optimizer for the two target cases
 // used by pmesh-optimizer-enzyme:
 //   1. constant ideal target,
-//   4. analytic full target in physical coordinates.
+//   4. 2D analytic full target in physical coordinates,
+//   9. 3D analytic spherical size target in physical coordinates.
 //
 // The implementation intentionally does not include
 // pmesh-optimizer-enzyme-common.hpp.
@@ -27,6 +28,9 @@
 //   Constant ideal target:
 //     mpirun -np 4 tmop-enzyme-simple -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   3D constant ideal target:
+//     mpirun -np 4 tmop-enzyme-simple -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1
+//     mpirun -np 8 pmesh-optimizer     -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -pa
 //   Constant ideal target with node limiting:
 //     mpirun -np 4 tmop-enzyme-simple -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
 //     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
@@ -39,6 +43,9 @@
 //   Analytic shape+alignment target:
 //     mpirun -np 4 tmop-enzyme-simple -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //     mpirun -np 4 pmesh-optimizer     -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
+//   3D analytic spherical size target:
+//     mpirun -np 4 tmop-enzyme-simple -m cube.mesh -o 2 -rs 2 -mid 321 -tid 9 -ni 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer     -m cube.mesh -o 2 -rs 2 -mid 321 -tid 9 -ni 100 -bnd -qt 1 -qo 8 -vl 2 -pa
 
 #include "mfem.hpp"
 
@@ -91,16 +98,14 @@ MFEM_HOST_DEVICE inline
 scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
                             scalar_t shape_weight = 0.5_r)
 {
-   static_assert(dim == 2, "EvaluateTMOPMetric supports only 2D metrics.");
-
    const auto tau = det(T);
    const auto norm2 = sqnorm(T);
 
-   if constexpr (metric_id == 2)
+   if constexpr (dim == 2 && metric_id == 2)
    {
       return 0.5_r * norm2 / tau - 1.0_r;
    }
-   else if constexpr (metric_id == 14)
+   else if constexpr (dim == 2 && metric_id == 14)
    {
       const auto TminusI_00 = T(0,0) - 1.0_r;
       const auto TminusI_01 = T(0,1);
@@ -109,14 +114,14 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
       return TminusI_00 * TminusI_00 + TminusI_01 * TminusI_01 +
              TminusI_10 * TminusI_10 + TminusI_11 * TminusI_11;
    }
-   else if constexpr (metric_id == 80)
+   else if constexpr (dim == 2 && metric_id == 80)
    {
       const auto mu2 = 0.5_r * norm2 / tau - 1.0_r;
       const auto tau2 = tau * tau;
       const auto mu77 = 0.5_r * (tau2 + 1.0_r / tau2) - 1.0_r;
       return shape_weight * mu2 + (1.0_r - shape_weight) * mu77;
    }
-   else if constexpr (metric_id == 85)
+   else if constexpr (dim == 2 && metric_id == 85)
    {
       const auto alpha = sqrt(0.5_r * norm2);
       const auto TminusTp_00 = T(0,0) - alpha;
@@ -126,11 +131,46 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
       return TminusTp_00 * TminusTp_00 + TminusTp_01 * TminusTp_01 +
              TminusTp_10 * TminusTp_10 + TminusTp_11 * TminusTp_11;
    }
+   else if constexpr (dim == 3 && (metric_id == 301 ||
+                                   metric_id == 302 ||
+                                   metric_id == 321))
+   {
+      const auto C00 = T(1,1) * T(2,2) - T(1,2) * T(2,1);
+      const auto C01 = T(1,2) * T(2,0) - T(1,0) * T(2,2);
+      const auto C02 = T(1,0) * T(2,1) - T(1,1) * T(2,0);
+      const auto C10 = T(0,2) * T(2,1) - T(0,1) * T(2,2);
+      const auto C11 = T(0,0) * T(2,2) - T(0,2) * T(2,0);
+      const auto C12 = T(0,1) * T(2,0) - T(0,0) * T(2,1);
+      const auto C20 = T(0,1) * T(1,2) - T(0,2) * T(1,1);
+      const auto C21 = T(0,2) * T(1,0) - T(0,0) * T(1,2);
+      const auto C22 = T(0,0) * T(1,1) - T(0,1) * T(1,0);
+      const auto cofactor_norm2 =
+         C00 * C00 + C01 * C01 + C02 * C02 +
+         C10 * C10 + C11 * C11 + C12 * C12 +
+         C20 * C20 + C21 * C21 + C22 * C22;
+
+      if constexpr (metric_id == 301)
+      {
+         return sqrt(norm2 * cofactor_norm2) / (3.0_r * tau) - 1.0_r;
+      }
+      else if constexpr (metric_id == 302)
+      {
+         return norm2 * cofactor_norm2 / (9.0_r * tau * tau) - 1.0_r;
+      }
+      else
+      {
+         return norm2 + cofactor_norm2 / (tau * tau) - 6.0_r;
+      }
+   }
    else
    {
-      static_assert(metric_id == 2 || metric_id == 14 || metric_id == 80 ||
-                    metric_id == 85,
-                    "Unsupported metric_id");
+      static_assert((dim == 2 &&
+                     (metric_id == 2 || metric_id == 14 ||
+                      metric_id == 80 || metric_id == 85)) ||
+                    (dim == 3 &&
+                     (metric_id == 301 || metric_id == 302 ||
+                      metric_id == 321)),
+                    "Unsupported metric/dimension combination");
       return 0.0_r;
    }
 }
@@ -218,9 +258,30 @@ TargetMatrix(const tensor<scalar_t, dim> &x,
          W(1,1) = 1.0_r;
       }
    }
+   else if constexpr (target_id == 9)
+   {
+      static_assert(dim == 3, "Analytic target id 9 is 3D only.");
+      MFEM_CONTRACT_VAR(constant_W);
+
+      const auto xc = x(0) - 0.5_r;
+      const auto yc = x(1) - 0.5_r;
+      const auto zc = x(2) - 0.5_r;
+      const auto r = sqrt(xc * xc + yc * yc + zc * zc);
+      const auto tan1 = tanh(30.0_r * (r - 0.15_r));
+      const auto tan2 = tanh(30.0_r * (r - 0.35_r));
+      auto ind = tan1 - tan2;
+      if (ind > 1.0_r) { ind = 1.0_r; }
+      if (ind < 0.0_r) { ind = 0.0_r; }
+
+      const auto size = ind * 0.005_r + (1.0_r - ind) * 0.1_r;
+      const auto scale = sqrt(size);
+      W(0,0) = scale;
+      W(1,1) = scale;
+      W(2,2) = scale;
+   }
    else
    {
-      static_assert(target_id == 1 || target_id == 4,
+      static_assert(target_id == 1 || target_id == 4 || target_id == 9,
                     "Unsupported target_id");
    }
 
@@ -410,12 +471,30 @@ private:
       }
       else if constexpr (dim == 3)
       {
-         MFEM_CONTRACT_VAR(ir);
-         MFEM_CONTRACT_VAR(all_domain_attr);
-         MFEM_CONTRACT_VAR(target_id);
-         MFEM_CONTRACT_VAR(metric_id);
-         MFEM_ABORT("This miniapp currently supports only 2D target/metric "
-                    "pairs.");
+         switch (target_id)
+         {
+            case 1:
+               switch (metric_id)
+               {
+                  case 301:
+                     return SetupTMOPOperators<1, 301>(ir, all_domain_attr);
+                  case 302:
+                     return SetupTMOPOperators<1, 302>(ir, all_domain_attr);
+                  default:
+                     MFEM_ABORT("Target id 1 supports metric ids 301 and 302 "
+                                "in 3D.");
+               }
+            case 9:
+               switch (metric_id)
+               {
+                  case 321:
+                     return SetupTMOPOperators<9, 321>(ir, all_domain_attr);
+                  default:
+                     MFEM_ABORT("Target id 9 supports only metric id 321.");
+               }
+            default:
+               MFEM_ABORT("Unsupported 3D target id: " << target_id);
+         }
       }
    }
 
@@ -730,9 +809,21 @@ TMOPVisualizationData MakeVisualizationData(int dim,
    {
       data.metric = std::make_unique<TMOP_Metric_002>();
    }
+   else if (dim == 3 && metric_id == 301)
+   {
+      data.metric = std::make_unique<TMOP_Metric_301>();
+   }
+   else if (dim == 3 && metric_id == 302)
+   {
+      data.metric = std::make_unique<TMOP_Metric_302>();
+   }
+   else if (dim == 3 && metric_id == 321)
+   {
+      data.metric = std::make_unique<TMOP_Metric_321>();
+   }
    else
    {
-      MFEM_ABORT("Visualization is implemented only for 2D meshes.");
+      MFEM_ABORT("Unsupported visualization metric id: " << metric_id);
    }
 
    if (target_id == 1)
@@ -747,6 +838,16 @@ TMOPVisualizationData MakeVisualizationData(int dim,
                        TargetConstructor::GIVEN_FULL);
       data.analytic_target_coeff =
          std::make_unique<HessianCoefficient>(dim, metric_id);
+      target->SetAnalyticTargetSpec(nullptr, nullptr,
+                                    data.analytic_target_coeff.get());
+      data.target = std::move(target);
+   }
+   else if (target_id == 9)
+   {
+      auto target = std::make_unique<AnalyticAdaptTC>(
+                       TargetConstructor::GIVEN_FULL);
+      data.analytic_target_coeff =
+         std::make_unique<HRHessianCoefficient>(dim, 0);
       target->SetAnalyticTargetSpec(nullptr, nullptr,
                                     data.analytic_target_coeff.get());
       data.target = std::move(target);
@@ -1014,13 +1115,16 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_poly_deg, "-o", "--order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
-                  "Metric id. Use 0 for mu2.\n\t"
-                  "Supported pairs: -tid 1 with -mid 2; "
-                  "-tid 4 with -mid 2, 14, 80, or 85.");
+                  "Metric id. Use 0 for mu2 in 2D or mu302 in 3D.\n\t"
+                  "Supported pairs: 2D -tid 1 with -mid 2; "
+                  "2D -tid 4 with -mid 2, 14, 80, or 85; "
+                  "3D -tid 1 with -mid 301 or 302; "
+                  "3D -tid 9 with -mid 321.");
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Target type:\n\t"
                   "1: Constant ideal target matrix\n\t"
-                  "4: Given full analytic Jacobian in physical space");
+                  "4: Given full analytic Jacobian in physical space (2D)\n\t"
+                  "9: Analytic spherical size target in physical space (3D)");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
@@ -1084,21 +1188,33 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
    const int dim = mesh.Dimension();
-   MFEM_VERIFY(dim == 2, "This miniapp currently supports only 2D meshes.");
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "This miniapp supports only 2D and 3D meshes.");
+   MFEM_VERIFY(mesh.GetNumGeometries(dim) <= 1,
+               "tmop-enzyme-simple currently requires a single element "
+               "geometry. For the 3D mu301 case, use a non-mixed mesh such "
+               "as ../../data/fichera-q2.mesh.");
    if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
 
-   const int active_metric_id = (metric_id == 0) ? 2 : metric_id;
+   const int active_metric_id = (metric_id == 0) ? ((dim == 2) ? 2 : 302) :
+                                metric_id;
 
-   MFEM_VERIFY(target_id == 1 || target_id == 4,
-               "This miniapp supports target ids 1 and 4 only.");
+   MFEM_VERIFY(target_id == 1 || target_id == 4 || target_id == 9,
+               "This miniapp supports target ids 1, 4, and 9 only.");
    const bool target_metric_ok =
-      (target_id == 1 && active_metric_id == 2) ||
-      (target_id == 4 && (active_metric_id == 2 || active_metric_id == 14 ||
+      (dim == 2 && target_id == 1 && active_metric_id == 2) ||
+      (dim == 2 && target_id == 4 &&
+       (active_metric_id == 2 || active_metric_id == 14 ||
                           active_metric_id == 80 ||
-                          active_metric_id == 85));
+                          active_metric_id == 85)) ||
+      (dim == 3 && target_id == 1 &&
+       (active_metric_id == 301 || active_metric_id == 302)) ||
+      (dim == 3 && target_id == 9 && active_metric_id == 321);
    MFEM_VERIFY(target_metric_ok,
-               "Supported pairs: -tid 1 with -mid 2; "
-               "-tid 4 with -mid 2, 14, 80, or 85.");
+               "Supported pairs: 2D -tid 1 with -mid 2; "
+               "2D -tid 4 with -mid 2, 14, 80, or 85; "
+               "3D -tid 1 with -mid 301 or 302; "
+               "3D -tid 9 with -mid 321.");
    MFEM_VERIFY(solver_art_type >= 0 && solver_art_type <= 2,
                "Unknown adaptive relative tolerance option: "
                << solver_art_type);
@@ -1134,6 +1250,7 @@ int main(int argc, char *argv[])
                 << min_detJ << '\n';
       const char *target_descr =
          (target_id == 1) ? "constant ideal target W" :
+         (target_id == 9) ? "analytic spherical size target W" :
          (active_metric_id == 14)
          ? "analytic size+alignment target W" :
          (active_metric_id == 85) ? "analytic shape+alignment target W" :
@@ -1162,14 +1279,23 @@ int main(int argc, char *argv[])
                             "Initial metric values", 0);
    }
 
-   const int result = RunOptimizer<2>(pmesh, pfes, x,
-                                      irules, quad_order,
-                                      ess_tdofs, min_detJ,
-                                      solver_iter, solver_rtol, solver_atol,
-                                      lin_solver, solver_art_type,
-                                      max_lin_iter, target_id,
-                                      active_metric_id, exact_action,
-                                      limit_const, verbosity);
+   const int result = (dim == 2) ?
+      RunOptimizer<2>(pmesh, pfes, x,
+                      irules, quad_order,
+                      ess_tdofs, min_detJ,
+                      solver_iter, solver_rtol, solver_atol,
+                      lin_solver, solver_art_type,
+                      max_lin_iter, target_id,
+                      active_metric_id, exact_action,
+                      limit_const, verbosity) :
+      RunOptimizer<3>(pmesh, pfes, x,
+                      irules, quad_order,
+                      ess_tdofs, min_detJ,
+                      solver_iter, solver_rtol, solver_atol,
+                      lin_solver, solver_art_type,
+                      max_lin_iter, target_id,
+                      active_metric_id, exact_action,
+                      limit_const, verbosity);
 
    SaveMesh(pmesh, "optimized.mesh");
    if (visualization)
