@@ -9,6 +9,7 @@
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
+#include "pseudo_transient_solver.hpp"
 #include "../../diffusion_mass_solver.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../mtop_solvers.hpp"
@@ -216,10 +217,11 @@ int main(int argc, char *argv[])
 
     vector<unique_ptr<DG_FECollection>> sub_dg_fec(n_dir);
     vector<unique_ptr<ParFiniteElementSpace>> sub_dg_fes(n_dir);
-    vector<unique_ptr<ParGridFunction>> rho_a(n_dir);
     vector<unique_ptr<ParGridFunction>> alpha(n_dir);
-    vector<unique_ptr<PseudoTransientSolver>> advect(n_dir);
+    vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
     vector<unique_ptr<AdvectThicknessResidual>> adv_res(n_dir);
+
+    DGMassInverse minv(dgfes);
 
     for (int r = 0; r < n_dir; r++)
     {
@@ -227,12 +229,11 @@ int main(int argc, char *argv[])
         sub_dg_fec[r] = make_unique<DG_FECollection>(order, sub_dim, BasisType::GaussLobatto);
         sub_dg_fes[r] = make_unique<ParFiniteElementSpace>(outflow[r].get(), sub_dg_fec[r].get());
 
-        rho_a[r] = make_unique<ParGridFunction>(&dgfes);
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
-        *rho_a[r] = domain_init;
         *alpha[r] = domain_init;   // initialize to mid-range
 
-        advect[r] = make_unique<PseudoTransientSolver>(*rho_a[r], rho_filter, *ray_cf[r]);
+        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r]);
+        advect[r]->SetMinv(minv);
         adv_res[r] = make_unique<AdvectThicknessResidual>(*outflow[r], advect[r]->GetRhoA(), *alpha[r]);
     }
 
@@ -247,7 +248,11 @@ int main(int argc, char *argv[])
                     pmesh.GetComm());
 
     real_t dt = cfl * hmin / (2 * order + 1);
-    for (int r = 0; r < n_dir; r++) { advect[r]->SetTimeStep(dt); advect[r]->SetTerminalTime(3.0); }
+    for (int r = 0; r < n_dir; r++)
+    {
+        advect[r]->GetSolver().SetTimeStep(dt);
+        advect[r]->GetSolver().SetTerminalTime(5.0);
+    }
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);
@@ -472,6 +477,7 @@ int main(int argc, char *argv[])
         real_t res_eps = 0.5 * epsilon * epsilon;
         for (int r = 0; r < n_dir; r++)
         {
+            advect[r]->SetRhs(rho_filter_tv);
             advect[r]->FSolve();
             const real_t thickness_res = adv_res[r]->Eval();
             if (k == 0) { init_thickness_res[r] = thickness_res; }
@@ -488,9 +494,9 @@ int main(int argc, char *argv[])
             Vector rhs_full;  g_full.GetTrueDofs(rhs_full);
 
             // chain rule adjoint solve: dG/drho = M_fc^T N^T g
-            advect[r]->SetAdjointRHS(rhs_full);
+            advect[r]->SetAdjointRhs(rhs_full);
             advect[r]->ASolve();
-            filter.MultTranspose(advect[r]->GetFilterSensitivity(), dthick[r].GetBlock(0));
+            filter.MultTranspose(advect[r]->GetSensitivity(), dthick[r].GetBlock(0));
 
             dthick[r] /= init_thickness_res[r];
             dfidx[1 + r] = dthick[r];
@@ -536,7 +542,7 @@ int main(int argc, char *argv[])
             real_t local_max = advect[r]->GetRhoA().Max();
             real_t global_max = local_max;
             MPI_Allreduce(&local_max, &global_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                        rho_a[r]->ParFESpace()->GetComm());
+                        advect[r]->GetRhoA().ParFESpace()->GetComm());
 
             real_t local_alpha_max = alpha[r]->Max();
             real_t global_alpha_max = local_alpha_max;
@@ -697,7 +703,7 @@ void loadMesh(int myid, const char *mesh_file,
         load_fz.resize(n_elast_solve);
 
         const real_t theta = 2.0 * M_PI / n_elast_solve;
-        const real_t init_ang = M_PI / 2;
+        const real_t init_ang = 0;
 
         {
             const int dim = mesh.Dimension();

@@ -7,6 +7,7 @@
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
 #include "qoi.hpp"
+#include "pseudo_transient_solver.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../mtop_solvers.hpp"
 #include "../../diffusion_mass_solver.hpp"
@@ -186,14 +187,14 @@ int main(int argc, char *argv[])
     ParFiniteElementSpace dgfes(&pmesh, &dgfec);
     ParFiniteElementSpace sub_dg_fes(&outflow, &sub_dg_fec);
 
-    ParGridFunction rho_a(&dgfes);
     ParGridFunction alpha(&sub_dg_fes);
 
-    rho_a = domain_init;
     alpha = domain_init;  // initialize to mid-range
 
     // 6. Advection thickness-constraint and its solver
-    PseudoTransientSolver advect(rho_a, rho_filter, *ray_cf);
+    MaterialThicknessSolver advect(filter_fes, dgfes, *ray_cf);
+    DGMassInverse minv(dgfes);
+    advect.SetMinv(minv);
     AdvectThicknessResidual adv_res(outflow, advect.GetRhoA(), alpha);
 
     // 6a. Set timestep according to the CFL condition.
@@ -207,7 +208,8 @@ int main(int argc, char *argv[])
                     pmesh.GetComm());
 
     real_t dt = cfl * hmin / (2 * order + 1);
-    advect.SetTimeStep(dt);  // pseudo-transient time step
+    advect.GetSolver().SetTimeStep(dt);  // pseudo-transient time step
+    advect.GetSolver().SetTerminalTime(10);
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);
@@ -346,15 +348,14 @@ int main(int argc, char *argv[])
         df0dx.GetBlock(1) = 0.0;
 
         // (5) thickness constraint evaluation and gradient
+        advect.SetRhs(rho_filter_tv);
         advect.FSolve();
-        int ic = advect.GetIterCount();
-        if (myid == 0)
-            mfem::out << "\nTotal amount of iterations for the forward time marching: " << ic << " iterations." << endl;
+        int ic = advect.GetSolver().GetIterCount();
         real_t thickness_res = adv_res.Eval();
-
+        
         Vector dGdrhoa;
         adv_res.GetGrad(dGdrhoa, dthick.GetBlock(1));
-
+        
         // transfer dGdrhoa back to the parent fes
         ParGridFunction g_sub(&sub_dg_fes);   g_sub.SetFromTrueDofs(dGdrhoa);
         ParGridFunction g_full(&dgfes);       g_full = 0.0;
@@ -362,9 +363,14 @@ int main(int argc, char *argv[])
         Vector rhs_full;  g_full.GetTrueDofs(rhs_full);
 
         // chain rule adjoint solve: dG/drho = M_fc^T N^T g
-        advect.SetAdjointRHS(rhs_full);
+        advect.SetAdjointRhs(rhs_full);
         advect.ASolve();
-        filter.MultTranspose(advect.GetFilterSensitivity(), dthick.GetBlock(0));
+        int aic = advect.GetSolver().GetIterCount();
+        if (myid == 0)
+            mfem::out << "\nTotal amount of iterations for the time marching: " 
+                      << "\nForward: " << ic << " iterations,  "
+                      << "  Backward: " << aic << " iterations." << endl;
+        filter.MultTranspose(advect.GetSensitivity(), dthick.GetBlock(0));
         dfidx[1] = dthick;
 
         // (6) MMA update
