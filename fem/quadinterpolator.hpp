@@ -117,6 +117,10 @@ public:
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det.
 
+       For Integral spaces, the flags VALUES requests the computation of the
+       scalar field values. The result is stored in @a q_val. Derivative types
+       are not supported.
+
        For H(div)-conforming spaces, the flags VALUES / PHYSICAL_VALUES request
        the computation of the vector field values in reference or physical
        space, respectively. The flag PHYSICAL_MAGNITUDES requests the
