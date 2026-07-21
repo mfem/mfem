@@ -14,6 +14,8 @@
 #include "../../../general/enzyme.hpp"
 #include "../../../linalg/dual.hpp"
 
+#include "scratch_bank.hpp"
+
 #include "../fielddescriptor.hpp"
 #include "../util.hpp"
 
@@ -717,31 +719,6 @@ inline void native_dual_fwddiff(
 namespace enzyme_detail
 {
 
-template <typename T, typename = void>
-struct has_make_enzyme_shadow : std::false_type { };
-
-template <typename T>
-struct has_make_enzyme_shadow<T,
-       std::void_t<decltype(std::declval<const T &>().CreateShadow())>> :
-       std::true_type { };
-
-template <typename qfunc_t>
-inline MFEM_HOST_DEVICE qfunc_t MakeQFunctionShadow(const qfunc_t &qfunc)
-{
-   if constexpr (has_make_enzyme_shadow<qfunc_t>::value)
-   {
-      return qfunc.CreateShadow();
-   }
-   else if constexpr (std::is_default_constructible_v<qfunc_t>)
-   {
-      return qfunc_t{};
-   }
-   else
-   {
-      return qfunc;
-   }
-}
-
 template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
 do_enzyme_call(AccArgs... acc)
@@ -892,20 +869,39 @@ inline void enzyme_fwddiff(
       std::remove_reference_t<decltype(std::get<Is>(inputs))>...,
       std::remove_reference_t<decltype(std::get<Os>(primals_out))>...>;
 
-   // wrapper_fn travels as a non-type template parameter throughout without
-   // being stored.
-   enzyme_detail::process_inputs<
-   wrapper_fn,
-   qf_return_t,
-   0,
-   ninputs,
-   activity_map[Is]...
-   >(inputs, shadows,
-     primals_out, derivs_out,
-     enzyme_dup, &qfunc, &qfunc_shadow
-    );
+    // wrapper_fn travels as a non-type template parameter throughout without
+    // being stored.
+   if constexpr (qfunc_uses_scratch_v<qfunc_t>)
+    {
+         enzyme_detail::process_inputs<
+         wrapper_fn,
+         qf_return_t,
+         0,
+         ninputs,
+         activity_map[Is]...
+         >(inputs, shadows,
+            primals_out, derivs_out,
+            enzyme_dup, &qfunc, &qfunc_shadow
+          );
+    }
+    else
+    {
+         MFEM_CONTRACT_VAR(qfunc_shadow);
+         enzyme_detail::process_inputs<
+         wrapper_fn,
+         qf_return_t,
+         0,
+         ninputs,
+         activity_map[Is]...
+         >(inputs, shadows,
+            primals_out, derivs_out,
+            enzyme_const, &qfunc
+          );
+    }
 }
 
+// Specialization for qfuncs that do not use scratch, so we don't need to pass a shadow.
+// Internally, this specialization creates a dummy shadow and calls the general enzyme_fwddiff.
 template <size_t derivative_id, typename qfunc_t, typename inputs_t, typename outputs_t,
           std::size_t... Is, std::size_t... Os>
 inline void enzyme_fwddiff(
@@ -919,32 +915,14 @@ inline void enzyme_fwddiff(
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
-   auto qfunc_shadow = enzyme_detail::MakeQFunctionShadow(qfunc);
-   enzyme_fwddiff<derivative_id, qfunc_t, decltype(qfunc_shadow), inputs_t,
+   static_assert(!qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   unused_qfunc_shadow qfunc_shadow;
+   enzyme_fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t,
                   outputs_t>(qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
                              in_layouts, out_layouts, is, os);
 }
 
 #endif // MFEM_USE_ENZYME
-
-template <typename qfunc_t>
-using qfunc_shadow_t =
-#ifdef MFEM_USE_ENZYME
-   decltype(enzyme_detail::MakeQFunctionShadow(std::declval<qfunc_t &>()));
-#else
-   qfunc_t;
-#endif
-
-template <typename qfunc_t>
-inline qfunc_shadow_t<qfunc_t> MakePersistentQFunctionShadow(
-   const qfunc_t &qfunc)
-{
-#ifdef MFEM_USE_ENZYME
-   return enzyme_detail::MakeQFunctionShadow(qfunc);
-#else
-   return qfunc;
-#endif
-}
 
 template <
    size_t derivative_id,
@@ -996,8 +974,9 @@ inline void fwddiff(
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
-   auto qfunc_shadow = enzyme_detail::MakeQFunctionShadow(qfunc);
-   fwddiff<derivative_id, qfunc_t, decltype(qfunc_shadow), inputs_t, outputs_t>(
+   static_assert(!qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   unused_qfunc_shadow qfunc_shadow;
+   fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
       is, os);
 #else
@@ -1189,10 +1168,22 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
       (*qf)(args...);
    };
 
-   __enzyme_fwddiff<void>(
-      (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
-      enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
-      &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
+   if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
+   {
+      __enzyme_fwddiff<void>(
+         (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
+         enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
+         &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(qfunc_shadow);
+      __enzyme_fwddiff<void>(
+         (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
+         enzyme_const, &qfunc, enzyme_dup, &get<Is>(primal_args)...,
+         enzyme_interleave, &get<Is>(shadow_args)...,
+         enzyme_runtime_activity);
+   }
 #else
    MFEM_CONTRACT_VAR(qfunc);
    MFEM_CONTRACT_VAR(qfunc_shadow);
@@ -1221,7 +1212,8 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
    args_t &shadow_args)
 {
 #ifdef MFEM_USE_ENZYME
-   auto qfunc_shadow = detail::enzyme_detail::MakeQFunctionShadow(qfunc);
+   static_assert(!detail::qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   detail::unused_qfunc_shadow qfunc_shadow;
    call_enzyme_fwddiff(qfunc, qfunc_shadow, primal_args, shadow_args);
 #else
    MFEM_CONTRACT_VAR(qfunc);
