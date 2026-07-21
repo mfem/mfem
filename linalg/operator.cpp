@@ -165,9 +165,10 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
-Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
+const Operator * Operator::SetupRAP(const Operator *Pi,
+                                    const Operator *Po) const
 {
-   Operator *rap;
+   const Operator *rap;
    if (!IsIdentityProlongation(Pi))
    {
       if (!IsIdentityProlongation(Po))
@@ -195,10 +196,10 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 }
 
 void Operator::FormConstrainedSystemOperator(
-   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout) const
 {
    const Operator *P = this->GetProlongation();
-   Operator *rap = SetupRAP(P, P);
+   const Operator *rap = SetupRAP(P, P);
 
    // Impose the boundary conditions through a ConstrainedOperator, which owns
    // the rap operator when P and R are non-trivial
@@ -213,7 +214,7 @@ void Operator::FormRectangularConstrainedSystemOperator(
 {
    const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
-   Operator *rap = SetupRAP(Pi, Po);
+   const Operator *rap = SetupRAP(Pi, Po);
 
    // Impose the boundary conditions through a RectangularConstrainedOperator,
    // which owns the rap operator when P and R are non-trivial
@@ -225,7 +226,7 @@ void Operator::FormRectangularConstrainedSystemOperator(
 }
 
 void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
-                                  Operator* &Aout)
+                                  Operator* &Aout) const
 {
    ConstrainedOperator *A;
    FormConstrainedSystemOperator(ess_tdof_list, A);
@@ -508,7 +509,8 @@ TripleProductOperator::~TripleProductOperator()
 }
 
 
-ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
+ConstrainedOperator::ConstrainedOperator(const Operator *A,
+                                         const Array<int> &list,
                                          bool own_A_,
                                          DiagonalPolicy diag_policy_)
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
@@ -739,7 +741,7 @@ void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
-   Operator *A,
+   const Operator *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
    bool own_A_)
