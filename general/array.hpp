@@ -115,6 +115,18 @@ public:
    /// Destructor
    inline ~Array() { data.Delete(); }
 
+
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   /// Creates and returns a temporary array. The result memory type will be
+   /// @sa GetTemporaryMemorySpace(@a mt).
+   static Array NewTemporary(int size,
+                             MemoryType mt = Device::GetDeviceMemoryType())
+   {
+      Array res(size, GetTemporaryMemorySpace(mt));
+      return res;
+   }
+#endif
+
    /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 

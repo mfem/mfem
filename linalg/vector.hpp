@@ -158,6 +158,19 @@ public:
    /// Return the device flag of the Memory object used by the Vector
    virtual bool UseDevice() const { return data.UseDevice(); }
 
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   /// Creates and returns a temporary vector. The result memory type will be
+   /// @sa GetTemporaryMemorySpace(@a mt).
+   ///
+   /// Callers are responsible for calling @sa UseDevice if desired.
+   static Vector NewTemporary(int size,
+                              MemoryType mt = Device::GetDeviceMemoryType())
+   {
+      Vector vec(size, GetTemporaryMemorySpace(mt));
+      return vec;
+   }
+#endif
+
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
 
