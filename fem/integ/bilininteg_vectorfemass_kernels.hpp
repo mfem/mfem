@@ -13,10 +13,6 @@
 #define MFEM_BILININTEG_VECTORFEMASS_KERNELS_HPP
 
 #include "../../config/config.hpp"
-#include "../../general/array.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/dtensor.hpp"
-#include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
 #include "bilininteg_diffusion_kernels.hpp"

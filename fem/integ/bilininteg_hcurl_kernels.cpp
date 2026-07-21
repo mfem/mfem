@@ -148,11 +148,12 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 }
 
 void PAHcurlMassApply2D(const int NE, const bool symmetric,
-                        const bool scalar_coeff, const Array<real_t> &bo,
-                        const Array<real_t> &bc, const Array<real_t> &bot,
-                        const Array<real_t> &bct, const Vector &pa_data,
-                        const Vector &x, Vector &y, const int D1D,
-                        const int TestD1D, const int Q1D)
+                        [[maybe_unused]] const bool scalar_coeff,
+                        const Array<real_t> &bo, const Array<real_t> &bc,
+                        const Array<real_t> &bot, const Array<real_t> &bct,
+                        const Vector &pa_data, const Vector &x, Vector &y,
+                        const int D1D, [[maybe_unused]] const int TestD1D,
+                        const int Q1D)
 {
    MFEM_ASSERT(D1D == TestD1D,
                "Trial and Test space must have the same number of dofs");
@@ -275,11 +276,12 @@ void PAHcurlMassApply2D(const int NE, const bool symmetric,
 }
 
 void PAHcurlMassApply3D(const int NE, const bool symmetric,
-                        const bool scalar_coeff, const Array<real_t> &bo,
-                        const Array<real_t> &bc, const Array<real_t> &bot,
-                        const Array<real_t> &bct, const Vector &pa_data,
-                        const Vector &x, Vector &y, const int D1D,
-                        const int TestD1D, const int Q1D)
+                        [[maybe_unused]] const bool scalar_coeff,
+                        const Array<real_t> &bo, const Array<real_t> &bc,
+                        const Array<real_t> &bot, const Array<real_t> &bct,
+                        const Vector &pa_data, const Vector &x, Vector &y,
+                        const int D1D, [[maybe_unused]] const int TestD1D,
+                        const int Q1D)
 {
    MFEM_VERIFY(D1D == TestD1D,
                "Trial and test spaces must have same number of dofs");
