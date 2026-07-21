@@ -34,7 +34,7 @@ namespace mfem
 {
 
 /// @return true if mt is a temporary memory type
-inline bool IsTemporaryMemorySpace(MemoryType mt)
+MFEM_EXPORT inline bool IsTemporaryMemorySpace(MemoryType mt)
 {
    if (mt < MemoryType::SIZE)
    {
@@ -45,7 +45,7 @@ inline bool IsTemporaryMemorySpace(MemoryType mt)
 
 /// Gets the the temporary memory type associated with the type @a mt.
 /// If @a mt is a temporary memory type, then it is returned as-is.
-inline MemoryType GetTemporaryMemorySpace(MemoryType mt)
+MFEM_EXPORT inline MemoryType GetTemporaryMemorySpace(MemoryType mt)
 {
    return static_cast<MemoryType>((int)mt | 1);
 }
