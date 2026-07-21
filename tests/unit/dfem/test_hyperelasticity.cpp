@@ -11,7 +11,6 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-
 #ifdef MFEM_USE_MPI
 
 #include "../../../fem/dfem/doperator.hpp"
@@ -135,10 +134,10 @@ public:
       if (use_energy)
       {
          NeoHookeanEnergy<dscalar_t> energy;
-         dop->AddDomainIntegrator<LocalQFBackend, true>(
+         dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
-            Outputs<Identity<Energy>> {},
+            Outputs<FunctionalValue<Energy>> {},
             ir, all_domain_attr, derivatives);
       }
       else
@@ -295,6 +294,10 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
 
    Vector action_diff(energy_action);
    action_diff -= stress_action;
+
+   INFO("Energy Hessian action norm: " << energy_action.Norml2());
+   INFO("Stress Jacobian action norm: " << stress_action.Norml2());
+
    REQUIRE(action_diff.Norml2() < 1e-10);
 
    REQUIRE(energy_action.Norml2() > 0.0);
