@@ -106,6 +106,13 @@ public:
        The state Vector @a x is an E-vector. */
    virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
 
+   /** @brief Prepare the integrator for element assembly (EA) gradient
+       evaluations on the given FE space @a fes at the state @a x. */
+   /** The state Vector @a x is an E-vector. The resulting element gradient
+       matrices are added to @a ea_data. */
+   virtual void AssembleGradEA(const Vector &x, const FiniteElementSpace &fes,
+                               Vector &ea_data);
+
    /// Compute the local (to the MPI rank) energy with partial assembly.
    /** Here the state @a x is an E-vector. This method can be called only after
        the method AssemblePA() has been called. */
