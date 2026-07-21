@@ -660,19 +660,11 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    mesh->GetFaceInfos(slave.master, &inf1, &inf2, &nc);
    MFEM_ASSERT(nc >= 0 && el2 < 0, "Not a master face");
 #endif
-   Geometry::Type geom_m = mesh->GetFaceGeometry(slave.master);
+   const Geometry::Type geom_m = mesh->GetFaceGeometry(slave.master);
+   const Geometry::Type geom_s = slave.Geom();
 
    IsoparametricTransformation T;
    DenseMatrix Ct_m, C_m, H_m, I, Io;
-   Array<int> edges_m, edges_s, oris_m, oris_s;
-   const int *ord_m, *ord_s;
-
-   if (dim == 2)
-   {
-      // get edge/face ordering
-      mesh->GetFaceEdges(slave.master, edges_m, oris_m);
-      ord_m = c_fec->DofOrderForOrientation(geom_m, oris_m[0]);
-   }
 
    // compound the master matrix from the slave ones
    if (fx_Ct)
@@ -701,73 +693,82 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    const FiniteElement *fe_s = c_fes.GetFaceElement(slave.index);
    fe_s->GetTransferMatrix(*fe_m, T, I);
 
+   // get master/slave orientation and DOFs ordering
+   int ori_m = 0, ori_s = 0;
+
    if (dim == 2)
    {
-      //get edge/face ordering
+      // In 2D, DOF ordering follows orientation of the edges, which is not
+      // accounted for in the point matrix or face info.
+      Array<int> edges_m, oris_m;
+
+      // get master edge/face orientation
+      mesh->GetFaceEdges(slave.master, edges_m, oris_m);
+      ori_m = oris_m[0] > 0 ? 0 : 1;
+
+      // get slave edge/face orientation
       if (slave.index < num_faces)
       {
+         // regular slave
+         Array<int> edges_s, oris_s;
          mesh->GetFaceEdges(slave.index, edges_s, oris_s);
+         ori_s = oris_s[0] > 0 ? 0 : 1;
       }
       else
       {
+         // ghost slave
          int verts[4], edges[4], oris[4];
          mesh->ncmesh->GetFaceVerticesEdges(slave, verts, edges, oris);
-         oris_s.SetSize(1);
-         oris_s[0] = oris[0];
+         ori_s = oris[0] > 0 ? 0 : 1;
+
          // check for inverted orientation
          int sinf1, sinf2;
          mesh->GetFaceInfos(slave.index, &sinf1, &sinf2);
-         if (Mesh::DecodeFaceInfoOrientation(sinf2)) { oris_s[0] *= -1; }
+         if (Mesh::DecodeFaceInfoOrientation(sinf2)) { ori_s ^= 1; }
       }
+   }
+   else if (dim == 3)
+   {
+      // In 3D, DOF ordering is simply given by the face info.
+      int minf1, minf2;
+      mesh->GetFaceInfos(slave.master, &minf1, &minf2);
+      ori_m = Mesh::DecodeFaceInfoOrientation(minf1);
 
-      ord_s = c_fec->DofOrderForOrientation(slave.Geom(), oris_s[0]);
+      // get slave face orientation
+      int sinf1, sinf2;
+      mesh->GetFaceInfos(slave.index, &sinf1, &sinf2);
+      ori_s = Mesh::DecodeFaceInfoOrientation(sinf1);
 
-      //reorder the interpolation matrix edge->face
+      if (slave.index >= num_faces)
+      {
+         // check for inverted orientation
+         if (Mesh::DecodeFaceInfoOrientation(sinf2)) { ori_s ^= 1; }
+      }
+   }
+
+   if (ori_m || ori_s)
+   {
+      // reorder the transfer matrix
       Io.SetSize(I.Height(), I.Width());
-      if (c_fec->GetContType() == FiniteElementCollection::CONTINUOUS)
-      {
-         for (int j = 0; j < I.Width(); j++)
+
+      Array<int> dofs_m, dofs_s;
+      c_fec->SubDofOrder(geom_m, Geometry::Dimension[geom_m], ori_m, dofs_m);
+      c_fec->SubDofOrder(geom_s, Geometry::Dimension[geom_s], ori_s, dofs_s);
+
+      for (int j = 0; j < I.Width(); j++)
+         for (int i = 0; i < I.Height(); i++)
          {
-            int ord_mj;
-            if (j <= 1)
-            {
-               // vertices
-               ord_mj = (oris_m[0] > 0)?(j):(1-j);
-            }
-            else
-            {
-               // internal DOFs
-               ord_mj = ord_m[j-2]+2;
-            }
-            for (int i = 0; i < I.Height(); i++)
-            {
-               int ord_si;
-               if (i <= 1)
-               {
-                  // vertices
-                  ord_si = (oris_s[0] > 0)?(i):(1-i);
-               }
-               else
-               {
-                  // internal DOFs
-                  ord_si = ord_s[i-2]+2;
-               }
-               Io(ord_si, ord_mj) = I(i,j);
-            }
+            const int io_i = UnsignIndex(dofs_s[i]);
+            const int io_j = UnsignIndex(dofs_m[j]);
+            bool sign = false;
+            if (dofs_s[i] < 0) { sign = !sign; }
+            if (dofs_m[j] < 0) { sign = !sign; }
+            Io(io_i, io_j) = (sign)?(-I(i,j)):(+I(i,j));
          }
-      }
-      else
-      {
-         // reorder DOFs
-         for (int j = 0; j < I.Width(); j++)
-            for (int i = 0; i < I.Height(); i++)
-            {
-               Io(ord_s[i], ord_m[j]) = I(i,j);
-            }
-      }
    }
    else
    {
+      // no reordering needed
       Io.Reset(I.GetData(), I.Height(), I.Width());
    }
 
