@@ -34,11 +34,21 @@ namespace mfem
 {
 
 /// @return true if mt is a temporary memory type
-bool IsTemporaryMemorySpace(MemoryType mt);
+inline bool IsTemporaryMemorySpace(MemoryType mt)
+{
+   if (mt < MemoryType::SIZE)
+   {
+      return ((int)mt) & 1;
+   }
+   return false;
+}
 
 /// Gets the the temporary memory type associated with the type @a mt.
 /// If @a mt is a temporary memory type, then it is returned as-is.
-MemoryType GetTemporaryMemorySpace(MemoryType mt);
+inline MemoryType GetTemporaryMemorySpace(MemoryType mt)
+{
+   return static_cast<MemoryType>((int)mt | 1);
+}
 
 struct Allocator
 {

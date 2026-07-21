@@ -55,20 +55,6 @@
 namespace mfem
 {
 
-bool IsTemporaryMemorySpace(MemoryType mt)
-{
-   if (mt < MemoryType::SIZE)
-   {
-      return ((int)mt) & 1;
-   }
-   return false;
-}
-
-MemoryType GetTemporaryMemoryType(MemoryType mt)
-{
-   return static_cast<MemoryType>((int)mt | 1);
-}
-
 #ifdef MFEM_USE_UMPIRE
 struct UmpireAllocator : public Allocator
 {
