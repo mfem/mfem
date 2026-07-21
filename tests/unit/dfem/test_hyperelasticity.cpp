@@ -297,8 +297,8 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
 
    if (verbose_tests)
    {
-      INFO("Energy Hessian action norm: " << energy_action.Norml2());
-      INFO("Stress Jacobian action norm: " << stress_action.Norml2());
+      mfem::out << "Energy Hessian action norm: " << energy_action.Norml2() << std::endl;
+      mfem::out << "Stress Jacobian action norm: " << stress_action.Norml2() << std::endl;
    }
 
    REQUIRE(action_diff.Norml2() < 1e-10);
