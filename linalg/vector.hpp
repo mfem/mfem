@@ -162,11 +162,15 @@ public:
    /// Creates and returns a temporary vector. The result memory type will be
    /// @sa GetTemporaryMemorySpace(@a mt).
    ///
-   /// Callers are responsible for calling @sa UseDevice if desired.
+   /// Also calls @sa UseDevice if IsDeviceMemory(mt) == true
    static Vector NewTemporary(int size,
                               MemoryType mt = Device::GetDeviceMemoryType())
    {
       Vector vec(size, GetTemporaryMemorySpace(mt));
+      if (IsDeviceMemory(mt))
+      {
+         vec.UseDevice();
+      }
       return vec;
    }
 #endif
