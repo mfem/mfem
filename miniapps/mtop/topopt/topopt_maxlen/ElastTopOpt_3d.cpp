@@ -1,7 +1,7 @@
 // Linear elasticity topology optimization with a thickness constraint.
 //
-// Sample run:  mpirun -np 4 ./ElastTopOpt_ct -m "../../data/d_square_4_holes.msh" -vf 0.4 -amax 0.6
-//              mpirun -np 4 ./ElastTopOpt_ct -m "../../data/circular_5_holes_pentagon.msh" -vf 0.4 -amax 0.6
+// Sample run:  mpirun -np 8 ./ElastTopOpt_3d
+//              mpirun -np 8 ./ElastTopOpt_3d 
 //
 //
 //
@@ -21,17 +21,8 @@
 using namespace std;
 using namespace mfem;
 
-void loadMesh(int myid, const char *mesh_file,
-                Mesh &mesh,
-                Array<int> &domain_attr,
-                Array<int> &outer_bdr_attrs,
-                vector<Array<int>> &clamp_attrs,
-                vector<Array<int>> &load_attrs,
-                vector<Array<real_t>> &load_fx,
-                vector<Array<real_t>> &load_fy,
-                vector<Array<real_t>> &load_fz,
-                int &n_elast_solve,
-                vector<Vector> &ray_dirs);
+Vector ray_vector(const int r, const int n_dir, const int dim);
+void load(const Vector &x, Vector &f);
 
 int main(int argc, char *argv[])
 {
@@ -40,11 +31,8 @@ int main(int argc, char *argv[])
     int myid = Mpi::WorldRank();
     Hypre::Init();
 
-    // Timer
-    double init_time = MPI_Wtime();
-
     // 1. Options.
-    const char *mesh_file = nullptr;
+    const char *mesh_file = "";
     int    ref_levels   = 0;
     int    order        = 2;
     real_t r_f          = 0.03;       // min filter length
@@ -53,6 +41,7 @@ int main(int argc, char *argv[])
     real_t tol          = 1e-4;       // stopping tol on iteration error
     real_t move         = 0.1;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
+    bool   pa           = false;
     const int seed      = 0;
 
     // Thickness constraint parameters
@@ -67,13 +56,13 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
 
-    real_t decay       = 0.9;
+    real_t decay       = 0.7;
     real_t eps_floor   = 1e-5;
-    int    decay_int   = 10;
+    int    decay_int   = 20;
     int    decay_start = 10;
-
+    
     OptionsParser args(argc, argv);
-    args.AddOption(&mesh_file, "-m", "--mesh", "mesh file to use", true);
+    args.AddOption(&mesh_file, "-m", "--mesh", "mesh file to use");
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
     args.AddOption(&order, "-o", "--order", "finite element order");
     args.AddOption(&vol_fraction, "-vf", "--volume-fraction", "volume fraction");
@@ -97,28 +86,16 @@ int main(int argc, char *argv[])
         if (myid == 0) { args.PrintUsage(cout); }
         return 1;
     }
-    if (!mesh_file)
-    {
-        if (myid == 0) { cout << "Error: -m <mesh file> is required." << endl; }
-        return 1;
-    }
     if (myid == 0) { args.PrintOptions(cout); }
 
     // 2. Load the mesh and construct corresponding attributes.
-    Mesh mesh;
-    Array<int> domain_attr, outer_bdr_attrs;
-    vector<Array<int>> clamp_attrs, load_attrs;
-    vector<Array<real_t>> load_fx, load_fy, load_fz;
-    int n_elast_solve = 0;
-    vector<Vector> ray_dirs;
-
-    loadMesh(myid, mesh_file, mesh, domain_attr, outer_bdr_attrs,
-            clamp_attrs, load_attrs, load_fx, load_fy, load_fz,
-            n_elast_solve, ray_dirs);
-    const int n_dir = static_cast<int>(ray_dirs.size());
+    Mesh mesh = (mesh_file[0] != '\0') ? Mesh(mesh_file) 
+        : Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON, 3.0, 1.0, 1.0);
 
     // 3. Preprocess the mesh.
     const int dim = mesh.Dimension();
+    const int clamp_attr = 5;
+
     for (int l = 0; l < ref_levels; l++)
     {
         mesh.UniformRefinement();
@@ -127,26 +104,24 @@ int main(int argc, char *argv[])
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
 
-    ParSubMesh design_domain = ParSubMesh::CreateFromDomain(pmesh, domain_attr);
-
     // 3b. Build ray fields and outflow submeshes
     Array<int> candidate_be;        // extract only the outer boundary elements
     Array<int> candidate_attr;
     for (int i = 0; i < pmesh.GetNBE(); i++)
     {
         const int el_attr = pmesh.GetBdrAttribute(i);
-        
-        if (outer_bdr_attrs.Find(el_attr) < 0) continue;
+
         candidate_be.Append(i);
         candidate_attr.Append(el_attr);
     }
 
+    const int n_dir = 4;
     vector<unique_ptr<VectorConstantCoefficient>> ray_cf(n_dir);
     vector<unique_ptr<ParSubMesh>> outflow(n_dir);
 
     for (int r = 0; r < n_dir; r++)
     {
-        Vector &v = ray_dirs[r];
+        Vector v = ray_vector(r, n_dir, dim);
         ray_cf[r] = make_unique<VectorConstantCoefficient>(v);
 
         // mark outflow (v . n > 0) on the candidate boundary elements
@@ -186,9 +161,9 @@ int main(int argc, char *argv[])
     H1_FECollection state_fec(order, dim);
     H1_FECollection filter_fec(order, dim);
     H1_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace state_fes(&design_domain, &state_fec, dim, Ordering::byVDIM);
-    ParFiniteElementSpace filter_fes(&design_domain, &filter_fec);
-    ParFiniteElementSpace control_fes(&design_domain, &control_fec);
+    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim, Ordering::byVDIM);
+    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
+    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
     // Printing all true dofs.
     HYPRE_BigInt state_size   = state_fes.GlobalTrueVSize();
@@ -235,7 +210,7 @@ int main(int argc, char *argv[])
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
         *alpha[r] = domain_init;   // initialize to mid-range
 
-        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r]);
+        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r], pa);
         advect[r]->SetMinv(minv);
         adv_res[r] = make_unique<AdvectThicknessResidual>(*outflow[r], advect[r]->GetRhoA(), *alpha[r]);
     }
@@ -254,7 +229,7 @@ int main(int argc, char *argv[])
     for (int r = 0; r < n_dir; r++)
     {
         advect[r]->GetSolver().SetTimeStep(dt);
-        advect[r]->GetSolver().SetTerminalTime(5.0);
+        advect[r]->GetSolver().SetTerminalTime(3.0);
     }
 
     // Lame constants and SIMP material coefficients
@@ -268,31 +243,15 @@ int main(int argc, char *argv[])
 
     // 7. Construct the solvers.
     // 7a. Linear elasticity solver, 2 solves with different load
-    vector<unique_ptr<IsoLinElasticSolver>> elast(n_elast_solve);
-    for (int i = 0; i < n_elast_solve; i++)
-    {
-        elast[i] = make_unique<IsoLinElasticSolver>(&design_domain, order);
-        for (int j = 0; j < load_attrs[i].Size(); j++)
-        {
-            if (dim == 2)
-            {
-                elast[i]->AddSurfLoad(load_attrs[i][j], load_fx[i][j], load_fy[i][j]);
-            }
-            else if (dim == 3)
-            {
-                elast[i]->AddSurfLoad(load_attrs[i][j], load_fx[i][j], load_fy[i][j], load_fz[i][j]);
-            }
-        }
-        for (int j = 0; j < clamp_attrs[i].Size(); j++)
-        {
-            elast[i]->AddDispBC(clamp_attrs[i][j], -1, real_t(0));
-        }
-        elast[i]->SetMaterial(E_simp, nu_cf);
-        elast[i]->SetLinearSolver(1e-10, 1e-14, 10000);
-    }
+    IsoLinElasticSolver elast(&pmesh, order, pa);
+    VectorFunctionCoefficient vol_force(dim, load);
+    elast.SetVolForce(vol_force);
+    elast.AddDispBC(clamp_attr, -1, 0.0);
+    elast.SetMaterial(E_simp, nu_cf);
+    elast.SetLinearSolver(1e-10, 1e-14, 10000);
 
-    ParGridFunction u(&state_fes);
-    StrainEnergyDensityCoefficient energy_cf(&lambda_cf, &mu_cf, &u);
+    StrainEnergyDensityCoefficient energy_cf(&lambda_cf, &mu_cf,
+                                             &elast.GetDisplacements());
     ProductCoefficient prod(energy_cf, simp_grad_cf);   // r'(rho~) * psi0
     ProductCoefficient dcdrho_cf(-1.0, prod);           // dc/drho~ = -r'(rho~) * psi0
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
@@ -301,17 +260,10 @@ int main(int argc, char *argv[])
     PDEFilter filter(control_fes, filter_fes);
     filter.SetFilterRadius(r_f);
     DiffusionMassSolver &filter_solver = filter.GetSolver();
-    for (int a = 1; a <= design_domain.bdr_attributes.Max(); a++)
+    for (int i = 1; i <= pmesh.bdr_attributes.Max(); i++)
     {
-        bool is_load = false;
-        for (int i = 0; i < n_elast_solve; i++)
-        {
-            for (int j = 0; j < load_attrs[i].Size(); j++)
-            {
-                if (load_attrs[i][j] == a) { is_load = true; }
-            }
-        }
-        if (!is_load) { filter_solver.AddBoundaryID(a); }
+        if(i == clamp_attr) continue;
+        filter_solver.AddBoundaryID(i);
     }
     filter.Assemble();
 
@@ -378,15 +330,18 @@ int main(int argc, char *argv[])
         sout.precision(8);
 
         sout << "parallel " << num_procs << " " << myid << "\n"
-             << "solution\n" << design_domain << phys_density
+             << "solution\n" << pmesh << phys_density
              << "window_title 'Design density r(rho~)'\n"  
              << "keys Rjlc\n" << flush;
+
+        sout.open(vishost, visport);  
+        sout.precision(8);
     }
 
     // 10b. Paraview
     std::ostringstream run_tag;
     run_tag << "ct_amax" << alpha_max << "_vf" << vol_fraction;
-    ParaViewDataCollection paraview_dc(run_tag.str(), &design_domain);
+    ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
         paraview_dc.SetPrefixPath("ParaView");
@@ -396,20 +351,12 @@ int main(int argc, char *argv[])
         paraview_dc.RegisterField("density", &phys_density);
     }
 
-    // 10d. Initialization block runtime.
-    double init_block_time = MPI_Wtime() - init_time;
-    if (myid == 0)
-    {
-        mfem::out << "\nInitialization block runtime: " << fixed << setprecision(4)
-                   << init_block_time << " s\n";
-    }
-
-    // 10e. CSV convergence log (rank 0 only).
+    // 10d. CSV convergence log (rank 0 only).
     std::ofstream csv;
     if (myid == 0)
     {
         csv.open("convergence.csv");
-        csv << "it,compliance,vol,res_max,eps,iterErr,iter_time\n";
+        csv << "it,compliance,vol,res_max,eps,iterErr\n";
     }
 
     // 11. Optimization loop.
@@ -420,15 +367,13 @@ int main(int argc, char *argv[])
     vector<real_t> init_thickness_res(n_dir, 1.0);
     for (; k < max_it && iterationError > tol; k++)
     {
-        double iter_start_time = MPI_Wtime();
 
         if (myid == 0)
         {
-            mfem::out << "\nIteration " << k + 1
+            mfem::out << "\niteration " << k + 1 
                         << "\n=================================="
-                        << "====================================\n"
-                        << "start_time: " << fixed << setprecision(8) << iter_start_time
-                        << " s\n" << endl;
+                        << "===================================="
+                        << endl;
         }
 
         if (k % decay_int == 0 && k > decay_start)
@@ -444,29 +389,20 @@ int main(int argc, char *argv[])
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
 
-        real_t compliance = 0.0;
-        Vector adj_rhs_tv(filter_fes.GetTrueVSize());
-        adj_rhs_tv = 0.0;
-        for (int i = 0; i < n_elast_solve; i++)
-        {
-            elast[i]->Assemble();
-            elast[i]->FSolve();
-            u = elast[i]->GetDisplacements();
-            compliance += comp.Eval();
+        elast.Assemble();
+        elast.FSolve();
+        elast.GetDisplacements();     // refresh fdisp from sol so energy_cf sees new u
+        real_t compliance = comp.Eval();
 
-            ParLinearForm adj_rhs(&filter_fes);
-            adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
-            adj_rhs.Assemble();
-            std::unique_ptr<HypreParVector> adj_rhs_e_tv(adj_rhs.ParallelAssemble());
-            adj_rhs_tv += *adj_rhs_e_tv;
-        }
-        compliance /= n_elast_solve;
-        adj_rhs_tv /= n_elast_solve;
-        
         // (3) adjoint filter + objective gradient:
         //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) psi_0) φ_i
         //     dc/drho = M_fc^T w~
-        filter.MultTranspose(adj_rhs_tv, dcdrho);
+        
+        ParLinearForm adj_rhs(&filter_fes);
+        adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
+        adj_rhs.Assemble();
+        std::unique_ptr<HypreParVector> adj_rhs_tv(adj_rhs.ParallelAssemble());
+        filter.MultTranspose(*adj_rhs_tv, dcdrho);
 
         // (4) objective gradient:  df0/dx = [ dc/drho ; 0 ; ... ; 0 ]
         df0dx.GetBlock(0) = dcdrho;
@@ -566,25 +502,20 @@ int main(int argc, char *argv[])
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
-        double iter_end_time = MPI_Wtime();
-        double iter_runtime = iter_end_time - iter_start_time;
-
         if (myid == 0)
         {
-            mfem::out << "\nc = " << scientific << setprecision(6) << compliance
+            mfem::out << "c = " << scientific << setprecision(6) << compliance
                       << "   vol = " << fixed << setprecision(4) << vol
-                      << "   eps = " << scientific << setprecision(4) << epsilon
-                      << "   iterErr = " << setprecision(6) << iterationError 
-                      << "\nend time: " << fixed << setprecision(8) << iter_end_time 
-                      << " s,   runtime: " << setprecision(8) << iter_runtime << " s" << endl;
+                      << "   res_max = " << scientific << setprecision(3) << res_max
+                      << "   eps = " << fixed << setprecision(4) << epsilon
+                      << "   iterErr = " << setprecision(4) << iterationError << endl;
 
             csv << k + 1 << ','
                 << scientific << setprecision(8) << compliance << ','
                 << vol << ','
                 << res_max << ','
                 << epsilon << ','
-                << iterationError << ','
-                << iter_runtime << '\n';
+                << iterationError << '\n';
             csv.flush();
         }
 
@@ -594,164 +525,64 @@ int main(int argc, char *argv[])
         if (visualization)
         {
             sout << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << design_domain << phys_density
+                << "solution\n" << pmesh << phys_density
                 << "window_title 'Design density r(rho~)'"  << flush;
         }
 
-        // if (paraview)
-        // {
-        //     paraview_dc.SetCycle(k + 1);
-        //     paraview_dc.SetTime(k + 1);
-        //     paraview_dc.Save();
-        // }
+        if (paraview)
+        {
+            paraview_dc.SetCycle(k + 1);
+            paraview_dc.SetTime(k + 1);
+            paraview_dc.Save();
+        }
 
         // cin.get();
     }
-    
-    double total_runtime = MPI_Wtime() - init_time;
 
     if (myid == 0)
     {
         csv.close();
-        mfem::out << "\nfinished after " << k << " iterations"
-                  << "\ntotal runtime is " << total_runtime << " s\n";
+        mfem::out << "\nfinished after " << k << " iterations\n";
     }
 
-    // Save final solution only
-    if (paraview)
-    {
-        paraview_dc.SetCycle(k);
-        paraview_dc.SetTime(k);
-        paraview_dc.Save();
-    }
+    // option for saving only the final solution
+    // if (paraview)
+    // {
+    //     paraview_dc.SetCycle(k);
+    //     paraview_dc.SetTime(k);
+    //     paraview_dc.Save();
+    // }
 
     return 0;
 }
 
-void loadMesh(int myid, const char *mesh_file,
-                Mesh &mesh,
-                Array<int> &domain_attr,
-                Array<int> &outer_bdr_attrs,
-                vector<Array<int>> &clamp_attrs,
-                vector<Array<int>> &load_attrs,
-                vector<Array<real_t>> &load_fx,
-                vector<Array<real_t>> &load_fy,
-                vector<Array<real_t>> &load_fz,
-                int &n_elast_solve,
-                vector<Vector> &ray_dirs)
+Vector ray_vector(const int r, const int n_dir, const int dim)
 {
-    if (strstr(mesh_file, "a_circular_5_holes.msh") != NULL)
-    {
+    const real_t phi = r * (M_PI / n_dir);
+    Vector v(dim);
 
-    }
-    else if (strstr(mesh_file, "b_circular_9_holes.msh") != NULL)
-    {
+    v(0) = 0;
+    v(1) = cos(phi);
+    v(2) = sin(phi);
 
-    }
-    else if(strstr(mesh_file, "d_square_4_holes.msh") != NULL)
-    {
-        n_elast_solve = 2;
-        mesh = Mesh(mesh_file);
+    return v;
+}
 
-        domain_attr.Append(1);
-        outer_bdr_attrs = Array<int>({1, 2, 3, 4});
+// load applies along y-axis
+void load(const Vector &x, Vector &f)
+{
+    const int dim = x.Size();
 
-        {
-            const int dim = mesh.Dimension();
-            const real_t angles_deg[] = {0.0, 45.0, 90.0, 135.0};
-            for (real_t ang_deg : angles_deg)
-            {
-                const real_t ang = ang_deg * M_PI / 180.0;
-                Vector v(dim);
-                v(0) = cos(ang);
-                v(1) = sin(ang);
-                ray_dirs.push_back(v);
-            }
-        }
+    f.SetSize(dim);
+    f = 0.0;
 
-        {
-            clamp_attrs.resize(n_elast_solve);
-            load_attrs.resize(n_elast_solve);
-            load_fx.resize(n_elast_solve);
-            load_fy.resize(n_elast_solve);
-            load_fz.resize(n_elast_solve);
+    real_t radius = 0.05;
+    real_t center_x = 2.9;
+    real_t center_z = 0.1;
 
-            // first elast solve
-            clamp_attrs[0] = Array<int>({ 6, 7});
-            load_attrs[0]  = Array<int>({ 5, 8});
-            load_fx[0]     = Array<real_t>({ 1,-1});
-            load_fy[0]     = Array<real_t>({-1, 1});
-            load_fz[0]     = Array<real_t>({ 0, 0});
+    bool x_in_range = (x[0] < center_x + radius) && (x[0] > center_x - radius);
+    bool z_in_range = (x[2] < center_z + radius) && (x[2] > center_z - radius);
 
-            // second elast solve
-            clamp_attrs[1] = Array<int>({ 5, 8});
-            load_attrs[1]  = Array<int>({ 6, 7});
-            load_fx[1]     = Array<real_t>({-1, 1});
-            load_fy[1]     = Array<real_t>({-1, 1});
-            load_fz[1]     = Array<real_t>({ 0, 0});
-        }
-    }
-    else if (strstr(mesh_file, "circular_5_holes_pentagon.msh"))
-    {
-        n_elast_solve = 5;
-        mesh = Mesh(mesh_file);
-
-        domain_attr.Append(1);
-        outer_bdr_attrs = Array<int>({1});
-
-        clamp_attrs.resize(n_elast_solve);
-        load_attrs.resize(n_elast_solve);
-        load_fx.resize(n_elast_solve);
-        load_fy.resize(n_elast_solve);
-        load_fz.resize(n_elast_solve);
-
-        {
-            const int dim = mesh.Dimension();
-            const real_t angles_deg[] = {0.0, 72.0, 144.0, 216.0, 288.0};
-            for (real_t ang_deg : angles_deg)
-            {
-                const real_t ang = ang_deg * M_PI / 180.0;
-                Vector v(dim);
-                v(0) = cos(ang);
-                v(1) = sin(ang);
-                ray_dirs.push_back(v);
-            }
-        }
-
-        const real_t angles_deg_forces[] = {18.0, 90.0, 162.0, 234.0, 306.0};
-        vector<real_t> force_dirs[5];
-        for (int k = 0; k < n_elast_solve; k++)
-        {
-            const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
-            force_dirs[k] = { cos(ang), sin(ang) };
-        }
-
-        const int first_attr = 2;
-
-        for (int i = 0; i < n_elast_solve; i++)
-        {
-            const int clamped_attr = first_attr + i;
-            clamp_attrs[i] = Array<int>({ clamped_attr });
-
-            Array<int> loads;
-            Array<real_t> fx, fy, fz;
-            for (int j = 0; j < n_elast_solve; j++)
-            {
-                const int attr = first_attr + j;
-                if (attr == clamped_attr) { continue; }
-
-                loads.Append(attr);
-                fx.Append(-force_dirs[j][0]);
-                fy.Append(-force_dirs[j][1]);
-                fz.Append(0.0);
-            }
-
-            load_attrs[i] = loads;
-            load_fx[i] = fx;
-            load_fy[i] = fy;
-            load_fz[i] = fz;
-        }
-    }
-    else
-        if(myid == 0) mfem::out << "invalid mesh files" << endl;
+    if (x_in_range && z_in_range)
+        f(dim-1) = -1.0;
 }

@@ -6,12 +6,16 @@ ElastTopOpt_maxlen
 ElastTopOpt_maxthick
 ElastTopOpt_adv
 ElastTopOpt_ct
+ElastTopOpt_3d
 ElastTopOpt_transient
 ElastTopOpt_static
 ForwardElastodynamics
 elasticity_topopt_par
 test_adjoint_verification
 TopOptTransient
+
+# Test files
+topopt_maxlen/tests/
 
 # Outputs
 ParaView/
