@@ -225,8 +225,11 @@ TEST_CASE("Enzyme qfunction with SetScratch member",
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_setscratch::print_results("Function: y = coef * x^3",
-                                         x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_setscratch::print_results("Function: y = coef * x^3",
+                                            x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
@@ -293,8 +296,11 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_setscratch::print_results("Function: y = coef * x^3 (qf const), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
-                                         x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_setscratch::print_results("Function: y = coef * x^3 (qf dup), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
+                                            x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 TEST_CASE("Enzyme qfunction with SetScratch member and qf const",
@@ -345,9 +351,12 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf const",
    scratch.HostRead();
    scratchd.HostRead();
 
-   enzyme_test_setscratch::print_qdata_results(
-      "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
-      x, coef, scratch, y, yd);
+   if (verbose_tests)
+   {
+      enzyme_test_setscratch::print_qdata_results(
+         "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
+         x, coef, scratch, y, yd);
+   }
 
    for (int q = 0; q < N; q++)
    {
@@ -421,9 +430,12 @@ TEST_CASE("Enzyme qfunction with external qdata-like scratch and qf const",
       REQUIRE(yd[q] == MFEM_Approx(exact_yd));
       REQUIRE(qdatad[q] == MFEM_Approx(0.0));
    }
-   enzyme_test_setscratch::print_qdata_results(
-      "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
-      x, coef, qdata, y, yd);
+   if (verbose_tests)
+   {
+      enzyme_test_setscratch::print_qdata_results(
+         "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
+         x, coef, qdata, y, yd);
+   }
 }
 
 #endif

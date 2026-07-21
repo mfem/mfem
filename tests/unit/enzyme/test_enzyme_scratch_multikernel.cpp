@@ -291,9 +291,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(0.0));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, qf const (BROKEN): yd missing scratch's tangent contribution",
-      x, coef, y, yd, scratch, scratchd, true);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, qf const (BROKEN): yd missing scratch's tangent contribution",
+         x, coef, y, yd, scratch, scratchd, true);
+   }
 }
 
 // =========================================================================
@@ -373,9 +376,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, explicit scratch dup'd (WORKING)",
-      x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, explicit scratch dup'd (WORKING)",
+         x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 // =========================================================================
@@ -461,9 +467,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
       REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, qf dup with member scratch_d (WORKING)",
-      x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, qf dup with member scratch_d (WORKING)",
+         x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 #endif

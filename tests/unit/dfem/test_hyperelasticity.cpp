@@ -295,8 +295,11 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    Vector action_diff(energy_action);
    action_diff -= stress_action;
 
-   INFO("Energy Hessian action norm: " << energy_action.Norml2());
-   INFO("Stress Jacobian action norm: " << stress_action.Norml2());
+   if (verbose_tests)
+   {
+      INFO("Energy Hessian action norm: " << energy_action.Norml2());
+      INFO("Stress Jacobian action norm: " << stress_action.Norml2());
+   }
 
    REQUIRE(action_diff.Norml2() < 1e-10);
 

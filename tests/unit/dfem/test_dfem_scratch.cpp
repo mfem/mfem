@@ -241,7 +241,7 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
                  MPITypeMap<real_t>::mpi_type,
                  MPI_MAX, MPI_COMM_WORLD);
 
-   if (Mpi::Root())
+   if (verbose_tests && Mpi::Root())
    {
       mfem::out << "Primal output max error: " << global_err << endl;
       mfem::out << "Derivative output max error: "
@@ -288,7 +288,7 @@ void CheckScratchResults(ParMesh &pmesh, const IntegrationRule &ir,
    MPI_Allreduce(&local_scratch_d_err, &global_scratch_d_err, 1,
                  MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
 
-   if (Mpi::Root())
+   if (verbose_tests && Mpi::Root())
    {
       mfem::out << "Scratch max error: " << global_scratch_err << endl;
       mfem::out << "Scratch derivative max error: "
