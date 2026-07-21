@@ -20,9 +20,90 @@ DAGraph::~DAGraph()
 {
     for(int i=0; i < nnodes; i++)
     {
-        if(nodes_owned[i] && nodes[i]) delete nodes[i];
+        if(node_owned[i] && nodes[i]) delete nodes[i];
     }
     if(grad) delete grad;
+}
+
+void DAGraph::Assemble()
+{
+    // Sort graph nodes topologically to ensure correct execution order
+    TopologicalSort();
+
+    // Compute depth of the graph nodes
+    ComputeDepth();
+}
+
+void DAGraph::TopologicalSort()
+{
+    Array<int> sorted_indices;
+    sorted_indices.Reserve(nnodes);
+
+    Array<bool> visited(nnodes);
+    visited = false; // Initialize all nodes as unvisited
+
+    // Perform a depth-first search to sort the nodes topologically
+    std::function<void(int)> DepthFirstSearch = [&](int node_index)
+    {
+        if(visited[node_index]) return;
+        visited[node_index] = true;
+        auto node = nodes[node_index];
+        // Visit all nodes that this node depends on
+        for(auto input_field : node->InputFields())
+        {
+            for(int j=0; j < nnodes; j++)
+            {
+                auto other_node = nodes[j];
+                if(other_node == node) continue;
+                for(auto output_field : other_node->OutputFields())
+                {
+                    if(input_field->ID() == output_field->ID()) // Compare by unique ID
+                    {
+                        DepthFirstSearch(j);
+                    }
+                }
+            }
+        }
+        sorted_indices.push_back(node_index);
+    };
+
+    for(int i=0; i < nnodes; i++)
+    {
+        DepthFirstSearch(i);
+    }
+
+    nodes.Permute(sorted_indices);
+    nodes_owned.Permute(sorted_indices);
+
+    sorted = true;
+}
+
+void DAGraph::ComputeDepth()
+{
+    // Compute depth of ordered nodes
+    node_depth.SetSize(nnodes);
+    node_depth = 0;
+    for(int i=0; i < nnodes; i++)
+    {
+        int max_dep = 0;
+        auto node = nodes[i];
+        for(auto input_field : node->InputFields())
+        {
+            for(int j=0; j < i; j++)
+            {
+                auto other_node = nodes[j];
+                if(other_node == node) continue;
+                for(auto output_field : other_node->OutputFields())
+                {
+                    if(input_field->ID() == output_field->ID()) // Compare by unique ID
+                    {
+                        max_dep = std::max(max_dep, node_depth[j] + 1);
+                    }
+                }
+            }
+        }
+        node_depth[i] = max_dep;
+    }
 }
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
@@ -161,11 +242,11 @@ void GraphGradient::Forward(const Vector &x, Vector &y) const
         data_node->SetAdjoint(xb.GetBlock(index)); // Seed input adjoint from input block
     }
 
-    Vector xtmp, ytmp;
+    Vector x0, dx, dy;
     for (int i=0; i < nnodes; i++)
     {
         auto node = graph->GetNode(i);
-        node->JVP(xtmp, ytmp);
+        node->GradientMult(x0, dx, dy); // Compute JVP for the node
     }
 
     int noutputs = graph->output_nodes.size();
@@ -197,11 +278,11 @@ void GraphGradient::Backward(const Vector &x, Vector &y) const
         data_node->SetAdjoint(xb.GetBlock(index)); // Seed output adjoint from output block
     }
 
-    Vector xtmp, ytmp;
+    Vector x0, dx, dy;
     for (int i=nnodes-1; i >= 0; i--)
     {
         auto node = graph->GetNode(i);
-        node->VJP(xtmp, ytmp);
+        node->GradientMultTranspose(x0, dx, dy); // Compute VJP for the node
     }
 
     int ninputs = graph->input_nodes.size();

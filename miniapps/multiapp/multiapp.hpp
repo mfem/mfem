@@ -438,19 +438,20 @@ public:
         out << "}";
     }
 
-    virtual void JVP(const Vector &x, Vector &y) const
+    virtual void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const
     {
-        MFEM_ABORT("GraphNode::JVP() not implemented");
+        MFEM_ABORT("GraphNode::GradientMult() not implemented");
     }
 
-    virtual void VJP(const Vector &x, Vector &y) const
+    virtual void GradientMultTranspose(const Vector &x, const Vector &dx, Vector &dy) const
     {
-        MFEM_ABORT("GraphNode::VJP() not implemented");
+        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
     }
 
-    virtual void GetJacobian(Field* y, Field* x, Vector &x0, Operator *dydx)
+    using Operator::GetGradient;
+    virtual Operator &GetGradient(Field* fy, Field* fx, Vector &x) const
     {
-        MFEM_ABORT("GraphNode::GetJacobian() not implemented");
+        MFEM_ABORT("GraphNode::GetGradient() not implemented");
     }
 
     virtual void operator()(const Vector &x, Vector &y) const
@@ -641,9 +642,9 @@ private: // Hide all other functions from user
     using GraphNode::OutputFields;
     using GraphNode::Execute;
     using GraphNode::Mult;
-    using GraphNode::JVP;
-    using GraphNode::VJP;
-    using GraphNode::GetJacobian;
+    using GraphNode::GetGradient;
+    using GraphNode::GradientMult;
+    using GraphNode::GradientMultTranspose;
 };
 
 /**
@@ -661,18 +662,22 @@ public:
     };
 
 protected:
-    std::vector<GraphNode*> nodes;  ///< Vector of individual operators
-    Array<bool> nodes_owned; ///< Whether the operators are owned
+    Array<GraphNode*> nodes; ///< Vector of individual operators
+    Array<bool> node_owned; ///< Whether the operators are owned
+    Array<int> node_depth; ///< Depth of each operator in the graph
+
 
     Array<int> in_offsets;  ///< Block offsets for input fields
     Array<int> out_offsets; ///< Block offsets for output fields
     int max_width=0;        ///< Largest operator width
     int max_height=0;       ///< Largest operator height
     int nnodes = 0;         ///< The number of nodes
+    bool sorted = false;    ///< Whether the nodes are topologically sorted
     
     mutable Operator *grad = nullptr; ///< Jacobain operator
     GradMode grad_mode = GradMode::FD;
-    bool own_blocks = false; ///< Whether the BlockOperator owns the individual blocks
+    mutable Vector fx; ///< Temporary vector for function evaluation
+    // mutable Vector dx, dy; ///< Temporary vectors for Jacobian computations
 
     // Input and output data nodes
     std::vector<DataNode*> input_nodes;
@@ -690,8 +695,8 @@ public:
      */
     DAGraph(const int nop) : GraphNode()
     {
-        nodes.reserve(nop);
-        nodes_owned.Reserve(nop);
+        nodes.Reserve(nop);
+        node_owned.Reserve(nop);
 
         in_offsets.Reserve(nop+1);
         out_offsets.Reserve(nop+1);
@@ -720,17 +725,17 @@ public:
         if constexpr(std::is_base_of<GraphNode, OpType>::value)
         {
             nodes.push_back(op_);
-            nodes_owned.Append(false);
+            node_owned.Append(false);
         } 
         else
         {
             nodes.push_back(new AbstractOperator<OpType>(op_,h,w));
-            nodes_owned.Append(true);
+            node_owned.Append(true);
         }
         nnodes++;
 
         // Update size of the coupled operator and the block offsets
-        GraphNode* op = nodes.back();
+        GraphNode* op = nodes.Last();
         op->SetNodeIndex(nnodes-1); // Set the index of the operator
 
         int ht = op->Height();
@@ -738,6 +743,7 @@ public:
 
         max_width = std::max(max_width, wt);
         max_height = std::max(max_height, ht);
+        sorted = false;
 
         return op;
     }
@@ -790,15 +796,26 @@ public:
     int MaxHeight(){return max_height;}
 
     /// @brief Get the operator at index @a i
-    GraphNode* GetNode(const int i) { return nodes[i]; }
+    GraphNode* GetNode(const int i)
+    {
+        MFEM_ASSERT(i >= 0 && i < nnodes,
+               "index [" << i << "] is out of range [0," << nnodes << ")");
+        return nodes[i];
+    }
 
     /// @brief Specify whether the operator at index @a i is owned.
     void OwnNode(const int i, bool own = true)
     {
         MFEM_ASSERT(i >= 0 && i < nnodes,
                "index [" << i << "] is out of range [0," << nnodes << ")");
-        nodes_owned[i] = own;
+        node_owned[i] = own;
     }
+
+    void Assemble();
+
+    void TopologicalSort();
+
+    void ComputeDepth();
 
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)
@@ -837,10 +854,10 @@ public:
         // out << "\"nodes\" : " << nnodes << ",\n";
         out << "\"Nodes\":\n";
         out << "{\n";
-        for (size_t i = 0; i < nodes.size(); i++)
+        for (int i = 0; i < nodes.Size(); i++)
         {
             nodes[i]->Save(out);
-            if(i != nodes.size()-1) out << ",";
+            if(i != nodes.Size()-1) out << ",";
             out << "\n";
         }
         out << "},\n"; // End of Nodes
