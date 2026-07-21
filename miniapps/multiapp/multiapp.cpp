@@ -73,7 +73,7 @@ void DAGraph::TopologicalSort()
     }
 
     nodes.Permute(sorted_indices);
-    nodes_owned.Permute(sorted_indices);
+    node_owned.Permute(sorted_indices);
 
     sorted = true;
 }
