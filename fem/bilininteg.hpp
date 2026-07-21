@@ -3269,7 +3269,8 @@ public:
     where $\varepsilon(v) = \frac{1}{2} (\mathrm{grad}(v) + \mathrm{grad}(v)^{\mathrm{T}})$.
     This is a 'Vector' integrator, i.e. defined for FE spaces
     using multiple copies of a scalar FE space. */
-class ElasticityIntegrator : public BilinearFormIntegrator
+class ElasticityIntegrator : public
+   StressDivergenceIntegrator<BilinearFormIntegrator>
 {
    friend class ElasticityComponentIntegrator;
 
@@ -3278,24 +3279,13 @@ protected:
    Coefficient *lambda, *mu;
 
 private:
-#ifndef MFEM_THREAD_SAFE
-   Vector shape;
-   DenseMatrix dshape, gshape, pelmat;
-   Vector divshape;
-#endif
-
    // PA extension
 
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int vdim, ndofs;
-   const FiniteElementSpace *fespace;   ///< Not owned.
-
-   std::unique_ptr<QuadratureSpace> q_space;
    /// Coefficients projected onto q_space
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
-   /// Workspace vector
-   std::unique_ptr<QuadratureFunction> q_vec;
+
+   /// Project lambda and mu coefficients
+   void SetUpCoefficients();
 
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
@@ -3312,7 +3302,7 @@ public:
                               ElementTransformation &Tr,
                               DenseMatrix &elmat) override;
 
-   using BilinearFormIntegrator::AssemblePA;
+   using StressDivergenceIntegrator<BilinearFormIntegrator>::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
 
    void AssembleDiagonalPA(Vector &diag) override;
