@@ -83,17 +83,16 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
 {
    switch (mc)
    {
-      case MemoryClass::HOST: return IsHostMemory(mt);
+      case MemoryClass::HOST:
+         return IsHostMemory(mt);
       case MemoryClass::HOST_32:
-         return (mt == MemoryType::HOST_32 ||
-                 mt == MemoryType::HOST_64 ||
-                 mt == MemoryType::HOST_DEBUG);
+         return (mt >= MemoryType::HOST_32 && mt < MemoryType::HOST_UMPIRE);
       case MemoryClass::HOST_64:
-         return (mt == MemoryType::HOST_64 ||
-                 mt == MemoryType::HOST_DEBUG);
-      case MemoryClass::DEVICE: return IsDeviceMemory(mt);
+         return (mt >= MemoryType::HOST_64 && mt < MemoryType::HOST_UMPIRE);
+      case MemoryClass::DEVICE:
+         return IsDeviceMemory(mt);
       case MemoryClass::MANAGED:
-         return (mt == MemoryType::MANAGED);
+         return (mt >= MemoryType::MANAGED && mt < MemoryType::DEVICE);
    }
    MFEM_ABORT("invalid MemoryClass");
    return false;

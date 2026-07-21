@@ -273,11 +273,7 @@ inline bool IsHostMemory(MemoryType mt)
 /// Return true if the given memory type is in MemoryClass::DEVICE
 inline bool IsDeviceMemory(MemoryType mt)
 {
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-   return mt >= MemoryType::TEMP_MANAGED && mt < MemoryType::SIZE;
-#else
    return mt >= MemoryType::MANAGED && mt < MemoryType::SIZE;
-#endif
 }
 
 /// Return a suitable MemoryType for a given MemoryClass.
