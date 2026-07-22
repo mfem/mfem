@@ -1283,11 +1283,7 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       }
 
       const int elmat_w = ndof_u + ndof_p + ndof_tr;
-#if 1
       const int elmat_h = elmat_w;
-#else
-      const int elmat_h = elmat_w + 1;
-#endif
       elmat.SetSize(elmat_h, elmat_w);
       elmat = 0.;
 
