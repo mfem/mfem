@@ -25,6 +25,9 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
 	phpref mesh-bounding-boxes
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += tangential-relaxation
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -130,3 +133,4 @@ clean-exec:
 	@rm -rf mesh-explorer-{visit,paraview}*
 	@rm -f mesh.* order.* sol.* refined.mesh
 	@rm -rf jacobian-determinant-bounds* bounding-box*
+	@rm -f tangential-*.mesh bdr-extracted*.mesh

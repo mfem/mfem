@@ -15,6 +15,12 @@
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
 #include "../linalg/dual.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#else
+#include "gridfunc.hpp"
+#endif
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -2081,6 +2087,7 @@ protected:
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
 
+
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
@@ -2507,6 +2514,7 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
+
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
