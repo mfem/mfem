@@ -424,16 +424,25 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
 
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto coefd_w = coefd.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
+
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      coefd(i) = 0.0;
-      scratch(i) = -1.0;
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      coefd_w[i] = 0.0;
+      scratch_w[i] = -1.0;
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -472,20 +481,22 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
       enzyme_dup, y_d, yd_d,
       enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *coef_h = coef.HostRead();
+   const mfem::real_t *y_h = y.HostRead();
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *scratch_h = scratch.HostRead();
+   const mfem::real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
-      const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
+      const double exact_scratchd = 2.0 * x_h[q];
 
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
    }
    if (verbose_tests)
    {
