@@ -553,7 +553,7 @@ void obboxsurf_calc_3(Vector &bb,
    gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n);
    lag(I0, work, n, 1, 0);
 
-   for (int ie = 0; ie < nel; ie++,x+=n2,y+=n2,z+=n2)
+   for (int ie = 0; (unsigned)ie < nel; ie++,x+=n2,y+=n2,z+=n2)
    {
       struct gslib::dbl_range ab[3];
       struct gslib::dbl_range tb[3];
@@ -777,7 +777,7 @@ void obboxedge_calc_2(Vector &bb,
    gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
    lag(I0r, work, nr,1, 0);
 
-   for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr)
+   for (int ie = 0; (unsigned)ie < nel; ie++,x+=nr,y+=nr)
    {
       double x0[2], A[4];
       struct gslib::dbl_range ab[2], tb[2];
@@ -889,7 +889,7 @@ void obboxedge_calc_3(Vector &bb,
    gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
    lag(I0r, work, nr, 1, 0);
 
-   for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr,z+=nr)
+   for (int ie = 0; (unsigned)ie < nel; ie++,x+=nr,y+=nr,z+=nr)
    {
       double x0[3], A[9], Ai[9];
       struct gslib::dbl_range ab[3], tb[3];
@@ -4515,7 +4515,7 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
    int eidx = 0;
    if (myid == save_rank)
    {
-      for (int p = 0; p < gsl_comm->np; p++)
+      for (int p = 0; (unsigned)p < gsl_comm->np; p++)
       {
          if (static_cast<unsigned int>(p) != save_rank)
          {

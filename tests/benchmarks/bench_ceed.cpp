@@ -32,7 +32,9 @@
 // Custom benchmark arguments generator
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
+   const bool mfem_use_gpu =
+      Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE);
+   const int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 

@@ -18,14 +18,8 @@
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256
 
-#if defined(MFEM_USE_HIP) && defined(__HIP__)
+#if defined(MFEM_USE_HIP)
 #define MFEM_USE_CUDA_OR_HIP
-constexpr bool mfem_use_gpu = true;
-#define MFEM_DEVICE __device__
-#define MFEM_HOST __host__
-#define MFEM_LAMBDA __host__ __device__
-#define MFEM_LAUNCH_BOUNDS __launch_bounds__
-// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
@@ -40,6 +34,15 @@ constexpr bool mfem_use_gpu = true;
     }                                                                          \
   } while (0)
 
+// Macros defined only when compiling with HIP language
+#if defined(__HIP__)
+#define MFEM_USE_CUDA_OR_HIP_LANG
+#define MFEM_DEVICE __device__
+#define MFEM_HOST __host__
+#define MFEM_LAMBDA __host__ __device__
+#define MFEM_LAUNCH_BOUNDS __launch_bounds__
+// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
+
 // Define the MFEM inner threading macros
 #if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
@@ -52,7 +55,8 @@ constexpr bool mfem_use_gpu = true;
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
    if(const int i=hipThreadIdx_ ##k; i<N)
 #endif // defined(__HIP_DEVICE_COMPILE__)
-#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
+#endif // defined(__HIP__)
+#endif // defined(MFEM_USE_HIP)
 
 namespace mfem
 {

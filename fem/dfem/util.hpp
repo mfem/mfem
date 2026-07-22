@@ -597,7 +597,7 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
@@ -617,10 +617,13 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-   if (Device::Allows(Backend::CUDA_MASK) ||
-       Device::Allows(Backend::HIP_MASK))
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   internal::StaticAssertCudaOrHipLanguage<false>();
+#endif
+
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -631,9 +634,10 @@ void forall(func_t f,
       MFEM_GPU_CHECK(hipGetLastError());
 #endif
       MFEM_DEVICE_SYNC;
-#endif
+      return;
    }
-   else if (Device::Allows(Backend::CPU_MASK))
+#endif
+   if (Device::Allows(Backend::CPU_MASK))
    {
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
@@ -671,52 +675,7 @@ public:
                     MPI_COMM_WORLD);
    }
 
-   void Mult(const Vector &v, Vector &y) const override
-   {
-      // See [1] for choice of eps.
-      //
-      // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
-      // finite difference matrix-vector products in Newton-Krylov solvers for
-      // implicit climate dynamics with spectral elements. Procedia Computer
-      // Science, 51, pp.2036-2045.
-      real_t eps;
-      if (fixed_eps > 0.0)
-      {
-         eps = fixed_eps;
-      }
-      else
-      {
-         const real_t vnorm_local = v.Norml2();
-         real_t vnorm;
-         MPI_Allreduce(&vnorm_local, &vnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                       MPI_COMM_WORLD);
-         eps = lambda * (lambda + xnorm / vnorm);
-      }
-
-      // x + eps * v
-      {
-         const auto d_v = v.Read();
-         const auto d_x = x.Read();
-         auto d_xpev = xpev.Write();
-         mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
-         {
-            d_xpev[i] = d_x[i] + eps * d_v[i];
-         });
-      }
-
-      // y = f(x + eps * v)
-      op.Mult(xpev, y);
-
-      // y = (f(x + eps * v) - f(x)) / eps
-      {
-         const auto d_f = f.Read();
-         auto d_y = y.ReadWrite();
-         mfem::forall(f.Size(), [=] MFEM_HOST_DEVICE (int i)
-         {
-            d_y[i] = (d_y[i] - d_f[i]) / eps;
-         });
-      }
-   }
+   void Mult(const Vector &v, Vector &y) const override;
 
    virtual MemoryClass GetMemoryClass() const override
    {

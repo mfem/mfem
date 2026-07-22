@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#if defined(MFEM_USE_CUDA)
 #include <cusparse.h>
 #include <library_types.h>
 #include <cuda_runtime.h>
@@ -22,7 +22,7 @@
 #endif
 #include "cuda.hpp"
 
-#if defined(MFEM_USE_HIP) && defined(__HIP__)
+#if defined(MFEM_USE_HIP)
 #include <hip/hip_runtime.h>
 #endif
 #include "hip.hpp"
@@ -45,15 +45,17 @@
 #endif
 
 #if !defined(MFEM_USE_CUDA_OR_HIP)
-constexpr bool mfem_use_gpu = false;
-#define MFEM_DEVICE
-#define MFEM_HOST
-#define MFEM_LAMBDA
-// #define MFEM_HOST_DEVICE // defined in config/config.hpp
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
+#endif
+
+#if !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+#define MFEM_DEVICE
+#define MFEM_HOST
+#define MFEM_LAMBDA
+// #define MFEM_HOST_DEVICE // defined in config/config.hpp
 #define MFEM_LAUNCH_BOUNDS(...)
 #endif
 
@@ -107,6 +109,19 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
    add += val;
    return old;
 #endif
+}
+
+namespace mfem::internal
+{
+
+template <bool using_cuda_or_hip_language>
+void StaticAssertCudaOrHipLanguage()
+{
+   static_assert(
+      using_cuda_or_hip_language,
+      "The calling function needs to be compiled with CUDA/HIP language!");
+}
+
 }
 
 #endif // MFEM_BACKENDS_HPP

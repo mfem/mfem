@@ -1051,6 +1051,10 @@ inline void ForallWrap(const bool use_dev, const int N,
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   internal::StaticAssertCudaOrHipLanguage<false>();
+#endif
+
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
@@ -1276,12 +1280,18 @@ inline void hypre_forall_cpu(int N, lambda &&body)
 template<typename lambda>
 inline void hypre_forall_gpu(int N, lambda &&body)
 {
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   internal::StaticAssertCudaOrHipLanguage<false>();
+#endif
+
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 #if defined(HYPRE_USING_CUDA)
    CuWrap1D(N, body);
 #elif defined(HYPRE_USING_HIP)
    HipWrap1D(N, body);
 #else
 #error Unknown HYPRE GPU backend!
+#endif
 #endif
 }
 #endif
