@@ -270,6 +270,10 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
                   }
                   mfem::out << "Newton: *** stuck on boundary!\n";
                }
+               // Match the other return paths and set ip; otherwise a point
+               // lying exactly on an element boundary leaves the caller with
+               // an uninitialized IntegrationPoint.
+               ip = xip;
                return Outside;
             }
          }

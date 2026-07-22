@@ -54,6 +54,19 @@ void ParLinearForm::Assemble()
    }
 }
 
+void ParLinearForm::SyncDeltaCounts(Array<int> &counts)
+{
+   // A delta center's containing elements may be split across ranks.
+   MPI_Allreduce(MPI_IN_PLACE, counts.GetData(), counts.Size(), MPI_INT,
+                 MPI_SUM, pfes->GetComm());
+}
+
+void ParLinearForm::FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                                     Array<IntegrationPoint> &ips, bool warn)
+{
+   pfes->GetParMesh()->Mesh::FindPoints(centers, elem_ids, ips, warn);
+}
+
 bool ParLinearForm::SupportsDevice() const
 {
    bool parallel;

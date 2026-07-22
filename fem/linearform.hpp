@@ -17,6 +17,8 @@
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
+#include <vector>
+
 namespace mfem
 {
 
@@ -52,6 +54,8 @@ protected:
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*>    domain_delta_integs;
+   /// Element attribute markers for #domain_delta_integs. Entries are not owned.
+   Array<Array<int>*>           domain_delta_integs_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<LinearFormIntegrator*> boundary_integs;
@@ -65,18 +69,47 @@ protected:
    /// Set of Internal Face Integrators to be applied.
    Array<LinearFormIntegrator*> interior_face_integs;
 
-   /// The element ids where the centers of the delta functions lie
-   Array<int> domain_delta_integs_elem_id;
+   /** @brief Element and reference point for one delta contribution. */
+   struct DeltaElement
+   {
+      int elem; ///< Mesh element index containing the delta center.
+      IntegrationPoint ip; ///< Reference point in element @a elem.
+   };
 
-   /// The reference coordinates where the centers of the delta functions lie
-   Array<IntegrationPoint> domain_delta_integs_ip;
+   /** @brief Locate an anchor element containing each delta center.
 
-   /// If true, the delta locations are not (re)computed during assembly.
-   bool HaveDeltaLocations()
-   { return (domain_delta_integs_elem_id.Size() != 0); }
+       @param centers Matrix of delta centers with `SpaceDimension()` rows and
+       one column per domain delta integrator.
+       @param elem_ids Output element id for each center, or -1 when a center is
+       not found in the mesh.
+       @param ips Output reference point for each center in the corresponding
+       entry of @a elem_ids.
+       @param warn If true, pass warning requests through to `Mesh::FindPoints`.
 
-   /// Force (re)computation of delta locations.
-   void ResetDeltaLocations() { domain_delta_integs_elem_id.SetSize(0); }
+       The base implementation performs a geometric point search over this
+       form's mesh. It inherits the limitations of `Mesh::FindPoints`, which is
+       not guaranteed to find every point that lies in an element. */
+   virtual void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                                 Array<IntegrationPoint> &ips,
+                                 bool warn = false);
+
+   /** @brief Compute containing elements and reference points for all domain
+       delta integrators.
+
+       @param locations Output vector, resized to `domain_delta_integs.Size()`;
+       entry `i` receives the containing elements for delta integrator `i`.
+       This data is derived on demand during assembly and is not cached. */
+   void ComputeDeltaLocations(std::vector<std::vector<DeltaElement>> &locations);
+
+   /** @brief Return true if delta integrator @a i should be assembled on
+       element @a elem. */
+   bool DeltaElementMarked(int i, int elem) const;
+
+   /** @brief Synchronize marked containing-element counts before weighting.
+
+       The serial implementation leaves @a counts unchanged. Parallel derived
+       classes override this hook to sum counts across ranks. */
+   virtual void SyncDeltaCounts(Array<int> &counts);
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -205,8 +238,9 @@ public:
    /// Return true if assembly on device is supported, false otherwise.
    virtual bool SupportsDevice() const;
 
-   /// Assembles delta functions of the linear form
-   void AssembleDelta();
+   /// Assembles delta functions of the linear form. A delta on a shared mesh
+   /// entity is split uniformly over the elements containing its center.
+   virtual void AssembleDelta();
 
    /// Update the object according to the associated FE space #fes.
    /** This method should be called when the associated FE space #fes has been

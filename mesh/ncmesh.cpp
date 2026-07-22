@@ -4057,7 +4057,7 @@ NCMesh::NCList::BuildIndex() const
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 
-void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
+void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices) const
 {
    int mid = nodes.FindId(v0, v1);
    if (mid >= 0 && nodes[mid].HasVertex())
@@ -4069,7 +4069,8 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
    }
 }
 
-void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
+void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2,
+                                    Array<int> &indices) const
 {
    int mid[3];
    if (TriFaceSplit(v0, v1, v2, mid))
@@ -4094,7 +4095,7 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 }
 
 void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
-                                     Array<int> &indices)
+                                     Array<int> &indices) const
 {
    int mid[5];
    real_t scale;
@@ -4125,6 +4126,161 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
             CollectEdgeVertices(mid[1], mid[3], indices);
          }
          break;
+   }
+}
+
+void NCMesh::CollectElementClosureNodes(int elem, Array<int> &indices) const
+{
+   const Element &el = elements[leaf_elements[elem]];
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   const GeomInfo &gi = GI[el.Geom()];
+   const int *node = el.node;
+
+   indices.SetSize(0);
+   for (int j = 0; j < gi.nv; j++) { indices.Append(node[j]); }
+   for (int j = 0; j < gi.ne; j++)
+   {
+      const int *ev = gi.edges[j];
+      CollectEdgeVertices(node[ev[0]], node[ev[1]], indices);
+   }
+
+   if (Dim >= 3)
+   {
+      for (int j = 0; j < gi.nf; j++)
+      {
+         const int *fv = gi.faces[j];
+         if (gi.nfv[j] == 4)
+         {
+            CollectQuadFaceVertices(node[fv[0]], node[fv[1]],
+                                    node[fv[2]], node[fv[3]], indices);
+         }
+         else
+         {
+            CollectTriFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]],
+                                   indices);
+         }
+      }
+   }
+
+   indices.Sort();
+   indices.Unique();
+}
+
+void NCMesh::CollectEntityClosureNodes(int elem,
+                                       const Array<int> &local_entity_vertices,
+                                       Array<int> &indices) const
+{
+   const Element &el = elements[leaf_elements[elem]];
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   const GeomInfo &gi = GI[el.Geom()];
+   const int *node = el.node;
+   indices.SetSize(0);
+
+   if (local_entity_vertices.Size() == 1)
+   {
+      indices.Append(node[local_entity_vertices[0]]);
+   }
+   else if (local_entity_vertices.Size() == 2)
+   {
+      for (int j = 0; j < gi.ne; j++)
+      {
+         const int *ev = gi.edges[j];
+         if (local_entity_vertices.Find(ev[0]) >= 0 &&
+             local_entity_vertices.Find(ev[1]) >= 0)
+         {
+            indices.Append(node[ev[0]]);
+            indices.Append(node[ev[1]]);
+            CollectEdgeVertices(node[ev[0]], node[ev[1]], indices);
+            break;
+         }
+      }
+   }
+   else
+   {
+      for (int j = 0; j < gi.nf; j++)
+      {
+         if (gi.nfv[j] != local_entity_vertices.Size()) { continue; }
+         const int *fv = gi.faces[j];
+         bool match = true;
+         for (int k = 0; k < gi.nfv[j]; k++)
+         {
+            if (local_entity_vertices.Find(fv[k]) < 0)
+            {
+               match = false;
+               break;
+            }
+         }
+         if (!match) { continue; }
+
+         for (int k = 0; k < gi.nfv[j]; k++) { indices.Append(node[fv[k]]); }
+         if (gi.nfv[j] == 4)
+         {
+            CollectQuadFaceVertices(node[fv[0]], node[fv[1]],
+                                    node[fv[2]], node[fv[3]], indices);
+         }
+         else
+         {
+            CollectTriFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]],
+                                   indices);
+         }
+         break;
+      }
+   }
+
+   indices.Sort();
+   indices.Unique();
+}
+
+void NCMesh::FindClosureElements(int elem,
+                                 const Array<int> &local_entity_vertices,
+                                 Array<int> &closure)
+{
+   closure.SetSize(0);
+   if (elem < 0 || elem >= leaf_elements.Size()) { return; }
+
+   const Element &el = elements[leaf_elements[elem]];
+   const GeomInfo &gi = GI[el.Geom()];
+   for (int j = 0; j < local_entity_vertices.Size(); j++)
+   {
+      MFEM_VERIFY(local_entity_vertices[j] >= 0 &&
+                  local_entity_vertices[j] < gi.nv,
+                  "invalid local entity vertex");
+      for (int k = j + 1; k < local_entity_vertices.Size(); k++)
+      {
+         MFEM_VERIFY(local_entity_vertices[j] != local_entity_vertices[k],
+                     "duplicate local entity vertex");
+      }
+   }
+   if (local_entity_vertices.Size() == 0 ||
+       local_entity_vertices.Size() >= gi.nv)
+   {
+      closure.Append(elem);
+      return;
+   }
+
+   Array<int> entity_nodes, elem_nodes;
+   CollectEntityClosureNodes(elem, local_entity_vertices, entity_nodes);
+   MFEM_VERIFY(entity_nodes.Size() > 0,
+               "local_entity_vertices do not identify a mesh entity");
+
+   // The number of queried delta centers is expected to be small. Scan the
+   // leaf-element closure nodes on demand instead of keeping a mesh-wide
+   // node-to-element cache with additional invalidation state.
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      CollectElementClosureNodes(i, elem_nodes);
+      bool intersects = false;
+      for (int j = 0; j < entity_nodes.Size(); j++)
+      {
+         if (elem_nodes.Find(entity_nodes[j]) >= 0)
+         {
+            intersects = true;
+            break;
+         }
+      }
+      if (intersects) { closure.Append(i); }
    }
 }
 
