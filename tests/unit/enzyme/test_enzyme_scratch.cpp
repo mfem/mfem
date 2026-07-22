@@ -193,7 +193,8 @@ TEST_CASE("Enzyme qfunction with SetScratch member",
       y_w[i] = 0.0;
       yd_w[i] = 0.0;
       coef_w[i] = 0.5 + 0.25 * i;
-      scratch_w[i] = -1.0; // Pre-seed to show external memory gets reused/overwritten.
+      scratch_w[i] =
+         -1.0; // Pre-seed to show external memory gets reused/overwritten.
       scratchd_w[i] = 0.0;
    }
 
@@ -231,7 +232,7 @@ TEST_CASE("Enzyme qfunction with SetScratch member",
    if (verbose_tests)
    {
       print_results("Function: y = coef * x^3",
-                                            x, coef, y, yd, scratch, scratchd);
+                    x, coef, y, yd, scratch, scratchd);
    }
 }
 
@@ -311,7 +312,7 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
    if (verbose_tests)
    {
       print_results("Function: y = coef * x^3 (qf dup), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
-                                            x, coef, y, yd, scratch, scratchd);
+                    x, coef, y, yd, scratch, scratchd);
    }
 }
 

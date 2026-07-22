@@ -231,7 +231,7 @@ private:
 
 public:
    static constexpr bool value = decltype(Test(
-      static_cast<std::remove_cv_t<std::remove_reference_t<T>> *>(nullptr)))::value;
+                                             static_cast<std::remove_cv_t<std::remove_reference_t<T>> *>(nullptr)))::value;
 };
 
 template <typename T>
@@ -254,7 +254,7 @@ struct qfunc_shadow_type<qfunc_t, true>
 
 template <typename qfunc_t>
 using qfunc_shadow_t = typename qfunc_shadow_type<qfunc_t,
-                       qfunc_uses_scratch_v<qfunc_t>>::type;
+      qfunc_uses_scratch_v<qfunc_t>>::type;
 
 // Create a persistent q-function shadow if the q-function uses scratch, otherwise return an empty struct.
 template <typename qfunc_t>

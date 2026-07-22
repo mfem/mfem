@@ -869,35 +869,35 @@ inline void enzyme_fwddiff(
       std::remove_reference_t<decltype(std::get<Is>(inputs))>...,
       std::remove_reference_t<decltype(std::get<Os>(primals_out))>...>;
 
-    // wrapper_fn travels as a non-type template parameter throughout without
-    // being stored.
+   // wrapper_fn travels as a non-type template parameter throughout without
+   // being stored.
    if constexpr (qfunc_uses_scratch_v<qfunc_t>)
-    {
-         enzyme_detail::process_inputs<
-         wrapper_fn,
-         qf_return_t,
-         0,
-         ninputs,
-         activity_map[Is]...
-         >(inputs, shadows,
-            primals_out, derivs_out,
-            enzyme_dup, &qfunc, &qfunc_shadow
-          );
-    }
-    else
-    {
-         MFEM_CONTRACT_VAR(qfunc_shadow);
-         enzyme_detail::process_inputs<
-         wrapper_fn,
-         qf_return_t,
-         0,
-         ninputs,
-         activity_map[Is]...
-         >(inputs, shadows,
-            primals_out, derivs_out,
-            enzyme_const, &qfunc
-          );
-    }
+   {
+      enzyme_detail::process_inputs<
+      wrapper_fn,
+      qf_return_t,
+      0,
+      ninputs,
+      activity_map[Is]...
+      >(inputs, shadows,
+        primals_out, derivs_out,
+        enzyme_dup, &qfunc, &qfunc_shadow
+       );
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(qfunc_shadow);
+      enzyme_detail::process_inputs<
+      wrapper_fn,
+      qf_return_t,
+      0,
+      ninputs,
+      activity_map[Is]...
+      >(inputs, shadows,
+        primals_out, derivs_out,
+        enzyme_const, &qfunc
+       );
+   }
 }
 
 // Specialization for qfuncs that do not use scratch, so we don't need to pass a shadow.
@@ -915,7 +915,8 @@ inline void enzyme_fwddiff(
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
-   static_assert(!qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   static_assert(!qfunc_uses_scratch_v<qfunc_t>,
+                 "Should not be reaching this specialization for qfuncs that use scratch!");
    unused_qfunc_shadow qfunc_shadow;
    enzyme_fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t,
                   outputs_t>(qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
@@ -974,7 +975,8 @@ inline void fwddiff(
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
-   static_assert(!qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   static_assert(!qfunc_uses_scratch_v<qfunc_t>,
+                 "Should not be reaching this specialization for qfuncs that use scratch!");
    unused_qfunc_shadow qfunc_shadow;
    fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
@@ -1212,7 +1214,8 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff(
    args_t &shadow_args)
 {
 #ifdef MFEM_USE_ENZYME
-   static_assert(!detail::qfunc_uses_scratch_v<qfunc_t>, "Should not be reaching this specialization for qfuncs that use scratch!");
+   static_assert(!detail::qfunc_uses_scratch_v<qfunc_t>,
+                 "Should not be reaching this specialization for qfuncs that use scratch!");
    detail::unused_qfunc_shadow qfunc_shadow;
    call_enzyme_fwddiff(qfunc, qfunc_shadow, primal_args, shadow_args);
 #else
