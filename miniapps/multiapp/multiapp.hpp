@@ -615,10 +615,9 @@ class DAGraph : public GraphNode
 public:
     enum GradMode
     {
-        FD, // Finite difference Jacobian
-        FORWARD,
-        BACKWARD,
-        JACOBIAN
+        FINITE_DIFF, ///< Finite difference Jacobian
+        ASSEMBLED,   ///< Assembled Jacobian
+        MATRIX_FREE  ///< Matrix-free Jacobian
     };
 
 protected:
@@ -633,12 +632,11 @@ protected:
     bool assembled = false; ///< True if the graph is assembled
     
     mutable Operator *grad = nullptr; ///< Jacobain operator
-    GradMode grad_mode = GradMode::FD;
+    GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
     mutable Vector fx; ///< Temporary vector for function evaluation
     // mutable Vector dx, dy; ///< Temporary vectors for Jacobian computations
 
-    mutable Vector ytmp; ///< Temporary vector (used in forward pass in gradient computations)
-    mutable Vector xgrad; ///< Point of linearization for gradient computations
+    mutable Vector xlin; ///< Point of linearization for gradient computations
 
     friend class GraphGradient;
 
@@ -800,29 +798,23 @@ public:
 
 class GraphGradient : public Operator
 {
-public:
-    using GradMode = DAGraph::GradMode;
-
 protected:
     mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
-    mutable GradMode grad_mode; ///< Gradient mode
 
 public:
-    GraphGradient(DAGraph *graph_, GradMode mode = GradMode::FORWARD) :
-                  Operator(graph_->Height(), graph_->Width()),
-                  graph(graph_), grad_mode(mode) {}
+    GraphGradient(DAGraph *dag) :
+                  Operator(dag->Height(), dag->Width()),
+                  graph(dag) {}
 
     void Mult(const Vector &x, Vector &y) const override;
+
+    void MultTranspose(const Vector &x, Vector &y) const override;
 
     Operator &GetGradient(const Vector &x) const override;
 
     virtual void Forward(const Vector &x, Vector &y) const;
 
     virtual void Backward(const Vector &x, Vector &y) const;
-
-    void SetGradientMode(GradMode mode) { grad_mode = mode; }
-
-    GradMode GetGradientMode() const { return grad_mode; }
 
     ~GraphGradient() = default;
 };

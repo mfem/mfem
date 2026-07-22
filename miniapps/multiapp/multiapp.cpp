@@ -178,7 +178,7 @@ void DAGraph::Execute(const Vector &x, Vector &y)
 
 Operator& DAGraph::GetGradient(const Vector &x) const
 {
-    if(grad_mode == GradMode::FD)
+    if(grad_mode == GradMode::FINITE_DIFF)
     {
         if(!grad)
         {
@@ -192,9 +192,9 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     }
 
     // Forward pass to to populate (intermediate) fields for differentiation
-    ytmp.SetSize(output_offset.Last());
-    xgrad.SetSize(x.Size());
-    xgrad = x; // Store a copy of the input for use in gradient computations
+    fx.SetSize(output_offset.Last());
+    xlin.SetSize(x.Size());
+    xlin = x; // Store a copy of the input for use in gradient computations
 
     // Loop through nodes and set execution mode for forward pass
     // This can be used to inform the nodes to build and store Jacobian at x
@@ -203,7 +203,7 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         node->SetExecutionMode(ExecutionMode::GRADIENT_MODE);
     }
 
-    Mult(xgrad, ytmp); // Forward pass to populate fields for gradient computations
+    Mult(xlin, fx); // Forward pass to populate fields for gradient computations
 
     // Reset execution mode for forward pass
     for(auto node : nodes)
@@ -211,18 +211,21 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         node->SetExecutionMode(ExecutionMode::DEFAULT_MODE);
     }
 
-    if(grad_mode == GradMode::FORWARD || grad_mode == GradMode::BACKWARD)
+    if(grad_mode == GradMode::ASSEMBLED ||
+       grad_mode == GradMode::MATRIX_FREE)
     {
+        // TODO: Destroy and reallocate GraphGradient to internally 
+        //      store the new point of linearization xlin for gradient computations
+        //      and populate intermediate fields
         if(!grad)
         {
-            grad = new GraphGradient(const_cast<DAGraph*>(this), grad_mode);
+            grad = new GraphGradient(const_cast<DAGraph*>(this));
         }
-        else
+        if(grad_mode == GradMode::ASSEMBLED)
         {
-            auto *gg = dynamic_cast<GraphGradient*>(grad);
-            gg->SetGradientMode(grad_mode);
+            return grad->GetGradient(xlin); // Assembled the Jacobian
         }
-        return *grad;
+        return *grad; // GradMode::MATRIX_FREE
     }
     else
     {
@@ -237,25 +240,14 @@ void GraphGradient::Mult(const Vector &x, Vector &y) const
 {
     MFEM_ASSERT(graph != nullptr, "GraphGradient operator requires a non-null DAGraph pointer.");
 
-    if(grad_mode == GradMode::FD)
-    {
-        MFEM_ABORT("GraphGradient::Mult() not implemented for finite difference gradient.");
-    }
-    else if(grad_mode == GradMode::FORWARD)
-    {
-        // Forward mode: compute JVP, y = J(x) * x
-        Forward(x, y);
-    }
-    else if(grad_mode == GradMode::BACKWARD)
-    {
-        // Backward mode: compute VJP, y = J^T(x) * x
-        Backward(x, y);
-    }
-    else
-    {
-        MFEM_ABORT("GraphGradient::Mult() not implemented for gradient mode: "
-                    << static_cast<int>(grad_mode));
-    }
+    Forward(x, y); // Forward mode: compute JVP, y = J(x) * x
+}
+
+void GraphGradient::MultTranspose(const Vector &x, Vector &y) const
+{
+    MFEM_ASSERT(graph != nullptr, "GraphGradient operator requires a non-null DAGraph pointer.");
+
+    Backward(x, y); // Backward mode: compute VJP, y = J^T(x) * x
 }
 
 void GraphGradient::Forward(const Vector &x, Vector &y) const
