@@ -92,6 +92,9 @@ Miscellaneous
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
 
+- Adding a pair of anisotropic diffusion miniapps (umansky_cg and umansky_dg)
+  to compare different methods for solving the diffusion problem with a highly
+  anisotropic coefficient and discontinuous boundary conditions.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
