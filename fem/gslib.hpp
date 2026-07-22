@@ -180,13 +180,14 @@ protected:
 
    // Helper function to setup and free gslib's crystal router.
    void SetupCrystal(); // Called inside Setup and SetupSurf_base
-   void FreeCrystal();   // Called inside FreeData
+   void FreeCrystal();  // Called inside FreeData
 
-   /// Use GSLIB for communication and interpolation
+   /// Use GSLIB for communication and interpolation. Updates field_out on
+   /// host.
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out,
                               const int field_out_ordering);
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
-   /// interpolation functions
+   /// interpolation functions. Updates field_out on host.
    virtual void InterpolateGeneral(const GridFunction &field_in,
                                    Vector &field_out,
                                    const int field_out_ordering);
@@ -325,22 +326,22 @@ protected:
    void findptsedge_setup_2(DEV_STRUCT &devs,
                             const double *const elx[2],
                             const unsigned n,
-                            const uint nel,
+                            const unsigned int nel,
                             const unsigned m,
                             const double bbox_rel_size_inc,
-                            const uint local_hash_size,
-                            const uint global_hash_size,
+                            const unsigned int local_hash_size,
+                            const unsigned int global_hash_size,
                             const Vector *aabb_sz_inc);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
    void findptssurf_setup_3(DEV_STRUCT &devs,
                             const double *const elx[3],
                             const unsigned n,
-                            const uint nel,
+                            const unsigned int nel,
                             const unsigned m,
                             const double bbox_rel_size_inc,
-                            const uint local_hash_size,
-                            const uint global_hash_size,
+                            const unsigned int local_hash_size,
+                            const unsigned int global_hash_size,
                             const int rD,
                             const Vector *aabb_sz_inc);
 
@@ -515,7 +516,11 @@ public:
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value.
-                              The output ordering is determined from field_in.*/
+                              The output ordering is determined from field_in.
+
+       @note: field_out is moved to device if field_in is on device. Otherwise,
+              field_out memory allocation is not changed.
+   */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
 
    /// Interpolation of field values, with output ordering specification.
