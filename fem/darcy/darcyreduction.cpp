@@ -29,24 +29,6 @@ DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
 
 DarcyReduction::~DarcyReduction()
 {
-   if (own_m_nlfi_u) { delete m_nlfi_u; }
-   if (own_m_nlfi_p) { delete m_nlfi_p; }
-}
-
-void DarcyReduction::SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator
-                                                    *flux_integ, bool own)
-{
-   if (own_m_nlfi_u) { delete m_nlfi_u; }
-   own_m_nlfi_u = own;
-   m_nlfi_u = flux_integ;
-}
-
-void DarcyReduction::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
-                                                   *pot_integ, bool own)
-{
-   if (own_m_nlfi_p) { delete m_nlfi_p; }
-   own_m_nlfi_p = own;
-   m_nlfi_p = pot_integ;
 }
 
 void DarcyReduction::InitA()
@@ -66,10 +48,7 @@ void DarcyReduction::InitA()
       Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
    }
 
-   if (!m_nlfi_u)
-   {
-      Af_data.SetSize(Af_offsets[NE]);
-   }
+   Af_data.SetSize(Af_offsets[NE]);
 }
 
 void DarcyReduction::InitBD()
@@ -94,10 +73,7 @@ void DarcyReduction::InitBD()
    }
 
    Bf_data.SetSize(Bf_offsets[NE]); Bf_data = 0.;
-   if (!m_nlfi_p)
-   {
-      D_data.SetSize(D_offsets[NE]); D_data = 0.;
-   }
+   D_data.SetSize(D_offsets[NE]); D_data = 0.;
 }
 
 void DarcyReduction::InitBFaces()
@@ -526,9 +502,6 @@ int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
 
 void DarcyFluxReduction::ComputeS()
 {
-   MFEM_ASSERT(!m_nlfi_u && !m_nlfi_p,
-               "Cannot assemble S matrix in the non-linear regime");
-
    const int skip_zeros = 1;
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
@@ -1070,11 +1043,8 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
       Be_offsets[i+1] = Be_offsets[i] + e_size*d_size;
    }
 
-   if (!m_nlfi_u)
-   {
-      Af_data.SetSize(Af_offsets[NE]);
-      Ae_data.SetSize(Ae_offsets[NE]);
-   }
+   Af_data.SetSize(Af_offsets[NE]);
+   Ae_data.SetSize(Ae_offsets[NE]);
 
    InitBD();
 
@@ -1120,9 +1090,6 @@ void DarcyPotentialReduction::GetEDofs(int el, Array<int> &edofs) const
 
 void DarcyPotentialReduction::ComputeS()
 {
-   MFEM_ASSERT(!m_nlfi_u && !m_nlfi_p,
-               "Cannot assemble S matrix in the non-linear regime");
-
    const int skip_zeros = 1;
    const int NE = fes_u.GetNE();
 

@@ -62,10 +62,6 @@ class DarcyReduction : public Operator
 protected:
    FiniteElementSpace &fes_u;   ///< flux FE space
    FiniteElementSpace &fes_p;   ///< potential FE space
-   NonlinearFormIntegrator *m_nlfi_u{};
-   NonlinearFormIntegrator *m_nlfi_p{};
-   bool own_m_nlfi_u{};
-   bool own_m_nlfi_p{};
 
    Array<int> Af_offsets;        ///< @a Mu element matrix offsets
    Array<int> Af_f_offsets;      ///< @a Mu element vector offsets
@@ -132,15 +128,6 @@ public:
 
    /// Destructor
    virtual ~DarcyReduction();
-
-   void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
-                                       bool own = true);
-
-   void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
-                                      bool own = true);
-
-   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
-   NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    /// Prepare the DarcyReduction object for assembly
    /** @param ess_flux_tdof_list    essential true DOFs of the flux */
