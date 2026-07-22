@@ -15,9 +15,6 @@
 
 #ifdef MFEM_USE_ENZYME
 
-namespace enzyme_test_setscratch
-{
-
 using namespace mfem;
 using namespace mfem::future;
 
@@ -169,8 +166,6 @@ inline void print_qdata_results(const char *label,
    }
 }
 
-} // namespace enzyme_test_setscratch
-
 TEST_CASE("Enzyme qfunction with SetScratch member",
           "[Enzyme][GPU][Global-SetScratch]")
 {
@@ -184,15 +179,22 @@ TEST_CASE("Enzyme qfunction with SetScratch member",
    coef.UseDevice(true);
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      scratch(i) = -1.0; // Pre-seed to show external memory gets reused/overwritten.
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      scratch_w[i] = -1.0; // Pre-seed to show external memory gets reused/overwritten.
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -203,31 +205,32 @@ TEST_CASE("Enzyme qfunction with SetScratch member",
    auto scratch_d = scratch.ReadWrite();
    auto scratchd_d = scratchd.ReadWrite();
 
-   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_wrapper<N>,
+   __enzyme_fwddiff<void>((void *)qfunction_wrapper<N>,
                           enzyme_dup, x_d, xd_d,
                           enzyme_dup, y_d, yd_d,
                           enzyme_const, coef_d,
                           enzyme_dup, scratch_d, scratchd_d,
                           enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const real_t *x_h = x.HostRead();
+   const real_t *coef_h = coef.HostRead();
+   const real_t *yd_h = yd.HostRead();
+   const real_t *scratch_h = scratch.HostRead();
+   const real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
-      const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
+      const double exact_scratchd = 2.0 * x_h[q];
 
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
    }
    if (verbose_tests)
    {
-      enzyme_test_setscratch::print_results("Function: y = coef * x^3",
+      print_results("Function: y = coef * x^3",
                                             x, coef, y, yd, scratch, scratchd);
    }
 }
@@ -246,17 +249,25 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
    coefd.UseDevice(true);
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto coefd_w = coefd.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
 
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      coefd(i) = 0.0;
-      scratch(i) = -1.0;
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      coefd_w[i] = 0.0;
+      scratch_w[i] = -1.0;
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -268,37 +279,38 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf dup",
    auto scratch_d = scratch.ReadWrite();
    auto scratchd_d = scratchd.ReadWrite();
 
-   enzyme_test_setscratch::CubicQFunctionWithMemberScratch qf;
-   enzyme_test_setscratch::CubicQFunctionWithMemberScratch qf_d;
+   CubicQFunctionWithMemberScratch qf;
+   CubicQFunctionWithMemberScratch qf_d;
    qf.SetCoef(coef_d);
    qf.SetScratch(scratch_d);
    qf_d.SetCoef(coefd_d);
    qf_d.SetScratch(scratchd_d);
 
-   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_apply<N>,
+   __enzyme_fwddiff<void>((void *)qfunction_apply<N>,
                           enzyme_dup, &qf, &qf_d,
                           enzyme_dup, x_d, xd_d,
                           enzyme_dup, y_d, yd_d,
                           enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const real_t *x_h = x.HostRead();
+   const real_t *coef_h = coef.HostRead();
+   const real_t *yd_h = yd.HostRead();
+   const real_t *scratch_h = scratch.HostRead();
+   const real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
-      const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
+      const double exact_scratchd = 2.0 * x_h[q];
 
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
    }
    if (verbose_tests)
    {
-      enzyme_test_setscratch::print_results("Function: y = coef * x^3 (qf dup), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
+      print_results("Function: y = coef * x^3 (qf dup), yd = 3 * coef * x^2, scratch = x^2, scratchd = 2 * x",
                                             x, coef, y, yd, scratch, scratchd);
    }
 }
@@ -316,17 +328,24 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf const",
    coef.UseDevice(true);
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
 
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
       scratch_seed(i) = 1.0 + 0.5 * i;
-      scratch(i) = scratch_seed(i);
-      scratchd(i) = 0.0;
+      scratch_w[i] = scratch_seed(i);
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -336,38 +355,41 @@ TEST_CASE("Enzyme qfunction with SetScratch member and qf const",
    auto coef_d = coef.Read();
    auto scratch_d = scratch.ReadWrite();
 
-   enzyme_test_setscratch::LinearQFunctionWithExternalScratch qf;
+   LinearQFunctionWithExternalScratch qf;
    qf.SetCoef(coef_d);
    qf.SetScratch(scratch_d);
 
-   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_apply_qdata<N>,
+   __enzyme_fwddiff<void>((void *)qfunction_apply_qdata<N>,
                           enzyme_const, &qf,
                           enzyme_dup, x_d, xd_d,
                           enzyme_dup, y_d, yd_d,
                           enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const real_t *x_h = x.HostRead();
+   const real_t *coef_h = coef.HostRead();
+   const real_t *scratch_seed_h = scratch_seed.HostRead();
+   const real_t *y_h = y.HostRead();
+   const real_t *yd_h = yd.HostRead();
+   const real_t *scratch_h = scratch.HostRead();
+   const real_t *scratchd_h = scratchd.HostRead();
 
    if (verbose_tests)
    {
-      enzyme_test_setscratch::print_qdata_results(
+      print_qdata_results(
          "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
          x, coef, scratch, y, yd);
    }
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_scratch = 2.0 * scratch_seed[q];
-      const double exact_y = coef[q] * exact_scratch * x[q];
-      const double exact_yd = coef[q] * exact_scratch;
+      const double exact_scratch = 2.0 * scratch_seed_h[q];
+      const double exact_y = coef_h[q] * exact_scratch * x_h[q];
+      const double exact_yd = coef_h[q] * exact_scratch;
 
-      REQUIRE(y[q] == MFEM_Approx(exact_y));
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(0.0));
+      REQUIRE(y_h[q] == MFEM_Approx(exact_y));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(0.0));
    }
 }
 
@@ -384,17 +406,24 @@ TEST_CASE("Enzyme qfunction with external qdata-like scratch and qf const",
    coef.UseDevice(true);
    qdata.UseDevice(true);
    qdatad.UseDevice(true);
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto qdata_w = qdata.HostWrite();
+   auto qdatad_w = qdatad.HostWrite();
 
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
       qdata_seed(i) = 1.0 + 0.5 * i;
-      qdata(i) = qdata_seed(i); // Mimic external qdata provided from outside.
-      qdatad(i) = 0.0;
+      qdata_w[i] = qdata_seed(i); // Mimic external qdata provided from outside.
+      qdatad_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -404,35 +433,38 @@ TEST_CASE("Enzyme qfunction with external qdata-like scratch and qf const",
    auto coef_d = coef.Read();
    auto qdata_d = qdata.ReadWrite();
 
-   enzyme_test_setscratch::LinearQFunctionWithExternalScratch qf;
+   LinearQFunctionWithExternalScratch qf;
    qf.SetCoef(coef_d);
    qf.SetScratch(qdata_d);
 
-   __enzyme_fwddiff<void>((void *)enzyme_test_setscratch::qfunction_apply_qdata<N>,
+   __enzyme_fwddiff<void>((void *)qfunction_apply_qdata<N>,
                           enzyme_const, &qf,
                           enzyme_dup, x_d, xd_d,
                           enzyme_dup, y_d, yd_d,
                           enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   qdata.HostRead();
-   qdatad.HostRead();
+   const real_t *x_h = x.HostRead();
+   const real_t *coef_h = coef.HostRead();
+   const real_t *qdata_seed_h = qdata_seed.HostRead();
+   const real_t *y_h = y.HostRead();
+   const real_t *yd_h = yd.HostRead();
+   const real_t *qdata_h = qdata.HostRead();
+   const real_t *qdatad_h = qdatad.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_qdata = 2.0 * qdata_seed[q];
-      const double exact_y = coef[q] * exact_qdata * x[q];
-      const double exact_yd = coef[q] * exact_qdata;
+      const double exact_qdata = 2.0 * qdata_seed_h[q];
+      const double exact_y = coef_h[q] * exact_qdata * x_h[q];
+      const double exact_yd = coef_h[q] * exact_qdata;
 
-      REQUIRE(qdata[q] == MFEM_Approx(exact_qdata));
-      REQUIRE(y[q] == MFEM_Approx(exact_y));
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(qdatad[q] == MFEM_Approx(0.0));
+      REQUIRE(qdata_h[q] == MFEM_Approx(exact_qdata));
+      REQUIRE(y_h[q] == MFEM_Approx(exact_y));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(qdatad_h[q] == MFEM_Approx(0.0));
    }
    if (verbose_tests)
    {
-      enzyme_test_setscratch::print_qdata_results(
+      print_qdata_results(
          "Function: scratch <- 2*scratch; y = coef * scratch * x (qf const)",
          x, coef, qdata, y, yd);
    }

@@ -269,7 +269,7 @@ struct HyperelasticityTestContext
 
 
 TEST_CASE("dfem neo-hookean energy and stress agree",
-          "[Parallel][dFEM][Hyperelasticity]")
+          "[Parallel][dFEM][GPU][Hyperelasticity]")
 {
    HyperelasticityTestContext energy(true);
    HyperelasticityTestContext stress(false);
