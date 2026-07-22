@@ -20,27 +20,25 @@ CrystalRouter::~CrystalRouter() {
 }
 
 void CrystalRouter::Route(const Array<unsigned int> &rank_list,
-                          Array<unsigned long long> &ids,
-                          std::initializer_list<Group<Array<int>>> tag_groups,
-                          std::initializer_list<Group<ParticleVector>> data_groups)
+                          std::initializer_list<CR::FieldGroup> field_groups)
 {
-    // Internally convert group braced init lists to std vectors
-   std::vector<Array<int>*> tags;
-   for (const auto &g : tag_groups){ tags.insert(tags.end(), g.cols.begin(), g.cols.end()); }
-
-   std::vector<ParticleVector*> data;
-   for (const auto &g : data_groups){ data.insert(data.end(), g.cols.begin(), g.cols.end()); }
+   std::vector<CR::Field*> fields;
+   for (const auto &g : field_groups) {
+      for (const auto &f : g.cols) { fields.push_back(f.get()); }
+   }
+   for (const auto *f : fields) {
+      MFEM_VERIFY(f->Size() == rank_list.Size(),
+                  "CrystalRouter: field size does not match rank_list size");
+   }
 
    // copy to preserve rank list
    Array<unsigned int> ranks(rank_list);
-   RouteInternal(ranks, ids, tags, data);
+   RouteInternal(ranks, fields);
 }
 
 // PRIVATE METHODS
 void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
-                              Array<unsigned long long> &ids,
-                              const std::vector<Array<int>*> &tags,
-                              const std::vector<ParticleVector*> &data)
+                                  const std::vector<CR::Field*> &fields)
 {
 
    uint32_t bl = 0, bh, nl;
@@ -53,7 +51,7 @@ void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
       nl = (n+1)/2;
       bh = bl + nl;
       send_hi = (id < bh);
-      Move(ranks, ids, tags, data, bh, send_hi);
+      Move(ranks, fields, bh, send_hi);
 
       recvn = 1, targ = n-1-(id-bl)+bl;
       if (id == targ) {
@@ -64,7 +62,7 @@ void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
          recvn = 2;
       }
 
-      Exchange(ranks, ids, tags, data, targ, recvn, msg_tag);
+      Exchange(ranks, fields, targ, recvn, msg_tag);
 
       if (id < bh) {
          n = nl;
@@ -78,9 +76,7 @@ void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
 }
 
 void CrystalRouter::Move(Array<unsigned int> &ranks,
-                         Array<unsigned long long> &ids,
-                         const std::vector<Array<int>*> &tags,
-                         const std::vector<ParticleVector*> &data,
+                         const std::vector<CR::Field*> &fields,
                          unsigned int cutoff, bool send_hi)
 {
    int n = ranks.Size();
@@ -103,39 +99,25 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
    int nsend = send_indices.size();
    int nkeep = keep_indices.size();
 
-   // one int32 per tag column, fixed across the route
-   const size_t tag_bytes  = tags.size() * sizeof(int);
-   const size_t id_bytes   = sizeof(unsigned long long);
-
-   // data block is all ParticleVectors concatenated
-   size_t data_bytes = 0;
-   for (auto *pv : data) { data_bytes += (size_t)pv->GetVDim() * sizeof(real_t); }
-
-   // rank | tags | id | data
-   const size_t total_bytes = sizeof(unsigned int) + tag_bytes + id_bytes + data_bytes;
+   // rank | field blocks in list order
+   size_t field_bytes = 0;
+   for (const auto *f : fields) { field_bytes += f->RowBytes(); }
+   const size_t total_bytes = sizeof(unsigned int) + field_bytes;
 
    send_buf.SetSize(nsend * total_bytes);
 
    // gather sends: pack each particle's columns into one contiguous byte row
-   Vector slice;
    for (int i = 0; i < nsend; i++) {
       int idx = send_indices[i];
       char *row = send_buf.GetData() + i * total_bytes;
       size_t off = 0;
       unsigned int r = ranks[idx];
-      unsigned long long gid = ids[idx];
 
-      // pack rank -> tags -> id -> data
-      std::memcpy(row + off, &r, sizeof(unsigned int));                    off += sizeof(unsigned int);
-      for (auto *tag : tags) {
-         int t = (*tag)[idx];
-         std::memcpy(row + off, &t, sizeof(int));                          off += sizeof(int);
-      }
-      std::memcpy(row + off, &gid, id_bytes);                              off += id_bytes;
-      for (auto *pv : data) {
-         const size_t b = (size_t)pv->GetVDim() * sizeof(real_t);
-         pv->GetValues(idx, slice);
-         std::memcpy(row + off, slice.GetData(), b);                       off += b;
+      std::memcpy(row + off, &r, sizeof(unsigned int));
+      off += sizeof(unsigned int);
+      for (auto *f : fields) {
+         f->Pack(idx, row + off);
+         off += f->RowBytes();
       }
    }
 
@@ -144,35 +126,22 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
       int idx = keep_indices[k];
       if (k != idx) {
          ranks[k] = ranks[idx];
-         ids[k] = ids[idx];
-         for (auto *tag : tags) {
-            (*tag)[k] = (*tag)[idx];
-         }
-         for (auto *pv : data) {
-            pv->GetValues(idx, slice);
-            pv->SetValues(k, slice);
-         }
+         for (auto *f : fields) { f->Copy(idx, k); }
       }
    }
 
-   // update kept sizes (ordering-aware truncate for the real columns)
+   // update kept sizes (each field resizes ordering-aware)
    ranks.SetSize(nkeep);
-   ids.SetSize(nkeep);
-   for (auto *tag : tags) { tag->SetSize(nkeep); }
-   for (auto *pv : data) { pv->SetNumParticles(nkeep, true); }
+   for (auto *f : fields) { f->Resize(nkeep); }
 }
 
 void CrystalRouter::Exchange(Array<unsigned int> &ranks,
-                             Array<unsigned long long> &ids,
-                             const std::vector<Array<int>*> &tags,
-                             const std::vector<ParticleVector*> &data,
+                             const std::vector<CR::Field*> &fields,
                              int target, int recvn, int msg_tag)
 {
-   const size_t tag_bytes     = tags.size() * sizeof(int);
-   const size_t id_bytes      = sizeof(unsigned long long);
-   size_t data_bytes = 0;
-   for (auto *pv : data) { data_bytes += (size_t)pv->GetVDim() * sizeof(real_t); }
-   const size_t total_bytes   = sizeof(unsigned int) + tag_bytes + id_bytes + data_bytes;
+   size_t field_bytes = 0;
+   for (const auto *f : fields) { field_bytes += f->RowBytes(); }
+   const size_t total_bytes = sizeof(unsigned int) + field_bytes;
 
    // exchange counts
    MPI_Request reqs[3];
@@ -208,11 +177,9 @@ void CrystalRouter::Exchange(Array<unsigned int> &ranks,
              msg_tag+1, comm, &reqs[0]);
    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
-   // append received rows
    int old_n = ranks.Size();
-   for (auto *pv : data) { pv->SetNumParticles(old_n + nrecv, true); }
+   for (auto *f : fields) { f->Resize(old_n + nrecv); }
 
-   Vector slice;
    for (int i = 0; i < nrecv; i++) {
       const char *row = recv_buf.GetData() + i * total_bytes;
       size_t off = 0;
@@ -220,22 +187,9 @@ void CrystalRouter::Exchange(Array<unsigned int> &ranks,
       std::memcpy(&r, row + off, sizeof(unsigned int));
       off += sizeof(unsigned int);
       ranks.Append(r);
-      for (auto *tag : tags) {
-         int t;
-         std::memcpy(&t, row + off, sizeof(int));
-         off += sizeof(int);
-         tag->Append(t);
-      }
-      unsigned long long gid;
-      std::memcpy(&gid, row + off, id_bytes);
-      off += id_bytes;
-      ids.Append(gid);
-      for (auto *pv : data) {
-         const int vd = pv->GetVDim();
-         slice.SetSize(vd);
-         std::memcpy(slice.GetData(), row + off, (size_t)vd * sizeof(real_t));
-         off += (size_t)vd * sizeof(real_t);
-         pv->SetValues(old_n + i, slice);
+      for (auto *f : fields) {
+         f->Unpack(old_n + i, row + off);
+         off += f->RowBytes();
       }
    }
 }

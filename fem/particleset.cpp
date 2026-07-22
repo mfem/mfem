@@ -252,7 +252,8 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    MFEM_ASSERT(rank_list.Size() == GetNParticles(),
                "rank_list must be of size GetNParticles().");
 
-   crystal_router->Route(rank_list, ids, {tags}, {coords, fields});
+   crystal_router->Route(rank_list,
+      {CR::Array(ids), CR::ParticleVector(coords), fields, tags});
 }
 #endif // MFEM_USE_MPI
 
