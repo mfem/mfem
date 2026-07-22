@@ -543,7 +543,8 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
    }
 
 #ifdef MFEM_USE_MPFR
-   MFEM_WARNING("MPFR implementation of Gauss-Jacobi quadrature not implemented yet. Falling back to double precision implementation...");
+   MFEM_WARNING("MPFR implementation of Gauss-Jacobi quadrature not implemented yet. Falling "
+                "back to double precision implementation...");
 #endif
 
    const int n = np;
