@@ -178,7 +178,7 @@ public:
       MPI_Comm comm = M.GetComm();
       int myrank;
       MPI_Comm_rank(comm, &myrank);
-      MPI_Bcast(&ddt, 1, MPI_DOUBLE, 0, comm);
+      MPI_Bcast(&ddt, 1, MFEM_MPI_REAL_T, 0, comm);
 
       // allow for some tolerance in the time stepping process
       constexpr real_t epsilon = std::numeric_limits<real_t>::epsilon() * 10;
