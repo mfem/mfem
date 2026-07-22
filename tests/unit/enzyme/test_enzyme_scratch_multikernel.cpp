@@ -219,7 +219,7 @@ inline void print_results(const char *label,
 // yd comes out wrong (missing the factor-of-3 term).
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
-          "[Enzyme][MultiKernel][QFConst]")
+          "[Enzyme][GPU][MultiKernel][QFConst]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
@@ -315,7 +315,7 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
 // it holds no differentiable state directly.
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
-          "[Enzyme][MultiKernel][ExplicitScratch]")
+          "[Enzyme][GPU][MultiKernel][ExplicitScratch]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
@@ -410,7 +410,7 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
 // the shadow is reachable through qf_d.scratch between calls.
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
-          "[Enzyme][MultiKernel][QFDup]")
+          "[Enzyme][GPU][MultiKernel][QFDup]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N),
