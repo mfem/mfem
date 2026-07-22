@@ -46,6 +46,13 @@ Discretization improvements
 
 - Extend FindPointsGSLIB to support surface meshes.
 
+- Added support for complex-valued mixed bilinear forms via the new classes
+  MixedSesquilinearForm and ParMixedSesquilinearForm, mirroring the existing
+  SesquilinearForm classes. Rectangular complex operators are now also
+  handled correctly by ComplexSparseMatrix::GetSystemMatrix and
+  ComplexHypreParMatrix::GetSystemMatrix, which previously assumed equal
+  trial and test spaces.
+
 Meshing improvements
 --------------------
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
