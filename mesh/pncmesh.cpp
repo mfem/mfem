@@ -1110,7 +1110,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    for (int i = 0; i < fnbr.Size(); i++)
    {
       NCMesh::Element* elem = fnbr[i];
-      mfem::Element* fne = NewMeshElement(elem->geom);
+      // Allocate through the mesh so tetrahedra come from its MemAlloc pool:
+      // these elements are freed by Mesh::FreeElement (DeleteFaceNbrData),
+      // which returns tetrahedra to the pool and would leak plain new'd ones.
+      mfem::Element* fne = pmesh.NewElement(elem->geom);
       fne->SetAttribute(elem->attribute);
       pmesh.face_nbr_elements.Append(fne);
 
