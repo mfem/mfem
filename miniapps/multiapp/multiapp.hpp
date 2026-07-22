@@ -732,6 +732,28 @@ public:
 
     void ValidateOffsets();
 
+    using GraphNode::AddInput;
+    void AddInput(Field *field, int sz, bool own = false)
+    {
+        if(input_offset.Size() == 0)
+        {   // First entry
+            input_offset.Append(0);
+        }
+        input_offset.Append(input_offset.Last() + sz);
+        AddInput(field, own);
+    }
+
+    using GraphNode::AddOutput;
+    void AddOutput(Field *field, int sz, bool own = false)
+    {
+        if(output_offset.Size() == 0)
+        {   // First entry
+            output_offset.Append(0);
+        }
+        output_offset.Append(output_offset.Last() + sz);
+        AddOutput(field, own);
+    }
+
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)
     {
