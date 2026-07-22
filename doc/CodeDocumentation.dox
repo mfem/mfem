@@ -145,8 +145,8 @@ namespace mfem {
  *   <a class="el" href="hdg_2ex6p_8cpp_source.html">6p</a>,
  *   <a class="el" href="hdg_2ex14_8cpp_source.html">14</a>,
  *   <a class="el" href="hdg_2ex14p_8cpp_source.html">14p</a>,
- *   <a class="el" href="hdg_2ex17_8cpp_source.html">21</a>,
- *   <a class="el" href="hdg_2ex17p_8cpp_source.html">21p</a>,
+ *   <a class="el" href="hdg_2ex17_8cpp_source.html">17</a>,
+ *   <a class="el" href="hdg_2ex17p_8cpp_source.html">17p</a>,
  *   <a class="el" href="hdg_2ex21_8cpp_source.html">21</a>,
  *   <a class="el" href="hdg_2ex21p_8cpp_source.html">21p</a>,
  *   <a class="el" href="hdg_2ex41_8cpp_source.html">41</a> and

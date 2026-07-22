@@ -52,7 +52,7 @@ namespace mfem
     The individual terms of the system are accessed through Get*Form() or
     Get*RHS() methods, where the non-const versions construct the corresponding
     forms at the first occurance. After setting up the (bi)linear forms, the
-    system is assembled through Assemble() and finilized by Finalize(),
+    system is assembled through Assemble() and finalized by Finalize(),
     similarly to BilinearForm. Furthermore, the elimination of the essential
     TDOFs and construction of the discrete linear system is done through
     FormLinearSystem() followed by RecoverFEMSolution(). Note the primary
@@ -235,7 +235,7 @@ public:
    /** @note The form is constructed if it has not been already. */
    LinearForm *GetPotentialRHS();
 
-   /// Get the potential right-hand-side form (non-const)
+   /// Get the potential right-hand-side form (const)
    const LinearForm *GetPotentialRHS() const { return b_p.get(); }
 
    ///@}
