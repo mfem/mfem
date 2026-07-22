@@ -1793,25 +1793,44 @@ void H1_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   real_t z = ip.z;
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
 
-   poly1d.CalcLegendre(p, x, shape_x.GetData());
-   poly1d.CalcLegendre(p, y, shape_y.GetData());
+   if (std::abs(z - 1.0) < apex_tol)
+   {
+      // Compute the limit of the basis functions as z->1 with x and y on the
+      // line between the center of the base and the apex
+      u = 0.;
+      int o = 0;
+      for (int i = 0; i <= p; i++)
+         for (int j = 0; j <= p; j++)
+         {
+            int maxij = std::max(i, j);
+            for (int k = 0; k <= p - maxij; k++, o++)
+               if (i == 0 && j == 0)
+               {
+                  u(o) = ((k + 3.) * k + 2.) / 2.;
+               }
+         }
+   }
+   else
+   {
+      poly1d.CalcLegendre(p, x, shape_x.GetData());
+      poly1d.CalcLegendre(p, y, shape_y.GetData());
 
-   int o = 0;
-   for (int i = 0; i <= p; i++)
-      for (int j = 0; j <= p; j++)
-      {
-         int maxij = std::max(i, j);
-         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
-                                          shape_z);
-         for (int k = 0; k <= p - maxij; k++)
-            u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
-                     pow(1.0 - ip.z, maxij);
-      }
-
+      int o = 0;
+      for (int i = 0; i <= p; i++)
+         for (int j = 0; j <= p; j++)
+         {
+            int maxij = std::max(i, j);
+            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                             z, 1.0, shape_z);
+            for (int k = 0; k <= p - maxij; k++)
+               u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
+                        pow(1.0 - ip.z, maxij);
+         }
+   }
    Ti.Mult(u, shape);
 }
 
@@ -1830,37 +1849,68 @@ void H1_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
    Vector dshape_z(order+1);
    Vector dshape_z_dt(order+1);
 #endif
-   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   real_t z = ip.z;
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
 
-   poly1d.CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
-   poly1d.CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
-
-   int o = 0;
-   for (int i = 0; i <= p; i++)
-      for (int j = 0; j <= p; j++)
-      {
-         int maxij = std::max(i, j);
-         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
-                                          shape_z, dshape_z, dshape_z_dt);
-
-         for (int k = 0; k <= p - maxij; k++, o++)
+   if (std::abs(z - 1.0) < apex_tol)
+   {
+      // Compute the limit of the gradients of the basis functions as
+      // z->1 with x and y on the line between the center of the base and the
+      // apex
+      du = 0.;
+      int o = 0;
+      for (int i = 0; i <= p; i++)
+         for (int j = 0; j <= p; j++)
          {
-            du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
-                      pow(1.0 - ip.z, maxij - 1);
-            du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
-                      pow(1.0 - ip.z, maxij - 1);
-            du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
-                      pow(1.0 - ip.z, maxij) +
-                      (ip.x * dshape_x(i) * shape_y(j) +
-                       ip.y * shape_x(i) * dshape_y(j)) *
-                      shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
-                      maxij * shape_x(i) * shape_y(j) * shape_z(k) *
-                      pow(1.0 - ip.z, maxij - 1);
+            int maxij = std::max(i, j);
+            for (int k = 0; k <= p - maxij; k++, o++)
+            {
+               if (i == 0 && j == 0)
+               {
+                  du(o,2) = (((k + 6.) * k + 11.) * k + 6.) * k / 6.;
+               }
+               else if (i == 1 && j == 0)
+               {
+                  du(o,0) = ((((k + 10.) * k + 35.) * k + 50.) * k + 24.) / 24.;
+               }
+               else if (i == 0 && j == 1)
+               {
+                  du(o,1) = ((((k + 10.) * k + 35.) * k + 50.) * k + 24.) / 24.;
+               }
+            }
          }
-      }
+   }
+   else
+   {
+      poly1d.CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
+      poly1d.CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
 
+      int o = 0;
+      for (int i = 0; i <= p; i++)
+         for (int j = 0; j <= p; j++)
+         {
+            int maxij = std::max(i, j);
+            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                             z, 1.0,
+                                             shape_z, dshape_z, dshape_z_dt);
+
+            for (int k = 0; k <= p - maxij; k++, o++)
+            {
+               du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+                         pow(1.0 - ip.z, maxij - 1);
+               du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+                         pow(1.0 - ip.z, maxij - 1);
+               du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
+                         pow(1.0 - ip.z, maxij) +
+                         (ip.x * dshape_x(i) * shape_y(j) +
+                          ip.y * shape_x(i) * dshape_y(j)) *
+                         shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
+                         maxij * shape_x(i) * shape_y(j) * shape_z(k) *
+                         (maxij > 0 ? pow(1.0 - ip.z, maxij - 1) : 0.0);
+            }
+         }
+   }
    Ti.Mult(du, dshape);
 }
 
