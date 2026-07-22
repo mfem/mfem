@@ -52,13 +52,6 @@ constexpr int COORDINATES = 4;
 // The user only writes operator(); the shared base handles scratch setup.
 struct CubicQFWithScratch : QFWithScratchType
 {
-   CubicQFWithScratch CreateShadow() const
-   {
-      CubicQFWithScratch shadow;
-      CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
@@ -91,13 +84,6 @@ struct CubicQFWithScratch : QFWithScratchType
 template <int DIM>
 struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 {
-   CubicQFWithScratchMultipleSizes CreateShadow() const
-   {
-      CubicQFWithScratchMultipleSizes shadow;
-      this->CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
@@ -131,13 +117,6 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 
 struct CubicQFWithGlobalScratch : QFWithGlobalScratchType
 {
-   CubicQFWithGlobalScratch CreateShadow() const
-   {
-      CubicQFWithGlobalScratch shadow;
-      CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
