@@ -180,6 +180,92 @@ TEST_CASE("Get Particle Reference", "[ParticleSet]")
 
 }
 
+#if defined(MFEM_USE_MPI)
+
+void TestRedistributeNative(Ordering::Type ordering)
+{
+   int size = Mpi::WorldSize();
+   int rank = Mpi::WorldRank();
+
+   constexpr int target_tag = 0;
+
+   std::vector<Particle> all_particles;
+   int seed = 17;
+   std::mt19937 gen(seed);
+   std::uniform_int_distribution<> rank_dist(0, size - 1);
+
+   for (int i = 0; i < N; i++)
+   {
+      all_particles.emplace_back(SpaceDim, FieldVDims, NumTags);
+      Particle &p = all_particles.back();
+
+      InitializeRandom(p, seed);
+
+      p.Tag(target_tag) = rank_dist(gen);
+
+      seed++;
+   }
+
+   int N_rank = N/size + ( rank < N % size ? 1 : 0);
+
+   SECTION(std::string("Ordering: ") +
+           (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
+   {
+      ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
+                       NumTags, ordering);
+
+      for (int i = 0; i < N_rank; i++)
+      {
+         pset.AddParticle(all_particles[i*size+rank]);
+      }
+
+      Array<unsigned int> rank_list(pset.GetNParticles());
+      for (int i = 0; i < pset.GetNParticles(); i++)
+      {
+         rank_list[i] = static_cast<unsigned int>(pset.Tag(target_tag)[i]);
+      }
+
+      pset.Redistribute(rank_list);
+
+      CHECK(static_cast<int>(pset.GetGlobalNParticles()) == N);
+
+      int wrong_proc_count = 0;
+      for (int i = 0; i < pset.GetNParticles(); i++)
+      {
+         if (rank != pset.Tag(target_tag)[i])
+         {
+            wrong_proc_count++;
+         }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &wrong_proc_count, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      CHECK(wrong_proc_count == 0);
+
+      int wrong_particle_count = 0;
+      for (int i = 0; i < pset.GetNParticles(); i++)
+      {
+         Particle &actual_p = all_particles[pset.GetIDs()[i]];
+         Particle pset_p = pset.GetParticle(i);
+
+         if (actual_p != pset_p)
+         {
+            wrong_particle_count++;
+         }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &wrong_particle_count, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      CHECK(wrong_particle_count == 0);
+   }
+}
+
+TEST_CASE("Particle Redistribution (native)", "[ParticleSet][Parallel]")
+{
+   TestRedistributeNative(Ordering::byNODES);
+   TestRedistributeNative(Ordering::byVDIM);
+}
+
+#endif // MFEM_USE_MPI
+
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 static constexpr int N_e = 10;
