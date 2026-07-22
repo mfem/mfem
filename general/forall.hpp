@@ -1160,7 +1160,7 @@ inline void ForallWrap(const bool use_dev, const int N,
       if constexpr (use_enzyme)
       {
 #ifdef MFEM_USE_ENZYME
-         MFEM_ASSERT(N == 1,
+         static_assert(DIM == 1,
                      "Enzyme CUDA Wrappers are only implemented "
                      "for one dimensional thread blocks");
 
