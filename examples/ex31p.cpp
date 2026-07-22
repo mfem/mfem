@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
+   int spaceDim = mesh->SpaceDimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -223,6 +224,7 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, sol);
 
    // 14. Compute and print the H(Curl) norm of the error.
+   if (dim == spaceDim)
    {
       real_t error = sol.ComputeHCurlError(&E, &CurlE);
       if (Mpi::Root())
@@ -325,73 +327,21 @@ int main(int argc, char *argv[])
                  << "window_geometry 806 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
       }
-      else if (dim == 2)
-      {
-         socketstream xy_sock(vishost, visport);
-         socketstream z_sock(vishost, visport);
-         socketstream dxy_sock(vishost, visport);
-         socketstream dz_sock(vishost, visport);
-
-         DenseMatrix xyMat(2,3); xyMat = 0.0;
-         xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
-         MatrixConstantCoefficient xyMatCoef(xyMat);
-         Vector zVec(3); zVec = 0.0; zVec(2) = 1;
-         VectorConstantCoefficient zVecCoef(zVec);
-
-         MatrixVectorProductCoefficient xyCoef(xyMatCoef, solCoef);
-         InnerProductCoefficient zCoef(zVecCoef, solCoef);
-
-         H1_FECollection fec_h1(order, dim);
-         ND_FECollection fec_nd(order, dim);
-         RT_FECollection fec_rt(order-1, dim);
-         L2_FECollection fec_l2(order-1, dim);
-
-         ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
-         ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
-
-         ParGridFunction xyComp(&fes_nd);
-         ParGridFunction zComp(&fes_h1);
-
-         ParGridFunction dxyComp(&fes_rt);
-         ParGridFunction dzComp(&fes_l2);
-
-         xyComp.ProjectCoefficient(xyCoef);
-         zComp.ProjectCoefficient(zCoef);
-
-         xy_sock << "parallel " << num_procs << " " << myid << "\n";
-         xy_sock.precision(8);
-         xy_sock << "solution\n" << pmesh << xyComp
-                 << "window_title 'XY components'\n" << flush;
-         z_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << pmesh << zComp << flush
-                << "window_geometry 403 0 400 350 "
-                << "window_title 'Z component'" << endl;
-
-         MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dsolCoef);
-         InnerProductCoefficient dzCoef(zVecCoef, dsolCoef);
-
-         dxyComp.ProjectCoefficient(dxyCoef);
-         dzComp.ProjectCoefficient(dzCoef);
-
-         dxy_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh << dxyComp << flush
-                  << "window_geometry 0 375 400 350 "
-                  << "window_title 'XY components of Curl'" << endl;
-         dz_sock << "parallel " << num_procs << " " << myid << "\n"
-                 << "solution\n" << pmesh << dzComp << flush
-                 << "window_geometry 403 375 400 350 "
-                 << "window_title 'Z component of Curl'" << endl;
-      }
       else
       {
          socketstream sol_sock(vishost, visport);
          socketstream dsol_sock(vishost, visport);
 
-         RT_FECollection fec_rt(order-1, dim);
-
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         FiniteElementCollection *fec_rt = NULL;
+         if (dim == 2)
+         {
+            fec_rt = new RT_R2D_FECollection(order-1, dim);
+         }
+         else
+         {
+            fec_rt = new RT_FECollection(order-1, dim);
+         }
+         ParFiniteElementSpace fes_rt(&pmesh, fec_rt);
 
          ParGridFunction dsol(&fes_rt);
 
@@ -400,11 +350,13 @@ int main(int argc, char *argv[])
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << pmesh << sol
-                  << "window_title 'Solution'" << flush << endl;
+                  << "window_title 'Solution' keys vvv" << flush << endl;
          dsol_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << pmesh << dsol << flush
                    << "window_geometry 0 375 400 350 "
-                   << "window_title 'Curl of solution'" << endl;
+                   << "window_title 'Curl of solution' keys vvv" << endl;
+
+         delete fec_rt;
       }
    }
 
