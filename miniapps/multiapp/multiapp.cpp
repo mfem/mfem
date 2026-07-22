@@ -32,6 +32,39 @@ void DAGraph::Assemble()
 
     // Compute depth of the graph nodes
     ComputeDepth();
+
+    // Update width and height of the DAG from offsets
+    // Check that the input and output offsets are consistent
+    ValidateOffsets();
+    width  = input_offset.Last();
+    height = output_offset.Last();
+
+    assembled = true;
+}
+
+void DAGraph::ValidateOffsets()
+{
+    // Check that the input and output offsets are consistent
+    // with the number of inputs and outputs
+    if(InputFields().Size() > 1)
+    {
+        MFEM_ASSERT(input_offset.Size() == InputFields().Size() + 1,
+                    "Input offsets size inconsistent with number of input fields");
+    }
+    else
+    {
+        input_offset = Array<int>({0, nodes[0]->Width()});
+    }
+
+    if(OutputFields().Size() > 1)
+    {
+        MFEM_ASSERT(output_offset.Size() == OutputFields().Size() + 1,
+                    "Output offsets size inconsistent with number of output fields");
+    }
+    else
+    {
+        output_offset = Array<int>({0, nodes.Last()->Height()});
+    }
 }
 
 void DAGraph::TopologicalSort()
@@ -108,15 +141,25 @@ void DAGraph::ComputeDepth()
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
 {
-    BlockVector xb(x.GetData(), in_offsets);
-    BlockVector yb(y.GetData(), out_offsets);
+    MFEM_ASSERT(assembled, "DAGraph must be assembled before calling Mult()");
 
-    int ninputs = input_nodes.size();
+    BlockVector xb(x.GetData(), input_offset);
+    BlockVector yb(y.GetData(), output_offset);
+
+    auto inputs = InputFields();
+    int ninputs = inputs.Size();
     for(int i=0; i < ninputs; i++)
     {
-        auto data_node = input_nodes[i];
-        int index = data_node->GetNodeIndex();
-        data_node->SetData(xb.GetBlock(index));
+        auto field = inputs[i];
+        field->SetData(&xb.GetBlock(i));
+    }
+
+    auto outputs = OutputFields();
+    int noutputs = outputs.Size();
+    for(int i=0; i < noutputs; i++)
+    {
+        auto field = outputs[i];
+        field->SetData(&yb.GetBlock(i));
     }
 
     Vector xtmp, ytmp;
@@ -124,14 +167,6 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
     {
         auto node = nodes[i];
         node->Mult(xtmp, ytmp);
-    }
-
-    int noutputs = output_nodes.size();
-    for(int i=0; i < noutputs; i++)
-    {
-        auto data_node = output_nodes[i];
-        int index = data_node->GetNodeIndex();
-        data_node->GetData(yb.GetBlock(index));
     }
 }
 
@@ -157,7 +192,7 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     }
 
     // Forward pass to to populate (intermediate) fields for differentiation
-    ytmp.SetSize(out_offsets.Last());
+    ytmp.SetSize(output_offset.Last());
     xgrad.SetSize(x.Size());
     xgrad = x; // Store a copy of the input for use in gradient computations
 
@@ -231,30 +266,28 @@ void GraphGradient::Forward(const Vector &x, Vector &y) const
     BlockVector xb(x.GetData(), in_offsets);
     BlockVector yb(y.GetData(), out_offsets);
 
-    int nnodes  = graph->Size();
-    auto fields = graph->Fields();
-
-    int ninputs = graph->input_nodes.size();
+    auto inputs = graph->InputFields();
+    int ninputs = inputs.Size();
     for(int i=0; i < ninputs; i++)
     {
-        auto data_node = graph->input_nodes[i]; 
-        int index = data_node->GetNodeIndex();
-        data_node->SetAdjoint(xb.GetBlock(index)); // Seed input adjoint from input block
+        auto field = inputs[i];
+        field->SetAdjoint(&xb.GetBlock(i));
+    }
+
+    auto outputs = graph->OutputFields();
+    int noutputs = outputs.Size();
+    for(int i=0; i < noutputs; i++)
+    {
+        auto field = outputs[i];
+        field->SetAdjoint(&yb.GetBlock(i));
     }
 
     Vector x0, dx, dy;
+    int nnodes  = graph->Size();
     for (int i=0; i < nnodes; i++)
     {
         auto node = graph->GetNode(i);
         node->GradientMult(x0, dx, dy); // Compute JVP for the node
-    }
-
-    int noutputs = graph->output_nodes.size();
-    for(int i=0; i < noutputs; i++)
-    {
-        auto data_node = graph->output_nodes[i];
-        int index = data_node->GetNodeIndex();
-        data_node->GetAdjoint(yb.GetBlock(index));
     }
 }
 
@@ -267,30 +300,28 @@ void GraphGradient::Backward(const Vector &x, Vector &y) const
     BlockVector xb(x.GetData(), out_offsets);
     BlockVector yb(y.GetData(), in_offsets);
 
-    int nnodes  = graph->Size();
-    auto fields = graph->Fields();
-
-    int noutputs = graph->output_nodes.size();
+    auto outputs = graph->OutputFields();
+    int noutputs = outputs.Size();
     for(int i=0; i < noutputs; i++)
     {
-        auto data_node = graph->output_nodes[i];
-        int index = data_node->GetNodeIndex();
-        data_node->SetAdjoint(xb.GetBlock(index)); // Seed output adjoint from output block
+        auto field = outputs[i];
+        field->SetAdjoint(&xb.GetBlock(i));
+    }
+
+    auto inputs = graph->InputFields();
+    int ninputs = inputs.Size();
+    for(int i=0; i < ninputs; i++)
+    {
+        auto field = inputs[i];
+        field->SetAdjoint(&yb.GetBlock(i));
     }
 
     Vector x0, dx, dy;
+    int nnodes  = graph->Size();
     for (int i=nnodes-1; i >= 0; i--)
     {
         auto node = graph->GetNode(i);
         node->GradientMultTranspose(x0, dx, dy); // Compute VJP for the node
-    }
-
-    int ninputs = graph->input_nodes.size();
-    for(int i=0; i < ninputs; i++)
-    {
-        auto data_node = graph->input_nodes[i];
-        int index = data_node->GetNodeIndex();
-        data_node->GetAdjoint(yb.GetBlock(index));
     }
 }
 

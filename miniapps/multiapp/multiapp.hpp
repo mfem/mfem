@@ -90,6 +90,9 @@ public:
     virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
     virtual void SetOperator(Operator *op) { oper = op; }
 
+    virtual void GetData(Vector &field) const { field = *data; }
+    virtual void GetAdjoint(Vector &adj) const { adj = *adjoint; }
+
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
     int ID() const { return id; }
@@ -126,8 +129,8 @@ private:
     NamedFieldsMap<Field> fields;
     NamedFieldsMap<int> index_map; /// Map from field name to index in input/output vectors
 
-    std::vector<Field*> input_fields;  // Input fields for this node
-    std::vector<Field*> output_fields; // Output fields for this node
+    Array<Field*> input_fields;  // Input fields for this node
+    Array<Field*> output_fields; // Output fields for this node
 
 public:
 
@@ -184,7 +187,7 @@ public:
         else
         {
             input_fields.push_back(field);
-            index_map.Register(field_name, new int(input_fields.size() - 1), true);
+            index_map.Register(field_name, new int(input_fields.Size() - 1), true);
         }
         AddField(field_name, field, own);
     }
@@ -201,7 +204,7 @@ public:
         else
         {
             output_fields.push_back(field);
-            index_map.Register(field_name, new int(output_fields.size() - 1), true);
+            index_map.Register(field_name, new int(output_fields.Size() - 1), true);
         }
 
         AddField(field_name, field, own);
@@ -211,9 +214,10 @@ public:
         }
     }
 
-    std::vector<Field*>& InputFields() { return input_fields; }
-    std::vector<Field*>& OutputFields() { return output_fields; }
-    
+    Array<Field*>& InputFields() { return input_fields; }
+    Array<Field*>& OutputFields() { return output_fields; }
+
+
     Field* InputField(int i) const { return input_fields[i]; }
 
     Field *InputField(const std::string &field_name) const
@@ -227,7 +231,7 @@ public:
         }
 
         int index = *idx;
-        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.size()),
+        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.Size()),
                     "FieldCollection::InputField: Invalid index for field name: "
                     << field_name << ".");
         return input_fields[index];
@@ -245,7 +249,7 @@ public:
         }
 
         int index = *idx;
-        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.size()),
+        MFEM_VERIFY(index >= 0 && index < static_cast<int>(output_fields.Size()),
                     "FieldCollection::OutputField: Invalid index for field name: "
                     << field_name << ".");
         return output_fields[index];
@@ -272,22 +276,22 @@ public:
 
         out << "\"Inputs\":\n";
         out << "{\n";
-        for (size_t i = 0; i < input_fields.size(); ++i)
+        for (int i = 0; i < input_fields.Size(); ++i)
         {
             Field *f_obj = input_fields[i];
             out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
-            if(i != input_fields.size() - 1) out << ",";
+            if(i != input_fields.Size() - 1) out << ",";
             out << "\n";
         }
         out << "},\n";
 
         out << "\"Outputs\":\n";
         out << "{\n";
-        for (size_t i = 0; i < output_fields.size(); ++i)
+        for (int i = 0; i < output_fields.Size(); ++i)
         {
             Field *f_obj = output_fields[i];
             out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
-            if(i != output_fields.size() - 1) out << ",";
+            if(i != output_fields.Size() - 1) out << ",";
             out << "\n";
         }
 
@@ -347,7 +351,11 @@ protected:
     mutable ExecutionMode exec_mode = DEFAULT_MODE;
 
     std::string name;
-    FieldCollection field_collection; // Collection of fields associated with this node
+    mutable FieldCollection field_collection; ///< Collection of fields associated with this node
+
+    // Block offsets to be used for block operation on Vector
+    Array<int> input_offset;  ///< Block offsets for input fields
+    Array<int> output_offset; ///< Block offsets for output fields
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -390,8 +398,8 @@ public:
     NamedFieldsMap<Field> Fields() const { return field_collection.Fields(); }
     Field* Fields(const std::string &f) const { return field_collection.GetField(f); }
 
-    std::vector<Field*>& InputFields() { return field_collection.InputFields(); }
-    std::vector<Field*>& OutputFields() { return field_collection.OutputFields(); }
+    Array<Field*>& InputFields() const { return field_collection.InputFields(); }
+    Array<Field*>& OutputFields() const { return field_collection.OutputFields(); }
     Field* InputField(int i) const { return field_collection.InputField(i); }
     Field* OutputField(int i) const { return field_collection.OutputField(i); }
 
@@ -428,7 +436,6 @@ public:
         ((AddOutput(std::forward<Args>(args), OwnOutputs)), ...);
     }
 
-
     virtual void Save (std::ostream &out) const
     {
         out << "\"Node-" << id << "\" : " << std::endl;
@@ -463,6 +470,22 @@ public:
     {
         MFEM_ABORT("GraphNode::operator()(const Vector&, const Vector&, Vector&) not implemented");
     }
+
+    /// @brief Return the input offsets for block starts.
+    Array<int>& InputOffsets() { return input_offset; }
+
+    /// @brief Read only access to the input offsets for block starts.
+    const Array<int>& InputOffsets() const { return input_offset; }
+
+    void SetInputOffsets(const Array<int> &offsets) { input_offset = offsets; }
+
+    /// @brief Return the output offsets for block starts.
+    Array<int>& OutputOffsets() { return output_offset; }
+
+    /// @brief Read only access to the output offsets for block starts.
+    const Array<int>& OutputOffsets() const { return output_offset; }
+
+    void SetOutputOffsets(const Array<int> &offsets) { output_offset = offsets; }
 
     virtual ~GraphNode() = default;
 };
@@ -583,69 +606,6 @@ public:
     }
 };
 
-class DataNode : public GraphNode
-{
-protected:
-    Field *field = nullptr;
-
-public:
-
-    DataNode(Field &f, int sz, std::string name = "") : GraphNode(sz), field(&f)
-    {
-        if(!name.empty()) SetName(name);
-        // field_collection.AddField(name, field, false);
-    }
-
-    Field* GetField() const { return field; }
-
-    virtual void SetData(const Vector &v)
-    {
-        Vector *vec = field->Data();
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        MFEM_ASSERT(vec != nullptr, "Input field data is not set.");
-        *vec = v;
-    }
-
-    virtual void GetData(Vector &v) const
-    {
-        Vector *vec = field->Data();
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        MFEM_ASSERT(vec != nullptr, "Input field data is not set.");
-        v = *vec;
-    }
-
-    virtual void SetAdjoint(const Vector &v)
-    {
-        Vector *vec = field->Adjoint();
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        MFEM_ASSERT(vec != nullptr, "Input field adjoint is not set.");
-        *vec = v;
-    }
-
-    virtual void GetAdjoint(Vector &v) const
-    {
-        Vector *vec = field->Adjoint();
-        MFEM_ASSERT(v.Size() == Width(), "Vector size does not match node size.");
-        MFEM_ASSERT(vec != nullptr, "Input field adjoint is not set.");
-        v = *vec;
-    }
-
-private: // Hide all other functions from user
-    using GraphNode::Fields;
-    using GraphNode::AddInput;
-    using GraphNode::AddOutput;
-    using GraphNode::AddInputs;
-    using GraphNode::AddOutputs;
-    using GraphNode::InputField;
-    using GraphNode::OutputField;
-    using GraphNode::InputFields;
-    using GraphNode::OutputFields;
-    using GraphNode::Execute;
-    using GraphNode::Mult;
-    using GraphNode::GetGradient;
-    using GraphNode::GradientMult;
-    using GraphNode::GradientMultTranspose;
-};
 
 /**
    @brief A class to store and coupled multiple operators together.
@@ -666,22 +626,16 @@ protected:
     Array<bool> node_owned; ///< Whether the operators are owned
     Array<int> node_depth; ///< Depth of each operator in the graph
 
-
-    Array<int> in_offsets;  ///< Block offsets for input fields
-    Array<int> out_offsets; ///< Block offsets for output fields
-    int max_width=0;        ///< Largest operator width
-    int max_height=0;       ///< Largest operator height
-    int nnodes = 0;         ///< The number of nodes
-    bool sorted = false;    ///< Whether the nodes are topologically sorted
+    int max_width  =0;      ///< Largest operator width
+    int max_height =0;      ///< Largest operator height
+    int nnodes     = 0;     ///< The number of nodes
+    bool sorted    = false; ///< True if the nodes are topologically sorted
+    bool assembled = false; ///< True if the graph is assembled
     
     mutable Operator *grad = nullptr; ///< Jacobain operator
     GradMode grad_mode = GradMode::FD;
     mutable Vector fx; ///< Temporary vector for function evaluation
     // mutable Vector dx, dy; ///< Temporary vectors for Jacobian computations
-
-    // Input and output data nodes
-    std::vector<DataNode*> input_nodes;
-    std::vector<DataNode*> output_nodes;
 
     mutable Vector ytmp; ///< Temporary vector (used in forward pass in gradient computations)
     mutable Vector xgrad; ///< Point of linearization for gradient computations
@@ -697,11 +651,6 @@ public:
     {
         nodes.Reserve(nop);
         node_owned.Reserve(nop);
-
-        in_offsets.Reserve(nop+1);
-        out_offsets.Reserve(nop+1);
-        in_offsets.Prepend(0);
-        out_offsets.Prepend(0);
     }
 
     /**
@@ -752,42 +701,6 @@ public:
     template <class OpType>
     GraphNode* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
-    //TODO: Support ownership option
-    DataNode* AddInputNode(DataNode *node, bool own = false)
-    {
-        int index = input_nodes.size();
-        node->SetNodeIndex(index);
-        in_offsets.Append(in_offsets.Last() + node->Width());
-        width += node->Width();
-
-        auto field = node->GetField();
-        if(field)
-        {   // Add the node's field to the DAG's
-            field_collection.AddField(node->Name(), field, false);
-        }
-
-        input_nodes.push_back(node);
-        return node;
-    }
-
-    //TODO: Support ownership option
-    DataNode* AddOutputNode(DataNode *node, bool own = false)
-    {
-        int index = output_nodes.size();
-        node->SetNodeIndex(index);
-        out_offsets.Append(out_offsets.Last() + node->Height());
-        height += node->Height();
-
-        auto field = node->GetField();
-        if(field)
-        {   // Add the node's field to the DAG's
-            field_collection.AddField(node->Name(), field, false);
-        }
-
-        output_nodes.push_back(node);
-        return node;
-    }
-
     /// @brief Get the number of coupled operators
     int Size(){return nnodes;}
 
@@ -817,6 +730,8 @@ public:
 
     void ComputeDepth();
 
+    void ValidateOffsets();
+
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)
     {
@@ -826,18 +741,6 @@ public:
             grad_mode = mode;
         }
     }
-
-    /// @brief Return the input offsets for block starts.
-    Array<int>& InputOffsets() { return in_offsets; }
-
-    /// @brief Read only access to the input offsets for block starts.
-    const Array<int>& InputOffsets() const { return in_offsets; }
-
-    /// @brief Return the output offsets for block starts.
-    Array<int>& OutputOffsets() { return out_offsets; }
-
-    /// @brief Read only access to the output offsets for block starts.
-    const Array<int>& OutputOffsets() const { return out_offsets; }
 
     /**
        @brief Apply the operator to the vector @a x 
