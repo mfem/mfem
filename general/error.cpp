@@ -171,7 +171,14 @@ void mfem_error(const char *msg)
 #ifdef MFEM_USE_EXCEPTIONS
    if (mfem_error_action == MFEM_ERROR_THROW)
    {
-      throw ErrorException(msg);
+      if (msg)
+      {
+         throw ErrorException(msg);
+      }
+      else
+      {
+         throw ErrorException("");
+      }
    }
 #endif
 

@@ -178,6 +178,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetMapType() == FiniteElement::VALUE,
+               "Only value map type currently supported");
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())

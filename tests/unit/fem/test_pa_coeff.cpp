@@ -750,4 +750,101 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
    }
 }
 
+TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
+          "[BilinearFormIntegrator]"
+          "[PartialAssembly]"
+          "[GPU]")
+{
+   auto order = GENERATE(1, 3);
+   CAPTURE(order);
+   dimension = 3;
+
+   FunctionCoefficient q3_coeff(coeffFunction);
+   VectorFunctionCoefficient F3_coeff(dimension, vectorCoeffFunction);
+   MatrixFunctionCoefficient M3_coeff(dimension, asymmetricMatrixCoeffFunction);
+
+   auto mesh_fname =
+      GENERATE("../../data/fichera-amr.mesh", "../../data/ball-nurbs.mesh");
+   CAPTURE(mesh_fname);
+   Mesh mesh(mesh_fname);
+   REQUIRE(mesh.Dimension() == dimension);
+   REQUIRE(mesh.SpaceDimension() == dimension);
+
+   // convert nurbs into piecewise-quadratic curved mesh
+   if (mesh.NURBSext)
+   {
+      mesh.UniformRefinement();
+      mesh.SetCurvature(2);
+   }
+
+   SECTION("ND to ND Scalar Coeff")
+   {
+      ND_FECollection fec_nd(order, dimension);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      BilinearForm bfa(&fespace_nd);
+      bfa.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coeff));
+      bfa.Assemble();
+      bfa.Finalize();
+
+      BilinearForm bpa(&fespace_nd);
+      bpa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bpa.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coeff));
+      bpa.Assemble();
+
+      GridFunction x(&fespace_nd), y_fa(&fespace_nd), y_pa(&fespace_nd);
+      x.Randomize(1234);
+      bfa.Mult(x, y_fa);
+      bpa.Mult(x, y_pa);
+      y_pa -= y_fa;
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
+   }
+
+   SECTION("ND to ND Diagonal Matrix Coeff")
+   {
+      ND_FECollection fec_nd(order, dimension);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      BilinearForm bfa(&fespace_nd);
+      bfa.AddDomainIntegrator(new VectorFEMassIntegrator(F3_coeff));
+      bfa.Assemble();
+      bfa.Finalize();
+
+      BilinearForm bpa(&fespace_nd);
+      bpa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bpa.AddDomainIntegrator(new VectorFEMassIntegrator(F3_coeff));
+      bpa.Assemble();
+
+      GridFunction x(&fespace_nd), y_fa(&fespace_nd), y_pa(&fespace_nd);
+      x.Randomize(1234);
+      bfa.Mult(x, y_fa);
+      bpa.Mult(x, y_pa);
+      y_pa -= y_fa;
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
+   }
+
+   SECTION("ND to ND Matrix Coeff")
+   {
+      ND_FECollection fec_nd(order, dimension);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      BilinearForm bfa(&fespace_nd);
+      bfa.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coeff));
+      bfa.Assemble();
+      bfa.Finalize();
+
+      BilinearForm bpa(&fespace_nd);
+      bpa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bpa.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coeff));
+      bpa.Assemble();
+
+      GridFunction x(&fespace_nd), y_fa(&fespace_nd), y_pa(&fespace_nd);
+      x.Randomize(1234);
+      bfa.Mult(x, y_fa);
+      bpa.Mult(x, y_pa);
+      y_pa -= y_fa;
+      REQUIRE( y_pa.Normlinf() == MFEM_Approx(0_r) );
+   }
+}
+
 } // namespace pa_coeff

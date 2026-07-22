@@ -147,18 +147,15 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void PAHcurlMassApply2D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y)
+void PAHcurlMassApply2D(const int NE, const bool symmetric,
+                        const bool scalar_coeff, const Array<real_t> &bo,
+                        const Array<real_t> &bc, const Array<real_t> &bot,
+                        const Array<real_t> &bct, const Vector &pa_data,
+                        const Vector &x, Vector &y, const int D1D,
+                        const int TestD1D, const int Q1D)
 {
+   MFEM_ASSERT(D1D == TestD1D,
+               "Trial and Test space must have the same number of dofs");
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
@@ -277,18 +274,15 @@ void PAHcurlMassApply2D(const int D1D,
    }); // end of element loop
 }
 
-void PAHcurlMassApply3D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y)
+void PAHcurlMassApply3D(const int NE, const bool symmetric,
+                        const bool scalar_coeff, const Array<real_t> &bo,
+                        const Array<real_t> &bc, const Array<real_t> &bot,
+                        const Array<real_t> &bct, const Vector &pa_data,
+                        const Vector &x, Vector &y, const int D1D,
+                        const int TestD1D, const int Q1D)
 {
+   MFEM_VERIFY(D1D == TestD1D,
+               "Trial and test spaces must have same number of dofs");
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
@@ -785,6 +779,23 @@ void PAHcurlL2Setup2D(const int Q1D,
       for (int q = 0; q < NQ; ++q)
       {
          y(q,e) = W[q] * C(q,e);
+      }
+   });
+}
+
+void PAHcurlL2Setup2DInt(const int Q1D, const int NE, const Array<real_t> &w,
+                         Vector &coeff, const Vector &detJ, Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto J = Reshape(detJ.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * C(q,e) / J(q,e);
       }
    });
 }

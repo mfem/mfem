@@ -307,8 +307,8 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix vector multiple to a vector:  $ y += a M x $
-   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
-   { mat -> AddMult (x, y, a); }
+   void AddMult(const Vector &x, Vector &y,
+                const real_t a = 1.0) const override;
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
        The original matrix is $ M + Me $ so we have:
@@ -318,8 +318,7 @@ public:
 
    /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    void AddMultTranspose(const Vector & x, Vector & y,
-                         const real_t a = 1.0) const override
-   { mat->AddMultTranspose(x, y, a); }
+                         const real_t a = 1.0) const override;
 
    /** @brief Add the original uneliminated matrix transpose vector
        multiple to a vector. The original matrix is $ M + M_e $
