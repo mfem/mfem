@@ -27,7 +27,12 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+DEBUG_FLAGS = $(strip -g $(XCOMPILER)-Wall \
+ $(addprefix $(XCOMPILER),$(SHADOW_WARNING_FLAG)) $(BASE_FLAGS))
+
+# Shadow warnings for clang only; GCC's -Wshadow flags more.
+SHADOW_WARNING_FLAG = $(if $(findstring clang,\
+ $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =
