@@ -76,6 +76,13 @@ GPU computing
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
 
+- Rework of the memory manager so that all calls to Sync and SyncAlias are now
+  no-op and can be removed from user code. Note that the copy sometimes performed
+  by SyncAlias is deferred to the next call to Read/ReadWrite.
+
+- Calling `mfem::reduce` with an external workspace buffer is now deprecated.
+  Use the version which uses an internal workspace instead.
+
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
 
 New and updated examples and miniapps
