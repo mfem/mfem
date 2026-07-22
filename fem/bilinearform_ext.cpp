@@ -863,6 +863,14 @@ void EABilinearFormExtension::Assemble()
 
    ne = trial_fes->GetMesh()->GetNE();
    elemDofs = trial_fes->GetTypicalFE()->GetDof();
+   vdim = trial_fes->GetVDim();
+   if (vdim > 1 && trial_fes->IsDGSpace())
+   {
+      MFEM_VERIFY(a->GetBBFI()->Size() == 0 && a->GetFBFI()->Size() == 0 &&
+                  a->GetBFBFI()->Size() == 0,
+                  "vector-valued DG element assembly does not yet support "
+                  "boundary or face integrators");
+   }
 
    Vector ea_data_tmp;
 
@@ -895,7 +903,7 @@ void EABilinearFormExtension::Assemble()
    };
 
    {
-      ea_data.SetSize(ne*elemDofs*elemDofs);
+      ea_data.SetSize(ne*vdim*elemDofs*vdim*elemDofs);
       ea_data.UseDevice(true);
       Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
       Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
@@ -929,7 +937,7 @@ void EABilinearFormExtension::Assemble()
       if (n_bdr_integs > 0)
       {
          nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+         ea_data_bdr.SetSize(nf_bdr*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < n_bdr_integs; ++i)
       {
@@ -955,8 +963,8 @@ void EABilinearFormExtension::Assemble()
       if (intFaceIntegratorCount>0)
       {
          nf_int = trial_fes->GetNFbyType(FaceType::Interior);
-         ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs);
-         ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs);
+         ea_data_int.SetSize(2*nf_int*vdim*faceDofs*vdim*faceDofs);
+         ea_data_ext.SetSize(2*nf_int*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < intFaceIntegratorCount; ++i)
       {
@@ -975,7 +983,7 @@ void EABilinearFormExtension::Assemble()
       if (n_bdr_face_integs > 0)
       {
          nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+         ea_data_bdr.SetSize(nf_bdr*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < n_bdr_face_integs; ++i)
       {
@@ -1042,7 +1050,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          abs_ea_data = ea_data;
          abs_ea_data.Abs();
       }
-      const int NDOFS = elemDofs;
+      const int NDOFS = vdim*elemDofs;
       auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
       auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
       auto A = Reshape(useAbs?abs_ea_data.Read():ea_data.Read(), NDOFS, NDOFS, ne);
@@ -1100,7 +1108,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
       {
          int_face_Y = 0.0;
          // Apply the interior face matrices
-         const int NDOFS = faceDofs;
+         const int NDOFS = vdim*faceDofs;
          auto X = Reshape(int_face_X.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(int_face_Y.ReadWrite(), NDOFS, 2, nf_int);
          if (!factorize_face_terms)
@@ -1216,7 +1224,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       bdr_face_Y = 0.0;
       // Apply the boundary face matrices
-      const int NDOFS = faceDofs;
+      const int NDOFS = vdim*faceDofs;
       auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
       auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
       auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
@@ -1262,7 +1270,8 @@ void EABilinearFormExtension::GetElementMatrices(
    // Ensure the EA data is assembled
    if (ea_data.Size() == 0) { Assemble(); }
 
-   const int ndofs = elemDofs;
+   const int scalar_dofs = elemDofs;
+   const int ndofs = vdim*scalar_dofs;
    element_matrices.SetSize(ndofs, ndofs, ne);
    const int N = element_matrices.TotalSize();
 
@@ -1294,11 +1303,13 @@ void EABilinearFormExtension::GetElementMatrices(
          const int e = idx / ndofs / ndofs;
          const int i = idx % ndofs;
          const int j = (idx / ndofs) % ndofs;
-         const int ii_s = d_dof_map[i];
-         const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+         const int ci = i / scalar_dofs;
+         const int cj = j / scalar_dofs;
+         const int ii_s = d_dof_map[i % scalar_dofs];
+         const int ii = ((ii_s >= 0) ? ii_s : -1 - ii_s) + ci*scalar_dofs;
          const int s_i = (ii_s >= 0) ? 1 : -1;
-         const int jj_s = d_dof_map[j];
-         const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+         const int jj_s = d_dof_map[j % scalar_dofs];
+         const int jj = ((jj_s >= 0) ? jj_s : -1 - jj_s) + cj*scalar_dofs;
          const int s_j = (jj_s >= 0) ? 1 : -1;
          d_element_matrices(ii, jj, e) = s_i*s_j*d_ea_data(j, i, e);
       });
@@ -1315,25 +1326,26 @@ void EABilinearFormExtension::GetElementMatrices(
       });
    }
 
-   if (add_bdr && ea_data_bdr.Size() > 0)
+   if (add_bdr && !factorize_face_terms && ea_data_bdr.Size() > 0)
    {
-      const int ndof_face = faceDofs;
+      const int scalar_face_dofs = faceDofs;
       const auto d_ea_bdr = Reshape(ea_data_bdr.Read(),
-                                    ndof_face, ndof_face, nf_bdr);
+                                    scalar_face_dofs, vdim,
+                                    scalar_face_dofs, vdim, nf_bdr);
 
       // Get all the local face maps (mapping from lexicographic face index to
       // lexicographic volume index, depending on the local face index).
       const Mesh &mesh = *trial_fes->GetMesh();
       const int dim = mesh.Dimension();
       const int n_faces_per_el = 2*dim; // assuming tensor product
-      Array<int> face_maps(ndof_face * n_faces_per_el);
+      Array<int> face_maps(scalar_face_dofs * n_faces_per_el);
       for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
       {
-         Array<int> face_map(ndof_face);
+         Array<int> face_map(scalar_face_dofs);
          trial_fes->GetFE(0)->GetFaceMap(lf_i, face_map);
-         for (int i = 0; i < ndof_face; ++i)
+         for (int i = 0; i < scalar_face_dofs; ++i)
          {
-            face_maps[i + lf_i*ndof_face] = face_map[i];
+            face_maps[i + lf_i*scalar_face_dofs] = face_map[i];
          }
       }
 
@@ -1350,40 +1362,46 @@ void EABilinearFormExtension::GetElementMatrices(
          }
       }
 
-      const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
+      const auto d_face_maps = Reshape(face_maps.Read(), scalar_face_dofs,
+                                       n_faces_per_el);
       const auto d_face_info = Reshape(face_info.Read(), 2, nf_bdr);
 
-      const bool reorder = (ordering == ElementDofOrdering::NATIVE);
+      const bool reorder = ordering == ElementDofOrdering::NATIVE && d_dof_map;
 
-      mfem::forall_2D(nf_bdr, ndof_face, ndof_face, [=] MFEM_HOST_DEVICE (int f)
+      mfem::forall_2D(nf_bdr, scalar_face_dofs, scalar_face_dofs,
+                      [=] MFEM_HOST_DEVICE (int f)
       {
          const int lf_i = d_face_info(0, f);
          const int e = d_face_info(1, f);
-         // Loop over face indices in "native ordering"
-         MFEM_FOREACH_THREAD(i_lex_face, x, ndof_face)
+         MFEM_FOREACH_THREAD(i_lex_face, x, scalar_face_dofs)
          {
             // Convert from lexicographic face DOF to volume DOF
             const int i_lex = d_face_maps(i_lex_face, lf_i);
 
-            const int ii_s = d_dof_map[i_lex];
+            const int ii_s = reorder ? d_dof_map[i_lex] : i_lex;
             const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
-
-            const int i = reorder ? ii : i_lex;
             const int s_i = (ii_s < 0 && reorder) ? -1 : 1;
 
-            MFEM_FOREACH_THREAD(j_lex_face, y, ndof_face)
+            MFEM_FOREACH_THREAD(j_lex_face, y, scalar_face_dofs)
             {
                // Convert from lexicographic face DOF to volume DOF
                const int j_lex = d_face_maps(j_lex_face, lf_i);
 
-               const int jj_s = d_dof_map[j_lex];
+               const int jj_s = reorder ? d_dof_map[j_lex] : j_lex;
                const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
-
-               const int j = reorder ? jj : j_lex;
                const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
 
-               AtomicAdd(d_element_matrices(i, j, e),
-                         s_i*s_j*d_ea_bdr(i_lex_face, j_lex_face, f));
+               for (int ci = 0; ci < vdim; ++ci)
+               {
+                  const int i = (reorder ? ii : i_lex) + ci*scalar_dofs;
+                  for (int cj = 0; cj < vdim; ++cj)
+                  {
+                     const int j = (reorder ? jj : j_lex) + cj*scalar_dofs;
+                     AtomicAdd(d_element_matrices(j, i, e),
+                               s_i*s_j*d_ea_bdr(i_lex_face, ci,
+                                                j_lex_face, cj, f));
+                  }
+               }
             }
          }
       });
@@ -2084,7 +2102,7 @@ void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
 {
    const Operator *Pi = this->GetProlongation();
    const Operator *RoT = this->GetOutputRestrictionTranspose();
-   Operator *rap = SetupRAP(Pi, RoT);
+   const Operator *rap = SetupRAP(Pi, RoT);
 
    RectangularConstrainedOperator *Arco
       = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);

@@ -391,6 +391,82 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][GPU]")
    }
 }
 
+TEST_CASE("Vector diffusion assembly levels",
+          "[AssemblyLevel], [VectorDiffusion], [GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const bool dg = GENERATE(false, true);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
+   const bool matrix_coefficient = GENERATE(false, true);
+   CAPTURE(dim, dg, ordering, assembly, matrix_coefficient);
+
+   Mesh mesh = dim == 2
+               ? Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL)
+               : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (dg)
+   {
+      fec.reset(new L2_FECollection(2, dim, BasisType::GaussLobatto));
+   }
+   else
+   {
+      fec.reset(new H1_FECollection(2, dim));
+   }
+   FiniteElementSpace fes(&mesh, fec.get(), dim, ordering);
+   ConstantCoefficient one(1.0);
+   DenseMatrix matrix(dim);
+   for (int i = 0; i < dim; ++i)
+   {
+      for (int j = 0; j < dim; ++j)
+      {
+         matrix(i, j) = 1 + i*dim + j;
+      }
+   }
+   MatrixConstantCoefficient matrix_coeff(matrix);
+
+   auto add_integrator = [&](BilinearForm &form)
+   {
+      if (matrix_coefficient)
+      {
+         form.AddDomainIntegrator(new VectorDiffusionIntegrator(matrix_coeff));
+      }
+      else
+      {
+         form.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+      }
+   };
+
+   BilinearForm reference(&fes);
+   add_integrator(reference);
+   reference.Assemble();
+   reference.Finalize();
+
+   BilinearForm assembled(&fes);
+   assembled.SetAssemblyLevel(assembly);
+   add_integrator(assembled);
+   assembled.Assemble();
+
+   const DenseTensor &reference_elements = reference.GetElementMatrices();
+   const DenseTensor &assembled_elements = assembled.GetElementMatrices();
+   real_t element_error = 0.0;
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      DenseMatrix difference = reference_elements(e);
+      difference -= assembled_elements(e);
+      element_error = std::max(element_error, difference.MaxMaxNorm());
+   }
+   REQUIRE(element_error == MFEM_Approx(0.0));
+
+   GridFunction x(&fes), y_reference(&fes), y_assembled(&fes);
+   x.Randomize(1);
+   reference.Mult(x, y_reference);
+   assembled.Mult(x, y_assembled);
+
+   y_assembled -= y_reference;
+   REQUIRE(y_assembled.Normlinf() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
 {
    const bool dg = true;
