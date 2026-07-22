@@ -80,6 +80,8 @@ public:
    // limitations
    void MultRT_2D(const Vector &x, Vector &y, Mode mode) const;
    void MultRT_3D(const Vector &x, Vector &y, Mode mode) const;
+   // suppress warning about hiding overloaded virtual function:
+   using Operator::Mult;
 };
 
 } // namespace mfem

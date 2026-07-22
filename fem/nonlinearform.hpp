@@ -224,6 +224,9 @@ public:
    /** @see GetGradient(const Vector &) */
    Operator &GetGradient(const Vector &x, bool finalize) const;
 
+   /// Suppress a warning about hiding overloaded virtual function.
+   using Operator::GetGradient;
+
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
        set again. */
