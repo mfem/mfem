@@ -181,8 +181,8 @@ void SolveMagmaPackedCholeskyLowerInPlace(
       SetMagmaPackedPointerArray(rhs_ptrs, rhs_data, n, batch_size, queue);
 
    const magma_int_t status =
-      MFEM_EX43_MAGMA_PREFIX(pptrs_batched_small)(
-         n, 1, d_factor_ptrs, d_rhs_ptrs, n, batch_size, queue);
+      MFEM_EX43_MAGMA_PREFIX(pptrs_batched)(
+         MagmaLower, n, 1, d_factor_ptrs, d_rhs_ptrs, n, batch_size, queue);
    MFEM_VERIFY(status == MAGMA_SUCCESS,
                "MAGMA packed Cholesky solve failed.");
 }
