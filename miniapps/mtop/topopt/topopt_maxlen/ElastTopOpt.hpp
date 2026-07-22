@@ -5,23 +5,23 @@
 using namespace std;
 using namespace mfem;
 
-
 // SIMP coefficient: r(rho~) = E_min + rho~^exponent (E_max - E_min).
 class SIMPCoefficient : public Coefficient
 {
 protected:
-   GridFunction *rho_filter;
+   GridFunctionCoefficient rho_filter_cf;
    real_t E_min, E_max, exponent;
 
 public:
    SIMPCoefficient(GridFunction *rho_filter_, real_t E_min_ = 1e-6,
                    real_t E_max_ = 1.0, real_t exponent_ = 3.0)
-      : rho_filter(rho_filter_), E_min(E_min_), E_max(E_max_),
+      : rho_filter_cf(rho_filter_), E_min(E_min_), E_max(E_max_),
         exponent(exponent_) { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      real_t val = rho_filter->GetValue(T, ip);
+      real_t val = rho_filter_cf.Eval(T, ip);
+      val = std::max(0.0, std::min(1.0, val));
       // r(rho~) = E_min + rho~^exponent (E_max - E_min)
       return E_min + std::pow(val, exponent) * (E_max - E_min);
    }
@@ -34,7 +34,8 @@ public:
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
-      real_t val = rho_filter->GetValue(T, ip);
+      real_t val = rho_filter_cf.Eval(T, ip);
+      val = std::max(0.0, std::min(1.0, val));
       // r'(rho~) = exponent * rho~^(exponent-1) (E_max - E_min)
       return exponent * std::pow(val, exponent - 1.0) * (E_max - E_min);
    }

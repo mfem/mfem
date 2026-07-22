@@ -83,7 +83,11 @@ MaterialThicknessSolver::MaterialThicknessSolver(ParFiniteElementSpace &design_f
     rho_a.SetSpace(sol_fes);
     rho_a = 0.0;
 
+    constexpr real_t alpha = 1.0;
     K = new ParBilinearForm(sol_fes);
+    K->AddDomainIntegrator(new ConvectionIntegrator(v_cf, alpha));
+    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(v_cf, alpha));
+    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(v_cf, alpha));
 
     Assemble();
 
@@ -100,11 +104,6 @@ MaterialThicknessSolver::~MaterialThicknessSolver()
 
 void MaterialThicknessSolver::Assemble()
 {
-    constexpr real_t alpha = 1.0;
-    K->AddDomainIntegrator(new ConvectionIntegrator(v_cf, alpha));
-    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(v_cf, alpha));
-    K->AddBdrFaceIntegrator (new NonconservativeDGTraceIntegrator(v_cf, alpha));
-
     if(pa) 
     {
         K->SetAssemblyLevel(AssemblyLevel::PARTIAL);

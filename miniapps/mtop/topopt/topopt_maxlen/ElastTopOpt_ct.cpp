@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
     real_t tol          = 1e-4;       // stopping tol on iteration error
     real_t move         = 0.1;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
+    bool   pa           = false;
     const int seed      = 0;
 
     // Thickness constraint parameters
@@ -91,6 +92,8 @@ int main(int argc, char *argv[])
                     "store solution in paraview");
     args.AddOption(&visualization, "-vis", "--visualization",
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
+    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa", "--no-partial-assembly",
+                    "enable partial assembly (recommended for large problems)");
     args.Parse();
     if (!args.Good())
     {
@@ -235,7 +238,7 @@ int main(int argc, char *argv[])
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
         *alpha[r] = domain_init;   // initialize to mid-range
 
-        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r]);
+        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r], pa);
         advect[r]->SetMinv(minv);
         adv_res[r] = make_unique<AdvectThicknessResidual>(*outflow[r], advect[r]->GetRhoA(), *alpha[r]);
     }
@@ -271,7 +274,7 @@ int main(int argc, char *argv[])
     vector<unique_ptr<IsoLinElasticSolver>> elast(n_elast_solve);
     for (int i = 0; i < n_elast_solve; i++)
     {
-        elast[i] = make_unique<IsoLinElasticSolver>(&design_domain, order);
+        elast[i] = make_unique<IsoLinElasticSolver>(&design_domain, order, pa);
         for (int j = 0; j < load_attrs[i].Size(); j++)
         {
             if (dim == 2)
@@ -415,20 +418,22 @@ int main(int argc, char *argv[])
     // 11. Optimization loop.
     int k = 0;
     real_t iterationError = 1.0;
-    
+
+    double opt_start_time = MPI_Wtime();\
+
     real_t init_comp = 1.0;
     vector<real_t> init_thickness_res(n_dir, 1.0);
     for (; k < max_it && iterationError > tol; k++)
     {
-        double iter_start_time = MPI_Wtime();
+        double iter_start_time = MPI_Wtime() - opt_start_time;
 
         if (myid == 0)
         {
             mfem::out << "\nIteration " << k + 1
                         << "\n=================================="
                         << "====================================\n"
-                        << "start_time: " << fixed << setprecision(8) << iter_start_time
-                        << " s\n" << endl;
+                        << "elapsed time at start: " << fixed << setprecision(2)
+                        << iter_start_time << " s\n" << endl;
         }
 
         if (k % decay_int == 0 && k > decay_start)
@@ -566,7 +571,7 @@ int main(int argc, char *argv[])
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
-        double iter_end_time = MPI_Wtime();
+        double iter_end_time = MPI_Wtime() - opt_start_time;
         double iter_runtime = iter_end_time - iter_start_time;
 
         if (myid == 0)
@@ -574,9 +579,10 @@ int main(int argc, char *argv[])
             mfem::out << "\nc = " << scientific << setprecision(6) << compliance
                       << "   vol = " << fixed << setprecision(4) << vol
                       << "   eps = " << scientific << setprecision(4) << epsilon
-                      << "   iterErr = " << setprecision(6) << iterationError 
-                      << "\nend time: " << fixed << setprecision(8) << iter_end_time 
-                      << " s,   runtime: " << setprecision(8) << iter_runtime << " s" << endl;
+                      << "   iterErr = " << setprecision(6) << iterationError
+                      << "\nelapsed time at end: " << fixed << setprecision(2)
+                      << iter_end_time << " s"
+                      << ",   iteration runtime: " << setprecision(2) << iter_runtime << " s" << endl;
 
             csv << k + 1 << ','
                 << scientific << setprecision(8) << compliance << ','
