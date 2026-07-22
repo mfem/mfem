@@ -43,7 +43,6 @@ int main(int argc, char *argv[])
     real_t tol          = 1e-4;       // stopping tol on iteration error
     real_t move         = 0.1;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
-    bool   pa           = false;
     const int seed      = 0;
 
     // Thickness constraint parameters
@@ -62,7 +61,8 @@ int main(int argc, char *argv[])
     int    decay_int   = 20;
     int    decay_start = 10;
 
-    bool   restart     = false;
+    bool pa      = false;
+    bool restart = false;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh", "mesh file to use");
@@ -173,6 +173,13 @@ int main(int argc, char *argv[])
     ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
     ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
+    // 4b. Define the DG space for thickness evaluation
+    DG_FECollection dgfec(order, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace dgfes(&pmesh, &dgfec);
+
+    vector<unique_ptr<DG_FECollection>> sub_dg_fec(n_dir);
+    vector<unique_ptr<ParFiniteElementSpace>> sub_dg_fes(n_dir);
+
     // Printing all true dofs.
     HYPRE_BigInt state_size   = state_fes.GlobalTrueVSize();
     HYPRE_BigInt filter_size  = filter_fes.GlobalTrueVSize();
@@ -194,21 +201,8 @@ int main(int argc, char *argv[])
     rho += vol_fraction;
     rho_filter = vol_fraction;
 
-    GridFunctionCoefficient rho_cf(&rho);
-
-    // Set up the thickness design variables, one per ray direction.
-    // Advection solve for rho_a uses DG, so alpha also lives in DG space
-    DG_FECollection dgfec(order, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace dgfes(&pmesh, &dgfec);
-
-    vector<unique_ptr<DG_FECollection>> sub_dg_fec(n_dir);
-    vector<unique_ptr<ParFiniteElementSpace>> sub_dg_fes(n_dir);
+    // initilize alpha in the DG space
     vector<unique_ptr<ParGridFunction>> alpha(n_dir);
-    vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
-    vector<unique_ptr<AdvectThicknessResidual>> adv_res(n_dir);
-
-    DGMassInverse minv(dgfes);
-
     for (int r = 0; r < n_dir; r++)
     {
         const int sub_dim = outflow[r]->Dimension();
@@ -217,27 +211,6 @@ int main(int argc, char *argv[])
 
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
         *alpha[r] = alpha_max * vol_fraction;   // initialize thickness variables
-
-        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r], pa);
-        advect[r]->SetMinv(minv);
-        adv_res[r] = make_unique<AdvectThicknessResidual>(*outflow[r], advect[r]->GetRhoA(), *alpha[r]);
-    }
-
-    // 6a. Set timestep according to the CFL condition (shared across rays).
-    real_t cfl = 0.5;
-    real_t hmin = infinity();
-    for (int i = 0; i < pmesh.GetNE(); i++)
-    {
-        hmin = min(pmesh.GetElementSize(i, 1), hmin);
-    }
-    MPI_Allreduce(MPI_IN_PLACE, &hmin, 1,  MPITypeMap<real_t>::mpi_type, MPI_MIN,
-                    pmesh.GetComm());
-
-    real_t dt = cfl * hmin / (2 * order + 1);
-    for (int r = 0; r < n_dir; r++)
-    {
-        advect[r]->GetSolver().SetTimeStep(dt);
-        advect[r]->GetSolver().SetTerminalTime(3.0);
     }
 
     // Lame constants and SIMP material coefficients
@@ -248,6 +221,7 @@ int main(int argc, char *argv[])
     SIMPCoefficient simp_cf(&rho_filter, E_min, E_max, exponent);                // r(rho~)
     SIMPGradCoefficient simp_grad_cf(&rho_filter, E_min, E_max, exponent);       // r'(rho~)
     ProductCoefficient E_simp(simp_cf, E_cf);           // r(rho~) * E0
+    GridFunctionCoefficient rho_cf(&rho);
 
     // 7. Construct the solvers.
     // 7a. Linear elasticity solver
@@ -274,6 +248,36 @@ int main(int argc, char *argv[])
         filter_solver.AddBoundaryID(i);
     }
     filter.Assemble();
+    
+    // 7c. Thickness constriant solver
+    vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
+    vector<unique_ptr<AdvectThicknessResidual>> adv_res(n_dir);
+
+    DGMassInverse minv(dgfes);
+
+    for (int r = 0; r < n_dir; r++)
+    {
+        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r], pa);
+        advect[r]->SetMinv(minv);
+        adv_res[r] = make_unique<AdvectThicknessResidual>(*outflow[r], advect[r]->GetRhoA(), *alpha[r]);
+    }
+
+    // set timestep according to the CFL condition
+    real_t cfl = 0.5;
+    real_t hmin = infinity();
+    for (int i = 0; i < pmesh.GetNE(); i++)
+    {
+        hmin = min(pmesh.GetElementSize(i, 1), hmin);
+    }
+    MPI_Allreduce(MPI_IN_PLACE, &hmin, 1,  MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                    pmesh.GetComm());
+
+    real_t dt = cfl * hmin / (2 * order + 1);
+    for (int r = 0; r < n_dir; r++)
+    {
+        advect[r]->GetSolver().SetTimeStep(dt);
+        advect[r]->GetSolver().SetTerminalTime(3.0);
+    }
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
     ParLinearForm vol_form(&control_fes);
@@ -303,21 +307,21 @@ int main(int argc, char *argv[])
     Vector rho_tv(n), rho_old(n);
     vector<Vector> alpha_tv(n_dir);
 
-    rho.GetTrueDofs(rho_tv);
-    for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
-
+    // initialize for normalization
     real_t init_comp = 1.0;
     vector<real_t> init_thickness_res(n_dir, 1.0);
 
+    rho.GetTrueDofs(rho_tv);
+    for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
+    
     // Initialize checkpoint system and restart from a saved design if requested.
     Checkpoint checkpoint("checkpoints", MPI_COMM_WORLD);
     int start_iteration = 0;
-    if (!checkpoint.RestartIfRequested(restart, ref_levels, order, n_dir,
+    const int cp_interval = 5;
+    MFEM_VERIFY(checkpoint.RestartIfRequested(restart, ref_levels, order, n_dir,
                                         rho_tv, alpha_tv, start_iteration, epsilon,
-                                        init_comp, init_thickness_res))
-    {
-        return 1;
-    }
+                                        init_comp, init_thickness_res),
+                                    "Failed to restart from checkpoint.");
     rho.SetFromTrueDofs(rho_tv);
     for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
 
@@ -339,7 +343,7 @@ int main(int argc, char *argv[])
     vector<Vector> dfidx(num_con);
     dfidx[0] = dvol;                                  // dfidx[1..n_dir] updated each iteration
 
-    // 10. Visualizations
+    // 10. Visualizations and data information
     ParGridFunction phys_density(&filter_fes);
     phys_density.ProjectCoefficient(simp_cf);
 
@@ -371,7 +375,7 @@ int main(int argc, char *argv[])
         paraview_dc.RegisterField("density", &phys_density);
     }
 
-    // 10d. Initialization block runtime.
+    // Initialization block runtime.
     double init_block_time = MPI_Wtime() - init_time;
     if (myid == 0)
     {
@@ -379,7 +383,7 @@ int main(int argc, char *argv[])
                    << init_block_time << " s\n";
     }
 
-    // 10e. CSV convergence log (rank 0 only).
+    // 10c. CSV convergence log (rank 0 only).
     std::ofstream csv;
     if (myid == 0)
     {
@@ -426,7 +430,6 @@ int main(int argc, char *argv[])
         // (3) Adjoint filter + objective gradient:
         //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) ψ_0) φ_i dΩ
         //     dc/drho = M_fc^T w~
-        
         ParLinearForm adj_rhs(&filter_fes);
         adj_rhs.AddDomainIntegrator(new DomainLFIntegrator(dcdrho_cf));
         adj_rhs.Assemble();
@@ -556,8 +559,8 @@ int main(int argc, char *argv[])
             csv.flush();
         }
 
-        // Checkpoint every 10 iterations
-        if ((k + 1) % 10 == 0)
+        // Checkpoint every n iterations
+        if ((k + 1) % cp_interval == 0)
         {
             rho.GetTrueDofs(rho_tv);
             for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
