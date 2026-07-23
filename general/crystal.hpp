@@ -291,6 +291,17 @@ public:
    }
 };
 
+
+inline FieldGroup ParticleVector(
+   const std::vector<std::unique_ptr<mfem::ParticleVector>> &pvs) {
+   return FieldGroup(pvs);
+}
+
+inline FieldGroup Array(
+   const std::vector<std::unique_ptr<mfem::Array<int>>> &arrs) {
+   return FieldGroup(arrs);
+}
+
 } // namespace CR
 
 
