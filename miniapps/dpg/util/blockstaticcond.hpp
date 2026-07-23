@@ -40,6 +40,7 @@ class BlockStaticCondensation
    // New set of "reduced" Finite Element Spaces
    // (after static condensation)
    Array<FiniteElementSpace *> tr_fes;
+   Array<FiniteElementCollection *> tr_fec;
 
    Array<int> dof_offsets;
    Array<int> tdof_offsets;
@@ -184,6 +185,11 @@ public:
    /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the
        full linear system, compute the solution of the full system 'sol'. */
    void ComputeSolution(const Vector &sc_sol, Vector &sol) const;
+
+   void GetTraceFESpaces(Array<FiniteElementSpace *> & trace_fes) const
+   {
+      trace_fes = tr_fes;
+   }
 
 };
 

@@ -237,6 +237,81 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->SyncAliasMemory(*this);
 }
 
+real_t
+ComplexGridFunction::ComputeLpError(const real_t p,
+                                    Coefficient &exsolr,
+                                    Coefficient &exsoli,
+                                    Coefficient *weight,
+                                    const IntegrationRule *irs[],
+                                    const Array<int> *elems) const
+{
+   real_t error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector valsr;
+   Vector valsi;
+
+   const GridFunction& gf_r = real();
+   const GridFunction& gf_i = imag();
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 3;
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      real_t elem_error = 0.0;
+      gf_r.GetValues(i, *ir, valsr);
+      gf_i.GetValues(i, *ir, valsi);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         real_t diffr = valsr(j) - exsolr.Eval(*T, ip);
+         real_t diffi = valsi(j) - exsoli.Eval(*T, ip);
+         real_t diff = hypot(diffr, diffi);
+         if (p < infinity())
+         {
+            diff = pow(diff, p);
+            if (weight)
+            {
+               diff *= weight->Eval(*T, ip);
+            }
+            elem_error += ip.weight * T->Weight() * diff;
+         }
+         else
+         {
+            if (weight)
+            {
+               diff *= weight->Eval(*T, ip);
+            }
+            error = std::max(error, diff);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         error += fabs(elem_error);
+      }
+   }
+
+   if (p < infinity())
+   {
+      error = pow(error, 1./p);
+   }
+
+   return error;
+}
+
 void ComplexGridFunction::Save(std::ostream &os) const
 {
    os << "ComplexGridFunction\n";
@@ -830,15 +905,9 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
       int vsize = pfes->GetVSize();
       Vector::Load(input, 2*vsize);
 
-      real_t *data_  = const_cast<real_t*>(HostRead());
-      for (int i = 0; i < vsize; i++)
-      {
-         if (pfes->GetDofSign(i) < 0)
-         {
-            data_[i] = -data_[i];
-            data_[i+vsize] = -data_[i+vsize];
-         }
-      }
+      real_t *h_data = HostReadWrite();
+      pfes->ApplyDofSigns(h_data);
+      pfes->ApplyDofSigns(h_data + vsize);
 
 
       // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
@@ -1051,15 +1120,14 @@ void ParComplexGridFunction::Save(std::ostream &os) const
    os << '\n';
 
    int vsize = pfes->GetVSize();
-   real_t *data_  = const_cast<real_t*>(HostRead());
-   for (int i = 0; i < vsize; i++)
-   {
-      if (pfes->GetDofSign(i) < 0)
-      {
-         data_[i] = -data_[i];
-         data_[i+vsize] = -data_[i+vsize];
-      }
-   }
+   // We use const_cast + HostRead (instead of HostReadWrite) because we only
+   // need to change the host data temporarily and this way we do not invalidate
+   // the data if it is on device. If we use HostReadWrite here, later calls to
+   // Read or ReadWrite will need to copy the data from host to device. With the
+   // approach used here, the host-to-device copy is avoided.
+   real_t *h_data = const_cast<real_t*>(HostRead());
+   pfes->ApplyDofSigns(h_data);
+   pfes->ApplyDofSigns(h_data + vsize);
 
    if (pfes->GetOrdering() == Ordering::byNODES)
    {
@@ -1070,14 +1138,8 @@ void ParComplexGridFunction::Save(std::ostream &os) const
       Vector::Print(os, pfes->GetVDim());
    }
 
-   for (int i = 0; i < vsize; i++)
-   {
-      if (pfes->GetDofSign(i) < 0)
-      {
-         data_[i] = -data_[i];
-         data_[i+vsize] = -data_[i+vsize];
-      }
-   }
+   pfes->ApplyDofSigns(h_data);
+   pfes->ApplyDofSigns(h_data + vsize);
 
    os.flush();
 }

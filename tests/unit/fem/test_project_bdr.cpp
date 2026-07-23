@@ -124,8 +124,8 @@ TEST_CASE("3D ProjectBdrCoefficientNormal Scalar",
 
    const double tol = 1e-6;
 
-   const char bdrs_axis[] = {2, 1, 0, 1, 0, 2};
-   const char bdrs_sign[] = {-1, -1, +1, +1, -1, +1};
+   const int bdrs_axis[] = {2, 1, 0, 1, 0, 2};
+   const int bdrs_sign[] = {-1, -1, +1, +1, -1, +1};
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
