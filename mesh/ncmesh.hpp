@@ -1089,6 +1089,7 @@ protected:
                          Array<int> *neighbors, /* append */
                          Array<char> *neighbor_set = NULL);
 
+public:
    /** Return all vertex-, edge- and face-neighbors of a single element. You can
        limit the number of elements being checked using 'search_set'. The
        complexity of the function is linear in the size of the search set.*/
@@ -1105,7 +1106,7 @@ protected:
                        Array<int> &expanded,
                        const Array<int> *search_set = NULL);
 
-
+protected:
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
    void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
    void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
