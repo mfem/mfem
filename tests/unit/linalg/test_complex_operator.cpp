@@ -164,12 +164,29 @@ TEST_CASE("ComplexHypreParMatrix GetSystemMatrix",
    a.AddDomainIntegrator(new VectorFEMassIntegrator(one),
                          new VectorFEMassIntegrator(one));
    a.Assemble();
+
+   // 2. Test ParSesquilinearForm::FormSystemMatrix directly and verify that
+   //    essential entries on the imaginary diagonal are zero.
    OperatorPtr Ah;
+   a.FormSystemMatrix(ess_tdof_list, Ah);
+   ComplexHypreParMatrix *A_complex = Ah.Is<ComplexHypreParMatrix>();
+   REQUIRE(A_complex != nullptr);
+   Vector diag;
+   A_complex->imag().GetDiag(diag);
+   const Array<int> &ess_tdofs = ess_tdof_list;
+   const Vector &diag_h = diag;
+   ess_tdofs.HostRead();
+   diag_h.HostRead();
+   for (const int tdof : ess_tdofs)
+   {
+      REQUIRE(diag_h[tdof] == 0.0);
+   }
+
+   // 3. Test the call to ComplexHypreParMatrix::GetSystemMatrix and destroying
+   //    the returned matrix.
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 2. Test the call to ComplexHypreParMatrix::GetSystemMatrix and destroying
-   //    the returned matrix.
    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
    delete A;
 }

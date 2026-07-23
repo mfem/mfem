@@ -1663,15 +1663,20 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
-         int n = ess_tdof_list.Size();
+         const int n = ess_tdof_list.Size();
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix * Aih = *Ah;
-         for (int k = 0; k < n; k++)
+         Ah->HypreReadWrite();
+         const int *d_ess_tdof_list =
+            ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
+         HYPRE_Int *d_diag_i = Aih->diag->i;
+         real_t *d_diag_data = Aih->diag->data;
+         mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)
          {
-            int j = ess_tdof_list[k];
-            Aih->diag->data[Aih->diag->i[j]] = 0.0;
-         }
+            const int j = d_ess_tdof_list[k];
+            d_diag_data[d_diag_i[j]] = 0.0;
+         });
       }
       else
       {
