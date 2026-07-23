@@ -52,13 +52,6 @@ constexpr int COORDINATES = 4;
 // The user only writes operator(); the shared base handles scratch setup.
 struct CubicQFWithScratch : QFWithScratchType
 {
-   CubicQFWithScratch CreateShadow() const
-   {
-      CubicQFWithScratch shadow;
-      CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
@@ -91,13 +84,6 @@ struct CubicQFWithScratch : QFWithScratchType
 template <int DIM>
 struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 {
-   CubicQFWithScratchMultipleSizes CreateShadow() const
-   {
-      CubicQFWithScratchMultipleSizes shadow;
-      this->CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
@@ -131,13 +117,6 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 
 struct CubicQFWithGlobalScratch : QFWithGlobalScratchType
 {
-   CubicQFWithGlobalScratch CreateShadow() const
-   {
-      CubicQFWithGlobalScratch shadow;
-      CloneScratchLayoutTo(shadow);
-      return shadow;
-   }
-
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
                    tensor_array<const real_t, 2, 2> &J,
@@ -241,7 +220,7 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
                  MPITypeMap<real_t>::mpi_type,
                  MPI_MAX, MPI_COMM_WORLD);
 
-   if (Mpi::Root())
+   if (verbose_tests && Mpi::Root())
    {
       mfem::out << "Primal output max error: " << global_err << endl;
       mfem::out << "Derivative output max error: "
@@ -288,7 +267,7 @@ void CheckScratchResults(ParMesh &pmesh, const IntegrationRule &ir,
    MPI_Allreduce(&local_scratch_d_err, &global_scratch_d_err, 1,
                  MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
 
-   if (Mpi::Root())
+   if (verbose_tests && Mpi::Root())
    {
       mfem::out << "Scratch max error: " << global_scratch_err << endl;
       mfem::out << "Scratch derivative max error: "

@@ -219,7 +219,7 @@ inline void print_results(const char *label,
 // yd comes out wrong (missing the factor-of-3 term).
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
-          "[Enzyme][MultiKernel][QFConst]")
+          "[Enzyme][GPU][MultiKernel][QFConst]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
@@ -231,15 +231,23 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
 
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
+
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      scratch(i) = -1.0;
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      scratch_w[i] = -1.0;
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -272,28 +280,33 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
       enzyme_dup, y_d, yd_d,
       enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *coef_h = coef.HostRead();
+   const mfem::real_t *y_h = y.HostRead();
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *scratch_h = scratch.HostRead();
+   const mfem::real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double observed_yd = coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double observed_yd = coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
 
       // yd is wrong-by-construction: the x^2 term's derivative never
       // survives the boundary between Kernel1/Kernel2's separate calls.
-      REQUIRE(yd[q] == MFEM_Approx(observed_yd));
-      REQUIRE(yd[q] != MFEM_Approx(exact_yd));
+      REQUIRE(yd_h[q] == MFEM_Approx(observed_yd));
+      REQUIRE(yd_h[q] != MFEM_Approx(exact_yd));
       // Primal scratch is still correct -- only the tangent is lost.
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(0.0));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(0.0));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, qf const (BROKEN): yd missing scratch's tangent contribution",
-      x, coef, y, yd, scratch, scratchd, true);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, qf const (BROKEN): yd missing scratch's tangent contribution",
+         x, coef, y, yd, scratch, scratchd, true);
+   }
 }
 
 // =========================================================================
@@ -302,7 +315,7 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
 // it holds no differentiable state directly.
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
-          "[Enzyme][MultiKernel][ExplicitScratch]")
+          "[Enzyme][GPU][MultiKernel][ExplicitScratch]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), scratch(N), scratchd(N);
@@ -314,15 +327,23 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
 
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
+
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      scratch(i) = -1.0;
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      scratch_w[i] = -1.0;
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -358,24 +379,29 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
       enzyme_dup, y_d, yd_d,
       enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *coef_h = coef.HostRead();
+   const mfem::real_t *y_h = y.HostRead();
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *scratch_h = scratch.HostRead();
+   const mfem::real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
-      const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
+      const double exact_scratchd = 2.0 * x_h[q];
 
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, explicit scratch dup'd (WORKING)",
-      x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, explicit scratch dup'd (WORKING)",
+         x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 // =========================================================================
@@ -384,7 +410,7 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
 // the shadow is reachable through qf_d.scratch between calls.
 // =========================================================================
 TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
-          "[Enzyme][MultiKernel][QFDup]")
+          "[Enzyme][GPU][MultiKernel][QFDup]")
 {
    constexpr int N = 100;
    mfem::Vector x(N), xd(N), y(N), yd(N), coef(N), coefd(N), scratch(N),
@@ -398,16 +424,25 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
    scratch.UseDevice(true);
    scratchd.UseDevice(true);
 
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto coef_w = coef.HostWrite();
+   auto coefd_w = coefd.HostWrite();
+   auto scratch_w = scratch.HostWrite();
+   auto scratchd_w = scratchd.HostWrite();
+
    for (int i = 0; i < N; i++)
    {
-      x(i) = i + 1.0;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      coef(i) = 0.5 + 0.25 * i;
-      coefd(i) = 0.0;
-      scratch(i) = -1.0;
-      scratchd(i) = 0.0;
+      x_w[i] = i + 1.0;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      coef_w[i] = 0.5 + 0.25 * i;
+      coefd_w[i] = 0.0;
+      scratch_w[i] = -1.0;
+      scratchd_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -446,24 +481,29 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
       enzyme_dup, y_d, yd_d,
       enzyme_runtime_activity);
 
-   y.HostRead();
-   yd.HostRead();
-   scratch.HostRead();
-   scratchd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *coef_h = coef.HostRead();
+   const mfem::real_t *y_h = y.HostRead();
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *scratch_h = scratch.HostRead();
+   const mfem::real_t *scratchd_h = scratchd.HostRead();
 
    for (int q = 0; q < N; q++)
    {
-      const double exact_yd = 3.0 * coef[q] * x[q] * x[q];
-      const double exact_scratch = x[q] * x[q];
-      const double exact_scratchd = 2.0 * x[q];
+      const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
+      const double exact_scratch = x_h[q] * x_h[q];
+      const double exact_scratchd = 2.0 * x_h[q];
 
-      REQUIRE(yd[q] == MFEM_Approx(exact_yd));
-      REQUIRE(scratch[q] == MFEM_Approx(exact_scratch));
-      REQUIRE(scratchd[q] == MFEM_Approx(exact_scratchd));
+      REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
+      REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
+      REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
    }
-   enzyme_test_multikernel::print_results(
-      "Multi-kernel, qf dup with member scratch_d (WORKING)",
-      x, coef, y, yd, scratch, scratchd);
+   if (verbose_tests)
+   {
+      enzyme_test_multikernel::print_results(
+         "Multi-kernel, qf dup with member scratch_d (WORKING)",
+         x, coef, y, yd, scratch, scratchd);
+   }
 }
 
 #endif
