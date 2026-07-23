@@ -17,6 +17,7 @@
 //
 // Sample runs:  nurbs_spacing -ex 1
 //               nurbs_spacing -ex 2
+//               nurbs_spacing -m ../../data/nc3-nurbs.mesh
 //
 // Description:  This miniapp inputs a NURBS mesh and modifies its control points
 //               (degrees of freedom) so that the relative physical element
@@ -45,7 +46,7 @@ int main(int argc, char *argv[])
 {
    int example = 0;  // ExampleMesh
    const char *mesh_file = "../../data/nc3-nurbs.mesh";
-   bool sweep1D = true;
+   bool sweep1D = true;  // Whether to solve with efficient 1D sweeps
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -83,8 +84,10 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, 1, 1);
    }
 
+   // Solve for the physical spacing of elements.
    mesh->NURBSext->PhysicalSpacing(*mesh->GetNodes(), sweep1D);
 
+   // Output the physically spaced mesh to file.
    ofstream mesh_ofs("spaced.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);

@@ -265,7 +265,8 @@ public:
        coarse knots. */
    Vector GetFineKnots(const int cf) const;
 
-   int ElemIndex(int ki) const;
+   /// Return the element index for a given knot span index.
+   int ElementIndex(int knot_span) const;
 
    /** @brief Return a new KnotVector with elevated degree by repeating the
        endpoints of the KnotVector. */
@@ -517,7 +518,7 @@ public:
    inline       real_t &operator()(int i, int j, int k, int l);
    inline const real_t &operator()(int i, int j, int k, int l) const;
 
-   /// Copy the control points and weights from another NURBSPatch.
+   /// Copy the control points and weights from another NURBSPatch @a p to this.
    void SetControlPoints(const NURBSPatch &p);
 
    void DivideOutWeights();
@@ -1135,7 +1136,7 @@ public:
    /// Return true if the patch topology mesh is nonconforming.
    bool NonconformingPatches() const { return nonconformingPT; }
 
-   /// Copy the control points and weights for one patch.
+   /// Set the control points and weights for one patch.
    void SetPatchControlPoints(int patch, const NURBSPatch &p)
    {
       patches[patch]->SetControlPoints(p);
