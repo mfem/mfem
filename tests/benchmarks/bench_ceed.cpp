@@ -163,7 +163,7 @@ struct BakeOff
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
-   static constexpr bool requires_cuda_mma = SIMPLEX && POS && MMA;
+   static constexpr bool requires_gpu_mma = SIMPLEX && POS && MMA;
 
    const int p, c, q, n, nx, ny, nz;
 
@@ -398,11 +398,11 @@ static void Benchmark(bm::State& state) noexcept
    {
       ForceSimplexPositiveMMA(false);
    }
-   if constexpr (T::requires_cuda_mma)
+   if constexpr (T::requires_gpu_mma)
    {
-      if (!Device::Allows(Backend::CUDA_MASK))
+      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         state.SkipWithError("Positive MMA benchmarks require CUDA");
+         state.SkipWithError("Positive MMA benchmarks require CUDA or HIP");
          return;
       }
    }
@@ -544,10 +544,11 @@ REGISTER(BK, 6, Quad);
  *    hex / quad       — tensor-product (3D / 2D)
  *    tet_gll_mma / tri_gll_mma — simplex Gauss-Lobatto, dense MMA
  *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
- *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA (CUDA)
+ *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA
  *
- * Positive MMA (`*_pos_mma`) requires CUDA, e.g.:
+ * Positive MMA (`*_pos_mma`) requires CUDA or HIP, e.g.:
  *    --benchmark_context=device=cuda
+ *    --benchmark_context=device=hip
  *
  * Benchmark args are {order, side} from the 3D-hex reference sweep:
  * scalar NDOf ≈ (side+1)^3. 2D geometries scale the mesh so NDOf matches.

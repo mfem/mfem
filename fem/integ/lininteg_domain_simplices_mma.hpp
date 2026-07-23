@@ -60,7 +60,8 @@ void SmemDLFAssembleSimplexMma_Batch(const int e0,
    const int tid = simplex_mma::getThreadIdx();
    [[maybe_unused]]const int nthreads = simplex_mma::getBlockNthreads();
 
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
+    !defined(MFEM_USE_SINGLE)
    simplex_mma::SmemMatAcc<U_LD> Uacc {sm.Us};
    simplex_mma::YVdimAcc Yacc{y_, ndof, vdim, vc, e0};
 

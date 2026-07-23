@@ -40,7 +40,7 @@ void test_pa_simplices_mma(const char *filename, int p, int basis)
    const bool positive = basis == BasisType::Positive;
    if (positive) { ForceSimplexPositiveMMA(true); }
 
-   // Positive MMA is CUDA-only; skip when the gate rejects the space.
+   // Positive MMA is CUDA/HIP when forced; skip when the gate rejects the space.
    if (!CanUseSimplexMmaPA(fes))
    {
       if (positive) { ForceSimplexPositiveMMA(false); }
@@ -142,9 +142,9 @@ TEST_CASE("PA Simplices Positive force MMA",
    REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 
-   const bool cuda = Device::Allows(Backend::CUDA_MASK);
+   const bool gpu_mma = Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK);
    ForceSimplexPositiveMMA(true);
-   if (!cuda)
+   if (!gpu_mma)
    {
       REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
       ForceSimplexPositiveMMA(false);

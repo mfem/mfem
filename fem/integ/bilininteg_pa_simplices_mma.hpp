@@ -26,14 +26,14 @@
 namespace mfem
 {
 
-/** @brief Force Positive/Bernstein simplex PA to use CUDA MMA instead of the
-    default Stroud sum-factorized path.
+/** @brief Force Positive/Bernstein simplex PA to use MMA instead of the
+    default Stroud sum-factorized path (CUDA Tensor Core or HIP Matrix Core).
 
     Also enabled when the environment variable MFEM_SIMPLEX_POSITIVE_MMA is set
     to any value other than "0". */
 void ForceSimplexPositiveMMA(bool enable = true);
 
-/// @brief True if Positive simplex PA is forced onto the CUDA MMA path.
+/// @brief True if Positive simplex PA is forced onto the MMA path.
 bool GetForceSimplexPositiveMMA();
 
 /// \cond DO_NOT_DOCUMENT
@@ -51,12 +51,14 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
           dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
 }
 
-/** True if dense simplex PA (DMMA on CUDA, scalar fallback on CPU/HIP for GLL)
-    can be used for this H1 triangle/tet space.
+/** True if dense simplex PA (DMMA on CUDA, MFMA on HIP gfx942, scalar
+    fallback on CPU / non-MatrixCore HIP for GLL) can be used for this H1
+    triangle/tet space.
 
-    - GLL (`H1_*`): eligible on CUDA/HIP/CPU (DMMA vs scalar fallback).
+    - GLL (`H1_*`): eligible on CUDA/HIP/CPU.
     - Positive (`H1Pos_*`): eligible only when explicitly forced with
-      ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA, and only on CUDA. */
+      ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA, and only on
+      CUDA or HIP. */
 inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
 {
    if (fes.IsVariableOrder()) { return false; }
@@ -84,7 +86,10 @@ inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
    if (positive)
    {
       if (!GetForceSimplexPositiveMMA()) { return false; }
-      if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
+      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+      {
+         return false;
+      }
    }
    return true;
 }
@@ -233,25 +238,47 @@ inline void PAMassSetupSimplexFromNodes(const int dim,
    });
 }
 
-/** CUDA DMMA (m8n8k4) helpers for simplex PA mass/diffusion. */
+/** CUDA DMMA (m8n8k4) / HIP MFMA (16x16x4 or 4x4x4_4b) helpers for simplex PA. */
 namespace simplex_mma
 {
 
+#if defined(MFEM_USE_HIP)
+constexpr int WarpSize = 64;
+#else
+constexpr int WarpSize = 32;
+#endif
+
 MFEM_HOST_DEVICE inline int getThreadIdx()
 {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    return threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * threadIdx.z);
 #else
    return 0;
 #endif
 }
 
-MFEM_HOST_DEVICE inline int getWarpId(int thread) { return thread / 32; }
-MFEM_HOST_DEVICE inline int getLaneId(int thread) { return thread % 32; }
+MFEM_HOST_DEVICE inline int getWarpId(int thread) { return thread / WarpSize; }
+MFEM_HOST_DEVICE inline int getLaneId(int thread) { return thread % WarpSize; }
+
+// CUDA m8n8k4 lane grouping (unused on HIP MFMA paths).
 MFEM_HOST_DEVICE inline int getGroupId(int laneId) { return laneId / 4; }
 MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId) { return laneId % 4; }
 
+/** Prefer small MFMA tile when both matrix dims fit in ~24 (low-order tris). */
+MFEM_HOST_DEVICE inline bool PreferMfma4(int nq, int ndof)
+{
+   return (nq > ndof ? nq : ndof) <= 24;
+}
+
+#if defined(MFEM_USE_CUDA)
 constexpr int mmaM = 8, mmaN = 8, mmaK = 4;
+#elif defined(MFEM_USE_HIP)
+constexpr int mmaK = 4;
+// HIP tile M/N are 4 or 16 (selected at runtime / launch); N batch stays 16.
+constexpr int mmaM = 16, mmaN = 16; // defaults for NBATCH / fallback launch
+#else
+constexpr int mmaM = 8, mmaN = 8, mmaK = 4;
+#endif
 
 // Default packed column map for m8n8k4.row.col: [0,5,1,6,2,7,3,4].
 constexpr int MmaMapDefault = 0x8fac68;
@@ -367,14 +394,25 @@ constexpr bool LdBankOkM8(int ld)
    return true;
 }
 
+/** HIP LDS pad: odd leading dimension reduces FP64 bank conflicts. */
+constexpr int PadLdBankHip(int n)
+{
+   return n + ((n & 1) == 0 ? 1 : 0);
+}
+
 template <int MAP>
 constexpr int PadLdBank(int n)
 {
+#if defined(MFEM_USE_HIP)
+   (void)MAP;
+   return PadLdBankHip(n);
+#else
    for (int ld = n; ld < n + 48; ++ld)
    {
       if (LdBankOkM8<MAP>(ld)) { return ld; }
    }
    return n;
+#endif
 }
 
 MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
@@ -388,6 +426,21 @@ MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
 #endif
 }
 
+#if defined(__HIP_DEVICE_COMPILE__)
+using mfma_double4 =
+   __attribute__((__vector_size__(4 * sizeof(double)))) double;
+
+MFEM_HOST_DEVICE inline void mfmaSync16(double a, double b, mfma_double4 &c)
+{
+   c = __builtin_amdgcn_mfma_f64_16x16x4f64(a, b, c, 0, 0, 0);
+}
+
+MFEM_HOST_DEVICE inline void mfmaSync4(double a, double b, double &c)
+{
+   c = __builtin_amdgcn_mfma_f64_4x4x4f64(a, b, c, 0, 0, 0);
+}
+#endif
+
 template<int LD>
 struct SmemMatAcc
 {
@@ -399,12 +452,12 @@ struct SmemMatAcc
 };
 
 constexpr int MAX_N_TILES = 2;
-constexpr int NBATCH = MAX_N_TILES * mmaN; // 16
+constexpr int NBATCH = 16; // 2*8 CUDA, or 1*16 / 4*4 HIP
 
 MFEM_HOST_DEVICE inline int getNumWarps()
 {
-#ifdef __CUDA_ARCH__
-   return (blockDim.x * blockDim.y * blockDim.z) / 32;
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return (blockDim.x * blockDim.y * blockDim.z) / WarpSize;
 #else
    return 1;
 #endif
@@ -554,6 +607,260 @@ MFEM_HOST_DEVICE inline void dmma_GemmT(const int M, const int K, const int N,
    dmma_GemmT8<MAP>(M, K, N, A, B, C, e0, NE);
 }
 
+#if defined(__HIP_DEVICE_COMPILE__)
+/** C = A * B via MFMA 16x16x4 (CDNA3). Lane L: A[L%16][L/16], B[L/16][L%16],
+    C[(L/16)+4*i][L%16] = cReg[i]. */
+template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
+MFEM_HOST_DEVICE inline void mfma_Gemm16(const int M, const int K, const int N,
+                                         TA A, TB B, TC C, TD D,
+                                         const int e0, const int NE)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM; // also B's K index
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         mfma_double4 cReg = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + aRow;
+            const int aC = k0 + aColK;
+            const double aV = (aR < M && aC < K)
+                              ? static_cast<double>(A(aR, aC)) : 0.0;
+            const int bR = k0 + aColK;
+            const double bV = (bR < K && bCol < nTile)
+                              ? static_cast<double>(B(bR, n0 + bCol)) : 0.0;
+            mfmaSync16(aV, bV, cReg);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            if (cRow < M && cCol < nTile)
+            {
+               real_t v = static_cast<real_t>(cReg[i]);
+               if constexpr (SCALE)
+               {
+                  const int e = e0 + n0 + cCol;
+                  v = (e < NE) ? v * D(cRow, e) : real_t(0);
+               }
+               C(cRow, n0 + cCol) = v;
+            }
+         }
+      }
+   }
+}
+
+/** C += A^T * B via MFMA 16x16x4. Loads A as A^T fragments. */
+template <typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline void mfma_GemmT16(const int M, const int K, const int N,
+                                          TA A, TB B, TC C,
+                                          const int e0, const int NE)
+{
+   // GemmT: out rows = K (ndof), reduce over M (nq). Tile out-rows with TM.
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;   // output row fragment within tile
+   const int aColK = lane / TM;  // reduction K of A^T (= row of A)
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (K + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         mfma_double4 cReg = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (M + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            // A^T(row,col) = A(col,row): row in K(ndof), col in M(nq)
+            const int aT_row = row0 + aRow;
+            const int aT_col = k0 + aColK;
+            const double aV = (aT_row < K && aT_col < M)
+                              ? static_cast<double>(A(aT_col, aT_row)) : 0.0;
+            const int bR = k0 + aColK;
+            const double bV = (bR < M && bCol < nTile)
+                              ? static_cast<double>(B(bR, n0 + bCol)) : 0.0;
+            mfmaSync16(aV, bV, cReg);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            const int e = e0 + n0 + cCol;
+            if (cRow < K && cCol < nTile && e < NE)
+            {
+               C(cRow, n0 + cCol) += static_cast<real_t>(cReg[i]);
+            }
+         }
+      }
+   }
+}
+
+/** C = A * B via MFMA 4x4x4 with 4 blocks covering N=16 columns.
+    Lane L: block=(L%16)/4, m=(L%16)%4, k=L/16. */
+template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
+MFEM_HOST_DEVICE inline void mfma_Gemm4(const int M, const int K, const int N,
+                                        TA A, TB B, TC C, TD D,
+                                        const int e0, const int NE)
+{
+   constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int block = (lane % 16) / 4;
+   const int mLoc = (lane % 16) % 4;
+   const int kLoc = lane / 16;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + N_EFF - 1) / N_EFF;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * N_EFF;
+         double cReg = 0.0;
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + mLoc;
+            const int aC = k0 + kLoc;
+            const double aV = (aR < M && aC < K)
+                              ? static_cast<double>(A(aR, aC)) : 0.0;
+            const int bR = k0 + kLoc;
+            const int bC = n0 + TN_BLK * block + mLoc; // n within block
+            const double bV = (bR < K && bC < N)
+                              ? static_cast<double>(B(bR, bC)) : 0.0;
+            mfmaSync4(aV, bV, cReg);
+         }
+
+         const int cRow = row0 + kLoc; // D layout: row = lane/16
+         const int cCol = n0 + TN_BLK * block + mLoc;
+         if (cRow < M && cCol < N)
+         {
+            real_t v = static_cast<real_t>(cReg);
+            if constexpr (SCALE)
+            {
+               const int e = e0 + cCol;
+               v = (e < NE) ? v * D(cRow, e) : real_t(0);
+            }
+            C(cRow, cCol) = v;
+         }
+      }
+   }
+}
+
+template <typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline void mfma_GemmT4(const int M, const int K, const int N,
+                                         TA A, TB B, TC C,
+                                         const int e0, const int NE)
+{
+   constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int block = (lane % 16) / 4;
+   const int mLoc = (lane % 16) % 4;
+   const int kLoc = lane / 16;
+   const int mPass = (K + TM - 1) / TM;
+   const int nTiles = (N + N_EFF - 1) / N_EFF;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * N_EFF;
+         double cReg = 0.0;
+
+         for (int mK = 0; mK < (M + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aT_row = row0 + mLoc;
+            const int aT_col = k0 + kLoc;
+            const double aV = (aT_row < K && aT_col < M)
+                              ? static_cast<double>(A(aT_col, aT_row)) : 0.0;
+            const int bR = k0 + kLoc;
+            const int bC = n0 + TN_BLK * block + mLoc;
+            const double bV = (bR < M && bC < N)
+                              ? static_cast<double>(B(bR, bC)) : 0.0;
+            mfmaSync4(aV, bV, cReg);
+         }
+
+         const int cRow = row0 + kLoc;
+         const int cCol = n0 + TN_BLK * block + mLoc;
+         const int e = e0 + cCol;
+         if (cRow < K && cCol < N && e < NE)
+         {
+            C(cRow, cCol) += static_cast<real_t>(cReg);
+         }
+      }
+   }
+}
+
+template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
+MFEM_HOST_DEVICE inline void mfma_Gemm(const int M, const int K, const int N,
+                                       TA A, TB B, TC C, TD D,
+                                       const int e0, const int NE)
+{
+   if (PreferMfma4(M, K))
+   {
+      mfma_Gemm4<SCALE>(M, K, N, A, B, C, D, e0, NE);
+   }
+   else
+   {
+      mfma_Gemm16<SCALE>(M, K, N, A, B, C, D, e0, NE);
+   }
+}
+
+template <typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline void mfma_GemmT(const int M, const int K, const int N,
+                                        TA A, TB B, TC C,
+                                        const int e0, const int NE)
+{
+   // PreferMfma4 on (nq=M, ndof=K) — same as forward dims.
+   if (PreferMfma4(M, K))
+   {
+      mfma_GemmT4(M, K, N, A, B, C, e0, NE);
+   }
+   else
+   {
+      mfma_GemmT16(M, K, N, A, B, C, e0, NE);
+   }
+}
+#endif // __HIP_DEVICE_COMPILE__
+
 struct YBatchAcc
 {
    real_t *y;
@@ -631,19 +938,24 @@ constexpr int DiffusionMmaNB()
    return max_nb > 0 ? max_nb : 1;
 }
 
-/** Thread count for forall_3D: enough warps for max(mPassQ, mPassD) tiles. */
+/** Thread count for forall_3D: enough warps/waves for max(mPassQ, mPassD). */
 inline int LaunchNthreads(const int nq, const int ndof)
 {
-   const int mPassQ = (nq + mmaM - 1) / mmaM;
-   const int mPassD = (ndof + mmaM - 1) / mmaM;
+#if defined(MFEM_USE_HIP)
+   const int tileM = PreferMfma4(nq, ndof) ? 4 : 16;
+#else
+   const int tileM = mmaM;
+#endif
+   const int mPassQ = (nq + tileM - 1) / tileM;
+   const int mPassD = (ndof + tileM - 1) / tileM;
    const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
                       : (mPassD > 1 ? mPassD : 1);
-   return nWarps * 32;
+   return nWarps * WarpSize;
 }
 
 MFEM_HOST_DEVICE inline int getBlockNthreads()
 {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    return blockDim.x * blockDim.y * blockDim.z;
 #else
    return 1;
@@ -692,7 +1004,15 @@ MFEM_HOST_DEVICE inline void BasisGemmForward(const int NQ1, const int ndof,
                                               XAcc X, UAcc U, DAcc D,
                                               const int e0, const int NE)
 {
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    dmma_Gemm<MAP, SCALE>(NQ1, ndof, NB, B, X, U, D, e0, NE);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MAP;
+   mfma_Gemm<SCALE>(NQ1, ndof, NB, B, X, U, D, e0, NE);
+#else
+   (void)MAP; (void)NQ1; (void)ndof; (void)NB; (void)B; (void)X; (void)U;
+   (void)D; (void)e0; (void)NE;
+#endif
 }
 
 /** One-component transpose accumulate: Y += B^T * U. */
@@ -702,7 +1022,15 @@ MFEM_HOST_DEVICE inline void BasisGemmT(const int NQ1, const int ndof,
                                         UAcc U, YAcc Y,
                                         const int e0, const int NE)
 {
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    dmma_GemmT<MAP>(NQ1, ndof, NB, B, U, Y, e0, NE);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MAP;
+   mfma_GemmT(NQ1, ndof, NB, B, U, Y, e0, NE);
+#else
+   (void)MAP; (void)NQ1; (void)ndof; (void)NB; (void)B; (void)U; (void)Y;
+   (void)e0; (void)NE;
+#endif
 }
 
 } // namespace simplex_mma
