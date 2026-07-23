@@ -185,6 +185,9 @@ public:
 
        @note This method does not permute the global 1D data array. */
    MFEM_HOST_DEVICE
+#ifdef MFEM_USE_ENZYME
+   __attribute__((annotate("enzyme_inactive")))
+#endif
    void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
