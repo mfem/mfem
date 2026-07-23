@@ -20,6 +20,8 @@ namespace mfem
 void GetCircleCP_A7(real_t radius, int n, real_t theta0, bool is90,
                     Array2D<real_t> &cp);
 
+// For testing and demonstration, this function constructs and returns a 2D
+// NC-patch NURBS mesh with exact circles as boundary edges.
 Mesh* CirclesMesh(int num_refinements)
 {
    Mesh *mesh_ptr = new Mesh("../../data/nc3-nurbs.mesh", 1, 1);

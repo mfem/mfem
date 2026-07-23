@@ -5820,11 +5820,20 @@ void NURBSExtension::PrintCoarsePatches(std::ostream &os)
       for (int i=0; i<ncp; ++i)
       {
          os << patchCP(p, i, 0);
-         for (int j = 1; j < Dimension() + 1; ++j)
+         for (int j = 1; j < Dimension(); ++j)
          {
             os << ' ' << patchCP(p, i, j);
          }
          os << '\n';
+      }
+   }
+
+   os << "\npatch_w\n" << num_structured_patches << "\n";
+   for (int p=0; p<num_structured_patches; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         os << patchCP(p, i, Dimension()) << '\n';
       }
    }
 }
