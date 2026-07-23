@@ -13,6 +13,7 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
+
 #include "error.hpp"
 #include "globals.hpp"
 
