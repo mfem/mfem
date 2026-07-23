@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
 
@@ -59,9 +58,8 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   q_vec->SetVDim(vdim*vdim*vdim*vdim);
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
-                                          *geom, *maps, *q_vec, diag);
+                                          *geom, *maps, *IntRule, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
