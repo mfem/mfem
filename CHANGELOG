@@ -70,6 +70,9 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added PA gradient and diagonal support for VectorConvectionNLFIntegrator
+ (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
+
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
