@@ -5786,6 +5786,11 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
+void NURBSExtension::ReadCoarsePatchWeights(std::istream &input)
+{
+   MFEM_ABORT("ReadCoarsePatchWeights is supported only in NCNURBSExtension");
+}
+
 void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 {
    const int patchCP_size1 = patchCP.GetSize1();
@@ -6978,30 +6983,6 @@ void GetUniformPatchGrid(Mesh &mesh,
          }
       }
    }
-}
-
-void PrintGrid(const Array3D<real_t> &grid)
-{
-   std::ofstream os;
-   os.open("grid.txt");
-
-   for (int i=0; i<grid.GetSize1(); ++i)
-      for (int j=0; j<grid.GetSize2(); ++j)
-      {
-         real_t r = 0.0;
-         for (int k=0; k<grid.GetSize3(); ++k)
-         {
-            os << grid(i,j,k);
-            r += grid(i,j,k) * grid(i,j,k);
-            if (k < grid.GetSize3() - 1)
-            {
-               os << " ";
-            }
-         }
-         os << " " << sqrt(r) << endl;
-      }
-
-   os.close();
 }
 
 Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,

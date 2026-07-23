@@ -1045,7 +1045,11 @@ public:
 
    // Translation functions between FE coordinates and IJK patch format.
 
-   /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
+   /** @brief Define patches in IKJ (B-net) format, using FE coordinates in
+       @a Nodes.
+
+       Note that this function deletes the tables mapping elements and boundary
+       elements to DOFs. */
    void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
@@ -1156,6 +1160,9 @@ public:
 
    /// Read the control points for coarse patches.
    virtual void ReadCoarsePatchCP(std::istream &input);
+
+   /// Read the weights for coarse patches.
+   virtual void ReadCoarsePatchWeights(std::istream &input);
 
    /** @brief Fully coarsen all structured patches, for non-nested refinement of
        a mesh with a nonconforming patch topology. */

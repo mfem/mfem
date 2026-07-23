@@ -530,7 +530,6 @@ void NCNURBSExtension::ProcessFacePairs(int start, int midStart,
                                         const std::vector<FacePairInfo> &facePairs)
 {
    const int nfpairs = facePairs.size();
-   const bool is3D = Dimension() == 3;
    int midPrev = -1;
    int orientation = 0;
    for (int q=start; q<nfpairs; ++q)
@@ -2917,8 +2916,6 @@ void NCNURBSExtension::RefineWithKVFactors(int rf,
    Refine(coarsened);
 }
 
-#define READING_OLD
-
 void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
 {
    input >> num_structured_patches;
@@ -2935,12 +2932,32 @@ void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
    for (int p = 0; p < num_structured_patches; ++p)
       for (int i = 0; i < ncp; ++i)
       {
-#ifdef READING_OLD
          for (int j = 0; j < Dimension(); ++j) { input >> patchCP(p, i, j); }
-         patchCP(p, i, Dimension()) = 1.0;  // unit weight
-#else
-         for (int j = 0; j < Dimension() + 1; ++j) { input >> patchCP(p, i, j); }
-#endif
+
+         // Set unit weight by default, which may be overwritten by
+         // ReadCoarsePatchWeights.
+         patchCP(p, i, Dimension()) = 1.0;
+      }
+}
+
+void NCNURBSExtension::ReadCoarsePatchWeights(std::istream &input)
+{
+   int num = 0;
+   input >> num;
+   MFEM_VERIFY(num_structured_patches == num, "Inconsistent number of patches");
+
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single
+   // element, and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
+
+   for (int p = 0; p < num_structured_patches; ++p)
+      for (int i = 0; i < ncp; ++i)
+      {
+         input >> patchCP(p, i, Dimension());  // Weight
       }
 }
 

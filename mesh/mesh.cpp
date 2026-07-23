@@ -5247,6 +5247,14 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          input >> ident;
          MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
          NURBSext->ReadCoarsePatchCP(input);
+
+         // Check for the optional section "patch_w"
+         if (input.peek() == 'p')
+         {
+            input >> ident;
+            MFEM_VERIFY(ident == "patch_w", "Invalid mesh format");
+            NURBSext->ReadCoarsePatchWeights(input);
+         }
       }
    }
 
