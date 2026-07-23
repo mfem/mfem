@@ -13,6 +13,7 @@ name: "Checks"
 
 permissions:
   actions: write
+  pull-requests: read
 
 on:
   push:
@@ -29,6 +30,11 @@ concurrency:
 # by checking if the workflow trigger is 'push' ("github.event_name == 'push'")
 # and if we are in a fork ("github.event.pull_request.head.repo.full_name !=
 # github.repository").
+#
+# The logic for the branch-history check is slightly different, since that check
+# also inspects the PR's labels to allow for overriding failures. In this case,
+# we run on all 'pull_request' triggers, but only run for 'push' triggers that
+# do not correspond to any open PRs.
 
 jobs:
   file-headers-check:
@@ -128,10 +134,7 @@ jobs:
 
   branch-history:
     if: |
-      github.ref != 'refs/heads/next' &&
-      github.ref != 'refs/heads/master' &&
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
+      github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: checkout mfem
@@ -139,7 +142,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: check for pull request
+        id: check_pr
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_exists=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$GITHUB_REF_NAME" \
+            --state open \
+            --json number \
+            --jq 'length > 0')
+          echo "pr_exists=$pr_exists" >> "$GITHUB_OUTPUT"
+
       - name: branch-history
+        id: branch_history
+        if: |
+          (github.event_name == 'pull_request' ||
+           github.event_name == 'workflow_dispatch' ||
+           steps.check_pr.outputs.pr_exists == 'false')
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name,
+                                        'branch-history-override') }}
         run: |
           # We override origin to make sure we point to the main repo.
           # This is to have consistent test results on PRs from forks.
@@ -147,3 +170,9 @@ jobs:
           git remote add origin https://github.com/mfem/mfem.git
           git checkout -b gh-actions-branch-history
           ./config/githooks/pre-push --history
+
+      - name: report branch-history override
+        if: steps.branch_history.outcome == 'failure'
+        run: |
+          echo "::warning::branch-history check failed, but the" \
+            "'branch-history-override' label is set."
