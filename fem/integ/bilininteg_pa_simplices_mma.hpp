@@ -668,6 +668,141 @@ MFEM_HOST_DEVICE inline void mfma_Gemm16(const int M, const int K, const int N,
    }
 }
 
+/** Fused 3-component forward: U_d = G_d * X for d=0..2, loading each X fragment once. */
+template <typename TA0, typename TA1, typename TA2, typename TB,
+          typename TC0, typename TC1, typename TC2>
+MFEM_HOST_DEVICE inline void mfma_Gemm16_Fwd3(const int M, const int K,
+                                              const int N,
+                                              TA0 A0, TA1 A1, TA2 A2, TB B,
+                                              TC0 C0, TC1 C1, TC2 C2)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM;
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         mfma_double4 c0 = {0, 0, 0, 0};
+         mfma_double4 c1 = {0, 0, 0, 0};
+         mfma_double4 c2 = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + aRow;
+            const int aC = k0 + aColK;
+            const int bR = k0 + aColK;
+            const double bV = (bR < K && bCol < nTile)
+                              ? static_cast<double>(B(bR, n0 + bCol)) : 0.0;
+            const double a0V = (aR < M && aC < K)
+                               ? static_cast<double>(A0(aR, aC)) : 0.0;
+            const double a1V = (aR < M && aC < K)
+                               ? static_cast<double>(A1(aR, aC)) : 0.0;
+            const double a2V = (aR < M && aC < K)
+                               ? static_cast<double>(A2(aR, aC)) : 0.0;
+            mfmaSync16(a0V, bV, c0);
+            mfmaSync16(a1V, bV, c1);
+            mfmaSync16(a2V, bV, c2);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            if (cRow < M && cCol < nTile)
+            {
+               C0(cRow, n0 + cCol) = static_cast<real_t>(c0[i]);
+               C1(cRow, n0 + cCol) = static_cast<real_t>(c1[i]);
+               C2(cRow, n0 + cCol) = static_cast<real_t>(c2[i]);
+            }
+         }
+      }
+   }
+}
+
+/** Fused 3-component GemmT: Y += G_d^T * U_d for d=0..2 (shared Y accumulate). */
+template <typename TA0, typename TA1, typename TA2, typename TB0,
+          typename TB1, typename TB2, typename TC>
+MFEM_HOST_DEVICE inline void mfma_GemmT16_3(const int M, const int K,
+                                            const int N,
+                                            TA0 A0, TA1 A1, TA2 A2,
+                                            TB0 B0, TB1 B1, TB2 B2, TC C,
+                                            const int e0, const int NE)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM;
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (K + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         mfma_double4 cReg = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (M + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aT_row = row0 + aRow;
+            const int aT_col = k0 + aColK;
+            const int bR = k0 + aColK;
+            const bool a_ok = (aT_row < K && aT_col < M);
+            const bool b_ok = (bR < M && bCol < nTile);
+            const double a0V = a_ok ? static_cast<double>(A0(aT_col, aT_row))
+                                    : 0.0;
+            const double a1V = a_ok ? static_cast<double>(A1(aT_col, aT_row))
+                                    : 0.0;
+            const double a2V = a_ok ? static_cast<double>(A2(aT_col, aT_row))
+                                    : 0.0;
+            const double b0V = b_ok ? static_cast<double>(B0(bR, n0 + bCol))
+                                    : 0.0;
+            const double b1V = b_ok ? static_cast<double>(B1(bR, n0 + bCol))
+                                    : 0.0;
+            const double b2V = b_ok ? static_cast<double>(B2(bR, n0 + bCol))
+                                    : 0.0;
+            // Accumulate all three components into one C tile.
+            mfmaSync16(a0V, b0V, cReg);
+            mfmaSync16(a1V, b1V, cReg);
+            mfmaSync16(a2V, b2V, cReg);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            const int e = e0 + n0 + cCol;
+            if (cRow < K && cCol < nTile && e < NE)
+            {
+               C(cRow, n0 + cCol) += static_cast<real_t>(cReg[i]);
+            }
+         }
+      }
+   }
+}
+
 /** C += A^T * B via MFMA 16x16x4. Loads A as A^T fragments. */
 template <typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void mfma_GemmT16(const int M, const int K, const int N,
@@ -893,6 +1028,17 @@ struct GAcc
    }
 };
 
+/** GradP rows [q0, q0+M): used by HIP diffusion Q-tiling. */
+struct GAccQTile
+{
+   const real_t *g;
+   int nq1_, ndof_, d_, q0_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return g[(q0_ + row) + nq1_ * (col + ndof_ * d_)];
+   }
+};
+
 /** DomainLF E-vector write: layout (ndof x vdim x NE), one component vc. */
 struct YVdimAcc
 {
@@ -917,9 +1063,11 @@ constexpr int MassLikeNB()
    return (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160)) ? NBATCH : mmaN;
 }
 
-/** Diffusion NB so X + DIM*U shared buffers stay within 48 KiB. */
+/** Diffusion NB so X + DIM*U shared buffers stay within 48 KiB.
+    CUDA: full-nq planes (may shrink NB).
+    HIP: when full-nq would force NB < 16 in 3D, keep NB=16 and use Q-tiling. */
 template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionMmaNB()
+constexpr int DiffusionMmaNBFullNq()
 {
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
@@ -938,19 +1086,73 @@ constexpr int DiffusionMmaNB()
    return max_nb > 0 ? max_nb : 1;
 }
 
-/** Thread count for forall_3D: enough warps/waves for max(mPassQ, mPassD). */
+#if defined(MFEM_USE_HIP)
+/** True when HIP diffusion should Q-tile (restore NB=16 vs MFMA N=16). */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr bool DiffusionUseQTile()
+{
+   return DIM == 3 && T_D1D && T_Q1D &&
+          (DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < NBATCH);
+}
+
+/** Largest TQ (multiple of MFMA M=16) that fits X + 3·U in 48 KiB at NB=16.
+    Larger tiles cut barrier count vs TQ=16; still match MFMA M. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionQTileFor()
+{
+   constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
+   constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int bytes_cap = 48 * 1024;
+   int best = 16;
+   for (int tq = 16; tq <= MQ; tq += 16)
+   {
+      const int U_LD = PadLdBankHip(tq);
+      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NBATCH;
+      if (bytes > bytes_cap) { break; }
+      best = tq;
+   }
+   return best;
+}
+
+/** @deprecated prefer DiffusionQTileFor — kept as MFMA-M hint. */
+constexpr int DiffusionQTile = 16;
+#endif
+
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionMmaNB()
+{
+#if defined(MFEM_USE_HIP)
+   if constexpr (DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+   {
+      return NBATCH;
+   }
+#endif
+   return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>();
+}
+
+/** Thread count for forall_3D: enough warps/waves for M-tiles. */
 inline int LaunchNthreads(const int nq, const int ndof)
 {
 #if defined(MFEM_USE_HIP)
    const int tileM = PreferMfma4(nq, ndof) ? 4 : 16;
+   const int mPassQ = (nq + tileM - 1) / tileM;
+   const int mPassD = (ndof + tileM - 1) / tileM;
+   // Oversubscribe: max of tile counts, ×2 for latency hiding (cap 16 waves).
+   int nWarps = (mPassQ > mPassD) ? mPassQ : mPassD;
+   if (nWarps < 1) { nWarps = 1; }
+   nWarps *= 2;
+   if (nWarps > 16) { nWarps = 16; }
+   return nWarps * WarpSize;
 #else
    const int tileM = mmaM;
-#endif
    const int mPassQ = (nq + tileM - 1) / tileM;
    const int mPassD = (ndof + tileM - 1) / tileM;
    const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
                       : (mPassD > 1 ? mPassD : 1);
    return nWarps * WarpSize;
+#endif
 }
 
 MFEM_HOST_DEVICE inline int getBlockNthreads()
@@ -1030,6 +1232,60 @@ MFEM_HOST_DEVICE inline void BasisGemmT(const int NQ1, const int ndof,
 #else
    (void)MAP; (void)NQ1; (void)ndof; (void)NB; (void)B; (void)U; (void)Y;
    (void)e0; (void)NE;
+#endif
+}
+
+/** HIP-only fused 3D GradP forward: U0,U1,U2 = G0,G1,G2 * X. */
+template <typename Basis0, typename Basis1, typename Basis2,
+          typename XAcc, typename U0, typename U1, typename U2>
+MFEM_HOST_DEVICE inline void BasisGemmForward3(const int NQ1, const int ndof,
+                                               const int NB,
+                                               Basis0 B0, Basis1 B1, Basis2 B2,
+                                               XAcc X, U0 U0a, U1 U1a, U2 U2a,
+                                               const int e0, const int NE)
+{
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   if (PreferMfma4(NQ1, ndof))
+   {
+      NullDAcc nullD;
+      BasisGemmForward<0, false>(NQ1, ndof, NB, B0, X, U0a, nullD, e0, NE);
+      BasisGemmForward<0, false>(NQ1, ndof, NB, B1, X, U1a, nullD, e0, NE);
+      BasisGemmForward<0, false>(NQ1, ndof, NB, B2, X, U2a, nullD, e0, NE);
+   }
+   else
+   {
+      (void)e0; (void)NE;
+      mfma_Gemm16_Fwd3(NQ1, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a);
+   }
+#else
+   (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
+   (void)X; (void)U0a; (void)U1a; (void)U2a; (void)e0; (void)NE;
+#endif
+}
+
+/** HIP-only fused 3D GradP^T accumulate into Y. */
+template <typename Basis0, typename Basis1, typename Basis2,
+          typename U0, typename U1, typename U2, typename YAcc>
+MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
+                                         const int NB,
+                                         Basis0 B0, Basis1 B1, Basis2 B2,
+                                         U0 U0a, U1 U1a, U2 U2a, YAcc Y,
+                                         const int e0, const int NE)
+{
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   if (PreferMfma4(NQ1, ndof))
+   {
+      BasisGemmT<0>(NQ1, ndof, NB, B0, U0a, Y, e0, NE);
+      BasisGemmT<0>(NQ1, ndof, NB, B1, U1a, Y, e0, NE);
+      BasisGemmT<0>(NQ1, ndof, NB, B2, U2a, Y, e0, NE);
+   }
+   else
+   {
+      mfma_GemmT16_3(NQ1, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
+   }
+#else
+   (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
+   (void)U0a; (void)U1a; (void)U2a; (void)Y; (void)e0; (void)NE;
 #endif
 }
 
