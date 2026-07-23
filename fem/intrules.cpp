@@ -2854,7 +2854,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
 
    MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
                && npatches > 0, "Assuming patchRules1D is set.");
-   MFEM_VERIFY(mesh.NURBSext, "");
+   MFEM_VERIFY(mesh.IsNURBS(), "");
    MFEM_VERIFY(mesh.Dimension() == dim, "");
 
    pointToElem.resize(npatches);
@@ -2865,7 +2865,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
 
    for (int e=0; e<mesh.GetNE(); ++e)
    {
-      patchElements[mesh.NURBSext->GetElementPatch(e)].push_back(e);
+      patchElements[mesh.NURBSExt()->GetElementPatch(e)].push_back(e);
    }
 
    Array<int> ijk(3);
@@ -2880,7 +2880,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
       patchRules1D_KnotSpan[p].resize(dim);
 
       // For each patch, get the range of ijk.
-      mesh.NURBSext->GetPatchKnotVectors(p, pkv);
+      mesh.NURBSExt()->GetPatchKnotVectors(p, pkv);
       MFEM_VERIFY((int) pkv.Size() == dim, "");
 
       maxijk = 1;
@@ -2897,7 +2897,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
 
       for (auto elem : patchElements[p])
       {
-         mesh.NURBSext->GetElementIJK(elem, ijk);
+         mesh.NURBSExt()->GetElementIJK(elem, ijk);
          MFEM_VERIFY(ijk2elem(ijk[0], ijk[1], ijk[2]) == -1, "");
          ijk2elem(ijk[0], ijk[1], ijk[2]) = elem;
       }

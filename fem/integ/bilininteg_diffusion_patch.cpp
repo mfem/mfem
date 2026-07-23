@@ -437,7 +437,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    SetupPatch3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
                 coeff, pa_data);
 
-   numPatches = mesh->NURBSext->GetNP();
+   numPatches = mesh->NURBSExt()->GetNP();
 
    if (integrationMode != PATCHWISE_REDUCED)
    {
@@ -755,7 +755,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
    // Set basis functions and gradients for this patch
    Array<const KnotVector*> pkv;
-   mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
+   mesh->NURBSExt()->GetPatchKnotVectors(patch, pkv);
    MFEM_VERIFY(pkv.Size() == dim, "");
 
    Array<int> Q1D(dim);

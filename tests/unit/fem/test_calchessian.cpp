@@ -371,7 +371,7 @@ TEST_CASE("Laplacian",
    if (NURBS)
    {
       fe_coll = new NURBSFECollection (order);
-      ext = new NURBSExtension(mesh.NURBSext, order);
+      ext = new NURBSExtension(mesh.NURBSExt(), order);
    }
    else
    {

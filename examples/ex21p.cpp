@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
    //    currently only be refined uniformly, we need to convert it to a
    //    piecewise-polynomial curved mesh. First we refine the NURBS mesh a bit
    //    more and then project the curvature to quadratic Nodes.
-   if (mesh.NURBSext && serial_ref_levels == 0)
+   if (mesh.IsNURBS() && serial_ref_levels == 0)
    {
       serial_ref_levels = 2;
    }
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       mesh.SetCurvature(2);
    }

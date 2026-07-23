@@ -507,21 +507,21 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
    REQUIRE(nodes->FESpace() != NULL);
    REQUIRE(nodes->FESpace()->GetVDim() == space_dim);
 
-   REQUIRE(mesh.NURBSext != NULL);
-   REQUIRE(mesh.NURBSext->GetNP() == 3);
+   REQUIRE(mesh.NURBSExt() != NULL);
+   REQUIRE(mesh.NURBSExt()->GetNP() == 3);
 
    // Additionally, exercise degree elevation and ensure basic invariants hold
    {
-      const Array<int> &orders = mesh.NURBSext->GetOrders();
+      const Array<int> &orders = mesh.NURBSExt()->GetOrders();
       const int max_order = orders.Max();
       mesh.DegreeElevate(max_order, max_order);
 
-      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.NURBSExt() != nullptr);
       REQUIRE(mesh.Dimension() == dim);
       REQUIRE(mesh.SpaceDimension() == space_dim);
-      REQUIRE(mesh.NURBSext->Dimension() == dim);
+      REQUIRE(mesh.NURBSExt()->Dimension() == dim);
 
-      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      const Array<int> &new_orders = mesh.NURBSExt()->GetOrders();
       REQUIRE(new_orders.Size() == orders.Size());
       for (int i = 0; i < new_orders.Size(); ++i)
       {
