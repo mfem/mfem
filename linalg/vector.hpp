@@ -786,6 +786,7 @@ InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y,
 {
    real_t loc_prod = x * y;
    real_t glb_prod;
+   MPI_Barrier(comm);
    auto start = timer.now();
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
    auto stop = timer.now();
