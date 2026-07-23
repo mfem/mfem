@@ -1174,6 +1174,13 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
    call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
 }
 
+template <typename qfunc_t, typename... Args>
+__attribute__((always_inline))
+MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
+{
+   (*qf)(args...);
+}
+
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
 __attribute__((always_inline))
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
@@ -1184,13 +1191,10 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    std::integer_sequence<int, Is...>)
 {
 #ifdef MFEM_USE_ENZYME
-   auto wrapper = [](qfunc_t *qf, decltype(get<Is>(primal_args))&... args)
-   {
-      (*qf)(args...);
-   };
-
    __enzyme_fwddiff<void>(
-      (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))wrapper,
+      (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))
+      enzyme_fwddiff_wrapper<qfunc_t,
+      std::remove_reference_t<decltype(get<Is>(primal_args))>...>,
       enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
       &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
 #else
