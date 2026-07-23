@@ -78,14 +78,21 @@ TEST_CASE("AD Global qfunction with GPU", "[Enzyme][GPU]")
    constexpr int N = 10;
    mfem::Vector x(N), xd(N), y(N), yd(N), a(N), ad(N);
 
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto a_w = a.HostWrite();
+   auto ad_w = ad.HostWrite();
+
    for (int i = 0; i < N; i++)
    {
-      x(i) = i;
-      xd(i) = 1.0;
-      y(i) = 0.0;
-      yd(i) = 0.0;
-      a(i) = 2.0;
-      ad(i) = 0.0;
+      x_w[i] = i;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      a_w[i] = 2.0;
+      ad_w[i] = 0.0;
    }
 
    auto x_d = x.Read();
@@ -98,12 +105,14 @@ TEST_CASE("AD Global qfunction with GPU", "[Enzyme][GPU]")
                           enzyme_dup, y_d,
                           yd_d, enzyme_const, a_d, enzyme_runtime_activity);
 
-   yd.HostRead();
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *a_h = a.HostRead();
    bool ok = true;
    for (int q = 0; q < N; q++)
    {
-      mfem::real_t exact = 2.0 * a[q] * x[q];
-      if (yd[q] != exact)
+      mfem::real_t exact = 2.0 * a_h[q] * x_h[q];
+      if (yd_h[q] != exact)
       {
          ok = false;
          break;
