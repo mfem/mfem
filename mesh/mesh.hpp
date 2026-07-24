@@ -3245,6 +3245,9 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
  */
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
 
+/// Extrude a 2D mesh NC-patch NURBS mesh, with given degree in z-direction.
+Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz);
+
 /** @brief Constructs the smallest possible [0,1]^dim serial mesh that can be
     used later to obtain a ParMesh with @a elem_per_mpi elements, with the same
     topology, for each of the @a mpi_cnt MPI tasks. For quads and hexes.

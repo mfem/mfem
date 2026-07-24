@@ -90,6 +90,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
+  mesh/test_ncp_nurbs.cpp
   fem/make_permuted_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp

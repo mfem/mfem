@@ -4863,6 +4863,7 @@ Mesh::Mesh(const NURBSExtension& ext)
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
+      NURBSext->SetKnotsFromPatches();
       NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
@@ -5246,6 +5247,14 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          input >> ident;
          MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
          NURBSext->ReadCoarsePatchCP(input);
+
+         // Check for the optional section "patch_w"
+         if (input.peek() == 'p')
+         {
+            input >> ident;
+            MFEM_VERIFY(ident == "patch_w", "Invalid mesh format");
+            NURBSext->ReadCoarsePatchWeights(input);
+         }
       }
    }
 
@@ -15637,6 +15646,11 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
    {
       mfem::err << "Extrude2D : Not a 2D mesh!" << endl;
       mfem_error();
+   }
+
+   if (mesh->NURBSext && mesh->NURBSext->NonconformingPatches())
+   {
+      return ExtrudeNURBS2D(*mesh, mesh->NURBSext->GetOrder(), nz, sz);
    }
 
    int nvz = nz + 1;
