@@ -1131,6 +1131,7 @@ Mesh* ReflectNURBSMesh(Mesh &mesh, const Vector &origin, const Vector &normal)
    delete reflectedPatchTopo;
 
    for (auto patch : patches) { delete patch; }
+   for (auto patch : patchesOriginal) { delete patch; }
 
    Mesh *reflected = new Mesh(*ne);
    delete ne;

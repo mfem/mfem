@@ -41,7 +41,7 @@ void CheckRadius(Mesh &mesh)
    const int numSides = dim == 2 ? 4 : 6;
    std::vector<std::array<real_t, 2>> side(numSides);
 
-   auto SetMinMax2D = [&side](real_t r, int i, int j)
+   auto SetMinMax2D = [&side, &n](real_t r, int i, int j)
    {
       if (i == 0)
       {
@@ -61,7 +61,7 @@ void CheckRadius(Mesh &mesh)
       }
    };
 
-   auto SetMinMax3D = [&side](real_t r, int i, int j, int k)
+   auto SetMinMax3D = [&side, &n](real_t r, int i, int j, int k)
    {
       if (i == 0)
       {
