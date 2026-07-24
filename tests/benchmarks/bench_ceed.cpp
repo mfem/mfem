@@ -53,7 +53,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (int n = 16; ndofs_hex(n) <= MAX_NDOFS; n += inc(n))
       {
-         if ((p == 1 && n > 160) || (p == 2 && n > 200)) { continue; }
+         if ((p == 1 && n > 128) || (p == 2 && n > 160)) { continue; }
          b->Args({p, n});
       }
    }
