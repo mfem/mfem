@@ -27,7 +27,7 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = $(strip -g $(XCOMPILER)-Wall \
+DEBUG_FLAGS = $(strip -g $(XCOMPILER)-pedantic $(XCOMPILER)-Wall \
  $(addprefix $(XCOMPILER),$(SHADOW_WARNING_FLAG)) $(BASE_FLAGS))
 
 # Shadow warnings for clang only; GCC's -Wshadow flags more.
