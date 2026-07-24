@@ -162,6 +162,7 @@ set(UNIT_TESTS_SRCS
   fem/test_sum_bilin.cpp
   fem/test_surf_blf.cpp
   fem/test_tet_reorder.cpp
+  fem/test_tmop_tools.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
