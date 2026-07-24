@@ -33,7 +33,6 @@ void CheckRadius(Mesh &mesh)
    Vector x(dim);
 
    // Define a grid of points at which to check the radius.
-   constexpr int n = 4;
    constexpr real_t h = 0.25;
    constexpr real_t tol = 1.0e-2;
 
@@ -41,13 +40,13 @@ void CheckRadius(Mesh &mesh)
    const int numSides = dim == 2 ? 4 : 6;
    std::vector<std::array<real_t, 2>> side(numSides);
 
-   auto SetMinMax2D = [&side, &n](real_t r, int i, int j)
+   auto SetMinMax2D = [&side](real_t r, int i, int j)
    {
       if (i == 0)
       {
          SetMinMax(r, side[3]);
       }
-      if (i == n)
+      if (i == 4)
       {
          SetMinMax(r, side[1]);
       }
@@ -55,19 +54,19 @@ void CheckRadius(Mesh &mesh)
       {
          SetMinMax(r, side[0]);
       }
-      if (j == n)
+      if (j == 4)
       {
          SetMinMax(r, side[2]);
       }
    };
 
-   auto SetMinMax3D = [&side, &n](real_t r, int i, int j, int k)
+   auto SetMinMax3D = [&side](real_t r, int i, int j, int k)
    {
       if (i == 0)
       {
          SetMinMax(r, side[0]);
       }
-      if (i == n)
+      if (i == 4)
       {
          SetMinMax(r, side[1]);
       }
@@ -75,7 +74,7 @@ void CheckRadius(Mesh &mesh)
       {
          SetMinMax(r, side[2]);
       }
-      if (j == n)
+      if (j == 4)
       {
          SetMinMax(r, side[3]);
       }
@@ -83,7 +82,7 @@ void CheckRadius(Mesh &mesh)
       {
          SetMinMax(r, side[4]);
       }
-      if (k == n)
+      if (k == 4)
       {
          SetMinMax(r, side[5]);
       }
@@ -99,10 +98,10 @@ void CheckRadius(Mesh &mesh)
          side[s] = {-1.0, -1.0}; // Initialize radius min/max as negative
       }
 
-      const int nz = dim == 2 ? 0 : n;
+      const int nz = dim == 2 ? 0 : 4;
 
-      for (int i=0; i<=n; ++i)
-         for (int j=0; j<=n; ++j)
+      for (int i=0; i<=4; ++i)
+         for (int j=0; j<=4; ++j)
             for (int k=0; k<=nz; ++k)
             {
                if (dim == 3)

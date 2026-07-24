@@ -583,7 +583,8 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
       }
    }
 
-   // NOTE: this function scales by w, so we had to divide by w above in setting patch[0].
+   // NOTE: this function scales by w, so we had to divide by w above in setting
+   // patch[0].
    mesh.NURBSext->SetPatchControlPoints(0, *patch[0]);
    delete patch[0];
 
@@ -616,9 +617,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
    Mesh mesh0(mesh0_); // Deep copy to be modified
    MFEM_VERIFY(mesh0.GetNE() == 1 && sdim == 3, "");
 
-   // Extract a 2D mesh in 3D space for the face; extract the 2D grid for the face;
-   // solve for the physical spacing on the 2D face; copy the DOFs
-   // for the face to the 3D mesh.
+   // Extract a 2D mesh in 3D space for the face.
 
    const int ncp0 = order + 1;
 
@@ -727,6 +726,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
       }
    }
 
+   // Solve for the physical spacing on the 2D face.
    SolvePhysicalGridBdry(faceMesh, faceMesh0, p, facePatchCP0, order, ned,
                          nelFace, faceGrid, sweep1D, conv_tol);
 
@@ -750,12 +750,13 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
       {
          c[odir[1]] = j;
 
-         const int dof = pdofs[c[0] + (ncp3D[0] * c[1]) + (ncp3D[0] * ncp3D[1] * c[2])];
+         const int dof = pdofs[c[0] + (ncp3D[0] * c[1]) +
+                                    (ncp3D[0] * ncp3D[1] * c[2])];
          const int fdof = fdofs[i + (ncp[0] * j)];
          for (int l=0; l<sdim; ++l)
          {
-            (*mesh.GetNodes())[(sdim * dof) + l] = (*faceMesh.GetNodes())[(sdim * fdof) +
-                                                                          l];
+            (*mesh.GetNodes())[(sdim * dof) + l] =
+               (*faceMesh.GetNodes())[(sdim * fdof) + l];
          }
       }
    }
@@ -906,7 +907,7 @@ void GetSpacedPatchGrid(Mesh &mesh,
    // Adjust arc lengths in the given direction `dir`.
    auto AdjustGridArcLengths = [&](int dir)
    {
-      std::array<int, 2> odir;  // Other, orthogonal directions
+      std::array<int, 2> odir;  // Other orthogonal directions
       {
          int dcnt = 0;
          for (int i=0; i<3; ++i)
@@ -1077,7 +1078,7 @@ void GetSpacedPatchGrid(Mesh &mesh,
 
                MFEM_VERIFY(0.0 < u1 - u0 && u1 - u0 < conv_tol, "");
 
-               // Update ugrid. grid(i,j,*) follows local patch directions 0 and 1.
+               // Update ugrid. grid(i,j,*) follows patch directions 0 and 1.
                if (dir == 0)
                {
                   ugrid(l, dof_j, 0 + (dof_k * dim)) = u0;
@@ -1133,7 +1134,8 @@ void GetSpacedPatchGrid(Mesh &mesh,
                ip.Set3(u_e[0], u_e[1], u_e[2]);
             }
 
-            const int el_ij = el[0] + (el[1] * nel[0]) + (el[2] * nel[0] * nel[1]);
+            const int el_ij = el[0] + (el[1] * nel[0]) +
+                              (el[2] * nel[0] * nel[1]);
             mesh.GetNodes()->GetVectorValue(el_ij, ip, v2);
             for (int l=0; l<dim; ++l)
             {
@@ -1162,9 +1164,9 @@ void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
 
    Array<NURBSPatch*> patches;
    patches.Append(patch);
-   Mesh patch_topology = dim == 2 ?
-                         Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
-                         Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
+   Mesh patch_topology =
+      dim == 2 ? Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
+      Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
 
    NURBSExtension ne(&patch_topology, patches);
    Mesh mesh(ne);
