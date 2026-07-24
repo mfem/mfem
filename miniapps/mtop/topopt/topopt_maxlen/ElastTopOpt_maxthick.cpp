@@ -54,9 +54,10 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 3.0;      // SIMP exponent
 
-    real_t decay = 0.7;
-    real_t eps_floor = 1e-10;
-    int decay_int = 20;
+    real_t decay     = 0.7;
+    real_t eps_floor = 1e-6;
+    int decay_int    = 20;
+    int decay_start  = 50;
 
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
@@ -72,6 +73,7 @@ int main(int argc, char *argv[])
     args.AddOption(&ray_type, "-rt", "--raytype", "ray field type: 1=vertical, 2=diagonal");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
+    args.AddOption(&decay_start, "-ds", "--decay_start", "iteration count to start the decay");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -256,7 +258,7 @@ int main(int argc, char *argv[])
     real_t iterationError = 1.0;
     for (; k < max_it && iterationError > tol; k++)
     {
-        if (k % decay_int == 0 && k > 0)
+        if (k % decay_int == 0 && k > decay_start)
         {
             epsilon = std::max(epsilon * decay, eps_floor);
         }
@@ -403,15 +405,16 @@ void bodyload(const Vector &x, Vector &f)
 
 void initialize_rays(int dim, int nrays, int ray_type, Vector *ray_starts, Vector *ray_ends)
 {
+    real_t x_pos;
     for (int r = 0; r < nrays; r++)
     {
         ray_starts[r].SetSize(dim);
         ray_ends[r].SetSize(dim);
 
-        real_t x_pos = 3.0 * r / (nrays - 1);
-
         if (ray_type == 1)  // vertical rays
         {
+            x_pos = 3.0 * r / (nrays - 1);
+            
             ray_starts[r](0) = x_pos;
             ray_ends[r](0)   = x_pos;
 
@@ -426,6 +429,8 @@ void initialize_rays(int dim, int nrays, int ray_type, Vector *ray_starts, Vecto
         else if (ray_type == 2)  // diagonal rays
         {
             // Diagonal rays from bottom to top-right
+            x_pos = 0.5 + 1.0 * r / (nrays - 1);
+            
             ray_starts[r](0) = x_pos;
             ray_ends[r](0)   = x_pos + 1.0;
 

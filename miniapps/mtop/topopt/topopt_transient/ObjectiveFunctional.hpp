@@ -90,6 +90,119 @@ public:
    }
 };
 
+// Union of three rectangular regions (for passive region specification)
+class TripleRectangularIndicator : public Coefficient
+{
+private:
+   std::unique_ptr<Coefficient> first;
+   std::unique_ptr<Coefficient> second;
+   std::unique_ptr<Coefficient> third;
+
+public:
+   TripleRectangularIndicator(std::unique_ptr<Coefficient> first_,
+                              std::unique_ptr<Coefficient> second_,
+                              std::unique_ptr<Coefficient> third_)
+      : first(std::move(first_)),
+        second(std::move(second_)),
+        third(std::move(third_)) {}
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      return std::max({first->Eval(T, ip), second->Eval(T, ip), third->Eval(T, ip)});
+   }
+};
+
+// =============================================================================
+// 3D SPHERICAL INDICATOR COEFFICIENTS
+// =============================================================================
+
+// Indicator for a solid sphere (r < radius)
+class SphericalIndicator : public Coefficient
+{
+private:
+   real_t radius;
+   Vector center;
+
+public:
+   SphericalIndicator(real_t r, const Vector *ctr = nullptr)
+      : radius(r)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+      return (r < radius) ? 1.0 : 0.0;
+   }
+};
+
+// Indicator for a spherical shell (r_inner < r < r_outer)
+class SphericalShellIndicator : public Coefficient
+{
+private:
+   real_t r_inner, r_outer;
+   Vector center;
+
+public:
+   SphericalShellIndicator(real_t r_in, real_t r_out, const Vector *ctr = nullptr)
+      : r_inner(r_in), r_outer(r_out)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+      return (r > r_inner && r < r_outer) ? 1.0 : 0.0;
+   }
+};
+
+// Indicator for union of multiple spherical shells
+class MultiSphericalShellIndicator : public Coefficient
+{
+private:
+   std::vector<std::pair<real_t, real_t>> shell_ranges;
+   Vector center;
+
+public:
+   MultiSphericalShellIndicator(const Vector *ctr = nullptr)
+   {
+      center.SetSize(3);
+      if (ctr && ctr->Size() == 3) { center = *ctr; }
+      else { center = 0.0; }
+   }
+
+   void AddShell(real_t r_in, real_t r_out)
+   {
+      shell_ranges.push_back({r_in, r_out});
+   }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      x -= center;
+      real_t r = x.Norml2();
+
+      for (const auto &range : shell_ranges)
+      {
+         if (r > range.first && r < range.second) return 1.0;
+      }
+      return 0.0;
+   }
+};
+
 // =============================================================================
 // ABSTRACT BASE CLASS: TimeIntegratedObjective
 // =============================================================================
@@ -145,13 +258,52 @@ private:
    Coefficient *subdomain_indicator; // non-owning view used in hot paths
    std::unique_ptr<Coefficient> owned_indicator;
 
+   // One-time setup check: measure of the region the indicator selects. A zero
+   // measure means the objective can only ever be zero (e.g. the measurement
+   // region is missing from the mesh), which should fail loudly, not silently.
+   void CheckIndicatorCoverage()
+   {
+      real_t local_measure = 0.0;
+      for (int e = 0; e < fespace->GetNE(); e++)
+      {
+         const FiniteElement *el = fespace->GetFE(e);
+         ElementTransformation *T = fespace->GetElementTransformation(e);
+         const IntegrationRule &ir =
+            IntRules.Get(el->GetGeomType(), 2 * el->GetOrder() + 2);
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            T->SetIntPoint(&ip);
+            local_measure += ip.weight * T->Weight()
+                             * subdomain_indicator->Eval(*T, ip);
+         }
+      }
+      real_t measure = 0.0;
+      MPI_Allreduce(&local_measure, &measure, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      if (myid == 0)
+      {
+         mfem::out << "DisplacementL2Objective: measurement region measure = "
+                   << measure << "\n";
+         if (measure <= 0.0)
+         {
+            MFEM_WARNING("DisplacementL2Objective: the indicator selects a "
+                         "region of ZERO measure - the objective will be "
+                         "identically zero. Check the mesh/indicator.");
+         }
+      }
+   }
+
 public:
    /// Borrow an externally-owned indicator coefficient.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
                            Coefficient &indicator,
                            MPI_Comm comm_)
       : TimeIntegratedObjective(fes, comm_),
-        subdomain_indicator(&indicator) {}
+        subdomain_indicator(&indicator)
+   {
+      CheckIndicatorCoverage();
+   }
 
    /// Take ownership of an indicator coefficient.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
@@ -159,7 +311,10 @@ public:
                            MPI_Comm comm_)
       : TimeIntegratedObjective(fes, comm_),
         subdomain_indicator(indicator.get()),
-        owned_indicator(std::move(indicator)) {}
+        owned_indicator(std::move(indicator))
+   {
+      CheckIndicatorCoverage();
+   }
 
    /// Backward-compatible constructor for legacy call sites.
    DisplacementL2Objective(ParFiniteElementSpace *fes,
@@ -168,7 +323,10 @@ public:
                            bool own_indicator = true)
       : TimeIntegratedObjective(fes, comm_),
         subdomain_indicator(indicator),
-        owned_indicator(own_indicator ? indicator : nullptr) {}
+        owned_indicator(own_indicator ? indicator : nullptr)
+   {
+      CheckIndicatorCoverage();
+   }
 
    virtual ~DisplacementL2Objective() = default;
 

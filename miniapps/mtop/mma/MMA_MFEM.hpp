@@ -604,6 +604,17 @@ public:
      */
     const std::vector<double>& GetLambda() const { return lam_; }
 
+    // ── Checkpoint state accessors (for optimization restart) ────────────
+    /**
+     * @brief Return design history (read-only, for checkpointing).
+     * @{
+     */
+    const mfem::Vector& GetXOld1() const { return xo1_; }  ///< x^(k-1)
+    const mfem::Vector& GetXOld2() const { return xo2_; }  ///< x^(k-2)
+    const mfem::Vector& GetLowerAsymptotes() const { return L_; }  ///< L^k
+    const mfem::Vector& GetUpperAsymptotes() const { return U_; }  ///< U^k
+    /** @} */
+
     // ── Unconstrained convenience overloads (m=0) ────────────────────────
     
     // ── Equality-constraint factory ───────────────────────────────────────
@@ -1019,6 +1030,40 @@ public:
      * @return  Const reference to λ (length m).
      */
     const std::vector<double>& GetLambda() const { return lam_; }
+
+    // ── Checkpoint state accessors (for optimization restart) ────────────
+    /**
+     * @brief Return local design history (read-only, for checkpointing).
+     * @{
+     */
+    const mfem::Vector& GetXOld1() const { return xo1_; }  ///< local x^(k-1)
+    const mfem::Vector& GetXOld2() const { return xo2_; }  ///< local x^(k-2)
+    const mfem::Vector& GetLowerAsymptotes() const { return L_; }  ///< local L^k
+    const mfem::Vector& GetUpperAsymptotes() const { return U_; }  ///< local U^k
+    /** @} */
+
+    /**
+     * @brief Restore MMA internal state from checkpoint (for optimization restart).
+     *
+     * Restores the MMA optimizer's internal history and asymptotes from a
+     * checkpoint. Call this AFTER loading the checkpoint but BEFORE the first
+     * Update() call to ensure proper MMA convergence continuation.
+     *
+     * @param xold1_local  Design from previous iteration x^(k-1) (local chunk)
+     * @param xold2_local  Design from 2 iterations ago x^(k-2) (local chunk)
+     * @param low_local    Lower asymptotes L^k (local chunk)
+     * @param upp_local    Upper asymptotes U^k (local chunk)
+     */
+    void RestoreState(const mfem::Vector& xold1_local,
+                      const mfem::Vector& xold2_local,
+                      const mfem::Vector& low_local,
+                      const mfem::Vector& upp_local)
+    {
+        xo1_ = xold1_local;
+        xo2_ = xold2_local;
+        L_ = low_local;
+        U_ = upp_local;
+    }
 
     // ── Unconstrained convenience overloads (m=0) ────────────────────────
     

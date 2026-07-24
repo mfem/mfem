@@ -26,6 +26,7 @@
 #include "ObjectiveFunctional.hpp"     // TimeIntegratedObjective (J, dJ/du)
 #include "ProblemSpecification.hpp"    // MaterialParams, BoundaryLoadSpec, damping
 #include "../../pde_filter.hpp"
+#include "TrajectoryCheckpointing.hpp" // REVOLVE checkpointing
 #include <memory>
 #include <vector>
 #include <iomanip>
@@ -113,62 +114,8 @@ public:
    }
 };
 
-// DampingProfile / SpatialDampingCoefficient: promoted to DampingSpec.hpp
+// DampingProfile / SpatialDampingCoefficient: promoted to ProblemSpecification.hpp
 // (shared with the problem layer, which assembles them via DampingField).
-
-// =============================================================================
-// FORWARD TRAJECTORY STORAGE
-// =============================================================================
-// Storage for forward state needed by adjoint solver
-struct ForwardTrajectoryStorage
-{
-   Array<Vector*> u_traj;       // Displacement at each timestep
-   Array<Vector*> v_traj;       // Velocity at each timestep
-   Array<HypreParMatrix*> K_traj;  // Tangent stiffness at each timestep
-
-   int num_steps;
-   bool storage_enabled;
-
-   ForwardTrajectoryStorage(int n) : num_steps(n), storage_enabled(false)
-   {
-      u_traj.SetSize(n);
-      v_traj.SetSize(n);
-      K_traj.SetSize(n);
-
-      for (int i = 0; i < n; i++)
-      {
-         u_traj[i] = nullptr;
-         v_traj[i] = nullptr;
-         K_traj[i] = nullptr;
-      }
-   }
-
-   void EnableStorage() { storage_enabled = true; }
-
-   void Store(int step, const Vector &u, const Vector &v, HypreParMatrix *K)
-   {
-      if (!storage_enabled) return;
-
-      if (step >= num_steps) return;
-
-      if (u_traj[step]) delete u_traj[step];
-      if (v_traj[step]) delete v_traj[step];
-
-      u_traj[step] = new Vector(u);
-      v_traj[step] = new Vector(v);
-      K_traj[step] = K;  // Store pointer only (managed by operator)
-   }
-
-   ~ForwardTrajectoryStorage()
-   {
-      for (int i = 0; i < num_steps; i++)
-      {
-         delete u_traj[i];
-         delete v_traj[i];
-         // Don't delete K_traj[i] - managed by operator
-      }
-   }
-};
 
 // =============================================================================
 // MASS SOLVER STRATEGIES
@@ -206,9 +153,6 @@ private:
    HypreBoomerAMG *M_prec;
    CGSolver *M_solver;
 
-   mutable ParGridFunction u_gf;  // For visualization
-   mutable ParGridFunction v_gf;  // For visualization
-
    Array<int> ess_tdof_list;
    Array<int> block_true_offsets;
    int true_size;
@@ -216,19 +160,13 @@ private:
    mutable Vector res;
    mutable Vector tmp;
 
-   // Precomputed load vector (optimization B)
+   // Precomputed base load vector: load(t) = load_base_vector * amplitude *
+   // time_profile(t), assembled once so the inner loop never re-assembles.
    Vector load_base_vector;
    real_t load_duration, load_amplitude, load_phase, load_frequency;
    LoadTimeProfile load_time_profile;
    bool load_on_domain;   // true: body force over Omega; false: boundary traction
    Array<int> load_bdr_markers;
-
-   // Trajectory storage for adjoint
-   ForwardTrajectoryStorage *trajectory;
-   TimeIntegratedObjective *objective;
-
-   // Current timestep for adjoint evaluation (mutable for use in const methods)
-   mutable int current_adjoint_step;
 
 public:
    ElastodynamicsOperator(
@@ -248,9 +186,7 @@ public:
       Array<int> &exterior_bdr_attr,
       Array<int> &ess_bdr_attr,
       MassSolverType mass_type = MassSolverType::LUMPED,
-      bool print_banner = true,
-      ForwardTrajectoryStorage *traj = nullptr,
-      TimeIntegratedObjective *obj = nullptr);
+      bool print_banner = true);
 
    void SetTime(real_t t) override { TimeDependentOperator::SetTime(t); }
 
@@ -265,9 +201,6 @@ public:
                                        Vector &eta_rhs) const;
 
    const Array<int>& GetEssentialTrueDofs() const { return ess_tdof_list; }
-
-   ParGridFunction& GetDisplacement() { return u_gf; }
-   ParGridFunction& GetVelocity() { return v_gf; }
 
    Array<int>& GetBlockOffsets() { return block_true_offsets; }
 
@@ -318,74 +251,6 @@ public:
       }
    }
 
-   void SetTrajectory(ForwardTrajectoryStorage *traj) { trajectory = traj; }
-   void SetObjective(TimeIntegratedObjective *obj) { objective = obj; }
-
-   void SetAdjointTimestep(int step) { current_adjoint_step = step; }
-
-   /// Store current state in trajectory (call during forward march)
-   void StoreTrajectoryStep(int step, const Vector &state) const
-   {
-      if (!trajectory) return;
-
-      BlockVector bstate(const_cast<Vector&>(state), block_true_offsets);
-      Vector u_true(bstate.GetBlock(0).GetData(), true_size);
-      Vector v_true(bstate.GetBlock(1).GetData(), true_size);
-
-      trajectory->Store(step, u_true, v_true, Kmat);
-   }
-
-   /// Accumulate objective functional during forward march
-   real_t AccumulateObjective(const Vector &state, real_t dt, int step, int total_steps) const
-   {
-      if (!objective) return 0.0;
-
-      BlockVector bstate(const_cast<Vector&>(state), block_true_offsets);
-      Vector u_true(bstate.GetBlock(0).GetData(), true_size);
-
-      u_gf.SetFromTrueDofs(u_true);
-      return objective->AccumulateTimestep(u_gf, dt, step, total_steps);
-   }
-
-   /// Initialize terminal condition for adjoint solve
-   /// From paper eq. 996-997: (A_N^+)^T η^N = q^N
-   /// For J_T = 0 (no terminal objective), η^N = 0
-   void InitializeTerminalAdjoint(Vector &eta_final) const
-   {
-      eta_final = 0.0;
-
-      // If terminal objective exists: η^N = ∂J_T/∂z^N
-      // For our case J_T = 0, so terminal adjoint is zero
-      // This would be modified if we have a terminal cost
-   }
-
-   /// Compute objective gradient at current timestep
-   /// Returns q^n = [∂J_Ω/∂u^n, ∂J_Ω/∂v^n]
-   void ComputeObjectiveGradient(int step, int total_steps, real_t dt,
-                                  Vector &q_u, Vector &q_v) const
-   {
-      q_u = 0.0;
-      q_v = 0.0;
-
-      if (!objective || !trajectory) return;
-      if (step >= trajectory->num_steps) return;
-
-      // Get forward state at this step
-      Vector *u_n = trajectory->u_traj[step];
-      if (!u_n) return;
-
-      // Set grid function from stored state
-      u_gf.SetFromTrueDofs(*u_n);
-
-      // Compute ∂J_Ω/∂u = 2 χ_Ω̃ u (from ObjectiveFunctional)
-      ParLinearForm grad_form(&fespace);
-      objective->ComputeObjectiveGradient(u_gf, dt, step, total_steps, grad_form);
-      grad_form.ParallelAssemble(q_u);
-
-      // For J = ∫∫ |u|² dx dt, we have ∂J_Ω/∂v = 0
-      // q_v already set to zero
-   }
-
    virtual ~ElastodynamicsOperator();
 };
 
@@ -406,16 +271,12 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    Array<int> &exterior_bdr_attr,
    Array<int> &ess_bdr_attr,
    MassSolverType mass_type,
-   bool print_banner,
-   ForwardTrajectoryStorage *traj,
-   TimeIntegratedObjective *obj)
+   bool print_banner)
    : TimeDependentOperator(2 * f.GetTrueVSize(), 0.0),
      fespace(f),
      mass_solver_type(mass_type),
      M_prec(nullptr),
      M_solver(nullptr),
-     u_gf(&fespace),
-     v_gf(&fespace),
      true_size(f.GetTrueVSize()),
      res(true_size),
      tmp(true_size),
@@ -425,10 +286,7 @@ ElastodynamicsOperator::ElastodynamicsOperator(
      load_phase(phase),
      load_frequency(frequency),
      load_time_profile(load_profile),
-     load_on_domain(domain_load),
-     trajectory(traj),
-     objective(obj),
-     current_adjoint_step(-1)
+     load_on_domain(domain_load)
 {
    int myid = Mpi::WorldRank();
 
@@ -438,8 +296,6 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    block_true_offsets[1] = true_size;
    block_true_offsets[2] = 2 * true_size;
 
-   u_gf = 0.0;
-   v_gf = 0.0;
    res = 0.0;
    tmp = 0.0;
    load_base_vector = 0.0;
@@ -726,66 +582,6 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
 
    Cabs_mat->MultTranspose(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
-
-   return;
-
-   // Adjoint RHS evaluation for discrete adjoint (DO) via RK4 transpose
-   // Following the pattern from tst_rk4_adj.cpp (lines 108-121)
-   //
-   // Forward system:
-   //   u̇ = v
-   //   v̇ = M^{-1}(-K u - C_vol v - C_abs v)
-   //
-   // Let F(z) = [v, M^{-1}(-K u - C v)] where z = [u, v]
-   //
-   // Jacobian transpose:
-   //   ∂F/∂z = [ 0           I           ]
-   //           [ -M^{-1}K   -M^{-1}C     ]
-   //
-   //   (∂F/∂z)^T = [ 0          -K^T M^{-T}      ]
-   //                [ I          -C^T M^{-T}     ]
-   //
-   // Adjoint equation: η̇ = -(∂F/∂z)^T η + q
-   // where η = [μ, λ], q = objective gradient
-
-   eta_rhs = 0.0;
-
-   BlockVector b_eta(const_cast<Vector&>(eta), block_true_offsets);
-   BlockVector b_eta_rhs(eta_rhs, block_true_offsets);
-
-   Vector mu(b_eta.GetBlock(0).GetData(), true_size);
-   Vector lambda(b_eta.GetBlock(1).GetData(), true_size);
-
-   // First adjoint equation: μ̇ = -0 * μ - I * λ + q_u
-   //                             = -λ + q_u
-   b_eta_rhs.GetBlock(0).Set(-1.0, lambda);
-
-   // Second adjoint equation: λ̇ = K^T M^{-T} μ + C^T M^{-T} λ + q_v
-   //
-   // Step 1: Compute rhs = K^T μ + C^T λ
-   Vector rhs(true_size);
-   rhs = 0.0;
-
-   // Add K^T μ
-   Kmat->MultTranspose(mu, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Add C_vol^T λ
-   Cvol_mat->MultTranspose(lambda, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Add C_abs^T λ
-   Cabs_mat->MultTranspose(lambda, tmp);
-   rhs.Add(1.0, tmp);
-
-   // Step 2: Solve M^T λ̇ = rhs  (since M is symmetric: M^T = M)
-   b_eta_rhs.GetBlock(1) = 0.0;
-   M_solver->Mult(rhs, b_eta_rhs.GetBlock(1));
-
-   // Note: Objective gradient q = [q_u, q_v] will be added separately
-   // during the adjoint RK4 march. The RK4 transpose will call this
-   // function at intermediate stages, and we'll add q at the full timestep.
-   // For J = ∫∫ |u|² dx dt, we have ∂J/∂v = 0, so q_v = 0
 }
 
 ElastodynamicsOperator::~ElastodynamicsOperator()
@@ -1217,8 +1013,11 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
    real_t t = t_init;
    const int total_steps = nsteps + 1;
 
-   // Progress monitoring (rank 0 only, throttled to ~10 lines per sweep).
-   const bool report = (progress_label != nullptr) && (Mpi::WorldRank() == 0);
+   // Progress monitoring, throttled to ~10 lines per sweep. NOTE: the report
+   // branch below contains an MPI_Allreduce, so ALL ranks must take it
+   // identically (guarding it with WorldRank()==0 deadlocks: rank 0 waits in
+   // the Allreduce while the others run ahead into the next step's matvec).
+   const bool report = (progress_label != nullptr);
    const double phase_t0 = MPI_Wtime();
    const int report_every = std::max(1, nsteps / 10);
 
@@ -1255,11 +1054,29 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
       if (report && ((i + 1) % report_every == 0 || i + 1 == nsteps))
       {
-         std::cout << "      " << progress_label << ' '
-                   << std::setw(6) << (i + 1) << '/' << nsteps
-                   << "  (" << std::setw(3) << (100 * (i + 1) / nsteps) << "%)"
-                   << "   " << std::fixed << std::setprecision(2)
-                   << (MPI_Wtime() - phase_t0) << " s\n";
+         // max|u| tracks pulse growth/decay and flags instability at a glance.
+         // Collective on all ranks; only root prints.
+         const int n_disp = x.Size() / 2;
+         real_t local_max_u = 0.0;
+         for (int j = 0; j < n_disp; j++)
+         {
+            local_max_u = std::max(local_max_u, std::abs(x[j]));
+         }
+         real_t global_max_u = 0.0;
+         MPI_Allreduce(&local_max_u, &global_max_u, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                       state_fes.GetComm());
+
+         if (Mpi::Root())
+         {
+            std::cout << "      " << progress_label << ' '
+                      << std::setw(6) << (i + 1) << '/' << nsteps
+                      << "  (" << std::setw(3) << (100 * (i + 1) / nsteps)
+                      << "%)   " << std::fixed << std::setprecision(2)
+                      << (MPI_Wtime() - phase_t0) << " s"
+                      << "   max|u| = " << std::scientific
+                      << std::setprecision(3) << global_max_u << "\n";
+         }
       }
    }
 
@@ -1490,11 +1307,145 @@ private:
    // Per-iteration forward state produced by PhysicsFSolve, consumed by the
    // adjoint steps. (Declared after the coefficients it references.)
    std::unique_ptr<ElastodynamicsOperator> oper_;
-   std::vector<Vector> states_;
-   std::vector<real_t> times_;
+
+   // Trajectory checkpointing (replaces full storage of states_/times_)
+   std::unique_ptr<TrajectoryCheckpointing<>> checkpoint_;
+   int num_checkpoints_;
+   Vector checkpoint_state_;  // Persistent state vector for checkpointing (survives forward->adjoint)
+
    Vector dJ_drho_tilde_;
    int outer_it_ = -1;
    bool banner_printed_ = false;   // operator banner prints once, not every iter
+
+   // Checkpointed forward sweep (returns J, checkpoints trajectory)
+   real_t RolloutObjectiveCheckpointed()
+   {
+      checkpoint_state_ = x0_;  // Use persistent member variable
+      real_t t = 0.0;
+      const int total_steps = nsteps_ + 1;
+
+      objective_.Reset();
+
+      RK4Solver solver;
+      solver.Init(*oper_);
+
+      // Primal step lambda for REVOLVE
+      auto primal_step = [&](int i, Vector &state)
+      {
+         real_t dt = h_;
+         real_t ti = i * h_;
+         solver.Step(state, ti, dt);
+      };
+
+      // Add initial objective contribution
+      AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
+                               objective_, checkpoint_state_, h_, 0, total_steps);
+
+      // Progress reporting (throttled to ~10 lines; max|u| flags instability).
+      const double phase_t0 = MPI_Wtime();
+      const int report_every = std::max(1, nsteps_ / 10);
+
+      // Forward loop with checkpointing
+      for (int i = 0; i < nsteps_; i++)
+      {
+         checkpoint_->ForwardStep(i, checkpoint_state_, t, primal_step);
+         t = (i + 1) * h_;
+
+         AddObjectiveContribution(state_fes_, oper_->GetBlockOffsets(),
+                                  objective_, checkpoint_state_, h_, i + 1, total_steps);
+
+         if ((i + 1) % report_every == 0 || i + 1 == nsteps_)
+         {
+            const int n_disp = checkpoint_state_.Size() / 2;
+            real_t local_max_u = 0.0;
+            for (int j = 0; j < n_disp; j++)
+            {
+               local_max_u = std::max(local_max_u,
+                                      std::abs(checkpoint_state_[j]));
+            }
+            real_t global_max_u = 0.0;
+            MPI_Allreduce(&local_max_u, &global_max_u, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                          state_fes_.GetComm());
+            if (Mpi::Root())
+            {
+               std::cout << "      forward " << std::setw(6) << (i + 1)
+                         << '/' << nsteps_
+                         << "  (" << std::setw(3) << (100 * (i + 1) / nsteps_)
+                         << "%)   " << std::fixed << std::setprecision(2)
+                         << (MPI_Wtime() - phase_t0) << " s"
+                         << "   max|u| = " << std::scientific
+                         << std::setprecision(3) << global_max_u << "\n";
+            }
+         }
+      }
+
+      return objective_.GetObjective();
+   }
+
+   // Checkpointed adjoint sweep (accumulates dJ/drho_tilde)
+   void AdjointDesignSweepCheckpointed()
+   {
+      const int n = x0_.Size();
+      const int total_steps = nsteps_ + 1;
+
+      dJ_drho_tilde_.SetSize(filter_fes_.GetTrueVSize());
+      dJ_drho_tilde_ = 0.0;
+
+      Vector q(n), lambda(n), lambda_prev(n), u_work(n);
+
+      // Terminal adjoint seed from the final forward state. checkpoint_state_
+      // still holds x(t_final) from the preceding RolloutObjectiveCheckpointed,
+      // so no forward re-run is needed here.
+      MFEM_VERIFY(checkpoint_state_.Size() == n,
+                  "AdjointDesignSweepCheckpointed: missing forward final state; "
+                  "call PhysicsFSolve first.");
+      u_work = checkpoint_state_;
+      ObjectiveGradientAtState(state_fes_, oper_->GetBlockOffsets(),
+                               objective_, u_work, h_, nsteps_, total_steps, lambda);
+
+      // Primal step lambda for REVOLVE (re-evaluation during adjoint)
+      auto primal_step = [&](int i, Vector &state)
+      {
+         real_t dt = h_;
+         real_t ti = i * h_;
+         RK4Solver reeval_solver;
+         reeval_solver.Init(*oper_);
+         reeval_solver.Step(state, ti, dt);
+      };
+
+      // Adjoint step lambda for REVOLVE
+      auto adjoint_step = [&](int i, const Vector &state_i, Vector &lambda_current)
+      {
+         real_t ti = i * h_;
+         RK4AdjointOneStepWithDesign(*oper_, state_fes_, filter_fes_, rho_tilde_,
+                                     mat_, state_i, ti, h_,
+                                     lambda_current, lambda_prev, dJ_drho_tilde_);
+
+         ObjectiveGradientAtState(state_fes_, oper_->GetBlockOffsets(),
+                                  objective_, state_i, h_, i, total_steps, q);
+         lambda_current = lambda_prev;
+         lambda_current += q;
+      };
+
+      // Backward loop with checkpointing (throttled progress, ~10 lines)
+      const double adj_t0 = MPI_Wtime();
+      const int adj_report_every = std::max(1, nsteps_ / 10);
+      for (int i = nsteps_ - 1; i >= 0; i--)
+      {
+         checkpoint_->BackwardStep(i, lambda, u_work, primal_step, adjoint_step);
+
+         const int done = nsteps_ - i;
+         if (Mpi::Root() && (done % adj_report_every == 0 || done == nsteps_))
+         {
+            std::cout << "      adjoint " << std::setw(6) << done
+                      << '/' << nsteps_
+                      << "  (" << std::setw(3) << (100 * done / nsteps_)
+                      << "%)   " << std::fixed << std::setprecision(2)
+                      << (MPI_Wtime() - adj_t0) << " s\n";
+         }
+      }
+   }
 
 public:
    TransientDesignSolver(ParFiniteElementSpace &state_fes,
@@ -1512,7 +1463,8 @@ public:
                          int nsteps, real_t h,
                          MassSolverType mass_type,
                          ParGridFunction &rho,
-                         ParGridFunction &rho_tilde)
+                         ParGridFunction &rho_tilde,
+                         int num_checkpoints = -1)  // -1 = auto-size
       : state_fes_(state_fes), filter_fes_(filter_fes), control_fes_(control_fes),
         filter_(filter), gamma_coef_(gamma_coef),
         exterior_bdr_attr_(exterior_bdr_attr), ess_bdr_attr_(ess_bdr_attr),
@@ -1526,7 +1478,10 @@ public:
         simp_stiff_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
         mass_coef_(simp_mass_, rho0_coef_),
         lambda_coef_(simp_stiff_, lambda0_coef_),
-        mu_coef_(simp_stiff_, mu0_coef_)
+        mu_coef_(simp_stiff_, mu0_coef_),
+        num_checkpoints_(num_checkpoints < 0 ?
+                         AutoCheckpointCount(nsteps, 0.0, 2 * state_fes.GetTrueVSize()) :
+                         num_checkpoints)
    {
       x0_ = 0.0;
    }
@@ -1555,23 +1510,34 @@ public:
                  /*print_banner=*/!banner_printed_);
       banner_printed_ = true;
 
+      // Initialize checkpointing system
+      const int state_size = x0_.Size();
+      checkpoint_ = std::make_unique<TrajectoryCheckpointing<>>(
+         nsteps_, num_checkpoints_, state_size);
+
       if (Mpi::Root())
       {
          std::cout << "    [it " << outer_it_ + 1 << "] forward sweep ("
-                   << nsteps_ << " steps)\n";
+                   << nsteps_ << " steps, " << num_checkpoints_ << " checkpoints)\n";
+         checkpoint_->PrintInfo();
       }
-      return RolloutObjective(*oper_, state_fes_, oper_->GetBlockOffsets(),
-                              objective_, x0_, nsteps_, 0.0, h_,
-                              &states_, &times_, "forward");
+
+      return RolloutObjectiveCheckpointed();
    }
 
-   // 3. Adjoint physics: backward discrete-adjoint sweep -> dJ/d(rho_tilde).
+   // 3. Adjoint physics: backward discrete-adjoint sweep with checkpointing -> dJ/d(rho_tilde).
    void PhysicsASolve()
    {
       MFEM_VERIFY(oper_, "PhysicsASolve() requires a preceding PhysicsFSolve().");
-      AdjointDesignSweep(*oper_, state_fes_, filter_fes_, rho_tilde_, mat_,
-                         objective_, states_, times_, nsteps_, h_,
-                         dJ_drho_tilde_, outer_it_);
+      MFEM_VERIFY(checkpoint_, "PhysicsASolve() requires initialized checkpointing.");
+
+      if (Mpi::Root())
+      {
+         std::cout << "    [it " << outer_it_ + 1 << "] adjoint sweep ("
+                   << nsteps_ << " steps, with checkpointed recomputation)\n";
+      }
+
+      AdjointDesignSweepCheckpointed();
    }
 
    // 4. Adjoint filter: transpose the filter, dJ/d(rho_tilde) -> dJ/d(rho).
@@ -1602,6 +1568,61 @@ public:
                 gamma_coef_, exterior_bdr_attr_, ess_bdr_attr_, objective_, mat_,
                 load_spec_, load_coef_, impedance_, nsteps_, h_, mass_type_);
    }
+
+   // NOTE: GetFinalState(), GetState(t), GetNumStates() removed with checkpointing.
+   // With REVOLVE, states are not stored - they're checkpointed and recomputed as needed.
+   // If visualization of intermediate states is needed, run a forward-only sweep separately.
+
+   // Forward-only sweep that stores ALL states (for visualization only).
+   // WARNING: This defeats the memory savings from checkpointing!
+   // Only use for first/last iteration visualization.
+   void ForwardVisualizationSweep(const Vector &rho_tv,
+                                   std::vector<Vector> &states_out,
+                                   std::vector<real_t> &times_out)
+   {
+      states_out.clear();
+      times_out.clear();
+      states_out.reserve(nsteps_ + 1);
+      times_out.reserve(nsteps_ + 1);
+
+      const int state_size = x0_.Size();
+      Vector x(x0_);  // Initial condition
+
+      // Store initial state
+      states_out.push_back(x);
+      times_out.push_back(0.0);
+
+      // Filter design (rho_tv already set by caller, rho_tilde_ and SIMP
+      // coefficients are already configured by preceding FilterFSolve)
+      // No need to filter again - SIMP coefficients already reference current rho_tilde_
+
+      // Create physics operator (same as PhysicsFSolve, but don't store in oper_)
+      ElastodynamicsOperator viz_oper(
+         state_fes_, mass_coef_, lambda_coef_, mu_coef_,
+         load_spec_.amplitude, load_spec_.duration, load_spec_.time_profile,
+         load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
+         load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
+         exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
+         /*print_banner=*/false);
+
+      // RK4 time integration
+      RK4Solver solver;
+      solver.Init(viz_oper);
+      real_t t = 0.0;
+
+      for (int i = 0; i < nsteps_; i++)
+      {
+         solver.Step(x, t, h_);
+         states_out.push_back(x);
+         times_out.push_back(t);
+      }
+   }
+
+   // Get timestep size
+   real_t GetTimeStep() const { return h_; }
+
+   // Get number of timesteps
+   int GetNumSteps() const { return nsteps_; }
 };
 
 } // namespace mfem

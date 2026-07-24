@@ -140,7 +140,7 @@ class ThicknessResidual : public QuantityOfInterest
             total_residual += res * res;
         }
 
-        return 0.5 * total_residual;
+        return 0.5 * total_residual / nrays;
     }
 
     // Gradient w.r.t. alpha: ∂R/∂α_i = - (A_i - α_i)
@@ -148,6 +148,7 @@ class ThicknessResidual : public QuantityOfInterest
     {
         grad.SetSize(nrays);
         grad = ray_residuals;
+        grad /= nrays;
         grad.Neg();  // - (A_i - α_i)
     }
 
@@ -178,7 +179,7 @@ class ThicknessResidual : public QuantityOfInterest
 
         for (int r = 0; r < nrays; r++)
         {
-            const real_t w = ray_residuals(r) * ds[r];     // (A_i − α_i) * ds_i
+            const real_t w = (ray_residuals(r) / nrays) * ds[r];     // (A_i − α_i) * ds_i
             for (int k = 0; k < nsamples; k++)
             {
                 const int idx = r * nsamples + k;
@@ -217,17 +218,17 @@ class AdvectThicknessResidual : public QuantityOfInterest
 private:
     MPI_Comm comm;
     
-    ParFiniteElementSpace *sub_fes;  // DG space for rho_a_sub
-
     ParSubMesh      *submesh;    // outflow boundary submesh (borrowed)
-    ParGridFunction *rho_a_full; // live full-DG forward field (borrowed from solver)
+    ParFiniteElementSpace *sub_fes;  // DG space for rho_a_sub
+    
+    const ParGridFunction *rho_a_full; // live full-DG forward field (borrowed from solver)
     ParGridFunction *rho_a_sub;  // outflow trace of rho_a (refreshed each eval)
     ParGridFunction *alpha;      // per-ray thickness design variables (live, owned by caller)
 
     void Refresh() { submesh->Transfer(*rho_a_full, *rho_a_sub); }
 
 public:
-    AdvectThicknessResidual(ParSubMesh &submesh_, ParGridFunction &rho_a_, ParGridFunction &alpha_)
+    AdvectThicknessResidual(ParSubMesh &submesh_, const ParGridFunction &rho_a_, ParGridFunction &alpha_)
     : comm(alpha_.ParFESpace()->GetComm()), sub_fes(alpha_.ParFESpace()),
         submesh(&submesh_), rho_a_full(&rho_a_),
         rho_a_sub(new ParGridFunction(sub_fes)), alpha(&alpha_)
