@@ -110,6 +110,7 @@ struct DerivativeAction
          direction_fd, *de, direction_e, dof_ordering);
 
       shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
       constexpr_for<0, ninputs>([&](auto i)
       {
          if (!input_active[i]) { return; }
@@ -123,6 +124,7 @@ struct DerivativeAction
 
       // Q -> Q
       yq = 0.0;
+      yq.SyncToBlocks();
       if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
       {
          detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,

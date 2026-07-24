@@ -136,6 +136,7 @@ struct DerivativeSetup
             for (int m = 0; m < trial_op_dim_s; m++)
             {
                shadow_xq = 0.0;
+               shadow_xq.SyncToBlocks();
 
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
@@ -146,6 +147,7 @@ struct DerivativeSetup
                }
 
                yq = 0.0;
+               yq.SyncToBlocks();
 
                if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
                {
