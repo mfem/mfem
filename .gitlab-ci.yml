@@ -452,12 +452,9 @@ include:
   - local: '.gitlab/custom-variables.yml'
 
 ###############################################################################
-# Subscribed sub-pipelines
+# Prerequisites
 ###############################################################################
-# Trigger a build-and-test pipeline for a machine.
-# Comment the jobs for machines you don’t need.
-
-# One job to generate the job list for all the subpipelines
+# One job to generate the job list for all the machine pipelines.
 generate-job-lists:
   stage: prerequisites
   tags: [shell, oslic]
@@ -493,6 +490,38 @@ generate-job-lists:
       - tioga-jobs.yml
 
 
+###############################################################################
+# MFEM-specific pipelines
+###############################################################################
+# DANE baseline check (not based on a radiuss-shared-ci component).
+dane-baseline:
+  stage: build-and-test
+  extends: [.dane]
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    # Note: in some cases, this does not work as expected, e.g. when the
+    # variable is not re-defined in the web interface; in such cases, the child
+    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
+    # AUTOTEST is undefined, even though there is a default value in
+    # .gitlab-ci.yml.
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
+  trigger:
+    include: .gitlab/dane-baseline.yml
+    strategy: depend
+    forward:
+      pipeline_variables: true
+  needs: [dane-up-check]
+
+###############################################################################
+# Component-based pipelines
+###############################################################################
+# Trigger a build-and-test pipeline for a machine.
+# Comment the jobs for machines you don’t need.
+
 # DANE
 dane-up-check:
   variables:
@@ -526,30 +555,6 @@ dane-build-and-test:
     strategy: depend
     forward:
       pipeline_variables: true
-
-# DANE, MFEM Specific
-dane-baseline:
-  stage: build-and-test
-  extends: [.dane]
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    # Note: in some cases, this does not work as expected, e.g. when the
-    # variable is not re-defined in the web interface; in such cases, the child
-    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
-    # AUTOTEST is undefined, even though there is a default value in
-    # .gitlab-ci.yml.
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
-  trigger:
-    include: .gitlab/dane-baseline.yml
-    strategy: depend
-    forward:
-      pipeline_variables: true
-  needs: [dane-up-check]
-
 
 # TIOGA
 tioga-up-check:
