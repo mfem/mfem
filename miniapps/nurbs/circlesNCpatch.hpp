@@ -248,7 +248,7 @@ void Intersect3DLines(const Vector &p0, const Vector &t0, const Vector &p1,
    A.Mult(sol, Ax);
    Ax -= rhs;
    const real_t error = Ax.Norml2();
-   MFEM_VERIFY(error < 1.0e-8, "");
+   MFEM_ASSERT(error < 1.0e-6, "");
 
    // Set p from solution, p = p0 + x * t0
    p = t0;

@@ -403,7 +403,7 @@ void SolvePhysicalGridSweep(const Array3D<real_t> &grid, int ned,
 // refined to match the number of elements in `mesh`.
 void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
                           const Array3D<real_t> &grid, int dir, int side,
-                          Mesh &mesh)
+                          real_t conv_tol, Mesh &mesh)
 {
    Mesh mesh0(mesh0_); // Deep copy to be modified
    MFEM_VERIFY(mesh0.GetNE() == 1, "");
@@ -459,8 +459,6 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
       real_t u0 = 0.0;
       real_t u1 = 1.0;
 
-      constexpr real_t conv_tol = 1.0e-12;
-
       Vector v2(sdim);
       Vector v0(sdim);
       Vector tp(sdim);
@@ -473,7 +471,7 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
          tp[j] = p[j] - v0[j];
       }
 
-      if (tp.Norml2() < 1.0e-6)
+      if (tp.Norml2() < conv_tol)
       {
          return (real_t) 0.0;
       }
@@ -600,7 +598,8 @@ Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
 void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
                            const Array3D<double> &coarsePatchCP, int order,
                            int ned, std::array<int, 3> nel,
-                           const Array3D<real_t> &grid, bool sweep1D);
+                           const Array3D<real_t> &grid, bool sweep1D,
+                           real_t conv_tol);
 
 // For a given side of a single hexahedral patch in 3D, solve for control points
 // only on that side to interpolate a 2D side grid extracted from the input 3D
@@ -609,7 +608,8 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
 void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
                        const Array3D<double> &coarsePatchCP, int order, int ned,
                        std::array<int, 3> nel, const Array3D<real_t> &grid,
-                       int dir, int side, bool sweep1D, Mesh &mesh)
+                       int dir, int side, bool sweep1D, real_t conv_tol,
+                       Mesh &mesh)
 {
    const int sdim = mesh.SpaceDimension(); // Space dimension
 
@@ -728,7 +728,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
    }
 
    SolvePhysicalGridBdry(faceMesh, faceMesh0, p, facePatchCP0, order, ned,
-                         nelFace, faceGrid, sweep1D);
+                         nelFace, faceGrid, sweep1D, conv_tol);
 
    // Copy control points from physically spaced faceMesh to mesh.
 
@@ -766,16 +766,17 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
 void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
                            const Array3D<double> &coarsePatchCP, int order,
                            int ned, std::array<int, 3> nel,
-                           const Array3D<real_t> &grid, bool sweep1D)
+                           const Array3D<real_t> &grid, bool sweep1D,
+                           real_t conv_tol)
 {
    const int dim = mesh0.Dimension(); // Reference space dimension
 
    if (dim == 2)
    {
-      SolveBoundarySegment(mesh0, ned, nel, grid, 0, 0, mesh);
-      SolveBoundarySegment(mesh0, ned, nel, grid, 0, 1, mesh);
-      SolveBoundarySegment(mesh0, ned, nel, grid, 1, 0, mesh);
-      SolveBoundarySegment(mesh0, ned, nel, grid, 1, 1, mesh);
+      SolveBoundarySegment(mesh0, ned, nel, grid, 0, 0, conv_tol, mesh);
+      SolveBoundarySegment(mesh0, ned, nel, grid, 0, 1, conv_tol, mesh);
+      SolveBoundarySegment(mesh0, ned, nel, grid, 1, 0, conv_tol, mesh);
+      SolveBoundarySegment(mesh0, ned, nel, grid, 1, 1, conv_tol, mesh);
    }
    else // dim == 3
    {
@@ -784,7 +785,7 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
       for (int dir=0; dir<3; ++dir)
          for (int side=0; side<2; ++side)
             SolveBoundaryFace(mesh0, patchIndex, coarsePatchCP, order, ned, nel,
-                              grid, dir, side, sweep1D, mesh);
+                              grid, dir, side, sweep1D, conv_tol, mesh);
    }
 
    if (sweep1D)
@@ -804,7 +805,8 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
 // in each direction of the patch is in nel.
 void GetSpacedPatchGrid(Mesh &mesh,
                         const std::vector<const SpacingFunction*> &sf,
-                        int ned, std::array<int, 3> nel, Array3D<real_t> &grid)
+                        int ned, std::array<int, 3> nel, real_t conv_tol,
+                        Array3D<real_t> &grid)
 {
    Array3D<real_t> ugrid(grid.GetSize1(), grid.GetSize2(), grid.GetSize3());
 
@@ -1050,8 +1052,6 @@ void GetSpacedPatchGrid(Mesh &mesh,
                real_t u0 = 0.0;
                real_t u1 = 1.0;
 
-               constexpr real_t conv_tol = 1.0e-12;
-
                int iter = 0;
                while (iter < 200)
                {
@@ -1150,7 +1150,7 @@ void GetSpacedPatchGrid(Mesh &mesh,
 void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
                           const Array3D<double> &coarsePatchCP,
                           const Mesh &mesh0, int order, int ned,
-                          std::array<int, 3> nel, bool sweep1D)
+                          std::array<int, 3> nel, bool sweep1D, real_t tol)
 {
    const int dim = mesh0.Dimension(); // Reference space dimension
    const int sdim = mesh0.SpaceDimension(); // Space dimension
@@ -1181,9 +1181,9 @@ void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
       sf[i] = patch->GetKV(i)->spacing.get();
    }
 
-   GetSpacedPatchGrid(mesh, sf, ned, nel, grid);
+   GetSpacedPatchGrid(mesh, sf, ned, nel, tol, grid);
    SolvePhysicalGridBdry(mesh, mesh0, patchIndex, coarsePatchCP, order, ned,
-                         nel, grid, sweep1D);
+                         nel, grid, sweep1D, tol);
 
    // Copy control points from mesh to patch.
 

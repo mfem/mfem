@@ -5956,9 +5956,10 @@ void NURBSExtension::GetCoarsePatchCP(int p, Array2D<real_t> &cp) const
 void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
                           const Array3D<double> &coarsePatchCP,
                           const Mesh &mesh0, int mOrder, int ned,
-                          std::array<int, 3> nel, bool sweep1D);
+                          std::array<int, 3> nel, bool sweep1D, real_t tol);
 
-void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
+void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D,
+                                     real_t tol)
 {
    if (patches.Size() == 0)
    {
@@ -5993,11 +5994,12 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
       MFEM_VERIFY(patch_to_el[p].Size() == ne[0] * ne[1] * ne[2], "");
       MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1] * ncp[2], "");
 
-      // ncp = (ne * ned) + 1 where ned is the number of DOFs per element minus 1.
+      // ncp = (ne * ned) + 1 where ned = number of DOFs per element minus 1.
       const int ned = (ncp[0] - 1) / ne[0];
       MFEM_VERIFY(ned == (ncp[1] - 1) / ne[1], "");
       MFEM_VERIFY(patch->GetKV(0)->GetOrder() == ned, "");
-      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == patch->GetKV(1)->GetOrder(), "");
+      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == patch->GetKV(1)->GetOrder(),
+                  "");
 
       const int ncp0 = mOrder + 1;
 
@@ -6011,7 +6013,8 @@ void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D)
          mesh0.DegreeElevate(mOrder - mesh0.NURBSext->GetOrder());
       }
 
-      PatchPhysicalSpacing(patch, p, patchCP, mesh0, mOrder, ned, ne, sweep1D);
+      PatchPhysicalSpacing(patch, p, patchCP, mesh0, mOrder, ned, ne, sweep1D,
+                           tol);
    }
 }
 

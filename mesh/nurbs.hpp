@@ -1184,8 +1184,14 @@ public:
        point data from the input @a Nodes. If @a sweep1D is true, an approximate
        1D sweeping solver is used; otherwise, a more expensive full-dimensional
        system solver is used on each patch. The 1D sweeping solver is more
-       efficient, usually with a small loss of accuracy. */
-   void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true);
+       efficient, usually with a small loss of accuracy. The input tolerance is
+       used for solver convergence. */
+   void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true,
+#ifdef MFEM_USE_SINGLE
+                        real_t tol = 1.0e-6);
+#else
+                        real_t tol = 1.0e-12);
+#endif
 
    /// Set the number of patches which should have coarse control point data.
    void SetNumCoarsePatches(int n);
