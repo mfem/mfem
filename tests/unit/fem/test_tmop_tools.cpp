@@ -20,7 +20,7 @@ using namespace mfem;
 namespace
 {
 
-void StateRegressionVectorFieldCoefficient(const Vector &x, Vector &v)
+void VectorFieldCoeff(const Vector &x, Vector &v)
 {
    const real_t pi = 3.14159265358979323846;
    v.SetSize(2);
@@ -49,7 +49,7 @@ void CurveMesh(Mesh &mesh)
    mesh.NodesUpdated();
 }
 
-void MoveNodesForStateRegression(const Vector &nodes, Vector &new_nodes)
+void MoveNodes(const Vector &nodes, Vector &new_nodes)
 {
    new_nodes = nodes;
    real_t *x = new_nodes.HostReadWrite();
@@ -98,7 +98,7 @@ void RunAdvectorCGRemap(AssemblyLevel al, bool use_device,
 
    GridFunction field_gf(&field_fes);
    VectorFunctionCoefficient field_coeff(dim,
-                                         StateRegressionVectorFieldCoefficient);
+                                         VectorFieldCoeff);
    field_gf.ProjectCoefficient(field_coeff);
    if (use_device) { field_gf.UseDevice(true); }
 
@@ -107,7 +107,7 @@ void RunAdvectorCGRemap(AssemblyLevel al, bool use_device,
    else { ForceHost(initial_field); }
 
    Vector new_nodes;
-   MoveNodesForStateRegression(*mesh.GetNodes(), new_nodes);
+   MoveNodes(*mesh.GetNodes(), new_nodes);
    if (use_device) { new_nodes.UseDevice(true); }
    else { ForceHost(new_nodes); }
 
