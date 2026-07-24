@@ -59,6 +59,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
          }
       }
       ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
+      if (fes_ordering == Ordering::byNODES)
+      {
+         new_field_temp.SyncAliasMemory(new_field);
+      }
       if (fes_ordering == Ordering::byVDIM)
       {
          for (int j = 0; j < dof_cnt; j++)

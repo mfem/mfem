@@ -15,6 +15,37 @@
 
 using namespace mfem;
 
+namespace
+{
+
+constexpr int alias_block_size = 1024;
+
+real_t ModifyThroughAlias(bool sync_aliases)
+{
+   Vector base(2*alias_block_size);
+   base = 100.0;
+   base.UseDevice(true);
+
+   Vector left, right;
+   left.MakeRef(base, 0, alias_block_size);
+   right.MakeRef(base, alias_block_size, alias_block_size);
+   left.UseDevice(true);
+   right.UseDevice(true);
+
+   left = 0.0;
+   right = 1.0;
+
+   if (sync_aliases)
+   {
+      left.SyncAliasMemory(base);
+      right.SyncAliasMemory(base);
+   }
+
+   return base.Norml2();
+}
+
+} // namespace
+
 TEST_CASE("Vector init-list and C-style array constructors", "[Vector]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
@@ -246,6 +277,22 @@ TEST_CASE("Vector Sum", "[Vector],[GPU]")
    const real_t sum_2 = x.Sum();
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
+}
+
+TEST_CASE("Vector aliases require SyncAliasMemory", "[Vector][GPU]")
+{
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      return;
+   }
+
+   const real_t expected = sqrt(real_t(alias_block_size));
+
+   const real_t synced_norm = ModifyThroughAlias(true);
+   REQUIRE(synced_norm == MFEM_Approx(expected));
+
+   const real_t unsynced_norm = ModifyThroughAlias(false);
+   REQUIRE(unsynced_norm != MFEM_Approx(expected));
 }
 
 TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
