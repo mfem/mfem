@@ -276,8 +276,6 @@ public:
       MultiVector X{u, coords};
       MultiVector Y{Hv};
       functional_dop->GetSecondDerivative(U, X)->Mult(v, Y);
-      Vector diag(Hv.Size());
-      functional_dop->GetSecondDerivative(U, X)->AssembleDiagonal(diag);
    }
 
 private:
