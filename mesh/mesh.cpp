@@ -667,9 +667,101 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          }
          EdTr->SetFE(edge_el);
       }
-      else
+      else // L2 Nodes (e.g., periodic mesh), go through the face containing the edge
       {
-         MFEM_ABORT("Not implemented.");
+         // Search for a face that contains this edge
+         int face_no = -1;
+         int local_idx = -1;
+
+         const Table *face_edge_table = GetFaceEdgeTable();
+
+         for (int f = 0; f < NumOfFaces; f++)
+         {
+            const int *face_edges = face_edge_table->GetRow(f);
+            const int nfe = face_edge_table->RowSize(f);
+            for (int i = 0; i < nfe; i++)
+            {
+               if (face_edges[i] == EdgeNo)
+               {
+                  face_no = f;
+                  local_idx = i;
+                  break;
+               }
+            }
+            if (face_no >= 0) { break; }
+         }
+
+         MFEM_VERIFY(face_no >= 0, "Edge not found in any face!");
+
+         // Get face information and element
+         const FaceInfo &face_info = faces_info[face_no];
+
+         // Determine edge orientation within the face
+         const int *v = faces[face_no]->GetVertices();
+         const int *e = faces[face_no]->GetEdgeVertices(local_idx);
+         int edge_ori = (v[e[0]] < v[e[1]]) ? (0) : (1);
+
+         // Get transformation from face to edge
+         IntegrationPointTransformation LocEdge;
+         int edge_info = EncodeFaceInfo(local_idx, edge_ori);
+         Element::Type face_type = GetFaceElementType(face_no);
+
+         switch (face_type)
+         {
+            case Element::TRIANGLE:
+               GetLocalSegToTriTransformation(LocEdge.Transf, edge_info);
+               break;
+            case Element::QUADRILATERAL:
+               GetLocalSegToQuadTransformation(LocEdge.Transf, edge_info);
+               break;
+            default:
+               MFEM_ABORT("Unsupported face type for edge transformation!");
+         }
+
+         // Get edge element
+         const int order = Nodes->FESpace()->GetElementOrder(face_info.Elem1No);
+         const L2_FECollection *l2_fec = dynamic_cast<const L2_FECollection*>
+                                         (Nodes->FESpace()->FEColl());
+         if (l2_fec)
+         {
+            // L2 elements do not have a defined trace space
+            if (!EdgeTransfElement || EdgeTransfElement->GetOrder() != order
+                || EdgeTransfElement->GetBasisType() != l2_fec->GetBasisType())
+            {
+               EdgeTransfElement = make_unique<L2_SegmentElement>(
+                                      order, l2_fec->GetBasisType());
+            }
+            edge_el = EdgeTransfElement.get();
+         }
+         else
+         {
+            FiniteElementCollection *trace_fec =
+               Nodes->FESpace()->FEColl()->GetTraceCollection();
+            edge_el = trace_fec->GetTraceFE(Geometry::SEGMENT, order);
+            MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(edge_el),
+                        "Mesh requires nodal Finite Element.");
+         }
+
+         // Map edge nodes to face reference space
+         IntegrationRule face_ir(edge_el->GetDof());
+         LocEdge.Transform(edge_el->GetNodes(), face_ir);
+
+         // Then, map from face to element
+         IntegrationPointTransformation Loc1;
+         GetLocalFaceTransformation(face_type,
+                                    GetElementType(face_info.Elem1No),
+                                    Loc1.Transf, face_info.Elem1Inf);
+
+         IntegrationRule elem_ir(edge_el->GetDof());
+         Loc1.Transf.ElementNo = face_info.Elem1No;
+         Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         Loc1.Transf.mesh = this;
+         Loc1.Transform(face_ir, elem_ir);
+
+         // Finally, get the physical coordinates
+         Nodes->GetVectorValues(Loc1.Transf, elem_ir, pm);
+
+         EdTr->SetFE(edge_el);
       }
    }
 }
