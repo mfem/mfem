@@ -260,8 +260,7 @@ protected:
    IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
-   mutable std::unique_ptr<FiniteElement> EdgeTransfElement;
-   mutable int EdgeTransfElementBasisType;
+   mutable std::unique_ptr<L2_SegmentElement> EdgeTransfElement;
 
    // refinement embeddings for forward compatibility with NCMesh
    mutable CoarseFineTransformations CoarseFineTr;

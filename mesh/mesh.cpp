@@ -725,12 +725,11 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          if (l2_fec)
          {
             // L2 elements do not have a defined trace space
-            if (!EdgeTransfElement || EdgeTransfElement->GetOrder() != order ||
-                EdgeTransfElementBasisType != l2_fec->GetBasisType())
+            if (!EdgeTransfElement || EdgeTransfElement->GetOrder() != order
+                || EdgeTransfElement->GetBasisType() != l2_fec->GetBasisType())
             {
-               EdgeTransfElementBasisType = l2_fec->GetBasisType();
-               EdgeTransfElement = make_unique<L2_SegmentElement>(order,
-                                                                  EdgeTransfElementBasisType);
+               EdgeTransfElement = make_unique<L2_SegmentElement>(
+                                      order, l2_fec->GetBasisType());
             }
             edge_el = EdgeTransfElement.get();
          }
