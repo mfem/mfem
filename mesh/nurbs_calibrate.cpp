@@ -280,7 +280,9 @@ void SolvePhysicalGridSweep(const Array3D<real_t> &grid, int ned,
    std::vector<Vector> ugrid(dim);
 
    for (int i = 0; i < dim; ++i)
+   {
       mesh.NURBSext->GetKnotVector(i)->GetDemko(ugrid[i]);
+   }
 
    Array<int> pdofs;
    mesh.NURBSext->GetPatchDofs(patch, pdofs);
